@@ -201,7 +201,16 @@ class ModelIO:
             if hasattr(obj, "model_dump"):
                 # Handle Pydantic models (e.g., HSGPKwargs)
                 return obj.model_dump(mode="json")
-            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+            # For other objects, try to use their __dict__ but filter out non-serializable items
+            if hasattr(obj, "__dict__"):
+                # Filter out methods, functions, and other non-serializable attributes
+                return {
+                    k: v
+                    for k, v in obj.__dict__.items()
+                    if not callable(v) and not k.startswith("_")
+                }
+            # Last resort: convert to string representation
+            return str(obj)
 
         hasher = hashlib.sha256()
         # Use JSON serialization with custom default for deterministic model IDs
@@ -243,10 +252,16 @@ class ModelIO:
             if hasattr(obj, "model_dump"):
                 # Handle Pydantic models (e.g., HSGPKwargs)
                 return obj.model_dump(mode="json")
-            # Let json.dumps raise TypeError for truly non-serializable objects
-            raise TypeError(
-                f"Object of type {type(obj).__name__} is not JSON serializable"
-            )
+            # For other objects, try to use their __dict__ but filter out non-serializable items
+            if hasattr(obj, "__dict__"):
+                # Filter out methods, functions, and other non-serializable attributes
+                return {
+                    k: v
+                    for k, v in obj.__dict__.items()
+                    if not callable(v) and not k.startswith("_")
+                }
+            # Last resort: convert to string representation
+            return str(obj)
 
         attrs: dict[str, str] = {}
 
