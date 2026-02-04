@@ -26,6 +26,69 @@ from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
 from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 
+def _create_saturation_mock_summary(
+    df: pd.DataFrame,
+    custom_dims: list[str],
+    channels: list[str] | None = None,
+) -> Mock:
+    """Create mock summary for saturation_curves tests with proper channel scale.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame to return from saturation_curves()
+    custom_dims : list[str]
+        Custom dimensions (e.g., ["geo"], ["geo", "brand"])
+    channels : list[str], optional
+        Channel names. If None, extracted from df["channel"].unique()
+
+    Returns
+    -------
+    Mock
+        Properly configured mock summary
+    """
+    mock_summary = Mock(spec=MMMSummaryFactory)
+    mock_summary.saturation_curves.return_value = df
+    mock_summary.data = Mock(custom_dims=custom_dims)
+
+    # Extract channels from data if not provided
+    if channels is None:
+        channels = df["channel"].unique().tolist()
+
+    # Build channel_scale DataArray with correct dimensions
+    if len(custom_dims) == 0:
+        # Simple case: just channels
+        channel_scale = xr.DataArray(
+            [1.0] * len(channels),
+            dims=["channel"],
+            coords={"channel": channels},
+        )
+    elif len(custom_dims) == 1:
+        # One custom dim: (channel, custom_dim)
+        coords = df[custom_dims[0]].unique().tolist()
+        channel_scale = xr.DataArray(
+            np.ones((len(channels), len(coords))),
+            dims=["channel", custom_dims[0]],
+            coords={"channel": channels, custom_dims[0]: coords},
+        )
+    else:
+        # Two custom dims: (channel, dim1, dim2)
+        coords1 = df[custom_dims[0]].unique().tolist()
+        coords2 = df[custom_dims[1]].unique().tolist()
+        channel_scale = xr.DataArray(
+            np.ones((len(channels), len(coords1), len(coords2))),
+            dims=["channel", custom_dims[0], custom_dims[1]],
+            coords={
+                "channel": channels,
+                custom_dims[0]: coords1,
+                custom_dims[1]: coords2,
+            },
+        )
+
+    mock_summary.data.get_channel_scale.return_value = channel_scale
+    return mock_summary
+
+
 class TestMMMPlotlyFactoryContributions:
     """Tests for MMMPlotlyFactory.contributions() method."""
 
@@ -598,10 +661,7 @@ class TestMMMPlotlyFactorySaturationCurves:
                 "abs_error_94_upper": np.random.rand(100) * 1.2,
             }
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -624,10 +684,7 @@ class TestMMMPlotlyFactorySaturationCurves:
                 "abs_error_94_upper": np.concatenate([x_vals * 0.9, x_vals * 0.7]),
             }
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -654,10 +711,7 @@ class TestMMMPlotlyFactorySaturationCurves:
                 "abs_error_94_upper": np.concatenate([x_vals * 0.9, x_vals * 0.7]),
             }
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -685,10 +739,7 @@ class TestMMMPlotlyFactorySaturationCurves:
                 "abs_error_94_upper": np.random.rand(40) * 1.2,
             }
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["country"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["country"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -729,10 +780,7 @@ class TestMMMPlotlyFactorySaturationCurves:
                 "abs_error_94_upper": mean_values * 1.2,
             }
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["country"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["country"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -797,10 +845,7 @@ class TestMMMPlotlyFactorySaturationCurves:
                 "median": mean_values,
             }
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo", "brand"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1045,10 +1090,7 @@ class TestSaturationCurvesOneCustomDim:
         df = _create_saturation_df_one_custom_dim(
             n_channels=2, n_coords=2, custom_dim="geo"
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1071,10 +1113,7 @@ class TestSaturationCurvesOneCustomDim:
         df = _create_saturation_df_one_custom_dim(
             n_channels=2, n_coords=2, custom_dim="geo"
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1099,10 +1138,7 @@ class TestSaturationCurvesOneCustomDim:
         df = _create_saturation_df_one_custom_dim(
             n_channels=2, n_coords=2, custom_dim="geo"
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1126,10 +1162,7 @@ class TestSaturationCurvesOneCustomDim:
         df = _create_saturation_df_one_custom_dim(
             n_channels=2, n_coords=2, custom_dim="geo"
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1151,10 +1184,7 @@ class TestSaturationCurvesOneCustomDim:
         df = _create_saturation_df_one_custom_dim(
             n_channels=2, n_coords=2, custom_dim="geo"
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1187,10 +1217,7 @@ class TestSaturationCurvesTwoCustomDims:
             custom_dim1="geo",
             custom_dim2="brand",
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo", "brand"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1221,10 +1248,7 @@ class TestSaturationCurvesTwoCustomDims:
             custom_dim1="geo",
             custom_dim2="brand",
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo", "brand"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act & Assert - Should raise ValueError because too many combinations
@@ -1245,10 +1269,7 @@ class TestSaturationCurvesTwoCustomDims:
             custom_dim1="geo",
             custom_dim2="brand",
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo", "brand"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1278,10 +1299,7 @@ class TestSaturationCurvesTwoCustomDims:
             custom_dim1="geo",
             custom_dim2="brand",
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo", "brand"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -1309,10 +1327,7 @@ class TestSaturationCurvesTwoCustomDims:
             custom_dim1="geo",
             custom_dim2="brand",
         )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.saturation_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=["geo", "brand"])
-
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
