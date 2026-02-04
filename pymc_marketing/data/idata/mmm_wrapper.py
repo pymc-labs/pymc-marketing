@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.data.idata.schema import Frequency
+
 
 class MMMIDataWrapper:
     """Codified wrapper around InferenceData for MMM models.
@@ -552,7 +554,7 @@ class MMMIDataWrapper:
 
     def aggregate_time(
         self,
-        period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+        period: Frequency,
         method: Literal["sum", "mean"] = "sum",
     ) -> "MMMIDataWrapper":
         """Aggregate data over time periods.
@@ -561,8 +563,8 @@ class MMMIDataWrapper:
 
         Parameters
         ----------
-        period : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
-            Time period to aggregate to
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+            Time period to aggregate to. Use "original" for no aggregation.
         method : {"sum", "mean"}, default "sum"
             Aggregation method
 
