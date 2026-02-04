@@ -112,9 +112,13 @@ class BackendConverter:
         """
         import narwhals as nw
 
-        # Convert to narwhals DataFrame, then to pandas
+        # Convert to narwhals DataFrame, collect lazy frames, then to pandas
         # This handles pandas, polars (eager and lazy), and PySpark
         nw_df = nw.from_native(df)
+
+        if hasattr(nw_df, "collect") and not hasattr(nw_df, "to_pandas"):
+            nw_df = nw_df.collect()
+
         return nw_df.to_pandas()
 
     def assert_frame_equal(
