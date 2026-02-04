@@ -129,7 +129,21 @@ class SpecialPrior(ABC):
             )
             raise ValueError(msg)
 
-        kwargs = data.get("kwargs", {})
+        # Extract special keys
+        centered = data.get("centered", True)
+        dims = data.get("dims")
+        # Convert dims to tuple if it's a list (e.g., from YAML)
+        if isinstance(dims, list):
+            dims = tuple(dims)
+
+        # Check if parameters are in kwargs or at top level
+        if "kwargs" in data:
+            # Parameters are in kwargs subdictionary
+            kwargs = data.get("kwargs", {})
+        else:
+            # Parameters are at top level - extract everything except special keys
+            special_keys = {"special_prior", "centered", "dims"}
+            kwargs = {k: v for k, v in data.items() if k not in special_keys}
 
         def handle_value(value):
             if isinstance(value, dict):
@@ -141,8 +155,6 @@ class SpecialPrior(ABC):
             return value
 
         kwargs = {param: handle_value(value) for param, value in kwargs.items()}
-        centered = data.get("centered", True)
-        dims = data.get("dims")
 
         return cls(dims=dims, centered=centered, **kwargs)
 

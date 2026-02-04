@@ -308,8 +308,8 @@ def test_special_prior_in_yaml(tmp_path):
                         "priors": {
                             "lam": {
                                 "special_prior": "LogNormalPrior",
-                                "mu": 1.0,
-                                "sigma": 0.5,
+                                "mean": 1.0,
+                                "std": 0.5,
                                 "dims": ["channel"],
                             },
                             "beta": {
@@ -350,8 +350,10 @@ def test_special_prior_in_yaml(tmp_path):
     assert hasattr(lam_prior, "to_dict")
     lam_dict = lam_prior.to_dict()
     assert lam_dict.get("special_prior") == "LogNormalPrior"
-    assert lam_dict.get("mu") == 1.0
-    assert lam_dict.get("sigma") == 0.5
+    # Parameters are stored in kwargs subdictionary
+    assert lam_dict.get("kwargs", {}).get("mean") == 1.0
+    assert lam_dict.get("kwargs", {}).get("std") == 0.5
+    assert lam_dict.get("dims") == ("channel",)
 
     # Fit the model to ensure SpecialPrior works end-to-end
     model.fit(X=X, y=y)
