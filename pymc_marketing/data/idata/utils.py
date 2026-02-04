@@ -19,6 +19,8 @@ import arviz as az
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.data.idata.schema import Frequency
+
 
 def filter_idata_by_dates(
     idata: az.InferenceData,
@@ -135,7 +137,7 @@ def filter_idata_by_dims(
 
 def aggregate_idata_time(
     idata: az.InferenceData,
-    period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+    period: Frequency,
     method: Literal["sum", "mean"] = "sum",
 ) -> az.InferenceData:
     """Aggregate InferenceData over time periods.
@@ -144,22 +146,28 @@ def aggregate_idata_time(
     ----------
     idata : az.InferenceData
         InferenceData object to aggregate
-    period : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
-        Time period to aggregate to. Use "all_time" to aggregate over
-        the entire time dimension (removes the date dimension).
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to aggregate to. Use "original" for no aggregation (returns
+        unchanged), "all_time" to aggregate over the entire time dimension
+        (removes the date dimension).
     method : {"sum", "mean"}, default "sum"
         Aggregation method
 
     Returns
     -------
     az.InferenceData
-        New InferenceData with aggregated groups
+        New InferenceData with aggregated groups (or unchanged if period="original")
 
     Examples
     --------
+    >>> original = aggregate_idata_time(idata, "original")  # No aggregation
     >>> monthly = aggregate_idata_time(idata, "monthly", method="sum")
     >>> total = aggregate_idata_time(idata, "all_time", method="sum")
     """
+    # Handle "original" - no aggregation, return unchanged
+    if period == "original":
+        return idata
+
     # Handle "all_time" aggregation (removes date dimension entirely)
     if period == "all_time":
         aggregated_groups = {}
