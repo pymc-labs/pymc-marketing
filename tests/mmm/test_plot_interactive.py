@@ -90,6 +90,176 @@ def _create_saturation_mock_summary(
     return mock_summary
 
 
+def _create_simple_mock_summary(
+    df: pd.DataFrame | None = None,
+    custom_dims: list[str] | None = None,
+    method_name: str = "contributions",
+) -> Mock:
+    """Create a simple mock summary for non-saturation tests.
+
+    Parameters
+    ----------
+    df : pd.DataFrame, optional
+        DataFrame to return from the specified method. If None, creates default contributions data.
+    custom_dims : list[str], optional
+        Custom dimensions. Defaults to empty list.
+    method_name : str, optional
+        Name of the method to mock (e.g., "contributions", "roas"). Defaults to "contributions".
+
+    Returns
+    -------
+    Mock
+        Properly configured mock summary
+    """
+    if custom_dims is None:
+        custom_dims = []
+
+    if df is None:
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [100.0, 200.0, 300.0],
+                "median": [100.0, 200.0, 300.0],
+                "abs_error_94_lower": [90.0, 190.0, 290.0],
+                "abs_error_94_upper": [110.0, 210.0, 310.0],
+            }
+        )
+
+    mock_summary = Mock(spec=MMMSummaryFactory)
+    getattr(mock_summary, method_name).return_value = df
+    mock_summary.data = Mock(custom_dims=custom_dims)
+    return mock_summary
+
+
+def _count_line_traces(fig: go.Figure) -> int:
+    """Count line traces excluding HDI bands."""
+    return len(
+        [
+            t
+            for t in fig.data
+            if getattr(t, "mode", None) in ("lines", "lines+markers") and t.fill is None
+        ]
+    )
+
+
+def _count_subplots(fig: go.Figure) -> int:
+    """Count the number of subplots from layout annotations."""
+    if not fig.layout.annotations:
+        return 1
+    return len(fig.layout.annotations)
+
+
+def _get_subplot_dimensions(fig: go.Figure) -> tuple[int, int]:
+    """Get the (rows, cols) dimensions of a faceted figure.
+
+    Returns (1, 1) for non-faceted figures.
+    """
+    # Count annotations which correspond to subplot titles
+    n_subplots = max(1, len(fig.layout.annotations))
+
+    # Look at the annotation positions to determine grid dimensions
+    if n_subplots == 1:
+        return (1, 1)
+
+    # Check if it's row-based or col-based by looking at annotation y positions
+    if fig.layout.annotations:
+        y_positions = sorted(set(ann.y for ann in fig.layout.annotations), reverse=True)
+        x_positions = sorted(set(ann.x for ann in fig.layout.annotations))
+        rows = len(y_positions)
+        cols = len(x_positions)
+        return (rows, cols)
+
+    return (1, n_subplots)
+
+
+def _create_saturation_df_one_custom_dim(
+    n_channels: int = 2,
+    n_coords: int = 2,
+    n_points: int = 10,
+    custom_dim: str = "geo",
+) -> pd.DataFrame:
+    """Create saturation curves data with 1 custom dimension.
+
+    Args:
+        n_channels: Number of channels (default 2)
+        n_coords: Number of coordinates in the custom dimension (default 2)
+        n_points: Number of x points per curve
+        custom_dim: Name of the custom dimension
+
+    Returns:
+        DataFrame with columns: x, channel, {custom_dim}, mean, median
+    """
+    x_vals = np.linspace(0, 1, n_points)
+    channels = ["TV", "Radio"][:n_channels]
+    coords = ["North", "South"][:n_coords]
+
+    rows = []
+    for coord in coords:
+        for channel in channels:
+            for x in x_vals:
+                rows.append(
+                    {
+                        "x": x,
+                        "channel": channel,
+                        custom_dim: coord,
+                        "mean": np.random.rand(),
+                        "median": np.random.rand(),
+                    }
+                )
+
+    return pd.DataFrame(rows)
+
+
+def _create_saturation_df_two_custom_dims(
+    n_channels: int = 2,
+    n_coords_dim1: int = 2,
+    n_coords_dim2: int = 2,
+    n_points: int = 10,
+    custom_dim1: str = "geo",
+    custom_dim2: str = "brand",
+) -> pd.DataFrame:
+    """Create saturation curves data with 2 custom dimensions.
+
+    Args:
+        n_channels: Number of channels (default 2)
+        n_coords_dim1: Number of coordinates in first dimension (default 2)
+        n_coords_dim2: Number of coordinates in second dimension (default 2)
+        n_points: Number of x points per curve
+        custom_dim1: Name of first custom dimension
+        custom_dim2: Name of second custom dimension
+
+    Returns:
+        DataFrame with columns: x, channel, {custom_dim1}, {custom_dim2}, mean, median
+    """
+    x_vals = np.linspace(0, 1, n_points)
+    channels = ["TV", "Radio"][:n_channels]
+    coords1 = ["North", "South"][:n_coords_dim1]
+    coords2 = ["BrandA", "BrandB"][:n_coords_dim2]
+
+    rows = []
+    for coord1 in coords1:
+        for coord2 in coords2:
+            for channel in channels:
+                for x in x_vals:
+                    rows.append(
+                        {
+                            "x": x,
+                            "channel": channel,
+                            custom_dim1: coord1,
+                            custom_dim2: coord2,
+                            "mean": np.random.rand(),
+                            "median": np.random.rand(),
+                        }
+                    )
+
+    return pd.DataFrame(rows)
+
+
+# =============================================================================
+# Test Classes
+# =============================================================================
+
+
 class TestPlotMethodsReturnFigure:
     """Parametrized tests for basic plot method behavior."""
 
@@ -242,27 +412,10 @@ class TestPlotMethodsReturnFigure:
 class TestMMMPlotlyFactoryContributions:
     """Tests for MMMPlotlyFactory.contributions() method."""
 
-    def _create_simple_mock_summary(self, df=None):
-        """Helper to create mock summary with simple data."""
-        if df is None:
-            df = pd.DataFrame(
-                {
-                    "channel": ["TV", "Radio", "Social"],
-                    "mean": [100.0, 200.0, 300.0],
-                    "median": [100.0, 200.0, 300.0],
-                    "abs_error_94_lower": [90.0, 190.0, 290.0],
-                    "abs_error_94_upper": [110.0, 210.0, 310.0],
-                }
-            )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-        return mock_summary
-
     def test_contributions_has_error_bars(self):
         """Test that contributions() returns a Figure with error bars."""
         # Arrange
-        mock_summary = self._create_simple_mock_summary()
+        mock_summary = _create_simple_mock_summary()
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
@@ -911,130 +1064,6 @@ class TestMMMPlotlyFactoryAdstockCurves:
         assert len(hdi_traces) >= 2, (
             f"Should have HDI bands for both channels, got {len(hdi_traces)}"
         )
-
-
-def _count_line_traces(fig: go.Figure) -> int:
-    """Count line traces excluding HDI bands."""
-    return len(
-        [
-            t
-            for t in fig.data
-            if getattr(t, "mode", None) in ("lines", "lines+markers") and t.fill is None
-        ]
-    )
-
-
-def _count_subplots(fig: go.Figure) -> int:
-    """Count the number of subplots from layout annotations."""
-    if not fig.layout.annotations:
-        return 1
-    return len(fig.layout.annotations)
-
-
-def _get_subplot_dimensions(fig: go.Figure) -> tuple[int, int]:
-    """Get the (rows, cols) dimensions of a faceted figure.
-
-    Returns (1, 1) for non-faceted figures.
-    """
-    # Count annotations which correspond to subplot titles
-    n_subplots = max(1, len(fig.layout.annotations))
-
-    # Look at the annotation positions to determine grid dimensions
-    if n_subplots == 1:
-        return (1, 1)
-
-    # Check if it's row-based or col-based by looking at annotation y positions
-    if fig.layout.annotations:
-        y_positions = sorted(set(ann.y for ann in fig.layout.annotations), reverse=True)
-        x_positions = sorted(set(ann.x for ann in fig.layout.annotations))
-        rows = len(y_positions)
-        cols = len(x_positions)
-        return (rows, cols)
-
-    return (1, n_subplots)
-
-
-def _create_saturation_df_one_custom_dim(
-    n_channels: int = 2,
-    n_coords: int = 2,
-    n_points: int = 10,
-    custom_dim: str = "geo",
-) -> pd.DataFrame:
-    """Create saturation curves data with 1 custom dimension.
-
-    Args:
-        n_channels: Number of channels (default 2)
-        n_coords: Number of coordinates in the custom dimension (default 2)
-        n_points: Number of x points per curve
-        custom_dim: Name of the custom dimension
-
-    Returns:
-        DataFrame with columns: x, channel, {custom_dim}, mean, median
-    """
-    x_vals = np.linspace(0, 1, n_points)
-    channels = ["TV", "Radio"][:n_channels]
-    coords = ["North", "South"][:n_coords]
-
-    rows = []
-    for coord in coords:
-        for channel in channels:
-            for x in x_vals:
-                rows.append(
-                    {
-                        "x": x,
-                        "channel": channel,
-                        custom_dim: coord,
-                        "mean": np.random.rand(),
-                        "median": np.random.rand(),
-                    }
-                )
-
-    return pd.DataFrame(rows)
-
-
-def _create_saturation_df_two_custom_dims(
-    n_channels: int = 2,
-    n_coords_dim1: int = 2,
-    n_coords_dim2: int = 2,
-    n_points: int = 10,
-    custom_dim1: str = "geo",
-    custom_dim2: str = "brand",
-) -> pd.DataFrame:
-    """Create saturation curves data with 2 custom dimensions.
-
-    Args:
-        n_channels: Number of channels (default 2)
-        n_coords_dim1: Number of coordinates in first dimension (default 2)
-        n_coords_dim2: Number of coordinates in second dimension (default 2)
-        n_points: Number of x points per curve
-        custom_dim1: Name of first custom dimension
-        custom_dim2: Name of second custom dimension
-
-    Returns:
-        DataFrame with columns: x, channel, {custom_dim1}, {custom_dim2}, mean, median
-    """
-    x_vals = np.linspace(0, 1, n_points)
-    channels = ["TV", "Radio"][:n_channels]
-    coords1 = ["North", "South"][:n_coords_dim1]
-    coords2 = ["BrandA", "BrandB"][:n_coords_dim2]
-
-    rows = []
-    for coord1 in coords1:
-        for coord2 in coords2:
-            for channel in channels:
-                for x in x_vals:
-                    rows.append(
-                        {
-                            "x": x,
-                            "channel": channel,
-                            custom_dim1: coord1,
-                            custom_dim2: coord2,
-                            "mean": np.random.rand(),
-                            "median": np.random.rand(),
-                        }
-                    )
-
-    return pd.DataFrame(rows)
 
 
 class TestSaturationCurvesOneCustomDim:
