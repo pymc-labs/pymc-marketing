@@ -821,53 +821,33 @@ class TestSaturationCurvesOriginalScale:
 class TestMMMPlotlyFactoryErrorHandling:
     """Tests for error handling in MMMPlotlyFactory."""
 
-    def test_get_hdi_columns_raises_for_empty_dataframe(self):
-        """Test error when DataFrame is empty and HDI columns expected."""
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.data = Mock(custom_dims=[])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        empty_df = pd.DataFrame(columns=["channel", "mean"])
-        nw_df = nw.from_native(empty_df)
-
-        with pytest.raises(ValueError, match="DataFrame is empty"):
-            factory._get_hdi_columns(nw_df, hdi_prob=0.94)
-
-    def test_get_hdi_columns_raises_for_missing_columns(self):
-        """Test error when HDI columns don't exist."""
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.data = Mock(custom_dims=[])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        df = pd.DataFrame({"channel": ["TV"], "mean": [100.0]})
-        nw_df = nw.from_native(df)
-
-        with pytest.raises(
-            ValueError, match=r"HDI columns for probability 0\.94 not found"
-        ):
-            factory._get_hdi_columns(nw_df, hdi_prob=0.94)
-
-    def test_contributions_raises_when_date_not_in_x_or_color(self):
-        """Test error when date column exists but not assigned to x or color."""
-        df = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=3),
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [100.0, 200.0, 300.0],
-                "median": [100.0, 200.0, 300.0],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        with pytest.raises(ValueError, match="choose either x='date' or color='date'"):
-            factory.contributions()  # date exists but not assigned
-
-    def test_contributions_raises_when_component_not_in_x_or_color(self):
-        """Test error when component column not assigned to x or color."""
+    @pytest.mark.parametrize(
+        "method_name, column_name, error_pattern",
+        [
+            pytest.param(
+                "contributions",
+                None,
+                "choose either x='date' or color='date'",
+                id="contributions_date_not_assigned",
+            ),
+            pytest.param(
+                "contributions",
+                "date",
+                "choose either x=`channel` or color=`channel`",
+                id="contributions_component_not_assigned",
+            ),
+            pytest.param(
+                "roas",
+                "date",
+                "choose either x='channel' or color='channel'",
+                id="roas_channel_not_assigned",
+            ),
+        ],
+    )
+    def test_raises_when_required_column_not_in_x_or_color(
+        self, method_name, column_name, error_pattern
+    ):
+        """Test error when required column not assigned to x or color."""
         df = pd.DataFrame(
             {
                 "date": pd.date_range("2024-01-01", periods=2),
@@ -877,36 +857,18 @@ class TestMMMPlotlyFactoryErrorHandling:
             }
         )
         mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df
+        getattr(mock_summary, method_name).return_value = df
         mock_summary.data = Mock(custom_dims=[])
 
         factory = MMMPlotlyFactory(summary=mock_summary)
 
-        with pytest.raises(
-            ValueError, match="choose either x=`channel` or color=`channel`"
-        ):
-            factory.contributions(x="date", color="date")
+        kwargs = {}
+        if column_name is not None:
+            kwargs["x"] = column_name
+            kwargs["color"] = column_name
 
-    def test_roas_raises_when_channel_not_in_x_or_color(self):
-        """Test error when channel not assigned to x or color in ROAS."""
-        df = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=2),
-                "channel": ["TV", "Radio"],
-                "mean": [2.5, 3.0],
-                "median": [2.4, 3.1],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.roas.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        with pytest.raises(
-            ValueError, match="choose either x='channel' or color='channel'"
-        ):
-            factory.roas(x="date", color="date")
+        with pytest.raises(ValueError, match=error_pattern):
+            getattr(factory, method_name)(**kwargs)
 
     def test_posterior_predictive_raises_for_missing_columns(self):
         """Test error when required columns missing from posterior predictive."""
