@@ -351,8 +351,8 @@ class MMMPlotlyFactory:
                     if len(custom_dims) >= 2:
                         raise ValueError(
                             f"Too many custom dimensions ({len(custom_dims)}) to display "
-                            "without faceting. Please use facet_row or facet_col to reduce "
-                            "dimensionality, or enable auto_facet=True."
+                            "without faceting. Please use facet_row or facet_col,"
+                            " or enable auto_facet=True."
                         )
                     # if there is only one custom dimension, use line_dash
                     elif "line_dash" not in plotly_kwargs:
@@ -715,6 +715,7 @@ class MMMPlotlyFactory:
     def posterior_predictive(
         self,
         hdi_prob: float | None = 0.94,
+        hdi_opacity: float = 0.2,
         frequency: Frequency | None = None,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "row",
@@ -730,6 +731,8 @@ class MMMPlotlyFactory:
         ----------
         hdi_prob : float, optional
             HDI probability for uncertainty band (default: 0.94). If None, no band.
+        hdi_opacity : float, default 0.2
+            Opacity for HDI band fill (0-1).
         frequency : str, optional
             Time aggregation (e.g., "monthly", "weekly"). None = no aggregation.
         auto_facet : bool, default True
@@ -843,6 +846,7 @@ class MMMPlotlyFactory:
                 facet_row=facet_row,
                 facet_col=facet_col,
                 hdi_prob=hdi_prob,
+                hdi_opacity=hdi_opacity,
             )
 
         # Clean up facet titles
@@ -944,6 +948,7 @@ class MMMPlotlyFactory:
         color: str | None = None,
         color_values: list | None = None,
         color_map: dict[str, str] | None = None,
+        hdi_opacity: float = 0.2,
     ) -> None:
         """Add HDI bands to a plot, handling both faceted and non-faceted cases.
 
@@ -977,6 +982,8 @@ class MMMPlotlyFactory:
             List of unique color values (required if color is provided)
         color_map : dict[str, str], optional
             Mapping from color values to hex color codes (required if color is provided)
+        hdi_opacity : float, default 0.2
+            Opacity for HDI band fill (0-1)
         """
         # Get unique facet combinations
         facet_dims = []
@@ -1048,6 +1055,7 @@ class MMMPlotlyFactory:
                         upper=facet_color_data.get_column(upper_col).to_list(),
                         name=f"{color_val} HDI",
                         fillcolor=color_map[color_val],
+                        opacity=hdi_opacity,
                         showlegend=False,
                         row=row_idx,
                         col=col_idx,
@@ -1060,6 +1068,7 @@ class MMMPlotlyFactory:
                     lower=facet_data.get_column(lower_col).to_list(),
                     upper=facet_data.get_column(upper_col).to_list(),
                     name=f"{int(hdi_prob * 100)}% HDI" if hdi_prob else "HDI",
+                    opacity=hdi_opacity,
                     showlegend=not legend_shown,  # Only show once in legend
                     row=row_idx,
                     col=col_idx,
@@ -1069,6 +1078,7 @@ class MMMPlotlyFactory:
     def saturation_curves(
         self,
         hdi_prob: float | None = 0.94,
+        hdi_opacity: float = 0.2,
         max_value: float = 1.0,
         num_points: int = 100,
         auto_facet: bool = True,
@@ -1085,6 +1095,8 @@ class MMMPlotlyFactory:
         ----------
         hdi_prob : float, optional
             HDI probability for uncertainty bands (default: 0.94). If None, no bands.
+        hdi_opacity : float, default 0.2
+            Opacity for HDI band fill (0-1).
         max_value : float, default 1.0
             Maximum value for curve x-axis (in scaled space)
         num_points : int, default 100
@@ -1139,6 +1151,7 @@ class MMMPlotlyFactory:
             df=df,
             x="x",
             hdi_prob=hdi_prob,
+            hdi_opacity=hdi_opacity,
             title="Saturation Curves",
             xaxis_title="Spend (scaled)",
             yaxis_title="Response",
@@ -1148,6 +1161,7 @@ class MMMPlotlyFactory:
     def adstock_curves(
         self,
         hdi_prob: float | None = 0.94,
+        hdi_opacity: float = 0.2,
         amount: float = 1.0,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
@@ -1163,6 +1177,8 @@ class MMMPlotlyFactory:
         ----------
         hdi_prob : float, optional
             HDI probability for uncertainty bands (default: 0.94). If None, no bands.
+        hdi_opacity : float, default 0.2
+            Opacity for HDI band fill (0-1).
         amount : float, default 1.0
             Impulse amount at time 0
         auto_facet : bool, default True
@@ -1212,6 +1228,7 @@ class MMMPlotlyFactory:
             df=df,
             x="time since exposure",
             hdi_prob=hdi_prob,
+            hdi_opacity=hdi_opacity,
             title="Adstock Curves",
             xaxis_title="Time Since Exposure",
             yaxis_title="Effect Weight",
@@ -1225,6 +1242,7 @@ class MMMPlotlyFactory:
         y: str = "mean",
         color: str = "channel",
         hdi_prob: float | None = None,
+        hdi_opacity: float = 0.2,
         title: str | None = None,
         xaxis_title: str | None = None,
         yaxis_title: str | None = None,
@@ -1244,6 +1262,8 @@ class MMMPlotlyFactory:
             Column for color encoding
         hdi_prob : float, optional
             If provided, adds HDI bands per color value
+        hdi_opacity : float, default 0.2
+            Opacity for HDI band fill (0-1)
         title : str, optional
             Figure title
         xaxis_title : str, optional
@@ -1309,6 +1329,7 @@ class MMMPlotlyFactory:
                 color=color,
                 color_values=color_values,
                 color_map=color_map,
+                hdi_opacity=hdi_opacity,
             )
 
         # Clean facet titles
