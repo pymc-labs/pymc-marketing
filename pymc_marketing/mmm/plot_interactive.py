@@ -251,9 +251,11 @@ class MMMPlotlyFactory:
           - More dimensions than supported → raises ValueError
         - auto_facet=False with supports_line_styling=True:
           - 1 custom dimension → line_dash=dims[0] (visual differentiation without faceting)
+          - 2+ custom dimensions → raises ValueError
         - auto_facet=False with supports_line_styling=False:
           - No automatic styling applied (for bar charts etc.)
-        - Manual faceting/styling in plotly_kwargs takes precedence
+        - Manual faceting/styling in plotly_kwargs:
+          - Remaining custom dimensions are applied via line_dash if supported
 
         Parameters
         ----------
@@ -307,21 +309,67 @@ class MMMPlotlyFactory:
         # Get custom dimensions
         custom_dims = self.summary.data.custom_dims
 
+        # No custom dimensions, no faceting needed
+        if len(custom_dims) == 0:
+            return plotly_kwargs
+
+        # Get manually specified faceting
+        manual_facet_row = plotly_kwargs.get("facet_row")
+        manual_facet_col = plotly_kwargs.get("facet_col")
+        has_manual_faceting = manual_facet_row or manual_facet_col
+
+        # Calculate dimensions already used for faceting
+        faceted_dims = [
+            dim for dim in (manual_facet_row, manual_facet_col) if dim in custom_dims
+        ]
+
+        # Get remaining custom dimensions not used for faceting
+        remaining_dims = [d for d in custom_dims if d not in faceted_dims]
+
         # When auto_facet is disabled, use line_dash to differentiate custom dims
-        # (only for plot types that support these parameters, like line charts)
+        # (only for line charts)
         if not auto_facet:
-            if supports_line_styling:
-                # Only apply if there are custom dimensions and no manual styling is set
-                if len(custom_dims) >= 1 and "line_dash" not in plotly_kwargs:
-                    plotly_kwargs["line_dash"] = custom_dims[0]
+            if has_manual_faceting:
+                # Manual faceting provided: apply remaining dims via line styling
+                if supports_line_styling and remaining_dims:
+                    if "line_dash" not in plotly_kwargs:
+                        plotly_kwargs["line_dash"] = remaining_dims.pop()
+
+                    # Check if there are still unrepresentable dimensions
+                    if len(remaining_dims) > 0:
+                        raise ValueError(
+                            f"Too many custom dimensions ({len(custom_dims)}) for this plot type. "
+                            f"Faceted dimensions: {faceted_dims}. "
+                            f"Remaining dimensions that cannot be represented: {remaining_dims}. "
+                            "Please filter the data or use additional faceting if available."
+                        )
+            else:
+                # No manual faceting, auto_facet=False
+                if supports_line_styling:
+                    # With color and line_dash we can handle channel + 1 custom dim
+                    # If there are 2+ custom dims, raise error
+                    if len(custom_dims) >= 2:
+                        raise ValueError(
+                            f"Too many custom dimensions ({len(custom_dims)}) to display "
+                            "without faceting. Please use facet_row or facet_col to reduce "
+                            "dimensionality, or enable auto_facet=True."
+                        )
+                    # if there is only one custom dimension, use line_dash
+                    elif "line_dash" not in plotly_kwargs:
+                        plotly_kwargs["line_dash"] = custom_dims[0]
+
             return plotly_kwargs
 
-        # Don't override explicit faceting
-        if plotly_kwargs.get("facet_row") or plotly_kwargs.get("facet_col"):
+        # Don't override explicit faceting, but still apply line_dash for remaining dims
+        if has_manual_faceting:
+            # Apply line_dash for remaining custom dimensions if supported
+            if (
+                supports_line_styling
+                and remaining_dims
+                and "line_dash" not in plotly_kwargs
+            ):
+                plotly_kwargs["line_dash"] = remaining_dims[0]
             return plotly_kwargs
-
-        # Get custom dimensions
-        custom_dims = self.summary.data.custom_dims
 
         # Apply faceting based on number of dimensions
         if len(custom_dims) == 1:
@@ -965,8 +1013,8 @@ class MMMPlotlyFactory:
             # Handle row index
             if facet_row:
                 row_val = row_dict[facet_row]
-                # For some reason, in when faceting in Plotly Express, row 1 is the bottom row.
-                # So we need to reverse the index.
+                # For some reason, when faceting in Plotly Express row 1 is the bottom row,
+                # so we need to reverse the index.
                 row_vals = sorted(
                     nw_df.get_column(facet_row).unique().to_list(), reverse=True
                 )
