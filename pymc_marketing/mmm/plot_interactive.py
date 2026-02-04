@@ -1081,6 +1081,8 @@ class MMMPlotlyFactory:
         hdi_opacity: float = 0.2,
         max_value: float = 1.0,
         num_points: int = 100,
+        num_samples: int | None = 500,
+        random_state: int | None = None,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
         **plotly_kwargs,
@@ -1100,7 +1102,17 @@ class MMMPlotlyFactory:
         max_value : float, default 1.0
             Maximum value for curve x-axis (in scaled space)
         num_points : int, default 100
-            Number of points to evaluate curves at
+            Number of points along the x-axis to evaluate curves at
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Using fewer samples speeds up computation and reduces memory usage while
+            still capturing posterior uncertainty.
+            If None, all posterior samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
         auto_facet : bool, default True
             Automatically detect and apply faceting for custom dimensions.
         single_dim_facet : {"col", "row"}, default "col"
@@ -1140,6 +1152,8 @@ class MMMPlotlyFactory:
             hdi_probs=hdi_probs,
             max_value=max_value,
             num_points=num_points,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         # Auto-detect faceting from custom dimensions
@@ -1163,6 +1177,8 @@ class MMMPlotlyFactory:
         hdi_prob: float | None = 0.94,
         hdi_opacity: float = 0.2,
         amount: float = 1.0,
+        num_samples: int | None = 500,
+        random_state: int | None = None,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
         **plotly_kwargs,
@@ -1181,6 +1197,16 @@ class MMMPlotlyFactory:
             Opacity for HDI band fill (0-1).
         amount : float, default 1.0
             Impulse amount at time 0
+        num_samples : int or None, optional
+            Number of posterior samples to use for generating curves. By default 500.
+            Using fewer samples speeds up computation and reduces memory usage while
+            still capturing posterior uncertainty.
+            If None, all posterior samples are used without subsampling.
+        random_state : int, np.random.Generator, or None, optional
+            Random state for reproducible subsampling. Can be an integer seed,
+            a numpy Generator instance, or None for non-reproducible sampling.
+            Only used when num_samples is not None and less than total available
+            samples.
         auto_facet : bool, default True
             Automatically detect and apply faceting for custom dimensions.
         single_dim_facet : {"col", "row"}, default "col"
@@ -1217,6 +1243,8 @@ class MMMPlotlyFactory:
         df = self.summary.adstock_curves(
             hdi_probs=hdi_probs,
             amount=amount,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         # Auto-detect faceting from custom dimensions
