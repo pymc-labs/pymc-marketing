@@ -182,6 +182,18 @@ class BaseMMM(BaseValidateMMM):
             Scaling configuration for the model. If None, defaults to max scaling for both target and channels.
             Can be a Scaling object or a dict that will be converted to a Scaling object.
         """
+        warnings.warn(
+            """
+            The MMM class is deprecated and will be removed in a future version (in version 0.20.0).
+            Please use the multidimensional MMM class instead.
+            That is, `from pymc_marketing.mmm.multidimensional import MMM`.
+            All our documentation has been updated to reflect this change.
+            Refer to the migration guide for more details: https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_migration_guide.html
+            """,
+            FutureWarning,
+            stacklevel=2,
+        )
+
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
