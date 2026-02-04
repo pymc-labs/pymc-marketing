@@ -20,6 +20,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import polars as pl
 import pytest
+import xarray as xr
 
 from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
 from pymc_marketing.mmm.summary import MMMSummaryFactory
@@ -1327,4 +1328,101 @@ class TestSaturationCurvesTwoCustomDims:
         assert cols == 1, f"Expected 1 column with facet_row, got {cols}"
         assert n_lines == 8, (
             f"Expected 8 total lines (4 per subplot: 2 channels × 2 brand), got {n_lines}"
+        )
+
+
+# ============================================================================
+# Tests: Saturation Curves Original Scale
+# ============================================================================
+
+
+class TestSaturationCurvesOriginalScale:
+    """Tests for saturation_curves original_scale parameter.
+
+    When original_scale=True (default), the x-axis values should be multiplied
+    by the channel scale factors to convert from scaled space to original units.
+    """
+
+    def test_original_scale_true_multiplies_x_by_channel_scale(self):
+        """saturation_curves(original_scale=True) scales x values by channel scale."""
+        # Arrange - Create data with known x values for 2 channels x 2 geos
+        x_vals = np.array([0.0, 0.5, 1.0])
+        df = pd.DataFrame(
+            {
+                "x": np.tile(x_vals, 4),  # 2 channels x 2 geos = 4 combinations
+                "channel": ["TV"] * 3 + ["Radio"] * 3 + ["TV"] * 3 + ["Radio"] * 3,
+                "geo": ["US"] * 6 + ["UK"] * 6,
+                "mean": [0.0, 0.4, 0.8] * 4,
+                "median": [0.0, 0.4, 0.8] * 4,
+            }
+        )
+
+        # Create channel scale DataArray with different values per (channel, geo)
+        # TV,US=1000  TV,UK=800  Radio,US=500  Radio,UK=400
+        channel_scale = xr.DataArray(
+            [[1000.0, 800.0], [500.0, 400.0]],
+            dims=["channel", "geo"],
+            coords={"channel": ["TV", "Radio"], "geo": ["US", "UK"]},
+        )
+
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.saturation_curves.return_value = df
+        mock_summary.data = Mock(custom_dims=["geo"])
+        mock_summary.data.get_channel_scale.return_value = channel_scale
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        # Act
+        fig = factory.saturation_curves(
+            hdi_prob=None, auto_facet=False, original_scale=True
+        )
+
+        # Assert - Check that x values are scaled by the correct per-(channel, geo) scale
+        traces = [t for t in fig.data if t.mode == "lines"]
+
+        # Find traces for each (channel, geo) combination
+        tv_us_trace = next(
+            (t for t in traces if "TV" in t.name and "US" in t.name), None
+        )
+        radio_us_trace = next(
+            (t for t in traces if "Radio" in t.name and "US" in t.name), None
+        )
+        tv_uk_trace = next(
+            (t for t in traces if "TV" in t.name and "UK" in t.name), None
+        )
+        radio_uk_trace = next(
+            (t for t in traces if "Radio" in t.name and "UK" in t.name), None
+        )
+
+        assert tv_us_trace is not None, "Should have TV, US trace"
+        assert radio_us_trace is not None, "Should have Radio, US trace"
+        assert tv_uk_trace is not None, "Should have TV, UK trace"
+        assert radio_uk_trace is not None, "Should have Radio, UK trace"
+
+        # Check TV, US x values (0 * 1000, 0.5 * 1000, 1.0 * 1000)
+        np.testing.assert_array_almost_equal(
+            tv_us_trace.x,
+            [0.0, 500.0, 1000.0],
+            err_msg="TV, US x values should be scaled by 1000",
+        )
+
+        # Check TV, UK x values (0 * 800, 0.5 * 800, 1.0 * 800)
+        np.testing.assert_array_almost_equal(
+            tv_uk_trace.x,
+            [0.0, 400.0, 800.0],
+            err_msg="TV, UK x values should be scaled by 800",
+        )
+
+        # Check Radio, US x values (0 * 500, 0.5 * 500, 1.0 * 500)
+        np.testing.assert_array_almost_equal(
+            radio_us_trace.x,
+            [0.0, 250.0, 500.0],
+            err_msg="Radio, US x values should be scaled by 500",
+        )
+
+        # Check Radio, UK x values (0 * 400, 0.5 * 400, 1.0 * 400)
+        np.testing.assert_array_almost_equal(
+            radio_uk_trace.x,
+            [0.0, 200.0, 400.0],
+            err_msg="Radio, UK x values should be scaled by 400",
         )

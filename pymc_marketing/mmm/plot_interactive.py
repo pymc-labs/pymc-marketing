@@ -1085,6 +1085,7 @@ class MMMPlotlyFactory:
         random_state: int | None = None,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
+        original_scale: bool = True,
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot saturation curves by channel.
@@ -1118,6 +1119,10 @@ class MMMPlotlyFactory:
         single_dim_facet : {"col", "row"}, default "col"
             When auto_facet is enabled and there is exactly one custom dimension,
             this controls whether it is applied as facet_col or facet_row.
+        original_scale : bool, default True
+            Whether to plot x-axis in original scale. If True (default), the x-axis
+            values are multiplied by the channel scale factor to show spend in
+            original units (e.g., dollars). If False, x-axis shows scaled values.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Saturation Curves")
@@ -1156,6 +1161,32 @@ class MMMPlotlyFactory:
             random_state=random_state,
         )
 
+        # Convert x-axis to original scale if requested
+        if original_scale:
+            # Get channel scale factors and convert to DataFrame
+            channel_scale = self.summary.data.get_channel_scale()
+            scale_df = channel_scale.to_dataframe(name="channel_scale").reset_index()
+            nw_scale = nw.from_native(scale_df)
+
+            nw_df = nw.from_native(df)
+
+            # Determine join columns: "channel" plus any custom dimensions
+            # that are present in both the scale DataFrame and the data
+            join_cols = ["channel"]
+            for dim in self.custom_dims:
+                if dim in nw_scale.columns and dim in nw_df.columns:
+                    join_cols.append(dim)
+
+            # Join scale factors with data and multiply x by scale
+            nw_df = nw_df.join(nw_scale, on=join_cols, how="left")
+            nw_df = nw_df.with_columns(x=nw.col("x") * nw.col("channel_scale"))
+            nw_df = nw_df.drop("channel_scale")
+
+            df = nw_df.to_native()
+            xaxis_title = "Spend"
+        else:
+            xaxis_title = "Spend (scaled)"
+
         # Auto-detect faceting from custom dimensions
         plotly_kwargs = self._apply_auto_faceting(
             plotly_kwargs, auto_facet, single_dim_facet, supports_line_styling=True
@@ -1167,7 +1198,7 @@ class MMMPlotlyFactory:
             hdi_prob=hdi_prob,
             hdi_opacity=hdi_opacity,
             title="Saturation Curves",
-            xaxis_title="Spend (scaled)",
+            xaxis_title=xaxis_title,
             yaxis_title="Response",
             **plotly_kwargs,
         )
