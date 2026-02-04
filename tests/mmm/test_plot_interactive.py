@@ -15,6 +15,7 @@
 
 from unittest.mock import Mock
 
+import narwhals as nw
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -1394,3 +1395,273 @@ class TestSaturationCurvesOriginalScale:
             [0.0, 200.0, 400.0],
             err_msg="Radio, UK x values should be scaled by 400",
         )
+
+
+class TestMMMPlotlyFactoryErrorHandling:
+    """Tests for error handling in MMMPlotlyFactory."""
+
+    def test_get_hdi_columns_raises_for_empty_dataframe(self):
+        """Test error when DataFrame is empty and HDI columns expected."""
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=[])
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        empty_df = pd.DataFrame(columns=["channel", "mean"])
+        nw_df = nw.from_native(empty_df)
+
+        with pytest.raises(ValueError, match="DataFrame is empty"):
+            factory._get_hdi_columns(nw_df, hdi_prob=0.94)
+
+    def test_get_hdi_columns_raises_for_missing_columns(self):
+        """Test error when HDI columns don't exist."""
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=[])
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        df = pd.DataFrame({"channel": ["TV"], "mean": [100.0]})
+        nw_df = nw.from_native(df)
+
+        with pytest.raises(
+            ValueError, match=r"HDI columns for probability 0\.94 not found"
+        ):
+            factory._get_hdi_columns(nw_df, hdi_prob=0.94)
+
+    def test_contributions_raises_when_date_not_in_x_or_color(self):
+        """Test error when date column exists but not assigned to x or color."""
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=3),
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [100.0, 200.0, 300.0],
+                "median": [100.0, 200.0, 300.0],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.contributions.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        with pytest.raises(ValueError, match="choose either x='date' or color='date'"):
+            factory.contributions(auto_facet=False)  # date exists but not assigned
+
+    def test_contributions_raises_when_component_not_in_x_or_color(self):
+        """Test error when component column not assigned to x or color."""
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=2),
+                "channel": ["TV", "Radio"],
+                "mean": [100.0, 200.0],
+                "median": [100.0, 200.0],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.contributions.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        with pytest.raises(
+            ValueError, match="choose either x=`channel` or color=`channel`"
+        ):
+            factory.contributions(x="date", color="date", auto_facet=False)
+
+    def test_roas_raises_when_channel_not_in_x_or_color(self):
+        """Test error when channel not assigned to x or color in ROAS."""
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=2),
+                "channel": ["TV", "Radio"],
+                "mean": [2.5, 3.0],
+                "median": [2.4, 3.1],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.roas.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        with pytest.raises(
+            ValueError, match="choose either x='channel' or color='channel'"
+        ):
+            factory.roas(x="date", color="date", auto_facet=False)
+
+    def test_posterior_predictive_raises_for_missing_columns(self):
+        """Test error when required columns missing from posterior predictive."""
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=3),
+                "mean": [100.0, 200.0, 300.0],
+                # Missing "observed" column
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.posterior_predictive.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        with pytest.raises(ValueError, match="missing required columns"):
+            factory.posterior_predictive(auto_facet=False)
+
+    def test_plot_bar_raises_for_missing_y_column(self):
+        """Test error when y column missing from DataFrame."""
+        df = pd.DataFrame({"channel": ["TV", "Radio"]})
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+        nw_df = nw.from_native(df)
+
+        with pytest.raises(ValueError, match="DataFrame must have 'mean' column"):
+            factory._plot_bar(nw_df, x="channel", y="mean")
+
+    def test_plot_bar_raises_for_missing_x_column(self):
+        """Test error when x column missing from DataFrame."""
+        df = pd.DataFrame({"mean": [100.0, 200.0]})
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+        nw_df = nw.from_native(df)
+
+        with pytest.raises(ValueError, match="DataFrame must have 'channel' column"):
+            factory._plot_bar(nw_df, x="channel", y="mean")
+
+
+class TestAutoFacetingEdgeCases:
+    """Tests for _apply_auto_faceting edge cases."""
+
+    def test_auto_facet_false_with_two_dims_raises_for_bar_chart(self):
+        """Test error when auto_facet=False with 2 custom dims (no line_dash support)."""
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=["geo", "brand"])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        with pytest.raises(ValueError, match="Too many custom dimensions"):
+            factory._apply_auto_faceting(
+                {}, auto_facet=False, supports_line_styling=False
+            )
+
+    def test_auto_facet_true_with_three_dims_raises_for_bar_chart(self):
+        """Test error when 3 custom dims without line_dash support."""
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=["geo", "brand", "segment"])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        with pytest.raises(ValueError, match="Too many custom dimensions"):
+            factory._apply_auto_faceting(
+                {}, auto_facet=True, supports_line_styling=False
+            )
+
+    def test_auto_facet_with_three_dims_uses_line_dash(self):
+        """Test that 3 custom dims uses line_dash for line charts."""
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=["geo", "brand", "segment"])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        result = factory._apply_auto_faceting(
+            {}, auto_facet=True, supports_line_styling=True
+        )
+
+        assert result["facet_row"] == "geo"
+        assert result["facet_col"] == "brand"
+        assert result["line_dash"] == "segment"
+
+    def test_manual_faceting_with_remaining_dim_uses_line_dash(self):
+        """Test that manual faceting leaves remaining dim for line_dash."""
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.data = Mock(custom_dims=["geo", "brand"])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        result = factory._apply_auto_faceting(
+            {"facet_col": "geo"}, auto_facet=True, supports_line_styling=True
+        )
+
+        assert result["facet_col"] == "geo"
+        assert result.get("line_dash") == "brand"
+
+
+class TestDateFormatting:
+    """Tests for date formatting functionality."""
+
+    def test_format_date_column_quarterly(self):
+        """Test quarterly date formatting (YYYY-QN)."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(
+                    ["2024-01-15", "2024-04-15", "2024-07-15", "2024-10-15"]
+                ),
+                "value": [1, 2, 3, 4],
+            }
+        )
+        nw_df = nw.from_native(df)
+
+        result = MMMPlotlyFactory._format_date_column(
+            nw_df, "date", frequency="quarterly"
+        )
+
+        expected = ["2024-Q1", "2024-Q2", "2024-Q3", "2024-Q4"]
+        assert result.get_column("date").to_list() == expected
+
+    def test_format_date_column_yearly(self):
+        """Test yearly date formatting."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2022-06-15", "2023-03-20", "2024-11-01"]),
+                "value": [1, 2, 3],
+            }
+        )
+        nw_df = nw.from_native(df)
+
+        result = MMMPlotlyFactory._format_date_column(nw_df, "date", frequency="yearly")
+
+        expected = ["2022", "2023", "2024"]
+        assert result.get_column("date").to_list() == expected
+
+    def test_format_date_column_raises_for_missing_column(self):
+        """Test error when date column doesn't exist."""
+        df = pd.DataFrame({"value": [1, 2, 3]})
+        nw_df = nw.from_native(df)
+
+        with pytest.raises(ValueError, match="Column 'date' not found"):
+            MMMPlotlyFactory._format_date_column(nw_df, "date")
+
+
+class TestSaturationCurvesOriginalScaleFalse:
+    """Tests for saturation_curves with original_scale=False."""
+
+    def test_saturation_curves_original_scale_false_no_scaling(self):
+        """Test that original_scale=False keeps x values unchanged."""
+        x_vals = np.array([0.0, 0.5, 1.0])
+        df = pd.DataFrame(
+            {
+                "x": np.tile(x_vals, 2),
+                "channel": ["TV"] * 3 + ["Radio"] * 3,
+                "mean": [0.0, 0.4, 0.8] * 2,
+                "median": [0.0, 0.4, 0.8] * 2,
+            }
+        )
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        fig = factory.saturation_curves(
+            hdi_prob=None, auto_facet=False, original_scale=False
+        )
+
+        # X values should be unchanged (0, 0.5, 1.0)
+        for trace in fig.data:
+            if trace.mode == "lines":
+                np.testing.assert_array_almost_equal(
+                    sorted(trace.x),
+                    [0.0, 0.5, 1.0],
+                    err_msg="X values should not be scaled when original_scale=False",
+                )
+
+        # get_channel_scale should NOT be called
+        mock_summary.data.get_channel_scale.assert_not_called()

@@ -357,6 +357,15 @@ class MMMPlotlyFactory:
                     # if there is only one custom dimension, use line_dash
                     elif "line_dash" not in plotly_kwargs:
                         plotly_kwargs["line_dash"] = custom_dims[0]
+                else:
+                    # Bar charts: can only handle 1 custom dim via color
+                    # If there are 2+ custom dims, raise error
+                    if len(custom_dims) >= 2:
+                        raise ValueError(
+                            f"Too many custom dimensions ({len(custom_dims)}) to display "
+                            "without faceting. Please use facet_row or facet_col,"
+                            " or enable auto_facet=True."
+                        )
 
             return plotly_kwargs
 
