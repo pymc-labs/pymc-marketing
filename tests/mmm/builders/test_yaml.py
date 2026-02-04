@@ -320,6 +320,12 @@ def test_special_prior_in_yaml(tmp_path):
                         }
                     },
                 },
+                "sampler_config": {
+                    "draws": 10,
+                    "tune": 10,
+                    "chains": 1,
+                    "random_seed": 42,
+                },
             },
         }
     }
@@ -346,3 +352,10 @@ def test_special_prior_in_yaml(tmp_path):
     assert lam_dict.get("special_prior") == "LogNormalPrior"
     assert lam_dict.get("mu") == 1.0
     assert lam_dict.get("sigma") == 0.5
+
+    # Fit the model to ensure SpecialPrior works end-to-end
+    model.fit(X=X, y=y)
+
+    # Check that the model has inference data after fitting
+    assert model.idata is not None
+    assert "posterior" in model.idata
