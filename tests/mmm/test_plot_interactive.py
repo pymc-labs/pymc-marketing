@@ -89,6 +89,155 @@ def _create_saturation_mock_summary(
     return mock_summary
 
 
+class TestPlotMethodsReturnFigure:
+    """Parametrized tests for basic plot method behavior."""
+
+    @pytest.fixture
+    def contributions_setup(self):
+        """Setup for contributions test."""
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [100.0, 200.0, 300.0],
+                "median": [100.0, 200.0, 300.0],
+                "abs_error_94_lower": [90.0, 190.0, 290.0],
+                "abs_error_94_upper": [110.0, 210.0, 310.0],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.contributions.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+        return MMMPlotlyFactory(summary=mock_summary), "contributions"
+
+    @pytest.fixture
+    def roas_setup(self):
+        """Setup for roas test."""
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [2.5, 3.0, 1.8],
+                "median": [2.4, 3.1, 1.9],
+                "abs_error_94_lower": [2.0, 2.5, 1.5],
+                "abs_error_94_upper": [3.0, 3.5, 2.1],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.roas.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+        return MMMPlotlyFactory(summary=mock_summary), "roas"
+
+    @pytest.fixture
+    def posterior_predictive_setup(self):
+        """Setup for posterior_predictive test."""
+        df = pd.DataFrame(
+            {
+                "date": pd.date_range("2024-01-01", periods=10),
+                "mean": np.random.randn(10) * 100 + 1000,
+                "median": np.random.randn(10) * 100 + 1000,
+                "observed": np.random.randn(10) * 100 + 1000,
+                "abs_error_94_lower": np.random.randn(10) * 50 + 950,
+                "abs_error_94_upper": np.random.randn(10) * 50 + 1050,
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.posterior_predictive.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+        return MMMPlotlyFactory(summary=mock_summary), "posterior_predictive"
+
+    @pytest.fixture
+    def adstock_curves_setup(self):
+        """Setup for adstock_curves test."""
+        df = pd.DataFrame(
+            {
+                "time since exposure": np.tile(np.arange(10), 2),
+                "channel": ["TV"] * 10 + ["Radio"] * 10,
+                "mean": np.random.rand(20),
+                "median": np.random.rand(20),
+                "abs_error_94_lower": np.random.rand(20) * 0.8,
+                "abs_error_94_upper": np.random.rand(20) * 1.2,
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.adstock_curves.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+        return MMMPlotlyFactory(summary=mock_summary), "adstock_curves"
+
+    @pytest.fixture
+    def saturation_curves_setup(self):
+        """Setup for saturation_curves test."""
+        df = pd.DataFrame(
+            {
+                "x": np.linspace(0, 1, 50).tolist() * 2,
+                "channel": ["TV"] * 50 + ["Radio"] * 50,
+                "mean": np.random.rand(100),
+                "median": np.random.rand(100),
+                "abs_error_94_lower": np.random.rand(100) * 0.8,
+                "abs_error_94_upper": np.random.rand(100) * 1.2,
+            }
+        )
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
+        return MMMPlotlyFactory(summary=mock_summary), "saturation_curves"
+
+    @pytest.mark.parametrize(
+        "setup_name",
+        [
+            "contributions_setup",
+            "roas_setup",
+            "posterior_predictive_setup",
+            "adstock_curves_setup",
+            "saturation_curves_setup",
+        ],
+    )
+    def test_returns_plotly_figure(self, setup_name, request):
+        """Test that plot method returns a Plotly Figure."""
+        factory, method_name = request.getfixturevalue(setup_name)
+        method = getattr(factory, method_name)
+
+        fig = method(auto_facet=False)
+
+        assert isinstance(fig, go.Figure), f"{method_name} should return go.Figure"
+
+    @pytest.mark.parametrize(
+        "method_name,df_setup",
+        [
+            (
+                "contributions",
+                {
+                    "date": pd.date_range("2024-01-01", periods=3),
+                    "channel": ["TV", "Radio", "Social"],
+                    "mean": [100.0, 200.0, 300.0],
+                    "median": [100.0, 200.0, 300.0],
+                    "abs_error_94_lower": [90.0, 190.0, 290.0],
+                    "abs_error_94_upper": [110.0, 210.0, 310.0],
+                },
+            ),
+            (
+                "roas",
+                {
+                    "channel": ["TV", "Radio", "Social"],
+                    "mean": [2.5, 3.0, 1.8],
+                    "median": [2.4, 3.1, 1.9],
+                    "abs_error_94_lower": [2.0, 2.5, 1.5],
+                    "abs_error_94_upper": [3.0, 3.5, 2.1],
+                },
+            ),
+        ],
+    )
+    def test_accepts_polars_dataframe(self, method_name, df_setup):
+        """Test that method handles Polars DataFrames via Narwhals."""
+        df_polars = pl.DataFrame(df_setup)
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        getattr(mock_summary, method_name).return_value = df_polars
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+        method = getattr(factory, method_name)
+
+        fig = method(color="date" if "date" in df_setup else None, auto_facet=False)
+
+        assert isinstance(fig, go.Figure), f"{method_name} should handle Polars input"
+
+
 class TestMMMPlotlyFactoryContributions:
     """Tests for MMMPlotlyFactory.contributions() method."""
 
@@ -109,17 +258,14 @@ class TestMMMPlotlyFactoryContributions:
         mock_summary.data = Mock(custom_dims=[])
         return mock_summary
 
-    def test_contributions_returns_plotly_figure_with_error_bars(self):
-        """Test that contributions() returns a Plotly Figure object."""
+    def test_contributions_has_error_bars(self):
+        """Test that contributions() returns a Figure with error bars."""
         # Arrange
         mock_summary = self._create_simple_mock_summary()
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
         fig = factory.contributions(auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
         # Assert that error bars are added
         bar_trace = fig.data[0]
@@ -157,31 +303,6 @@ class TestMMMPlotlyFactoryContributions:
         assert call_kwargs["hdi_probs"] == [0.80], (
             f"Expected hdi_probs=[0.80], got {call_kwargs['hdi_probs']}"
         )
-
-    def test_contributions_accepts_polars_dataframe(self):
-        """Test that contributions() handles Polars DataFrames via Narwhals."""
-        # Arrange
-        df_polars = pl.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=3),
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [100.0, 200.0, 300.0],
-                "median": [100.0, 200.0, 300.0],
-                "abs_error_94_lower": [90.0, 190.0, 290.0],
-                "abs_error_94_upper": [110.0, 210.0, 310.0],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df_polars
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.contributions(color="date", auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), "Should return Figure for Polars input"
 
 
 class TestMMMPlotlyFactoryHDI:
@@ -344,68 +465,20 @@ class TestMMMPlotlyFactoryAutoFaceting:
 class TestMMMPlotInteractiveProperty:
     """Tests for mmm.plot_interactive property integration."""
 
-    def test_plot_interactive_property_exists(self, simple_fitted_mmm):
-        """Test that plot_interactive property is accessible."""
-        # Act
-        plot_interactive = simple_fitted_mmm.plot_interactive
-
-        # Assert
-        assert plot_interactive is not None, (
-            "plot_interactive property should not be None"
-        )
-
-    def test_plot_interactive_returns_factory_instance(self, simple_fitted_mmm):
-        """Test that plot_interactive returns MMMPlotlyFactory."""
-        # Act
+    def test_plot_interactive_property(self, simple_fitted_mmm):
+        """Test that plot_interactive property returns configured factory."""
         factory = simple_fitted_mmm.plot_interactive
 
-        # Assert
+        assert factory is not None, "plot_interactive should not be None"
         assert isinstance(factory, MMMPlotlyFactory), (
             f"Expected MMMPlotlyFactory, got {type(factory)}"
         )
-
-    def test_plot_interactive_has_summary_access(self, simple_fitted_mmm):
-        """Test that factory has summary attribute."""
-        # Act
-        factory = simple_fitted_mmm.plot_interactive
-
-        # Assert
         assert hasattr(factory, "summary"), "Factory should have summary attribute"
         assert factory.summary is not None, "Factory summary should not be None"
 
 
-# ============================================================================
-# Phase 2 Tests: Posterior Predictive Plotting
-# ============================================================================
-
-
 class TestMMMPlotlyFactoryPosteriorPredictive:
     """Tests for MMMPlotlyFactory.posterior_predictive() method."""
-
-    def test_posterior_predictive_returns_figure(self):
-        """Test that posterior_predictive() returns a Plotly Figure."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=10),
-                "mean": np.random.randn(10) * 100 + 1000,
-                "median": np.random.randn(10) * 100 + 1000,
-                "observed": np.random.randn(10) * 100 + 1000,
-                "abs_error_94_lower": np.random.randn(10) * 50 + 950,
-                "abs_error_94_upper": np.random.randn(10) * 50 + 1050,
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.posterior_predictive.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.posterior_predictive(auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
     def test_posterior_predictive_has_two_traces(self):
         """Test that figure contains predicted and observed traces."""
@@ -529,37 +602,8 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         )
 
 
-# ============================================================================
-# Phase 2 Tests: ROAS Plotting
-# ============================================================================
-
-
 class TestMMMPlotlyFactoryROAS:
     """Tests for MMMPlotlyFactory.roas() method."""
-
-    def test_roas_returns_figure(self):
-        """Test that roas() returns a Plotly Figure."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [2.5, 3.0, 1.8],
-                "median": [2.4, 3.1, 1.9],
-                "abs_error_94_lower": [2.0, 2.5, 1.5],
-                "abs_error_94_upper": [3.0, 3.5, 2.1],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.roas.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.roas(auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
     def test_roas_has_error_bars(self):
         """Test that ROAS plot includes HDI error bars."""
@@ -591,30 +635,6 @@ class TestMMMPlotlyFactoryROAS:
             "error_y should have array attribute"
         )
 
-    def test_roas_accepts_polars(self):
-        """Test that roas() handles Polars DataFrames."""
-        # Arrange
-        df_polars = pl.DataFrame(
-            {
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [2.5, 3.0, 1.8],
-                "median": [2.4, 3.1, 1.9],
-                "abs_error_94_lower": [2.0, 2.5, 1.5],
-                "abs_error_94_upper": [3.0, 3.5, 2.1],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.roas.return_value = df_polars
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.roas(auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), "Should return Figure for Polars input"
-
     def test_roas_handles_nan_values(self):
         """Test that roas() handles NaN values in data without crashing."""
         # Arrange - ROAS data with NaN values (e.g., channel with zero spend)
@@ -640,35 +660,8 @@ class TestMMMPlotlyFactoryROAS:
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
 
-# ============================================================================
-# Phase 2 Tests: Saturation Curves Plotting
-# ============================================================================
-
-
 class TestMMMPlotlyFactorySaturationCurves:
     """Tests for MMMPlotlyFactory.saturation_curves() method."""
-
-    def test_saturation_curves_returns_figure(self):
-        """Test that saturation_curves() returns a Plotly Figure."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "x": np.linspace(0, 1, 50).tolist() * 2,
-                "channel": ["TV"] * 50 + ["Radio"] * 50,
-                "mean": np.random.rand(100),
-                "median": np.random.rand(100),
-                "abs_error_94_lower": np.random.rand(100) * 0.8,
-                "abs_error_94_upper": np.random.rand(100) * 1.2,
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
     def test_saturation_curves_line_plots_per_channel(self):
         """Test that saturation curves shows one line per channel."""
@@ -886,38 +879,8 @@ class TestMMMPlotlyFactorySaturationCurves:
         )
 
 
-# ============================================================================
-# Phase 2 Tests: Adstock Curves Plotting
-# ============================================================================
-
-
 class TestMMMPlotlyFactoryAdstockCurves:
     """Tests for MMMPlotlyFactory.adstock_curves() method."""
-
-    def test_adstock_curves_returns_figure(self):
-        """Test that adstock_curves() returns a Plotly Figure."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "time since exposure": np.tile(np.arange(10), 2),
-                "channel": ["TV"] * 10 + ["Radio"] * 10,
-                "mean": np.random.rand(20),
-                "median": np.random.rand(20),
-                "abs_error_94_lower": np.random.rand(20) * 0.8,
-                "abs_error_94_upper": np.random.rand(20) * 1.2,
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.adstock_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.adstock_curves(auto_facet=False)
-
-        # Assert
-        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
     def test_adstock_curves_hdi_bands(self):
         """Test that HDI bands are added for adstock curves."""
@@ -947,11 +910,6 @@ class TestMMMPlotlyFactoryAdstockCurves:
         assert len(hdi_traces) >= 2, (
             f"Should have HDI bands for both channels, got {len(hdi_traces)}"
         )
-
-
-# ============================================================================
-# Phase 2 Tests: Saturation Curves Faceting with Custom Dimensions
-# ============================================================================
 
 
 def _count_line_traces(fig: go.Figure) -> int:
@@ -1344,11 +1302,6 @@ class TestSaturationCurvesTwoCustomDims:
         assert n_lines == 8, (
             f"Expected 8 total lines (4 per subplot: 2 channels × 2 brand), got {n_lines}"
         )
-
-
-# ============================================================================
-# Tests: Saturation Curves Original Scale
-# ============================================================================
 
 
 class TestSaturationCurvesOriginalScale:
