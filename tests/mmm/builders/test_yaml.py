@@ -276,3 +276,73 @@ def test_apply_calibration_propagates_failure(failing_mmm, tmp_path):
         RuntimeError, match="Failed to apply calibration step 'failing'"
     ):
         _apply_and_validate_calibration_steps(failing_mmm, cfg, tmp_path)
+
+
+def test_special_prior_in_yaml(tmp_path):
+    """Test that SpecialPrior (LogNormalPrior) works in YAML config."""
+    # Create test data
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=100),
+            "channel_1": range(100),
+            "channel_2": range(100, 200),
+        }
+    )
+    y = pd.Series(range(100), name="y")
+
+    # Create YAML config with LogNormalPrior
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1", "channel_2"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {
+                        "priors": {
+                            "lam": {
+                                "special_prior": "LogNormalPrior",
+                                "mu": 1.0,
+                                "sigma": 0.5,
+                                "dims": ["channel"],
+                            },
+                            "beta": {
+                                "distribution": "HalfNormal",
+                                "sigma": 1.0,
+                                "dims": ["channel"],
+                            },
+                        }
+                    },
+                },
+            },
+        }
+    }
+
+    # Write to temp file
+    config_path = tmp_path / "test_config.yml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    # Build model from YAML
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    # Check that model was created successfully
+    assert model is not None
+    assert hasattr(model, "saturation")
+
+    # Check that the prior was deserialized correctly
+    assert "lam" in model.saturation.priors
+    lam_prior = model.saturation.priors["lam"]
+
+    # Check it has the special_prior attribute and correct values
+    assert hasattr(lam_prior, "to_dict")
+    lam_dict = lam_prior.to_dict()
+    assert lam_dict.get("special_prior") == "LogNormalPrior"
+    assert lam_dict.get("mu") == 1.0
+    assert lam_dict.get("sigma") == 0.5
