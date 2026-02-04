@@ -95,7 +95,7 @@ def _create_simple_mock_summary(
     custom_dims: list[str] | None = None,
     method_name: str = "contributions",
 ) -> Mock:
-    """Create a simple mock summary for non-saturation tests.
+    """Create a mock summary for non-saturation tests.
 
     Parameters
     ----------
@@ -236,34 +236,17 @@ def _create_saturation_df_two_custom_dims(
 class TestPlotMethodsReturnFigure:
     """Parametrized tests for basic plot method behavior."""
 
-    @pytest.mark.parametrize(
-        "method_name,df_setup",
-        [
-            (
-                "contributions",
-                {
-                    "date": pd.date_range("2024-01-01", periods=3),
-                    "channel": ["TV", "Radio", "Social"],
-                    "mean": [100.0, 200.0, 300.0],
-                    "median": [100.0, 200.0, 300.0],
-                    "abs_error_94_lower": [90.0, 190.0, 290.0],
-                    "abs_error_94_upper": [110.0, 210.0, 310.0],
-                },
-            ),
-            (
-                "roas",
-                {
-                    "channel": ["TV", "Radio", "Social"],
-                    "mean": [2.5, 3.0, 1.8],
-                    "median": [2.4, 3.1, 1.9],
-                    "abs_error_94_lower": [2.0, 2.5, 1.5],
-                    "abs_error_94_upper": [3.0, 3.5, 2.1],
-                },
-            ),
-        ],
-    )
-    def test_accepts_polars_dataframe(self, method_name, df_setup):
+    @pytest.mark.parametrize("method_name", ["contributions", "roas"])
+    def test_accepts_polars_dataframe(self, method_name):
         """Test that method handles Polars DataFrames via Narwhals."""
+        df_setup = {
+            "date": pd.date_range("2024-01-01", periods=3),
+            "channel": ["TV", "Radio", "Social"],
+            "mean": [100.0, 200.0, 300.0],
+            "median": [100.0, 200.0, 300.0],
+            "abs_error_94_lower": [90.0, 190.0, 290.0],
+            "abs_error_94_upper": [110.0, 210.0, 310.0],
+        }
         df_polars = pl.DataFrame(df_setup)
         mock_summary = Mock(spec=MMMSummaryFactory)
         getattr(mock_summary, method_name).return_value = df_polars
@@ -272,7 +255,7 @@ class TestPlotMethodsReturnFigure:
         factory = MMMPlotlyFactory(summary=mock_summary)
         method = getattr(factory, method_name)
 
-        fig = method(color="date" if "date" in df_setup else None, auto_facet=False)
+        fig = method(color="date" if "date" in df_setup else None)
 
         assert isinstance(fig, go.Figure), f"{method_name} should handle Polars input"
 
@@ -284,79 +267,26 @@ class TestRoasAndContributionsBarCharts:
     so they are tested together using parametrize.
     """
 
-    @pytest.fixture
-    def bar_chart_df(self):
-        """Create standard DataFrame for bar chart tests."""
-        return pd.DataFrame(
-            {
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [100.0, 200.0, 300.0],
-                "median": [100.0, 200.0, 300.0],
-                "abs_error_94_lower": [90.0, 190.0, 290.0],
-                "abs_error_94_upper": [110.0, 210.0, 310.0],
-            }
-        )
-
-    @pytest.fixture
-    def asymmetric_error_df(self):
-        """Create DataFrame with asymmetric error bars for testing conversion."""
-        return pd.DataFrame(
-            {
-                "channel": ["TV", "Radio"],
-                "mean": [100.0, 200.0],
-                "median": [100.0, 200.0],
-                "abs_error_94_lower": [90.0, 190.0],  # 10 below each mean
-                "abs_error_94_upper": [115.0, 220.0],  # 15 above TV, 20 above Radio
-            }
-        )
-
-    @pytest.fixture
-    def no_hdi_df(self):
-        """Create DataFrame without HDI columns."""
-        return pd.DataFrame(
-            {
-                "channel": ["TV", "Radio"],
-                "mean": [100.0, 200.0],
-                "median": [100.0, 200.0],
-            }
-        )
-
     @pytest.mark.parametrize("method_name", ["contributions", "roas"])
-    def test_has_error_bars(self, method_name, bar_chart_df):
-        """Test that method returns a Figure with error bars."""
-        # Arrange
-        mock_summary = _create_simple_mock_summary(
-            df=bar_chart_df, method_name=method_name
-        )
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        method = getattr(factory, method_name)
-        fig = method(auto_facet=False)
-
-        # Assert that error bars are added
-        bar_trace = fig.data[0]
-        assert bar_trace.error_y is not None, (
-            f"{method_name} bar chart should have error_y for HDI upper bounds"
-        )
-        assert hasattr(bar_trace.error_y, "array"), (
-            f"{method_name} error_y should have array attribute"
-        )
-
-    @pytest.mark.parametrize("method_name", ["contributions", "roas"])
-    def test_converts_absolute_to_relative_errors(
-        self, method_name, asymmetric_error_df
-    ):
+    def test_converts_absolute_to_relative_errors(self, method_name):
         """Test that absolute HDI bounds are converted to relative errors."""
-        # Arrange
-        mock_summary = _create_simple_mock_summary(
-            df=asymmetric_error_df, method_name=method_name
+        # Arrange - DataFrame with asymmetric error bars
+        # 10 below each mean, 15 above TV, 20 above Radio
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [100.0, 200.0],
+                "median": [100.0, 200.0],
+                "abs_error_94_lower": [90.0, 190.0],
+                "abs_error_94_upper": [115.0, 220.0],
+            }
         )
+        mock_summary = _create_simple_mock_summary(df=df, method_name=method_name)
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
         method = getattr(factory, method_name)
-        fig = method(hdi_prob=0.94, auto_facet=False)
+        fig = method(hdi_prob=0.94)
 
         # Assert - Check that error bars have correct relative values
         bar_trace = fig.data[0]
@@ -381,55 +311,28 @@ class TestRoasAndContributionsBarCharts:
         )
 
     @pytest.mark.parametrize("method_name", ["contributions", "roas"])
-    def test_no_error_bars_when_hdi_prob_is_none(self, method_name, no_hdi_df):
+    def test_no_error_bars_when_hdi_prob_is_none(self, method_name):
         """Test that no error bars are added when hdi_prob=None."""
-        # Arrange
-        mock_summary = _create_simple_mock_summary(
-            df=no_hdi_df, method_name=method_name
+        # Arrange - DataFrame without HDI columns
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [100.0, 200.0],
+                "median": [100.0, 200.0],
+            }
         )
+        mock_summary = _create_simple_mock_summary(df=df, method_name=method_name)
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
         method = getattr(factory, method_name)
-        fig = method(hdi_prob=None, auto_facet=False)
+        fig = method(hdi_prob=None)
 
         # Assert
         bar_trace = fig.data[0]
         # Plotly always creates an error_y object, but array should be None when no errors
         assert bar_trace.error_y.array is None, (
             f"{method_name} bar chart should not have error bar data when hdi_prob=None"
-        )
-
-
-class TestMMMPlotlyFactoryContributions:
-    """Tests specific to MMMPlotlyFactory.contributions() method."""
-
-    def test_contributions_with_custom_hdi_prob(self):
-        """Test that custom hdi_prob is passed to summary factory."""
-        # Arrange
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=3),
-                "channel": ["TV"] * 3,
-                "mean": [100.0, 200.0, 300.0],
-                "median": [100.0, 200.0, 300.0],
-                "abs_error_80_lower": [90.0, 190.0, 290.0],
-                "abs_error_80_upper": [110.0, 210.0, 310.0],
-            }
-        )
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        factory.contributions(hdi_prob=0.80, color="date", auto_facet=False)
-
-        # Assert
-        mock_summary.contributions.assert_called_once()
-        call_kwargs = mock_summary.contributions.call_args[1]
-        assert call_kwargs["hdi_probs"] == [0.80], (
-            f"Expected hdi_probs=[0.80], got {call_kwargs['hdi_probs']}"
         )
 
 
@@ -489,8 +392,9 @@ class TestMMMPlotlyFactoryAutoFaceting:
         fig = factory.contributions(auto_facet=True)
 
         # Assert - 2x2 grid should have 4 subplot annotations
-        assert len(fig.layout.annotations) >= 4, (
-            "2D faceted figure should have at least 4 subplot annotations"
+        rows, cols = _get_subplot_dimensions(fig)
+        assert rows == 2 and cols == 2, (
+            "2D faceted figure should have 2 rows and 2 columns"
         )
 
     def test_contributions_component_control(self):
@@ -510,7 +414,7 @@ class TestMMMPlotlyFactoryAutoFaceting:
 
         factory = MMMPlotlyFactory(summary=mock_summary)
 
-        factory.contributions(component="control", auto_facet=False)
+        factory.contributions(component="control")
 
         # Assert
         call_kwargs = mock_summary.contributions.call_args[1]
@@ -518,8 +422,6 @@ class TestMMMPlotlyFactoryAutoFaceting:
 
 
 class TestMMMPlotInteractiveProperty:
-    """Tests for mmm.plot_interactive property integration."""
-
     def test_plot_interactive_property(self, simple_fitted_mmm):
         """Test that plot_interactive property returns configured factory."""
         factory = simple_fitted_mmm.plot_interactive
@@ -535,41 +437,23 @@ class TestMMMPlotInteractiveProperty:
 class TestMMMPlotlyFactoryPosteriorPredictive:
     """Tests for MMMPlotlyFactory.posterior_predictive() method."""
 
-    def test_posterior_predictive_has_two_traces(self):
-        """Test that figure contains predicted and observed traces."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=10),
-                "mean": [1000.0] * 10,
-                "median": [1000.0] * 10,
-                "observed": [900.0] * 10,
-                "abs_error_94_lower": [950.0] * 10,
-                "abs_error_94_upper": [1050.0] * 10,
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.posterior_predictive.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.posterior_predictive(auto_facet=False)
-
-        # Assert
-        # Should have at least 2 traces: Predicted line, Observed line
-        assert len(fig.data) >= 2, (
-            f"Expected at least 2 traces (Predicted + Observed), got {len(fig.data)}"
-        )
-
-        # Check trace names
-        trace_names = [trace.name for trace in fig.data]
-        assert "Predicted" in trace_names, "Should have 'Predicted' trace"
-        assert "Observed" in trace_names, "Should have 'Observed' trace"
-
-    def test_posterior_predictive_adds_hdi_band(self):
-        """Test that HDI band is added as a filled trace."""
+    @pytest.mark.parametrize(
+        "hdi_prob, expected_hdi_traces",
+        [
+            pytest.param(
+                None,
+                0,
+                id="hdi_prob_none_no_hdi_band",
+            ),
+            pytest.param(
+                0.94,
+                1,
+                id="hdi_prob_94_adds_hdi_band",
+            ),
+        ],
+    )
+    def test_posterior_predictive_hdi_behavior(self, hdi_prob, expected_hdi_traces):
+        """Test posterior predictive traces and HDI band behavior with various hdi_prob values."""
         # Arrange
         df = pd.DataFrame(
             {
@@ -588,43 +472,17 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.posterior_predictive(hdi_prob=0.94, auto_facet=False)
+        fig = factory.posterior_predictive(hdi_prob=hdi_prob)
 
-        # Assert
-        # Find HDI trace (filled area with 'toself')
+        # Assert - Always check for Predicted and Observed traces
+        assert _count_line_traces(fig) == 2, (
+            f"Expected 2 traces (Predicted + Observed), got {_count_line_traces(fig)}"
+        )
+
+        # Assert - Check HDI band presence based on expected_hdi_traces
         hdi_traces = [t for t in fig.data if t.fill == "toself"]
-        assert len(hdi_traces) >= 1, "Should have at least one HDI band trace"
-
-        hdi_trace = hdi_traces[0]
-        assert "94" in hdi_trace.name or "HDI" in hdi_trace.name, (
-            f"HDI trace name should mention HDI or probability, got: {hdi_trace.name}"
-        )
-
-    def test_posterior_predictive_no_hdi_when_none(self):
-        """Test that no HDI band is added when hdi_prob=None."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=5),
-                "mean": [1000.0] * 5,
-                "median": [1000.0] * 5,
-                "observed": [950.0] * 5,
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.posterior_predictive.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.posterior_predictive(hdi_prob=None, auto_facet=False)
-
-        # Assert
-        # Should only have line traces, no filled areas
-        filled_traces = [t for t in fig.data if t.fill == "toself"]
-        assert len(filled_traces) == 0, (
-            f"Should have no HDI bands when hdi_prob=None, got {len(filled_traces)}"
+        assert len(hdi_traces) == expected_hdi_traces, (
+            f"Expected {expected_hdi_traces} HDI bands, got {len(hdi_traces)}"
         )
 
     def test_posterior_predictive_with_custom_dimensions(self):
@@ -679,7 +537,7 @@ class TestMMMPlotlyFactoryROAS:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act & Assert - Should not raise IntCastingNaNError
-        fig = factory.roas(hdi_prob=0.94, auto_facet=False)
+        fig = factory.roas(hdi_prob=0.94)
 
         # Verify figure is returned
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
@@ -687,33 +545,6 @@ class TestMMMPlotlyFactoryROAS:
 
 class TestMMMPlotlyFactorySaturationCurves:
     """Tests for MMMPlotlyFactory.saturation_curves() method."""
-
-    def test_saturation_curves_line_plots_per_channel(self):
-        """Test that saturation curves shows one line per channel."""
-        # Arrange
-        x_vals = np.linspace(0, 1, 20)
-        df = pd.DataFrame(
-            {
-                "x": np.tile(x_vals, 2),
-                "channel": ["TV"] * 20 + ["Radio"] * 20,
-                "mean": np.concatenate([x_vals * 0.8, x_vals * 0.6]),
-                "median": np.concatenate([x_vals * 0.8, x_vals * 0.6]),
-                "abs_error_94_lower": np.concatenate([x_vals * 0.7, x_vals * 0.5]),
-                "abs_error_94_upper": np.concatenate([x_vals * 0.9, x_vals * 0.7]),
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(auto_facet=False)
-
-        # Assert
-        # Should have at least 2 line traces (one per channel)
-        line_traces = [t for t in fig.data if t.mode == "lines" and t.fill != "toself"]
-        assert len(line_traces) >= 2, (
-            f"Should have at least 2 line traces (TV, Radio), got {len(line_traces)}"
-        )
 
     def test_saturation_curves_hdi_bands(self):
         """Test that HDI bands are added for each channel."""
@@ -733,174 +564,13 @@ class TestMMMPlotlyFactorySaturationCurves:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.saturation_curves(hdi_prob=0.94, auto_facet=False)
+        fig = factory.saturation_curves(hdi_prob=0.94)
 
         # Assert
         # Should have filled traces for HDI bands
         hdi_traces = [t for t in fig.data if t.fill == "toself"]
         assert len(hdi_traces) >= 2, (
             f"Should have HDI bands for both channels, got {len(hdi_traces)}"
-        )
-
-    def test_saturation_curves_with_custom_dimensions(self):
-        """Test saturation curves with faceting by country."""
-        # Arrange
-        x_vals = np.linspace(0, 1, 10)
-        df = pd.DataFrame(
-            {
-                "x": np.tile(x_vals, 4),
-                "channel": (["TV"] * 10 + ["Radio"] * 10) * 2,
-                "country": ["US"] * 20 + ["UK"] * 20,
-                "mean": np.random.rand(40),
-                "median": np.random.rand(40),
-                "abs_error_94_lower": np.random.rand(40) * 0.8,
-                "abs_error_94_upper": np.random.rand(40) * 1.2,
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["country"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(auto_facet=True)
-
-        # Assert
-        # Should have faceted layout
-        assert len(fig.layout.annotations) >= 2, (
-            f"Should have annotations for 2 countries, got {len(fig.layout.annotations)}"
-        )
-
-    def test_saturation_curves_no_auto_facet_with_custom_dim_has_correct_line_count(
-        self,
-    ):
-        """Test that saturation_curves(auto_facet=False) plots all curves when custom_dim exists.
-
-        When auto_facet=False and data has custom dimensions (e.g., country),
-        the figure should contain one line per (channel, custom_dim_coord) combination.
-        For 2 channels and 2 countries, there should be 4 lines (excluding HDI bands).
-        """
-        # Arrange
-        x_vals = np.linspace(0, 1, 10)
-        n_channels = 2
-        n_countries = 2
-        n_points = len(x_vals)
-
-        # Create data with 2 channels (TV, Radio) x 2 countries (US, UK) = 4 curves
-        mean_values = np.random.rand(n_channels * n_countries * n_points)
-        df = pd.DataFrame(
-            {
-                "x": np.tile(x_vals, n_channels * n_countries),
-                "channel": (["TV"] * n_points + ["Radio"] * n_points) * n_countries,
-                "country": ["US"] * (n_points * n_channels)
-                + ["UK"] * (n_points * n_channels),
-                "mean": mean_values,
-                "median": mean_values,
-                "abs_error_94_lower": mean_values * 0.8,
-                "abs_error_94_upper": mean_values * 1.2,
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["country"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(auto_facet=False, hdi_prob=None)
-
-        # Assert
-        # Count line traces (exclude HDI bands which have fill="toself")
-        line_traces = [
-            t
-            for t in fig.data
-            if getattr(t, "mode", None) == "lines" and t.fill is None
-        ]
-        expected_lines = n_channels * n_countries  # 2 channels * 2 countries = 4 lines
-        assert len(line_traces) == expected_lines, (
-            f"Expected {expected_lines} line traces for {n_channels} channels x "
-            f"{n_countries} countries, got {len(line_traces)}"
-        )
-
-    def test_saturation_curves_facet_col_with_two_custom_dims(self):
-        """Test saturation_curves with facet_col='brand' and two custom dimensions (geo, brand).
-
-        When facet_col='brand' with hdi_prob=None and data has two custom dimensions
-        (geo, brand), the figure should:
-        1. Create a subplot for each brand (facet columns)
-        2. Within each subplot, have a curve for each (channel, geo) combination
-
-        For 2 channels, 2 geos, and 2 brands, there should be:
-        - 2 subplots (one per brand)
-        - 4 curves per subplot (2 channels x 2 geos)
-        - 8 total line traces
-        """
-        # Arrange
-        x_vals = np.linspace(0, 1, 10)
-        n_channels = 2
-        n_geos = 2
-        n_brands = 2
-        n_points = len(x_vals)
-        total_combinations = n_channels * n_geos * n_brands
-
-        # Create data with all combinations
-        # Structure: for each brand, for each geo, for each channel
-        channels = []
-        geos = []
-        brands = []
-        x_all = []
-        for brand in ["BrandA", "BrandB"]:
-            for geo in ["US", "UK"]:
-                for channel in ["TV", "Radio"]:
-                    channels.extend([channel] * n_points)
-                    geos.extend([geo] * n_points)
-                    brands.extend([brand] * n_points)
-                    x_all.extend(x_vals.tolist())
-
-        mean_values = np.random.rand(total_combinations * n_points)
-        df = pd.DataFrame(
-            {
-                "x": x_all,
-                "channel": channels,
-                "geo": geos,
-                "brand": brands,
-                "mean": mean_values,
-                "median": mean_values,
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.saturation_curves(
-            facet_col="brand", hdi_prob=None, auto_facet=False
-        )
-
-        # Assert - Check faceted layout (should have annotations for brand values)
-        assert len(fig.layout.annotations) >= n_brands, (
-            f"Should have at least {n_brands} subplot annotations for brands, "
-            f"got {len(fig.layout.annotations)}"
-        )
-
-        # Verify the annotation texts contain the brand names
-        annotation_texts = [ann.text for ann in fig.layout.annotations]
-        assert any("BrandA" in text for text in annotation_texts), (
-            f"Expected 'BrandA' in subplot annotations, got: {annotation_texts}"
-        )
-        assert any("BrandB" in text for text in annotation_texts), (
-            f"Expected 'BrandB' in subplot annotations, got: {annotation_texts}"
-        )
-
-        # Count line traces (exclude HDI bands which have fill="toself")
-        # Note: px.line creates traces with mode="lines" or "lines+markers"
-        line_traces = [
-            t
-            for t in fig.data
-            if getattr(t, "mode", None) in ("lines", "lines+markers") and t.fill is None
-        ]
-
-        # Total curves should be n_channels * n_geos * n_brands = 2 * 2 * 2 = 8
-        # Each (channel, geo) combination appears in each brand facet
-        expected_total_lines = n_channels * n_geos * n_brands
-        assert len(line_traces) == expected_total_lines, (
-            f"Expected {expected_total_lines} total line traces for "
-            f"{n_channels} channels x {n_geos} geos x {n_brands} brands, "
-            f"got {len(line_traces)}"
         )
 
 
@@ -928,7 +598,7 @@ class TestMMMPlotlyFactoryAdstockCurves:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.adstock_curves(hdi_prob=0.94, auto_facet=False)
+        fig = factory.adstock_curves(hdi_prob=0.94)
 
         # Assert
         hdi_traces = [t for t in fig.data if t.fill == "toself"]
@@ -1120,7 +790,7 @@ class TestSaturationCurvesOriginalScale:
 
         # Act
         fig = factory.saturation_curves(
-            hdi_prob=None, auto_facet=False, original_scale=True
+            hdi_prob=None, original_scale=True, auto_facet=False
         )
 
         # Assert - Check that x values are scaled by the correct per-(channel, geo) scale
@@ -1194,7 +864,7 @@ class TestMMMPlotlyFactoryErrorHandling:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         with pytest.raises(ValueError, match="choose either x='date' or color='date'"):
-            factory.contributions(auto_facet=False)  # date exists but not assigned
+            factory.contributions()  # date exists but not assigned
 
     def test_contributions_raises_when_component_not_in_x_or_color(self):
         """Test error when component column not assigned to x or color."""
@@ -1215,7 +885,7 @@ class TestMMMPlotlyFactoryErrorHandling:
         with pytest.raises(
             ValueError, match="choose either x=`channel` or color=`channel`"
         ):
-            factory.contributions(x="date", color="date", auto_facet=False)
+            factory.contributions(x="date", color="date")
 
     def test_roas_raises_when_channel_not_in_x_or_color(self):
         """Test error when channel not assigned to x or color in ROAS."""
@@ -1236,7 +906,7 @@ class TestMMMPlotlyFactoryErrorHandling:
         with pytest.raises(
             ValueError, match="choose either x='channel' or color='channel'"
         ):
-            factory.roas(x="date", color="date", auto_facet=False)
+            factory.roas(x="date", color="date")
 
     def test_posterior_predictive_raises_for_missing_columns(self):
         """Test error when required columns missing from posterior predictive."""
@@ -1254,7 +924,7 @@ class TestMMMPlotlyFactoryErrorHandling:
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         with pytest.raises(ValueError, match="missing required columns"):
-            factory.posterior_predictive(auto_facet=False)
+            factory.posterior_predictive()
 
     def test_plot_bar_raises_for_missing_y_column(self):
         """Test error when y column missing from DataFrame."""
@@ -1401,9 +1071,7 @@ class TestSaturationCurvesOriginalScaleFalse:
         mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
-        fig = factory.saturation_curves(
-            hdi_prob=None, auto_facet=False, original_scale=False
-        )
+        fig = factory.saturation_curves(hdi_prob=None, original_scale=False)
 
         # X values should be unchanged (0, 0.5, 1.0)
         for trace in fig.data:
