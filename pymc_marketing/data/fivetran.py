@@ -300,20 +300,20 @@ def _format_pivot_columns(
         metric = value_columns[0]
         new_cols = {col: f"{col}_{metric}" for col in wide.columns if col != date_col}
         return wide.rename(new_cols)
-    else:
-        # Multiple metrics case: swap {metric}_{platform} to {platform}_{metric}
-        new_cols = {}
-        for col in wide.columns:
-            if col == date_col:
-                continue
-            for metric in value_columns:
-                if col.startswith(metric + "_"):
-                    platform = col[len(metric) + 1 :]
-                    new_cols[col] = f"{platform}_{metric}"
-                    break
-        if new_cols:
-            return wide.rename(new_cols)
-        return wide
+
+    # Multiple metrics case: swap {metric}_{platform} to {platform}_{metric}
+    new_cols = {}
+    for col in wide.columns:
+        if col == date_col:
+            continue
+        for metric in value_columns:
+            if col.startswith(metric + "_"):
+                platform = col[len(metric) + 1 :]
+                new_cols[col] = f"{platform}_{metric}"
+                break
+    if new_cols:
+        return wide.rename(new_cols)
+    return wide
 
 
 def _create_date_range(
