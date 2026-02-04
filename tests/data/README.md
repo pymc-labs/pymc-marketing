@@ -80,14 +80,14 @@ df_spark = backend_converter.to_backend(df)
 
 #### `to_pandas(df: Any) -> pd.DataFrame`
 
-Convert any backend DataFrame back to pandas using narwhals.
+Convert any backend DataFrame back to pandas using narwhals, collecting lazy frames first.
 
 ```python
 # Works with any backend
 result_pd = backend_converter.to_pandas(result)
 ```
 
-Uses `narwhals.to_pandas()` for unified conversion across all backends (pandas, polars, PySpark).
+Narwhals automatically handles pandas, polars (eager and lazy), and PySpark; lazy Narwhals frames are collected via `LazyFrame.collect()` before calling `.to_pandas()` so tests that return lazy data still materialize properly.
 
 #### `assert_frame_equal(result: Any, expected: pd.DataFrame, **kwargs)`
 
