@@ -193,9 +193,18 @@ class ModelIO:
             "0123456789abcdef"
 
         """
+
+        def _serialize_for_hash(obj):
+            """Serialize objects for deterministic hashing."""
+            if hasattr(obj, "to_dict"):
+                return obj.to_dict()
+            raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
         hasher = hashlib.sha256()
-        # _serializable_model_config now returns fully JSON-serializable data
-        config_json = json.dumps(self._serializable_model_config, sort_keys=True)
+        # Use JSON serialization with custom default for deterministic model IDs
+        config_json = json.dumps(
+            self._serializable_model_config, sort_keys=True, default=_serialize_for_hash
+        )
         hasher.update(config_json.encode())
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
@@ -223,14 +232,25 @@ class ModelIO:
         dict[str, str]
             A dictionary of attributes for the inference data.
         """
+
+        def _json_default(obj):
+            """Handle objects that aren't JSON serializable by default."""
+            if hasattr(obj, "to_dict"):
+                return obj.to_dict()
+            # Let json.dumps raise TypeError for truly non-serializable objects
+            raise TypeError(
+                f"Object of type {type(obj).__name__} is not JSON serializable"
+            )
+
         attrs: dict[str, str] = {}
 
         attrs["id"] = self.id
         attrs["model_type"] = self._model_type
         attrs["version"] = self.version
         attrs["sampler_config"] = json.dumps(self.sampler_config)
-        # _serializable_model_config now returns fully serializable data
-        attrs["model_config"] = json.dumps(self._serializable_model_config)
+        attrs["model_config"] = json.dumps(
+            self._serializable_model_config, default=_json_default
+        )
 
         return attrs
 
