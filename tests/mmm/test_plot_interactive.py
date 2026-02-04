@@ -255,118 +255,8 @@ def _create_saturation_df_two_custom_dims(
     return pd.DataFrame(rows)
 
 
-# =============================================================================
-# Test Classes
-# =============================================================================
-
-
 class TestPlotMethodsReturnFigure:
     """Parametrized tests for basic plot method behavior."""
-
-    @pytest.fixture
-    def contributions_setup(self):
-        """Setup for contributions test."""
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [100.0, 200.0, 300.0],
-                "median": [100.0, 200.0, 300.0],
-                "abs_error_94_lower": [90.0, 190.0, 290.0],
-                "abs_error_94_upper": [110.0, 210.0, 310.0],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-        return MMMPlotlyFactory(summary=mock_summary), "contributions"
-
-    @pytest.fixture
-    def roas_setup(self):
-        """Setup for roas test."""
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [2.5, 3.0, 1.8],
-                "median": [2.4, 3.1, 1.9],
-                "abs_error_94_lower": [2.0, 2.5, 1.5],
-                "abs_error_94_upper": [3.0, 3.5, 2.1],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.roas.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-        return MMMPlotlyFactory(summary=mock_summary), "roas"
-
-    @pytest.fixture
-    def posterior_predictive_setup(self):
-        """Setup for posterior_predictive test."""
-        df = pd.DataFrame(
-            {
-                "date": pd.date_range("2024-01-01", periods=10),
-                "mean": np.random.randn(10) * 100 + 1000,
-                "median": np.random.randn(10) * 100 + 1000,
-                "observed": np.random.randn(10) * 100 + 1000,
-                "abs_error_94_lower": np.random.randn(10) * 50 + 950,
-                "abs_error_94_upper": np.random.randn(10) * 50 + 1050,
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.posterior_predictive.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-        return MMMPlotlyFactory(summary=mock_summary), "posterior_predictive"
-
-    @pytest.fixture
-    def adstock_curves_setup(self):
-        """Setup for adstock_curves test."""
-        df = pd.DataFrame(
-            {
-                "time since exposure": np.tile(np.arange(10), 2),
-                "channel": ["TV"] * 10 + ["Radio"] * 10,
-                "mean": np.random.rand(20),
-                "median": np.random.rand(20),
-                "abs_error_94_lower": np.random.rand(20) * 0.8,
-                "abs_error_94_upper": np.random.rand(20) * 1.2,
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.adstock_curves.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-        return MMMPlotlyFactory(summary=mock_summary), "adstock_curves"
-
-    @pytest.fixture
-    def saturation_curves_setup(self):
-        """Setup for saturation_curves test."""
-        df = pd.DataFrame(
-            {
-                "x": np.linspace(0, 1, 50).tolist() * 2,
-                "channel": ["TV"] * 50 + ["Radio"] * 50,
-                "mean": np.random.rand(100),
-                "median": np.random.rand(100),
-                "abs_error_94_lower": np.random.rand(100) * 0.8,
-                "abs_error_94_upper": np.random.rand(100) * 1.2,
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
-        return MMMPlotlyFactory(summary=mock_summary), "saturation_curves"
-
-    @pytest.mark.parametrize(
-        "setup_name",
-        [
-            "contributions_setup",
-            "roas_setup",
-            "posterior_predictive_setup",
-            "adstock_curves_setup",
-            "saturation_curves_setup",
-        ],
-    )
-    def test_returns_plotly_figure(self, setup_name, request):
-        """Test that plot method returns a Plotly Figure."""
-        factory, method_name = request.getfixturevalue(setup_name)
-        method = getattr(factory, method_name)
-
-        fig = method(auto_facet=False)
-
-        assert isinstance(fig, go.Figure), f"{method_name} should return go.Figure"
 
     @pytest.mark.parametrize(
         "method_name,df_setup",
@@ -409,26 +299,132 @@ class TestPlotMethodsReturnFigure:
         assert isinstance(fig, go.Figure), f"{method_name} should handle Polars input"
 
 
-class TestMMMPlotlyFactoryContributions:
-    """Tests for MMMPlotlyFactory.contributions() method."""
+class TestRoasAndContributionsBarCharts:
+    """Parametrized tests for roas() and contributions() bar chart methods.
 
-    def test_contributions_has_error_bars(self):
-        """Test that contributions() returns a Figure with error bars."""
+    These methods share similar structure and mock data requirements,
+    so they are tested together using parametrize.
+    """
+
+    @pytest.fixture
+    def bar_chart_df(self):
+        """Create standard DataFrame for bar chart tests."""
+        return pd.DataFrame(
+            {
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [100.0, 200.0, 300.0],
+                "median": [100.0, 200.0, 300.0],
+                "abs_error_94_lower": [90.0, 190.0, 290.0],
+                "abs_error_94_upper": [110.0, 210.0, 310.0],
+            }
+        )
+
+    @pytest.fixture
+    def asymmetric_error_df(self):
+        """Create DataFrame with asymmetric error bars for testing conversion."""
+        return pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [100.0, 200.0],
+                "median": [100.0, 200.0],
+                "abs_error_94_lower": [90.0, 190.0],  # 10 below each mean
+                "abs_error_94_upper": [115.0, 220.0],  # 15 above TV, 20 above Radio
+            }
+        )
+
+    @pytest.fixture
+    def no_hdi_df(self):
+        """Create DataFrame without HDI columns."""
+        return pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [100.0, 200.0],
+                "median": [100.0, 200.0],
+            }
+        )
+
+    @pytest.mark.parametrize("method_name", ["contributions", "roas"])
+    def test_has_error_bars(self, method_name, bar_chart_df):
+        """Test that method returns a Figure with error bars."""
         # Arrange
-        mock_summary = _create_simple_mock_summary()
+        mock_summary = _create_simple_mock_summary(
+            df=bar_chart_df, method_name=method_name
+        )
         factory = MMMPlotlyFactory(summary=mock_summary)
 
         # Act
-        fig = factory.contributions(auto_facet=False)
+        method = getattr(factory, method_name)
+        fig = method(auto_facet=False)
 
         # Assert that error bars are added
         bar_trace = fig.data[0]
         assert bar_trace.error_y is not None, (
-            "Bar chart should have error_y for HDI upper bounds"
+            f"{method_name} bar chart should have error_y for HDI upper bounds"
         )
         assert hasattr(bar_trace.error_y, "array"), (
-            "error_y should have array attribute"
+            f"{method_name} error_y should have array attribute"
         )
+
+    @pytest.mark.parametrize("method_name", ["contributions", "roas"])
+    def test_converts_absolute_to_relative_errors(
+        self, method_name, asymmetric_error_df
+    ):
+        """Test that absolute HDI bounds are converted to relative errors."""
+        # Arrange
+        mock_summary = _create_simple_mock_summary(
+            df=asymmetric_error_df, method_name=method_name
+        )
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        # Act
+        method = getattr(factory, method_name)
+        fig = method(hdi_prob=0.94, auto_facet=False)
+
+        # Assert - Check that error bars have correct relative values
+        bar_trace = fig.data[0]
+        assert bar_trace.error_y is not None, (
+            f"{method_name} bar chart should have error_y for HDI upper bounds"
+        )
+
+        # Verify upper errors: absolute_upper - mean
+        # TV: 115 - 100 = 15, Radio: 220 - 200 = 20
+        np.testing.assert_array_almost_equal(
+            bar_trace.error_y.array,
+            [15.0, 20.0],
+            err_msg=f"{method_name}: Upper error bars should be [15.0, 20.0]",
+        )
+
+        # Verify lower errors: mean - absolute_lower
+        # TV: 100 - 90 = 10, Radio: 200 - 190 = 10
+        np.testing.assert_array_almost_equal(
+            bar_trace.error_y.arrayminus,
+            [10.0, 10.0],
+            err_msg=f"{method_name}: Lower error bars should be [10.0, 10.0]",
+        )
+
+    @pytest.mark.parametrize("method_name", ["contributions", "roas"])
+    def test_no_error_bars_when_hdi_prob_is_none(self, method_name, no_hdi_df):
+        """Test that no error bars are added when hdi_prob=None."""
+        # Arrange
+        mock_summary = _create_simple_mock_summary(
+            df=no_hdi_df, method_name=method_name
+        )
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        # Act
+        method = getattr(factory, method_name)
+        fig = method(hdi_prob=None, auto_facet=False)
+
+        # Assert
+        bar_trace = fig.data[0]
+        # Plotly always creates an error_y object, but array should be None when no errors
+        assert bar_trace.error_y.array is None, (
+            f"{method_name} bar chart should not have error bar data when hdi_prob=None"
+        )
+
+
+class TestMMMPlotlyFactoryContributions:
+    """Tests specific to MMMPlotlyFactory.contributions() method."""
 
     def test_contributions_with_custom_hdi_prob(self):
         """Test that custom hdi_prob is passed to summary factory."""
@@ -456,79 +452,6 @@ class TestMMMPlotlyFactoryContributions:
         call_kwargs = mock_summary.contributions.call_args[1]
         assert call_kwargs["hdi_probs"] == [0.80], (
             f"Expected hdi_probs=[0.80], got {call_kwargs['hdi_probs']}"
-        )
-
-
-class TestMMMPlotlyFactoryHDI:
-    """Tests for HDI error bar handling."""
-
-    def test_contributions_converts_absolute_to_relative_errors(self):
-        """Test that absolute HDI bounds are converted to relative errors."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio"],
-                "mean": [100.0, 200.0],
-                "median": [100.0, 200.0],
-                "abs_error_94_lower": [90.0, 190.0],  # 10 below each mean
-                "abs_error_94_upper": [115.0, 220.0],  # 15 above TV, 20 above Radio
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.contributions(hdi_prob=0.94, auto_facet=False)
-
-        # Assert - Check that error bars have correct relative values
-        bar_trace = fig.data[0]
-        assert bar_trace.error_y is not None, (
-            "Bar chart should have error_y for HDI upper bounds"
-        )
-
-        # Verify upper errors: absolute_upper - mean
-        # TV: 115 - 100 = 15, Radio: 220 - 200 = 20
-        np.testing.assert_array_almost_equal(
-            bar_trace.error_y.array,
-            [15.0, 20.0],
-            err_msg="Upper error bars should be [15.0, 20.0]",
-        )
-
-        # Verify lower errors: mean - absolute_lower
-        # TV: 100 - 90 = 10, Radio: 200 - 190 = 10
-        np.testing.assert_array_almost_equal(
-            bar_trace.error_y.arrayminus,
-            [10.0, 10.0],
-            err_msg="Lower error bars should be [10.0, 10.0]",
-        )
-
-    def test_contributions_no_error_bars_when_hdi_prob_is_none(self):
-        """Test that no error bars are added when hdi_prob=None."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio"],
-                "mean": [100.0, 200.0],
-                "median": [100.0, 200.0],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.contributions.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.contributions(hdi_prob=None, auto_facet=False)
-
-        # Assert
-        bar_trace = fig.data[0]
-        # Plotly always creates an error_y object, but array should be None when no errors
-        assert bar_trace.error_y.array is None, (
-            "Bar chart should not have error bar data when hdi_prob=None"
         )
 
 
@@ -757,37 +680,7 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
 
 
 class TestMMMPlotlyFactoryROAS:
-    """Tests for MMMPlotlyFactory.roas() method."""
-
-    def test_roas_has_error_bars(self):
-        """Test that ROAS plot includes HDI error bars."""
-        # Arrange
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio"],
-                "mean": [2.5, 3.0],
-                "median": [2.4, 3.1],
-                "abs_error_94_lower": [2.0, 2.5],
-                "abs_error_94_upper": [3.0, 3.5],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.roas.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act
-        fig = factory.roas(hdi_prob=0.94, auto_facet=False)
-
-        # Assert
-        bar_trace = fig.data[0]
-        assert bar_trace.error_y is not None, (
-            "Bar chart should have error_y for HDI bounds"
-        )
-        assert bar_trace.error_y.array is not None, (
-            "error_y should have array attribute"
-        )
+    """Tests specific to MMMPlotlyFactory.roas() method."""
 
     def test_roas_handles_nan_values(self):
         """Test that roas() handles NaN values in data without crashing."""
