@@ -1,4 +1,15 @@
-"""This script parses the github action log for test times."""
+"""This script parses the github action log for test times.
+
+Examples
+--------
+Pull out the slow tests from the logs found here: https://github.com/pymc-labs/pymc-marketing/actions/runs/21637811645/job/62368408404
+
+.. code-block:: bash
+
+    gh run view 21637811645 --job 62368408404 --log | python scripts/slowest_tests/extract-slow-tests.py
+
+
+"""
 
 import re
 import sys
