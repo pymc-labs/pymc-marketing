@@ -233,8 +233,12 @@ def _create_saturation_df_two_custom_dims(
     return pd.DataFrame(rows)
 
 
-class TestPlotMethodsReturnFigure:
-    """Parametrized tests for basic plot method behavior."""
+class TestRoasAndContributions:
+    """Parametrized tests for roas() and contributions() methods.
+
+    These methods share similar structure and mock data requirements,
+    so they are tested together using parametrize.
+    """
 
     @pytest.mark.parametrize("method_name", ["contributions", "roas"])
     def test_accepts_polars_dataframe(self, method_name):
@@ -258,14 +262,6 @@ class TestPlotMethodsReturnFigure:
         fig = method(color="date" if "date" in df_setup else None)
 
         assert isinstance(fig, go.Figure), f"{method_name} should handle Polars input"
-
-
-class TestRoasAndContributionsBarCharts:
-    """Parametrized tests for roas() and contributions() bar chart methods.
-
-    These methods share similar structure and mock data requirements,
-    so they are tested together using parametrize.
-    """
 
     @pytest.mark.parametrize("method_name", ["contributions", "roas"])
     def test_converts_absolute_to_relative_errors(self, method_name):
@@ -334,6 +330,30 @@ class TestRoasAndContributionsBarCharts:
         assert bar_trace.error_y.array is None, (
             f"{method_name} bar chart should not have error bar data when hdi_prob=None"
         )
+
+    def test_roas_handles_nan_values(self):
+        """Test that roas() handles NaN values in data without crashing."""
+        # Arrange - ROAS data with NaN values (e.g., channel with zero spend)
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio", "Social"],
+                "mean": [2.5, np.nan, 1.8],  # NaN for Radio (zero spend)
+                "median": [2.4, np.nan, 1.9],
+                "abs_error_94_lower": [2.0, np.nan, 1.5],
+                "abs_error_94_upper": [3.0, np.nan, 2.1],
+            }
+        )
+        mock_summary = Mock(spec=MMMSummaryFactory)
+        mock_summary.roas.return_value = df
+        mock_summary.data = Mock(custom_dims=[])
+
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        # Act & Assert - Should not raise IntCastingNaNError
+        fig = factory.roas(hdi_prob=0.94)
+
+        # Verify figure is returned
+        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
 
 class TestMMMPlotlyFactoryAutoFaceting:
@@ -515,39 +535,11 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
         )
 
 
-class TestMMMPlotlyFactoryROAS:
-    """Tests specific to MMMPlotlyFactory.roas() method."""
-
-    def test_roas_handles_nan_values(self):
-        """Test that roas() handles NaN values in data without crashing."""
-        # Arrange - ROAS data with NaN values (e.g., channel with zero spend)
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio", "Social"],
-                "mean": [2.5, np.nan, 1.8],  # NaN for Radio (zero spend)
-                "median": [2.4, np.nan, 1.9],
-                "abs_error_94_lower": [2.0, np.nan, 1.5],
-                "abs_error_94_upper": [3.0, np.nan, 2.1],
-            }
-        )
-        mock_summary = Mock(spec=MMMSummaryFactory)
-        mock_summary.roas.return_value = df
-        mock_summary.data = Mock(custom_dims=[])
-
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        # Act & Assert - Should not raise IntCastingNaNError
-        fig = factory.roas(hdi_prob=0.94)
-
-        # Verify figure is returned
-        assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
-
-
-class TestMMMPlotlyFactorySaturationCurves:
-    """Tests for MMMPlotlyFactory.saturation_curves() method."""
+class TestCurveMethodsHDI:
+    """Tests for HDI bands in saturation_curves() and adstock_curves() methods."""
 
     def test_saturation_curves_hdi_bands(self):
-        """Test that HDI bands are added for each channel."""
+        """Test that HDI bands are added for each channel in saturation curves."""
         # Arrange
         x_vals = np.linspace(0, 1, 10)
         df = pd.DataFrame(
@@ -572,10 +564,6 @@ class TestMMMPlotlyFactorySaturationCurves:
         assert len(hdi_traces) >= 2, (
             f"Should have HDI bands for both channels, got {len(hdi_traces)}"
         )
-
-
-class TestMMMPlotlyFactoryAdstockCurves:
-    """Tests for MMMPlotlyFactory.adstock_curves() method."""
 
     def test_adstock_curves_hdi_bands(self):
         """Test that HDI bands are added for adstock curves."""
@@ -757,6 +745,7 @@ class TestSaturationCurvesOriginalScale:
 
     When original_scale=True (default), the x-axis values should be multiplied
     by the channel scale factors to convert from scaled space to original units.
+    When original_scale=False, x values remain unchanged.
     """
 
     def test_original_scale_true_multiplies_x_by_channel_scale(self):
@@ -816,6 +805,34 @@ class TestSaturationCurvesOriginalScale:
                 expected_x,
                 err_msg=f"{channel}, {geo} x values should be scaled by {scale}",
             )
+
+    def test_original_scale_false_no_scaling(self):
+        """Test that original_scale=False keeps x values unchanged."""
+        x_vals = np.array([0.0, 0.5, 1.0])
+        df = pd.DataFrame(
+            {
+                "x": np.tile(x_vals, 2),
+                "channel": ["TV"] * 3 + ["Radio"] * 3,
+                "mean": [0.0, 0.4, 0.8] * 2,
+                "median": [0.0, 0.4, 0.8] * 2,
+            }
+        )
+        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        fig = factory.saturation_curves(hdi_prob=None, original_scale=False)
+
+        # X values should be unchanged (0, 0.5, 1.0)
+        for trace in fig.data:
+            if trace.mode == "lines":
+                np.testing.assert_array_almost_equal(
+                    sorted(trace.x),
+                    [0.0, 0.5, 1.0],
+                    err_msg="X values should not be scaled when original_scale=False",
+                )
+
+        # get_channel_scale should NOT be called
+        mock_summary.data.get_channel_scale.assert_not_called()
 
 
 class TestMMMPlotlyFactoryErrorHandling:
@@ -1014,35 +1031,3 @@ class TestDateFormatting:
 
         with pytest.raises(ValueError, match="Column 'date' not found"):
             MMMPlotlyFactory._format_date_column(nw_df, "date")
-
-
-class TestSaturationCurvesOriginalScaleFalse:
-    """Tests for saturation_curves with original_scale=False."""
-
-    def test_saturation_curves_original_scale_false_no_scaling(self):
-        """Test that original_scale=False keeps x values unchanged."""
-        x_vals = np.array([0.0, 0.5, 1.0])
-        df = pd.DataFrame(
-            {
-                "x": np.tile(x_vals, 2),
-                "channel": ["TV"] * 3 + ["Radio"] * 3,
-                "mean": [0.0, 0.4, 0.8] * 2,
-                "median": [0.0, 0.4, 0.8] * 2,
-            }
-        )
-        mock_summary = _create_saturation_mock_summary(df, custom_dims=[])
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        fig = factory.saturation_curves(hdi_prob=None, original_scale=False)
-
-        # X values should be unchanged (0, 0.5, 1.0)
-        for trace in fig.data:
-            if trace.mode == "lines":
-                np.testing.assert_array_almost_equal(
-                    sorted(trace.x),
-                    [0.0, 0.5, 1.0],
-                    err_msg="X values should not be scaled when original_scale=False",
-                )
-
-        # get_channel_scale should NOT be called
-        mock_summary.data.get_channel_scale.assert_not_called()
