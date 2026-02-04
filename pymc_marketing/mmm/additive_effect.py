@@ -104,13 +104,14 @@ Tips for custom components
   - In `set_data`, update the data variables when dates/dims change.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import xarray as xr
-from pydantic import BaseModel, InstanceOf
+from pydantic import BaseModel, Field, InstanceOf
 from pymc_extras.prior import create_dim_handler
 from pytensor import tensor as pt
 
@@ -220,35 +221,31 @@ class Model(Protocol):
         """The PyMC model."""
 
 
-class MuEffect(Protocol):
-    """Protocol for arbitrary additive mu effect."""
+class MuEffect(ABC, BaseModel):
+    """Abstract base class for arbitrary additive mu effects.
 
+    All mu_effects must inherit from this Pydantic BaseModel to ensure proper
+    serialization and deserialization when saving/loading MMM models.
+    """
+
+    @abstractmethod
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model."""
 
+    @abstractmethod
     def create_effect(self, mmm: Model) -> pt.TensorVariable:
         """Create the additive effect in the model."""
 
+    @abstractmethod
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
 
-class FourierEffect:
+class FourierEffect(MuEffect):
     """Fourier seasonality additive effect for MMM."""
 
-    def __init__(self, fourier: FourierBase, date_dim_name: str = "date"):
-        """Initialize the Fourier effect.
-
-        Parameters
-        ----------
-        fourier : FourierBase
-            The FourierBase instance to use for the effect.
-        date_dim_name : str, optional
-            The name of the date dimension in the model, by default "date".
-
-        """
-        self.fourier = fourier
-        self.date_dim_name: str = date_dim_name
+    fourier: InstanceOf[FourierBase]
+    date_dim_name: str = Field("date")
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -349,7 +346,7 @@ class FourierEffect:
         pm.set_data(new_data=new_data, model=model)
 
 
-class LinearTrendEffect:
+class LinearTrendEffect(MuEffect):
     """Wrapper for LinearTrend to use with MMM's MuEffect protocol.
 
     This class adapts the LinearTrend component to be used as an additive effect
@@ -361,6 +358,8 @@ class LinearTrendEffect:
         The LinearTrend instance to wrap.
     prefix : str
         The prefix to use for variables in the model.
+    date_dim_name : str
+        The name of the date dimension in the model.
 
     Examples
     --------
@@ -450,11 +449,16 @@ class LinearTrendEffect:
 
     """
 
-    def __init__(self, trend: LinearTrend, prefix: str, date_dim_name: str = "date"):
-        self.trend = trend
-        self.prefix = prefix
+    trend: InstanceOf[LinearTrend]
+    prefix: str
+    date_dim_name: str = Field("date")
+
+    model_config = {"extra": "allow"}
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Runtime-only state, not serialized. Set in create_data().
         self.linear_trend_first_date: pd.Timestamp
-        self.date_dim_name: str = date_dim_name
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -536,7 +540,7 @@ class LinearTrendEffect:
         pm.set_data({f"{self.prefix}_t": t}, model=model)
 
 
-class EventAdditiveEffect(BaseModel):
+class EventAdditiveEffect(MuEffect):
     """Event effect class for the MMM.
 
     Parameters

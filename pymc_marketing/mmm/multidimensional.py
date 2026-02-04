@@ -151,6 +151,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
+from functools import singledispatch
 from typing import Annotated, Any, cast
 
 import arviz as az
@@ -163,6 +164,7 @@ import xarray as xr
 from pydantic import Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
@@ -209,6 +211,144 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+
+
+@singledispatch
+def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
+    """Serialize a MuEffect to JSON-compatible dict.
+
+    Default implementation uses Pydantic's model_dump for unknown types.
+    Register new types with: @_serialize_mu_effect.register(YourEffect)
+    """
+    # Check if the effect has model_dump (Pydantic BaseModel)
+    if not hasattr(effect, "model_dump"):
+        raise TypeError(
+            f"Cannot serialize MuEffect of type '{effect.__class__.__name__}': "
+            f"MuEffect subclasses must inherit from pydantic.BaseModel. "
+            f"Update your custom effect class to inherit from MuEffect (which is now a BaseModel). "
+            f"See pymc_marketing.mmm.additive_effect.MuEffect for the new base class definition."
+        )
+
+    return {
+        "class": effect.__class__.__name__,
+        **effect.model_dump(mode="json"),
+    }
+
+
+def _deserialize_mu_effect(data: dict[str, Any]) -> MuEffect:
+    """Deserialize a MuEffect from dict using class name."""
+    class_name = data.get("class")
+    if class_name not in _MUEFFECT_DESERIALIZERS:
+        raise ValueError(
+            f"Unknown MuEffect class: {class_name}. "
+            f"Registered types: {list(_MUEFFECT_DESERIALIZERS.keys())}"
+        )
+    return _MUEFFECT_DESERIALIZERS[class_name](data)
+
+
+# Deserialization registry: maps class name -> deserializer function
+_MUEFFECT_DESERIALIZERS: dict[str, Callable[[dict[str, Any]], MuEffect]] = {}
+
+
+# Register serializers/deserializers at module load
+# Imports are inside function to avoid circular dependencies
+def _register_mu_effect_handlers():
+    """Register all known MuEffect serialization handlers."""
+    from pymc_marketing.mmm import fourier as fourier_module
+    from pymc_marketing.mmm.additive_effect import (
+        EventAdditiveEffect,
+        FourierEffect,
+        LinearTrendEffect,
+    )
+    from pymc_marketing.mmm.linear_trend import LinearTrend
+
+    # FourierEffect
+    @_serialize_mu_effect.register(FourierEffect)
+    def _(effect: FourierEffect) -> dict[str, Any]:
+        return {
+            "class": "FourierEffect",
+            "fourier": effect.fourier.to_dict(),
+            "date_dim_name": effect.date_dim_name,
+        }
+
+    def _deser_fourier(data: dict[str, Any]) -> FourierEffect:
+        # Get Fourier class from module by name and use its from_dict method
+        fourier_data = data["fourier"]
+        fourier_class_name = fourier_data.get("class")
+        fourier_class = getattr(fourier_module, fourier_class_name, None)
+        if fourier_class is None:
+            raise ValueError(
+                f"Unknown Fourier class: {fourier_class_name}. "
+                f"Not found in pymc_marketing.mmm.fourier module."
+            )
+
+        fourier = fourier_class.from_dict(fourier_data)
+        return FourierEffect(
+            fourier=fourier,
+            date_dim_name=data.get("date_dim_name", "date"),
+        )
+
+    # LinearTrendEffect
+    @_serialize_mu_effect.register(LinearTrendEffect)
+    def _(effect: LinearTrendEffect) -> dict[str, Any]:
+        # Serialize trend data, handling priors separately
+        trend_data = effect.trend.model_dump(mode="json", exclude={"priors"})
+        # Manually serialize priors using Prior.to_dict()
+        if effect.trend.priors is not None:
+            trend_data["priors"] = {
+                key: prior.to_dict() for key, prior in effect.trend.priors.items()
+            }
+        return {
+            "class": "LinearTrendEffect",
+            "trend": trend_data,
+            "prefix": effect.prefix,
+            "date_dim_name": effect.date_dim_name,
+        }
+
+    def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
+        # Deserialize priors separately using generic deserialize()
+        # to support both Prior and SpecialPrior (e.g., LogNormalPrior)
+        trend_data = data["trend"].copy()
+        if "priors" in trend_data and trend_data["priors"] is not None:
+            trend_data["priors"] = {
+                key: deserialize(prior_dict)
+                for key, prior_dict in trend_data["priors"].items()
+            }
+        return LinearTrendEffect(
+            trend=LinearTrend.model_validate(trend_data),
+            prefix=data["prefix"],
+            date_dim_name=data.get("date_dim_name", "date"),
+        )
+
+    # EventAdditiveEffect
+    @_serialize_mu_effect.register(EventAdditiveEffect)
+    def _(effect: EventAdditiveEffect) -> dict[str, Any]:
+        result = {
+            "class": "EventAdditiveEffect",
+            **effect.model_dump(mode="json", exclude={"df_events", "effect"}),
+        }
+        result["event_names"] = effect.df_events["name"].tolist()
+        return result
+
+    def _deser_event(data: dict[str, Any]) -> EventAdditiveEffect:
+        raise ValueError(
+            "EventAdditiveEffect deserialization not supported: "
+            "requires original df_events DataFrame. "
+            f"Event names in saved model: {data.get('event_names', [])}"
+        )
+
+    # Populate deserialization registry
+    _MUEFFECT_DESERIALIZERS.update(
+        {
+            "FourierEffect": _deser_fourier,
+            "LinearTrendEffect": _deser_linear_trend,
+            "EventAdditiveEffect": _deser_event,
+        }
+    )
+
+
+# Register handlers at module load
+_register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
@@ -448,6 +588,125 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
 
+    def __eq__(self, other: object) -> bool:
+        """Compare two MMM instances for equivalence.
+
+        Compares all configuration attributes including:
+        - Core configuration (date, channels, target, dims, scaling)
+        - Transformations (adstock, saturation, adstock_first)
+        - Time-varying effects (time_varying_intercept, time_varying_media)
+        - Additive effects (mu_effects)
+        - Causal graph (dag, treatment_nodes, outcome_node)
+        - Control columns and seasonality settings
+        - Model and sampler configuration
+        - Model ID (which validates full config consistency)
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare with.
+
+        Returns
+        -------
+        bool
+            True if all configuration attributes are equal, False otherwise.
+
+        """
+        if not isinstance(other, MMM):
+            return False
+
+        # Core configuration
+        if (
+            self.date_column != other.date_column
+            or self.channel_columns != other.channel_columns
+            or self.target_column != other.target_column
+            or self.dims != other.dims
+            or self.control_columns != other.control_columns
+            or self.adstock_first != other.adstock_first
+        ):
+            return False
+
+        # Transformations - compare by type and serialized form
+        if self.adstock.__class__ is not other.adstock.__class__:
+            return False
+        if hasattr(self.adstock, "to_dict"):
+            if self.adstock.to_dict() != other.adstock.to_dict():
+                return False
+
+        if self.saturation.__class__ is not other.saturation.__class__:
+            return False
+        if hasattr(self.saturation, "to_dict"):
+            if self.saturation.to_dict() != other.saturation.to_dict():
+                return False
+
+        # Time-varying effects
+        if (
+            self.time_varying_intercept.__class__
+            is not other.time_varying_intercept.__class__
+        ):
+            return False
+        if isinstance(self.time_varying_intercept, HSGPBase):
+            if (
+                self.time_varying_intercept.to_dict()
+                != other.time_varying_intercept.to_dict()
+            ):
+                return False
+        else:
+            if self.time_varying_intercept != other.time_varying_intercept:
+                return False
+
+        if self.time_varying_media.__class__ is not other.time_varying_media.__class__:
+            return False
+        if isinstance(self.time_varying_media, HSGPBase):
+            if self.time_varying_media.to_dict() != other.time_varying_media.to_dict():
+                return False
+        else:
+            if self.time_varying_media != other.time_varying_media:
+                return False
+
+        # Additive effects (mu_effects)
+        if len(self.mu_effects) != len(other.mu_effects):
+            return False
+        # Length check above ensures zip lengths match, suppressing B905 warning
+        for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
+            if self_effect.__class__ is not other_effect.__class__:
+                return False
+            if hasattr(self_effect, "model_dump") and hasattr(
+                other_effect, "model_dump"
+            ):
+                if self_effect.model_dump() != other_effect.model_dump():
+                    return False
+
+        # Causal graph
+        if (
+            self.dag != other.dag
+            or self.treatment_nodes != other.treatment_nodes
+            or self.outcome_node != other.outcome_node
+        ):
+            return False
+
+        # Seasonality
+        if self.yearly_seasonality != other.yearly_seasonality:
+            return False
+
+        # Scaling configuration
+        if self.scaling.__class__ is not other.scaling.__class__:
+            return False
+        if hasattr(self.scaling, "model_dump"):
+            if self.scaling.model_dump() != other.scaling.model_dump():
+                return False
+
+        # Model and sampler config (validated by ID comparison)
+        if self.sampler_config != other.sampler_config:
+            return False
+
+        # Final validation: model IDs must match
+        # This is a content-based hash that validates the entire config
+        if self.id != other.id:
+            return False
+
+        return True
+
     def _check_compatible_media_dims(self) -> None:
         allowed_dims = set(self.dims).union({"channel"})
 
@@ -556,6 +815,10 @@ class MMM(RegressionModelBuilder):
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
+
+        # Serialize mu_effects
+        mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
+        attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         return attrs
 
@@ -2758,6 +3021,19 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
+        # Restore mu_effects from idata attrs if present
+        if "mu_effects" in idata.attrs:
+            mu_effects_data = json.loads(idata.attrs["mu_effects"])
+            self.mu_effects = []
+            for effect_data in mu_effects_data:
+                try:
+                    effect = _deserialize_mu_effect(effect_data)
+                    self.mu_effects.append(effect)
+                except Exception as e:
+                    # Log warning but continue - don't fail the load for unsupported effects
+                    # Catches ValueError, KeyError, AttributeError, pydantic.ValidationError, etc.
+                    warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
+
         dataset = idata.fit_data.to_dataframe()
 
         if isinstance(dataset.index, pd.MultiIndex) or isinstance(
