@@ -42,6 +42,32 @@ class SpecialPrior(ABC):
         self.parameters = parameters
         self._checks()
 
+    def __eq__(self, other):
+        """Check equality based on class, dims, centered, and parameters."""
+        if not isinstance(other, self.__class__):
+            return False
+        if self.dims != other.dims or self.centered != other.centered:
+            return False
+
+        # Compare parameters, handling numpy arrays
+        if set(self.parameters.keys()) != set(other.parameters.keys()):
+            return False
+
+        for key in self.parameters:
+            val1 = self.parameters[key]
+            val2 = other.parameters[key]
+
+            # Handle numpy arrays
+            if isinstance(val1, np.ndarray) and isinstance(val2, np.ndarray):
+                if not np.array_equal(val1, val2):
+                    return False
+            elif isinstance(val1, np.ndarray) or isinstance(val2, np.ndarray):
+                return False  # One is array, other isn't
+            elif val1 != val2:
+                return False
+
+        return True
+
     @abstractmethod
     def _checks(self) -> None:  # pragma: no cover
         """Check that the parameters are correct."""
@@ -691,4 +717,54 @@ def _is_masked_prior_type(data: dict) -> bool:
 
 register_deserialization(
     is_type=_is_masked_prior_type, deserialize=MaskedPrior.from_dict
+)
+
+
+def _is_special_prior_type(data: dict) -> bool:
+    """Check if data represents a SpecialPrior subclass."""
+    return isinstance(data, dict) and "special_prior" in data
+
+
+def _get_all_special_prior_subclasses(
+    base_class: type[SpecialPrior],
+) -> dict[str, type[SpecialPrior]]:
+    """Recursively get all subclasses of a base class.
+
+    Returns a dict mapping class name to class object.
+    """
+    subclasses: dict[str, type[SpecialPrior]] = {}
+    for subclass in base_class.__subclasses__():
+        subclasses[subclass.__name__] = subclass
+        # Recursively get subclasses of subclasses
+        subclasses.update(_get_all_special_prior_subclasses(subclass))
+    return subclasses
+
+
+def _deserialize_special_prior(data: dict) -> SpecialPrior:
+    """Deserialize any SpecialPrior subclass by looking up the class dynamically.
+
+    This function automatically discovers all SpecialPrior subclasses using __subclasses__(),
+    so new SpecialPrior subclasses don't need explicit registration.
+    """
+    class_name = data.get("special_prior")
+    if not isinstance(class_name, str):
+        raise ValueError(
+            f"Expected 'special_prior' to be a string, got {type(class_name)}"
+        )
+
+    # Get all SpecialPrior subclasses recursively
+    special_prior_classes = _get_all_special_prior_subclasses(SpecialPrior)  # type: ignore[type-abstract]
+
+    cls = special_prior_classes.get(class_name)
+    if cls is None:
+        raise ValueError(
+            f"Unknown SpecialPrior class: {class_name}. "
+            f"Available classes: {list(special_prior_classes.keys())}"
+        )
+
+    return cls.from_dict(data)
+
+
+register_deserialization(
+    is_type=_is_special_prior_type, deserialize=_deserialize_special_prior
 )

@@ -31,7 +31,6 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
 from pymc_marketing.version import __version__
 
@@ -195,7 +194,9 @@ class ModelIO:
 
         """
         hasher = hashlib.sha256()
-        hasher.update(str(self.model_config.values()).encode())
+        # _serializable_model_config now returns fully JSON-serializable data
+        config_json = json.dumps(self._serializable_model_config, sort_keys=True)
+        hasher.update(config_json.encode())
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
         return hasher.hexdigest()[:16]
@@ -222,24 +223,14 @@ class ModelIO:
         dict[str, str]
             A dictionary of attributes for the inference data.
         """
-
-        def default(x):
-            if hasattr(x, "to_dict"):
-                return x.to_dict()
-            elif isinstance(x, HSGPKwargs):
-                return x.model_dump(mode="json")
-            return x.__dict__
-
         attrs: dict[str, str] = {}
 
         attrs["id"] = self.id
         attrs["model_type"] = self._model_type
         attrs["version"] = self.version
         attrs["sampler_config"] = json.dumps(self.sampler_config)
-        attrs["model_config"] = json.dumps(
-            self._serializable_model_config,
-            default=default,
-        )
+        # _serializable_model_config now returns fully serializable data
+        attrs["model_config"] = json.dumps(self._serializable_model_config)
 
         return attrs
 

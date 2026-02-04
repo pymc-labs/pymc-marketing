@@ -768,19 +768,28 @@ class MMM(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
-        def ndarray_to_list(d: dict) -> dict:
-            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
-            for key, value in new_d.items():
-                if isinstance(value, np.ndarray):
-                    new_d[key] = value.tolist()
-                elif isinstance(value, HSGPKwargs):
-                    new_d[key] = value.model_dump()
-                elif isinstance(value, dict):
-                    new_d[key] = ndarray_to_list(value)
-            return new_d
+        def serialize_value(value):
+            """Recursively serialize values to JSON-compatible types."""
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            elif isinstance(value, (list, tuple)):
+                return [serialize_value(v) for v in value]
+            elif hasattr(value, "to_dict"):
+                # Handle any object with a to_dict method (Prior, SpecialPrior, etc.)
+                return value.to_dict()
+            elif hasattr(value, "model_dump"):
+                # Handle Pydantic models
+                return value.model_dump()
+            else:
+                return value
 
-        serializable_config = self.model_config.copy()
-        return ndarray_to_list(serializable_config)
+        serializable_config = {}
+        for key, value in self.model_config.items():
+            serializable_config[key] = serialize_value(value)
+
+        return serializable_config
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
