@@ -434,7 +434,7 @@ def _plot_across_coord(
 def plot_hdi(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    hdi_probs: float | list[float] | None = None,
+    hdi_prob: float | list[float] | None = None,
     hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
@@ -477,15 +477,15 @@ def plot_hdi(
         Figure and the axes
 
     """
-    if isinstance(hdi_probs, list) and not hdi_probs:
-        hdi_probs = [None]
-    elif isinstance(hdi_probs, (float, int)) or hdi_probs is None:
-        hdi_probs = [hdi_probs]
+    if isinstance(hdi_prob, list) and not hdi_prob:
+        hdi_prob = [None]
+    elif isinstance(hdi_prob, (float, int)) or hdi_prob is None:
+        hdi_prob = [hdi_prob]
 
     hdi_kwargs = hdi_kwargs or {}
 
-    for hdi_prob in hdi_probs:
-        current_hdi_kwargs = {**dict(hdi_prob=hdi_prob), **hdi_kwargs}
+    for ihdi_prob in hdi_prob:
+        current_hdi_kwargs = {**dict(hdi_prob=ihdi_prob), **hdi_kwargs}
 
         get_plot_data = _create_get_hdi_plot_data(current_hdi_kwargs)
         make_selection = _make_hdi_selection
