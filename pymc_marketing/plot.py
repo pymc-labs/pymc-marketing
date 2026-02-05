@@ -600,7 +600,7 @@ def plot_samples(
 def plot_curve(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    n_samples: int | None = None,
+    n_samples: int = 10,
     hdi_probs: float | list[float] | None = None,
     random_seed: np.random.Generator | None = None,
     subplot_kwargs: dict | None = None,
@@ -753,7 +753,6 @@ def plot_curve(
         sample_kwargs = sample_kwargs or {}
 
         sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
-
         if "subplot_kwargs" not in sample_kwargs:
             sample_kwargs["subplot_kwargs"] = subplot_kwargs
 
@@ -763,7 +762,6 @@ def plot_curve(
         if same_axes:
             sample_kwargs["same_axes"] = True
             sample_kwargs["legend"] = False
-
         if colors is not None:
             sample_kwargs["colors"] = colors
 
