@@ -600,7 +600,7 @@ def plot_samples(
 def plot_curve(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    n_samples: int = 10,
+    n_samples: int | None = None,
     hdi_probs: float | list[float] | None = None,
     random_seed: np.random.Generator | None = None,
     subplot_kwargs: dict | None = None,
