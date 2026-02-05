@@ -477,7 +477,10 @@ def plot_hdi(
         Figure and the axes
 
     """
-    if isinstance(hdi_probs, (float, int)) or hdi_probs is None:
+    
+    if isinstance(hdi_probs, list) and not hdi_probs:
+        hdi_probs = [None]
+    elif isinstance(hdi_probs, (float, int)) or hdi_probs is None:
         hdi_probs = [hdi_probs]
 
     hdi_kwargs = hdi_kwargs or {}
@@ -598,7 +601,7 @@ def plot_samples(
 def plot_curve(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    n_samples: int | None = None,
+    n_samples: int = 10,
     hdi_probs: float | list[float] | None = None,
     random_seed: np.random.Generator | None = None,
     subplot_kwargs: dict | None = None,
@@ -619,8 +622,8 @@ def plot_curve(
     non_grid_names : str | set[str]
         The names to exclude from the grid. HDI and samples both
         have defaults of hdi and chain, draw, respectively
-    n_samples : int | None, optional
-        Number of samples. If None, defaults to 0
+    n_samples : int, optional
+        Number of samples to plot
     hdi_probs : float | list[float], optional
         HDI probabilities. Defaults to None which uses arviz default for
         stats.ci_prob which is 94%
@@ -736,34 +739,43 @@ def plot_curve(
         hdi_probs = [hdi_probs]  # type: ignore
 
     hdi_kwargs = hdi_kwargs or {}
-    sample_kwargs = sample_kwargs or {}
-
-    sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
-
-    if "subplot_kwargs" not in sample_kwargs:
-        sample_kwargs["subplot_kwargs"] = subplot_kwargs
-
-    if "axes" not in sample_kwargs:
-        sample_kwargs["axes"] = axes
 
     if same_axes:
-        sample_kwargs["same_axes"] = True
-        sample_kwargs["legend"] = False
         hdi_kwargs["same_axes"] = True
         hdi_kwargs["legend"] = legend if isinstance(legend, bool) else True
 
     if colors is not None:
-        sample_kwargs["colors"] = colors
         hdi_kwargs["colors"] = colors
 
     if sel_to_string is not None:
-        sample_kwargs["sel_to_string"] = sel_to_string
         hdi_kwargs["sel_to_string"] = sel_to_string
 
-    if n_samples is None or n_samples <= 0:
-        fig, axes = None, None
-    else:
+
+    if n_samples > 0:
+        sample_kwargs = sample_kwargs or {}
+
+        sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
+        
+        if "subplot_kwargs" not in sample_kwargs:
+            sample_kwargs["subplot_kwargs"] = subplot_kwargs
+
+        if "axes" not in sample_kwargs:
+            sample_kwargs["axes"] = axes
+
+        if same_axes:
+            sample_kwargs["same_axes"] = True
+            sample_kwargs["legend"] = False
+    
+        if colors is not None:
+            sample_kwargs["colors"] = colors
+
+        if sel_to_string is not None:
+            sample_kwargs["sel_to_string"] = sel_to_string
+
         fig, axes = plot_samples(curve, non_grid_names=non_grid_names, **sample_kwargs)
+
+    elif n_samples == 0:
+        hdi_kwargs["subplot_kwargs"] = subplot_kwargs
 
     fig, axes = plot_hdi(
         curve,
