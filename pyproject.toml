@@ -43,7 +43,6 @@ dependencies = [
     "pymc-extras>=0.4.0",
     "preliz>=0.20.0",
     "pyyaml",
-    "plotly>=6.3.0",
 ]
 
 [project.optional-dependencies]

@@ -109,9 +109,16 @@ from typing import Literal
 
 import narwhals as nw
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 from narwhals.typing import IntoDataFrameT
+
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except ImportError as e:
+    raise ImportError(
+        "Plotly is required for interactive plotting. "
+        "Install it with: pip install pymc-marketing[plotly]"
+    ) from e
 
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.summary import MMMSummaryFactory

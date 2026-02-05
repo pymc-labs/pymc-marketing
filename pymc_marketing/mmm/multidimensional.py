@@ -196,7 +196,6 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
-from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
@@ -903,7 +902,7 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
-    def plot_interactive(self) -> MMMPlotlyFactory:
+    def plot_interactive(self):
         """Access interactive Plotly plotting functionality.
 
         Returns a factory for creating interactive plots using Plotly.
@@ -914,6 +913,11 @@ class MMM(RegressionModelBuilder):
         -------
         MMMPlotlyFactory
             Factory for creating interactive plots
+
+        Raises
+        ------
+        ImportError
+            If plotly is not installed
 
         Examples
         --------
@@ -944,6 +948,14 @@ class MMM(RegressionModelBuilder):
         MMMPlotSuite : Static matplotlib plotting functionality
         MMMPlotlyFactory : Interactive plotting class documentation
         """
+        try:
+            from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
+        except ImportError:
+            raise ImportError(
+                "Plotly is required for interactive plotting. "
+                "Install it with: pip install pymc-marketing[plotly]"
+            )
+
         self._validate_model_was_built()
         self._validate_idata_exists()
 
