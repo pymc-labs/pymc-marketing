@@ -17,16 +17,90 @@ This module provides `MMMPlotlyFactory`, which creates interactive Plotly
 visualizations from MMM summary data produced by `MMMSummaryFactory`.
 
 The factory supports:
-- Bar charts with HDI error bars for contributions/ROAS
-- Automatic faceting based on custom dimensions
+
+- **Contributions**: Bar charts showing channel/control/seasonality contributions
+- **ROAS**: Return on Ad Spend analysis with confidence intervals
+- **Posterior Predictive**: Time series with HDI bands comparing actual vs predicted
+- **Saturation Curves**: Visualize diminishing returns per channel
+- **Adstock Curves**: Show carryover effects over time
+- Automatic faceting based on custom dimensions (e.g., geo, brand)
 - Both Pandas and Polars DataFrames via Narwhals
 
-Example
--------
->>> # Disable auto-faceting and customize
->>> fig = factory.contributions(
-...     auto_facet=False, facet_col="country", title="Channel Effects"
+Examples
+--------
+**Basic Usage via MMM Model**
+
+Access the plotting factory directly from a fitted MMM model:
+
+>>> # Posterior predictive with actual vs predicted
+>>> fig = mmm.plot_interactive.posterior_predictive()
+>>> fig.show()
+
+>>> # Channel contributions over time
+>>> fig = mmm.plot_interactive.contributions()
+>>> fig.show()
+
+>>> # ROAS analysis aggregated by year
+>>> fig = mmm.plot_interactive.roas(frequency="yearly")
+>>> fig.show()
+
+>>> # Saturation curves showing diminishing returns
+>>> fig = mmm.plot_interactive.saturation_curves()
+>>> fig.show()
+
+>>> # Adstock curves showing carryover effects
+>>> fig = mmm.plot_interactive.adstock_curves()
+>>> fig.show()
+
+**Customizing Plots**
+
+Control faceting and styling with kwargs:
+
+>>> # ROAS colored by date, grouped by channel
+>>> fig = mmm.plot_interactive.roas(frequency="yearly", color="date", x="channel")
+>>> fig.show()
+
+>>> # Disable auto-faceting and manually set facet column
+>>> fig = mmm.plot_interactive.contributions(
+...     facet_col="country", title="Channel Effects by Country"
 ... )
+>>> fig.show()
+
+>>> # Saturation curves faceted by brand
+>>> fig = mmm.plot_interactive.saturation_curves(
+...     facet_row="brand",
+...     hdi_prob=None,  # Hide confidence bands
+... )
+>>> fig.show()
+
+**Working with Filtered/Aggregated Data**
+
+Create custom factories with filtered or aggregated data:
+
+>>> from pymc_marketing.mmm.summary import MMMSummaryFactory
+>>> from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
+
+>>> # Aggregate multiple geos into one
+>>> agg_data = mmm.data.aggregate_dims(
+...     dim="geo", values=["geo_a", "geo_b"], new_label="all_geos"
+... )
+>>> agg_summary = MMMSummaryFactory(agg_data, mmm)
+>>> agg_factory = MMMPlotlyFactory(summary=agg_summary)
+>>> fig = agg_factory.roas(frequency="yearly", color="channel", x="date")
+>>> fig.show()
+
+>>> # Filter to specific geo
+>>> filtered_data = mmm.data.filter_dims(geo="geo_a")
+>>> filtered_summary = MMMSummaryFactory(filtered_data, mmm, validate_data=False)
+>>> filtered_factory = MMMPlotlyFactory(summary=filtered_summary)
+>>> fig = filtered_factory.roas(frequency="yearly", color="channel", x="date")
+>>> fig.show()
+
+>>> # Filter by date range
+>>> filtered_data = mmm.data.filter_dates(start_date="2024-01-01")
+>>> filtered_summary = MMMSummaryFactory(filtered_data, mmm)
+>>> filtered_factory = MMMPlotlyFactory(summary=filtered_summary)
+>>> fig = filtered_factory.roas(frequency="quarterly", color="channel", x="date")
 >>> fig.show()
 """
 
@@ -83,15 +157,77 @@ class MMMPlotlyFactory:
     summary : MMMSummaryFactory
         Summary factory that provides access to data and model
 
+    Attributes
+    ----------
+    custom_dims : list[str]
+        Custom dimensions available for faceting (e.g., ["geo", "brand"])
+
+    Methods
+    -------
+    contributions(hdi_prob, component, frequency, ...)
+        Bar chart of channel/control/seasonality contributions
+    roas(hdi_prob, frequency, ...)
+        Bar chart of Return on Ad Spend metrics
+    posterior_predictive(hdi_prob, frequency, ...)
+        Time series comparing actual vs predicted with HDI bands
+    saturation_curves(hdi_prob, max_value, ...)
+        Line plots showing diminishing returns per channel
+    adstock_curves(hdi_prob, amount, ...)
+        Line plots showing carryover effects over time
+
     Examples
     --------
-    >>> # Access via fitted MMM model
+    **Access via fitted MMM model**
+
+    >>> # Basic posterior predictive plot
+    >>> fig = mmm.plot_interactive.posterior_predictive()
+    >>> fig.show()
+
+    >>> # Channel contributions with default settings
     >>> fig = mmm.plot_interactive.contributions()
     >>> fig.show()
 
-    >>> # Disable auto-faceting per-plot
-    >>> fig = mmm.plot_interactive.contributions(auto_facet=False, facet_col="country")
+    >>> # ROAS aggregated yearly, colored by date
+    >>> fig = mmm.plot_interactive.roas(frequency="yearly", color="date", x="channel")
     >>> fig.show()
+
+    **Controlling faceting behavior**
+
+    For models with custom dimensions (geo, brand, etc.), auto_facet=True
+    (default) automatically creates subplots for each dimension combination.
+
+    >>> # Auto-facet enabled (default): creates subplots automatically
+    >>> fig = mmm.plot_interactive.saturation_curves()
+    >>> fig.show()
+
+    >>> # Disable auto-facet and manually control faceting
+    >>> fig = mmm.plot_interactive.saturation_curves(
+    ...     facet_row="brand", hdi_prob=None, auto_facet=False
+    ... )
+    >>> fig.show()
+
+    >>> # Use facet_col instead of facet_row
+    >>> fig = mmm.plot_interactive.saturation_curves(
+    ...     facet_col="brand", hdi_prob=None, auto_facet=True
+    ... )
+    >>> fig.show()
+
+    **Customizing appearance with Plotly kwargs**
+
+    Any additional keyword arguments are passed directly to Plotly Express:
+
+    >>> fig = mmm.plot_interactive.contributions(
+    ...     title="My Custom Title",
+    ...     height=600,
+    ...     width=1000,
+    ...     color_discrete_sequence=["red", "blue", "green"],
+    ... )
+    >>> fig.show()
+
+    See Also
+    --------
+    MMMSummaryFactory : Data factory providing summary statistics
+    MMMPlotSuite : Static matplotlib plotting functionality
     """
 
     def __init__(
