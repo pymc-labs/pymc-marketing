@@ -505,10 +505,11 @@ class TestMMMPlotlyFactoryPosteriorPredictive:
             f"Expected {expected_hdi_traces} HDI bands, got {len(hdi_traces)}"
         )
 
-    def test_posterior_predictive_with_custom_dimensions(self):
+    @pytest.mark.parametrize("df_type", [pd.DataFrame, pl.DataFrame])
+    def test_posterior_predictive_with_custom_dimensions(self, df_type):
         """Test posterior predictive with faceting by country."""
         # Arrange
-        df = pd.DataFrame(
+        df = df_type(
             {
                 "date": pd.date_range("2024-01-01", periods=4).repeat(2),
                 "country": ["US", "UK"] * 4,

@@ -1146,7 +1146,7 @@ class MMMPlotlyFactory:
         else:
             # Faceted case: get unique combinations using Narwhals
             facet_df = nw_df.select(*facet_dims).unique()
-            facet_combinations = facet_df.to_native().to_dict("records")
+            facet_combinations = list(facet_df.iter_rows(named=True))
 
         for row_dict in facet_combinations:
             # Build filter expression for facet (only if there are facet dimensions)
@@ -1327,7 +1327,6 @@ class MMMPlotlyFactory:
             nw_df = nw_df.with_columns(x=nw.col("x") * nw.col("channel_scale"))
             nw_df = nw_df.drop("channel_scale")
 
-            df = nw_df.to_native()
             xaxis_title = "Spend"
         else:
             xaxis_title = "Spend (scaled)"
@@ -1338,7 +1337,7 @@ class MMMPlotlyFactory:
         )
 
         return self._plot_curves(
-            df=df,
+            df=nw_df.to_native(),
             x="x",
             hdi_prob=hdi_prob,
             hdi_opacity=hdi_opacity,
