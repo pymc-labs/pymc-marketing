@@ -662,6 +662,73 @@ class MMMPlotlyFactory:
 
         return fig
 
+    def _prepare_summaries_for_bar_plot(
+        self,
+        df: IntoDataFrameT,
+        *,
+        required_column: str,
+        default_title: str,
+        auto_facet: bool,
+        single_dim_facet: Literal["col", "row"],
+        plotly_kwargs: dict,
+    ) -> tuple[nw.DataFrame, dict]:
+        """Prepare summary data for bar plot.
+
+        This helper method handles common preparation logic shared between
+        contributions() and roas() plotting methods.
+
+        Parameters
+        ----------
+        df : IntoDataFrameT
+            Summary data from summary factory
+        required_column : str
+            Column that must be present as x or color (e.g., "channel", component)
+        default_title : str
+            Default title if not provided in plotly_kwargs
+        auto_facet : bool
+            Whether to automatically detect and apply faceting
+        single_dim_facet : {"col", "row"}
+            Direction for single dimension auto-faceting
+        plotly_kwargs : dict
+            Plotly keyword arguments (will be modified with defaults)
+
+        Returns
+        -------
+        tuple[nw.DataFrame, dict]
+            Prepared narwhals DataFrame and updated plotly_kwargs
+
+        Raises
+        ------
+        ValueError
+            If date column exists with >1 unique values but not in x/color,
+            or if required_column not in x/color.
+        """
+        # Auto-detect faceting from custom dimensions
+        plotly_kwargs = self._apply_auto_faceting(
+            plotly_kwargs, auto_facet, single_dim_facet
+        )
+
+        # Set default values if not provided
+        plotly_kwargs.setdefault("title", default_title)
+        plotly_kwargs.setdefault("x", required_column)
+
+        nw_df = nw.from_native(df)
+
+        # Validate date column usage if it exists
+        x = plotly_kwargs.get("x")
+        color = plotly_kwargs.get("color")
+
+        if "date" in nw_df.columns and len(nw_df["date"].unique()) > 1:
+            if "date" not in [x, color]:
+                raise ValueError("choose either x='date' or color='date'")
+
+        if required_column not in [x, color]:
+            raise ValueError(
+                f"choose either x='{required_column}' or color='{required_column}'"
+            )
+
+        return nw_df, plotly_kwargs
+
     def contributions(
         self,
         hdi_prob: float | None = 0.94,
@@ -730,26 +797,14 @@ class MMMPlotlyFactory:
             frequency=frequency,
         )
 
-        # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(
-            plotly_kwargs, auto_facet, single_dim_facet
+        nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
+            df=df,
+            required_column=component,
+            default_title=f"{component.capitalize()} Contributions",
+            auto_facet=auto_facet,
+            single_dim_facet=single_dim_facet,
+            plotly_kwargs=plotly_kwargs,
         )
-
-        # Set default values if not provided
-        plotly_kwargs.setdefault("title", f"{component.capitalize()} Contributions")
-        plotly_kwargs.setdefault("x", component)
-
-        nw_df = nw.from_native(df)
-        # if `date` column exist then it should either be x or color.
-        x = plotly_kwargs.get("x")
-        color = plotly_kwargs.get("color")
-
-        if "date" in nw_df.columns and len(nw_df["date"].unique()) > 1:
-            if "date" not in [x, color]:
-                raise ValueError("choose either x='date' or color='date'")
-
-        if component not in [x, color]:
-            raise ValueError(f"choose either x=`{component}` or color=`{component}`")
 
         return self._plot_bar(
             nw_df=nw_df,
@@ -823,26 +878,14 @@ class MMMPlotlyFactory:
             frequency=frequency,
         )
 
-        # Auto-detect faceting from custom dimensions
-        plotly_kwargs = self._apply_auto_faceting(
-            plotly_kwargs, auto_facet, single_dim_facet
+        nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
+            df=df,
+            required_column="channel",
+            default_title="Return on Ad Spend",
+            auto_facet=auto_facet,
+            single_dim_facet=single_dim_facet,
+            plotly_kwargs=plotly_kwargs,
         )
-
-        # Set default values if not provided
-        plotly_kwargs.setdefault("title", "Return on Ad Spend")
-        plotly_kwargs.setdefault("x", "channel")
-
-        nw_df = nw.from_native(df)
-        # if `date` column exist then it should either be x or color.
-        x = plotly_kwargs.get("x")
-        color = plotly_kwargs.get("color")
-
-        if "date" in nw_df.columns and len(nw_df["date"].unique()) > 1:
-            if "date" not in [x, color]:
-                raise ValueError("choose either x='date' or color='date'")
-
-        if "channel" not in [x, color]:
-            raise ValueError("choose either x='channel' or color='channel'")
 
         return self._plot_bar(
             nw_df=nw_df,
@@ -1329,6 +1372,7 @@ class MMMPlotlyFactory:
 
             xaxis_title = "Spend"
         else:
+            nw_df = nw.from_native(df)
             xaxis_title = "Spend (scaled)"
 
         # Auto-detect faceting from custom dimensions

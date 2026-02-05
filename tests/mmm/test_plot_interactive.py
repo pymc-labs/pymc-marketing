@@ -851,7 +851,7 @@ class TestMMMPlotlyFactoryErrorHandling:
             pytest.param(
                 "contributions",
                 "date",
-                "choose either x=`channel` or color=`channel`",
+                "choose either x='channel' or color='channel'",
                 id="contributions_component_not_assigned",
             ),
             pytest.param(
