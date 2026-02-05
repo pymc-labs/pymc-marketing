@@ -771,7 +771,8 @@ def plot_curve(
         fig, axes = plot_samples(curve, non_grid_names=non_grid_names, **sample_kwargs)
 
     elif n_samples == 0:
-        hdi_kwargs["subplot_kwargs"] = subplot_kwargs
+        if "subplot_kwargs" not in hdi_kwargs:
+            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
 
     fig, axes = plot_hdi(
         curve,
