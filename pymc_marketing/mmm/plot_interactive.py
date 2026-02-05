@@ -1355,6 +1355,7 @@ class MMMPlotlyFactory:
             num_samples=num_samples,
             random_state=random_state,
         )
+        nw_df = nw.from_native(df)
 
         # Convert x-axis to original scale if requested
         if original_scale:
@@ -1362,8 +1363,6 @@ class MMMPlotlyFactory:
             channel_scale = self.summary.data.get_channel_scale()
             scale_df = channel_scale.to_dataframe(name="channel_scale").reset_index()
             nw_scale = nw.from_native(scale_df)
-
-            nw_df = nw.from_native(df)
 
             # Determine join columns: "channel" plus any custom dimensions
             # that are present in both the scale DataFrame and the data
@@ -1379,7 +1378,6 @@ class MMMPlotlyFactory:
 
             xaxis_title = "Spend"
         else:
-            nw_df = nw.from_native(df)
             xaxis_title = "Spend (scaled)"
 
         # Auto-detect faceting from custom dimensions
