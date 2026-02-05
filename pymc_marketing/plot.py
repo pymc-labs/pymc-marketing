@@ -477,7 +477,6 @@ def plot_hdi(
         Figure and the axes
 
     """
-    
     if isinstance(hdi_probs, list) and not hdi_probs:
         hdi_probs = [None]
     elif isinstance(hdi_probs, (float, int)) or hdi_probs is None:
@@ -750,12 +749,11 @@ def plot_curve(
     if sel_to_string is not None:
         hdi_kwargs["sel_to_string"] = sel_to_string
 
-
     if n_samples > 0:
         sample_kwargs = sample_kwargs or {}
 
         sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
-        
+
         if "subplot_kwargs" not in sample_kwargs:
             sample_kwargs["subplot_kwargs"] = subplot_kwargs
 
@@ -765,7 +763,7 @@ def plot_curve(
         if same_axes:
             sample_kwargs["same_axes"] = True
             sample_kwargs["legend"] = False
-    
+
         if colors is not None:
             sample_kwargs["colors"] = colors
 
