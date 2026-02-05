@@ -775,7 +775,7 @@ def plot_curve(
 
     fig, axes = plot_hdi(
         curve,
-        hdi_probs=hdi_probs,
+        hdi_prob=hdi_probs,
         non_grid_names=non_grid_names,
         axes=axes,
         **hdi_kwargs,
