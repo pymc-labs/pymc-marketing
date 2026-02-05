@@ -753,10 +753,6 @@ def plot_curve(
         sample_kwargs = sample_kwargs or {}
 
         sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
-<<<<<<< HEAD
-=======
-
->>>>>>> 62aa9e6f (nsamples 0 and hdi loop comments addressed)
         if "subplot_kwargs" not in sample_kwargs:
             sample_kwargs["subplot_kwargs"] = subplot_kwargs
 
@@ -766,10 +762,6 @@ def plot_curve(
         if same_axes:
             sample_kwargs["same_axes"] = True
             sample_kwargs["legend"] = False
-<<<<<<< HEAD
-=======
-
->>>>>>> 62aa9e6f (nsamples 0 and hdi loop comments addressed)
         if colors is not None:
             sample_kwargs["colors"] = colors
 
