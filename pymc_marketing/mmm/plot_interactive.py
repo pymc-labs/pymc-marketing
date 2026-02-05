@@ -69,7 +69,6 @@ Control faceting and styling with kwargs:
 >>> # Saturation curves faceted by brand
 >>> fig = mmm.plot_interactive.saturation_curves(
 ...     facet_row="brand",
-...     hdi_prob=None,  # Hide confidence bands
 ... )
 >>> fig.show()
 
@@ -202,14 +201,12 @@ class MMMPlotlyFactory:
 
     >>> # Disable auto-facet and manually control faceting
     >>> fig = mmm.plot_interactive.saturation_curves(
-    ...     facet_row="brand", hdi_prob=None, auto_facet=False
+    ...     facet_row="brand", auto_facet=False
     ... )
     >>> fig.show()
 
     >>> # Use facet_col instead of facet_row
-    >>> fig = mmm.plot_interactive.saturation_curves(
-    ...     facet_col="brand", hdi_prob=None, auto_facet=True
-    ... )
+    >>> fig = mmm.plot_interactive.saturation_curves(facet_col="brand", auto_facet=True)
     >>> fig.show()
 
     **Customizing appearance with Plotly kwargs**
@@ -1225,7 +1222,7 @@ class MMMPlotlyFactory:
 
     def saturation_curves(
         self,
-        hdi_prob: float | None = 0.94,
+        hdi_prob: float | None = None,
         hdi_opacity: float = 0.2,
         max_value: float = 1.0,
         num_points: int = 100,
@@ -1244,8 +1241,8 @@ class MMMPlotlyFactory:
 
         Parameters
         ----------
-        hdi_prob : float, optional
-            HDI probability for uncertainty bands (default: 0.94). If None, no bands.
+        hdi_prob : float or None, optional
+            HDI probability for uncertainty bands. If None (default), no bands.
         hdi_opacity : float, default 0.2
             Opacity for HDI band fill (0-1).
         max_value : float, default 1.0
@@ -1353,7 +1350,7 @@ class MMMPlotlyFactory:
 
     def adstock_curves(
         self,
-        hdi_prob: float | None = 0.94,
+        hdi_prob: float | None = None,
         hdi_opacity: float = 0.2,
         amount: float = 1.0,
         num_samples: int | None = 500,
@@ -1370,8 +1367,8 @@ class MMMPlotlyFactory:
 
         Parameters
         ----------
-        hdi_prob : float, optional
-            HDI probability for uncertainty bands (default: 0.94). If None, no bands.
+        hdi_prob : float or None, optional
+            HDI probability for uncertainty bands. If None (default), no bands.
         hdi_opacity : float, default 0.2
             Opacity for HDI band fill (0-1).
         amount : float, default 1.0
