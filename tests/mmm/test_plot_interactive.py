@@ -39,7 +39,7 @@ def _create_saturation_mock_summary(
     df : pd.DataFrame
         DataFrame to return from saturation_curves()
     custom_dims : list[str]
-        Custom dimensions (e.g., ["geo"], ["geo", "brand"])
+        Custom dimensions (e.g., ["geo"], ["geo", "brand"], ["geo", "brand", "segment"])
     channels : list[str], optional
         Channel names. If None, extracted from df["channel"].unique()
 
@@ -52,40 +52,19 @@ def _create_saturation_mock_summary(
     mock_summary.saturation_curves.return_value = df
     mock_summary.data = Mock(custom_dims=custom_dims)
 
-    # Extract channels from data if not provided
     if channels is None:
         channels = df["channel"].unique().tolist()
 
-    # Build channel_scale DataArray with correct dimensions
-    if len(custom_dims) == 0:
-        # Simple case: just channels
-        channel_scale = xr.DataArray(
-            [1.0] * len(channels),
-            dims=["channel"],
-            coords={"channel": channels},
-        )
-    elif len(custom_dims) == 1:
-        # One custom dim: (channel, custom_dim)
-        coords = df[custom_dims[0]].unique().tolist()
-        channel_scale = xr.DataArray(
-            np.ones((len(channels), len(coords))),
-            dims=["channel", custom_dims[0]],
-            coords={"channel": channels, custom_dims[0]: coords},
-        )
-    else:
-        # Two custom dims: (channel, dim1, dim2)
-        coords1 = df[custom_dims[0]].unique().tolist()
-        coords2 = df[custom_dims[1]].unique().tolist()
-        channel_scale = xr.DataArray(
-            np.ones((len(channels), len(coords1), len(coords2))),
-            dims=["channel", custom_dims[0], custom_dims[1]],
-            coords={
-                "channel": channels,
-                custom_dims[0]: coords1,
-                custom_dims[1]: coords2,
-            },
-        )
+    # Build channel_scale DataArray with correct dimensions (works for any # of dims)
+    dims = ["channel", *custom_dims]
+    coords = {"channel": channels}
+    shape = [len(channels)]
+    for dim in custom_dims:
+        dim_coords = df[dim].unique().tolist()
+        coords[dim] = dim_coords
+        shape.append(len(dim_coords))
 
+    channel_scale = xr.DataArray(np.ones(shape), dims=dims, coords=coords)
     mock_summary.data.get_channel_scale.return_value = channel_scale
     return mock_summary
 
@@ -150,85 +129,49 @@ def _get_subplot_dimensions(fig: go.Figure) -> tuple[int, int]:
     return len(fig._grid_ref), len(fig._grid_ref[0])
 
 
-def _create_saturation_df_one_custom_dim(
+def _create_saturation_df(
+    custom_dims: list[str],
     n_channels: int = 2,
-    n_coords: int = 2,
     n_points: int = 10,
-    custom_dim: str = "geo",
+    include_hdi: bool = False,
 ) -> pd.DataFrame:
-    """Create saturation curves data with 1 custom dimension.
+    """Create saturation curves data with any number of custom dimensions.
 
     Args:
+        custom_dims: List of custom dimension names (e.g., ["geo"], ["geo", "brand"])
         n_channels: Number of channels (default 2)
-        n_coords: Number of coordinates in the custom dimension (default 2)
         n_points: Number of x points per curve
-        custom_dim: Name of the custom dimension
+        include_hdi: Whether to include HDI columns
 
     Returns:
-        DataFrame with columns: x, channel, {custom_dim}, mean, median
+        DataFrame with columns: x, channel, {custom_dims...}, mean, median
     """
+    import itertools
+
     x_vals = np.linspace(0, 1, n_points)
     channels = ["TV", "Radio"][:n_channels]
-    coords = ["North", "South"][:n_coords]
+    coord_values = [["North", "South"], ["BrandA", "BrandB"], ["Low", "High"]]
+
+    # Build all combinations of custom dimension coordinates
+    dim_coords = [coord_values[i][:2] for i in range(len(custom_dims))]
+    all_combos = list(itertools.product(*dim_coords)) if dim_coords else [()]
 
     rows = []
-    for coord in coords:
+    for combo in all_combos:
         for channel in channels:
             for x in x_vals:
-                rows.append(
-                    {
-                        "x": x,
-                        "channel": channel,
-                        custom_dim: coord,
-                        "mean": np.random.rand(),
-                        "median": np.random.rand(),
-                    }
-                )
-
-    return pd.DataFrame(rows)
-
-
-def _create_saturation_df_two_custom_dims(
-    n_channels: int = 2,
-    n_coords_dim1: int = 2,
-    n_coords_dim2: int = 2,
-    n_points: int = 10,
-    custom_dim1: str = "geo",
-    custom_dim2: str = "brand",
-) -> pd.DataFrame:
-    """Create saturation curves data with 2 custom dimensions.
-
-    Args:
-        n_channels: Number of channels (default 2)
-        n_coords_dim1: Number of coordinates in first dimension (default 2)
-        n_coords_dim2: Number of coordinates in second dimension (default 2)
-        n_points: Number of x points per curve
-        custom_dim1: Name of first custom dimension
-        custom_dim2: Name of second custom dimension
-
-    Returns:
-        DataFrame with columns: x, channel, {custom_dim1}, {custom_dim2}, mean, median
-    """
-    x_vals = np.linspace(0, 1, n_points)
-    channels = ["TV", "Radio"][:n_channels]
-    coords1 = ["North", "South"][:n_coords_dim1]
-    coords2 = ["BrandA", "BrandB"][:n_coords_dim2]
-
-    rows = []
-    for coord1 in coords1:
-        for coord2 in coords2:
-            for channel in channels:
-                for x in x_vals:
-                    rows.append(
-                        {
-                            "x": x,
-                            "channel": channel,
-                            custom_dim1: coord1,
-                            custom_dim2: coord2,
-                            "mean": np.random.rand(),
-                            "median": np.random.rand(),
-                        }
-                    )
+                row = {
+                    "x": x,
+                    "channel": channel,
+                    "mean": np.random.rand(),
+                    "median": np.random.rand(),
+                }
+                for dim_name, coord in zip(custom_dims, combo, strict=True):
+                    row[dim_name] = coord
+                if include_hdi:
+                    row["abs_error_94_lower"] = row["mean"] - 0.1
+                    row["abs_error_94_upper"] = row["mean"] + 0.1
+                rows.append(row)
 
     return pd.DataFrame(rows)
 
@@ -640,9 +583,7 @@ class TestSaturationCurvesFaceting:
         With 2 channels × 2 geo coordinates = 4 lines total.
         """
         # Arrange
-        df = _create_saturation_df_one_custom_dim(
-            n_channels=2, n_coords=2, custom_dim="geo"
-        )
+        df = _create_saturation_df(custom_dims=["geo"], n_channels=2)
         mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
@@ -696,13 +637,7 @@ class TestSaturationCurvesFaceting:
         With 2 channels × 2 geo × 2 brand coordinates = 8 lines total.
         """
         # Arrange
-        df = _create_saturation_df_two_custom_dims(
-            n_channels=2,
-            n_coords_dim1=2,
-            n_coords_dim2=2,
-            custom_dim1="geo",
-            custom_dim2="brand",
-        )
+        df = _create_saturation_df(custom_dims=["geo", "brand"], n_channels=2)
         mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
@@ -726,13 +661,7 @@ class TestSaturationCurvesFaceting:
         on a single plot in a meaningful way without faceting.
         """
         # Arrange
-        df = _create_saturation_df_two_custom_dims(
-            n_channels=2,
-            n_coords_dim1=2,
-            n_coords_dim2=2,
-            custom_dim1="geo",
-            custom_dim2="brand",
-        )
+        df = _create_saturation_df(custom_dims=["geo", "brand"], n_channels=2)
         mock_summary = _create_saturation_mock_summary(df, custom_dims=["geo", "brand"])
         factory = MMMPlotlyFactory(summary=mock_summary)
 
@@ -986,6 +915,44 @@ class TestAutoFacetingEdgeCases:
 
         assert result["facet_col"] == "geo"
         assert result.get("line_dash") == "brand"
+
+
+class TestHDIBandsWithLineDash:
+    """Tests for HDI bands when line_dash dimension is used (3 custom dimensions)."""
+
+    def test_hdi_bands_filter_by_line_dash(self):
+        """HDI bands must filter by line_dash to avoid duplicate x-values.
+
+        BUG: _add_hdi_bands filters by facet_row, facet_col, and color, but NOT
+        by line_dash. When 3 custom dimensions are used (dim3 maps to line_dash),
+        the filtered data contains multiple rows per x-value, causing malformed
+        HDI band polygons that zigzag between curves.
+        """
+        # Arrange - 2 channels x 2 geo x 2 brand x 2 segment with 10 x-points
+        df = _create_saturation_df(
+            custom_dims=["geo", "brand", "segment"], n_channels=2, include_hdi=True
+        )
+        mock_summary = _create_saturation_mock_summary(
+            df, custom_dims=["geo", "brand", "segment"]
+        )
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        # Act - auto_facet with 3 dims: facet_row=geo, facet_col=brand, line_dash=segment
+        fig = factory.saturation_curves(hdi_prob=0.94, auto_facet=True)
+
+        # Assert - HDI bands should have unique x-values (not duplicated per line_dash)
+        hdi_traces = [t for t in fig.data if t.fill == "toself"]
+        assert len(hdi_traces) > 0, "Should have HDI band traces"
+
+        for trace in hdi_traces:
+            # HDI polygon: [x1..xN, xN..x1], so first half is forward x-values
+            forward_x = list(trace.x)[: len(trace.x) // 2]
+            unique_x = list(dict.fromkeys(forward_x))
+
+            assert len(unique_x) == len(forward_x), (
+                f"HDI band has duplicate x-values (line_dash not filtered). "
+                f"Expected {len(forward_x)} unique, got {len(unique_x)}"
+            )
 
 
 class TestDateFormatting:

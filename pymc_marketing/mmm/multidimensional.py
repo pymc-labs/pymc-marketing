@@ -902,7 +902,7 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
-    def plot_interactive(self):
+    def plot_interactive(self):  # type: ignore[no-any-return]
         """Access interactive Plotly plotting functionality.
 
         Returns a factory for creating interactive plots using Plotly.
@@ -913,11 +913,6 @@ class MMM(RegressionModelBuilder):
         -------
         MMMPlotlyFactory
             Factory for creating interactive plots
-
-        Raises
-        ------
-        ImportError
-            If plotly is not installed
 
         Examples
         --------

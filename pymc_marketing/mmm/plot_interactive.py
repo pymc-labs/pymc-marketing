@@ -447,7 +447,7 @@ class MMMPlotlyFactory:
         plotly_kwargs = plotly_kwargs.copy()
 
         # Get custom dimensions
-        custom_dims = self.summary.data.custom_dims
+        custom_dims = self.custom_dims
 
         # No custom dimensions, no faceting needed
         if len(custom_dims) == 0:
@@ -1143,6 +1143,8 @@ class MMMPlotlyFactory:
         color: str | None = None,
         color_values: list | None = None,
         color_map: dict[str, str] | None = None,
+        line_dash: str | None = None,
+        line_dash_values: list | None = None,
         hdi_opacity: float = 0.2,
     ) -> None:
         """Add HDI bands to a plot, handling both faceted and non-faceted cases.
@@ -1152,6 +1154,9 @@ class MMMPlotlyFactory:
            showing HDI probability
         2. With color: Adds HDI bands for each color value (per facet if faceted)
            with matching colors
+
+        When line_dash is provided, separate HDI bands are created for each
+        line_dash value to avoid mixing data from different line styles.
 
         Parameters
         ----------
@@ -1177,6 +1182,10 @@ class MMMPlotlyFactory:
             List of unique color values (required if color is provided)
         color_map : dict[str, str], optional
             Mapping from color values to hex color codes (required if color is provided)
+        line_dash : str, optional
+            Column name used for line_dash encoding (3rd custom dimension)
+        line_dash_values : list, optional
+            List of unique line_dash values (required if line_dash is provided)
         hdi_opacity : float, default 0.2
             Opacity for HDI band fill (0-1)
         """
@@ -1242,19 +1251,31 @@ class MMMPlotlyFactory:
                     if len(facet_color_data) == 0:
                         continue
 
-                    # Add band to the correct subplot with matching color
-                    self._add_single_hdi_band(
-                        fig,
-                        x=facet_color_data.get_column(x).to_list(),
-                        lower=facet_color_data.get_column(lower_col).to_list(),
-                        upper=facet_color_data.get_column(upper_col).to_list(),
-                        name=f"{color_val} HDI",
-                        fillcolor=color_map[color_val],
-                        opacity=hdi_opacity,
-                        showlegend=False,
-                        row=row_idx,
-                        col=col_idx,
-                    )
+                    # Determine data subsets to add HDI bands for
+                    if line_dash is not None and line_dash_values is not None:
+                        data_subsets = [
+                            facet_color_data.filter(nw.col(line_dash) == ld_val)
+                            for ld_val in line_dash_values
+                        ]
+                    else:
+                        data_subsets = [facet_color_data]
+
+                    for band_data in data_subsets:
+                        if len(band_data) == 0:
+                            continue
+
+                        self._add_single_hdi_band(
+                            fig,
+                            x=band_data.get_column(x).to_list(),
+                            lower=band_data.get_column(lower_col).to_list(),
+                            upper=band_data.get_column(upper_col).to_list(),
+                            name=f"{color_val} HDI",
+                            fillcolor=color_map[color_val],
+                            opacity=hdi_opacity,
+                            showlegend=False,
+                            row=row_idx,
+                            col=col_idx,
+                        )
             else:
                 # Non-color mode: add single HDI band per facet
                 self._add_single_hdi_band(
@@ -1539,6 +1560,7 @@ class MMMPlotlyFactory:
         # Extract facet params for HDI band logic
         facet_row = plotly_kwargs.get("facet_row")
         facet_col = plotly_kwargs.get("facet_col")
+        line_dash = plotly_kwargs.get("line_dash")
 
         # Set default title
         plotly_kwargs.setdefault("title", title or "Curves")
@@ -1570,6 +1592,13 @@ class MMMPlotlyFactory:
                 for i, val in enumerate(color_values)
             }
 
+            # Get line_dash values if line_dash is used
+            line_dash_values = None
+            if line_dash is not None:
+                line_dash_values = sorted(
+                    nw_df.get_column(line_dash).unique().to_list()
+                )
+
             self._add_hdi_bands(
                 fig,
                 nw_df,
@@ -1581,6 +1610,8 @@ class MMMPlotlyFactory:
                 color=color,
                 color_values=color_values,
                 color_map=color_map,
+                line_dash=line_dash,
+                line_dash_values=line_dash_values,
                 hdi_opacity=hdi_opacity,
             )
 
