@@ -940,6 +940,9 @@ class MMMPlotlyFactory:
         )
 
         if row is not None and col is not None:
+            # Note: Passing row=1, col=1 works even for non-faceted plots because
+            # Plotly Express (px.line, px.bar) creates figures with an internal
+            # _grid_ref structure, unlike plain go.Figure() which would raise an error.
             fig.add_trace(trace, row=row, col=col)
         else:
             fig.add_trace(trace)
