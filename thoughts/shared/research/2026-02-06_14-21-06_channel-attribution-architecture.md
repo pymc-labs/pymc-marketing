@@ -66,8 +66,6 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
 5. **Shared Infrastructure**: Extract reusable vectorization utilities to `counterfactual_core.py`
 6. **Frequency Support**: Use established `Frequency` type alias from `summary.py`
 
-**Expected Performance**: 30-100x speedup vs. naive loop-based implementation using vectorized graph evaluation.
-
 ## Background: Previous Research
 
 ### Research Document 1: ROAS Computation (Issue #2211)
@@ -105,10 +103,6 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
   4. Compile and evaluate all scenarios in single function call
   5. Aggregate and convert to xarray
 
-**Speedup Example**: 5 channels × 12 months = 60 scenarios
-- Loop-based: ~300 seconds
-- Vectorized: ~10 seconds
-- **30x faster**
 
 ## Detailed Findings
 
@@ -678,7 +672,7 @@ class Incrementality:
         - Both default to True for accurate incrementality measurement
 
         **Performance**: Uses vectorized graph evaluation to compute all channels
-        and posterior samples simultaneously. Typical speedup: 30-100x vs. naive loops.
+        and posterior samples simultaneously.
 
         **Period Labeling**: Periods are labeled with period-end dates:
         - Monthly: Last day of month (e.g., "2024-01-31")
