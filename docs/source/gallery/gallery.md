@@ -50,6 +50,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
+
+:::{grid-item-card} MMM API Migration Guide
+:img-top: ../gallery/images/mmm_migration_guide.png
+:link: ../notebooks/mmm/mmm_migration_guide.html
+:::
 ::::
 
 ### Custom models
