@@ -20,7 +20,7 @@ authors:
     orcid: 0009-0006-8055-6560
     affiliation: 1
   - name: Carlos Trujillo
-    orcid: PENDING-NEED-ORCID
+    orcid: 0009-0009-5926-5701
     affiliation: 1
   - name: Ricardo Vieira
     orcid: 0000-0003-4690-7110
