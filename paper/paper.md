@@ -36,7 +36,7 @@ authors:
     affiliation: 1
   - name: Luciano Paz
     orcid: 0000-0002-6255-3888
-    affiliation: 1
+    affiliation: 3
   - name: Pablo de Roque
     orcid: 0000-0002-0751-9126
     affiliation: 1
@@ -45,6 +45,8 @@ affiliations:
    index: 1
  - name: InferenceWorks Ltd
    index: 2
+ - name: PLC Tech d.o.o.
+   index: 3
 date: 4 January 2026
 bibliography: paper.bib
 ---
