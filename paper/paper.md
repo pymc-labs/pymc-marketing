@@ -27,7 +27,7 @@ authors:
     affiliation: 1
   - name: Benjamin T. Vincent
     orcid: 0000-0002-8801-2430
-    affiliation: 1
+    affiliation: 2
   - name: Thomas V. Wiecki
     orcid: "0009-0000-6015-101X"
     affiliation: 1
@@ -43,6 +43,8 @@ authors:
 affiliations:
  - name: PyMC Labs
    index: 1
+ - name: InferenceWorks
+   index: 2
 date: 4 January 2026
 bibliography: paper.bib
 ---
