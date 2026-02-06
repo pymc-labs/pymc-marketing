@@ -377,6 +377,20 @@ class TestDataFrameSchemas:
         assert "abs_error_94_lower" in df.columns
         assert len(df["channel"].unique()) > 0
 
+    def test_contribution_channel_column_contains_channel_names(
+        self, mock_mmm_idata_wrapper, simple_channels
+    ):
+        """Test that channel column contains actual channel names, not integer indices"""
+
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).contributions()
+
+        # Channel column should contain string names, not integers
+        channel_values = df["channel"].unique()
+        assert set(channel_values) == set(simple_channels), (
+            f"Expected channel names {simple_channels}, but got {list(channel_values)}. "
+            "Channel coordinate values may have been replaced with integer indices."
+        )
+
     def test_roas_summary_schema(self, mock_mmm_idata_wrapper):
         """Test ROAS summary returns DataFrame with correct schema."""
         df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[0.94]).roas()
@@ -451,8 +465,12 @@ class TestOutputFormats:
     """Test output format parameter correctly controls DataFrame type."""
 
     def test_invalid_output_format_raises(self, mock_mmm_idata_wrapper):
-        """Test that invalid output_format raises ValueError."""
-        with pytest.raises(ValueError, match=r"Unknown output_format.*spark"):
+        """Test that invalid output_format raises ValueError.
+
+        Note: The @validate_call decorator on contributions() catches invalid
+        output_format values via Pydantic validation before our custom error handler.
+        """
+        with pytest.raises(ValueError, match=r"'pandas' or 'polars'"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(
                 output_format="spark"
             )
@@ -951,7 +969,7 @@ class TestNonChannelComponents:
         self, mock_mmm_idata_wrapper
     ):
         """Test that requesting missing component raises ValueError."""
-        with pytest.raises(ValueError, match=r"No control contributions found"):
+        with pytest.raises(ValueError, match=r"No controls contributions found"):
             MMMSummaryFactory(mock_mmm_idata_wrapper).contributions(component="control")
 
 

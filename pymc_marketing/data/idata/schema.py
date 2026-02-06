@@ -19,6 +19,9 @@ import arviz as az
 import xarray as xr
 from pydantic import BaseModel, Field
 
+# Type aliases for time aggregation
+Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
+
 
 class VariableSchema(BaseModel):
     """Schema for a single variable in InferenceData.
@@ -296,16 +299,16 @@ class MMMIdataSchema(BaseModel):
             constant_data_vars["control_data_"] = VariableSchema(
                 name="control_data_",
                 dims=("date", *custom_dims, "control"),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Control variable data",
-                required=True,
+                required=False,
             )
 
         if time_varying:
             constant_data_vars["time_index"] = VariableSchema(
                 name="time_index",
                 dims=("date",),
-                dtype="int64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Integer time index",
                 required=True,
             )
@@ -314,7 +317,7 @@ class MMMIdataSchema(BaseModel):
             constant_data_vars["dayofyear"] = VariableSchema(
                 name="dayofyear",
                 dims=("date",),
-                dtype="int64",
+                dtype=("int64", "int32"),
                 description="Day of year (1-365)",
                 required=True,
             )

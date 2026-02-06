@@ -38,13 +38,13 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pydantic import validate_call
 from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.schema import Frequency
 
 # Type aliases
-# Maps to Component 1's aggregate_time(period) - "original" means no aggregation
-Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 OutputFormat = Literal["pandas", "polars"]
 
 # Union type for return values
@@ -396,10 +396,13 @@ class MMMSummaryFactory:
 
         return self._convert_output(df, output_format)
 
+    @validate_call
     def contributions(
         self,
         hdi_probs: Sequence[float] | None = None,
-        component: Literal["channel", "control", "seasonality", "baseline"] = "channel",
+        component: Literal[
+            "channel", "channels", "control", "controls", "seasonality", "baseline"
+        ] = "channel",
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
@@ -447,18 +450,21 @@ class MMMSummaryFactory:
             hdi_probs, frequency, output_format
         )
 
+        if component == "control":
+            component = "controls"
+
         # Get contributions via Component 1 (handles scaling)
-        if component == "channel":
+        if component.startswith("channel"):
             component_data = data.get_channel_contributions(original_scale=True)
         else:
             contributions = data.get_contributions(
                 original_scale=True,
                 include_baseline=(component == "baseline"),
-                include_controls=(component == "control"),
+                include_controls=(component == "controls"),
                 include_seasonality=(component == "seasonality"),
             )
 
-            if component not in contributions:
+            if component not in contributions.data_vars:
                 raise ValueError(f"No {component} contributions found in model")
             component_data = contributions[component]
 
