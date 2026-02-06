@@ -43,7 +43,7 @@ authors:
 affiliations:
  - name: PyMC Labs
    index: 1
- - name: InferenceWorks
+ - name: InferenceWorks Ltd
    index: 2
 date: 4 January 2026
 bibliography: paper.bib
