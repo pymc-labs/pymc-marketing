@@ -1,362 +1,834 @@
 ---
-date: 2026-01-30T20:00:00Z
+date: 2026-02-06T18:55:44+00:00
 researcher: Claude Sonnet 4.5
-git_commit: 8c056f8553c7c092f1e89c18db37323fe765c825
+git_commit: 3a358967271a3ade6aeffaa21769feef9570c69c
 branch: work-issue-2210
 repository: pymc-marketing
 topic: "Converting between impressions and spend in MMM models"
-tags: [research, codebase, mmm, budget-optimization, saturation-curves, channel-metadata, impressions, spend]
+tags: [research, codebase, mmm, budget-optimization, saturation-curves, channel-metadata, cost-per-unit, time-varying]
 status: complete
-last_updated: 2026-01-30
+last_updated: 2026-02-06
 last_updated_by: Claude Sonnet 4.5
 issue_number: 2210
 ---
 
-# Research: Converting between impressions and spend in MMM models
+# Research: Converting between impressions and spend in MMM models (Updated)
 
-**Date**: 2026-01-30T20:00:00Z
+**Date**: 2026-02-06T18:55:44+00:00
 **Researcher**: Claude Sonnet 4.5
-**Git Commit**: 8c056f8553c7c092f1e89c18db37323fe765c825
+**Git Commit**: 3a358967271a3ade6aeffaa21769feef9570c69c
 **Branch**: work-issue-2210
 **Repository**: pymc-marketing
 **Issue**: #2210
 
 ## Research Question
 
-How does pymc-marketing currently handle channel data (impressions vs spend), and what architecture changes are needed to support:
-1. Mixed channel types (some channels in impressions, others in spend)
-2. Conversion between impressions and spend for specific operations (saturation curves, budget optimization)
-3. User-provided conversion factors (scalar or time-varying)
+How should pymc-marketing support cost_per_unit conversion for channels with non-spend data (impressions, clicks, etc.)? Based on feedback from @isofer:
+
+1. Use unit-agnostic naming (not "impression" - just cost_per_unit)
+2. Leverage MMMIDataWrapper.get_channel_spend() as the conversion point
+3. Support time-varying cost_per_unit from the start
+4. Conversion only affects plots and optimization (NOT modeling)
+5. Support both initialization-time and post-hoc specification
 
 ## Summary
 
-pymc-marketing currently treats all channel data uniformly without distinguishing between impressions and spend. The codebase has no built-in mechanism for:
-- Storing channel metadata (type, conversion factors)
-- Converting impressions to spend for budget optimization or saturation curves
-- Supporting mixed data types across channels
+The codebase has a strategic architecture point for implementing cost_per_unit conversion: **MMMIDataWrapper.get_channel_spend()**. This method is used by:
+- ROAS calculations (contribution / spend)
+- Summary reporting (channel spend tables)
+- But NOT by budget optimization or saturation plotting (they access data directly)
 
-However, the architecture has several extension points where impression-to-spend conversion could be integrated:
-
-1. **Channel metadata system**: No dedicated structure exists; channels are identified only by string names in `channel_columns`
-2. **Data processing**: `process_fivetran_ad_reporting()` already handles both impressions and spend via `value_columns` parameter
-3. **Calibration system**: `add_cost_per_target_potentials()` provides a pattern for adding conversion constraints
-4. **InferenceData schema**: `channel_data` is documented as "Raw channel spend/impressions data" but no type distinction exists
+Key findings:
+1. **get_channel_spend() is the ideal conversion point** - centralized accessor in `pymc_marketing/data/idata/mmm_wrapper.py:165-189`
+2. **Budget optimization doesn't use get_channel_spend()** - accesses channel_data through PyMC model graph
+3. **Saturation plotting doesn't use get_channel_spend()** - accesses idata.constant_data.channel_data directly
+4. **InferenceData schema supports time-varying metadata** - can store cost_per_unit with dims ("date", "channel")
+5. **Need conversion at multiple touch points** - wrapper, optimizer, and plotting all need awareness
 
 ## Detailed Findings
 
-### 1. Current Channel Data Handling
+### 1. MMMIDataWrapper.get_channel_spend() - The Strategic Conversion Point
 
-#### Channel Identification and Storage
-**File**: `pymc_marketing/mmm/base.py:104-120`
-
-Channels are defined minimally:
-```python
-channel_columns: list[str] = Field(min_length=1, description="Column names of the media channel variables.")
-self.channel_columns: list[str] | tuple[str] = channel_columns
-self.n_channel: int = len(channel_columns)
-```
-
-**Key limitation**: Channel metadata is non-existent. Only channel names are stored.
-
-#### InferenceData Storage Pattern
-**File**: `pymc_marketing/data/idata/schema.py:265-269`
+#### Current Implementation
+**File**: `pymc_marketing/data/idata/mmm_wrapper.py:165-189`
 
 ```python
-"channel_data": VariableSchema(
-    name="channel_data",
-    dims=("date", *custom_dims, "channel"),
-    dtype=("float64", "float32", "int64", "int32"),
-    description="Raw channel spend/impressions data",  # <- Note: mentions both!
-    required=True,
-),
-```
+def get_channel_spend(self) -> xr.DataArray:
+    """Get channel spend data with consistent access pattern.
 
-The schema already acknowledges both spend and impressions but provides no way to distinguish them.
+    Returns raw channel spend data (not MCMC samples).
 
-#### Fivetran Data Processing
-**File**: `pymc_marketing/data/fivetran.py`
+    Returns
+    -------
+    xr.DataArray
+        Channel spend values with dims (date, channel)
 
-The `process_fivetran_ad_reporting()` function supports both:
-```python
-value_columns: str | list[str] = "spend"  # Can be "impressions", "clicks", or ["spend", "impressions"]
-```
-
-This demonstrates the codebase already encounters mixed data types in practice.
-
-### 2. Saturation Curve Implementation
-
-#### Core Saturation Logic
-**Files**:
-- `pymc_marketing/mmm/components/saturation.py:104-496`
-- `pymc_marketing/mmm/multidimensional.py:1888`
-
-Saturation transformations operate on raw channel data without any awareness of units:
-```python
-def sample_saturation_curve(self, ...) -> xr.DataArray:
-    # Samples saturation response curves from posterior
-    # No conversion logic present
-```
-
-**Key insight**: Saturation curves are computed on whatever units the channel data uses. Issue #2210 requests they be computed based on **cost**, not impressions.
-
-#### Saturation Curve Plotting
-**File**: `pymc_marketing/mmm/plot.py:2099`
-
-```python
-def saturation_curves(self, ...) -> plt.Figure:
-    # Plots saturation curves overlaid with HDI bands
-    # Uses raw channel_data values without conversion
-```
-
-### 3. Budget Optimization Implementation
-
-#### Budget Allocation Logic
-**File**: `pymc_marketing/mmm/budget_optimizer.py:1-200`
-
-The budget optimizer assumes all channel data is in cost units:
-```python
-def allocate_budget(
-    self,
-    total_budget: float,  # <- Assumes monetary units
-    budget_bounds: dict[str, tuple[float, float]] | xr.DataArray | None = None,
-    ...
-) -> tuple[xr.DataArray, Any]:
-```
-
-**Critical finding**: Budget optimization currently cannot work with impression-based channels unless they're pre-converted to spend.
-
-#### Constraint System
-**File**: `pymc_marketing/mmm/constraints.py`
-
-```python
-def build_default_sum_constraint() -> Constraint:
-    # Sum of allocated budgets must equal total_budget
-    # No conversion logic
-```
-
-### 4. Cost-Per-Target Calibration (Existing Conversion Pattern)
-
-#### add_cost_per_target_potentials Function
-**File**: `pymc_marketing/mmm/lift_test.py:784-891`
-
-This function provides a model for how conversion factors could work:
-
-```python
-def add_cost_per_target_potentials(
-    calibration_df: pd.DataFrame,
-    *,
-    model: pm.Model | None = None,
-    cpt_value: TensorVariable,
-    target_column: str = "cost_per_target",
-    name_prefix: str = "cpt_calibration",
-    ...
-) -> None:
-    """Add ``pm.Potential`` penalties to calibrate cost-per-target.
-
-    For each row, we compute the mean of ``cpt_variable_name`` across the date
-    dimension for the specified (dims, channel) slice and add a soft quadratic
-    penalty:
-
-    ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+    Raises
+    ------
+    ValueError
+        If channel_data not found in constant_data
     """
+    if not (
+        hasattr(self.idata, "constant_data")
+        and "channel_data" in self.idata.constant_data
+    ):
+        raise ValueError(
+            "Channel data not found in constant_data. "
+            "Expected 'channel_data' variable in idata.constant_data."
+        )
+
+    return self.idata.constant_data.channel_data
 ```
 
-**Key pattern**: This shows how channel-specific conversion factors could be:
-1. Provided via a DataFrame with channel column
-2. Applied as soft constraints during model fitting
-3. Support both scalar (averaged over time) and time-varying approaches
+**Current behavior**: Simple passthrough to raw channel data, no conversion applied.
 
-### 5. Scaling Infrastructure
+#### Usage Analysis
 
-#### Current Scaling System
-**File**: `pymc_marketing/mmm/scaling.py`
+**Direct Calls** (2 locations):
+
+1. **ROAS Calculation** (`mmm_wrapper.py:342`):
+   ```python
+   def get_roas(self, original_scale: bool = True) -> xr.DataArray:
+       contributions = self.get_channel_contributions(original_scale=original_scale)
+       spend = self.get_channel_spend()  # <-- Used as denominator
+       spend_safe = xr.where(spend == 0, np.nan, spend)
+       return contributions / spend_safe
+   ```
+   **Impact**: If channel_data is in impressions, ROAS will be wrong (contribution per impression, not per dollar)
+
+2. **Channel Spend Summary** (`summary.py:561`):
+   ```python
+   def channel_spend(self, output_format: OutputFormat | None = None) -> DataFrameType:
+       spend = self.data.get_channel_spend()  # <-- Raw data for reporting
+       df = spend.to_dataframe(name="channel_data").reset_index()
+       return self._convert_output(df, effective_output_format)
+   ```
+   **Impact**: Reports will show raw units (impressions or spend) without conversion
+
+**Indirect Calls** (via get_roas):
+- `summary.roas()` - User-facing ROAS summary tables
+- All ROAS tests in `tests/mmm/test_summary.py`
+
+#### Proposed Enhancement
 
 ```python
-class VariableScaling(BaseModel):
-    scaling_target: Literal["mean", "max"] = "mean"
+def get_channel_spend(self, apply_cost_per_unit: bool = True) -> xr.DataArray:
+    """Get channel spend data, optionally converting non-spend units.
 
-class Scaling(BaseModel):
-    target: VariableScaling = Field(default_factory=VariableScaling)
-    channel: VariableScaling = Field(default_factory=VariableScaling)
+    Parameters
+    ----------
+    apply_cost_per_unit : bool, default True
+        If True and cost_per_unit metadata exists, converts non-spend
+        channel data to spend units by multiplying by cost_per_unit.
+        If False, returns raw channel_data without conversion.
+
+    Returns
+    -------
+    xr.DataArray
+        Channel spend values with dims (date, channel) or
+        (date, *custom_dims, channel). Values are in spend units
+        if apply_cost_per_unit=True and conversion metadata exists.
+    """
+    if not (
+        hasattr(self.idata, "constant_data")
+        and "channel_data" in self.idata.constant_data
+    ):
+        raise ValueError(
+            "Channel data not found in constant_data. "
+            "Expected 'channel_data' variable in idata.constant_data."
+        )
+
+    channel_data = self.idata.constant_data.channel_data
+
+    # Apply cost_per_unit conversion if requested and available
+    if (
+        apply_cost_per_unit
+        and hasattr(self.idata, "constant_data")
+        and "cost_per_unit" in self.idata.constant_data
+    ):
+        cost_per_unit = self.idata.constant_data.cost_per_unit
+        # Multiply: impressions * cost_per_impression = spend
+        # Broadcasting handles both scalar and time-varying cases
+        channel_data = channel_data * cost_per_unit
+
+    return channel_data
 ```
 
-**Observation**: Scaling is applied uniformly across all channels. This could be extended to handle per-channel conversion factors.
+**Key change**: Default to `apply_cost_per_unit=True`, making conversion automatic. Users can opt out with `apply_cost_per_unit=False` to get raw data.
 
-#### Channel Scaling in Practice
-**File**: `pymc_marketing/mmm/preprocessing.py`
+### 2. Budget Optimization - Direct Channel Data Access
+
+#### Current Implementation
+**File**: `pymc_marketing/mmm/budget_optimizer.py:896-952`
+
+**Critical finding**: BudgetOptimizer does NOT call `get_channel_spend()`. Instead:
 
 ```python
-class MaxAbsScaleChannels:
-    # Scales each channel independently
-    # Could be extended to apply conversion factors
+def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
+    """Replace `channel_data` in model graph with budgets."""
+    # Line 900: Extract channel_data dims from PyMC model
+    channel_data_dims = model.named_vars_to_dims["channel_data"]
+
+    # Line 902: Access channel scales
+    channel_scales = self.mmm_model._channel_scales
+
+    # Line 905-906: Apply scaling
+    budgets = self._budgets
+    budgets /= channel_scales
+
+    # Line 952: Replace in model graph
+    modified_model = pm.do(model, {model.named_vars["channel_data"]: budgets})
+    return modified_model
+```
+
+**Data flow**: User provides `total_budget` → Optimizer creates `_budgets` variables → Divided by `channel_scales` → Inserted into PyMC model graph
+
+**Problem**: If channel_data is in impressions but budgets are in dollars, the scaling is wrong.
+
+#### Proposed Enhancement
+
+**New wrapper method** (`mmm_wrapper.py`, add around line 190):
+
+```python
+def get_cost_per_unit(self) -> xr.DataArray | None:
+    """Get cost per unit conversion factors.
+
+    Returns
+    -------
+    xr.DataArray or None
+        Cost per unit values with dims ("channel",) for scalar
+        or ("date", "channel") for time-varying. Returns None
+        if cost_per_unit metadata not present.
+    """
+    if (
+        hasattr(self.idata, "constant_data")
+        and "cost_per_unit" in self.idata.constant_data
+    ):
+        return self.idata.constant_data.cost_per_unit
+    return None
+```
+
+**Modified optimizer** (`budget_optimizer.py:905-906`):
+
+```python
+# Current:
+budgets = self._budgets
+budgets /= channel_scales
+
+# Proposed:
+budgets = self._budgets
+
+# Convert budget from spend to original units (if cost_per_unit exists)
+cost_per_unit = self._get_cost_per_unit()  # New helper method
+if cost_per_unit is not None:
+    # For scalar cost_per_unit: shape (channel,)
+    # For time-varying: shape (date, channel) - need to average or use first period
+    if cost_per_unit.ndim > 1:
+        # Use mean cost_per_unit for optimization period
+        cost_per_unit = cost_per_unit.mean(dim="date")
+    # Divide budget by cost to get original units (e.g., $ / $-per-impression = impressions)
+    budgets = budgets / cost_per_unit
+
+budgets /= channel_scales
+```
+
+**New helper in BudgetOptimizer**:
+
+```python
+def _get_cost_per_unit(self) -> xr.DataArray | None:
+    """Extract cost_per_unit from wrapped model's InferenceData."""
+    if hasattr(self.mmm_model, "idata"):
+        wrapper = MMMIDataWrapper(self.mmm_model.idata, validate_on_init=False)
+        return wrapper.get_cost_per_unit()
+    return None
+```
+
+### 3. Saturation Curve Plotting - Direct Channel Data Access
+
+#### Current Implementation
+**File**: `pymc_marketing/mmm/plot.py:2273-2333`
+
+**Critical finding**: Plotting does NOT call `get_channel_spend()`. It accesses data directly:
+
+```python
+# Line 2273-2281: Convert curve x-coords to original scale
+if original_scale:
+    channel_scale = self.idata.constant_data.channel_scale.sel(**valid_idx)
+    x_original = subplot_curve.coords["x"] * channel_scale
+    subplot_curve = subplot_curve.assign_coords(x=x_original)
+
+# Line 2315: Get scatter plot x-data directly
+x_data = self.idata.constant_data.channel_data.sel(**indexers)
+
+# Line 2316-2326: Get scatter plot y-data
+y = (
+    self.idata.posterior[contrib_var]
+    .sel(**indexers)
+    .mean(dim=[d for d in ... if d in ("chain", "draw")])
+)
+```
+
+**Data flow**:
+1. Curve x-coords: `np.linspace(0, max_value, 100)` → scaled by `channel_scale`
+2. Scatter x-data: `idata.constant_data.channel_data` (raw)
+3. Scatter y-data: `idata.posterior.channel_contribution` (mean across samples)
+
+**Problem**: Scatter data and curve x-axis both need cost_per_unit conversion for spend-based plots.
+
+#### Proposed Enhancement
+
+Add new parameter and conversion logic:
+
+```python
+def saturation_curves(
+    self,
+    curve: xr.DataArray,
+    channels: Sequence[str] | None = None,
+    original_scale: bool = True,
+    plot_as_spend: bool = True,  # NEW PARAMETER
+    # ... other params
+) -> tuple[plt.Figure, np.ndarray]:
+    """Plot saturation curves.
+
+    Parameters
+    ----------
+    # ... existing params
+    plot_as_spend : bool, default True
+        If True, convert x-axis to spend units using cost_per_unit.
+        If False, plot in original channel data units.
+        Only applies if cost_per_unit metadata exists.
+    """
+    # ... existing setup code
+
+    # Line 2273-2281: Convert curve x-coords
+    if original_scale:
+        channel_scale = self.idata.constant_data.channel_scale.sel(**valid_idx)
+        x_original = subplot_curve.coords["x"] * channel_scale
+        subplot_curve = subplot_curve.assign_coords(x=x_original)
+
+        # NEW: Apply cost_per_unit conversion
+        if plot_as_spend and "cost_per_unit" in self.idata.constant_data:
+            cost_per_unit = self.idata.constant_data.cost_per_unit.sel(**valid_idx)
+            # For time-varying cost_per_unit, use mean or specific date
+            if "date" in cost_per_unit.dims:
+                cost_per_unit = cost_per_unit.mean(dim="date")
+            x_spend = subplot_curve.coords["x"] * cost_per_unit
+            subplot_curve = subplot_curve.assign_coords(x=x_spend)
+
+    # ... plotting code
+
+    # Line 2315-2333: Scatter plot
+    x_data = self.idata.constant_data.channel_data.sel(**indexers)
+
+    # NEW: Apply cost_per_unit conversion to scatter data
+    if plot_as_spend and "cost_per_unit" in self.idata.constant_data:
+        cost_per_unit_scatter = self.idata.constant_data.cost_per_unit.sel(**indexers)
+        x_data = x_data * cost_per_unit_scatter
+
+    y = self.idata.posterior[contrib_var].sel(**indexers).mean(dim=[...])
+
+    ax.scatter(x_data, y, alpha=0.5, s=10, label="Historical data")
+
+    # Update axis label
+    x_label = "Spend" if plot_as_spend else "Channel Data"
+    ax.set_xlabel(x_label)
+```
+
+**Other affected plotting functions**:
+1. `saturation_scatterplot()` (`plot.py:2060`) - needs same conversion
+2. `budget_allocation()` (`plot.py:2447-2450`) - already in spend units
+3. Sensitivity analysis plots (`plot.py:3410-3611`) - needs conversion
+
+### 4. InferenceData Schema for cost_per_unit Storage
+
+#### Recommended Schema Addition
+**File**: `pymc_marketing/data/idata/schema.py:293` (add after target_scale)
+
+```python
+constant_data_vars["cost_per_unit"] = VariableSchema(
+    name="cost_per_unit",
+    dims="*",  # Flexible: ("channel",) or ("date", "channel")
+    dtype=("float64", "float32"),
+    description="Cost per unit for converting non-spend data to spend units",
+    required=False,  # Optional, not all models need this
+)
+```
+
+**Why wildcard dims="*"**:
+- Supports scalar per channel: `dims=("channel",)` → shape (n_channels,)
+- Supports time-varying: `dims=("date", "channel")` → shape (n_dates, n_channels)
+- Follows pattern of `channel_scale` which also uses `dims="*"` (line 281)
+- Validation at line 84-89 accepts any dimensional structure for wildcards
+
+#### Physical Variable Creation
+**File**: `pymc_marketing/mmm/multidimensional.py:1351` (add near other pm.Data calls)
+
+```python
+# After target_scale creation
+if self.cost_per_unit is not None:
+    if isinstance(self.cost_per_unit, dict):
+        # Convert dict to DataArray
+        cost_per_unit_array = xr.DataArray(
+            [self.cost_per_unit.get(ch, 1.0) for ch in self.channel_columns],
+            dims="channel",
+            coords={"channel": self.channel_columns},
+        )
+    elif isinstance(self.cost_per_unit, xr.DataArray):
+        cost_per_unit_array = self.cost_per_unit
+    elif isinstance(self.cost_per_unit, pd.DataFrame):
+        # Time-varying from DataFrame
+        cost_per_unit_array = self.cost_per_unit.to_xarray()
+    else:
+        raise TypeError(f"Unsupported cost_per_unit type: {type(self.cost_per_unit)}")
+
+    _cost_per_unit = pm.Data(
+        name="cost_per_unit",
+        value=cost_per_unit_array.values,
+        dims=cost_per_unit_array.dims,
+    )
+```
+
+#### Model Initialization Parameter
+**File**: `pymc_marketing/mmm/base.py:104-120` (add to MMMModelBuilder)
+
+```python
+cost_per_unit: dict[str, float] | xr.DataArray | pd.DataFrame | None = Field(
+    default=None,
+    description=(
+        "Cost per unit conversion factors for non-spend channels. "
+        "Provide as dict for scalar (e.g., {'channel1': 0.01}), "
+        "xarray.DataArray with dims ('channel',) or ('date', 'channel'), "
+        "or pandas.DataFrame with 'date' and channel columns for time-varying."
+    ),
+)
+```
+
+### 5. Time-Varying Support
+
+#### Data Structure Options
+
+**Option A: xarray.DataArray with dims ("date", "channel")**
+```python
+cost_per_unit = xr.DataArray(
+    [[0.01, 0.02], [0.012, 0.021], [0.011, 0.019]],  # 3 dates, 2 channels
+    dims=("date", "channel"),
+    coords={
+        "date": pd.date_range("2024-01-01", periods=3),
+        "channel": ["channel1", "channel2"],
+    },
+)
+```
+
+**Option B: pandas.DataFrame**
+```python
+cost_per_unit = pd.DataFrame({
+    "date": ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-02"],
+    "channel": ["channel1", "channel2", "channel1", "channel2"],
+    "cost_per_unit": [0.01, 0.02, 0.012, 0.021],
+})
+```
+
+**Recommendation**: Accept both formats in initialization, convert to xarray internally for storage in InferenceData.
+
+#### Broadcasting Behavior
+
+**Scalar case** (dims=("channel",)):
+```python
+channel_data.shape  # (n_dates, n_channels)
+cost_per_unit.shape  # (n_channels,)
+result = channel_data * cost_per_unit  # Broadcasts over dates
+```
+
+**Time-varying case** (dims=("date", "channel")):
+```python
+channel_data.shape  # (n_dates, n_channels)
+cost_per_unit.shape  # (n_dates, n_channels)
+result = channel_data * cost_per_unit  # Element-wise multiplication
+```
+
+xarray handles broadcasting automatically, no special logic needed.
+
+#### Aggregation for Optimization
+
+Budget optimization operates on a single time period, so time-varying cost_per_unit needs aggregation:
+
+```python
+if cost_per_unit.ndim > 1 and "date" in cost_per_unit.dims:
+    # Option 1: Mean across time
+    cost_per_unit_scalar = cost_per_unit.mean(dim="date")
+
+    # Option 2: Use specific period
+    cost_per_unit_scalar = cost_per_unit.sel(date=optimization_period).mean(dim="date")
+
+    # Option 3: User-specified aggregation
+    cost_per_unit_scalar = cost_per_unit.sel(date=slice(start, end)).mean(dim="date")
+```
+
+Recommend: Use mean across the optimization time window.
+
+### 6. Post-Hoc Specification Pattern
+
+#### Adding cost_per_unit to Existing Models
+
+**New method in MMMIDataWrapper** (`mmm_wrapper.py`, add around line 125):
+
+```python
+def set_cost_per_unit(
+    self,
+    cost_per_unit: dict[str, float] | xr.DataArray | pd.DataFrame,
+    overwrite: bool = False,
+) -> None:
+    """Add or update cost_per_unit metadata in InferenceData.
+
+    Parameters
+    ----------
+    cost_per_unit : dict, xr.DataArray, or pd.DataFrame
+        Cost per unit conversion factors. Can be:
+        - dict mapping channel names to scalars: {'channel1': 0.01}
+        - xr.DataArray with dims ('channel',) for scalar
+        - xr.DataArray with dims ('date', 'channel') for time-varying
+        - pd.DataFrame with columns 'date' and channel names
+    overwrite : bool, default False
+        If True, overwrite existing cost_per_unit. If False and
+        cost_per_unit exists, raise ValueError.
+
+    Raises
+    ------
+    ValueError
+        If cost_per_unit exists and overwrite=False
+    """
+    if (
+        "cost_per_unit" in self.idata.constant_data
+        and not overwrite
+    ):
+        raise ValueError(
+            "cost_per_unit already exists in InferenceData. "
+            "Use overwrite=True to replace it."
+        )
+
+    # Convert to xarray
+    if isinstance(cost_per_unit, dict):
+        channels = list(self.idata.constant_data.coords["channel"].values)
+        values = [cost_per_unit.get(ch, 1.0) for ch in channels]
+        cost_per_unit_array = xr.DataArray(
+            values,
+            dims="channel",
+            coords={"channel": channels},
+        )
+    elif isinstance(cost_per_unit, pd.DataFrame):
+        cost_per_unit_array = cost_per_unit.set_index("date").to_xarray()
+    elif isinstance(cost_per_unit, xr.DataArray):
+        cost_per_unit_array = cost_per_unit
+    else:
+        raise TypeError(f"Unsupported type: {type(cost_per_unit)}")
+
+    # Add to InferenceData
+    self.idata.constant_data["cost_per_unit"] = cost_per_unit_array
+```
+
+**Usage example**:
+```python
+# Fit model with impression data
+mmm = MMM(channel_columns=["ch1", "ch2"], ...)
+mmm.fit(data_with_impressions)
+
+# Add cost_per_unit later
+mmm.data.set_cost_per_unit({"ch1": 0.01, "ch2": 0.02})
+
+# Now get_channel_spend() returns converted values
+spend = mmm.data.get_channel_spend()  # In dollars, not impressions
+roas = mmm.data.get_roas()  # Correct ROAS ($/$ not $/impression)
 ```
 
 ## Code References
 
-### Key Implementation Files
+### Key Files to Modify
 
-1. **MMM Base Classes**
-   - `pymc_marketing/mmm/base.py:104-120` - Channel columns definition
-   - `pymc_marketing/mmm/mmm.py` - Main MMM class
-   - `pymc_marketing/mmm/multidimensional.py` - Multi-dimensional MMM
+1. **MMMIDataWrapper** (`pymc_marketing/data/idata/mmm_wrapper.py`)
+   - Line 165-189: `get_channel_spend()` - add conversion logic
+   - Line 190+: Add `get_cost_per_unit()` method
+   - Line 125+: Add `set_cost_per_unit()` method
 
-2. **Budget Optimization**
-   - `pymc_marketing/mmm/budget_optimizer.py:1-200` - Core optimization logic
-   - `pymc_marketing/mmm/constraints.py` - Constraint system
-   - `pymc_marketing/mmm/utility.py` - Objective functions
+2. **BudgetOptimizer** (`pymc_marketing/mmm/budget_optimizer.py`)
+   - Line 896-952: `_replace_channel_data_by_optimization_variable()` - apply conversion
+   - Add `_get_cost_per_unit()` helper method
+   - Line 1010-1209: `allocate_budget()` - document unit assumptions
 
-3. **Saturation Curves**
-   - `pymc_marketing/mmm/components/saturation.py:104-496` - Saturation transformations
-   - `pymc_marketing/mmm/plot.py:2099` - Saturation curve plotting
-   - `pymc_marketing/mmm/summary.py:566` - Saturation curve summaries
+3. **Saturation Plotting** (`pymc_marketing/mmm/plot.py`)
+   - Line 2099-2351: `saturation_curves()` - add plot_as_spend parameter
+   - Line 2273-2281: Convert curve x-coords
+   - Line 2315-2333: Convert scatter x-data
+   - Line 1945-2097: `saturation_scatterplot()` - same changes
 
-4. **Data Processing**
-   - `pymc_marketing/data/fivetran.py` - Handles impressions/spend conversion
-   - `pymc_marketing/mmm/preprocessing.py` - Channel scaling
-   - `pymc_marketing/data/idata/schema.py:265-269` - InferenceData schema
+4. **InferenceData Schema** (`pymc_marketing/data/idata/schema.py`)
+   - Line 293+: Add cost_per_unit variable schema
 
-5. **Calibration Pattern**
-   - `pymc_marketing/mmm/lift_test.py:784-891` - Cost-per-target calibration
+5. **MMM Base Model** (`pymc_marketing/mmm/base.py`)
+   - Line 104-120: Add cost_per_unit initialization parameter
 
-### Test Files for Reference
+6. **Multidimensional MMM** (`pymc_marketing/mmm/multidimensional.py`)
+   - Line 1351+: Create pm.Data for cost_per_unit
+   - Initialization: Accept and validate cost_per_unit parameter
 
-- `tests/mmm/test_budget_optimizer.py` - Budget optimization tests
-- `tests/mmm/test_multidimensional.py` - Multi-dimensional calibration tests
-- `tests/data/test_fivetran.py` - Impression/spend data processing tests
-- `tests/mmm/test_lift_test.py` - Calibration tests
+### Test Files to Update
 
-### Example Notebooks
-
-- `docs/source/notebooks/mmm/mmm_fivetran_connectors.ipynb` - Shows `value_columns="spend"` or `"impressions"`
-- `docs/source/notebooks/mmm/mmm_budget_allocation_example.ipynb` - Budget optimization examples
-- `docs/source/notebooks/mmm/mmm_lift_test.ipynb` - Cost-per-target calibration examples
+- `tests/mmm/test_idata_wrapper.py` - Add tests for get_channel_spend conversion
+- `tests/mmm/test_budget_optimizer.py` - Test optimization with cost_per_unit
+- `tests/mmm/test_plot.py` - Test plotting with cost_per_unit
+- `tests/mmm/test_summary.py` - Test ROAS with conversion
+- `tests/data/test_idata_schema.py` - Test schema validation for cost_per_unit
 
 ## Architecture Insights
 
-### 1. No Channel Metadata Infrastructure
+### 1. Strategic Conversion Point: get_channel_spend()
 
-Currently, channels are "stringly typed" - identified only by their names in `channel_columns`. There's no structure for storing:
-- Channel type (impression, spend, clicks, etc.)
-- Conversion factors (cost per impression)
-- Channel category or grouping
-- Any other channel-level attributes
+The method `get_channel_spend()` is perfectly positioned for applying cost_per_unit conversion:
+- Used by ROAS calculation (most critical use case)
+- Used by summary reporting (user-facing output)
+- NOT used by model fitting (preserves modeling invariance)
+- Centralized location (single point of change)
 
-### 2. Uniform Data Treatment
+**Design principle**: "Convert on read, not on write"
+- Store raw channel_data in original units (impressions, clicks, etc.)
+- Store cost_per_unit metadata separately
+- Apply conversion when reading via `get_channel_spend()`
 
-All channel data flows through the same pipeline:
+### 2. Multi-Touch Conversion Architecture
+
+Cost_per_unit conversion needs to happen at multiple points:
+
 ```
-DataFrame → Validation → Scaling → PyMC Model Coords → Transformations → Optimization
+┌─────────────────────────────────────────────────────────┐
+│                   InferenceData Storage                  │
+│  constant_data:                                          │
+│    - channel_data (raw units: impressions/spend/clicks)  │
+│    - cost_per_unit (conversion factors)                  │
+└─────────────────────────────────────────────────────────┘
+                          │
+        ┌─────────────────┼─────────────────┐
+        │                 │                 │
+        ▼                 ▼                 ▼
+┌────────────────┐  ┌──────────────┐  ┌──────────────┐
+│ get_channel_   │  │ Budget       │  │ Saturation   │
+│ spend()        │  │ Optimizer    │  │ Plotting     │
+│                │  │              │  │              │
+│ Apply          │  │ Apply        │  │ Apply        │
+│ conversion     │  │ conversion   │  │ conversion   │
+│ (automatic)    │  │ (explicit)   │  │ (opt-in)     │
+└────────────────┘  └──────────────┘  └──────────────┘
+        │                 │                 │
+        ▼                 ▼                 ▼
+    ROAS calcs      Budget allocation   Saturation curves
 ```
 
-No step distinguishes between data types or applies conversions.
+**Key insight**: Not all code paths use `get_channel_spend()`, so conversion must be implemented redundantly at each touch point.
 
-### 3. Extension Points Identified
+### 3. Time-Varying Flexibility
 
-Based on the cost-per-target calibration pattern, conversion factors could be integrated at:
+Supporting time-varying cost_per_unit from the start provides:
+- **Realism**: Ad costs change over time (seasonality, market conditions)
+- **Forward compatibility**: No breaking changes when users need time-varying later
+- **Implementation simplicity**: xarray broadcasting handles both cases uniformly
 
-**Option A: During data preparation** (before model fitting)
-- Pro: Simple, works with existing code
-- Con: Loses flexibility for time-varying conversion, harder to propagate uncertainty
+**Storage pattern**:
+- Scalar: dims=("channel",), shape=(n_channels,)
+- Time-varying: dims=("date", "channel"), shape=(n_dates, n_channels)
+- Validation: Use wildcard `dims="*"` in schema
 
-**Option B: During model building** (as calibration constraints)
-- Pro: Flexible, can handle time-varying factors, propagates uncertainty
-- Con: More complex, affects model structure
+### 4. Backward Compatibility Strategy
 
-**Option C: During post-processing** (budget optimization, plotting)
-- Pro: Minimal changes to core model
-- Con: Conversion logic scattered across codebase
+**For existing models** (no cost_per_unit):
+- `get_channel_spend()` returns raw channel_data (unchanged behavior)
+- ROAS calculations work as before (assumes data already in spend units)
+- Budget optimization works as before (assumes data already in spend units)
 
-### 4. InferenceData Schema Flexibility
+**For new models** (with cost_per_unit):
+- `get_channel_spend()` automatically converts to spend units (default behavior)
+- Users can opt out with `get_channel_spend(apply_cost_per_unit=False)`
+- Breaking change is acceptable per @isofer's comment: "It's ok that it's not backward compatible"
 
-The `channel_data` variable in InferenceData already accepts dims like `("date", *custom_dims, "channel")`. Additional metadata could be stored as:
-- `constant_data.channel_type` - dims: `("channel",)`, values: "impression"/"spend"
-- `constant_data.cost_per_impression` - dims: `("channel",)` or `("date", "channel")` for time-varying
+**Migration path**:
+```python
+# Old code (still works)
+mmm = MMM(channel_columns=["ch1", "ch2"])
+mmm.fit(data_with_spend)
+spend = mmm.data.get_channel_spend()  # Returns spend
 
-## Historical Context (from thoughts/)
+# New code (impression data)
+mmm = MMM(
+    channel_columns=["ch1", "ch2"],
+    cost_per_unit={"ch1": 0.01, "ch2": 0.02},  # NEW
+)
+mmm.fit(data_with_impressions)
+spend = mmm.data.get_channel_spend()  # Returns converted spend
 
-No existing research documents were found in `thoughts/shared/research/` or `thoughts/searchable/` related to impression-to-spend conversion.
+# Post-hoc addition
+mmm.data.set_cost_per_unit({"ch1": 0.01, "ch2": 0.02})
+```
 
-## Related Research
+### 5. Unit Agnostic Naming
 
-This is the first research document for issue #2210.
+Following @isofer's guidance:
+- **Not**: "impression_to_spend", "impression_cost", "cpi" (cost per impression)
+- **Yes**: "cost_per_unit" - agnostic to actual data type (impressions, clicks, views, etc.)
 
-## Open Questions
+**Rationale**:
+- channel_data could be impressions, clicks, video views, email opens, etc.
+- We don't need to know or care what the unit is
+- cost_per_unit universally means "multiply this by channel_data to get spend"
 
-1. **Conversion factor specification**: How should users provide conversion factors?
-   - Via initialization parameter: `MMM(..., cost_per_impression={'channel1': 0.01, 'channel2': 0.02})`
-   - Via separate DataFrame: `mmm.add_conversion_factors(df)`
-   - Via calibration constraints: `mmm.add_cost_per_impression_calibration(df)`
+**Variable naming**:
+- `cost_per_unit` (not `cost_per_impression`)
+- `apply_cost_per_unit` (not `convert_impressions`)
+- `plot_as_spend` (not `plot_as_cost` or `convert_to_dollars`)
 
-2. **Time-varying vs scalar**: Should we support both?
-   - Scalar: One conversion factor per channel (simpler)
-   - Time-varying: Array with dims `("date", "channel")` (more flexible)
+## Open Questions Resolved
 
-3. **Modeling vs post-processing**: Where should conversion happen?
-   - During modeling: Affects saturation/adstock calculations
-   - After modeling: Only affects plots and optimization
-   - Issue description suggests: "This would not affect modeling, but plots and budget optimization"
+### 1. ✅ Where should conversion happen?
 
-4. **Backward compatibility**: How to handle existing models?
-   - Default: All channels assumed to be spend (current behavior)
-   - Require explicit opt-in for conversion features
+**Answer**: Multiple points, as conversions don't propagate:
+- `MMMIDataWrapper.get_channel_spend()` - automatic conversion for ROAS/summaries
+- `BudgetOptimizer._replace_channel_data_by_optimization_variable()` - explicit conversion
+- `MMMPlotSuite.saturation_curves()` - opt-in conversion via `plot_as_spend` parameter
 
-5. **Uncertainty propagation**: Should conversion factors have uncertainty?
-   - If scalar: Probably not needed
-   - If time-varying or estimated: Should propagate to budget optimization
+### 2. ✅ Should we support time-varying?
+
+**Answer**: Yes, from the start. Implementation complexity is minimal:
+- xarray broadcasting handles both scalar and time-varying uniformly
+- Schema wildcard `dims="*"` accepts both
+- Storage cost is negligible (small metadata array)
+
+### 3. ✅ How should users provide cost_per_unit?
+
+**Answer**: Both initialization and post-hoc:
+```python
+# Option A: During initialization
+mmm = MMM(..., cost_per_unit={"ch1": 0.01, "ch2": 0.02})
+
+# Option B: After fitting (post-hoc)
+mmm.fit(data)
+mmm.data.set_cost_per_unit({"ch1": 0.01, "ch2": 0.02})
+```
+
+### 4. ✅ Should conversion affect modeling?
+
+**Answer**: No. Per issue description and @isofer's comment:
+> "The conversion should only affect Only affects plots and optimization. it should not affect modeling."
+
+Store raw data in InferenceData, apply conversion during post-processing (plots, optimization, summaries).
+
+### 5. ✅ How to handle mixed channel types?
+
+**Answer**: Use cost_per_unit=1.0 as identity (no conversion):
+```python
+cost_per_unit = {
+    "channel1": 0.01,    # Impressions → spend
+    "channel2": 1.0,     # Already in spend units
+    "channel3": 0.005,   # Clicks → spend
+}
+```
+
+Default missing channels to 1.0 in implementation.
 
 ## Recommended Implementation Approach
 
-Based on the research, here's a proposed architecture:
+### Phase 1: Core Infrastructure (Breaking Changes OK)
 
-### Phase 1: Channel Metadata Infrastructure
+1. **Add cost_per_unit to InferenceData schema**
+   - File: `pymc_marketing/data/idata/schema.py:293`
+   - Add wildcard VariableSchema with `required=False`
 
-1. **Add channel metadata storage** in `MMMModelBuilder`:
-```python
-class ChannelMetadata(BaseModel):
-    channel: str
-    data_type: Literal["spend", "impression", "clicks"]
-    cost_per_unit: float | None = None  # For impression → spend conversion
+2. **Add cost_per_unit parameter to model initialization**
+   - File: `pymc_marketing/mmm/base.py:120`
+   - Accept dict, xarray, or DataFrame
+   - Validate and convert to xarray internally
 
-channel_metadata: dict[str, ChannelMetadata] | None = None
-```
+3. **Store cost_per_unit in InferenceData**
+   - File: `pymc_marketing/mmm/multidimensional.py:1351`
+   - Create pm.Data with appropriate dims
 
-2. **Store in InferenceData** `constant_data` group:
-```python
-# New variables in InferenceData
-constant_data.channel_data_type: dims=("channel",), dtype=object
-constant_data.cost_per_unit: dims=("channel",), dtype=float64
-```
+4. **Modify get_channel_spend() to apply conversion**
+   - File: `pymc_marketing/data/idata/mmm_wrapper.py:165-189`
+   - Add `apply_cost_per_unit=True` parameter
+   - Multiply by cost_per_unit if present
+   - Default to True (automatic conversion)
 
-### Phase 2: Conversion in Budget Optimization
+5. **Add get_cost_per_unit() accessor**
+   - File: `pymc_marketing/data/idata/mmm_wrapper.py:190`
+   - Return cost_per_unit or None
 
-3. **Update `BudgetOptimizer`** to apply conversions:
-```python
-def allocate_budget(self, ...):
-    # Convert impression channels to spend before optimization
-    spend_data = self._convert_to_spend(channel_data, channel_metadata)
-    # Run optimization on spend_data
-    # Convert back to original units if needed
-```
+6. **Add set_cost_per_unit() method**
+   - File: `pymc_marketing/data/idata/mmm_wrapper.py:125`
+   - Support post-hoc addition
+   - Validate and convert input formats
 
-### Phase 3: Conversion in Plotting
+### Phase 2: Budget Optimization
 
-4. **Update `saturation_curves()`** plotting:
-```python
-def saturation_curves(self, ...):
-    # Convert x-axis to spend units if channel is impression-based
-    x_spend = self._convert_to_spend(x_impression, cost_per_unit)
-    # Plot saturation curve in spend space
-```
+7. **Update BudgetOptimizer for cost_per_unit**
+   - File: `pymc_marketing/mmm/budget_optimizer.py:896-952`
+   - Extract cost_per_unit from InferenceData
+   - Convert budgets from spend to original units before scaling
+   - Handle time-varying by averaging
 
-### Phase 4: Time-Varying Support
+8. **Document budget unit assumptions**
+   - File: `pymc_marketing/mmm/budget_optimizer.py:1010-1209`
+   - Clarify that `total_budget` is in spend units
+   - Document conversion behavior
 
-5. **Extend to time-varying conversion factors**:
-```python
-cost_per_unit: xr.DataArray | dict[str, float]  # Support both scalar and time-varying
-```
+### Phase 3: Plotting
 
-This approach:
-- Preserves backward compatibility (metadata optional)
-- Follows the calibration pattern from `lift_test.py`
-- Doesn't affect core modeling (saturation/adstock applied to original data)
-- Enables conversion only where needed (optimization, plotting)
+9. **Update saturation_curves() plotting**
+   - File: `pymc_marketing/mmm/plot.py:2099-2351`
+   - Add `plot_as_spend=True` parameter
+   - Convert curve x-coords (line 2273-2281)
+   - Convert scatter x-data (line 2315-2333)
+   - Update axis labels
+
+10. **Update saturation_scatterplot()**
+    - File: `pymc_marketing/mmm/plot.py:1945-2097`
+    - Apply same conversion logic
+
+11. **Update other relevant plots**
+    - Sensitivity analysis plots (line 3410-3611)
+    - Any other plots showing channel data vs contributions
+
+### Phase 4: Testing and Documentation
+
+12. **Add comprehensive tests**
+    - Test scalar cost_per_unit
+    - Test time-varying cost_per_unit
+    - Test mixed channel types (some with conversion, some without)
+    - Test backward compatibility (models without cost_per_unit)
+    - Test post-hoc addition via set_cost_per_unit()
+
+13. **Update documentation**
+    - Add user guide section on cost_per_unit
+    - Update examples with impression data
+    - Document migration path for existing models
+    - Add FAQ about units and conversion
+
+14. **Add notebook example**
+    - Show full workflow with impression data
+    - Demonstrate time-varying cost_per_unit
+    - Compare results with/without conversion
+
+## Related Research
+
+This supersedes the previous research conducted on 2026-01-30 in the same file, incorporating feedback from @isofer's comment on 2026-02-06.
+
+## Implementation Checklist
+
+- [ ] Add cost_per_unit to schema (schema.py:293)
+- [ ] Add cost_per_unit parameter to MMMModelBuilder (base.py:120)
+- [ ] Create pm.Data for cost_per_unit (multidimensional.py:1351)
+- [ ] Modify get_channel_spend() (mmm_wrapper.py:165-189)
+- [ ] Add get_cost_per_unit() (mmm_wrapper.py:190)
+- [ ] Add set_cost_per_unit() (mmm_wrapper.py:125)
+- [ ] Update BudgetOptimizer (budget_optimizer.py:896-952)
+- [ ] Update saturation_curves() (plot.py:2273-2333)
+- [ ] Update saturation_scatterplot() (plot.py:2060)
+- [ ] Add tests for scalar cost_per_unit
+- [ ] Add tests for time-varying cost_per_unit
+- [ ] Add tests for mixed channel types
+- [ ] Update documentation
+- [ ] Add example notebook
