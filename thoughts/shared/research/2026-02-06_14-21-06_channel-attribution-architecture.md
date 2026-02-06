@@ -52,8 +52,6 @@ Building on previous research on ROAS computation and vectorization optimization
 
 **A new `Incrementality` module is recommended** that leverages the vectorization patterns from `SensitivityAnalysis` while maintaining architectural clarity.
 
-> **Why "Incrementality" and not "Attribution"?** The entire MMM project is fundamentally a channel attribution model — it attributes outcomes to marketing channels. Naming a sub-module "attribution" would be confusing and overloaded. What this module specifically does is decompose a single channel's contribution into its **incremental** effects over time periods. "Incrementality" precisely captures this: measuring the incremental lift each channel creates, accounting for adstock carryover.
-
 The core insight is that **incrementality and sensitivity are distinct analysis types** that share counterfactual evaluation infrastructure but serve different purposes:
 
 - **Sensitivity Analysis**: "What if we change X by Y%?" (continuous sweeps, marginal effects)
