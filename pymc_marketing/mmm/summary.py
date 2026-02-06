@@ -42,10 +42,9 @@ from pydantic import validate_call
 from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.schema import Frequency
 
 # Type aliases
-# Maps to Component 1's aggregate_time(period) - "original" means no aggregation
-Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 OutputFormat = Literal["pandas", "polars"]
 
 # Union type for return values

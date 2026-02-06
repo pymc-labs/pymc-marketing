@@ -19,6 +19,9 @@ import arviz as az
 import xarray as xr
 from pydantic import BaseModel, Field
 
+# Type aliases for time aggregation
+Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
+
 
 class VariableSchema(BaseModel):
     """Schema for a single variable in InferenceData.

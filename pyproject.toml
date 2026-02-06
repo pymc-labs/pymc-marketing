@@ -27,6 +27,7 @@ classifiers = [
 dependencies = [
     "arviz>=0.13.0",
     "matplotlib>=3.5.1",
+    "narwhals",
     "numpy>=2.0",
     "pandas",
     "pydantic>=2.1.0",
@@ -97,6 +98,7 @@ test = [
     "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
     "preliz>=0.20.0",
+    "plotly>=6.3.0",
 ]
 
 [tool.hatch.build.targets.sdist]
