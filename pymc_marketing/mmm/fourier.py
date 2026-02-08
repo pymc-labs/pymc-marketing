@@ -34,10 +34,10 @@ There are three types of Fourier seasonality transformations available:
 
     plt.style.use('arviz-darkgrid')
 
-    prior = Prior(
+    prior = XPrior(
         "Normal",
         mu=[0, 0, -1, 0],
-        sigma=Prior("Gamma", mu=0.10, sigma=0.1, dims="fourier"),
+        sigma=XPrior("Gamma", mu=0.10, sigma=0.1, dims="fourier"),
         dims=("hierarchy", "fourier"),
     )
     yearly = YearlyFourier(n_order=2, prior=prior)
@@ -100,7 +100,7 @@ Change the prior distribution of the fourier seasonality.
     from pymc_marketing.mmm import YearlyFourier
     from pymc_extras.prior import Prior
 
-    prior = Prior("Normal", mu=0, sigma=0.10)
+    prior = XPrior("Normal", mu=0, sigma=0.10)
     yearly = YearlyFourier(n_order=6, prior=prior)
 
 Even make it hierarchical...
@@ -111,10 +111,10 @@ Even make it hierarchical...
     from pymc_extras.prior import Prior
 
     # "fourier" is the default prefix!
-    prior = Prior(
+    prior = XPrior(
         "Laplace",
-        mu=Prior("Normal", dims="fourier"),
-        b=Prior("HalfNormal", sigma=0.1, dims="fourier"),
+        mu=XPrior("Normal", dims="fourier"),
+        b=XPrior("HalfNormal", sigma=0.1, dims="fourier"),
         dims=("fourier", "hierarchy"),
     )
     yearly = YearlyFourier(n_order=3, prior=prior)
@@ -130,10 +130,10 @@ All the plotting will still work! Just pass any coords.
     from pymc_extras.prior import Prior
 
     # "fourier" is the default prefix!
-    prior = Prior(
+    prior = XPrior(
         "Laplace",
-        mu=Prior("Normal", dims="fourier"),
-        b=Prior("HalfNormal", sigma=0.1, dims="fourier"),
+        mu=XPrior("Normal", dims="fourier"),
+        b=XPrior("HalfNormal", sigma=0.1, dims="fourier"),
         dims=("fourier", "hierarchy"),
     )
     yearly = YearlyFourier(n_order=3, prior=prior)
@@ -235,7 +235,7 @@ conflicts.
 
 import datetime
 from abc import abstractmethod
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any, Self
 
 import arviz as az
@@ -255,9 +255,12 @@ from pydantic import (
     model_validator,
 )
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import Prior, VariableFactory
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
+from pymc_marketing.mmm.dims import XPrior, XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
 
 X_NAME: str = "day"
@@ -283,6 +286,7 @@ def generate_fourier_modes(
         Fourier modes.
 
     """
+    # TODO: Change to xtensor
     multiples = pt.arange(1, n_order + 1)
     x = 2 * pt.pi * periods
 
@@ -309,9 +313,9 @@ class FourierBase(BaseModel):
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
-    prior : Prior | VariableFactory, optional
-        Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+    prior : XPrior | VariableFactory, optional
+        XPrior distribution or VariableFactory for the fourier seasonality beta parameters, by
+        default `XPrior("Laplace", mu=0, b=1)`
     variable_name : str, optional
         Name of the variable that multiplies the fourier modes. By default None,
         in which case it is set to the `{prefix}_beta`.
@@ -321,8 +325,8 @@ class FourierBase(BaseModel):
     n_order: int = Field(..., gt=0)
     days_in_period: float = Field(..., gt=0)
     prefix: str = Field("fourier")
-    prior: InstanceOf[Prior] | InstanceOf[VariableFactory] = Field(
-        Prior("Laplace", mu=0, b=1)
+    prior: InstanceOf[XPrior] | InstanceOf[Prior] | InstanceOf[VariableFactory] = Field(
+        XPrior("Laplace", mu=0, b=1)
     )
     variable_name: str | None = Field(None)
     model_config = ConfigDict(extra="forbid")
@@ -332,7 +336,9 @@ class FourierBase(BaseModel):
         if self.variable_name is None:
             self.variable_name = f"{self.prefix}_beta"
 
-        if not self.prior.dims and isinstance(self.prior, Prior):
+        if isinstance(self.prior, Prior):
+            self.prior = XPrior.from_prior(self.prior)
+        if not self.prior.dims and isinstance(self.prior, XPrior):
             self.prior = self.prior.deepcopy()
             self.prior.dims = self.prefix
         elif not self.prior.dims:
@@ -347,7 +353,7 @@ class FourierBase(BaseModel):
     @model_validator(mode="after")
     def _check_prior_has_right_dimensions(self) -> Self:
         if self.prefix not in self.prior.dims:
-            raise ValueError(f"Prior distribution must have dimension {self.prefix}")
+            raise ValueError(f"XPrior distribution must have dimension {self.prefix}")
         return self
 
     @field_serializer("prior", when_used="json")
@@ -431,23 +437,23 @@ class FourierBase(BaseModel):
 
     def apply(
         self,
-        dayofperiod: pt.TensorLike,
-        result_callback: Callable[[pt.TensorVariable], None] | None = None,
-    ) -> pt.TensorVariable:
+        dayofperiod: XTensorLike,
+        sum: bool = True,
+    ) -> XTensorVariable:
         """Apply fourier seasonality to day of year.
 
         Must be used within a PyMC model context.
 
         Parameters
         ----------
-        dayofperiod : pt.TensorLike
+        dayofperiod : XTensorLike
             Day of year or weekday
-        result_callback : Callable[[pt.TensorVariable], None], optional
-            Callback function to apply to the result, by default None
+        sum : bool, default True
+            Whether to sum the fourier contributions.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Fourier seasonality
 
         Examples
@@ -488,19 +494,11 @@ class FourierBase(BaseModel):
 
         fourier_modes = generate_fourier_modes(periods=periods, n_order=self.n_order)
 
-        DUMMY_DIM = "DATE"
-
-        prefix_idx = self.prior.dims.index(self.prefix)
-        result_dims = (DUMMY_DIM, *self.prior.dims)
-        dim_handler = create_dim_handler(result_dims)
-
-        result = dim_handler(fourier_modes, (DUMMY_DIM, self.prefix)) * dim_handler(
-            beta, self.prior.dims
-        )
-        if result_callback is not None:
-            result_callback(result)
-
-        return result.sum(axis=prefix_idx + 1)
+        result = as_xtensor(fourier_modes, dims=("date", self.prefix)) * beta
+        if sum:
+            return result.sum(dim=self.prefix)
+        else:
+            return result
 
     def sample_prior(self, coords: dict | None = None, **kwargs) -> xr.Dataset:
         """Sample the prior distributions.
@@ -803,7 +801,7 @@ class YearlyFourier(FourierBase):
 
         mu = np.array([0, 0, -1, 0])
         b = 0.15
-        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        dist = XPrior("Laplace", mu=mu, b=b, dims="fourier")
         yearly = YearlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(random_seed=rng)
         curve = yearly.sample_curve(prior)
@@ -817,9 +815,9 @@ class YearlyFourier(FourierBase):
     prefix : str, optional
         Alternative prefix for the fourier seasonality, by default None or
         "fourier"
-    prior : Prior | VariableFactory, optional
-        Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+    prior : XPrior | VariableFactory, optional
+        XPrior distribution or VariableFactory for the fourier seasonality beta parameters, by
+        default `XPrior("Laplace", mu=0, b=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional
@@ -869,7 +867,7 @@ class MonthlyFourier(FourierBase):
 
         mu = np.array([0, 0, 0.5, 0])
         b = 0.075
-        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        dist = XPrior("Laplace", mu=mu, b=b, dims="fourier")
         monthly = MonthlyFourier(n_order=2, prior=dist)
         prior = monthly.sample_prior(samples=100)
         curve = monthly.sample_curve(prior)
@@ -885,7 +883,7 @@ class MonthlyFourier(FourierBase):
         "fourier"
     prior : Prior | VariableFactory, optional
         Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+        default `XPrior("Laplace", mu=0, b=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional
@@ -934,7 +932,7 @@ class WeeklyFourier(FourierBase):
 
         mu = np.array([0, 0, 0.5, 0])
         b = 0.075
-        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        dist = XPrior("Laplace", mu=mu, b=b, dims="fourier")
         weekly = WeeklyFourier(n_order=2, prior=dist)
         prior = weekly.sample_prior(samples=100)
         curve = weekly.sample_curve(prior)
@@ -950,7 +948,7 @@ class WeeklyFourier(FourierBase):
         "fourier"
     prior : Prior | VariableFactory, optional
         Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+        default `XPrior("Laplace", mu=0, b=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional

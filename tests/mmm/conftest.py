@@ -19,9 +19,9 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.dims import XPrior
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -162,20 +162,20 @@ def panel_fitted_mmm(panel_mmm_data):
     y = panel_mmm_data["y"]
 
     adstock = GeometricAdstock(
-        priors={"alpha": Prior("Beta", alpha=2, beta=5, dims=("country", "channel"))},
+        priors={"alpha": XPrior("Beta", alpha=2, beta=5, dims=("country", "channel"))},
         l_max=10,
     )
 
     beta_prior = LogNormalPrior(
-        mean=Prior("Gamma", mu=0.25, sigma=0.10, dims=("channel")),
-        std=Prior("Exponential", scale=0.10, dims=("channel")),
+        mean=XPrior("Gamma", mu=0.25, sigma=0.10, dims=("channel")),
+        std=XPrior("Exponential", scale=0.10, dims=("channel")),
         dims=("channel", "country"),
         centered=False,
     )
     saturation = LogisticSaturation(
         priors={
             "beta": beta_prior,
-            "lam": Prior(
+            "lam": XPrior(
                 "Gamma",
                 mu=0.5,
                 sigma=0.25,

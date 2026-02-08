@@ -225,12 +225,12 @@ def build_mmm_model(df: pd.DataFrame) -> MMM:
     )
 
     adstock = GeometricAdstock(
-        priors={"alpha": Prior("Beta", alpha=2, beta=5, dims=("geo", "channel"))},
+        priors={"alpha": XPrior("Beta", alpha=2, beta=5, dims=("geo", "channel"))},
         l_max=8,
     )
 
     model_config = {
-        "intercept": Prior("Normal", mu=0.5, sigma=0.2, dims="geo"),
+        "intercept": XPrior("Normal", mu=0.5, sigma=0.2, dims="geo"),
         "gamma_control": Prior("Normal", mu=0, sigma=0.5, dims="control"),
         "gamma_fourier": Prior(
             "Normal",

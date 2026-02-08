@@ -108,6 +108,8 @@ from typing import Any
 from pymc_extras import prior
 from pymc_extras.deserialize import deserialize, register_deserialization
 
+from pymc_marketing.mmm.dims import XPrior
+
 
 def is_alternative_prior(data: Any) -> bool:
     """Check if the data is a dictionary representing a Prior (alternative check)."""
@@ -149,7 +151,7 @@ def deserialize_alternative_prior(data: dict[str, Any]) -> prior.Prior:
         for key, value in parameters.items()
     }
 
-    return prior.Prior(
+    return XPrior(
         distribution,
         transform=transform,
         centered=centered,
