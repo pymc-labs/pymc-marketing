@@ -36,7 +36,7 @@ jobs:
       - name: Set up micromamba
         uses: mamba-org/setup-micromamba@v1
         with:
-          micromamba-version: 2.3.3
+          micromamba-version: latest
 
       - name: Create pymc-marketing-dev env
         run: |
