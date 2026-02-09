@@ -146,7 +146,7 @@ def _hex_to_rgba(color: str, opacity: float) -> str:
     str
         RGBA color string (e.g., "rgba(99,110,250,0.3)")
     """
-    rgba = np.array(mcolors.to_rgb(color)) * 256
+    rgba = np.array(mcolors.to_rgb(color)) * 255
     return f"rgba({rgba[0]},{rgba[1]},{rgba[2]},{opacity})"
 
 
