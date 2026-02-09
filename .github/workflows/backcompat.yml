@@ -37,10 +37,10 @@ jobs:
         uses: mamba-org/setup-micromamba@v1
         with:
           micromamba-version: latest
-
-      - name: Create pymc-marketing-dev env
-        run: |
-          micromamba create -y -n pymc-marketing-dev -f environment.yml
+          environment-file: environment.yml
+          environment-name: pymc-marketing-dev
+          cache-environment: true
+          cache-downloads: true
 
       - name: Fetch main baseline
         run: |
