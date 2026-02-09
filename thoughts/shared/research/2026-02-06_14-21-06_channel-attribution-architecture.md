@@ -654,25 +654,60 @@ class Incrementality:
         ``counterfactual_spend_factor``:
 
         **Total incrementality** (``counterfactual_spend_factor=0.0``, the default):
-        - *Actual scenario*: Model predictions with actual channel spend
-        - *Counterfactual scenario*: Model predictions with **zero** channel spend
-        - Difference = total incremental contribution of the channel
+
+        The counterfactual zeroes out channel spend. The resulting incremental
+        contribution is the numerator of the **total ROAS**:
+
+        .. math::
+
+            \text{ROAS}_m =
+            \frac{
+                \sum_{t=t_0}^{t_1+L-1}
+                \left[
+                    \hat{Y}_t^m(x_{t-L+1,m},\,\dots,\,x_{t,m};\,\Omega)
+                  - \hat{Y}_t^m(0,\,\dots,\,0;\,\Omega)
+                \right]
+            }{
+                \sum_{t=t_0}^{t_1} x_{t,m}
+            }
 
         **Marginal incrementality** (e.g. ``counterfactual_spend_factor=1.01``):
-        - *Perturbed scenario*: Model predictions with spend scaled by the factor
-        - *Actual scenario*: Model predictions with actual channel spend
-        - Difference = incremental contribution of the additional spend
 
-        The marginal variant is the numerator of the **marginal ROAS** formula:
+        The counterfactual scales spend by a small factor. The resulting
+        incremental contribution is the numerator of the **marginal ROAS**:
 
-        ```
-        mROAS_m =
-          Σ(t=t0…t1+L−1) [Ŷ_t(x̃; Ω) − Ŷ_t(x; Ω)]
-          ─────────────────────────────────────────────
-          (factor − 1) × Σ(t=t0…t1) x_{t,m}
-        ```
+        .. math::
 
-        where ``x̃_{t,m} = x_{t,m} × factor`` (e.g. ``1.01``).
+            \text{mROAS}_m =
+            \frac{
+                \sum_{t=t_0}^{t_1+L-1}
+                \left[
+                    \hat{Y}_t^m(\tilde{x}_{t-L+1,m},\,\dots,\,\tilde{x}_{t,m};\,\Omega)
+                  - \hat{Y}_t^m(x_{t-L+1,m},\,\dots,\,x_{t,m};\,\Omega)
+                \right]
+            }{
+                (\alpha - 1) \;
+                \sum_{t=t_0}^{t_1} x_{t,m}
+            }
+
+        **Variable definitions:**
+
+        - :math:`m` — channel index
+        - :math:`x_{t,m}` — actual spend for channel :math:`m` at time
+          :math:`t`
+        - :math:`\tilde{x}_{t,m} = \alpha \, x_{t,m}` — perturbed spend,
+          where :math:`\alpha` is ``counterfactual_spend_factor``
+          (e.g. ``1.01``)
+        - :math:`\hat{Y}_t^m(x_{t-L+1,m},\,\dots,\,x_{t,m};\,\Omega)` —
+          model prediction at time :math:`t` for channel :math:`m`, as a
+          function of the spend window :math:`(x_{t-L+1,m},\,\dots,\,x_{t,m})`
+          (capturing adstock carryover) and posterior parameters :math:`\Omega`
+        - :math:`\Omega` — posterior parameter samples (adstock weights,
+          saturation parameters, coefficients)
+        - :math:`t_0, t_1` — evaluation period start and end
+        - :math:`L` — ``l_max``, the adstock carryover window length
+        - :math:`\alpha` — ``counterfactual_spend_factor``
+          (:math:`0` for total ROAS, :math:`1.01` for marginal ROAS)
 
         Parameters
         ----------
@@ -798,10 +833,7 @@ class Incrementality:
         - **Customers per dollar**: When target is customer count
         - **Units per dollar**: When target is sales volume
 
-        Formula:
-        ```
-        contribution_over_spend = incremental_contribution / total_spend
-        ```
+        Formula: contribution_over_spend = incremental_contribution / total_spend
 
         Parameters
         ----------
@@ -876,10 +908,8 @@ class Incrementality:
         - **Cost per sale**: When target is sales volume
         - **Cost per revenue unit**: When target is revenue (1/ROAS)
 
-        Formula:
-        ```
-        spend_over_contribution = total_spend / incremental_contribution
-        ```
+        Formula: spend_over_contribution = total_spend / incremental_contribution
+
 
         Parameters
         ----------
@@ -953,19 +983,21 @@ class Incrementality:
         This captures diminishing returns: a channel that is already heavily
         invested may have a low marginal ROAS even if its total ROAS is high.
 
-        Formula:
+        .. math::
 
-        ```
-        mROAS_m =
-          Σ(t=t0…t1+L−1) [Ŷ_t(x̃; Ω) − Ŷ_t(x; Ω)]
-          ─────────────────────────────────────────────
-          (factor − 1) × Σ(t=t0…t1) x_{t,m}
-        ```
+            \text{mROAS}_m =
+            \frac{
+                \sum_{t=t_0}^{t_1+L-1}
+                \left[ \hat{Y}_t(\tilde{x};\,\Omega)
+                     - \hat{Y}_t(x;\,\Omega) \right]
+            }{
+                (\text{factor} - 1) \;
+                \sum_{t=t_0}^{t_1} x_{t,m}
+            }
 
-        where:
-        - ``x̃_{t,m} = x_{t,m} × (1 + spend_increase_pct)`` (perturbed spend)
-        - ``x_{t,m}`` = actual spend
-        - ``factor = 1 + spend_increase_pct`` (e.g. ``1.01``)
+        where :math:`\tilde{x}_{t,m} = x_{t,m} \times (1 + \text{spend\_increase\_pct})`
+        is the perturbed spend, :math:`x_{t,m}` is actual spend, and
+        :math:`\text{factor} = 1 + \text{spend\_increase\_pct}` (e.g. ``1.01``).
 
         Parameters
         ----------
@@ -991,19 +1023,6 @@ class Incrementality:
             (sample, date, channel, *custom_dims).
             Zero spend results in NaN for that channel/period.
 
-        Notes
-        -----
-        **Relationship to total ROAS**: For a linear response (no saturation),
-        marginal ROAS equals total ROAS. With saturation (the typical case),
-        marginal ROAS ≤ total ROAS, with equality only at zero spend.
-
-        **Use cases**:
-        - **Budget reallocation**: Move budget from low-marginal-ROAS channels
-          to high-marginal-ROAS channels
-        - **Optimal spend detection**: Marginal ROAS = 1 indicates the
-          efficiency frontier
-        - **Diminishing returns quantification**: Compare marginal vs total
-          ROAS to measure how saturated a channel is
 
         Examples
         --------
@@ -1012,20 +1031,6 @@ class Incrementality:
         ...     frequency="quarterly",
         ...     period_start="2024-01-01",
         ...     period_end="2024-12-31",
-        ... )
-        >>>
-        >>> # Compare total vs marginal ROAS
-        >>> total_roas = mmm.incrementality.contribution_over_spend(
-        ...     frequency="quarterly",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
-        ... )
-        >>> saturation_ratio = mroas / total_roas  # < 1 means diminishing returns
-        >>>
-        >>> # Use a finer perturbation for more precise derivative
-        >>> mroas_fine = mmm.incrementality.marginal_contribution_over_spend(
-        ...     frequency="monthly",
-        ...     spend_increase_pct=0.001,  # 0.1% increase
         ... )
         """
         if spend_increase_pct <= 0:
