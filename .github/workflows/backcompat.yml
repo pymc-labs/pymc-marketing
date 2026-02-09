@@ -50,12 +50,39 @@ jobs:
         run: |
           git fetch origin main --depth=1
           git worktree add /tmp/repo-main origin/main
+
           # Copy backcompat scripts from current branch to main worktree
           # (backcompat/ directory doesn't exist on main yet - will after this PR merges)
           mkdir -p /tmp/repo-main/scripts/backcompat/models
           cp scripts/__init__.py /tmp/repo-main/scripts/
           cp -r scripts/backcompat/*.py /tmp/repo-main/scripts/backcompat/
           cp -r scripts/backcompat/models/*.py /tmp/repo-main/scripts/backcompat/models/
+
+          # Patch pytensor import compatibility in main branch
+          # Main uses: from pytensor.graph.traversal import ancestors
+          # PyTensor 2.31+ requires: from pytensor.graph.basic import ancestors
+          # Apply the same try/except pattern that we use in current branch
+          cat > /tmp/pytensor_patch.py << 'EOF'
+          import sys
+          filepath = sys.argv[1]
+          with open(filepath, 'r') as f:
+              content = f.read()
+
+          # Replace single-line import with try/except block
+          old_import = 'from pytensor.graph.traversal import ancestors'
+          new_import = '''# Handle PyTensor version compatibility: traversal module moved in 2.31+
+          try:
+              from pytensor.graph.traversal import ancestors
+          except ImportError:
+              from pytensor.graph.basic import ancestors'''
+
+          content = content.replace(old_import, new_import)
+
+          with open(filepath, 'w') as f:
+              f.write(content)
+          EOF
+          python3 /tmp/pytensor_patch.py /tmp/repo-main/pymc_marketing/pytensor_utils.py
+
           micromamba run -n pymc-marketing-dev bash -c "cd /tmp/repo-main && python -m scripts.backcompat.capture ${{ matrix.model }} /tmp/backcompat/main/${{ matrix.model }}"
           git worktree remove /tmp/repo-main
 

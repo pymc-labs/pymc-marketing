@@ -32,7 +32,12 @@ from pytensor import as_symbolic
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace, vectorize_graph
 from pytensor.graph.rewriting import rewrite_graph
-from pytensor.graph.traversal import ancestors
+
+# Handle PyTensor version compatibility: traversal module moved in 2.31+
+try:
+    from pytensor.graph.traversal import ancestors
+except ImportError:
+    from pytensor.graph.basic import ancestors
 
 
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
