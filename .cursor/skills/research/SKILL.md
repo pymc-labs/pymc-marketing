@@ -1,3 +1,9 @@
+---
+name: research
+description: Structure a research based on the user request. Identify what must change in order to complete the task.
+disable-model-invocation: true
+---
+
 # Research over a request
 
 Structure a research based on the user request. Identify what must change in order to complete the task.

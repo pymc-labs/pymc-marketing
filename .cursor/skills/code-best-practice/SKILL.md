@@ -1,3 +1,9 @@
+---
+name: code-best-practice
+description: PyMC-Marketing coding conventions, preferred implementations, and style guidelines.
+disable-model-invocation: true
+---
+
 # PyMC-Marketing Best Practices Guide
 
 This document outlines the coding conventions, preferred implementations, and style guidelines for contributing to `pymc-marketing`.
