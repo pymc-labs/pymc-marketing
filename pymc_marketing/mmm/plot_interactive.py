@@ -107,6 +107,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+import matplotlib.colors as mcolors
 import narwhals as nw
 import numpy as np
 from narwhals.typing import IntoDataFrameT
@@ -145,11 +146,8 @@ def _hex_to_rgba(color: str, opacity: float) -> str:
     str
         RGBA color string (e.g., "rgba(99,110,250,0.3)")
     """
-    hex_color = color.lstrip("#")
-    r = int(hex_color[0:2], 16)
-    g = int(hex_color[2:4], 16)
-    b = int(hex_color[4:6], 16)
-    return f"rgba({r},{g},{b},{opacity})"
+    rgba = np.array(mcolors.to_rgb(color)) * 256
+    return f"rgba({rgba[0]},{rgba[1]},{rgba[2]},{opacity})"
 
 
 class MMMPlotlyFactory:
@@ -1283,7 +1281,7 @@ class MMMPlotlyFactory:
                     x=facet_data.get_column(x).to_list(),
                     lower=facet_data.get_column(lower_col).to_list(),
                     upper=facet_data.get_column(upper_col).to_list(),
-                    name=f"{int(hdi_prob * 100)}% HDI" if hdi_prob else "HDI",
+                    name=f"{hdi_prob:.0%} HDI" if hdi_prob else "HDI",
                     opacity=hdi_opacity,
                     showlegend=not legend_shown,  # Only show once in legend
                     row=row_idx,
