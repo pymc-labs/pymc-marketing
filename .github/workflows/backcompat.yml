@@ -50,10 +50,12 @@ jobs:
         run: |
           git fetch origin main --depth=1
           git worktree add /tmp/repo-main origin/main
-          # Copy __init__.py files from current branch to make scripts importable on main
-          # (main branch doesn't have scripts/__init__.py yet - will after this PR merges)
+          # Copy backcompat scripts from current branch to main worktree
+          # (backcompat/ directory doesn't exist on main yet - will after this PR merges)
+          mkdir -p /tmp/repo-main/scripts/backcompat/models
           cp scripts/__init__.py /tmp/repo-main/scripts/
-          cp scripts/backcompat/__init__.py /tmp/repo-main/scripts/backcompat/
+          cp -r scripts/backcompat/*.py /tmp/repo-main/scripts/backcompat/
+          cp -r scripts/backcompat/models/*.py /tmp/repo-main/scripts/backcompat/models/
           micromamba run -n pymc-marketing-dev bash -c "cd /tmp/repo-main && python -m scripts.backcompat.capture ${{ matrix.model }} /tmp/backcompat/main/${{ matrix.model }}"
           git worktree remove /tmp/repo-main
 
