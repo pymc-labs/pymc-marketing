@@ -1,5 +1,4 @@
 streamlit==1.46.1
 plotly==6.3.0
-scikit-learn==1.5.1
 preliz==0.20.0
 pymc-marketing==0.17.1
