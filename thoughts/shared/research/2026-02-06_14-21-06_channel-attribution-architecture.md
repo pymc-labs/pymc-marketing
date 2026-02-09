@@ -177,15 +177,16 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
 **Reusability**: ✅ **Highly reusable** - Incrementality needs identical functionality
 
 #### Pattern D: Posterior Subsampling
-**Location**: `sensitivity_analysis.py:138-163`
+**Location**: `multidimensional.py:1596-1641`
 
-**Function**: `_draw_indices_for_percentage(posterior_sample_fraction)`
+**Function**: `MMM._subsample_posterior(parameters, num_samples, random_state)`
 
 **What it does:**
 - Subsamples posterior draws for memory management
-- Uses quadratic formula: `retained = total * fraction^2`
+- Accepts `num_samples: int | None` (absolute count, `None` = use all)
+- Stacks chain × draw, randomly selects `num_samples`, reshapes back
 
-**Reusability**: ✅ **Useful for large models** - Both sensitivity and incrementality benefit
+**Reusability**: ✅ **Already on MMM** - Both sensitivity and incrementality can call `self.model._subsample_posterior()`
 
 #### Pattern E: Response Masking
 **Location**: `sensitivity_analysis.py:176-232, 366-386`
@@ -275,36 +276,6 @@ def transform_to_xarray(
     Extracted from SensitivityAnalysis._transform_output_to_xarray.
     """
     return xr.DataArray(result, coords=coords, dims=dims)
-
-def subsample_posterior(
-    idata: az.InferenceData,
-    fraction: float,
-    random_state: RandomState | None = None,
-) -> az.InferenceData:
-    """Subsample posterior for memory management.
-
-    Parameters
-    ----------
-    idata : az.InferenceData
-        Full posterior
-    fraction : float
-        Fraction of samples to retain (0.0 to 1.0)
-    random_state : RandomState, optional
-        Random state for reproducibility
-
-    Returns
-    -------
-    az.InferenceData
-        Subsampled posterior
-    """
-    if fraction >= 1.0:
-        return idata
-
-    n_draws = int(idata.posterior.sizes["draw"] * fraction ** 2)
-    rng = np.random.default_rng(random_state)
-    draw_indices = rng.choice(idata.posterior.sizes["draw"], size=n_draws, replace=False)
-
-    return idata.isel(draw=draw_indices)
 
 class ResponseFilter(Protocol):
     """Protocol for response filtering."""
@@ -553,7 +524,6 @@ from pymc_marketing.mmm.counterfactual_core import (
     compile_scenario_evaluator,
     compute_dims_order,
     extract_response_distribution,
-    subsample_posterior,
     transform_to_xarray,
 )
 from pymc_marketing.mmm.summary import Frequency
@@ -642,7 +612,8 @@ class Incrementality:
         include_carryin: bool = True,
         include_carryout: bool = True,
         original_scale: bool = True,
-        posterior_sample_fraction: float = 1.0,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
         counterfactual_spend_factor: float = 0.0,
     ) -> xr.DataArray:
         """Compute incremental channel contributions using counterfactual analysis.
@@ -733,10 +704,14 @@ class Incrementality:
             trailing adstock effects.
         original_scale : bool, default=True
             Return contributions in original scale of target variable.
-        posterior_sample_fraction : float, default=1.0
-            Fraction of posterior samples to use (0.0 to 1.0).
-            Reduce for large models to manage memory. Uses quadratic sampling:
-            actual_samples = total_samples * fraction^2
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are
+            used. If less than the total available (chain × draw), a random
+            subset is drawn. Delegates to ``MMM._subsample_posterior()``.
+        random_state : numpy.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
+            Only used when ``num_samples`` is not None and less than total
+            available samples.
         counterfactual_spend_factor : float, default=0.0
             Multiplicative factor applied to channel spend in the counterfactual
             scenario.
@@ -822,7 +797,8 @@ class Incrementality:
         period_end: str | pd.Timestamp | None = None,
         include_carryin: bool = True,
         include_carryout: bool = True,
-        posterior_sample_fraction: float = 1.0,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
     ) -> xr.DataArray:
         """Compute contribution per unit of spend (ROAS, customers per dollar, etc.).
 
@@ -833,7 +809,10 @@ class Incrementality:
         - **Customers per dollar**: When target is customer count
         - **Units per dollar**: When target is sales volume
 
-        Formula: contribution_over_spend = incremental_contribution / total_spend
+        .. math::
+
+            \text{contribution\_over\_spend} =
+            \frac{\text{incremental\_contribution}}{\text{total\_spend}}
 
         Parameters
         ----------
@@ -845,8 +824,10 @@ class Incrementality:
             Include pre-period carryover effects
         include_carryout : bool, default=True
             Include post-period carryover effects
-        posterior_sample_fraction : float, default=1.0
-            Fraction of posterior samples to use
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+        random_state : numpy.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
 
         Returns
         -------
@@ -882,7 +863,8 @@ class Incrementality:
             include_carryin=include_carryin,
             include_carryout=include_carryout,
             original_scale=True,
-            posterior_sample_fraction=posterior_sample_fraction,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         spend = self._aggregate_spend(frequency, period_start, period_end)
@@ -897,7 +879,8 @@ class Incrementality:
         period_end: str | pd.Timestamp | None = None,
         include_carryin: bool = True,
         include_carryout: bool = True,
-        posterior_sample_fraction: float = 1.0,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
     ) -> xr.DataArray:
         """Compute spend per unit of contribution (CAC, cost per unit, etc.).
 
@@ -908,8 +891,10 @@ class Incrementality:
         - **Cost per sale**: When target is sales volume
         - **Cost per revenue unit**: When target is revenue (1/ROAS)
 
-        Formula: spend_over_contribution = total_spend / incremental_contribution
+        .. math::
 
+            \text{spend\_over\_contribution} =
+            \frac{\text{total\_spend}}{\text{incremental\_contribution}}
 
         Parameters
         ----------
@@ -921,8 +906,10 @@ class Incrementality:
             Include pre-period carryover effects
         include_carryout : bool, default=True
             Include post-period carryover effects
-        posterior_sample_fraction : float, default=1.0
-            Fraction of posterior samples to use
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+        random_state : numpy.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
 
         Returns
         -------
@@ -956,7 +943,8 @@ class Incrementality:
             period_end=period_end,
             include_carryin=include_carryin,
             include_carryout=include_carryout,
-            posterior_sample_fraction=posterior_sample_fraction,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         # Reciprocal: spend / contribution
@@ -970,7 +958,8 @@ class Incrementality:
         period_end: str | pd.Timestamp | None = None,
         include_carryin: bool = True,
         include_carryout: bool = True,
-        posterior_sample_fraction: float = 1.0,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
         spend_increase_pct: float = 0.01,
     ) -> xr.DataArray:
         """Compute marginal ROAS: additional revenue per additional unit of spend.
@@ -1009,8 +998,10 @@ class Incrementality:
             Include pre-period carryover effects
         include_carryout : bool, default=True
             Include post-period carryover effects
-        posterior_sample_fraction : float, default=1.0
-            Fraction of posterior samples to use
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+        random_state : numpy.random.Generator, int, or None, optional
+            Random state for reproducible subsampling.
         spend_increase_pct : float, default=0.01
             Fractional spend increase for the perturbation (default 1%).
             Must be > 0. Smaller values give a closer approximation to the
@@ -1047,7 +1038,8 @@ class Incrementality:
             include_carryin=include_carryin,
             include_carryout=include_carryout,
             original_scale=True,
-            posterior_sample_fraction=posterior_sample_fraction,
+            num_samples=num_samples,
+            random_state=random_state,
             counterfactual_spend_factor=factor,
         )
 
@@ -1074,16 +1066,17 @@ def compute_incremental_contribution(self, ...) -> xr.DataArray:
             f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
         )
 
-    # 1. Subsample posterior if needed
-    if posterior_sample_fraction < 1.0:
-        idata = subsample_posterior(self.idata, posterior_sample_fraction)
-    else:
-        idata = self.idata
+    # 1. Subsample posterior if needed (uses MMM._subsample_posterior)
+    posterior = self.model._subsample_posterior(
+        parameters=self.idata.posterior,
+        num_samples=num_samples,
+        random_state=random_state,
+    )
 
     # 2. Extract response distribution (batched over samples)
     response_graph = extract_response_distribution(
         pymc_model=self.model.model,
-        idata=idata,
+        idata=self.idata,  # graph structure from full idata; posterior already subsampled
         response_variable="y",  # or "mu"
     )
     # Shape: (sample, date, *custom_dims)
@@ -1379,7 +1372,6 @@ def roas(
 - [ ] Move dimension utilities from `sensitivity_analysis.py`:
   - [ ] `compute_dims_order()`
   - [ ] `transform_to_xarray()`
-  - [ ] `subsample_posterior()`
 - [ ] Create `compile_scenario_evaluator()` function
 - [ ] Create `ResponseFilter` protocol and implementations
 - [ ] Write unit tests for shared utilities
