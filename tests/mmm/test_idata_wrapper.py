@@ -1126,6 +1126,49 @@ def test_filter_dims_with_multiple_filters(multidim_idata):
     assert "country" not in filtered_wrapper.idata.posterior.dims
 
 
+@pytest.mark.parametrize(
+    "dim_filters, expect_schema_none",
+    [
+        pytest.param(
+            {"country": "US"},
+            True,
+            id="scalar_filter_drops_dim",
+        ),
+        pytest.param(
+            {"country": ["US", "UK"]},
+            False,
+            id="list_filter_preserves_dim",
+        ),
+        pytest.param(
+            {"country": "US", "channel": ["TV", "Radio"]},
+            True,
+            id="mixed_filters_any_scalar_drops",
+        ),
+    ],
+)
+def test_filter_dims_schema_nullification(
+    multidim_idata, dim_filters, expect_schema_none
+):
+    """Test that filter_dims nullifies schema only when a dimension is dropped."""
+    # Arrange - Create schema matching multidim_idata (has custom dims)
+    schema = MMMIdataSchema.from_model_config(
+        custom_dims=("country",),
+        has_controls=False,
+        has_seasonality=False,
+        time_varying=False,
+    )
+    wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
+
+    # Act
+    filtered = wrapper.filter_dims(**dim_filters)
+
+    # Assert
+    if expect_schema_none:
+        assert filtered.schema is None
+    else:
+        assert filtered.schema is not None
+
+
 # ============================================================================
 # Category 9: Aggregation Method Tests (Delegation)
 # ============================================================================
