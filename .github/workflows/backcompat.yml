@@ -1,0 +1,66 @@
+name: Backcompat Check
+
+on:
+  push:
+    paths:
+      - scripts/backcompat/**
+      - scripts/backcompat/models/**
+      - environment.yml
+  pull_request:
+    paths:
+      - scripts/backcompat/**
+      - scripts/backcompat/models/**
+      - environment.yml
+  workflow_dispatch: {}
+
+jobs:
+  backcompat:
+    name: Backcompat matrix
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        model:
+          - basic_mmm
+          - beta_geo
+          - beta_geo_beta_binom
+          - gamma_gamma
+          - modified_beta_geo
+          - pareto_nbd
+          - shifted_beta_geo
+          # Excluded models (pre-existing issues):
+          # - mixed_logit: Serialization not fully supported (requires 4 positional args)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          micromamba-version: 2.3.3
+
+      - name: Create pymc-marketing-dev env
+        run: |
+          micromamba create -y -n pymc-marketing-dev -f environment.yml
+
+      - name: Fetch main baseline
+        run: |
+          git fetch origin main --depth=1
+          git worktree add /tmp/repo-main origin/main
+          micromamba run -n pymc-marketing-dev bash -c "cd /tmp/repo-main && python -m scripts.backcompat.capture ${{ matrix.model }} /tmp/backcompat/main/${{ matrix.model }}"
+          git worktree remove /tmp/repo-main
+
+      - name: Capture candidate from HEAD
+        run: |
+          micromamba run -n pymc-marketing-dev python -m scripts.backcompat.capture ${{ matrix.model }} /tmp/backcompat/head/${{ matrix.model }}
+
+      - name: Compare candidate to main baseline
+        run: |
+          micromamba run -n pymc-marketing-dev python -m scripts.backcompat.compare /tmp/backcompat/main/${{ matrix.model }}/manifest.json
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backcompat-${{ matrix.model }}
+          path: |
+            /tmp/backcompat/main/${{ matrix.model }}
+            /tmp/backcompat/head/${{ matrix.model }}
