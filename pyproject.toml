@@ -48,6 +48,7 @@ dependencies = [
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 docs = [
+    "Setuptools<81",
     "blackjax",
     "fastprogress",
     "graphviz",
