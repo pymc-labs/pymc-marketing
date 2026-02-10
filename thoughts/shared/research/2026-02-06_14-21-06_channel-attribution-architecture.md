@@ -75,7 +75,7 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
 **Source**: `thoughts/shared/issues/2211/research.md`
 
 **Key Findings:**
-- Current ROAS implementation (`mmm_wrapper.py:315-342`) uses simple element-wise division: `ROAS[t] = contribution[t] / spend[t]`
+- Current ROAS implementation (`mmm_wrapper.py:322-349`) uses simple element-wise division: `ROAS[t] = contribution[t] / spend[t]`
 - **Problem**: Ignores adstock carryover effects, treating each period independently
 - **Solution**: Implement Google MMM paper Formula (10) - counterfactual approach
   ```
@@ -156,7 +156,7 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
 **Reusability**: ✅ **Already shared** - Used by `SensitivityAnalysis`, `BudgetOptimizer`, and future `Incrementality`
 
 #### Pattern B: Vectorize Over Scenarios
-**Location**: `sensitivity_analysis.py:410-419`
+**Location**: `sensitivity_analysis.py:409-419`
 
 **What it does:**
 - Creates batched input tensor with scenario dimension
@@ -176,7 +176,7 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
 **Reusability**: ✅ **Highly reusable** - Incrementality needs identical functionality
 
 #### Pattern D: Posterior Subsampling
-**Location**: `multidimensional.py:1596-1641`
+**Location**: `multidimensional.py:1941-1986`
 
 **Function**: `MMM._subsample_posterior(parameters, num_samples, random_state)`
 
@@ -188,7 +188,7 @@ The core insight is that **incrementality and sensitivity are distinct analysis 
 **Reusability**: ✅ **Already on MMM** - Both sensitivity and incrementality can call `self.model._subsample_posterior()`
 
 #### Pattern E: Response Masking
-**Location**: `sensitivity_analysis.py:176-232, 366-386`
+**Location**: `sensitivity_analysis.py:176-232, 367-386`
 
 **Function**: `_prepare_response_mask()` + masking logic
 
@@ -306,7 +306,7 @@ class ZeroOutFilter:
 **Research Summary** (from codebase analysis):
 
 #### Pattern A: Channel Contribution Computation
-**Location**: `mmm.py:611-654`
+**Location**: `mmm.py:623-666`
 
 **Current Flow:**
 1. `channel_data` → scaling → `channel_data_scaled`
@@ -320,7 +320,7 @@ class ZeroOutFilter:
 - `l_max` parameter controls attribution window
 
 #### Pattern B: Current ROAS Computation
-**Location**: `mmm_wrapper.py:315-343`
+**Location**: `mmm_wrapper.py:322-349`
 
 ```python
 def get_roas(self, original_scale: bool = True) -> xr.DataArray:
@@ -337,7 +337,7 @@ def get_roas(self, original_scale: bool = True) -> xr.DataArray:
 - Need counterfactual: "What if channel was off?"
 
 #### Pattern C: Forward Pass for Counterfactuals
-**Location**: `mmm.py:956-1025`
+**Location**: `mmm.py:968-1037`
 
 **Function**: `channel_contribution_forward_pass(channel_data)`
 
@@ -355,7 +355,7 @@ def get_roas(self, original_scale: bool = True) -> xr.DataArray:
 **Research Summary** (from frequency analysis):
 
 #### Established Pattern: `Frequency` Type Alias
-**Location**: `summary.py:45-48`
+**Location**: `data/idata/schema.py:23` (re-exported via `summary.py:45`)
 
 ```python
 Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
@@ -366,7 +366,7 @@ Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all
 - `roas(frequency=...)`
 - `posterior_predictive(frequency=...)`
 
-**Frequency to Pandas Mapping** (`data/idata/utils.py:187-192`):
+**Frequency to Pandas Mapping** (`data/idata/utils.py:195-200`):
 ```python
 period_map = {
     "weekly": "W",
@@ -442,7 +442,7 @@ def sensitivity(self) -> SensitivityAnalysis:
 
 **Location**: `pymc_marketing/mmm/incrementality.py`
 
-**Exposure**: Via property on `MMM` class (around line 2186 in `multidimensional.py`):
+**Exposure**: Via property on `MMM` class (around line 2504 in `multidimensional.py`):
 
 ```python
 @property
@@ -1299,10 +1299,10 @@ def roas(
 
 ### Files to Modify
 
-- **`pymc_marketing/mmm/multidimensional.py`** (line ~2186)
+- **`pymc_marketing/mmm/multidimensional.py`** (line ~2504)
   - Add `.incrementality` property to MMM class
 
-- **`pymc_marketing/mmm/summary.py`** (line ~470)
+- **`pymc_marketing/mmm/summary.py`** (line ~481)
   - Update `roas()` to delegate to Incrementality or add deprecation warning
 
 - **`pymc_marketing/mmm/sensitivity_analysis.py`** (lines 115-263)
@@ -1313,17 +1313,17 @@ def roas(
 - **`pymc_marketing/pytensor_utils.py:264-341`**
   - `extract_response_distribution()` - Core infrastructure (already shared)
 
-- **`pymc_marketing/mmm/sensitivity_analysis.py:289-438`**
+- **`pymc_marketing/mmm/sensitivity_analysis.py:289-428`**
   - `run_sweep()` - Pattern for vectorized scenario evaluation
 
 - **`pymc_marketing/mmm/budget_optimizer.py:896-972`**
   - Graph replacement patterns with `do()`
 
-- **`pymc_marketing/data/idata/mmm_wrapper.py:315-343`**
+- **`pymc_marketing/data/idata/mmm_wrapper.py:322-349`**
   - Current `get_roas()` implementation (to be deprecated/replaced)
 
-- **`pymc_marketing/mmm/summary.py:45-48`**
-  - `Frequency` type alias definition
+- **`pymc_marketing/data/idata/schema.py:23`**
+  - `Frequency` type alias definition (re-exported via `summary.py:45`)
 
 ---
 
