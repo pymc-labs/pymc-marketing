@@ -183,15 +183,6 @@ _MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse
 FLAVOR_NAME = "pymc"
 
 
-PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
-warning_msg = (
-    "This functionality is experimental and subject to change. "
-    "If you encounter any issues or have suggestions, please raise them at: "
-    f"{PYMC_MARKETING_ISSUE}"
-)
-warnings.warn(warning_msg, FutureWarning, stacklevel=1)
-
-
 def _exclude_tuning(func):
     def callback(trace, draw):
         if draw.tuning:
