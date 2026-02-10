@@ -64,6 +64,9 @@ dependencies:
   - mlflow
   - hatch
   - pyprojroot
+  - papermill
+  - plotly
+  - tqdm
   - pip:
       - roadmapper
       - labs-sphinx-theme
