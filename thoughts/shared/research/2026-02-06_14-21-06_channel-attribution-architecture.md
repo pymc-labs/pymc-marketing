@@ -809,10 +809,7 @@ class Incrementality:
         - **Customers per dollar**: When target is customer count
         - **Units per dollar**: When target is sales volume
 
-        .. math::
-
-            \text{contribution\_over\_spend} =
-            \frac{\text{incremental\_contribution}}{\text{total\_spend}}
+        Formula: contribution_over_spend = incremental_contribution / total_spend
 
         Parameters
         ----------
@@ -891,10 +888,8 @@ class Incrementality:
         - **Cost per sale**: When target is sales volume
         - **Cost per revenue unit**: When target is revenue (1/ROAS)
 
-        .. math::
+        Formula: spend_over_contribution = total_spend / incremental_contribution
 
-            \text{spend\_over\_contribution} =
-            \frac{\text{total\_spend}}{\text{incremental\_contribution}}
 
         Parameters
         ----------
@@ -1066,17 +1061,14 @@ def compute_incremental_contribution(self, ...) -> xr.DataArray:
             f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
         )
 
-    # 1. Subsample posterior if needed (uses MMM._subsample_posterior)
-    posterior = self.model._subsample_posterior(
-        parameters=self.idata.posterior,
-        num_samples=num_samples,
-        random_state=random_state,
-    )
+    # 1. Subsample posterior if needed (isel returns a lightweight view, no deep copy)
+    #    Following the SensitivityAnalysis._extract_response_distribution pattern
+    draw_selection = self._draw_indices_for_subsampling(num_samples, random_state)
 
     # 2. Extract response distribution (batched over samples)
     response_graph = extract_response_distribution(
         pymc_model=self.model.model,
-        idata=self.idata,  # graph structure from full idata; posterior already subsampled
+        idata=self.idata.isel(draw=draw_selection),
         response_variable="y",  # or "mu"
     )
     # Shape: (sample, date, *custom_dims)
