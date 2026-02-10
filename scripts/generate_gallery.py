@@ -173,11 +173,17 @@ class NotebookProcessor:
         """
         if not MATPLOTLIB_AVAILABLE:
             # If matplotlib is not available, keep existing image or copy default
-            if not self.gallery_img_path.exists():
+            if self.gallery_img_path.exists():
+                logger.info(
+                    f"Keeping existing gallery image for {self.name} "
+                    "(matplotlib not available)"
+                )
+            else:
                 shutil.copy(DEFAULT_IMG_LOC, self.gallery_img_path)
-            logger.info(
-                f"Using default image for {self.notebook_path.name} (matplotlib not available)"
-            )
+                logger.info(
+                    f"Using default image for {self.notebook_path.name} "
+                    "(matplotlib not available)"
+                )
             return False
 
         temp_img_path = Path(self.temp_dir) / f"{self.name}_temp.png"
