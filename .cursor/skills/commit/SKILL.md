@@ -1,3 +1,9 @@
+---
+name: commit
+description: Create git commits for changes made during the session.
+disable-model-invocation: true
+---
+
 # Commit Changes
 
 You are tasked with creating git commits for the changes made during this session.

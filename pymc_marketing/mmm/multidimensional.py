@@ -902,6 +902,61 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
+    def plot_interactive(self):  # type: ignore[no-any-return]
+        """Access interactive Plotly plotting functionality.
+
+        Returns a factory for creating interactive plots using Plotly.
+        Automatically integrates with Component 2 (MMMSummaryFactory)
+        to fetch data and apply faceting for custom dimensions.
+
+        Returns
+        -------
+        MMMPlotlyFactory
+            Factory for creating interactive plots
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Interactive posterior predictive plot
+            fig = mmm.plot_interactive.posterior_predictive()
+            fig.show()
+
+            # Contributions with faceting
+            fig = mmm.plot_interactive.contributions(facet_col="country")
+            fig.show()
+
+            # ROAS bar chart
+            fig = mmm.plot_interactive.roas()
+            fig.show()
+
+            # Saturation curves
+            fig = mmm.plot_interactive.saturation_curves()
+            fig.show()
+
+            # Adstock curves
+            fig = mmm.plot_interactive.adstock_curves()
+            fig.show()
+
+        See Also
+        --------
+        MMMPlotSuite : Static matplotlib plotting functionality
+        MMMPlotlyFactory : Interactive plotting class documentation
+        """
+        try:
+            from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
+        except ImportError:
+            raise ImportError(
+                "Plotly is required for interactive plotting. "
+                "Install it with: pip install pymc-marketing[plotly]"
+            )
+
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+
+        return MMMPlotlyFactory(summary=self.summary)
+
+    @property
     def data(self) -> Any:  # type: ignore[no-any-return]
         """Get data wrapper for InferenceData access and manipulation.
 

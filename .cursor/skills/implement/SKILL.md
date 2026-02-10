@@ -1,3 +1,9 @@
+---
+name: implement
+description: Create an implementation based on a plan.
+disable-model-invocation: true
+---
+
 # Create an implementation
 
 Based on a plan make an implementation:
