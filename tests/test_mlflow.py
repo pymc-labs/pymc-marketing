@@ -13,7 +13,6 @@
 #   limitations under the License.
 import json
 import logging
-import warnings
 from collections import namedtuple
 from pathlib import Path
 
@@ -29,18 +28,15 @@ from mlflow.client import MlflowClient
 from pymc.exceptions import SamplingError
 
 from pymc_marketing.clv import BetaGeoModel
-
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", FutureWarning)
-    from pymc_marketing.mlflow import (
-        autolog,
-        create_log_callback,
-        log_error,
-        log_likelihood_type,
-        log_mmm_evaluation_metrics,
-        log_model_graph,
-        log_sample_diagnostics,
-    )
+from pymc_marketing.mlflow import (
+    autolog,
+    create_log_callback,
+    log_error,
+    log_likelihood_type,
+    log_mmm_evaluation_metrics,
+    log_model_graph,
+    log_sample_diagnostics,
+)
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
