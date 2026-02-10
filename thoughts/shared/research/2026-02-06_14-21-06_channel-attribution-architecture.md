@@ -26,7 +26,7 @@ last_updated_by: Claude Opus
 3. [Background: Previous Research](#background-previous-research)
 4. [Detailed Findings](#detailed-findings)
    - [1. Why Incrementality Shouldn't Live in SensitivityAnalysis](#1-why-incrementality-shouldnt-live-in-sensitivityanalysis)
-   - [2. Shared Vectorization Infrastructure](#2-shared-vectorization-infrastructure-what-to-extract)
+   - [2. Shared Vectorization Infrastructure (What to Extract)](#2-shared-vectorization-infrastructure-what-to-extract)
    - [3. Proposed Shared Utilities Module](#3-proposed-shared-utilities-module)
    - [4. Current Incrementality and Contribution Patterns](#4-current-incrementality-and-contribution-patterns)
    - [5. Frequency Argument Patterns in Codebase](#5-frequency-argument-patterns-in-codebase)
@@ -34,7 +34,6 @@ last_updated_by: Claude Opus
 5. [Proposed Architecture](#proposed-architecture)
    - [Core Incrementality Module Structure](#core-incrementality-module-structure)
    - [Implementation Details for `compute_incremental_contribution()`](#implementation-details-for-compute_incremental_contribution)
-   - [Marginal ROAS: Generalizing the Counterfactual Framework](#marginal-roas-generalizing-the-counterfactual-framework)
    - [Integration with Summary Interface](#integration-with-summary-interface)
 6. [Code References](#code-references)
 7. [Open Questions](#open-questions)
@@ -1062,7 +1061,6 @@ def compute_incremental_contribution(self, ...) -> xr.DataArray:
         )
 
     # 1. Subsample posterior if needed (isel returns a lightweight view, no deep copy)
-    #    Following the SensitivityAnalysis._extract_response_distribution pattern
     draw_selection = self._draw_indices_for_subsampling(num_samples, random_state)
 
     # 2. Extract response distribution (batched over samples)
