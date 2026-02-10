@@ -881,11 +881,8 @@ class Incrementality:
         """Compute spend per unit of contribution (CAC, cost per unit, etc.).
 
         This convenience function wraps `compute_incremental_contribution()` and
-        computes the reciprocal of `contribution_over_spend()`:
-
-        - **CAC** (Customer Acquisition Cost): When target is customer count
-        - **Cost per sale**: When target is sales volume
-        - **Cost per revenue unit**: When target is revenue (1/ROAS)
+        computes the reciprocal of `contribution_over_spend()`. This can be used to compute
+        **CAC** (Customer Acquisition Cost), when target is customer count.
 
         Formula: spend_over_contribution = total_spend / incremental_contribution
 
