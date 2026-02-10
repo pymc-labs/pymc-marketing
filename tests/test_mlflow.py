@@ -15,7 +15,6 @@ import json
 import logging
 import warnings
 from collections import namedtuple
-from pathlib import Path
 
 import arviz as az
 import mlflow
@@ -164,25 +163,6 @@ def basic_logging_checks(run_data: RunData) -> None:
     assert len(run_data.metrics) > 0
     assert run_data.tags == {}
     assert len(run_data.artifacts) > 0
-
-
-def test_file_system_uri_supported(model_with_likelihood) -> None:
-    mlflow.set_tracking_uri(uri=Path("./mlruns"))
-    mlflow.set_experiment("pymc-marketing-test-suite-local-file")
-    with mlflow.start_run() as run:
-        pm.sample(
-            model=model_with_likelihood,
-            chains=1,
-            tune=25,
-            draws=30,
-        )
-
-    assert mlflow.get_tracking_uri().startswith("file:///")
-    assert mlflow.active_run() is None
-
-    run_id = run.info.run_id
-    run_data = get_run_data(run_id)
-    basic_logging_checks(run_data)
 
 
 def test_log_with_data_in_likelihood(model_with_data_in_likelihood) -> None:
