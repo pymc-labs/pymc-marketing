@@ -353,9 +353,9 @@ def test_allocate_budget_custom_minimize_args(
             [
                 Constraint(
                     key="channel_1_min_constraint",
-                    constraint_fun=lambda budgets_sym,
-                    total_budget_sym,
-                    optimizer: budgets_sym[0] - 60,
+                    constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                        budgets_sym[0] - 60
+                    ),
                     constraint_type="ineq",
                 ),
             ],

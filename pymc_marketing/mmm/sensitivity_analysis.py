@@ -143,7 +143,7 @@ class SensitivityAnalysis:
                 "'posterior_sample_fraction' must be in the interval (0, 1]."
             )
 
-        draws = int(self.idata.posterior.dims.get("draw", 0))
+        draws = int(self.idata.posterior.sizes.get("draw", 0))
         if draws <= 1:
             return slice(None)
 

@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.data.idata.schema import Frequency
+
 
 class MMMIDataWrapper:
     """Codified wrapper around InferenceData for MMM models.
@@ -215,7 +217,7 @@ class MMMIDataWrapper:
             include_seasonality=False,
         )
         # Extract from Dataset - xarray preserves coordinate structure
-        return contributions["channel"]
+        return contributions["channels"]
 
     def get_contributions(
         self,
@@ -250,9 +252,12 @@ class MMMIDataWrapper:
         contributions = {}
 
         # Channel contributions
+        # Channels variables - use "channels" (plural) as key to avoid xarray
+        # dimension/key name conflict (a key matching a dimension name gets
+        # promoted to a coordinate instead of staying as a data variable)
         if original_scale:
             if "channel_contribution_original_scale" in self.idata.posterior:
-                contributions["channel"] = (
+                contributions["channels"] = (
                     self.idata.posterior.channel_contribution_original_scale
                 )
             else:
@@ -260,9 +265,9 @@ class MMMIDataWrapper:
                 channel_contrib = self.idata.posterior.channel_contribution
                 target_scale = self.get_target_scale()
                 # xarray automatically handles broadcasting when dimensions match
-                contributions["channel"] = channel_contrib * target_scale
+                contributions["channels"] = channel_contrib * target_scale
         else:
-            contributions["channel"] = self.idata.posterior.channel_contribution
+            contributions["channels"] = self.idata.posterior.channel_contribution
 
         # Baseline/intercept
         if include_baseline:
@@ -276,19 +281,21 @@ class MMMIDataWrapper:
                         contributions["baseline"] = baseline
                     break
 
-        # Control variables
+        # Control variables - use "controls" (plural) as key to avoid xarray
+        # dimension/key name conflict (a key matching a dimension name gets
+        # promoted to a coordinate instead of staying as a data variable)
         if include_controls and "control_contribution" in self.idata.posterior:
             control = self.idata.posterior.control_contribution
             if original_scale:
                 if "control_contribution_original_scale" in self.idata.posterior:
-                    contributions["control"] = (
+                    contributions["controls"] = (
                         self.idata.posterior.control_contribution_original_scale
                     )
                 else:
                     target_scale = self.get_target_scale()
-                    contributions["control"] = control * target_scale
+                    contributions["controls"] = control * target_scale
             else:
-                contributions["control"] = control
+                contributions["controls"] = control
 
         # Seasonality
         if (
@@ -525,7 +532,9 @@ class MMMIDataWrapper:
         Returns
         -------
         MMMIDataWrapper
-            New wrapper with filtered idata
+            New wrapper with filtered idata. Schema is set to None when
+            any dimension is dropped (single-value scalar filter), since
+            the data no longer conforms to the original schema.
 
         Examples
         --------
@@ -539,15 +548,23 @@ class MMMIDataWrapper:
 
         filtered_idata = filter_idata_by_dims(self.idata, **dim_filters)
 
-        return MMMIDataWrapper(
-            filtered_idata, schema=self.schema, validate_on_init=False
-        )
+        # When dimensions are dropped, the data no longer conforms to
+        # the original schema, so we set schema=None to prevent
+        # downstream validation errors (same pattern as aggregate_time).
+        schema = self.schema
+        if schema is not None:
+            for value in dim_filters.values():
+                if not isinstance(value, (list, tuple)):
+                    schema = None
+                    break
+
+        return MMMIDataWrapper(filtered_idata, schema=schema, validate_on_init=False)
 
     # ==================== Aggregation Operations ====================
 
     def aggregate_time(
         self,
-        period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+        period: Frequency,
         method: Literal["sum", "mean"] = "sum",
     ) -> "MMMIDataWrapper":
         """Aggregate data over time periods.
@@ -556,8 +573,8 @@ class MMMIDataWrapper:
 
         Parameters
         ----------
-        period : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
-            Time period to aggregate to
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+            Time period to aggregate to. Use "original" for no aggregation.
         method : {"sum", "mean"}, default "sum"
             Aggregation method
 
