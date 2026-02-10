@@ -68,6 +68,11 @@ def multidim_idata() -> az.InferenceData:
                     dims=("country",),
                     coords={"country": countries},
                 ),
+                "dayofyear": xr.DataArray(
+                    np.arange(1, len(dates) + 1),  # Day of year values
+                    dims=("date",),
+                    coords={"date": dates},
+                ),
             }
         ),
         posterior=xr.Dataset(
@@ -795,11 +800,11 @@ def test_get_contributions_returns_dataset(multidim_idata):
 
     # Assert
     assert isinstance(contributions, xr.Dataset)
-    assert "channel" in contributions
+    assert "channels" in contributions
 
     # Should have channel contribution variable
-    assert "date" in contributions["channel"].dims
-    assert "channel" in contributions["channel"].dims
+    assert "date" in contributions["channels"].dims
+    assert "channel" in contributions["channels"].dims
 
 
 def test_get_contributions_uses_original_scale_variable_if_exists(
@@ -816,7 +821,7 @@ def test_get_contributions_uses_original_scale_variable_if_exists(
     expected = idata_with_original_scale.posterior.channel_contribution_original_scale
     # Align both arrays before comparison to ensure coordinate consistency
     contributions_channel_aligned, expected_aligned = xr.align(
-        contributions["channel"], expected, join="exact"
+        contributions["channels"], expected, join="exact"
     )
     # Compare values using numpy since xarray's assert_equal is strict about
     # coordinate object equality, even when values match
@@ -844,7 +849,7 @@ def test_get_contributions_computes_original_scale_on_the_fly(multidim_idata):
     expected = channel_contrib_aligned * target_scale_aligned
     # Align both arrays before comparison to ensure coordinate consistency
     contributions_channel_aligned, expected_aligned = xr.align(
-        contributions["channel"], expected, join="exact"
+        contributions["channels"], expected, join="exact"
     )
     # Compare values using numpy since xarray's assert_allclose is strict about
     # coordinate object equality, even when values match
@@ -884,22 +889,22 @@ def test_get_contributions_with_options(
 
     # Assert
     assert isinstance(contributions, xr.Dataset)
-    assert "channel" in contributions  # Always included
+    assert "channels" in contributions.data_vars  # Always included
 
     if include_baseline:
-        assert "baseline" in contributions
+        assert "baseline" in contributions.data_vars
     else:
-        assert "baseline" not in contributions
+        assert "baseline" not in contributions.data_vars
 
     if include_controls:
-        assert "control" in contributions
+        assert "controls" in contributions.data_vars
     else:
-        assert "control" not in contributions
+        assert "controls" not in contributions.data_vars
 
     if include_seasonality:
-        assert "seasonality" in contributions
+        assert "seasonality" in contributions.data_vars
     else:
-        assert "seasonality" not in contributions
+        assert "seasonality" not in contributions.data_vars
 
 
 # ============================================================================
@@ -1119,6 +1124,49 @@ def test_filter_dims_with_multiple_filters(multidim_idata):
     # Assert - Both dimensions should be dropped when filtering to single values
     assert "channel" not in filtered_wrapper.idata.posterior.dims
     assert "country" not in filtered_wrapper.idata.posterior.dims
+
+
+@pytest.mark.parametrize(
+    "dim_filters, expect_schema_none",
+    [
+        pytest.param(
+            {"country": "US"},
+            True,
+            id="scalar_filter_drops_dim",
+        ),
+        pytest.param(
+            {"country": ["US", "UK"]},
+            False,
+            id="list_filter_preserves_dim",
+        ),
+        pytest.param(
+            {"country": "US", "channel": ["TV", "Radio"]},
+            True,
+            id="mixed_filters_any_scalar_drops",
+        ),
+    ],
+)
+def test_filter_dims_schema_nullification(
+    multidim_idata, dim_filters, expect_schema_none
+):
+    """Test that filter_dims nullifies schema only when a dimension is dropped."""
+    # Arrange - Create schema matching multidim_idata (has custom dims)
+    schema = MMMIdataSchema.from_model_config(
+        custom_dims=("country",),
+        has_controls=False,
+        has_seasonality=False,
+        time_varying=False,
+    )
+    wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
+
+    # Act
+    filtered = wrapper.filter_dims(**dim_filters)
+
+    # Assert
+    if expect_schema_none:
+        assert filtered.schema is None
+    else:
+        assert filtered.schema is not None
 
 
 # ============================================================================
@@ -1625,6 +1673,39 @@ def test_aggregate_idata_dims_all_values_aggregated():
     assert combined.posterior.sizes["channel"] == 1
 
 
+def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim(
+    multidim_idata,
+):
+    """Test that variables without the aggregated dimension keep their original dims."""
+    # Arrange - Add a variable with only ('date',) dims to the existing fixture
+    idata = multidim_idata
+
+    # Sanity check - dayofyear should have only ('date',) dims before aggregation
+    assert idata.constant_data.dayofyear.dims == ("date",)
+
+    # Act - Aggregate US and UK into combined_region
+    aggregated = aggregate_idata_dims(
+        idata,
+        dim="country",
+        values=["US", "UK"],
+        new_label="combined_region",
+        method="sum",
+    )
+
+    # Assert - dayofyear should STILL have only ('date',) dims, NOT ('country', 'date')
+    assert aggregated.constant_data.dayofyear.dims == ("date",), (
+        f"Expected dayofyear dims to be ('date',), "
+        f"but got {aggregated.constant_data.dayofyear.dims}. "
+        f"Variables without the aggregated dimension should keep their original dims."
+    )
+
+    # Also verify the data values are preserved correctly
+    np.testing.assert_array_equal(
+        aggregated.constant_data.dayofyear.values,
+        idata.constant_data.dayofyear.values,
+    )
+
+
 def test_get_target_raises_when_target_data_missing():
     """Test that get_target raises when constant_data/target_data is missing."""
     # Arrange - Create idata without constant_data/target_data
@@ -1750,7 +1831,7 @@ def test_get_contributions_controls_with_original_scale_variable():
     # Assert - Should use existing original scale variable
     # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
     np.testing.assert_array_equal(
-        contributions["control"].values,
+        contributions["controls"].values,
         idata.posterior.control_contribution_original_scale.values,
     )
 
@@ -1769,11 +1850,11 @@ def test_get_contributions_controls_scaled(idata_with_all_contributions):
     )
 
     # Assert
-    assert "control" in contributions
+    assert "controls" in contributions
     # Control should be the raw value (not multiplied by target_scale)
     # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
     np.testing.assert_array_equal(
-        contributions["control"].values,
+        contributions["controls"].values,
         idata_with_all_contributions.posterior.control_contribution.values,
     )
 
