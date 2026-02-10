@@ -145,9 +145,19 @@ class NotebookProcessor:
         self.gallery_img_path = GALLERY_IMG_DIR / f"{self.name}.png"
 
     def _use_default_image(self, reason: str = "") -> bool:
-        """Create thumbnail from default image and copy to gallery directory"""
+        """Create thumbnail from default image and copy to gallery directory.
+
+        If a gallery image already exists (e.g. a manually curated thumbnail),
+        it is kept rather than being overwritten with the default logo.
+        """
         if reason:
             logger.info(reason)
+        if self.gallery_img_path.exists():
+            logger.info(
+                f"Keeping existing gallery image for {self.name} "
+                "(no embedded PNG found in notebook)"
+            )
+            return False
         create_thumbnail(DEFAULT_IMG_LOC, self.thumb_path)
         shutil.copy(self.thumb_path, self.gallery_img_path)
         return False
@@ -162,11 +172,18 @@ class NotebookProcessor:
             True if an image was successfully extracted, False otherwise
         """
         if not MATPLOTLIB_AVAILABLE:
-            # If matplotlib is not available, just copy the default image
-            shutil.copy(DEFAULT_IMG_LOC, self.gallery_img_path)
-            logger.info(
-                f"Using default image for {self.notebook_path.name} (matplotlib not available)"
-            )
+            # If matplotlib is not available, keep existing image or copy default
+            if self.gallery_img_path.exists():
+                logger.info(
+                    f"Keeping existing gallery image for {self.name} "
+                    "(matplotlib not available)"
+                )
+            else:
+                shutil.copy(DEFAULT_IMG_LOC, self.gallery_img_path)
+                logger.info(
+                    f"Using default image for {self.notebook_path.name} "
+                    "(matplotlib not available)"
+                )
             return False
 
         temp_img_path = Path(self.temp_dir) / f"{self.name}_temp.png"
