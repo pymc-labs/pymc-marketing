@@ -70,6 +70,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_components.png
 :link: ../notebooks/mmm/mmm_components.html
 :::
+
+:::{grid-item-card} Custom Geo-Hierarchical MMM with Splines
+:img-top: ../gallery/images/mmm_multidimensional_example.png
+:link: ../notebooks/mmm/mmm_custom_splines.html
+:::
 ::::
 
 ### Data Connectors
