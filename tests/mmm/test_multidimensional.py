@@ -912,6 +912,30 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(
     assert latent_dims == hsgp_dims
 
 
+def test_time_varying_intercept_with_batch_baseline(df, target_column):
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1514
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        model_config={"intercept": Prior("Normal", dims=("date", "country"))},
+        time_varying_intercept=True,
+    )
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    assert mmm.model["intercept_baseline"].dims == ("date", "country")
+    assert mmm.model["intercept_contribution"].dims == ("date", "country")
+    coords = mmm.model.coords
+    assert mmm.model["intercept_contribution"].eval(mode="FAST_COMPILE").shape == (
+        len(coords["date"]),
+        len(coords["country"]),
+    )
+
+
 @pytest.mark.parametrize(
     "hsgp_dims",
     [

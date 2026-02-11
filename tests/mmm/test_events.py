@@ -25,6 +25,7 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from xarray import DataArray
 
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import (
     AsymmetricGaussianBasis,
     EventEffect,
@@ -33,6 +34,7 @@ from pymc_marketing.mmm.events import (
     basis_from_dict,
     days_from_reference,
 )
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.plot import plot_curve
 
 
@@ -893,3 +895,56 @@ def test_asymmetric_gaussian_basis_parameter_shapes():
     )
     assert result_bc.type.shape == (3, 2)
     assert result_bc.dims == ("date", "event")
+
+
+def test_event_batch_dims():
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1981
+    n_date = 13
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        {
+            "date": np.tile(
+                pd.date_range(start="2022-12-24", periods=n_date, freq="W"), 2
+            ),
+            "geo": ["geo_a"] * n_date + ["geo_b"] * n_date,
+            "x1": rng.normal(4_000, 500, size=n_date * 2),
+            "x2": rng.normal(4_000, 500, size=n_date * 2),
+            "event_1": rng.binomial(n=1, p=0.1, size=n_date * 2),
+            "event_2": rng.binomial(n=1, p=0.1, size=n_date * 2),
+        },
+    )
+    y = pd.Series(rng.normal(4_000, 500, size=n_date * 2), name="y")
+
+    mmm = MMM(
+        date_column="date",
+        target_column="y",
+        channel_columns=["x1", "x2"],
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+
+    event_df = pd.DataFrame(
+        {
+            "name": ["christmas", "christmas", "my birthday", "my birthday"],
+            "start_date": pd.to_datetime(
+                ["2022-12-24", "2023-12-24", "2022-09-11", "2022-09-12"]
+            ),
+            "end_date": pd.to_datetime(
+                ["2022-12-25", "2023-12-25", "2022-09-12", "2022-09-13"]
+            ),
+        }
+    )
+
+    gaussian = GaussianBasis(
+        priors={"sigma": Prior("Gamma", mu=3, sigma=2, dims=("holiday", "geo"))}
+    )
+    effect_size = Prior("Normal", mu=2.5, sigma=2.5, dims=("holiday", "geo"))
+    effect = EventEffect(
+        basis=gaussian, effect_size=effect_size, dims=("holiday", "geo")
+    )
+    mmm.add_events(df_events=event_df, effect=effect, prefix="holiday")
+
+    mmm.build_model(X, y)
+    assert mmm.model["y"].dims == ("date", "geo")
+    assert mmm.model["y"].eval(mode="FAST_COMPILE").shape == (n_date, 2)
