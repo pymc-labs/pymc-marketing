@@ -21,6 +21,7 @@ import xarray as xr
 from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
 
 class TestIncrementalityBasics:
@@ -326,33 +327,127 @@ def compute_ground_truth_incremental(
     return baseline_contrib - cf_contrib
 
 
+def compute_ground_truth_incremental_by_period(
+    mmm,
+    frequency="all_time",
+    counterfactual_spend_factor=0.0,
+    include_carryin=True,
+    include_carryout=True,
+):
+    """Compute ground truth incremental contribution per period using the oracle.
+
+    For each period defined by *frequency*, creates a **separate** counterfactual
+    where only that period's spend is modified (all other periods keep actual
+    spend), evaluates using ``sample_posterior_predictive`` (the oracle), and
+    sums the difference over the appropriate evaluation window.
+
+    This mirrors the logic of ``compute_incremental_contribution()`` which
+    processes each period independently with its own counterfactual, and serves
+    as a reference implementation that is completely independent of the
+    vectorized graph path.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM model.
+    frequency : str
+        One of ``"original"``, ``"monthly"``, ``"all_time"``, etc.
+    counterfactual_spend_factor : float
+        Factor applied to the target period's spend (``0.0`` = zero-out).
+    include_carryin : bool
+        Whether to include pre-period carryover effects.
+    include_carryout : bool
+        Whether to include post-period carryover effects.
+
+    Returns
+    -------
+    xr.DataArray
+        Ground truth incremental contribution with dimensions matching
+        ``compute_incremental_contribution`` output.
+    """
+    actual_data = mmm.model["channel_data"].get_value()
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+
+    incr = mmm.incrementality
+    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
+    l_max = mmm.adstock.l_max
+    inferred_freq = pd.infer_freq(dates)
+
+    # Evaluate baseline once (reused for all periods)
+    baseline_contrib = evaluate_channel_contribution(mmm, actual_data)
+
+    period_results = []
+    for t0, t1 in periods:
+        # Create counterfactual: only modify spend in [t0, t1]
+        target_mask = (dates >= t0) & (dates <= t1)
+        cf_data = actual_data.copy()
+        cf_data[target_mask] = actual_data[target_mask] * counterfactual_spend_factor
+
+        cf_contrib = evaluate_channel_contribution(mmm, cf_data)
+
+        # Sign convention
+        if counterfactual_spend_factor > 1.0:
+            diff = cf_contrib - baseline_contrib
+        else:
+            diff = baseline_contrib - cf_contrib
+
+        # Determine evaluation window for summing
+        if include_carryout:
+            carryout_end = t1 + _convert_frequency_to_timedelta(l_max, inferred_freq)
+            eval_mask = (dates >= t0) & (dates <= carryout_end)
+        else:
+            eval_mask = (dates >= t0) & (dates <= t1)
+
+        # Sum over evaluation window
+        period_incr = diff.sel(date=dates[eval_mask]).sum(dim="date")
+        # Shape: (chain, draw, channel, *custom_dims)
+
+        # Stack chain x draw into sample, assign period label
+        stacked = (
+            period_incr.stack(sample=("chain", "draw"))
+            .assign_coords(date=t1)
+            .expand_dims("date")
+        )
+        period_results.append(stacked)
+
+    # Concatenate and format
+    if frequency == "all_time":
+        result = period_results[0].squeeze("date", drop=True)
+    else:
+        result = xr.concat(period_results, dim="date")
+
+    # Standard dimension order
+    core_dims = ["sample", "channel"]
+    extra_dims = [d for d in result.dims if d not in [*core_dims, "date"]]
+
+    if frequency == "all_time":
+        dim_order = ["sample", "channel", *extra_dims]
+    else:
+        dim_order = ["sample", "date", "channel", *extra_dims]
+
+    return result.transpose(*dim_order)
+
+
 class TestGroundTruthValidation:
     """Validate vectorized incrementality against sample_posterior_predictive oracle."""
 
     @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
     def test_factor_0_matches_ground_truth(self, simple_fitted_mmm, frequency):
-        """Validate factor=0 incrementality against ground truth."""
-        ground_truth = compute_ground_truth_incremental(
-            simple_fitted_mmm, counterfactual_spend_factor=0.0
-        )
+        """Validate factor=0 incrementality against ground truth.
 
-        if frequency == "all_time":
-            gt_agg = (
-                ground_truth.sum(dim="date")
-                .stack(sample=("chain", "draw"))
-                .transpose("sample", "channel")
-            )
-        elif frequency == "monthly":
-            gt_agg = (
-                ground_truth.resample(date="ME")
-                .sum()
-                .stack(sample=("chain", "draw"))
-                .transpose("sample", "date", "channel")
-            )
-        else:  # original
-            gt_agg = ground_truth.stack(sample=("chain", "draw")).transpose(
-                "sample", "date", "channel"
-            )
+        For each period defined by *frequency*, the ground truth creates a
+        **separate** counterfactual where only that period's channel spend is
+        zeroed out (all other periods retain actual spend).  This mirrors
+        ``compute_incremental_contribution()`` which processes periods
+        independently.
+        """
+        gt = compute_ground_truth_incremental_by_period(
+            simple_fitted_mmm,
+            frequency=frequency,
+            counterfactual_spend_factor=0.0,
+            include_carryin=True,
+            include_carryout=True,
+        )
 
         result = simple_fitted_mmm.incrementality.compute_incremental_contribution(
             frequency=frequency,
@@ -361,7 +456,7 @@ class TestGroundTruthValidation:
             include_carryout=True,
         )
 
-        xr.testing.assert_allclose(result, gt_agg, rtol=1e-4)
+        xr.testing.assert_allclose(result, gt, rtol=1e-4)
 
     def test_marginal_factor_ground_truth(self, simple_fitted_mmm):
         """Validate marginal incrementality (factor=1.01) against ground truth."""
