@@ -3,6 +3,10 @@ name: Generate Test Durations
 on:
   workflow_dispatch:  # Manual trigger only
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   generate-durations:
     runs-on: ubuntu-latest
@@ -27,12 +31,37 @@ jobs:
         run: |
           pytest --store-durations --durations-path .test_durations -v
         continue-on-error: true  # Generate durations even if some tests fail
-      - name: Upload test durations artifact
-        uses: actions/upload-artifact@v4
+      - name: Ensure newline at end of durations file
+        run: |
+          # Add newline if missing (pre-commit requirement)
+          [ -n "$(tail -c1 .test_durations)" ] && echo >> .test_durations || true
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v8
         with:
-          name: test-durations
-          path: .test_durations
-          retention-days: 30
+          commit-message: "chore: update test durations"
+          branch: update-test-durations
+          delete-branch: true
+          title: "chore: update test durations"
+          body: |
+            ## Automated Test Durations Update
+
+            This PR updates the `.test_durations` file with the latest test execution times from the full test suite.
+
+            **Details:**
+            - 🤖 Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - 👤 Triggered by: @${{ github.actor }}
+            - 📊 See workflow logs for full test statistics
+
+            **Note:** This is an automated update. The file will be used by pytest-split to balance test groups in CI.
+          labels: |
+            no releasenotes
+            maintenance
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge --auto --squash ${{ steps.cpr.outputs.pull-request-number }}
       - name: Display duration stats
         run: |
           echo "=== Top 20 slowest tests ==="
