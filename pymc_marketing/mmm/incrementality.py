@@ -250,8 +250,7 @@ class Incrementality:
         )
         # Shape: (sample, date, channel, *custom_dims)
 
-        # Get fit_data and determine period bounds
-        fit_data = self.idata.fit_data
+        # Determine period bounds
         dates = self.data.dates
 
         period_start_ts: pd.Timestamp = (
@@ -288,7 +287,8 @@ class Incrementality:
         evaluator = function([batched_input], batched_graph)
 
         # Evaluate baseline on full dataset (once)
-        full_data = fit_data[self.model.channel_columns].to_array(dim="channel")
+        fit_data = self.idata.fit_data
+        full_data = self.data.get_channel_spend()
         # Shape: (channel, n_dates, *custom_dims)
         channel_data_dims = ("date", *self.model.dims, "channel")
         baseline_array = full_data.transpose(*channel_data_dims).values
