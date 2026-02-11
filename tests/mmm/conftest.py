@@ -107,6 +107,7 @@ def panel_mmm_data():
 def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
     """Mock fit function that mimics the fit process without actual sampling."""
     model.build_model(X=X, y=y)
+    model.add_original_scale_contribution_variable(var=["channel_contribution"])
     with model.model:
         idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
 

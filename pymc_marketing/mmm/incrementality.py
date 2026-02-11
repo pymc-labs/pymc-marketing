@@ -232,17 +232,17 @@ class Incrementality:
         ...     counterfactual_spend_factor=1.01,
         ... )
         """
-        # ── 0. Validate inputs ──────────────────────────────────────────────
+        # Validate inputs
         if counterfactual_spend_factor < 0:
             raise ValueError(
                 f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
             )
 
-        # ── 1. Subsample posterior if needed ────────────────────────────────
+        # Subsample posterior if needed
         # isel returns a lightweight view, no deep copy
         draw_selection = self._subsample_posterior_draws(num_samples, random_state)
 
-        # ── 2. Extract response distribution (batched over samples) ─────────
+        # Extract response distribution (batched over samples)
         response_graph = extract_response_distribution(
             pymc_model=self.model.model,
             idata=self.idata.isel(draw=draw_selection),
@@ -250,9 +250,9 @@ class Incrementality:
         )
         # Shape: (sample, date, channel, *custom_dims)
 
-        # ── 3. Get fit_data and determine period bounds ─────────────────────
+        # Get fit_data and determine period bounds
         fit_data = self.idata.fit_data
-        dates = pd.to_datetime(fit_data.coords["date"].values)
+        dates = self.data.dates
 
         period_start_ts: pd.Timestamp = (
             dates[0] if period_start is None else pd.to_datetime(period_start)
@@ -261,11 +261,11 @@ class Incrementality:
             dates[-1] if period_end is None else pd.to_datetime(period_end)
         )
 
-        # ── 4. Create period groups based on frequency ──────────────────────
+        # Create period groups based on frequency
         periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
         # Returns: [(t0_1, t1_1), (t0_2, t1_2), ...] or [(t0, t1)] for "all_time"
 
-        # ── 5. Get l_max for carryover calculations ─────────────────────────
+        # Get l_max for carryover calculations
         l_max = self.model.adstock.l_max
         inferred_freq: str | None = pd.infer_freq(dates)
         if inferred_freq is None:
@@ -275,114 +275,162 @@ class Incrementality:
             )
         freq: str = inferred_freq
 
-        # ── 6. Create batched scenarios for ALL periods at once ─────────────
-        all_scenarios = []
-        period_labels = []
-
-        for _period_idx, (t0, t1) in enumerate(periods):
-            # Determine data window with carryover padding
-            if include_carryover:
-                data_start = t0 - _convert_frequency_to_timedelta(l_max, freq)
-                data_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
-            else:
-                data_start = t0
-                data_end = t1
-
-            # Extract data window
-            fit_window = fit_data.sel(date=slice(data_start, data_end))
-            base_data = fit_window[self.model.channel_columns].to_array(dim="channel")
-            # Shape: (channel, date_window, *custom_dims)
-
-            # Create counterfactual by applying the spend factor during [t0, t1]
-            counterfactual = base_data.copy(deep=True)
-            eval_mask = (fit_window.date >= t0) & (fit_window.date <= t1)
-            counterfactual[:, eval_mask] = (
-                base_data[:, eval_mask] * counterfactual_spend_factor
-            )
-            # factor=0.0 → zeroes out (total incrementality)
-            # factor=1.01 → scales to 101% (marginal incrementality)
-
-            # Stack: [baseline, counterfactual] → 2 scenarios per period
-            # Transpose to match channel_data layout: (date, *custom_dims, channel)
-            channel_data_dims = ("date", *self.model.dims, "channel")
-            all_scenarios.append(base_data.transpose(*channel_data_dims).values)
-            all_scenarios.append(counterfactual.transpose(*channel_data_dims).values)
-
-            period_labels.append(t1)  # Period-end date convention
-
-        # ── 7. Batch all scenarios ──────────────────────────────────────────
-        n_periods = len(periods)
-
-        # ── 8. Compile vectorized evaluator (once) ──────────────────────────
-        # Inlined from SensitivityAnalysis pattern; will extract to
-        # counterfactual_core.py in Phase 3
+        # Compile vectorized evaluator (once, reused for both)
         data_shared = self.model.model["channel_data"]
-
-        # Cast scenario data to match the shared variable's dtype to avoid
-        # int32/int64 mismatches (numpy defaults to int64 but pytensor shared
-        # variables may use int32).
-        scenario_array = np.stack(all_scenarios, axis=0).astype(data_shared.dtype)
-        # Shape: (n_periods * 2, date_window, channel, *custom_dims)
-
         batched_input = pt.tensor(
             name="channel_data_batched",
             dtype=data_shared.dtype,
             shape=(None, *data_shared.type.shape),
         )
-
         batched_graph = vectorize_graph(
             response_graph, replace={data_shared: batched_input}
         )
-
         evaluator = function([batched_input], batched_graph)
 
-        # ── 9. Evaluate ALL scenarios at once ───────────────────────────────
-        all_predictions = evaluator(scenario_array)
-        # Shape: (n_periods * 2, n_samples, date_window, channel, *custom_dims)
+        # Evaluate baseline on full dataset (once)
+        full_data = fit_data[self.model.channel_columns].to_array(dim="channel")
+        # Shape: (channel, n_dates, *custom_dims)
+        channel_data_dims = ("date", *self.model.dims, "channel")
+        baseline_array = full_data.transpose(*channel_data_dims).values
+        # Shape: (n_dates, channel, *custom_dims)
 
-        # ── 10. Compute incremental contributions per period ────────────────
+        baseline_pred = evaluator(baseline_array[np.newaxis].astype(data_shared.dtype))[
+            0
+        ]
+        # Shape: (n_samples, n_dates, channel, *custom_dims)
+
+        # Build zero-padded counterfactual windows
+        # Each counterfactual window covers [t0 - l_max, t1 + l_max] to
+        # capture carry-in history (for correct adstock) and carry-out
+        # effects.  At dataset boundaries, positions outside the data are
+        # zero-padded (= no spend), and all windows are right-padded to a
+        # uniform max size so they can be stacked for batched evaluation.
+        n_periods = len(periods)
+        period_labels = []
+        freq_td = _convert_frequency_to_timedelta(1, freq)
+        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
+
+        # First pass: collect per-period window metadata
+        window_infos: list[dict] = []
+        for t0, t1 in periods:
+            # Always include l_max carry-in for correct adstock context.
+            # Always include l_max carry-out so carryover effects are
+            # captured (eval mask controls what gets summed).
+            ideal_start = t0 - _convert_frequency_to_timedelta(l_max, freq)
+            ideal_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
+
+            # Actual dates from the dataset that fall in the ideal window
+            in_window = (dates >= ideal_start) & (dates <= ideal_end)
+            actual_dates = dates[in_window]
+            n_actual = int(in_window.sum())
+
+            # Left-padding: ideal positions before the first actual date
+            # (represents "no spend" before the dataset)
+            left_pad = 0
+            if n_actual > 0 and actual_dates[0] > ideal_start:
+                left_pad = round((actual_dates[0] - ideal_start) / freq_td)
+
+            # Right-padding: ideal positions after the last actual date
+            # (represents "no spend" after the dataset)
+            right_pad = 0
+            if n_actual > 0 and actual_dates[-1] < ideal_end:
+                right_pad = round((ideal_end - actual_dates[-1]) / freq_td)
+
+            window_infos.append(
+                {
+                    "left_pad": left_pad,
+                    "right_pad": right_pad,
+                    "n_actual": n_actual,
+                    "in_window": in_window,
+                    "actual_dates": actual_dates,
+                }
+            )
+
+        max_window = max(
+            w["left_pad"] + w["n_actual"] + w["right_pad"] for w in window_infos
+        )
+
+        # Second pass: build zero-padded counterfactual arrays
+        cf_scenarios: list[np.ndarray] = []
+        # Per-period boolean eval masks over the padded window (only True
+        # at actual-data positions within the eval date range, ensuring
+        # consistency with the baseline eval which also covers only actual
+        # dates).
+        cf_eval_masks: list[np.ndarray] = []
+
+        for (t0, t1), info in zip(periods, window_infos, strict=True):
+            # Allocate zero-padded window
+            padded = np.zeros((max_window, *extra_shape), dtype=data_shared.dtype)
+
+            # Place actual data at correct offset
+            start_pos = info["left_pad"]
+            end_pos = start_pos + info["n_actual"]
+            padded[start_pos:end_pos] = baseline_array[info["in_window"]].astype(
+                data_shared.dtype
+            )
+
+            # Apply counterfactual factor to [t0, t1] only
+            if info["n_actual"] > 0:
+                target_in_actual = (info["actual_dates"] >= t0) & (
+                    info["actual_dates"] <= t1
+                )
+                target_offsets = np.where(target_in_actual)[0] + start_pos
+                padded[target_offsets] = (
+                    padded[target_offsets] * counterfactual_spend_factor
+                )
+
+            cf_scenarios.append(padded)
+            period_labels.append(t1)
+
+            # Eval mask: actual-data positions in [t0, carryout_end]
+            cf_mask = np.zeros(max_window, dtype=bool)
+            if info["n_actual"] > 0:
+                if include_carryover:
+                    carryout_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
+                    eval_in_actual = (info["actual_dates"] >= t0) & (
+                        info["actual_dates"] <= carryout_end
+                    )
+                else:
+                    eval_in_actual = (info["actual_dates"] >= t0) & (
+                        info["actual_dates"] <= t1
+                    )
+                eval_offsets = np.where(eval_in_actual)[0] + start_pos
+                cf_mask[eval_offsets] = True
+            cf_eval_masks.append(cf_mask)
+
+        # Evaluate all counterfactuals at once
+        cf_array = np.stack(cf_scenarios, axis=0)
+        # Shape: (n_periods, max_window, channel, *custom_dims)
+
+        cf_predictions = evaluator(cf_array)
+        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+
+        # Compute incremental contributions per period
         results = []
 
         for period_idx in range(n_periods):
-            baseline_idx = period_idx * 2
-            counter_idx = period_idx * 2 + 1
-
-            baseline_pred = all_predictions[
-                baseline_idx
-            ]  # (n_samples, date_window, channel, *dims)
-            counter_pred = all_predictions[counter_idx]
-
-            # Sign convention:
-            # factor > 1 → Y(perturbed) - Y(actual)    (marginal: how much more?)
-            # factor < 1 → Y(actual) - Y(counterfactual) (total: how much did it create?)
-            if counterfactual_spend_factor > 1.0:
-                incremental = counter_pred - baseline_pred
-            else:
-                incremental = baseline_pred - counter_pred
-            # Shape: (n_samples, date_window, channel, *custom_dims)
-
-            # Sum over evaluation window (including carryout if enabled)
             t0, t1 = periods[period_idx]
-            if include_carryover:
-                period_data_start = t0 - _convert_frequency_to_timedelta(l_max, freq)
-                period_data_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
-            else:
-                period_data_start = t0
-                period_data_end = t1
 
-            period_dates = pd.to_datetime(
-                fit_data.sel(date=slice(period_data_start, period_data_end))
-                .coords["date"]
-                .values
-            )
-
+            # Baseline: sum over eval dates from full-dataset prediction
             if include_carryover:
                 carryout_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
-                eval_dates = (period_dates >= t0) & (period_dates <= carryout_end)
+                bl_eval_mask = (dates >= t0) & (dates <= carryout_end)
             else:
-                eval_dates = (period_dates >= t0) & (period_dates <= t1)
+                bl_eval_mask = (dates >= t0) & (dates <= t1)
 
-            total_incremental = incremental[:, eval_dates].sum(axis=1)
+            baseline_sum = baseline_pred[:, bl_eval_mask].sum(axis=1)
+
+            # Counterfactual: sum over matching actual-data positions
+            cf_mask = cf_eval_masks[period_idx]
+            cf_sum = cf_predictions[period_idx][:, cf_mask].sum(axis=1)
+
+            # Sign convention:
+            # factor > 1 → Y(perturbed) - Y(actual)    (marginal)
+            # factor < 1 → Y(actual) - Y(counterfactual) (total)
+            if counterfactual_spend_factor > 1.0:
+                total_incremental = cf_sum - baseline_sum
+            else:
+                total_incremental = baseline_sum - cf_sum
             # Shape: (n_samples, channel, *custom_dims)
 
             # Add period coordinate
@@ -402,20 +450,20 @@ class Incrementality:
 
             results.append(total_incremental_da)
 
-        # ── 11. Concatenate all periods ─────────────────────────────────────
+        # Concatenate all periods
         if frequency == "all_time":
             # Single period, no date dimension
             result = results[0].squeeze("date", drop=True)
         else:
             result = xr.concat(results, dim="date")
 
-        # ── 12. Ensure standard dimension order ─────────────────────────────
+        # Ensure standard dimension order
         dim_order = ["sample", "date", "channel", *self.model.dims]
         if frequency == "all_time":
             dim_order.remove("date")
         result = result.transpose(*dim_order)
 
-        # ── 13. Scale to original if needed ─────────────────────────────────
+        # Scale to original if needed
         if original_scale:
             target_scale = self.data.get_target_scale()
             result = result * target_scale

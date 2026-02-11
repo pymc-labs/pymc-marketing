@@ -262,20 +262,25 @@ class TestHelperMethods:
 # ==================== Ground Truth Testing ====================
 
 
-def evaluate_channel_contribution(mmm, channel_data_values):
+def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
     """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.
 
     Uses the standard PyMC evaluation path (completely independent from
     extract_response_distribution + vectorize_graph) as an oracle.
     """
+    var_name = (
+        "channel_contribution_original_scale"
+        if original_scale
+        else "channel_contribution"
+    )
     model = cm(mmm.model)
     with model:
         pm.set_data({"channel_data": channel_data_values})
         result = pm.sample_posterior_predictive(
             mmm.idata,
-            var_names=["channel_contribution"],
+            var_names=[var_name],
         )
-    return result.posterior_predictive["channel_contribution"]
+    return result.posterior_predictive[var_name]
 
 
 def compute_ground_truth_incremental(
@@ -315,6 +320,7 @@ def compute_ground_truth_incremental_by_period(
     frequency="all_time",
     counterfactual_spend_factor=0.0,
     include_carryover=True,
+    original_scale=True,
 ):
     """Compute ground truth incremental contribution per period using the oracle.
 
@@ -339,6 +345,8 @@ def compute_ground_truth_incremental_by_period(
     include_carryover : bool
         Whether to include adstock carryover effects (both carry-in and
         carry-out).
+    original_scale : bool, default=True
+        Return contributions in original scale of target variable.
 
     Returns
     -------
@@ -355,7 +363,9 @@ def compute_ground_truth_incremental_by_period(
     inferred_freq = pd.infer_freq(dates)
 
     # Evaluate baseline once (reused for all periods)
-    baseline_contrib = evaluate_channel_contribution(mmm, actual_data)
+    baseline_contrib = evaluate_channel_contribution(
+        mmm, actual_data, original_scale=original_scale
+    )
 
     period_results = []
     for t0, t1 in periods:
@@ -364,7 +374,9 @@ def compute_ground_truth_incremental_by_period(
         cf_data = actual_data.copy()
         cf_data[target_mask] = actual_data[target_mask] * counterfactual_spend_factor
 
-        cf_contrib = evaluate_channel_contribution(mmm, cf_data)
+        cf_contrib = evaluate_channel_contribution(
+            mmm, cf_data, original_scale=original_scale
+        )
 
         # Sign convention
         if counterfactual_spend_factor > 1.0:
@@ -384,9 +396,14 @@ def compute_ground_truth_incremental_by_period(
         # Shape: (chain, draw, channel, *custom_dims)
 
         # Stack chain x draw into sample, assign period label
+        stacked_raw = period_incr.stack(sample=("chain", "draw"))
+        # Replace MultiIndex with plain integer coords to match implementation
         stacked = (
-            period_incr.stack(sample=("chain", "draw"))
-            .assign_coords(date=t1)
+            stacked_raw.reset_index("sample", drop=True)
+            .assign_coords(
+                sample=np.arange(stacked_raw.sizes["sample"]),
+                date=t1,
+            )
             .expand_dims("date")
         )
         period_results.append(stacked)
@@ -412,8 +429,19 @@ def compute_ground_truth_incremental_by_period(
 class TestGroundTruthValidation:
     """Validate vectorized incrementality against sample_posterior_predictive oracle."""
 
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
-    def test_factor_0_matches_ground_truth(self, simple_fitted_mmm, frequency):
+    @pytest.mark.parametrize(
+        "frequency, include_carryover, original_scale",
+        [
+            ("original", True, True),
+            ("monthly", True, True),
+            ("all_time", True, True),
+            ("monthly", False, True),
+            ("monthly", True, False),
+        ],
+    )
+    def test_factor_0_matches_ground_truth(
+        self, simple_fitted_mmm, frequency, include_carryover, original_scale
+    ):
         """Validate factor=0 incrementality against ground truth.
 
         For each period defined by *frequency*, the ground truth creates a
@@ -426,13 +454,15 @@ class TestGroundTruthValidation:
             simple_fitted_mmm,
             frequency=frequency,
             counterfactual_spend_factor=0.0,
-            include_carryover=True,
+            include_carryover=include_carryover,
+            original_scale=original_scale,
         )
 
         result = simple_fitted_mmm.incrementality.compute_incremental_contribution(
             frequency=frequency,
             counterfactual_spend_factor=0.0,
-            include_carryover=True,
+            include_carryover=include_carryover,
+            original_scale=original_scale,
         )
 
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
