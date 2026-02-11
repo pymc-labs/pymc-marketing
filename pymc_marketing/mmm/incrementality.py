@@ -288,16 +288,19 @@ class Incrementality:
 
         # Evaluate baseline on full dataset (once)
         fit_data = self.idata.fit_data
-        full_data = self.data.get_channel_spend()
-        # Shape: (channel, n_dates, *custom_dims)
-        channel_data_dims = ("date", *self.model.dims, "channel")
-        baseline_array = full_data.transpose(*channel_data_dims).values
-        # Shape: (n_dates, channel, *custom_dims)
-
+        baseline_array = self.data.get_channel_spend().values
         baseline_pred = evaluator(baseline_array[np.newaxis].astype(data_shared.dtype))[
             0
         ]
-        # Shape: (n_samples, n_dates, channel, *custom_dims)
+        # Shape: (n_samples, n_dates, *non_date_dims)
+
+        # Determine actual axis ordering from the model's channel_contribution
+        # variable. The PyTensor graph preserves the model's dim order, which
+        # may have custom dims (e.g. "country") before "channel".
+        cc_dims = list(
+            self.model.model.named_vars_to_dims.get("channel_contribution", ())
+        )
+        non_date_dims = [d for d in cc_dims if d != "date"]
 
         # Build zero-padded counterfactual windows
         # Each counterfactual window covers [t0 - l_max, t1 + l_max] to
@@ -437,7 +440,7 @@ class Incrementality:
             period_label = period_labels[period_idx]
             total_incremental_da = xr.DataArray(
                 total_incremental,
-                dims=("sample", "channel", *self.model.dims),
+                dims=("sample", *non_date_dims),
                 coords={
                     "sample": np.arange(total_incremental.shape[0]),
                     "channel": self.model.channel_columns,

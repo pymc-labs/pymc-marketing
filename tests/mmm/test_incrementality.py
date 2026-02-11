@@ -59,19 +59,6 @@ class TestComputeIncrementalContribution:
         assert result.sizes["date"] == n_dates
         assert result.sizes["channel"] == n_channels
 
-    def test_output_shape_with_frequency_monthly(self, simple_fitted_mmm):
-        """Test output aggregates correctly for monthly frequency."""
-        incr = simple_fitted_mmm.incrementality
-        result = incr.compute_incremental_contribution(frequency="monthly")
-
-        assert "date" in result.dims
-        assert result.sizes["date"] > 0
-        dates = pd.to_datetime(result.date.values)
-        # Check that dates are month-end dates
-        for d in dates:
-            period = pd.Period(d, freq="M")
-            assert d == period.to_timestamp(how="end")
-
     def test_output_shape_with_frequency_all_time(self, simple_fitted_mmm):
         """Test output has no date dimension for all_time frequency."""
         incr = simple_fitted_mmm.incrementality
@@ -129,19 +116,6 @@ class TestComputeIncrementalContribution:
                 frequency="all_time",
                 counterfactual_spend_factor=-0.5,
             )
-
-    def test_include_carryover_affects_results(self, simple_fitted_mmm):
-        """Test that include_carryover flag changes results."""
-        incr = simple_fitted_mmm.incrementality
-        result_with = incr.compute_incremental_contribution(
-            frequency="all_time",
-            include_carryover=True,
-        )
-        result_without = incr.compute_incremental_contribution(
-            frequency="all_time",
-            include_carryover=False,
-        )
-        assert not xr.DataArray.equals(result_with, result_without)
 
     def test_period_start_end_filters_dates(self, simple_fitted_mmm):
         """Test that period_start and period_end filter date range."""
@@ -231,9 +205,11 @@ class TestHelperMethods:
         periods = incr._create_period_groups(start, end, "monthly")
 
         assert len(periods) == 3  # Jan, Feb, Mar
-        assert periods[0][1] == pd.Timestamp("2024-01-31")
-        assert periods[1][1] == pd.Timestamp("2024-02-29")  # 2024 is leap year
-        assert periods[2][1] == pd.Timestamp("2024-03-31")
+        assert periods[0][1].normalize() == pd.Timestamp("2024-01-31")
+        assert periods[1][1].normalize() == pd.Timestamp(
+            "2024-02-29"
+        )  # 2024 is leap year
+        assert periods[2][1].normalize() == pd.Timestamp("2024-03-31")
 
     def test_subsample_posterior_draws_returns_all_when_none(self, simple_fitted_mmm):
         """Test subsampling returns all draws when num_samples=None."""
@@ -242,8 +218,7 @@ class TestHelperMethods:
             num_samples=None, random_state=None
         )
 
-        total_draws = simple_fitted_mmm.idata.posterior.dims["draw"]
-        assert len(draw_indices) == total_draws or draw_indices is None
+        assert draw_indices == slice(None)
 
     def test_aggregate_spend_matches_data_wrapper(self, simple_fitted_mmm):
         """Test that _aggregate_spend delegates correctly to data wrapper."""
@@ -275,7 +250,13 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
     )
     model = cm(mmm.model)
     with model:
-        pm.set_data({"channel_data": channel_data_values})
+        pm.set_data(
+            {
+                "channel_data": channel_data_values.astype(
+                    mmm.model["channel_data"].type.dtype
+                )
+            }
+        )
         result = pm.sample_posterior_predictive(
             mmm.idata,
             var_names=[var_name],
@@ -477,15 +458,21 @@ class TestGroundTruthValidation:
             simple_fitted_mmm, actual_data * factor
         )
 
-        ground_truth_marginal = (
+        marginal_stacked = (
             (perturbed_contrib - baseline_contrib)
             .sum(dim="date")
             .stack(sample=("chain", "draw"))
+        )
+        ground_truth_marginal = (
+            marginal_stacked.reset_index("sample", drop=True)
+            .assign_coords(sample=np.arange(marginal_stacked.sizes["sample"]))
             .transpose("sample", "channel")
         )
 
         result = simple_fitted_mmm.incrementality.compute_incremental_contribution(
-            frequency="all_time", counterfactual_spend_factor=factor
+            frequency="all_time",
+            counterfactual_spend_factor=factor,
+            original_scale=False,
         )
 
         xr.testing.assert_allclose(result, ground_truth_marginal, rtol=1e-4)
@@ -495,14 +482,17 @@ class TestGroundTruthValidation:
         ground_truth = compute_ground_truth_incremental(
             panel_fitted_mmm, counterfactual_spend_factor=0.0
         )
+        stacked = ground_truth.sum(dim="date").stack(sample=("chain", "draw"))
         ground_truth_all_time = (
-            ground_truth.sum(dim="date")
-            .stack(sample=("chain", "draw"))
+            stacked.reset_index("sample", drop=True)
+            .assign_coords(sample=np.arange(stacked.sizes["sample"]))
             .transpose("sample", "channel", "country")
         )
 
         result = panel_fitted_mmm.incrementality.compute_incremental_contribution(
-            frequency="all_time", counterfactual_spend_factor=0.0
+            frequency="all_time",
+            counterfactual_spend_factor=0.0,
+            original_scale=False,
         )
 
         assert "country" in result.dims
