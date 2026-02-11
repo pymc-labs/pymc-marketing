@@ -434,7 +434,7 @@ def _plot_across_coord(
 def plot_hdi(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    hdi_prob: float | list[float] | None = None,
+    hdi_prob: Sequence[float | None] | float | None = None,
     hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
@@ -453,7 +453,7 @@ def plot_hdi(
     non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
-    hdi_probs : float | list[float], optional
+    hdi_prob : float | list[float], optional
         HDI probabilities. Defaults to None which uses arviz default for
         stats.ci_prob which is 94%
     hdi_kwargs : dict, optional
@@ -514,7 +514,7 @@ def plot_hdi(
             sel_to_string=sel_to_string,
         )
 
-    return fig, axes
+    return fig, cast(npt.NDArray[Axes], axes)
 
 
 def plot_samples(
