@@ -1,4 +1,4 @@
 streamlit==1.46.1
 plotly==6.3.0
 preliz==0.20.0
-pymc-marketing==0.17.1
+pymc-marketing==0.18.0
