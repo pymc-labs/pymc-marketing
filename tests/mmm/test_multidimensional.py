@@ -298,6 +298,37 @@ def test_save_load_equality_with_all_effects(mock_pymc_sample):
     os.remove(file)
 
 
+def test_single_channel():
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1630
+    target_column = "y"
+    mmm = MMM(
+        date_column="date_week",
+        channel_columns=["x1"],
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+        control_columns=[
+            "event_1",
+            "event_2",
+            "t",
+        ],
+    )
+    rng = np.random.default_rng(319)
+    X = pd.DataFrame(
+        {
+            "date_week": range(7),
+            "x1": rng.uniform(size=7),
+            "event1": rng.binomial(n=1, p=0.5, size=7),
+            "event2": rng.binomial(n=1, p=0.5, size=7),
+            "t": rng.uniform(size=7),
+        }
+    )
+    y = pd.Series(rng.uniform(size=7), index=X.index, name="y")
+    mmm.build_model(X, y)
+    assert mmm.model["channel_contribution"].dims == ("date", "channel")
+    assert mmm.model["channel_contribution"].eval().shape == (7, 1)
+
+
 @pytest.fixture
 def single_dim_data():
     """
@@ -912,6 +943,30 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(
     assert var_name in mmm.model.named_vars
     latent_dims = mmm.model.named_vars_to_dims[var_name]
     assert latent_dims == hsgp_dims
+
+
+def test_time_varying_intercept_with_batch_baseline(df, target_column):
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1514
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        model_config={"intercept": Prior("Normal", dims=("date", "country"))},
+        time_varying_intercept=True,
+    )
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    assert mmm.model["intercept_baseline"].dims == ("date", "country")
+    assert mmm.model["intercept_contribution"].dims == ("date", "country")
+    coords = mmm.model.coords
+    assert mmm.model["intercept_contribution"].eval(mode="FAST_COMPILE").shape == (
+        len(coords["date"]),
+        len(coords["country"]),
+    )
 
 
 @pytest.mark.parametrize(
