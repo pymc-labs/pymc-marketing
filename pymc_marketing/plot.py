@@ -485,7 +485,7 @@ def plot_hdi(
     hdi_kwargs = hdi_kwargs or {}
 
     for ihdi_prob in hdi_prob:
-        current_hdi_kwargs = {**dict(hdi_prob=ihdi_prob), **hdi_kwargs}
+        current_hdi_kwargs = {**hdi_kwargs, **dict(hdi_prob=ihdi_prob)}
 
         get_plot_data = _create_get_hdi_plot_data(current_hdi_kwargs)
         make_selection = _make_hdi_selection
