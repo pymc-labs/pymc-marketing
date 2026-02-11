@@ -15,6 +15,7 @@ on:
      - "pyproject.toml"
      - "tests/**.py"
      - "pymc_marketing/**"
+  workflow_dispatch:  # Allow manual trigger for duration generation
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,6 +31,54 @@ env:
 
 
 jobs:
+  # TEMPORARY: Generate test durations (remove after .test_durations is committed)
+  generate-durations:
+    if: github.event_name == 'workflow_dispatch'  # Only run on manual trigger
+    runs-on: ubuntu-latest
+    env:
+      PYTENSOR_FLAGS: linker=cvm
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
+      - name: Install dependencies
+        run: |
+          sudo apt-get install graphviz graphviz-dev
+          pip install -e .[test]
+      - name: Run all tests with duration tracking
+        run: |
+          pytest --store-durations --durations-path .test_durations -v
+        continue-on-error: true
+      - name: Upload test durations artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations
+          path: .test_durations
+          retention-days: 30
+      - name: Display duration stats
+        run: |
+          python3 << 'EOF'
+          import json
+          with open('.test_durations') as f:
+              durations = json.load(f)
+          sorted_tests = sorted(durations.items(), key=lambda x: x[1], reverse=True)
+          print(f"\nTotal tests: {len(durations)}")
+          print(f"Total time: {sum(durations.values()):.1f}s ({sum(durations.values())/60:.1f}m)\n")
+          print("Top 20 slowest tests:")
+          for i, (test, dur) in enumerate(sorted_tests[:20], 1):
+              print(f"{i:2}. {dur:>8.2f}s - {test}")
+          total_time = sum(durations.values())
+          ideal_per_group = total_time / 6
+          print(f"\n=== 6-way split estimation ===")
+          print(f"Ideal time per group: {ideal_per_group:.1f}s ({ideal_per_group/60:.1f}m)")
+          print(f"Longest test: {sorted_tests[0][1]:.1f}s ({sorted_tests[0][1]/60:.1f}m)")
+          print(f"Expected worst group: ~{max(ideal_per_group, sorted_tests[0][1])/60:.1f}m")
+          EOF
+
   test:
     runs-on: ubuntu-latest
     strategy:
