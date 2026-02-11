@@ -116,8 +116,7 @@ class Incrementality:
         frequency: Frequency,
         period_start: str | pd.Timestamp | None = None,
         period_end: str | pd.Timestamp | None = None,
-        include_carryin: bool = True,
-        include_carryout: bool = True,
+        include_carryover: bool = True,
         original_scale: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -149,14 +148,12 @@ class Incrementality:
             Start date for evaluation window. If None, uses start of fitted data.
         period_end : str or pd.Timestamp, optional
             End date for evaluation window. If None, uses end of fitted data.
-        include_carryin : bool, default=True
-            Include impact of pre-period channel spend via adstock carryover.
-            When True, prepends last l_max observations to capture historical
-            effects that carry into the evaluation period.
-        include_carryout : bool, default=True
-            Include impact of evaluation period spend that carries into post-period.
-            When True, extends evaluation window by l_max periods to capture
-            trailing adstock effects.
+        include_carryover : bool, default=True
+            Include adstock carryover effects. When True, prepends l_max
+            observations before the period to capture historical effects
+            carrying into the evaluation period, and extends the evaluation
+            window by l_max periods to capture trailing adstock effects
+            from spend during the period.
         original_scale : bool, default=True
             Return contributions in original scale of target variable.
         num_samples : int or None, optional
@@ -284,14 +281,11 @@ class Incrementality:
 
         for _period_idx, (t0, t1) in enumerate(periods):
             # Determine data window with carryover padding
-            if include_carryin:
+            if include_carryover:
                 data_start = t0 - _convert_frequency_to_timedelta(l_max, freq)
-            else:
-                data_start = t0
-
-            if include_carryout:
                 data_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
             else:
+                data_start = t0
                 data_end = t1
 
             # Extract data window
@@ -369,22 +363,20 @@ class Incrementality:
 
             # Sum over evaluation window (including carryout if enabled)
             t0, t1 = periods[period_idx]
+            if include_carryover:
+                period_data_start = t0 - _convert_frequency_to_timedelta(l_max, freq)
+                period_data_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
+            else:
+                period_data_start = t0
+                period_data_end = t1
+
             period_dates = pd.to_datetime(
-                fit_data.sel(
-                    date=slice(
-                        t0 - _convert_frequency_to_timedelta(l_max, freq)
-                        if include_carryin
-                        else t0,
-                        t1 + _convert_frequency_to_timedelta(l_max, freq)
-                        if include_carryout
-                        else t1,
-                    )
-                )
+                fit_data.sel(date=slice(period_data_start, period_data_end))
                 .coords["date"]
                 .values
             )
 
-            if include_carryout:
+            if include_carryover:
                 carryout_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
                 eval_dates = (period_dates >= t0) & (period_dates <= carryout_end)
             else:

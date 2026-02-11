@@ -130,33 +130,16 @@ class TestComputeIncrementalContribution:
                 counterfactual_spend_factor=-0.5,
             )
 
-    def test_include_carryin_affects_results(self, simple_fitted_mmm):
-        """Test that include_carryin flag changes results."""
+    def test_include_carryover_affects_results(self, simple_fitted_mmm):
+        """Test that include_carryover flag changes results."""
         incr = simple_fitted_mmm.incrementality
         result_with = incr.compute_incremental_contribution(
             frequency="all_time",
-            include_carryin=True,
-            include_carryout=False,
+            include_carryover=True,
         )
         result_without = incr.compute_incremental_contribution(
             frequency="all_time",
-            include_carryin=False,
-            include_carryout=False,
-        )
-        assert not xr.DataArray.equals(result_with, result_without)
-
-    def test_include_carryout_affects_results(self, simple_fitted_mmm):
-        """Test that include_carryout flag changes results."""
-        incr = simple_fitted_mmm.incrementality
-        result_with = incr.compute_incremental_contribution(
-            frequency="all_time",
-            include_carryin=False,
-            include_carryout=True,
-        )
-        result_without = incr.compute_incremental_contribution(
-            frequency="all_time",
-            include_carryin=False,
-            include_carryout=False,
+            include_carryover=False,
         )
         assert not xr.DataArray.equals(result_with, result_without)
 
@@ -331,8 +314,7 @@ def compute_ground_truth_incremental_by_period(
     mmm,
     frequency="all_time",
     counterfactual_spend_factor=0.0,
-    include_carryin=True,
-    include_carryout=True,
+    include_carryover=True,
 ):
     """Compute ground truth incremental contribution per period using the oracle.
 
@@ -354,10 +336,9 @@ def compute_ground_truth_incremental_by_period(
         One of ``"original"``, ``"monthly"``, ``"all_time"``, etc.
     counterfactual_spend_factor : float
         Factor applied to the target period's spend (``0.0`` = zero-out).
-    include_carryin : bool
-        Whether to include pre-period carryover effects.
-    include_carryout : bool
-        Whether to include post-period carryover effects.
+    include_carryover : bool
+        Whether to include adstock carryover effects (both carry-in and
+        carry-out).
 
     Returns
     -------
@@ -392,7 +373,7 @@ def compute_ground_truth_incremental_by_period(
             diff = baseline_contrib - cf_contrib
 
         # Determine evaluation window for summing
-        if include_carryout:
+        if include_carryover:
             carryout_end = t1 + _convert_frequency_to_timedelta(l_max, inferred_freq)
             eval_mask = (dates >= t0) & (dates <= carryout_end)
         else:
@@ -445,15 +426,13 @@ class TestGroundTruthValidation:
             simple_fitted_mmm,
             frequency=frequency,
             counterfactual_spend_factor=0.0,
-            include_carryin=True,
-            include_carryout=True,
+            include_carryover=True,
         )
 
         result = simple_fitted_mmm.incrementality.compute_incremental_contribution(
             frequency=frequency,
             counterfactual_spend_factor=0.0,
-            include_carryin=True,
-            include_carryout=True,
+            include_carryover=True,
         )
 
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
