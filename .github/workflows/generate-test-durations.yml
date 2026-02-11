@@ -1,7 +1,9 @@
 name: Generate Test Durations
 
 on:
-  workflow_dispatch:  # Manual trigger only
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
 
 permissions:
   contents: write
@@ -50,8 +52,7 @@ jobs:
 
             **Details:**
             - 🤖 Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-            - 👤 Triggered by: @${{ github.actor }}
-            - 📊 See workflow logs for full test statistics
+            - 📅 Trigger: ${{ github.event_name == 'schedule' && 'Scheduled (weekly)' || format('Manual trigger by @{0}', github.actor) }}
 
             **Note:** This is an automated update. The file will be used by pytest-split to balance test groups in CI.
           labels: |
