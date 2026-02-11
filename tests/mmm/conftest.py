@@ -39,10 +39,10 @@ def simple_mmm_data():
     """Create simple single-dimension MMM data.
 
     Returns dict with:
-    - X: DataFrame with date and 3 channels (14 periods)
+    - X: DataFrame with date and 3 channels (14 weekly periods)
     - y: Series with target values
     """
-    date_range = pd.date_range("2023-01-01", periods=14)
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
     np.random.seed(42)
 
     channel_1 = np.random.randint(100, 500, size=len(date_range))
@@ -110,6 +110,7 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
     with model.model:
         idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
 
+    fit_data = model.create_fit_data(X, y)
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -119,9 +120,7 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
         idata.add_groups(
             {
                 "posterior": idata.prior,
-                "fit_data": pd.concat(
-                    [X, pd.Series(y, index=X.index, name="y")], axis=1
-                ).to_xarray(),
+                "fit_data": fit_data,
             }
         )
     model.idata = idata
