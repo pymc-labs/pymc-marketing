@@ -49,14 +49,6 @@ jobs:
       - name: Install oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
-      - name: Cache test durations
-        uses: actions/cache@v4
-        with:
-          path: .test_durations
-          key: durations-${{ runner.os }}-${{ github.ref }}
-          restore-keys: |
-            durations-${{ runner.os }}-main
-            durations-${{ runner.os }}-
       - name: Run tests
         run: |
           sudo apt-get install graphviz graphviz-dev
@@ -91,14 +83,6 @@ jobs:
           python-version: "3.13"
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
-      - name: Cache test durations
-        uses: actions/cache@v4
-        with:
-          path: .test_durations
-          key: durations-slow-${{ runner.os }}-${{ github.ref }}
-          restore-keys: |
-            durations-slow-${{ runner.os }}-main
-            durations-slow-${{ runner.os }}-
       - name: Run tests
         run: |
           sudo apt-get install graphviz graphviz-dev
