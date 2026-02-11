@@ -50,6 +50,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
+
+:::{grid-item-card} Interactive MMM Visualizations
+:img-top: ../gallery/images/plot_interactive.png
+:link: ../notebooks/mmm/plot_interactive.html
+:::
+
+:::{grid-item-card} MMM API Migration Guide
+:img-top: ../gallery/images/mmm_migration_guide.png
+:link: ../notebooks/mmm/mmm_migration_guide.html
+:::
 ::::
 
 ### Custom models
@@ -59,6 +69,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Custom Models with MMM components
 :img-top: ../gallery/images/mmm_components.png
 :link: ../notebooks/mmm/mmm_components.html
+:::
+
+:::{grid-item-card} Custom Geo-Hierarchical MMM with Splines
+:img-top: ../gallery/images/mmm_custom_splines.png
+:link: ../notebooks/mmm/mmm_custom_splines.html
 :::
 ::::
 

@@ -768,19 +768,28 @@ class MMM(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
-        def ndarray_to_list(d: dict) -> dict:
-            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
-            for key, value in new_d.items():
-                if isinstance(value, np.ndarray):
-                    new_d[key] = value.tolist()
-                elif isinstance(value, HSGPKwargs):
-                    new_d[key] = value.model_dump()
-                elif isinstance(value, dict):
-                    new_d[key] = ndarray_to_list(value)
-            return new_d
+        def serialize_value(value):
+            """Recursively serialize values to JSON-compatible types."""
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            elif isinstance(value, (list, tuple)):
+                return [serialize_value(v) for v in value]
+            elif hasattr(value, "to_dict"):
+                # Handle any object with a to_dict method (Prior, SpecialPrior, etc.)
+                return value.to_dict()
+            elif hasattr(value, "model_dump"):
+                # Handle Pydantic models
+                return value.model_dump()
+            else:
+                return value
 
-        serializable_config = self.model_config.copy()
-        return ndarray_to_list(serializable_config)
+        serializable_config = {}
+        for key, value in self.model_config.items():
+            serializable_config[key] = serialize_value(value)
+
+        return serializable_config
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
@@ -891,6 +900,61 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         self._validate_idata_exists()
         return MMMPlotSuite(idata=self.idata)
+
+    @property
+    def plot_interactive(self):  # type: ignore[no-any-return]
+        """Access interactive Plotly plotting functionality.
+
+        Returns a factory for creating interactive plots using Plotly.
+        Automatically integrates with Component 2 (MMMSummaryFactory)
+        to fetch data and apply faceting for custom dimensions.
+
+        Returns
+        -------
+        MMMPlotlyFactory
+            Factory for creating interactive plots
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Interactive posterior predictive plot
+            fig = mmm.plot_interactive.posterior_predictive()
+            fig.show()
+
+            # Contributions with faceting
+            fig = mmm.plot_interactive.contributions(facet_col="country")
+            fig.show()
+
+            # ROAS bar chart
+            fig = mmm.plot_interactive.roas()
+            fig.show()
+
+            # Saturation curves
+            fig = mmm.plot_interactive.saturation_curves()
+            fig.show()
+
+            # Adstock curves
+            fig = mmm.plot_interactive.adstock_curves()
+            fig.show()
+
+        See Also
+        --------
+        MMMPlotSuite : Static matplotlib plotting functionality
+        MMMPlotlyFactory : Interactive plotting class documentation
+        """
+        try:
+            from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
+        except ImportError:
+            raise ImportError(
+                "Plotly is required for interactive plotting. "
+                "Install it with: pip install pymc-marketing[plotly]"
+            )
+
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+
+        return MMMPlotlyFactory(summary=self.summary)
 
     @property
     def data(self) -> Any:  # type: ignore[no-any-return]

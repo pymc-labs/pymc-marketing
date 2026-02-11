@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from pymc_marketing.data.idata.schema import Frequency
+
 
 class MMMIDataWrapper:
     """Codified wrapper around InferenceData for MMM models.
@@ -530,7 +532,9 @@ class MMMIDataWrapper:
         Returns
         -------
         MMMIDataWrapper
-            New wrapper with filtered idata
+            New wrapper with filtered idata. Schema is set to None when
+            any dimension is dropped (single-value scalar filter), since
+            the data no longer conforms to the original schema.
 
         Examples
         --------
@@ -544,15 +548,23 @@ class MMMIDataWrapper:
 
         filtered_idata = filter_idata_by_dims(self.idata, **dim_filters)
 
-        return MMMIDataWrapper(
-            filtered_idata, schema=self.schema, validate_on_init=False
-        )
+        # When dimensions are dropped, the data no longer conforms to
+        # the original schema, so we set schema=None to prevent
+        # downstream validation errors (same pattern as aggregate_time).
+        schema = self.schema
+        if schema is not None:
+            for value in dim_filters.values():
+                if not isinstance(value, (list, tuple)):
+                    schema = None
+                    break
+
+        return MMMIDataWrapper(filtered_idata, schema=schema, validate_on_init=False)
 
     # ==================== Aggregation Operations ====================
 
     def aggregate_time(
         self,
-        period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+        period: Frequency,
         method: Literal["sum", "mean"] = "sum",
     ) -> "MMMIDataWrapper":
         """Aggregate data over time periods.
@@ -561,8 +573,8 @@ class MMMIDataWrapper:
 
         Parameters
         ----------
-        period : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
-            Time period to aggregate to
+        period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+            Time period to aggregate to. Use "original" for no aggregation.
         method : {"sum", "mean"}, default "sum"
             Aggregation method
 
