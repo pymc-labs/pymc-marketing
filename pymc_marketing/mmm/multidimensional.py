@@ -169,7 +169,6 @@ from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.schema import MMMIdataSchema
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
@@ -993,17 +992,7 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        schema = MMMIdataSchema.from_model_config(
-            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
-            has_controls=bool(self.control_columns),
-            has_seasonality=bool(self.yearly_seasonality),
-            time_varying=(
-                getattr(self, "time_varying_intercept", False)
-                or getattr(self, "time_varying_media", False)
-            ),
-        )
-
-        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+        return MMMIDataWrapper.from_mmm(self)
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]

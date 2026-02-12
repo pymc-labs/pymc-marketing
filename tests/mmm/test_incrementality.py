@@ -50,38 +50,6 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
     return result.posterior_predictive[var_name]
 
 
-def compute_ground_truth_incremental(
-    mmm,
-    counterfactual_spend_factor=0.0,
-    target_channel_idx=None,
-    target_period_mask=None,
-):
-    """Compute ground truth incremental contribution using manual counterfactual.
-
-    Incremental = baseline_contribution - counterfactual_contribution
-    """
-    actual_data = mmm.model["channel_data"].get_value()
-
-    cf_data = actual_data.copy()
-    if target_period_mask is None:
-        target_period_mask = np.ones(actual_data.shape[0], dtype=bool)
-
-    if target_channel_idx is not None:
-        cf_data[target_period_mask, target_channel_idx] = (
-            actual_data[target_period_mask, target_channel_idx]
-            * counterfactual_spend_factor
-        )
-    else:
-        cf_data[target_period_mask] = (
-            actual_data[target_period_mask] * counterfactual_spend_factor
-        )
-
-    baseline_contrib = evaluate_channel_contribution(mmm, actual_data)
-    cf_contrib = evaluate_channel_contribution(mmm, cf_data)
-
-    return baseline_contrib - cf_contrib
-
-
 def compute_ground_truth_incremental_by_period(
     mmm,
     frequency="all_time",
