@@ -799,11 +799,11 @@ class Incrementality:
         period_ranges = []
         for period in unique_periods:
             period_start = period.to_timestamp()
-            period_end = period.to_timestamp(how="end")  # Period-end date
+            period_end = period.to_timestamp(how="end").normalize()
 
-            # Clip to requested range
+            # Clip start to the requested range (needed when the user
+            # passes a start date inside a period)
             period_start = max(period_start, start)
-            period_end = min(period_end, end)
 
             period_ranges.append((period_start, period_end))
 

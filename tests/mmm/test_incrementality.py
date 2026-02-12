@@ -209,7 +209,8 @@ class TestIncrementality:
             include_carryover=include_carryover,
             original_scale=original_scale,
         )
-
+        # check no Nans in ground truth
+        assert not np.isnan(gt).any()  # sanity check
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
 
     def test_negative_counterfactual_factor_raises_error(self, simple_fitted_mmm):
@@ -298,6 +299,13 @@ class TestConvenienceFunctions:
             period=frequency, method="sum"
         ).get_channel_spend()
         roas_ground_truth = ground_truth / spend
+        # check that we didn't drop any dates (sainty check)
+        if frequency != "all_time":
+            assert len(roas.date) == len(spend.date)
+        # check no Nans in ground truth (sanity check)
+        assert not np.isnan(roas_ground_truth).any()
+        # check that roas is not empty (sanity check)
+        assert roas.size > 0
         xr.testing.assert_allclose(roas, roas_ground_truth)
 
     @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
