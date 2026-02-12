@@ -25,17 +25,21 @@ Examples
 --------
 Compute quarterly ROAS with carryover effects:
 
->>> roas = mmm.incrementality.contribution_over_spend(
-...     frequency="quarterly",
-...     period_start="2024-01-01",
-...     period_end="2024-12-31",
-... )
+.. code-block:: python
+
+    roas = mmm.incrementality.contribution_over_spend(
+        frequency="quarterly",
+        period_start="2024-01-01",
+        period_end="2024-12-31",
+    )
 
 Compute marginal ROAS (return on next dollar):
 
->>> mroas = mmm.incrementality.marginal_contribution_over_spend(
-...     frequency="quarterly",
-... )
+.. code-block:: python
+
+    mroas = mmm.incrementality.marginal_contribution_over_spend(
+        frequency="quarterly",
+    )
 
 References
 ----------
@@ -95,15 +99,22 @@ class Incrementality:
     --------
     Access via model property:
 
-    >>> incr = mmm.incrementality
+    .. code-block:: python
+
+        incr = mmm.incrementality
 
     Compute quarterly ROAS:
 
-    >>> roas = incr.contribution_over_spend(frequency="quarterly")
+    .. code-block:: python
+
+        roas = incr.contribution_over_spend(frequency="quarterly")
 
     Compute monthly CAC:
 
-    >>> cac = incr.spend_over_contribution(frequency="monthly")
+    .. code-block:: python
+
+        cac = incr.spend_over_contribution(frequency="monthly")
+
     """
 
     def __init__(self, model: MMM, idata: az.InferenceData):
@@ -205,32 +216,39 @@ class Incrementality:
         --------
         Compute quarterly incremental contributions:
 
-        >>> incremental = mmm.incrementality.compute_incremental_contribution(
-        ...     frequency="quarterly",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
-        ... )
+        .. code-block:: python
+
+            incremental = mmm.incrementality.compute_incremental_contribution(
+                frequency="quarterly",
+                period_start="2024-01-01",
+                period_end="2024-12-31",
+            )
 
         Mean contribution per channel per quarter:
 
-        >>> incremental.mean(dim="sample")
-        <xarray.DataArray (date: 4, channel: 3)>
-        ...
+        .. code-block:: python
+
+            incremental.mean(dim="sample")
 
         Total annual contribution (all_time):
 
-        >>> annual = mmm.incrementality.compute_incremental_contribution(
-        ...     frequency="all_time",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
-        ... )
+        .. code-block:: python
+
+            annual = mmm.incrementality.compute_incremental_contribution(
+                frequency="all_time",
+                period_start="2024-01-01",
+                period_end="2024-12-31",
+            )
 
         Quarterly marginal incrementality (1% spend increase):
 
-        >>> marginal = mmm.incrementality.compute_incremental_contribution(
-        ...     frequency="quarterly",
-        ...     counterfactual_spend_factor=1.01,
-        ... )
+        .. code-block:: python
+
+            marginal = mmm.incrementality.compute_incremental_contribution(
+                frequency="quarterly",
+                counterfactual_spend_factor=1.01,
+            )
+
         """
         # Validate inputs
         if counterfactual_spend_factor < 0:
@@ -472,6 +490,228 @@ class Incrementality:
             result = result * target_scale
 
         return result
+
+    def contribution_over_spend(
+        self,
+        frequency: Frequency,
+        period_start: str | pd.Timestamp | None = None,
+        period_end: str | pd.Timestamp | None = None,
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | Generator | None = None,
+    ) -> xr.DataArray:
+        """Compute contribution per unit of spend (ROAS, customers per dollar, etc.).
+
+        This convenience function wraps ``compute_incremental_contribution()`` and
+        divides by spend to compute efficiency metrics:
+
+        - **ROAS** (Return on Ad Spend): When target is revenue
+        - **Customers per dollar**: When target is customer count
+        - **Units per dollar**: When target is sales volume
+
+        Formula: ``contribution_over_spend = incremental_contribution / total_spend``
+
+        Parameters
+        ----------
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+            Time aggregation frequency
+        period_start, period_end : str or pd.Timestamp, optional
+            Date range for computation
+        include_carryover : bool, default=True
+            Include adstock carryover effects
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+        random_state : RandomState or Generator or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.DataArray
+            Contribution per unit spend with dimensions
+            (sample, date, channel, *custom_dims).
+            Zero spend results in NaN for that channel/period.
+
+        Examples
+        --------
+        Compute quarterly ROAS (revenue per dollar spent):
+
+        .. code-block:: python
+
+            roas = mmm.incrementality.contribution_over_spend(
+                frequency="quarterly",
+                period_start="2024-01-01",
+                period_end="2024-12-31",
+            )
+
+        Mean ROAS per channel:
+
+        .. code-block:: python
+
+            roas.mean(dim=["sample", "date"])
+
+        """
+        incremental = self.compute_incremental_contribution(
+            frequency=frequency,
+            period_start=period_start,
+            period_end=period_end,
+            include_carryover=include_carryover,
+            original_scale=True,
+            num_samples=num_samples,
+            random_state=random_state,
+            counterfactual_spend_factor=0.0,
+        )
+
+        spend = self._aggregate_spend(frequency, period_start, period_end)
+        spend_safe = xr.where(spend == 0, np.nan, spend)
+
+        return incremental / spend_safe
+
+    def spend_over_contribution(
+        self,
+        frequency: Frequency,
+        period_start: str | pd.Timestamp | None = None,
+        period_end: str | pd.Timestamp | None = None,
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | Generator | None = None,
+    ) -> xr.DataArray:
+        """Compute spend per unit of contribution (CAC, cost per unit, etc.).
+
+        This convenience function wraps ``compute_incremental_contribution()`` and
+        computes the reciprocal of ``contribution_over_spend()``.
+
+        Formula: ``spend_over_contribution = total_spend / incremental_contribution``
+
+        Parameters
+        ----------
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+            Time aggregation frequency
+        period_start, period_end : str or pd.Timestamp, optional
+            Date range for computation
+        include_carryover : bool, default=True
+            Include adstock carryover effects
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+        random_state : RandomState or Generator or None, optional
+            Random state for reproducible subsampling.
+
+        Returns
+        -------
+        xr.DataArray
+            Spend per unit contribution with dimensions
+            (sample, date, channel, *custom_dims).
+            Zero contribution results in Inf, zero spend results in NaN.
+
+        Examples
+        --------
+        Compute monthly CAC (cost to acquire one customer):
+
+        .. code-block:: python
+
+            cac = mmm.incrementality.spend_over_contribution(
+                frequency="monthly",
+            )
+
+        """
+        ratio = self.contribution_over_spend(
+            frequency=frequency,
+            period_start=period_start,
+            period_end=period_end,
+            include_carryover=include_carryover,
+            num_samples=num_samples,
+            random_state=random_state,
+        )
+
+        return 1.0 / ratio
+
+    def marginal_contribution_over_spend(
+        self,
+        frequency: Frequency,
+        period_start: str | pd.Timestamp | None = None,
+        period_end: str | pd.Timestamp | None = None,
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | Generator | None = None,
+        spend_increase_pct: float = 0.01,
+    ) -> xr.DataArray:
+        """Compute marginal incrementality: additional contribution per additional unit of spend.
+
+        Unlike ``contribution_over_spend()`` which measures **total** return
+        (zero-out counterfactual), this method measures the **marginal** return
+        at the current spend level — i.e., the slope of the response curve at
+        the current operating point.
+
+        This captures diminishing returns: a channel that is already heavily
+        invested may have a low marginal ROAS even if its total ROAS is high.
+
+        Parameters
+        ----------
+        frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+            Time aggregation frequency
+        period_start, period_end : str or pd.Timestamp, optional
+            Date range for computation
+        include_carryover : bool, default=True
+            Include adstock carryover effects
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+        random_state : RandomState or Generator or None, optional
+            Random state for reproducible subsampling.
+        spend_increase_pct : float, default=0.01
+            Fractional spend increase for the perturbation (default 1%).
+            Must be > 0.
+
+        Returns
+        -------
+        xr.DataArray
+            Marginal contribution per unit spend with dimensions
+            (sample, date, channel, *custom_dims).
+            Zero spend results in NaN for that channel/period.
+
+        Raises
+        ------
+        ValueError
+            If spend_increase_pct <= 0
+
+        Examples
+        --------
+        Compute quarterly marginal ROAS:
+
+        .. code-block:: python
+
+            mroas = mmm.incrementality.marginal_contribution_over_spend(
+                frequency="quarterly",
+                period_start="2024-01-01",
+                period_end="2024-12-31",
+            )
+
+        """
+        if spend_increase_pct <= 0:
+            raise ValueError(
+                f"spend_increase_pct must be > 0, got {spend_increase_pct}"
+            )
+
+        factor = 1.0 + spend_increase_pct
+
+        marginal_contribution = self.compute_incremental_contribution(
+            frequency=frequency,
+            period_start=period_start,
+            period_end=period_end,
+            include_carryover=include_carryover,
+            original_scale=True,
+            num_samples=num_samples,
+            random_state=random_state,
+            counterfactual_spend_factor=factor,
+        )
+
+        spend = self._aggregate_spend(frequency, period_start, period_end)
+
+        # Denominator is the *incremental* spend: pct * total_spend
+        incremental_spend = spend_increase_pct * spend
+        incremental_spend_safe = xr.where(
+            incremental_spend == 0, np.nan, incremental_spend
+        )
+
+        return marginal_contribution / incremental_spend_safe
 
     def _create_period_groups(
         self,

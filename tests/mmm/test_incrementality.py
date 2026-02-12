@@ -312,3 +312,140 @@ class TestIncrementality:
         spend_data = data_monthly.get_channel_spend()
 
         xr.testing.assert_allclose(spend_incr, spend_data)
+
+
+class TestConvenienceFunctions:
+    """Test convenience wrapper functions."""
+
+    def test_contribution_over_spend_returns_positive_values(self, simple_fitted_mmm):
+        """Test ROAS returns positive values for positive-effect channels."""
+        incr = simple_fitted_mmm.incrementality
+        roas = incr.contribution_over_spend(frequency="all_time")
+
+        mean_roas = roas.mean(dim="sample")
+        assert (mean_roas > 0).any()
+
+    def test_contribution_over_spend_shape(self, simple_fitted_mmm):
+        """Test that output has correct dimensions."""
+        incr = simple_fitted_mmm.incrementality
+        roas = incr.contribution_over_spend(frequency="monthly")
+
+        assert "sample" in roas.dims
+        assert "date" in roas.dims
+        assert "channel" in roas.dims
+
+    def test_contribution_over_spend_all_time_no_date_dim(self, simple_fitted_mmm):
+        """Test that all_time frequency drops date dimension."""
+        incr = simple_fitted_mmm.incrementality
+        roas = incr.contribution_over_spend(frequency="all_time")
+
+        assert "date" not in roas.dims
+        assert roas.dims == ("sample", "channel")
+
+    def test_contribution_over_spend_handles_zero_spend(self, simple_fitted_mmm):
+        """Test that zero spend results in NaN ROAS."""
+        incr = simple_fitted_mmm.incrementality
+        roas = incr.contribution_over_spend(frequency="original")
+
+        spend = simple_fitted_mmm.data.get_channel_spend()
+        zero_spend_mask = spend == 0
+        if zero_spend_mask.any():
+            # Where spend is zero, ROAS should be NaN
+            assert np.isnan(roas.where(zero_spend_mask)).any()
+
+    def test_spend_over_contribution_is_reciprocal(self, simple_fitted_mmm):
+        """Test that CAC is reciprocal of ROAS."""
+        incr = simple_fitted_mmm.incrementality
+        roas = incr.contribution_over_spend(frequency="all_time")
+        cac = incr.spend_over_contribution(frequency="all_time")
+
+        expected_cac = 1.0 / roas
+        xr.testing.assert_allclose(cac, expected_cac)
+
+    def test_spend_over_contribution_shape(self, simple_fitted_mmm):
+        """Test that CAC has correct dimensions."""
+        incr = simple_fitted_mmm.incrementality
+        cac = incr.spend_over_contribution(frequency="monthly")
+
+        assert "sample" in cac.dims
+        assert "date" in cac.dims
+        assert "channel" in cac.dims
+
+    def test_marginal_less_than_total_for_saturation(self, simple_fitted_mmm):
+        """Test that marginal ROAS < total ROAS for saturating response."""
+        incr = simple_fitted_mmm.incrementality
+
+        total_roas = incr.contribution_over_spend(frequency="all_time")
+        marginal_roas = incr.marginal_contribution_over_spend(
+            frequency="all_time",
+            spend_increase_pct=0.01,
+        )
+
+        mean_total = total_roas.mean(dim="sample")
+        mean_marginal = marginal_roas.mean(dim="sample")
+
+        # For saturating curves, marginal should be less than total
+        assert (mean_marginal < mean_total).any()
+
+    def test_marginal_invalid_pct_raises_error(self, simple_fitted_mmm):
+        """Test that negative or zero spend_increase_pct raises error."""
+        incr = simple_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="spend_increase_pct must be > 0"):
+            incr.marginal_contribution_over_spend(
+                frequency="all_time",
+                spend_increase_pct=0.0,
+            )
+
+        with pytest.raises(ValueError, match="spend_increase_pct must be > 0"):
+            incr.marginal_contribution_over_spend(
+                frequency="all_time",
+                spend_increase_pct=-0.01,
+            )
+
+    def test_convenience_functions_support_period_filtering(self, simple_fitted_mmm):
+        """Test that all convenience functions accept period_start/period_end."""
+        incr = simple_fitted_mmm.incrementality
+        all_dates = pd.to_datetime(simple_fitted_mmm.idata.fit_data.date.values)
+        mid_date = all_dates[len(all_dates) // 2]
+
+        roas = incr.contribution_over_spend(
+            frequency="original",
+            period_start=all_dates[0],
+            period_end=mid_date,
+        )
+        cac = incr.spend_over_contribution(
+            frequency="original",
+            period_start=all_dates[0],
+            period_end=mid_date,
+        )
+        mroas = incr.marginal_contribution_over_spend(
+            frequency="original",
+            period_start=all_dates[0],
+            period_end=mid_date,
+        )
+
+        assert len(roas.date) < len(all_dates)
+        assert len(cac.date) < len(all_dates)
+        assert len(mroas.date) < len(all_dates)
+
+    def test_convenience_functions_support_num_samples(self, simple_fitted_mmm):
+        """Test that num_samples subsamples the posterior."""
+        incr = simple_fitted_mmm.incrementality
+
+        roas = incr.contribution_over_spend(
+            frequency="all_time",
+            num_samples=10,
+            random_state=42,
+        )
+        assert roas.sizes["sample"] == 10
+
+    @pytest.mark.parametrize("model_fixture", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_panel_model_preserves_custom_dims(self, request, model_fixture):
+        """Test that custom dimensions (e.g. country) are preserved."""
+        mmm = request.getfixturevalue(model_fixture)
+        incr = mmm.incrementality
+        roas = incr.contribution_over_spend(frequency="all_time")
+
+        for dim in mmm.dims:
+            assert dim in roas.dims
