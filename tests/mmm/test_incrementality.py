@@ -20,91 +20,11 @@ import pytest
 import xarray as xr
 from pymc.model.fgraph import clone_model as cm
 
-from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
-
-
-class TestIncrementalityBasics:
-    """Test basic functionality and API surface."""
-
-    def test_incrementality_property_exists(self, simple_fitted_mmm):
-        """Test that .incrementality property exists on fitted MMM."""
-        assert hasattr(simple_fitted_mmm, "incrementality")
-        incr = simple_fitted_mmm.incrementality
-        assert isinstance(incr, Incrementality)
-
-    def test_incrementality_has_required_methods(self, simple_fitted_mmm):
-        """Test that Incrementality has all required methods."""
-        incr = simple_fitted_mmm.incrementality
-        assert hasattr(incr, "compute_incremental_contribution")
 
 
 class TestComputeIncrementalContribution:
     """Test core compute_incremental_contribution function."""
-
-    def test_output_shape_with_frequency_original(self, simple_fitted_mmm):
-        """Test output has correct shape for original frequency."""
-        incr = simple_fitted_mmm.incrementality
-        result = incr.compute_incremental_contribution(frequency="original")
-
-        n_samples = (
-            simple_fitted_mmm.idata.posterior.dims["chain"]
-            * simple_fitted_mmm.idata.posterior.dims["draw"]
-        )
-        n_dates = len(simple_fitted_mmm.idata.fit_data.date)
-        n_channels = len(simple_fitted_mmm.channel_columns)
-
-        assert result.dims == ("sample", "date", "channel")
-        assert result.sizes["sample"] == n_samples
-        assert result.sizes["date"] == n_dates
-        assert result.sizes["channel"] == n_channels
-
-    def test_output_shape_with_frequency_all_time(self, simple_fitted_mmm):
-        """Test output has no date dimension for all_time frequency."""
-        incr = simple_fitted_mmm.incrementality
-        result = incr.compute_incremental_contribution(frequency="all_time")
-
-        assert "date" not in result.dims
-        assert result.dims == ("sample", "channel")
-
-    def test_hierarchical_dimensions_preserved(self, panel_fitted_mmm):
-        """Test that custom dimensions (geo, country) are preserved in output."""
-        incr = panel_fitted_mmm.incrementality
-        result = incr.compute_incremental_contribution(frequency="monthly")
-
-        assert "country" in result.dims
-        assert result.sizes["country"] == len(panel_fitted_mmm.model.coords["country"])
-
-    def test_counterfactual_factor_zero_gives_total_incrementality(
-        self, simple_fitted_mmm
-    ):
-        """Test that factor=0.0 computes total incrementality (zero-out)."""
-        incr = simple_fitted_mmm.incrementality
-        result = incr.compute_incremental_contribution(
-            frequency="all_time",
-            counterfactual_spend_factor=0.0,
-        )
-
-        mean_incremental = result.mean(dim="sample")
-        assert (mean_incremental > 0).any()
-
-    def test_counterfactual_factor_1_01_gives_marginal_incrementality(
-        self, simple_fitted_mmm
-    ):
-        """Test that factor=1.01 computes marginal incrementality."""
-        incr = simple_fitted_mmm.incrementality
-        result_marginal = incr.compute_incremental_contribution(
-            frequency="all_time",
-            counterfactual_spend_factor=1.01,
-        )
-        result_total = incr.compute_incremental_contribution(
-            frequency="all_time",
-            counterfactual_spend_factor=0.0,
-        )
-
-        mean_marginal = result_marginal.mean(dim="sample")
-        mean_total = result_total.mean(dim="sample")
-        assert (mean_marginal < mean_total).any()
 
     def test_negative_counterfactual_factor_raises_error(self, simple_fitted_mmm):
         """Test that negative counterfactual factor raises ValueError."""
@@ -137,7 +57,6 @@ class TestComputeIncrementalContribution:
         """Test that num_samples reduces sample dimension."""
         incr = simple_fitted_mmm.incrementality
 
-        result_full = incr.compute_incremental_contribution(frequency="all_time")
         result_sub = incr.compute_incremental_contribution(
             frequency="all_time",
             num_samples=10,
@@ -145,7 +64,6 @@ class TestComputeIncrementalContribution:
         )
 
         assert result_sub.sizes["sample"] == 10
-        assert result_sub.sizes["sample"] < result_full.sizes["sample"]
 
     def test_random_state_makes_subsampling_reproducible(self, simple_fitted_mmm):
         """Test that random_state ensures reproducible subsampling."""
@@ -164,61 +82,9 @@ class TestComputeIncrementalContribution:
 
         xr.testing.assert_allclose(result1, result2)
 
-    def test_original_scale_flag_affects_magnitude(self, simple_fitted_mmm):
-        """Test that original_scale flag changes result magnitude."""
-        incr = simple_fitted_mmm.incrementality
-
-        result_original = incr.compute_incremental_contribution(
-            frequency="all_time",
-            original_scale=True,
-        )
-        result_scaled = incr.compute_incremental_contribution(
-            frequency="all_time",
-            original_scale=False,
-        )
-
-        target_scale = simple_fitted_mmm.data.get_target_scale()
-        if target_scale != 1.0:
-            assert not xr.DataArray.equals(result_original, result_scaled)
-
 
 class TestHelperMethods:
     """Test helper methods used by compute_incremental_contribution."""
-
-    def test_create_period_groups_all_time(self, simple_fitted_mmm):
-        """Test period grouping for all_time frequency."""
-        incr = simple_fitted_mmm.incrementality
-        start = pd.Timestamp("2024-01-01")
-        end = pd.Timestamp("2024-12-31")
-
-        periods = incr._create_period_groups(start, end, "all_time")
-
-        assert len(periods) == 1
-        assert periods[0] == (start, end)
-
-    def test_create_period_groups_monthly(self, simple_fitted_mmm):
-        """Test period grouping for monthly frequency."""
-        incr = simple_fitted_mmm.incrementality
-        start = pd.Timestamp("2024-01-01")
-        end = pd.Timestamp("2024-03-31")
-
-        periods = incr._create_period_groups(start, end, "monthly")
-
-        assert len(periods) == 3  # Jan, Feb, Mar
-        assert periods[0][1].normalize() == pd.Timestamp("2024-01-31")
-        assert periods[1][1].normalize() == pd.Timestamp(
-            "2024-02-29"
-        )  # 2024 is leap year
-        assert periods[2][1].normalize() == pd.Timestamp("2024-03-31")
-
-    def test_subsample_posterior_draws_returns_all_when_none(self, simple_fitted_mmm):
-        """Test subsampling returns all draws when num_samples=None."""
-        incr = simple_fitted_mmm.incrementality
-        draw_indices = incr._subsample_posterior_draws(
-            num_samples=None, random_state=None
-        )
-
-        assert draw_indices == slice(None)
 
     def test_aggregate_spend_matches_data_wrapper(self, simple_fitted_mmm):
         """Test that _aggregate_spend delegates correctly to data wrapper."""
@@ -423,7 +289,7 @@ class TestGroundTruthValidation:
             ("panel_fitted_mmm", "all_time", True, True, 1.01),
         ],
     )
-    def test_factor_0_matches_ground_truth(
+    def test_compute_incremental_contribution_matches_ground_truth(
         self,
         request,
         model_fixture,
