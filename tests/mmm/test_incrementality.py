@@ -411,89 +411,49 @@ class TestGroundTruthValidation:
     """Validate vectorized incrementality against sample_posterior_predictive oracle."""
 
     @pytest.mark.parametrize(
-        "frequency, include_carryover, original_scale",
+        "model_fixture, frequency, include_carryover, original_scale, counterfactual_spend_factor",
         [
-            ("original", True, True),
-            ("monthly", True, True),
-            ("all_time", True, True),
-            ("monthly", False, True),
-            ("monthly", True, False),
+            ("simple_fitted_mmm", "original", True, True, 0.0),
+            ("simple_fitted_mmm", "monthly", True, True, 0.0),
+            ("simple_fitted_mmm", "all_time", True, True, 0.0),
+            ("simple_fitted_mmm", "monthly", False, True, 0.0),
+            ("simple_fitted_mmm", "monthly", True, False, 0.0),
+            ("simple_fitted_mmm", "monthly", True, True, 1.01),
+            ("panel_fitted_mmm", "monthly", True, True, 0.0),
+            ("panel_fitted_mmm", "all_time", True, True, 1.01),
         ],
     )
     def test_factor_0_matches_ground_truth(
-        self, simple_fitted_mmm, frequency, include_carryover, original_scale
+        self,
+        request,
+        model_fixture,
+        frequency,
+        include_carryover,
+        original_scale,
+        counterfactual_spend_factor,
     ):
-        """Validate factor=0 incrementality against ground truth.
+        """Validate incrementality against ground truth.
 
         For each period defined by *frequency*, the ground truth creates a
-        **separate** counterfactual where only that period's channel spend is
-        zeroed out (all other periods retain actual spend).  This mirrors
+        **separate** counterfactual where only that period's spend is modified
+        (all other periods retain actual spend).  This mirrors
         ``compute_incremental_contribution()`` which processes periods
         independently.
         """
+        mmm = request.getfixturevalue(model_fixture)
         gt = compute_ground_truth_incremental_by_period(
-            simple_fitted_mmm,
+            mmm,
             frequency=frequency,
-            counterfactual_spend_factor=0.0,
+            counterfactual_spend_factor=counterfactual_spend_factor,
             include_carryover=include_carryover,
             original_scale=original_scale,
         )
 
-        result = simple_fitted_mmm.incrementality.compute_incremental_contribution(
+        result = mmm.incrementality.compute_incremental_contribution(
             frequency=frequency,
-            counterfactual_spend_factor=0.0,
+            counterfactual_spend_factor=counterfactual_spend_factor,
             include_carryover=include_carryover,
             original_scale=original_scale,
         )
 
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
-
-    def test_marginal_factor_ground_truth(self, simple_fitted_mmm):
-        """Validate marginal incrementality (factor=1.01) against ground truth."""
-        factor = 1.01
-        actual_data = simple_fitted_mmm.model["channel_data"].get_value()
-
-        baseline_contrib = evaluate_channel_contribution(simple_fitted_mmm, actual_data)
-        perturbed_contrib = evaluate_channel_contribution(
-            simple_fitted_mmm, actual_data * factor
-        )
-
-        marginal_stacked = (
-            (perturbed_contrib - baseline_contrib)
-            .sum(dim="date")
-            .stack(sample=("chain", "draw"))
-        )
-        ground_truth_marginal = (
-            marginal_stacked.reset_index("sample", drop=True)
-            .assign_coords(sample=np.arange(marginal_stacked.sizes["sample"]))
-            .transpose("sample", "channel")
-        )
-
-        result = simple_fitted_mmm.incrementality.compute_incremental_contribution(
-            frequency="all_time",
-            counterfactual_spend_factor=factor,
-            original_scale=False,
-        )
-
-        xr.testing.assert_allclose(result, ground_truth_marginal, rtol=1e-4)
-
-    def test_panel_model_ground_truth(self, panel_fitted_mmm):
-        """Validate ground truth for panel model with country dimension."""
-        ground_truth = compute_ground_truth_incremental(
-            panel_fitted_mmm, counterfactual_spend_factor=0.0
-        )
-        stacked = ground_truth.sum(dim="date").stack(sample=("chain", "draw"))
-        ground_truth_all_time = (
-            stacked.reset_index("sample", drop=True)
-            .assign_coords(sample=np.arange(stacked.sizes["sample"]))
-            .transpose("sample", "channel", "country")
-        )
-
-        result = panel_fitted_mmm.incrementality.compute_incremental_contribution(
-            frequency="all_time",
-            counterfactual_spend_factor=0.0,
-            original_scale=False,
-        )
-
-        assert "country" in result.dims
-        xr.testing.assert_allclose(result, ground_truth_all_time, rtol=1e-4)
