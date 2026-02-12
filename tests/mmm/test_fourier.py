@@ -16,6 +16,7 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc_extras.deserialize import (
@@ -400,22 +401,17 @@ def test_apply_result_callback(seasonality) -> None:
     n_order = 3
     fourier = seasonality(n_order=n_order)
 
-    def result_callback(x):
-        pm.Deterministic(
-            "components",
-            x,
-            dims=("dayofyear", *fourier.prior.dims),
-        )
-
     dayofyear = np.arange(365)
     coords = {
         "dayofyear": dayofyear,
     }
-    with pm.Model(coords=coords) as model:
-        fourier.apply(dayofyear, result_callback=result_callback)
+    with pm.Model(coords=coords):
+        res = fourier.apply(dayofyear, sum=False)
+        assert res.dims == ("date", "fourier")
 
-    assert "components" in model
-    assert model["components"].eval().shape == (365, n_order * 2)
+    with pm.Model(coords=coords):
+        res = fourier.apply(dayofyear, sum=True)
+        assert res.dims == ("date",)
 
 
 @pytest.mark.parametrize(
@@ -582,8 +578,11 @@ class ArbitraryCode:
     def __init__(self, dims: tuple[str, ...]) -> None:
         self.dims = dims
 
-    def create_variable(self, name: str):
-        return pm.Normal(name, dims=self.dims)
+    def create_variable(self, name: str, xdist: bool = False):
+        if xdist:
+            return pmd.Normal(name, dims=self.dims)
+        else:
+            return pm.Normal(name, dims=self.dims)
 
 
 @pytest.mark.parametrize(

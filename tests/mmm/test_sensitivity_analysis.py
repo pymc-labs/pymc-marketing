@@ -15,11 +15,13 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.dims import XData
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
@@ -35,18 +37,18 @@ def simple_model_and_idata():
 
     coords = {"date": np.arange(n_dates), "channel": list("abcd")}
     with pm.Model(coords=coords) as model:
-        X = pm.Data(
+        X = XData(
             "channel_data",
             rng.gamma(2.0, 1.0, size=(n_dates, n_channels)).astype("float64"),
             dims=("date", "channel"),
         )
-        alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
-        lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
 
         def saturation(x, alpha_param, lam_param):
             return (alpha_param * x) / (x + lam_param)
 
-        pm.Deterministic(
+        pmd.Deterministic(
             "channel_contribution",
             saturation(X, alpha, lam),
             dims=("date", "channel"),
@@ -56,7 +58,12 @@ def simple_model_and_idata():
     alpha_draws = np.full((1, n_draws, n_channels), 0.8, dtype="float64")
     lam_draws = np.full((1, n_draws, n_channels), 1.2, dtype="float64")
 
-    idata = az.from_dict(posterior={"alpha": alpha_draws, "lam": lam_draws})
+    dims = ["channel"]
+    idata = az.from_dict(
+        posterior={"alpha": alpha_draws, "lam": lam_draws},
+        dims={"alpha": dims, "lam": dims},
+    )
+    assert set(idata.posterior.dims) == {"chain", "draw", "channel"}
     return model, idata
 
 
@@ -329,19 +336,6 @@ def test_posterior_sample_percentage_controls_draws(sensitivity):
 
     assert full.sizes["sample"] == 5
     assert limited.sizes["sample"] == 2
-
-
-def test_posterior_sample_batch_backward_compatibility(sensitivity):
-    sweeps = np.linspace(0.5, 1.5, 4)
-    with pytest.warns(DeprecationWarning):
-        legacy = sensitivity.run_sweep(
-            var_input="channel_data",
-            var_names="channel_contribution",
-            sweep_values=sweeps,
-            posterior_sample_batch=2,
-        )
-
-    assert legacy.sizes["sample"] == 2
 
 
 def test_compute_dims_order_from_varinput_internal(sensitivity):

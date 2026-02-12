@@ -235,7 +235,7 @@ conflicts.
 
 import datetime
 from abc import abstractmethod
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any, Self
 
 import arviz as az
@@ -255,9 +255,12 @@ from pydantic import (
     model_validator,
 )
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import Prior, VariableFactory
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
 
 X_NAME: str = "day"
@@ -283,6 +286,7 @@ def generate_fourier_modes(
         Fourier modes.
 
     """
+    # TODO: Change to xtensor
     multiples = pt.arange(1, n_order + 1)
     x = 2 * pt.pi * periods
 
@@ -431,23 +435,23 @@ class FourierBase(BaseModel):
 
     def apply(
         self,
-        dayofperiod: pt.TensorLike,
-        result_callback: Callable[[pt.TensorVariable], None] | None = None,
-    ) -> pt.TensorVariable:
+        dayofperiod: XTensorLike,
+        sum: bool = True,
+    ) -> XTensorVariable:
         """Apply fourier seasonality to day of year.
 
         Must be used within a PyMC model context.
 
         Parameters
         ----------
-        dayofperiod : pt.TensorLike
+        dayofperiod : XTensorLike
             Day of year or weekday
-        result_callback : Callable[[pt.TensorVariable], None], optional
-            Callback function to apply to the result, by default None
+        sum : bool, default True
+            Whether to sum the fourier contributions.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Fourier seasonality
 
         Examples
@@ -484,23 +488,15 @@ class FourierBase(BaseModel):
         model = pm.modelcontext(None)
         model.add_coord(self.prefix, self.nodes)
 
-        beta = self.prior.create_variable(self.variable_name)
+        beta = self.prior.create_variable(self.variable_name, xdist=True)
 
         fourier_modes = generate_fourier_modes(periods=periods, n_order=self.n_order)
 
-        DUMMY_DIM = "DATE"
-
-        prefix_idx = self.prior.dims.index(self.prefix)
-        result_dims = (DUMMY_DIM, *self.prior.dims)
-        dim_handler = create_dim_handler(result_dims)
-
-        result = dim_handler(fourier_modes, (DUMMY_DIM, self.prefix)) * dim_handler(
-            beta, self.prior.dims
-        )
-        if result_callback is not None:
-            result_callback(result)
-
-        return result.sum(axis=prefix_idx + 1)
+        result = as_xtensor(fourier_modes, dims=("date", self.prefix)) * beta
+        if sum:
+            return result.sum(dim=self.prefix)
+        else:
+            return result
 
     def sample_prior(self, coords: dict | None = None, **kwargs) -> xr.Dataset:
         """Sample the prior distributions.
