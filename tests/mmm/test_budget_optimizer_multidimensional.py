@@ -58,7 +58,7 @@ def dummy_df():
 
 
 @pytest.fixture(scope="module")
-def fitted_mmm(dummy_df):
+def fitted_mmm(dummy_df, mock_pymc_sample):
     """Create and fit a model once for all tests."""
     df_kwargs, X_dummy, y_dummy = dummy_df
 
