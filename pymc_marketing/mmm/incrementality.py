@@ -102,6 +102,14 @@ Compute quarterly ROAS (when target variable is revenue):
         period_end="2024-12-31",
     )
 
+Compute monthly CAC (when target variable is customer count):
+
+.. code-block:: python
+
+    cac = mmm.incrementality.spend_over_contribution(
+        frequency="monthly",
+    )
+
 Compute marginal ROAS (return on next dollar):
 
 .. code-block:: python
@@ -139,37 +147,13 @@ if TYPE_CHECKING:
 
 
 class Incrementality:
-    r"""Incrementality and counterfactual analysis for MMM models.
+    """Incrementality and counterfactual analysis for MMM models.
 
-    This class answers the question *"What incremental value did each
-    marketing channel create?"* by comparing model predictions under actual
-    spend with predictions under a counterfactual (e.g., zero spend).
-
-    The core method :meth:`compute_incremental_contribution` computes:
-
-    .. math::
-
-        \Delta Y_m = \sum_{t=t_0}^{t_1 + L - 1}
-            \bigl[\hat{Y}_t(x;\,\Omega) - \hat{Y}_t(x^{\text{cf}};\,\Omega)\bigr]
-
-    where :math:`x^{\text{cf}}` is the counterfactual spend — modified
-    **only within** :math:`[t_0, t_1]` (zeroed for total incrementality, or
-    scaled by *α* for marginal analysis) while keeping actual spend outside
-    that window so that adstock carry-in is preserved — and
-    *L* = ``l_max`` is the adstock carryover window.
-
-    Convenience methods divide by spend to obtain efficiency metrics whose
-    meaning depends on the model's target variable:
-
-    * :meth:`contribution_over_spend` — e.g., **ROAS** (when target = revenue),
-      customers per dollar (when target = acquisitions).
-    * :meth:`spend_over_contribution` — e.g., **CAC** (when target = customers),
-      cost per unit (when target = sales volume).
-    * :meth:`marginal_contribution_over_spend` — marginal efficiency at the
-      current spend level (captures diminishing returns).
-
-    This class uses vectorized graph evaluation to efficiently compute
-    incrementality across all channels and posterior samples simultaneously.
+    Computes incremental channel contributions by comparing predictions with
+    actual spend vs. counterfactual (perturbed) spend, accounting for
+    adstock carryover effects.  See the :mod:`module docstring
+    <pymc_marketing.mmm.incrementality>` for the full mathematical
+    formulation and design rationale.
 
     Parameters
     ----------
@@ -189,32 +173,9 @@ class Incrementality:
 
     Examples
     --------
-    Access via model property:
-
-    .. code-block:: python
-
-        incr = mmm.incrementality
-
-    Compute raw incremental contributions per channel:
-
-    .. code-block:: python
-
-        incremental = incr.compute_incremental_contribution(
-            frequency="quarterly",
-        )
-
-    Compute quarterly ROAS (when target is revenue):
-
-    .. code-block:: python
-
-        roas = incr.contribution_over_spend(frequency="quarterly")
-
-    Compute monthly CAC (when target is customer count):
-
-    .. code-block:: python
-
-        cac = incr.spend_over_contribution(frequency="monthly")
-
+    >>> incr = mmm.incrementality
+    >>> roas = incr.contribution_over_spend(frequency="quarterly")
+    >>> cac = incr.spend_over_contribution(frequency="monthly")
     """
 
     def __init__(self, model: MMM, idata: az.InferenceData):
@@ -233,72 +194,13 @@ class Incrementality:
         random_state: RandomState | Generator | None = None,
         counterfactual_spend_factor: float = 0.0,
     ) -> xr.DataArray:
-        r"""Compute incremental channel contributions using counterfactual analysis.
+        """Compute incremental channel contributions using counterfactual analysis.
 
-        This is the core incrementality function.  It determines what
-        **incremental value** each channel created during a time period by
-        comparing the model's prediction under actual spend with its
-        prediction under a counterfactual spend scenario, properly accounting
-        for adstock carryover effects.
-
-        The computation compares two scenarios whose meaning depends on
-        ``counterfactual_spend_factor`` (denoted *α* below):
-
-        **Total incrementality** (``α = 0``, the default)
-            The counterfactual zeroes out channel spend **within the
-            evaluation period** :math:`[t_0, t_1]` while keeping actual spend
-            outside that window (so adstock carry-in is preserved):
-
-            .. math::
-
-                \Delta Y_m = \sum_{t=t_0}^{t_1 + L - 1}
-                    \bigl[
-                        \hat{Y}_t^m(x;\,\Omega)
-                      - \hat{Y}_t^m(x^{\text{cf}};\,\Omega)
-                    \bigr]
-
-            where :math:`x^{\text{cf}}_{s,m} = 0` for
-            :math:`s \in [t_0, t_1]` and :math:`x^{\text{cf}}_{s,m} = x_{s,m}`
-            otherwise.
-
-            Dividing by spend gives total efficiency (e.g., ROAS when the
-            target variable is revenue).
-
-        **Marginal incrementality** (e.g., ``α = 1.01``)
-            The counterfactual scales spend by a small factor **within the
-            evaluation period** only:
-
-            .. math::
-
-                \delta Y_m = \sum_{t=t_0}^{t_1 + L - 1}
-                    \bigl[
-                        \hat{Y}_t^m(\tilde{x};\,\Omega)
-                      - \hat{Y}_t^m(x;\,\Omega)
-                    \bigr]
-
-            where :math:`\tilde{x}_{s,m} = \alpha\,x_{s,m}` for
-            :math:`s \in [t_0, t_1]` and :math:`\tilde{x}_{s,m} = x_{s,m}`
-            otherwise.
-
-            Dividing by the incremental spend *(α − 1) · Σ spend* gives the
-            marginal efficiency (e.g., marginal ROAS), which captures
-            diminishing returns at the current operating point.
-
-        **Variable definitions:**
-
-        - :math:`m` — channel index.
-        - :math:`x_{t,m}` — actual spend for channel *m* at time *t*.
-        - :math:`\alpha` — ``counterfactual_spend_factor`` (0 for total, 1.01
-          for marginal, etc.).
-        - :math:`\hat{Y}_t^m(\cdot;\,\Omega)` — model prediction at time
-          *t* for channel *m*.  The prediction depends on the full spend
-          window :math:`(x_{t-L+1,m}, \dots, x_{t,m})` via adstock, so
-          modifying spend only in :math:`[t_0, t_1]` still allows historical
-          spend to carry in through the adstock transformation.
-        - :math:`\Omega` — posterior parameter samples (adstock weights,
-          saturation parameters, coefficients).
-        - :math:`t_0, t_1` — evaluation period start and end.
-        - :math:`L` — ``l_max``, the adstock carryover window length.
+        Core incrementality function.  Compares the model's prediction under
+        actual spend with its prediction under a counterfactual spend
+        scenario, properly accounting for adstock carryover.  See the
+        :mod:`module docstring <pymc_marketing.mmm.incrementality>` for the
+        full mathematical formulation.
 
         Parameters
         ----------
@@ -655,35 +557,13 @@ class Incrementality:
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
     ) -> xr.DataArray:
-        r"""Compute incremental contribution per unit of spend.
+        """Compute incremental contribution per unit of spend.
 
-        This convenience method wraps :meth:`compute_incremental_contribution`
-        (with ``counterfactual_spend_factor=0``) and divides by total spend:
-
-        .. math::
-
-            \text{efficiency}_m =
-            \frac{
-                \sum_{t=t_0}^{t_1 + L - 1}
-                \bigl[\hat{Y}_t(x;\,\Omega)
-                    - \hat{Y}_t(x^{\text{cf}};\,\Omega)\bigr]
-            }{
-                \sum_{t=t_0}^{t_1} x_{t,m}
-            }
-
-        where :math:`x^{\text{cf}}` zeroes out spend only within
-        :math:`[t_0, t_1]` (see :meth:`compute_incremental_contribution`
-        for the full definition).
-
-        The **interpretation depends on the model's target variable**:
-
-        ================  ======================  ========================
-        Target variable   Metric name             Interpretation
-        ================  ======================  ========================
-        Revenue           **ROAS**                Revenue per dollar spent
-        Customers         **Customers per $**     Acquisitions per dollar
-        Units sold        **Units per $**         Units per dollar spent
-        ================  ======================  ========================
+        Wraps :meth:`compute_incremental_contribution` (with
+        ``counterfactual_spend_factor=0``) and divides by total spend.
+        The interpretation depends on the model's target variable --
+        e.g. **ROAS** when the target is revenue, **customers per dollar**
+        when the target is acquisitions.
 
         Parameters
         ----------
@@ -707,30 +587,11 @@ class Incrementality:
 
         Examples
         --------
-        Compute quarterly ROAS (when the model target is revenue):
-
-        .. code-block:: python
-
-            roas = mmm.incrementality.contribution_over_spend(
-                frequency="quarterly",
-                period_start="2024-01-01",
-                period_end="2024-12-31",
-            )
-
-        Mean efficiency per channel:
-
-        .. code-block:: python
-
-            roas.mean(dim=["sample", "date"])
-
-        For a customer-acquisition model this gives customers per dollar:
-
-        .. code-block:: python
-
-            cust_per_dollar = mmm.incrementality.contribution_over_spend(
-                frequency="monthly",
-            )
-
+        >>> roas = mmm.incrementality.contribution_over_spend(
+        ...     frequency="quarterly",
+        ...     period_start="2024-01-01",
+        ...     period_end="2024-12-31",
+        ... )
         """
         incremental = self.compute_incremental_contribution(
             frequency=frequency,
@@ -757,34 +618,11 @@ class Incrementality:
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
     ) -> xr.DataArray:
-        r"""Compute spend per unit of incremental contribution.
+        """Compute spend per unit of incremental contribution.
 
-        This is the reciprocal of :meth:`contribution_over_spend`:
-
-        .. math::
-
-            \text{cost per unit}_m =
-            \frac{
-                \sum_{t=t_0}^{t_1} x_{t,m}
-            }{
-                \sum_{t=t_0}^{t_1 + L - 1}
-                \bigl[\hat{Y}_t(x;\,\Omega)
-                    - \hat{Y}_t(x^{\text{cf}};\,\Omega)\bigr]
-            }
-
-        where :math:`x^{\text{cf}}` zeroes out spend only within
-        :math:`[t_0, t_1]` (see :meth:`compute_incremental_contribution`
-        for the full definition).
-
-        The **interpretation depends on the model's target variable**:
-
-        ================  ======================  ============================
-        Target variable   Metric name             Interpretation
-        ================  ======================  ============================
-        Customers         **CAC**                 Cost to acquire one customer
-        Units sold        **Cost per unit**       Spend per unit sold
-        Revenue           **1 / ROAS**            Cost per dollar of revenue
-        ================  ======================  ============================
+        Reciprocal of :meth:`contribution_over_spend`.  The interpretation
+        depends on the model's target variable -- e.g. **CAC** (Customer
+        Acquisition Cost) when the target is customer count
 
         Parameters
         ----------
@@ -808,22 +646,9 @@ class Incrementality:
 
         Examples
         --------
-        Compute monthly CAC (when the model target is customer count):
-
-        .. code-block:: python
-
-            cac = mmm.incrementality.spend_over_contribution(
-                frequency="monthly",
-            )
-
-        For a revenue model this gives cost per dollar of revenue (1 / ROAS):
-
-        .. code-block:: python
-
-            cost_per_rev = mmm.incrementality.spend_over_contribution(
-                frequency="quarterly",
-            )
-
+        >>> cac = mmm.incrementality.spend_over_contribution(
+        ...     frequency="monthly",
+        ... )
         """
         ratio = self.contribution_over_spend(
             frequency=frequency,
@@ -846,38 +671,16 @@ class Incrementality:
         random_state: RandomState | Generator | None = None,
         spend_increase_pct: float = 0.01,
     ) -> xr.DataArray:
-        r"""Compute marginal contribution per additional unit of spend.
+        """Compute marginal contribution per additional unit of spend.
 
         Unlike :meth:`contribution_over_spend` which measures **total**
         efficiency (zero-out counterfactual), this method measures the
-        **marginal** efficiency at the current spend level — i.e., the slope
-        of the response curve at the current operating point.
-
-        .. math::
-
-            \text{marginal efficiency}_m =
-            \frac{
-                \sum_{t=t_0}^{t_1 + L - 1}
-                \bigl[
-                    \hat{Y}_t(\tilde{x};\,\Omega)
-                  - \hat{Y}_t(x;\,\Omega)
-                \bigr]
-            }{
-                (\alpha - 1)\;\sum_{t=t_0}^{t_1} x_{t,m}
-            }
-
-        where :math:`\alpha = 1 + \text{spend\_increase\_pct}` (e.g., 1.01
-        for a 1 % perturbation) and :math:`\tilde{x}_{s,m} = \alpha\,x_{s,m}`
-        only for :math:`s \in [t_0, t_1]`, with actual spend preserved
-        outside that window.
-
-        This captures **diminishing returns**: a channel that is already
-        heavily invested may have a low marginal efficiency even if its total
-        efficiency is high.
-
-        The interpretation depends on the model's target variable — for
-        example, **marginal ROAS** when the target is revenue, or **marginal
-        customers per dollar** when the target is acquisitions.
+        **marginal** efficiency at the current spend level -- i.e. the slope
+        of the response curve at the current operating point.  This captures
+        diminishing returns: a heavily invested channel may have a low
+        marginal efficiency even if its total efficiency is high.  See the
+        :mod:`module docstring <pymc_marketing.mmm.incrementality>` for the
+        marginal incrementality formula.
 
         Parameters
         ----------
@@ -910,28 +713,11 @@ class Incrementality:
 
         Examples
         --------
-        Compute quarterly marginal ROAS (when target is revenue):
-
-        .. code-block:: python
-
-            mroas = mmm.incrementality.marginal_contribution_over_spend(
-                frequency="quarterly",
-                period_start="2024-01-01",
-                period_end="2024-12-31",
-            )
-
-        Compare total vs. marginal efficiency to assess diminishing returns:
-
-        .. code-block:: python
-
-            total = mmm.incrementality.contribution_over_spend(
-                frequency="quarterly",
-            )
-            marginal = mmm.incrementality.marginal_contribution_over_spend(
-                frequency="quarterly",
-            )
-            # Channels where marginal << total are in the saturation zone
-
+        >>> mroas = mmm.incrementality.marginal_contribution_over_spend(
+        ...     frequency="quarterly",
+        ...     period_start="2024-01-01",
+        ...     period_end="2024-12-31",
+        ... )
         """
         if spend_increase_pct <= 0:
             raise ValueError(
