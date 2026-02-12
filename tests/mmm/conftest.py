@@ -76,7 +76,7 @@ def panel_mmm_data():
     - X: DataFrame with date, country, and 2 channels (7 periods × 2 countries)
     - y: Series with target values
     """
-    date_range = pd.date_range("2023-01-01", periods=7)
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
     countries = ["US", "UK"]
     np.random.seed(123)
 
