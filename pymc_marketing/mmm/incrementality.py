@@ -125,7 +125,7 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import arviz as az
 import numpy as np
@@ -313,14 +313,13 @@ class Incrementality:
                 f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
             )
 
-        # Subsample posterior if needed
-        # isel returns a lightweight view, no deep copy
-        draw_selection = self._subsample_posterior_draws(num_samples, random_state)
+        # Subsample posterior if needed (correctly across chain x draw)
+        idata_sub = self._get_subsampled_idata(num_samples, random_state)
 
         # Extract response distribution (batched over samples)
         response_graph = extract_response_distribution(
             pymc_model=self.model.model,
-            idata=self.idata.isel(draw=draw_selection),
+            idata=idata_sub,
             response_variable="channel_contribution",
         )
         # Shape: (sample, date, channel, *custom_dims)
@@ -809,44 +808,63 @@ class Incrementality:
 
         return period_ranges
 
-    def _subsample_posterior_draws(
+    def _get_subsampled_idata(
         self,
         num_samples: int | None,
         random_state: RandomState | Generator | None,
-    ) -> np.ndarray | slice:
-        """Get draw indices for posterior subsampling.
+    ) -> az.InferenceData:
+        """Return idata with posterior subsampled to ``num_samples`` total samples.
+
+        Subsamples from the flattened chain x draw space (matching the
+        approach in ``MMM._subsample_posterior``), then wraps the result
+        back into an ``InferenceData`` (1 chain, ``num_samples`` draws)
+        so that a subsequent ``az.extract`` inside
+        ``extract_response_distribution`` produces exactly
+        ``num_samples`` samples.
 
         Parameters
         ----------
         num_samples : int or None
-            Number of samples to select. If None, returns all draws.
+            Number of total samples to keep.  If None, returns the
+            original idata unchanged.
         random_state : RandomState or Generator or None
-            Random state for reproducibility
+            Random state for reproducibility.
 
         Returns
         -------
-        np.ndarray or slice
-            Integer array for isel(draw=...) indexing, or slice(None) for all
+        az.InferenceData
+            Either the original idata (when no subsampling is needed) or
+            a new idata whose posterior has 1 chain and ``num_samples``
+            draws.
         """
         if num_samples is None:
-            return slice(None)
+            return self.idata
 
-        total_draws = self.idata.posterior.dims["draw"]
-        if num_samples >= total_draws:
-            return slice(None)
+        posterior = self.idata.posterior
+        n_chains = posterior.sizes["chain"]
+        n_draws = posterior.sizes["draw"]
+        total_samples = n_chains * n_draws
 
-        # Use numpy random state
-        rng: RandomState | Generator
-        if random_state is None:
-            rng = np.random.default_rng()
-        elif isinstance(random_state, (int, np.integer)):
-            rng = np.random.default_rng(random_state)
-        else:
-            rng = random_state
+        if num_samples >= total_samples:
+            return self.idata
 
-        # Sample without replacement
-        indices = rng.choice(total_draws, size=num_samples, replace=False)
-        return np.sort(indices)
+        rng = np.random.default_rng(random_state)
+        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+        stacked = posterior.stack(sample=("chain", "draw"))
+        selected = stacked.isel(sample=flat_indices)
+        # Drop MultiIndex components, rename sample -> draw, add chain dim
+        posterior_ds = (
+            selected.drop_vars(["chain", "draw", "sample"])
+            .rename({"sample": "draw"})
+            .expand_dims("chain")
+        )
+
+        groups: dict[str, Any] = {"posterior": posterior_ds}
+        if hasattr(self.idata, "fit_data"):
+            groups["fit_data"] = self.idata.fit_data
+
+        return az.InferenceData(**groups)
 
     def _aggregate_spend(
         self,

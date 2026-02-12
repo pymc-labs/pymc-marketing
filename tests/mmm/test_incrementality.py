@@ -252,6 +252,48 @@ class TestIncrementality:
 
         assert result_sub.sizes["sample"] == 10
 
+    def test_num_samples_respects_total_across_chains(self, simple_fitted_mmm):
+        """Test that num_samples returns exactly num_samples with multi-chain posteriors.
+
+        _subsample_posterior_draws compares num_samples against per-chain draws
+        and selects that many draw indices. With multi-chain posteriors,
+        isel(draw=indices) retains those draws for *every* chain, so
+        az.extract produces n_chains × num_samples total samples instead of
+        num_samples. This test exposes the bug by duplicating the posterior to
+        have 2 chains and verifying the sample dimension size.
+        """
+        import copy
+
+        mmm = simple_fitted_mmm
+
+        # Duplicate posterior along chain dim to simulate 2 chains
+        original_posterior = mmm.idata.posterior
+        chain2 = original_posterior.assign_coords(
+            chain=[original_posterior.chain.values[0] + 1]
+        )
+        multi_chain_posterior = xr.concat([original_posterior, chain2], dim="chain")
+
+        # Replace posterior in idata with multi-chain version
+        mmm_idata_backup = copy.copy(mmm.idata)
+        mmm.idata.posterior = multi_chain_posterior
+
+        # Sanity: verify we now have 2 chains
+        n_chains = mmm.idata.posterior.dims["chain"]
+        assert n_chains == 2, f"Expected 2 chains, got {n_chains}"
+
+        num_samples = 10
+        incr = mmm.incrementality
+        result = incr.compute_incremental_contribution(
+            frequency="all_time",
+            num_samples=num_samples,
+            random_state=42,
+        )
+
+        assert result.sizes["sample"] == num_samples
+
+        # Restore original idata
+        mmm.idata = mmm_idata_backup
+
     def test_random_state_makes_subsampling_reproducible(self, simple_fitted_mmm):
         """Test that random_state ensures reproducible subsampling."""
         incr = simple_fitted_mmm.incrementality
