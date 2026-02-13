@@ -326,13 +326,32 @@ class Incrementality:
 
         # Determine period bounds
         dates = self.data.dates
+        data_start = dates[0]
+        data_end = dates[-1]
 
         period_start_ts: pd.Timestamp = (
-            dates[0] if period_start is None else pd.to_datetime(period_start)
+            data_start if period_start is None else pd.to_datetime(period_start)
         )
         period_end_ts: pd.Timestamp = (
-            dates[-1] if period_end is None else pd.to_datetime(period_end)
+            data_end if period_end is None else pd.to_datetime(period_end)
         )
+
+        # Validate that requested dates are within fitted data bounds
+        if period_start_ts < data_start:
+            raise ValueError(
+                f"period_start '{period_start_ts.date()}' is before fitted data "
+                f"start '{data_start.date()}'."
+            )
+        if period_end_ts > data_end:
+            raise ValueError(
+                f"period_end '{period_end_ts.date()}' is after fitted data "
+                f"end '{data_end.date()}'."
+            )
+        if period_start_ts > period_end_ts:
+            raise ValueError(
+                f"period_start '{period_start_ts.date()}' is after "
+                f"period_end '{period_end_ts.date()}'."
+            )
 
         # Create period groups based on frequency
         periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
