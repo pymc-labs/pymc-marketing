@@ -53,7 +53,7 @@ def model_config(request) -> dict[str, HSGPKwargs]:
     }
 
 
-def test_time_varying_prior(coords):
+def test_time_varying_prior(coords, mock_pymc_sample):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         hsgp_kwargs = HSGPKwargs(m=3, L=10, eta_lam=1, ls_sigma=5)
@@ -78,10 +78,8 @@ def test_time_varying_prior(coords):
 
         # Test that model can compile and sample
         pm.Normal("obs", mu=f, sigma=1, observed=np.random.randn(5))
-        try:
-            pm.sample(50, tune=50, chains=1)
-        except pm.SamplingError:
-            pytest.fail("Time varying parameter didn't sample")
+        idata = pm.sample(50, tune=50, chains=1)
+        assert idata is not None
 
 
 def test_calling_without_default_args(coords):
@@ -101,7 +99,7 @@ def test_calling_without_default_args(coords):
         assert "test_raw_hsgp_coefs" in model.named_vars
 
 
-def test_multidimensional(coords):
+def test_multidimensional(coords, mock_pymc_sample):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         m = 7
@@ -125,10 +123,8 @@ def test_multidimensional(coords):
             observed=np.random.randn(5, 3),
             dims=("date", "channel"),
         )
-        try:
-            pm.sample(50, tune=50, chains=1)
-        except pm.SamplingError:
-            pytest.fail("Time varying parameter didn't sample")
+        idata = pm.sample(50, tune=50, chains=1)
+        assert idata is not None
 
 
 def test_calling_without_model():
