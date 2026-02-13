@@ -795,6 +795,21 @@ class Incrementality:
         periods = dates.to_period(freq_map[frequency])
         unique_periods = periods.unique()
 
+        # Validate that end aligns with a period boundary.
+        last_period_boundary = unique_periods[-1].to_timestamp(how="end").normalize()
+        if end < last_period_boundary:
+            data_last_date = self.data.dates[-1]
+            if end != data_last_date:
+                raise ValueError(
+                    f"period_end ({end.strftime('%Y-%m-%d')}) falls in the "
+                    f"middle of a {frequency} period that ends on "
+                    f"{last_period_boundary.strftime('%Y-%m-%d')}. "
+                    f"Use a period_end that aligns with a {frequency} "
+                    f"boundary, or omit period_end to use the last date "
+                    f"of the fitted data "
+                    f"({data_last_date.strftime('%Y-%m-%d')})."
+                )
+
         period_ranges = []
         for period in unique_periods:
             period_start = period.to_timestamp()

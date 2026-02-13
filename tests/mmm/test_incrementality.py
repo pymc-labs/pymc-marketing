@@ -253,15 +253,7 @@ class TestIncrementality:
         assert result_sub.sizes["sample"] == 10
 
     def test_num_samples_respects_total_across_chains(self, simple_fitted_mmm):
-        """Test that num_samples returns exactly num_samples with multi-chain posteriors.
-
-        _subsample_posterior_draws compares num_samples against per-chain draws
-        and selects that many draw indices. With multi-chain posteriors,
-        isel(draw=indices) retains those draws for *every* chain, so
-        az.extract produces n_chains × num_samples total samples instead of
-        num_samples. This test exposes the bug by duplicating the posterior to
-        have 2 chains and verifying the sample dimension size.
-        """
+        """Test that num_samples returns exactly num_samples with multi-chain posteriors."""
         import copy
 
         mmm = simple_fitted_mmm
@@ -323,6 +315,17 @@ class TestIncrementality:
         spend_data = data_monthly.get_channel_spend()
 
         xr.testing.assert_allclose(spend_incr, spend_data)
+
+    def test_create_period_groups_rejects_mid_period_end(self, simple_fitted_mmm):
+        """_create_period_groups raises ValueError for mid-period end dates."""
+        incr = simple_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="falls in the middle of a"):
+            incr._create_period_groups(
+                pd.Timestamp("2023-01-01"),
+                pd.Timestamp("2023-02-15"),
+                "monthly",
+            )
 
 
 class TestConvenienceFunctions:
