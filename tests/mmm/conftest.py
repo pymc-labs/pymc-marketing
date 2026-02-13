@@ -22,6 +22,7 @@ import pytest
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -34,6 +35,50 @@ rng: np.random.Generator = np.random.default_rng(seed=seed)
 # ============================================================================
 
 
+def _make_mmm_data(
+    start_date: str = "2023-01-01",
+    periods: int = 14,
+    freq: str = "W",
+    n_channels: int = 3,
+    seed: int = 42,
+) -> dict:
+    """Build synthetic MMM data with the given parameters.
+
+    Parameters
+    ----------
+    start_date : str
+        Start date for the date range.
+    periods : int
+        Number of time periods.
+    freq : str
+        Pandas frequency string (e.g. ``"W"``, ``"MS"``).
+    n_channels : int
+        Number of media channels to generate.
+    seed : int
+        Random seed for reproducibility.
+
+    Returns
+    -------
+    dict
+        ``{"X": pd.DataFrame, "y": pd.Series}``
+    """
+    date_range = pd.date_range(start_date, periods=periods, freq=freq)
+    np.random.seed(seed)
+
+    channels = {
+        f"channel_{i + 1}": np.random.randint(100, 500, size=len(date_range))
+        for i in range(n_channels)
+    }
+
+    X = pd.DataFrame({"date": date_range, **channels})
+    y = pd.Series(
+        sum(channels.values()) + np.random.randint(100, 300, size=len(date_range)),
+        name="target",
+    )
+
+    return {"X": X, "y": y}
+
+
 @pytest.fixture
 def simple_mmm_data():
     """Create simple single-dimension MMM data.
@@ -42,30 +87,22 @@ def simple_mmm_data():
     - X: DataFrame with date and 3 channels (14 weekly periods)
     - y: Series with target values
     """
-    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
-    np.random.seed(42)
+    return _make_mmm_data(periods=14, freq="W", n_channels=3, seed=42)
 
-    channel_1 = np.random.randint(100, 500, size=len(date_range))
-    channel_2 = np.random.randint(100, 500, size=len(date_range))
-    channel_3 = np.random.randint(100, 500, size=len(date_range))
 
-    X = pd.DataFrame(
-        {
-            "date": date_range,
-            "channel_1": channel_1,
-            "channel_2": channel_2,
-            "channel_3": channel_3,
-        }
-    )
-    y = pd.Series(
-        channel_1
-        + channel_2
-        + channel_3
-        + np.random.randint(100, 300, size=len(date_range)),
-        name="target",
-    )
+@pytest.fixture
+def monthly_mmm_data():
+    """Create monthly-frequency (MS) MMM data for calendar-aware date math tests.
 
-    return {"X": X, "y": y}
+    Uses month-start frequency where months have variable lengths (28-31 days).
+    This exposes the _convert_frequency_to_timedelta bug that approximates
+    months as fixed 30-day periods.
+
+    Returns dict with:
+    - X: DataFrame with date and 2 channels (18 monthly periods)
+    - y: Series with target values
+    """
+    return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
 
 
 @pytest.fixture
@@ -147,6 +184,26 @@ def simple_fitted_mmm(simple_mmm_data):
         target_column="target",
         control_columns=None,
         adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+
+    mock_fit(mmm, X, y)
+
+    return mmm
+
+
+@pytest.fixture
+def monthly_fitted_mmm(monthly_mmm_data):
+    """Create a monthly-frequency MMM with WeibullCDFAdstock."""
+    X = monthly_mmm_data["X"]
+    y = monthly_mmm_data["y"]
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=WeibullCDFAdstock(l_max=3),
         saturation=LogisticSaturation(),
     )
 

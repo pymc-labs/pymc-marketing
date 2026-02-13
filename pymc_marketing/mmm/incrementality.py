@@ -137,7 +137,6 @@ from pytensor.graph import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
@@ -403,7 +402,7 @@ class Incrementality:
         # uniform max size so they can be stacked for batched evaluation.
         n_periods = len(periods)
         period_labels = []
-        freq_td = _convert_frequency_to_timedelta(1, freq)
+        freq_offset = pd.tseries.frequencies.to_offset(freq)
         extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
 
         # First pass: collect per-period window metadata
@@ -412,25 +411,31 @@ class Incrementality:
             # Always include l_max carry-in for correct adstock context.
             # Always include l_max carry-out so carryover effects are
             # captured (eval mask controls what gets summed).
-            ideal_start = t0 - _convert_frequency_to_timedelta(l_max, freq)
-            ideal_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
+            ideal_start = t0 - l_max * freq_offset
+            ideal_end = t1 + l_max * freq_offset
 
             # Actual dates from the dataset that fall in the ideal window
             in_window = (dates >= ideal_start) & (dates <= ideal_end)
             actual_dates = dates[in_window]
             n_actual = int(in_window.sum())
 
-            # Left-padding: ideal positions before the first actual date
-            # (represents "no spend" before the dataset)
+            # Left-padding: count frequency steps between ideal_start and
+            # first actual date (represents "no spend" before the dataset).
+            # Uses date_range counting instead of timedelta division to
+            # handle variable-length calendar periods (months, years).
             left_pad = 0
             if n_actual > 0 and actual_dates[0] > ideal_start:
-                left_pad = round((actual_dates[0] - ideal_start) / freq_td)
+                left_pad = (
+                    len(pd.date_range(ideal_start, actual_dates[0], freq=freq)) - 1
+                )
 
-            # Right-padding: ideal positions after the last actual date
-            # (represents "no spend" after the dataset)
+            # Right-padding: count frequency steps between last actual date
+            # and ideal_end (represents "no spend" after the dataset).
             right_pad = 0
             if n_actual > 0 and actual_dates[-1] < ideal_end:
-                right_pad = round((ideal_end - actual_dates[-1]) / freq_td)
+                right_pad = (
+                    len(pd.date_range(actual_dates[-1], ideal_end, freq=freq)) - 1
+                )
 
             window_infos.append(
                 {
@@ -482,7 +487,7 @@ class Incrementality:
             cf_mask = np.zeros(max_window, dtype=bool)
             if info["n_actual"] > 0:
                 if include_carryover:
-                    carryout_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
+                    carryout_end = t1 + l_max * freq_offset
                     eval_in_actual = (info["actual_dates"] >= t0) & (
                         info["actual_dates"] <= carryout_end
                     )
@@ -509,7 +514,7 @@ class Incrementality:
 
             # Baseline: sum over eval dates from full-dataset prediction
             if include_carryover:
-                carryout_end = t1 + _convert_frequency_to_timedelta(l_max, freq)
+                carryout_end = t1 + l_max * freq_offset
                 bl_eval_mask = (dates >= t0) & (dates <= carryout_end)
             else:
                 bl_eval_mask = (dates >= t0) & (dates <= t1)

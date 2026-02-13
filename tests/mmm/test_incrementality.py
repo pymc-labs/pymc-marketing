@@ -20,8 +20,6 @@ import pytest
 import xarray as xr
 from pymc.model.fgraph import clone_model as cm
 
-from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
-
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
     """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.
@@ -121,7 +119,7 @@ def compute_ground_truth_incremental_by_period(
 
         # Determine evaluation window for summing
         if include_carryover:
-            carryout_end = t1 + _convert_frequency_to_timedelta(l_max, inferred_freq)
+            carryout_end = t1 + l_max * pd.tseries.frequencies.to_offset(inferred_freq)
             eval_mask = (dates >= t0) & (dates <= carryout_end)
         else:
             eval_mask = (dates >= t0) & (dates <= t1)
@@ -175,6 +173,7 @@ class TestIncrementality:
             ("simple_fitted_mmm", "monthly", True, True, 1.01),
             ("panel_fitted_mmm", "monthly", True, True, 0.0),
             ("panel_fitted_mmm", "all_time", True, True, 1.01),
+            ("monthly_weibull_cdf_fitted_mmm", "original", True, True, 0.0),
         ],
     )
     def test_compute_incremental_contribution_matches_ground_truth(
