@@ -132,6 +132,8 @@ import numpy as np
 import pandas as pd
 import pytensor.tensor as pt
 import xarray as xr
+from pandas.tseries.offsets import BaseOffset
+from pydantic import ConfigDict, validate_call
 from pytensor import function
 from pytensor.graph import vectorize_graph
 
@@ -188,7 +190,6 @@ class Incrementality:
         period_start: str | pd.Timestamp | None = None,
         period_end: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
-        original_scale: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
         counterfactual_spend_factor: float = 0.0,
@@ -197,9 +198,10 @@ class Incrementality:
 
         Core incrementality function.  Compares the model's prediction under
         actual spend with its prediction under a counterfactual spend
-        scenario, properly accounting for adstock carryover.  See the
-        :mod:`module docstring <pymc_marketing.mmm.incrementality>` for the
-        full mathematical formulation.
+        scenario, properly accounting for adstock carryover.  Results are
+        always returned in the original scale of the target variable.
+        See the :mod:`module docstring <pymc_marketing.mmm.incrementality>`
+        for the full mathematical formulation.
 
         Parameters
         ----------
@@ -217,8 +219,6 @@ class Incrementality:
             carrying into the evaluation period, and extends the evaluation
             window by ``l_max`` periods to capture trailing adstock effects
             from spend during the period.
-        original_scale : bool, default=True
-            Return contributions in original scale of the target variable.
         num_samples : int or None, optional
             Number of posterior samples to use. If None, all samples are used.
             If less than total available (chain × draw), a random subset is
@@ -240,15 +240,15 @@ class Incrementality:
         Returns
         -------
         xr.DataArray
-            Incremental contributions with dimensions:
+            Incremental contributions in original scale with dimensions:
 
-            - ``(sample, date, channel, *custom_dims)`` when
+            - ``(chain, draw, date, channel, *custom_dims)`` when
               ``frequency != "all_time"``
-            - ``(sample, channel, *custom_dims)`` when
+            - ``(chain, draw, channel, *custom_dims)`` when
               ``frequency == "all_time"``
 
             For models with hierarchical dimensions like ``dims=("country",)``,
-            output has shape ``(sample, date, channel, country)``.
+            output has shape ``(chain, draw, date, channel, country)``.
 
             **Sign convention**: The result is always
             ``Y(perturbed) − Y(actual)`` when *α > 1* and
@@ -284,7 +284,7 @@ class Incrementality:
 
         .. code-block:: python
 
-            incremental.mean(dim="sample")
+            incremental.mean(dim=["chain", "draw"])
 
         Total annual contribution (all_time):
 
@@ -312,8 +312,15 @@ class Incrementality:
                 f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
             )
 
+        # Validate and parse dates
+        period_start_ts, period_end_ts = self._validate_input_dates(
+            period_start, period_end
+        )
+
         # Subsample posterior if needed (correctly across chain x draw)
         idata_sub = self._get_subsampled_idata(num_samples, random_state)
+        n_chains = idata_sub.posterior.sizes["chain"]
+        n_draws = idata_sub.posterior.sizes["draw"]
 
         # Extract response distribution (batched over samples)
         response_graph = extract_response_distribution(
@@ -321,9 +328,127 @@ class Incrementality:
             idata=idata_sub,
             response_variable="channel_contribution",
         )
-        # Shape: (sample, date, channel, *custom_dims)
+        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
 
-        # Determine period bounds
+        # Create period groups based on frequency
+        dates = self.data.dates
+        periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
+
+        # Get l_max for carryover calculations
+        l_max = self.model.adstock.l_max
+        inferred_freq: str | None = pd.infer_freq(dates)
+        if inferred_freq is None:
+            raise ValueError(
+                "Could not infer frequency from the date index. "
+                "Ensure the fitted data has a regular date frequency."
+            )
+        freq: str = inferred_freq
+        freq_offset = pd.tseries.frequencies.to_offset(freq)
+
+        # Compile vectorized evaluator (once, reused for both)
+        data_shared = self.model.model["channel_data"]
+        batched_input = pt.tensor(
+            name="channel_data_batched",
+            dtype=data_shared.dtype,
+            shape=(None, *data_shared.type.shape),
+        )
+        batched_graph = vectorize_graph(
+            response_graph, replace={data_shared: batched_input}
+        )
+        evaluator = function([batched_input], batched_graph)
+
+        # Evaluate baseline on full dataset (once)
+        baseline_array = self.data.get_channel_spend().values
+        baseline_pred = evaluator(baseline_array[np.newaxis].astype(data_shared.dtype))[
+            0
+        ]
+        # Shape: (n_samples, n_dates, *non_date_dims)
+
+        # Determine actual axis ordering from the model's channel_contribution
+        # variable. The PyTensor graph preserves the model's dim order, which
+        # may have custom dims (e.g. "country") before "channel".
+        cc_dims = list(
+            self.model.model.named_vars_to_dims.get("channel_contribution", ())
+        )
+        non_date_dims = [d for d in cc_dims if d != "date"]
+        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
+
+        # Compute, for each period, the required window metadata including
+        # the start/end indices into `dates` and any necessary left/right padding,
+        # and determine the maximum window length across all periods.
+        # Output:
+        #   - window_infos: list of dicts (one per period), each containing
+        #       info about the window's bounds and padding for use in evaluation
+        #   - max_window: int, the maximum window length needed for counterfactual evaluation
+        window_infos, max_window = self._compute_window_metadata(
+            periods, dates, l_max, freq_offset, freq
+        )
+
+        # Build counterfactual scenarios
+        # Build counterfactual scenarios:
+        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
+        #   - cf_eval_masks: period-specific boolean masks indicating which
+        #     max_window indices correspond to the period's actual dates
+        #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
+        cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
+            periods=periods,
+            window_infos=window_infos,
+            max_window=max_window,
+            baseline_array=baseline_array,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            extra_shape=extra_shape,
+            dtype=data_shared.dtype,
+        )
+
+        # Evaluate all counterfactuals at once
+        cf_predictions = evaluator(cf_array)
+        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+
+        # Assemble results
+        return self._compute_period_increments(
+            periods=periods,
+            period_labels=period_labels,
+            baseline_pred=baseline_pred,
+            cf_predictions=cf_predictions,
+            cf_eval_masks=cf_eval_masks,
+            dates=dates,
+            include_carryover=include_carryover,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            non_date_dims=non_date_dims,
+            frequency=frequency,
+            n_chains=n_chains,
+            n_draws=n_draws,
+        )
+
+    def _validate_input_dates(
+        self,
+        period_start: str | pd.Timestamp | None,
+        period_end: str | pd.Timestamp | None,
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
+        """Parse and validate input dates against the fitted data range.
+
+        Parameters
+        ----------
+        period_start : str or pd.Timestamp or None
+            Start date. If None, uses start of fitted data.
+        period_end : str or pd.Timestamp or None
+            End date. If None, uses end of fitted data.
+
+        Returns
+        -------
+        tuple of (pd.Timestamp, pd.Timestamp)
+            Validated ``(period_start, period_end)``.
+
+        Raises
+        ------
+        ValueError
+            If dates are outside fitted data range or start > end.
+        """
         dates = self.data.dates
         data_start = dates[0]
         data_end = dates[-1]
@@ -335,7 +460,6 @@ class Incrementality:
             data_end if period_end is None else pd.to_datetime(period_end)
         )
 
-        # Validate that requested dates are within fitted data bounds
         if period_start_ts < data_start:
             raise ValueError(
                 f"period_start '{period_start_ts.date()}' is before fitted data "
@@ -352,60 +476,43 @@ class Incrementality:
                 f"period_end '{period_end_ts.date()}'."
             )
 
-        # Create period groups based on frequency
-        periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
-        # Returns: [(t0_1, t1_1), (t0_2, t1_2), ...] or [(t0, t1)] for "all_time"
+        return period_start_ts, period_end_ts
 
-        # Get l_max for carryover calculations
-        l_max = self.model.adstock.l_max
-        inferred_freq: str | None = pd.infer_freq(dates)
-        if inferred_freq is None:
-            raise ValueError(
-                "Could not infer frequency from the date index. "
-                "Ensure the fitted data has a regular date frequency."
-            )
-        freq: str = inferred_freq
+    @staticmethod
+    def _compute_window_metadata(
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        dates: pd.DatetimeIndex,
+        l_max: int,
+        freq_offset: BaseOffset,
+        freq: str,
+    ) -> tuple[list[dict], int]:
+        """Compute per-period window metadata for counterfactual evaluation.
 
-        # Compile vectorized evaluator (once, reused for both)
-        data_shared = self.model.model["channel_data"]
-        batched_input = pt.tensor(
-            name="channel_data_batched",
-            dtype=data_shared.dtype,
-            shape=(None, *data_shared.type.shape),
-        )
-        batched_graph = vectorize_graph(
-            response_graph, replace={data_shared: batched_input}
-        )
-        evaluator = function([batched_input], batched_graph)
+        For each period, determines the ideal window
+        ``[t0 - l_max, t1 + l_max]``, finds actual dates in that window,
+        and computes left/right padding for positions that fall outside the
+        dataset.
 
-        # Evaluate baseline on full dataset (once)
-        fit_data = self.idata.fit_data
-        baseline_array = self.data.get_channel_spend().values
-        baseline_pred = evaluator(baseline_array[np.newaxis].astype(data_shared.dtype))[
-            0
-        ]
-        # Shape: (n_samples, n_dates, *non_date_dims)
+        Parameters
+        ----------
+        periods : list of (pd.Timestamp, pd.Timestamp)
+            Period ``(start, end)`` pairs.
+        dates : pd.DatetimeIndex
+            All dates from the fitted data.
+        l_max : int
+            Adstock maximum lag.
+        freq_offset : pd.DateOffset
+            Calendar-aware frequency offset.
+        freq : str
+            Pandas frequency string for ``date_range``.
 
-        # Determine actual axis ordering from the model's channel_contribution
-        # variable. The PyTensor graph preserves the model's dim order, which
-        # may have custom dims (e.g. "country") before "channel".
-        cc_dims = list(
-            self.model.model.named_vars_to_dims.get("channel_contribution", ())
-        )
-        non_date_dims = [d for d in cc_dims if d != "date"]
-
-        # Build zero-padded counterfactual windows
-        # Each counterfactual window covers [t0 - l_max, t1 + l_max] to
-        # capture carry-in history (for correct adstock) and carry-out
-        # effects.  At dataset boundaries, positions outside the data are
-        # zero-padded (= no spend), and all windows are right-padded to a
-        # uniform max size so they can be stacked for batched evaluation.
-        n_periods = len(periods)
-        period_labels = []
-        freq_offset = pd.tseries.frequencies.to_offset(freq)
-        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
-
-        # First pass: collect per-period window metadata
+        Returns
+        -------
+        tuple of (list[dict], int)
+            ``(window_infos, max_window)`` where each dict has keys:
+            ``left_pad``, ``right_pad``, ``n_actual``, ``in_window``,
+            ``actual_dates``.
+        """
         window_infos: list[dict] = []
         for t0, t1 in periods:
             # Always include l_max carry-in for correct adstock context.
@@ -451,24 +558,77 @@ class Incrementality:
             w["left_pad"] + w["n_actual"] + w["right_pad"] for w in window_infos
         )
 
-        # Second pass: build zero-padded counterfactual arrays
+        return window_infos, max_window
+
+    @staticmethod
+    def _build_counterfactual_scenarios(
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        window_infos: list[dict],
+        max_window: int,
+        baseline_array: np.ndarray,
+        counterfactual_spend_factor: float,
+        include_carryover: bool,
+        l_max: int,
+        freq_offset: BaseOffset,
+        extra_shape: tuple,
+        dtype: str,
+    ) -> tuple[np.ndarray, list[np.ndarray], list[pd.Timestamp]]:
+        """Build zero-padded counterfactual arrays for batched evaluation.
+
+        Each counterfactual window covers ``[t0 - l_max, t1 + l_max]`` to
+        capture carry-in history (for correct adstock) and carry-out
+        effects.  At dataset boundaries, positions outside the data are
+        zero-padded (= no spend), and all windows are right-padded to a
+        uniform max size so they can be stacked for batched evaluation.
+
+        Parameters
+        ----------
+        periods : list of (pd.Timestamp, pd.Timestamp)
+            Period ``(start, end)`` pairs.
+        window_infos : list of dict
+            Per-period metadata from :meth:`_compute_window_metadata`.
+        max_window : int
+            Maximum padded window size across all periods.
+        baseline_array : np.ndarray
+            Actual channel spend data, shape ``(n_dates, channel, *custom_dims)``.
+        counterfactual_spend_factor : float
+            Multiplicative factor for counterfactual spend.
+        include_carryover : bool
+            Whether to include carryover effects in eval mask.
+        l_max : int
+            Adstock maximum lag.
+        freq_offset : pd.DateOffset
+            Calendar-aware frequency offset.
+        extra_shape : tuple
+            Shape of non-date dimensions ``(channel, *custom_dims)``.
+        dtype : str
+            NumPy dtype for the output array.
+
+        Returns
+        -------
+        tuple of (np.ndarray, list[np.ndarray], list[pd.Timestamp])
+            ``(cf_array, cf_eval_masks, period_labels)`` where:
+
+            - ``cf_array``: shape ``(n_periods, max_window, *extra_shape)``
+            - ``cf_eval_masks``: per-period boolean masks over padded window
+            - ``period_labels``: end date of each period
+        """
         cf_scenarios: list[np.ndarray] = []
         # Per-period boolean eval masks over the padded window (only True
         # at actual-data positions within the eval date range, ensuring
         # consistency with the baseline eval which also covers only actual
         # dates).
         cf_eval_masks: list[np.ndarray] = []
+        period_labels: list[pd.Timestamp] = []
 
         for (t0, t1), info in zip(periods, window_infos, strict=True):
             # Allocate zero-padded window
-            padded = np.zeros((max_window, *extra_shape), dtype=data_shared.dtype)
+            padded = np.zeros((max_window, *extra_shape), dtype=dtype)
 
             # Place actual data at correct offset
             start_pos = info["left_pad"]
             end_pos = start_pos + info["n_actual"]
-            padded[start_pos:end_pos] = baseline_array[info["in_window"]].astype(
-                data_shared.dtype
-            )
+            padded[start_pos:end_pos] = baseline_array[info["in_window"]].astype(dtype)
 
             # Apply counterfactual factor to [t0, t1] only
             if info["n_actual"] > 0:
@@ -499,14 +659,76 @@ class Incrementality:
                 cf_mask[eval_offsets] = True
             cf_eval_masks.append(cf_mask)
 
-        # Evaluate all counterfactuals at once
         cf_array = np.stack(cf_scenarios, axis=0)
-        # Shape: (n_periods, max_window, channel, *custom_dims)
+        return cf_array, cf_eval_masks, period_labels
 
-        cf_predictions = evaluator(cf_array)
-        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+    def _compute_period_increments(
+        self,
+        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        period_labels: list[pd.Timestamp],
+        baseline_pred: np.ndarray,
+        cf_predictions: np.ndarray,
+        cf_eval_masks: list[np.ndarray],
+        dates: pd.DatetimeIndex,
+        include_carryover: bool,
+        l_max: int,
+        freq_offset: BaseOffset,
+        counterfactual_spend_factor: float,
+        non_date_dims: list[str],
+        frequency: Frequency,
+        n_chains: int,
+        n_draws: int,
+    ) -> xr.DataArray:
+        """Assemble per-period incremental results into a single DataArray.
 
-        # Compute incremental contributions per period
+        For each period, sums baseline and counterfactual predictions over
+        the evaluation window, computes the difference (with appropriate
+        sign convention), reshapes the flattened sample dimension back to
+        ``(chain, draw)``, and concatenates all periods into a single
+        ``xr.DataArray`` in original scale.
+
+        Parameters
+        ----------
+        periods : list of (pd.Timestamp, pd.Timestamp)
+            Period ``(start, end)`` pairs.
+        period_labels : list of pd.Timestamp
+            End date label for each period.
+        baseline_pred : np.ndarray
+            Baseline predictions, shape ``(n_samples, n_dates, *non_date_dims)``.
+        cf_predictions : np.ndarray
+            Counterfactual predictions, shape
+            ``(n_periods, n_samples, max_window, *non_date_dims)``.
+        cf_eval_masks : list of np.ndarray
+            Per-period boolean masks over the padded window.
+        dates : pd.DatetimeIndex
+            All dates from the fitted data.
+        include_carryover : bool
+            Whether to include carryover effects in eval mask.
+        l_max : int
+            Adstock maximum lag.
+        freq_offset : pd.DateOffset
+            Calendar-aware frequency offset.
+        counterfactual_spend_factor : float
+            Multiplicative factor used for sign convention.
+        non_date_dims : list of str
+            Dimension names excluding ``"date"`` (e.g. ``["channel"]`` or
+            ``["channel", "country"]``).
+        frequency : Frequency
+            Time aggregation frequency.
+        n_chains : int
+            Number of MCMC chains in the posterior.
+        n_draws : int
+            Number of draws per chain.
+
+        Returns
+        -------
+        xr.DataArray
+            Incremental contributions in original scale with dimensions
+            ``(chain, draw, date, channel, *custom_dims)`` or
+            ``(chain, draw, channel, *custom_dims)`` for ``"all_time"``.
+        """
+        fit_data = self.idata.fit_data
+        n_periods = len(periods)
         results = []
 
         for period_idx in range(n_periods):
@@ -532,15 +754,21 @@ class Incrementality:
                 total_incremental = cf_sum - baseline_sum
             else:
                 total_incremental = baseline_sum - cf_sum
-            # Shape: (n_samples, channel, *custom_dims)
+            # Shape: (n_samples, *non_date_dims) where n_samples = n_chains * n_draws
+
+            # Reshape flattened sample → (chain, draw) to preserve MCMC structure
+            reshaped = total_incremental.reshape(
+                n_chains, n_draws, *total_incremental.shape[1:]
+            )
 
             # Add period coordinate
             period_label = period_labels[period_idx]
             total_incremental_da = xr.DataArray(
-                total_incremental,
-                dims=("sample", *non_date_dims),
+                reshaped,
+                dims=("chain", "draw", *non_date_dims),
                 coords={
-                    "sample": np.arange(total_incremental.shape[0]),
+                    "chain": np.arange(n_chains),
+                    "draw": np.arange(n_draws),
                     "channel": self.model.channel_columns,
                     **{dim: fit_data.coords[dim].values for dim in self.model.dims},
                 },
@@ -559,17 +787,18 @@ class Incrementality:
             result = xr.concat(results, dim="date")
 
         # Ensure standard dimension order
-        dim_order = ["sample", "date", "channel", *self.model.dims]
+        dim_order = ["chain", "draw", "date", "channel", *self.model.dims]
         if frequency == "all_time":
             dim_order.remove("date")
         result = result.transpose(*dim_order)
 
-        # Scale to original if needed
-        if original_scale:
-            target_scale = self.data.get_target_scale()
-            result = result * target_scale
+        # Always apply original scale
+        target_scale = self.data.get_target_scale()
+        result = result * target_scale
 
         return result
+
+    # ==================== Convenience Methods ====================
 
     def contribution_over_spend(
         self,
@@ -605,7 +834,7 @@ class Incrementality:
         -------
         xr.DataArray
             Contribution per unit spend with dimensions
-            ``(sample, date, channel, *custom_dims)``.
+            ``(chain, draw, date, channel, *custom_dims)``.
             Zero spend results in NaN for that channel/period.
 
         Examples
@@ -621,7 +850,6 @@ class Incrementality:
             period_start=period_start,
             period_end=period_end,
             include_carryover=include_carryover,
-            original_scale=True,
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=0.0,
@@ -664,7 +892,7 @@ class Incrementality:
         -------
         xr.DataArray
             Spend per unit contribution with dimensions
-            ``(sample, date, channel, *custom_dims)``.
+            ``(chain, draw, date, channel, *custom_dims)``.
             Zero contribution results in Inf; zero spend results in NaN.
 
         Examples
@@ -726,7 +954,7 @@ class Incrementality:
         -------
         xr.DataArray
             Marginal contribution per unit spend with dimensions
-            ``(sample, date, channel, *custom_dims)``.
+            ``(chain, draw, date, channel, *custom_dims)``.
             Zero spend results in NaN for that channel/period.
 
         Raises
@@ -754,7 +982,6 @@ class Incrementality:
             period_start=period_start,
             period_end=period_end,
             include_carryover=include_carryover,
-            original_scale=True,
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=factor,
@@ -770,6 +997,9 @@ class Incrementality:
 
         return marginal_contribution / incremental_spend_safe
 
+    # ==================== Period & Subsampling Helpers ====================
+
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def _create_period_groups(
         self,
         start: pd.Timestamp,

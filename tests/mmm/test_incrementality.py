@@ -13,12 +13,20 @@
 #   limitations under the License.
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from pymc.model.fgraph import clone_model as cm
+
+from pymc_marketing.mmm.incrementality import Incrementality
+
+# Matches simple_fitted_mmm's GeometricAdstock(l_max=4)
+_SIMPLE_L_MAX = 4
 
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
@@ -53,7 +61,6 @@ def compute_ground_truth_incremental_by_period(
     frequency="all_time",
     counterfactual_spend_factor=0.0,
     include_carryover=True,
-    original_scale=True,
 ):
     """Compute ground truth incremental contribution per period using the oracle.
 
@@ -78,14 +85,14 @@ def compute_ground_truth_incremental_by_period(
     include_carryover : bool
         Whether to include adstock carryover effects (both carry-in and
         carry-out).
-    original_scale : bool, default=True
-        Return contributions in original scale of target variable.
 
     Returns
     -------
     xr.DataArray
         Ground truth incremental contribution with dimensions matching
-        ``compute_incremental_contribution`` output.
+        ``compute_incremental_contribution`` output:
+        ``(chain, draw, date, channel, *custom_dims)`` or
+        ``(chain, draw, channel, *custom_dims)`` for ``"all_time"``.
     """
     actual_data = mmm.model["channel_data"].get_value()
     dates = pd.to_datetime(mmm.idata.fit_data.date.values)
@@ -95,9 +102,9 @@ def compute_ground_truth_incremental_by_period(
     l_max = mmm.adstock.l_max
     inferred_freq = pd.infer_freq(dates)
 
-    # Evaluate baseline once (reused for all periods)
+    # Evaluate baseline once (reused for all periods), always in original scale
     baseline_contrib = evaluate_channel_contribution(
-        mmm, actual_data, original_scale=original_scale
+        mmm, actual_data, original_scale=True
     )
 
     period_results = []
@@ -107,9 +114,7 @@ def compute_ground_truth_incremental_by_period(
         cf_data = actual_data.copy()
         cf_data[target_mask] = actual_data[target_mask] * counterfactual_spend_factor
 
-        cf_contrib = evaluate_channel_contribution(
-            mmm, cf_data, original_scale=original_scale
-        )
+        cf_contrib = evaluate_channel_contribution(mmm, cf_data, original_scale=True)
 
         # Sign convention
         if counterfactual_spend_factor > 1.0:
@@ -128,18 +133,9 @@ def compute_ground_truth_incremental_by_period(
         period_incr = diff.sel(date=dates[eval_mask]).sum(dim="date")
         # Shape: (chain, draw, channel, *custom_dims)
 
-        # Stack chain x draw into sample, assign period label
-        stacked_raw = period_incr.stack(sample=("chain", "draw"))
-        # Replace MultiIndex with plain integer coords to match implementation
-        stacked = (
-            stacked_raw.reset_index("sample", drop=True)
-            .assign_coords(
-                sample=np.arange(stacked_raw.sizes["sample"]),
-                date=t1,
-            )
-            .expand_dims("date")
-        )
-        period_results.append(stacked)
+        # Assign period label and expand date dim
+        period_incr = period_incr.assign_coords(date=t1).expand_dims("date")
+        period_results.append(period_incr)
 
     # Concatenate and format
     if frequency == "all_time":
@@ -147,33 +143,67 @@ def compute_ground_truth_incremental_by_period(
     else:
         result = xr.concat(period_results, dim="date")
 
-    # Standard dimension order
-    core_dims = ["sample", "channel"]
+    # Standard dimension order: (chain, draw, [date,] channel, *custom_dims)
+    core_dims = ["chain", "draw", "channel"]
     extra_dims = [d for d in result.dims if d not in [*core_dims, "date"]]
 
     if frequency == "all_time":
-        dim_order = ["sample", "channel", *extra_dims]
+        dim_order = ["chain", "draw", "channel", *extra_dims]
     else:
-        dim_order = ["sample", "date", "channel", *extra_dims]
+        dim_order = ["chain", "draw", "date", "channel", *extra_dims]
 
     return result.transpose(*dim_order)
+
+
+@pytest.fixture
+def incrementality_lite():
+    """Lightweight Incrementality stub for testing helpers without model fitting.
+
+    Provides an ``Incrementality`` instance whose ``data`` and ``idata``
+    attributes are thin stubs — just enough for ``_validate_input_dates``,
+    ``_create_period_groups``, and the static helper methods.  Avoids the
+    expensive model-build + prior-sampling that ``simple_fitted_mmm`` requires.
+
+    Returns ``(incr, l_max)`` tuple.
+    """
+    dates = pd.date_range("2023-01-01", periods=14, freq="W")
+    channels = ["channel_1", "channel_2", "channel_3"]
+    rng = np.random.default_rng(42)
+    spend_values = rng.integers(100, 500, size=(14, 3)).astype(float)
+    spend = xr.DataArray(
+        spend_values,
+        dims=("date", "channel"),
+        coords={"date": dates, "channel": channels},
+    )
+
+    incr = object.__new__(Incrementality)  # skip __init__
+    incr.data = SimpleNamespace(
+        dates=dates,
+        get_channel_spend=lambda: spend,
+    )
+    incr.idata = SimpleNamespace(
+        fit_data=SimpleNamespace(
+            date=SimpleNamespace(values=dates.values),
+        ),
+    )
+
+    return incr, _SIMPLE_L_MAX
 
 
 class TestIncrementality:
     """Tests for compute_incremental_contribution and supporting methods."""
 
     @pytest.mark.parametrize(
-        "model_fixture, frequency, include_carryover, original_scale, counterfactual_spend_factor",
+        "model_fixture, frequency, include_carryover, counterfactual_spend_factor",
         [
-            ("simple_fitted_mmm", "original", True, True, 0.0),
-            ("simple_fitted_mmm", "monthly", True, True, 0.0),
-            ("simple_fitted_mmm", "all_time", True, True, 0.0),
-            ("simple_fitted_mmm", "monthly", False, True, 0.0),
-            ("simple_fitted_mmm", "monthly", True, False, 0.0),
-            ("simple_fitted_mmm", "monthly", True, True, 1.01),
-            ("panel_fitted_mmm", "monthly", True, True, 0.0),
-            ("panel_fitted_mmm", "all_time", True, True, 1.01),
-            ("monthly_weibull_cdf_fitted_mmm", "original", True, True, 0.0),
+            ("simple_fitted_mmm", "original", True, 0.0),
+            ("simple_fitted_mmm", "monthly", True, 0.0),
+            ("simple_fitted_mmm", "all_time", True, 0.0),
+            ("simple_fitted_mmm", "monthly", False, 0.0),
+            ("simple_fitted_mmm", "monthly", True, 1.01),
+            ("panel_fitted_mmm", "monthly", True, 0.0),
+            ("panel_fitted_mmm", "all_time", True, 1.01),
+            ("monthly_fitted_mmm", "original", True, 0.0),
         ],
     )
     def test_compute_incremental_contribution_matches_ground_truth(
@@ -182,7 +212,6 @@ class TestIncrementality:
         model_fixture,
         frequency,
         include_carryover,
-        original_scale,
         counterfactual_spend_factor,
     ):
         """Validate incrementality against ground truth.
@@ -199,22 +228,20 @@ class TestIncrementality:
             frequency=frequency,
             counterfactual_spend_factor=counterfactual_spend_factor,
             include_carryover=include_carryover,
-            original_scale=original_scale,
         )
 
         result = mmm.incrementality.compute_incremental_contribution(
             frequency=frequency,
             counterfactual_spend_factor=counterfactual_spend_factor,
             include_carryover=include_carryover,
-            original_scale=original_scale,
         )
         # check no Nans in ground truth
         assert not np.isnan(gt).any()  # sanity check
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
 
-    def test_negative_counterfactual_factor_raises_error(self, simple_fitted_mmm):
+    def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""
-        incr = simple_fitted_mmm.incrementality
+        incr, _ = incrementality_lite
         with pytest.raises(
             ValueError, match="counterfactual_spend_factor must be >= 0"
         ):
@@ -240,7 +267,7 @@ class TestIncrementality:
         assert len(result_dates) < len(all_dates)
 
     def test_num_samples_subsamples_posterior(self, simple_fitted_mmm):
-        """Test that num_samples reduces sample dimension."""
+        """Test that num_samples reduces draw dimension."""
         incr = simple_fitted_mmm.incrementality
 
         result_sub = incr.compute_incremental_contribution(
@@ -249,7 +276,8 @@ class TestIncrementality:
             random_state=42,
         )
 
-        assert result_sub.sizes["sample"] == 10
+        assert result_sub.sizes["chain"] == 1
+        assert result_sub.sizes["draw"] == 10
 
     def test_num_samples_respects_total_across_chains(self, simple_fitted_mmm):
         """Test that num_samples returns exactly num_samples with multi-chain posteriors."""
@@ -280,7 +308,8 @@ class TestIncrementality:
             random_state=42,
         )
 
-        assert result.sizes["sample"] == num_samples
+        assert result.sizes["chain"] == 1
+        assert result.sizes["draw"] == num_samples
 
         # Restore original idata
         mmm.idata = mmm_idata_backup
@@ -315,15 +344,167 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(spend_incr, spend_data)
 
-    def test_create_period_groups_rejects_mid_period_end(self, simple_fitted_mmm):
+    def test_create_period_groups_rejects_mid_period_end(self, incrementality_lite):
         """_create_period_groups raises ValueError for mid-period end dates."""
-        incr = simple_fitted_mmm.incrementality
+        incr, _ = incrementality_lite
 
         with pytest.raises(ValueError, match="falls in the middle of a"):
             incr._create_period_groups(
                 pd.Timestamp("2023-01-01"),
                 pd.Timestamp("2023-02-15"),
                 "monthly",
+            )
+
+
+class TestHelperMethods:
+    """Tests for extracted helper methods."""
+
+    def test_validate_input_dates(self, incrementality_lite):
+        """None dates default to data bounds; invalid ranges are rejected."""
+        incr, _ = incrementality_lite
+        dates = incr.data.dates
+
+        # None dates default to data bounds
+        start, end = incr._validate_input_dates(None, None)
+        assert start == dates[0]
+        assert end == dates[-1]
+
+        # Start before data raises
+        with pytest.raises(ValueError, match="before fitted data"):
+            incr._validate_input_dates("1900-01-01", None)
+
+        # End after data raises
+        with pytest.raises(ValueError, match="after fitted data"):
+            incr._validate_input_dates(None, "2099-12-31")
+
+        # Reversed range raises
+        with pytest.raises(ValueError, match="is after"):
+            incr._validate_input_dates(dates[-1], dates[0])
+
+    def test_compute_window_metadata_no_padding_interior(self, incrementality_lite):
+        """Interior periods have no left/right padding."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq = pd.infer_freq(dates)
+        freq_offset = pd.tseries.frequencies.to_offset(freq)
+
+        # Pick a period well within the data
+        mid_idx = len(dates) // 2
+
+        # Only run test if the period is far enough from boundaries
+        if mid_idx >= l_max and (len(dates) - 1 - mid_idx) >= l_max:
+            period = [(dates[mid_idx], dates[mid_idx])]
+            window_infos, _max_window = Incrementality._compute_window_metadata(
+                period, dates, l_max, freq_offset, freq
+            )
+            assert window_infos[0]["left_pad"] == 0
+            assert window_infos[0]["right_pad"] == 0
+
+    def test_compute_window_metadata_boundary_padding(self, incrementality_lite):
+        """Boundary periods get non-zero padding."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq = pd.infer_freq(dates)
+        freq_offset = pd.tseries.frequencies.to_offset(freq)
+
+        # First date should need left padding (ideal_start < data_start)
+        first_period = [(dates[0], dates[0])]
+        window_infos, _ = Incrementality._compute_window_metadata(
+            first_period, dates, l_max, freq_offset, freq
+        )
+        assert window_infos[0]["left_pad"] > 0
+
+    def test_build_counterfactual_scenarios_shape(self, incrementality_lite):
+        """Counterfactual array has correct shape."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq = pd.infer_freq(dates)
+        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        baseline_array = incr.data.get_channel_spend().values
+        extra_shape = baseline_array.shape[1:]
+
+        periods = incr._create_period_groups(dates[0], dates[-1], "monthly")
+        window_infos, max_window = Incrementality._compute_window_metadata(
+            periods, dates, l_max, freq_offset, freq
+        )
+
+        cf_array, cf_eval_masks, period_labels = (
+            Incrementality._build_counterfactual_scenarios(
+                periods=periods,
+                window_infos=window_infos,
+                max_window=max_window,
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=0.0,
+                include_carryover=True,
+                l_max=l_max,
+                freq_offset=freq_offset,
+                extra_shape=extra_shape,
+                dtype="float64",
+            )
+        )
+
+        assert cf_array.shape == (len(periods), max_window, *extra_shape)
+        assert len(cf_eval_masks) == len(periods)
+        assert len(period_labels) == len(periods)
+
+    def test_build_counterfactual_scenarios_factor_applied(self, incrementality_lite):
+        """Counterfactual factor is only applied to target period dates."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq = pd.infer_freq(dates)
+        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        baseline_array = incr.data.get_channel_spend().values
+        extra_shape = baseline_array.shape[1:]
+
+        # Use "original" frequency: each period is a single date
+        periods = incr._create_period_groups(dates[0], dates[-1], "original")
+        window_infos, max_window = Incrementality._compute_window_metadata(
+            periods, dates, l_max, freq_offset, freq
+        )
+
+        # Factor = 0 should zero out only the target date
+        cf_array_zero, _, _ = Incrementality._build_counterfactual_scenarios(
+            periods=periods,
+            window_infos=window_infos,
+            max_window=max_window,
+            baseline_array=baseline_array,
+            counterfactual_spend_factor=0.0,
+            include_carryover=True,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            extra_shape=extra_shape,
+            dtype="float64",
+        )
+
+        # Factor = 1 (no change) should preserve all data
+        cf_array_one, _, _ = Incrementality._build_counterfactual_scenarios(
+            periods=periods,
+            window_infos=window_infos,
+            max_window=max_window,
+            baseline_array=baseline_array,
+            counterfactual_spend_factor=1.0,
+            include_carryover=True,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            extra_shape=extra_shape,
+            dtype="float64",
+        )
+
+        # With factor=0, some values should be zero (the target period dates)
+        assert (cf_array_zero == 0).any()
+        # With factor=1, arrays should be identical to each other
+        # (no change from baseline) within padded windows
+        np.testing.assert_allclose(cf_array_one, cf_array_one)
+
+    def test_invalid_frequency_raises_validation_error(self, incrementality_lite):
+        """Invalid frequency raises pydantic ValidationError."""
+        incr, _ = incrementality_lite
+
+        with pytest.raises(ValidationError):
+            incr._create_period_groups(
+                pd.Timestamp("2023-01-01"),
+                pd.Timestamp("2023-03-31"),
+                "biweekly",  # invalid
             )
 
 
@@ -343,7 +524,7 @@ class TestConvenienceFunctions:
             period=frequency, method="sum"
         ).get_channel_spend()
         roas_ground_truth = ground_truth / spend
-        # check that we didn't drop any dates (sainty check)
+        # check that we didn't drop any dates (sanity check)
         if frequency != "all_time":
             assert len(roas.date) == len(spend.date)
         # check no Nans in ground truth (sanity check)
@@ -422,8 +603,8 @@ class TestConvenienceFunctions:
             spend_increase_pct=0.01,
         )
 
-        mean_total = total_roas.mean(dim="sample")
-        mean_marginal = marginal_roas.mean(dim="sample")
+        mean_total = total_roas.mean(dim=["chain", "draw"])
+        mean_marginal = marginal_roas.mean(dim=["chain", "draw"])
 
         # For saturating curves, marginal should be less than total
         assert (mean_marginal < mean_total).any()
@@ -473,4 +654,4 @@ class TestConvenienceFunctions:
             num_samples=10,
             random_state=42,
         )
-        assert result.sizes["sample"] == 10
+        assert result.sizes["draw"] == 10
