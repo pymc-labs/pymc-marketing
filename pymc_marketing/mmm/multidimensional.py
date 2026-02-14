@@ -534,6 +534,10 @@ class MMM(RegressionModelBuilder):
             self.saturation = self.saturation.with_updated_priors(
                 {**self.default_model_config, **model_config}
             )
+        self.adstock = self.adstock.with_default_prior_dims((*self.dims, "channel"))
+        self.saturation = self.saturation.with_default_prior_dims(
+            (*self.dims, "channel")
+        )
 
         self._check_compatible_media_dims()
 
@@ -1064,7 +1068,7 @@ class MMM(RegressionModelBuilder):
             "likelihood": Prior(
                 "Normal",
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
-                dims=self.dims,
+                dims=("date", *self.dims),
             ),
             "gamma_control": Prior(
                 "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
@@ -1557,7 +1561,7 @@ class MMM(RegressionModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                var_dims = self.model.named_vars_to_dims[v]
+                var_dims = self.model.named_vars_to_dims.get(v, ())
                 mmm_dims_order = ("date", *self.dims)
 
                 if v == "channel_contribution":
