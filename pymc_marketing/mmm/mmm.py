@@ -935,8 +935,10 @@ class BaseMMM(BaseValidateMMM):
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
-            "intercept": Prior("Normal", mu=0, sigma=2),
-            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+            "intercept": Prior("Normal", mu=0, sigma=2, dims=()),
+            "likelihood": Prior(
+                "Normal", sigma=Prior("HalfNormal", sigma=2, dims=()), dims=("date",)
+            ),
             "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
             "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
         }
