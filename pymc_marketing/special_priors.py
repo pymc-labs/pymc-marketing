@@ -587,7 +587,7 @@ class MaskedPrior:
 
         # Now remap this object's dims if they exactly match the masked dims
         if hasattr(factory, "dims"):
-            dims = factory.dims
+            dims = factory.dims or ()
             if isinstance(dims, str):
                 dims = (dims,)
             if tuple(dims) == tuple(self.dims):
