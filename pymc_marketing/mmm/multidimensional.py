@@ -481,9 +481,6 @@ class MMM(RegressionModelBuilder):
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
-
-        self.adstock = adstock
-        self.saturation = saturation
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
@@ -527,9 +524,16 @@ class MMM(RegressionModelBuilder):
             hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
+        self.adstock, self.saturation = adstock, saturation
+        del adstock, saturation
         if model_config is not None:
-            self.adstock.update_priors({**self.default_model_config, **model_config})
-            self.saturation.update_priors({**self.default_model_config, **model_config})
+            # self.default_model_config accesses self.adstock and self.saturation
+            self.adstock = self.adstock.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+            self.saturation = self.saturation.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
 
         self._check_compatible_media_dims()
 
