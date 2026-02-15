@@ -28,6 +28,7 @@ dependencies:
 - seaborn>=0.12.2
 - xarray
 - xarray-einstats>=0.5.1
+- tqdm
 # Extra dependencies for lint, testing and docs build
 # docs
 - sphinx
