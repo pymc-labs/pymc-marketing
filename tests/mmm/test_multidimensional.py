@@ -159,6 +159,8 @@ def test_save_load(fit_mmm: MMM):
     loaded = MMM.load(file)
     assert isinstance(loaded, MMM)
 
+    os.remove(file)
+
 
 def test_save_load_equality(fit_mmm: MMM):
     """Test that save/load produces an equivalent MMM instance.
