@@ -3510,6 +3510,8 @@ def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     assert loaded_mmm.treatment_nodes == treatment_nodes
     assert loaded_mmm.outcome_node == outcome_node
 
+    os.remove("test_model_multi")
+
 
 def test_multidimensional_mmm_causal_attributes_initialization():
     dag = """
