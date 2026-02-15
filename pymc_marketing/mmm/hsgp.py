@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from enum import Enum
+from enum import StrEnum
 from typing import Literal, Self, cast
 
 import numpy as np
@@ -180,7 +180,7 @@ def approx_hsgp_hyperparams(
     return m, c
 
 
-class CovFunc(str, Enum):
+class CovFunc(StrEnum):
     """Supported covariance functions for the HSGP model."""
 
     ExpQuad = "expquad"
@@ -941,7 +941,7 @@ class HSGP(HSGPBase):
         return cls(**data)
 
 
-class PeriodicCovFunc(str, Enum):
+class PeriodicCovFunc(StrEnum):
     """Supported covariance functions for the HSGP model."""
 
     Periodic = "periodic"

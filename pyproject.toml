@@ -48,6 +48,7 @@ dependencies = [
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 docs = [
+    "Setuptools<81",
     "blackjax",
     "fastprogress",
     "graphviz",
@@ -79,6 +80,7 @@ docs = [
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
+    "Setuptools<81",
     "blackjax",
     "nutpie",
     "numpyro",
@@ -92,6 +94,7 @@ test = [
     "pytest-cov>=3.0.0",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
+    "pytest-split",
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
