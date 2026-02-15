@@ -205,14 +205,24 @@ def create_variable_indexer(
         beta_at_indices = variable_indexer("beta")
 
     """
-    named_vars_to_dims = model.named_vars_to_dims
 
     def variable_indexer(name: str) -> TensorVariable:
-        if name not in named_vars_to_dims:
+        if name not in model.named_vars:
             raise KeyError(f"The variable {name!r} is not in the model")
 
-        idx: tuple[Index] = tuple([indices[dim] for dim in named_vars_to_dims[name]])  # type: ignore
-        return model[name][idx]
+        var = model[name]
+
+        if var.ndim == 0:
+            return var
+
+        dims = model.named_vars_to_dims.get(name, None)
+
+        if dims is None:
+            raise KeyError(
+                f"Non scalar variable {name!r} doesn't have associated dims in the model"
+            )
+
+        return var[tuple(indices[dim] for dim in dims)]  # type: ignore
 
     return variable_indexer
 
