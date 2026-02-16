@@ -358,27 +358,6 @@ class TestIncrementality:
                 "monthly",
             )
 
-    # def test_original_frequency_misaligned_dates_does_not_crash(
-    #     self, simple_fitted_mmm
-    # ):
-    #     """frequency='original' with misaligned period dates must not crash.
-
-    #     For frequency='original', period generation uses pd.date_range with
-    #     inferred freq. If period_start/period_end are within bounds but not
-    #     aligned to the frequency anchor (e.g. Tue–Wed for weekly data), that
-    #     can produce no periods. The code must handle empty periods gracefully
-    #     instead of crashing in _compute_window_metadata with max() on empty.
-
-    #     simple_fitted_mmm uses weekly data (Sundays). 2023-01-02 and 2023-01-03
-    #     are Mon–Tue, so pd.date_range(..., freq='W-SUN') returns empty.
-    #     """
-    #     incr = simple_fitted_mmm.incrementality
-    #     incr.compute_incremental_contribution(
-    #         frequency="original",
-    #         period_start="2023-01-02",
-    #         period_end="2023-01-03",
-    #     )
-
 
 class TestHelperMethods:
     """Tests for extracted helper methods."""
