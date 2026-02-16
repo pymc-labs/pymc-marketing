@@ -542,11 +542,6 @@ class MMMSummaryFactory:
         >>> df = mmm.summary.roas(method="incremental", include_carryover=True)
         >>> df = factory.roas(method="elementwise")
 
-        Notes
-        -----
-        For true ROI analysis and budget decisions, use ``method="incremental"``
-        (default). Use ``method="elementwise"`` only for granular efficiency
-        tracking when carryover effects are negligible.
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
