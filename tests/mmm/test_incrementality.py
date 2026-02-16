@@ -97,6 +97,19 @@ def compute_ground_truth_incremental_by_period(
     actual_data = mmm.model["channel_data"].get_value()
     dates = pd.to_datetime(mmm.idata.fit_data.date.values)
 
+    # pm.set_data cannot accept float when the model's channel_data is integer.
+    # Fractional factors (e.g. 1.01) produce float values that would truncate.
+    if counterfactual_spend_factor not in (0.0, 1.0) and np.issubdtype(
+        actual_data.dtype, np.integer
+    ):
+        raise ValueError(
+            f"counterfactual_spend_factor={counterfactual_spend_factor} produces "
+            "fractional values, but the model's channel_data has integer dtype. "
+            "pm.set_data rejects float for integer shared variables. Use a model "
+            "fit with float channel_data (e.g. simple_fitted_mmm_float) for "
+            "marginal incrementality ground truth."
+        )
+
     incr = mmm.incrementality
     periods = incr._create_period_groups(dates[0], dates[-1], frequency)
     l_max = mmm.adstock.l_max
@@ -200,7 +213,7 @@ class TestIncrementality:
             ("simple_fitted_mmm", "monthly", True, 0.0),
             ("simple_fitted_mmm", "all_time", True, 0.0),
             ("simple_fitted_mmm", "monthly", False, 0.0),
-            ("simple_fitted_mmm", "monthly", True, 1.01),
+            ("simple_fitted_mmm_float", "monthly", True, 1.01),
             ("panel_fitted_mmm", "monthly", True, 0.0),
             ("panel_fitted_mmm", "all_time", True, 1.01),
             ("monthly_fitted_mmm", "original", True, 0.0),
@@ -241,6 +254,28 @@ class TestIncrementality:
         # check no Nans in ground truth
         assert not np.isnan(gt).any()  # sanity check
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
+
+    def test_marginal_incrementality_with_integer_channel_data_preserves_fractional_perturbation(
+        self, simple_fitted_mmm, simple_fitted_mmm_float
+    ):
+        """Marginal incrementality must not truncate fractional perturbations."""
+        # Float model: no truncation possible → correct reference
+        result_float = (
+            simple_fitted_mmm_float.incrementality.compute_incremental_contribution(
+                frequency="all_time",
+                counterfactual_spend_factor=1.01,
+                include_carryover=True,
+            )
+        )
+
+        result_int = simple_fitted_mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time",
+            counterfactual_spend_factor=1.01,
+            include_carryover=True,
+        )
+
+        assert not np.isnan(result_float).any()
+        xr.testing.assert_allclose(result_int, result_float, rtol=1e-4)
 
     def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""

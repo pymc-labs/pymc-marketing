@@ -346,10 +346,13 @@ class Incrementality:
         freq_offset = pd.tseries.frequencies.to_offset(freq)
 
         # Compile vectorized evaluator (once, reused for both)
+        # Use float64 for evaluation to avoid integer truncation when
+        # counterfactual_spend_factor produces fractional values (e.g. 1.01).
         data_shared = self.model.model["channel_data"]
+        eval_dtype = "float64"
         batched_input = pt.tensor(
             name="channel_data_batched",
-            dtype=data_shared.dtype,
+            dtype=eval_dtype,
             shape=(None, *data_shared.type.shape),
         )
         replace_dict: dict = {data_shared: batched_input}
@@ -377,7 +380,7 @@ class Incrementality:
         # Evaluate baseline on full dataset (once)
         baseline_array = self.data.get_channel_spend().values
         baseline_eval_args: list[np.ndarray] = [
-            baseline_array[np.newaxis].astype(data_shared.dtype)
+            baseline_array[np.newaxis].astype(eval_dtype)
         ]
         if has_time_index:
             baseline_eval_args.append(
@@ -422,7 +425,7 @@ class Incrementality:
             l_max=l_max,
             freq_offset=freq_offset,
             extra_shape=extra_shape,
-            dtype=data_shared.dtype,
+            dtype=eval_dtype,
         )
 
         # Evaluate all counterfactuals at once

@@ -141,12 +141,14 @@ def panel_mmm_data():
 # ============================================================================
 
 
-def mock_fit(model, X: pd.DataFrame, y: pd.Series, **kwargs):
+def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
     """Mock fit function that mimics the fit process without actual sampling."""
     model.build_model(X=X, y=y)
     model.add_original_scale_contribution_variable(var=["channel_contribution"])
+    if random_seed is None:
+        random_seed = rng
     with model.model:
-        idata = pm.sample_prior_predictive(random_seed=rng, **kwargs)
+        idata = pm.sample_prior_predictive(random_seed=random_seed, **kwargs)
 
     fit_data = model.create_fit_data(X, y)
     with warnings.catch_warnings():
@@ -187,7 +189,37 @@ def simple_fitted_mmm(simple_mmm_data):
         saturation=LogisticSaturation(),
     )
 
-    mock_fit(mmm, X, y)
+    mock_fit(mmm, X, y, random_seed=seed)
+
+    return mmm
+
+
+@pytest.fixture
+def simple_fitted_mmm_float(simple_mmm_data):
+    """Like simple_fitted_mmm but with float channel data (same values).
+
+    Used to obtain correct marginal incrementality when factor produces
+    fractional values (e.g. 1.01 * 50 = 50.5). Integer channel_data
+    truncates; float does not. Uses same random seed as simple_fitted_mmm
+    so posteriors match and the only difference is channel_data dtype.
+    """
+    X = simple_mmm_data["X"].copy()
+    y = simple_mmm_data["y"]
+    # Convert channel columns to float so counterfactual factor preserves fractions
+    for col in ["channel_1", "channel_2", "channel_3"]:
+        X[col] = X[col].astype(np.float64)
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+
+    # Use same seed as simple_fitted_mmm for comparable posteriors
+    mock_fit(mmm, X, y, random_seed=seed)
 
     return mmm
 
@@ -246,6 +278,11 @@ def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
     X = panel_mmm_data["X"]
     y = panel_mmm_data["y"]
+
+    # Convert channel columns to float so we could test on a model with float channel_data
+    channel_columns = X.columns[X.columns.str.startswith("channel_")]
+    for col in channel_columns:
+        X[col] = X[col].astype(np.float64)
 
     adstock = GeometricAdstock(
         priors={"alpha": Prior("Beta", alpha=2, beta=5, dims=("country", "channel"))},
