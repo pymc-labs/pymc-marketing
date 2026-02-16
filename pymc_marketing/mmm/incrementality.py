@@ -352,16 +352,38 @@ class Incrementality:
             dtype=data_shared.dtype,
             shape=(None, *data_shared.type.shape),
         )
-        batched_graph = vectorize_graph(
-            response_graph, replace={data_shared: batched_input}
-        )
-        evaluator = function([batched_input], batched_graph)
+        replace_dict: dict = {data_shared: batched_input}
+        func_inputs: list = [batched_input]
+
+        # When time_varying_media (or time_varying_intercept) is enabled,
+        # the response graph contains HSGP-based latent variables that
+        # depend on the ``time_index`` shared variable (shape n_dates).
+        # We must replace it alongside ``channel_data`` so that both
+        # tensors have a consistent date dimension (max_window).
+        has_time_index = "time_index" in self.model.model.named_vars
+        if has_time_index:
+            time_shared = self.model.model["time_index"]
+            batched_time = pt.tensor(
+                name="time_index_batched",
+                dtype=time_shared.dtype,
+                shape=(None, *time_shared.type.shape),
+            )
+            replace_dict[time_shared] = batched_time
+            func_inputs.append(batched_time)
+
+        batched_graph = vectorize_graph(response_graph, replace=replace_dict)
+        evaluator = function(func_inputs, batched_graph)
 
         # Evaluate baseline on full dataset (once)
         baseline_array = self.data.get_channel_spend().values
-        baseline_pred = evaluator(baseline_array[np.newaxis].astype(data_shared.dtype))[
-            0
+        baseline_eval_args: list[np.ndarray] = [
+            baseline_array[np.newaxis].astype(data_shared.dtype)
         ]
+        if has_time_index:
+            baseline_eval_args.append(
+                np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+            )
+        baseline_pred = evaluator(*baseline_eval_args)[0]
         # Shape: (n_samples, n_dates, *non_date_dims)
 
         # Determine actual axis ordering from the model's channel_contribution
@@ -404,7 +426,17 @@ class Incrementality:
         )
 
         # Evaluate all counterfactuals at once
-        cf_predictions = evaluator(cf_array)
+        cf_eval_args: list[np.ndarray] = [cf_array]
+        if has_time_index:
+            cf_eval_args.append(
+                self._build_time_index_array(
+                    window_infos=window_infos,
+                    dates=dates,
+                    max_window=max_window,
+                    dtype=time_shared.dtype,
+                )
+            )
+        cf_predictions = evaluator(*cf_eval_args)
         # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
 
         # Assemble results
@@ -661,6 +693,51 @@ class Incrementality:
 
         cf_array = np.stack(cf_scenarios, axis=0)
         return cf_array, cf_eval_masks, period_labels
+
+    @staticmethod
+    def _build_time_index_array(
+        window_infos: list[dict],
+        dates: pd.DatetimeIndex,
+        max_window: int,
+        dtype: str,
+    ) -> np.ndarray:
+        """Build batched time_index arrays for counterfactual windows.
+
+        Each window needs a corresponding ``time_index`` array so that
+        HSGP-based latent variables (e.g. ``media_temporal_latent_multiplier``)
+        evaluate their basis functions at the correct temporal positions.
+
+        Parameters
+        ----------
+        window_infos : list of dict
+            Per-period metadata from :meth:`_compute_window_metadata`.
+        dates : pd.DatetimeIndex
+            All dates from the fitted data.
+        max_window : int
+            Maximum padded window size across all periods.
+        dtype : str
+            NumPy dtype for the output array.
+
+        Returns
+        -------
+        np.ndarray
+            Time index array of shape ``(n_periods, max_window)``, where
+            each row contains sequential integer indices corresponding to
+            the temporal positions in the window.  Indices may extend
+            beyond ``[0, n_dates)`` for boundary padding.
+        """
+        time_index_scenarios: list[np.ndarray] = []
+        for info in window_infos:
+            if info["n_actual"] > 0:
+                first_actual_idx = int(np.searchsorted(dates, info["actual_dates"][0]))
+                start_idx = first_actual_idx - info["left_pad"]
+            else:
+                start_idx = 0
+            window_time_index = np.arange(
+                start_idx, start_idx + max_window, dtype=dtype
+            )
+            time_index_scenarios.append(window_time_index)
+        return np.stack(time_index_scenarios, axis=0)
 
     def _compute_period_increments(
         self,
@@ -1033,7 +1110,7 @@ class Incrementality:
             dates = pd.date_range(
                 start,
                 end,
-                freq=pd.infer_freq(self.idata.fit_data.date.values),
+                freq=pd.infer_freq(self.data.dates),
             )
             return [(d, d) for d in dates]
 
