@@ -121,6 +121,8 @@ except ImportError as e:
         "Install it with: pip install pymc-marketing[plotly]"
     ) from e
 
+from pymc.util import RandomState
+
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.summary import MMMSummaryFactory
 
@@ -825,6 +827,10 @@ class MMMPlotlyFactory:
         self,
         hdi_prob: float | None = 0.94,
         frequency: Frequency | None = "all_time",
+        method: Literal["incremental", "elementwise"] = "incremental",
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
         round_digits: int = 3,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
@@ -842,6 +848,16 @@ class MMMPlotlyFactory:
         frequency : str, optional
             Time aggregation (default: "all_time"). Options: "original", "weekly",
             "monthly", "quarterly", "yearly", "all_time".
+        method : {"incremental", "elementwise"}, default "incremental"
+            ROAS computation method. "incremental" (recommended) uses counterfactual
+            analysis with carryover; "elementwise" uses simple contribution/spend
+            division.
+        include_carryover : bool, default True
+            Include adstock carryover effects. Only used when method="incremental".
+        num_samples : int or None, optional
+            Number of posterior samples. Only used when method="incremental".
+        random_state : int, np.random.Generator, np.random.RandomState, or None, optional
+            Random state for reproducibility. Only used when method="incremental".
         round_digits : int, default 3
             Number of decimal places for rounding values in hover text.
         auto_facet : bool, default True
@@ -864,7 +880,7 @@ class MMMPlotlyFactory:
 
         Examples
         --------
-        >>> # Basic ROAS plot
+        >>> # Basic ROAS plot (incremental, carryover-aware)
         >>> fig = mmm.plot_interactive.roas()
         >>> fig.show()
 
@@ -872,8 +888,8 @@ class MMMPlotlyFactory:
         >>> fig = mmm.plot_interactive.roas(facet_col="country")
         >>> fig.show()
 
-        >>> # Custom frequency and HDI
-        >>> fig = mmm.plot_interactive.roas(frequency="monthly", hdi_prob=0.80)
+        >>> # Element-wise ROAS (e.g., with data-only factory)
+        >>> fig = mmm.plot_interactive.roas(method="elementwise")
         >>> fig.show()
         """
         # Get data from summary factory
@@ -881,6 +897,10 @@ class MMMPlotlyFactory:
         df = self.summary.roas(
             hdi_probs=hdi_probs,
             frequency=frequency,
+            method=method,
+            include_carryover=include_carryover,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(

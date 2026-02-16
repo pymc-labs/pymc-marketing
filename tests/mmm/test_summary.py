@@ -391,14 +391,6 @@ class TestDataFrameSchemas:
             "Channel coordinate values may have been replaced with integer indices."
         )
 
-    def test_roas_summary_schema(self, mock_mmm_idata_wrapper):
-        """Test ROAS summary returns DataFrame with correct schema."""
-        df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[0.94]).roas()
-
-        required_columns = {"date", "channel", "mean", "median"}
-        assert required_columns.issubset(set(df.columns))
-        assert "abs_error_94_lower" in df.columns
-
     def test_channel_spend_dataframe_schema(self, mock_mmm_idata_wrapper):
         """Test channel spend DataFrame has correct schema (no HDI columns)."""
         df = MMMSummaryFactory(mock_mmm_idata_wrapper).channel_spend()
@@ -494,7 +486,11 @@ class TestOutputFormats:
         method = getattr(factory, method_name)
 
         # Act - should not raise TypeError for unexpected keyword argument
-        df = method(output_format="pandas")
+        # roas with data-only factory requires method="elementwise"
+        kwargs = {"output_format": "pandas"}
+        if method_name == "roas":
+            kwargs["method"] = "elementwise"
+        df = method(**kwargs)
 
         # Assert it returned a pandas DataFrame
         assert df is not None, f"{method_name} returned None"
@@ -546,8 +542,11 @@ class TestOutputFormats:
         factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
         method = getattr(factory, method_name)
 
-        # Act
-        df = method(output_format="polars")
+        # Act - roas with data-only factory requires method="elementwise"
+        kwargs = {"output_format": "polars"}
+        if method_name == "roas":
+            kwargs["method"] = "elementwise"
+        df = method(**kwargs)
 
         # Assert it returned a polars DataFrame
         assert df is not None, f"{method_name} returned None"
@@ -726,6 +725,15 @@ class TestComponent1Integration:
 
         assert df_monthly["date"].nunique() < df_original["date"].nunique()
 
+    def test_change_over_time_requires_date_dimension(self, mock_mmm_idata_wrapper):
+        """Test that change_over_time raises error when date dimension is missing."""
+        aggregated_data = mock_mmm_idata_wrapper.aggregate_time("all_time")
+
+        with pytest.raises(
+            ValueError, match=r"change_over_time requires date dimension.*all_time"
+        ):
+            MMMSummaryFactory(aggregated_data).change_over_time()
+
 
 # =============================================================================
 # MMMSummaryFactory Tests
@@ -832,6 +840,12 @@ class TestModelRequiringMethods:
             match=r"adstock_curves requires model.*MMMSummaryFactory\(data, model=mmm\)",
         ):
             factory.adstock_curves()
+
+        with pytest.raises(
+            ValueError,
+            match=r"roas with method='incremental' requires model",
+        ):
+            factory.roas()
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_accepts_data_and_model(self, fitted_mmm, request):
@@ -995,7 +1009,9 @@ class TestEdgeCases:
         self, mock_mmm_idata_wrapper_with_zero_spend
     ):
         """Test that ROAS computation handles zero spend without errors."""
-        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_zero_spend).roas()
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_zero_spend).roas(
+            method="elementwise"
+        )
 
         zero_spend_rows = df[df["channel"] == "zero_spend_channel"]
         assert (
@@ -1004,14 +1020,61 @@ class TestEdgeCases:
             or np.isinf(zero_spend_rows["mean"]).all()
         )
 
-    def test_change_over_time_requires_date_dimension(self, mock_mmm_idata_wrapper):
-        """Test that change_over_time raises error when date dimension is missing."""
-        aggregated_data = mock_mmm_idata_wrapper.aggregate_time("all_time")
+
+# =============================================================================
+# ROAS Method Tests
+# =============================================================================
+
+
+class TestROASMethods:
+    """Test ROAS method parameter (incremental vs elementwise)."""
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_roas_incremental_method_with_model(self, fitted_mmm, request):
+        """Test that method='incremental' works when model is provided."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        df = mmm.summary.roas(method="incremental", frequency="original")
+
+        required_columns = {"date", "channel", "mean", "median"}
+        assert required_columns.issubset(set(df.columns))
+        assert len(df) > 0
+
+    def test_roas_elementwise_method_without_model(self, mock_mmm_idata_wrapper):
+        """Test that method='elementwise' works with data-only factory."""
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).roas(method="elementwise")
+
+        required_columns = {"date", "channel", "mean", "median"}
+        assert required_columns.issubset(set(df.columns))
+        assert len(df) > 0
+
+    def test_roas_invalid_method_raises(self, mock_mmm_idata_wrapper):
+        """Test that invalid method value raises ValueError."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
 
         with pytest.raises(
-            ValueError, match=r"change_over_time requires date dimension.*all_time"
+            ValueError,
+            match=r"method must be 'incremental' or 'elementwise'",
         ):
-            MMMSummaryFactory(aggregated_data).change_over_time()
+            factory.roas(method="invalid")
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_roas_incremental_and_elementwise_both_produce_valid_output(
+        self, fitted_mmm, request
+    ):
+        """Integration test: both methods produce valid ROAS DataFrames."""
+        mmm = request.getfixturevalue(fitted_mmm)
+
+        df_incremental = mmm.summary.roas(method="incremental", frequency="monthly")
+        df_elementwise = mmm.summary.roas(method="elementwise", frequency="monthly")
+
+        for df in (df_incremental, df_elementwise):
+            assert "mean" in df.columns
+            assert "median" in df.columns
+            assert "channel" in df.columns
+            assert len(df) > 0
+            # ROAS values should be non-negative or NaN (for zero spend)
+            valid_means = df["mean"].dropna()
+            assert (valid_means >= 0).all() or len(valid_means) == 0
 
 
 # =============================================================================

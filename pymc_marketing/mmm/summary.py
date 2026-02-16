@@ -482,6 +482,10 @@ class MMMSummaryFactory:
         self,
         hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
+        method: Literal["incremental", "elementwise"] = "incremental",
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
         """Create ROAS (Return on Ad Spend) summary DataFrame.
@@ -495,6 +499,27 @@ class MMMSummaryFactory:
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
+        method : {"incremental", "elementwise"}, default "incremental"
+            Method for computing ROAS:
+
+            - **incremental** (recommended): Uses counterfactual analysis
+              accounting for adstock carryover effects. Computes the true
+              incremental return on ad spend using Google MMM Formula 10.
+              Requires model to be provided (e.g. via ``mmm.summary``).
+
+            - **elementwise**: Simple element-wise division of contributions
+              by spend. Does NOT account for carryover effects. Useful for
+              daily efficiency tracking but not true incrementality.
+              Works with data-only factory.
+        include_carryover : bool, default True
+            Include adstock carryover effects. Only used when
+            ``method="incremental"``.
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            Only used when ``method="incremental"``.
+        random_state : int, np.random.Generator, np.random.RandomState, or None, optional
+            Random state for reproducible subsampling. Only used when
+            ``method="incremental"`` and ``num_samples`` is not None.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
 
@@ -514,16 +539,37 @@ class MMMSummaryFactory:
         --------
         >>> df = mmm.summary.roas()
         >>> df = mmm.summary.roas(frequency="monthly")
-        >>> df = mmm.summary.roas(hdi_probs=[0.80, 0.94])
+        >>> df = mmm.summary.roas(method="incremental", include_carryover=True)
+        >>> df = factory.roas(method="elementwise")
 
+        Notes
+        -----
+        For true ROI analysis and budget decisions, use ``method="incremental"``
+        (default). Use ``method="elementwise"`` only for granular efficiency
+        tracking when carryover effects are negligible.
         """
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
             hdi_probs, frequency, output_format
         )
 
-        # Compute ROAS using data wrapper method
-        roas = data.get_roas(original_scale=True)
+        if method == "incremental":
+            self._require_model("roas with method='incremental'")
+            if self.model is None:
+                raise RuntimeError("Model should not be None after _require_model")
+            incr = self.model.incrementality
+            roas = incr.contribution_over_spend(
+                frequency=frequency or "original",
+                include_carryover=include_carryover,
+                num_samples=num_samples,
+                random_state=random_state,
+            )
+        elif method == "elementwise":
+            roas = data.get_elementwise_roas(original_scale=True)
+        else:
+            raise ValueError(
+                f"method must be 'incremental' or 'elementwise', got {method!r}"
+            )
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
