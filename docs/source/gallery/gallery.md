@@ -119,6 +119,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_lift_test.html
 :::
 
+:::{grid-item-card} MMM Calibration with Geo-Level Lift Tests
+:img-top: ../gallery/images/mmm_lift_test.png
+:link: ../notebooks/mmm/mmm_geolift_calibration.html
+:::
+
 :::{grid-item-card} Case Study: Unobserved Confounders, ROAS and Lift Tests
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html

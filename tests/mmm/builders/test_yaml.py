@@ -278,7 +278,7 @@ def test_apply_calibration_propagates_failure(failing_mmm, tmp_path):
         _apply_and_validate_calibration_steps(failing_mmm, cfg, tmp_path)
 
 
-def test_special_prior_in_yaml(tmp_path):
+def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
     """Test that SpecialPrior (LogNormalPrior) works in YAML config."""
     # Create test data
     X = pd.DataFrame(
