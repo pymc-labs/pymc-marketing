@@ -213,6 +213,35 @@ def monthly_fitted_mmm(monthly_mmm_data):
 
 
 @pytest.fixture
+def time_varying_media_fitted_mmm(simple_mmm_data):
+    """Create a fitted MMM with time_varying_media=True.
+
+    This fixture produces a model whose channel_contribution graph contains
+    the HSGP-based ``media_temporal_latent_multiplier``, which depends on the
+    ``time_index`` shared variable (fixed at ``n_dates``).  It is used to
+    test that incrementality evaluation correctly handles date-dependent
+    latent tensors.
+    """
+    X = simple_mmm_data["X"]
+    y = simple_mmm_data["y"]
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+    )
+
+    mock_fit(mmm, X, y)
+    mmm.post_sample_model_transformation()
+
+    return mmm
+
+
+@pytest.fixture
 def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
     X = panel_mmm_data["X"]

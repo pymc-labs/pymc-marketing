@@ -204,6 +204,9 @@ class TestIncrementality:
             ("panel_fitted_mmm", "monthly", True, 0.0),
             ("panel_fitted_mmm", "all_time", True, 1.01),
             ("monthly_fitted_mmm", "original", True, 0.0),
+            ("time_varying_media_fitted_mmm", "original", True, 0.0),
+            ("time_varying_media_fitted_mmm", "monthly", True, 0.0),
+            ("time_varying_media_fitted_mmm", "all_time", True, 0.0),
         ],
     )
     def test_compute_incremental_contribution_matches_ground_truth(
