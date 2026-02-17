@@ -206,6 +206,7 @@ def incrementality_lite():
     incr.data = SimpleNamespace(
         dates=dates,
         get_channel_spend=lambda: spend,
+        get_unknown_coords=lambda mmm: {},
     )
     incr.idata = SimpleNamespace(
         fit_data=SimpleNamespace(
@@ -221,7 +222,7 @@ def incrementality_lite():
         named_vars_to_dims={"channel_data": ("date",)},
         coords={"date": dates.values},
     )
-    incr.model = SimpleNamespace(model=model_stub)
+    incr.model = SimpleNamespace(model=model_stub, idata=None)
 
     return incr, _SIMPLE_L_MAX
 
@@ -800,39 +801,36 @@ class TestFilteredVsPostProcessed:
         # Values must be numerically close
         xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
 
-    @pytest.mark.xfail(reason="Pre-filtering dates removes adstock carry-in context")
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
-    def test_filtered_dates_matches_post_processed(self, panel_fitted_mmm, frequency):
-        """Pre-filtered date range must match post-processed date selection.
+    def test_filtered_dates_warns_and_computes(self, panel_fitted_mmm):
+        """Pre-filtered dates should warn about boundary effects but still compute.
 
-        Approach A (post-processing): compute on full data, then select dates.
-        Approach B (pre-filtering): filter idata via ``filter_dates``, then compute.
+        Adstock carry-in context from before the filter start is lost, so
+        results may differ from the full-data computation with
+        period_start/period_end.  We verify the warning is emitted and
+        the output has the correct shape and dims.
         """
         all_dates = pd.to_datetime(panel_fitted_mmm.idata.fit_data.date.values)
         start_date = all_dates[3]
         end_date = all_dates[10]
 
-        # Approach A: full data + post-process
-        incr_full = panel_fitted_mmm.incrementality
-        roas_full = incr_full.contribution_over_spend(
-            frequency=frequency,
-            period_start=start_date,
-            period_end=end_date,
-        )
-
-        # Approach B: pre-filtered data
+        # Pre-filtered data: should warn, not error
         filtered_data = panel_fitted_mmm.data.filter_dates(
             start_date=start_date, end_date=end_date
         )
         incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
-        roas_filtered = incr_filtered.contribution_over_spend(frequency=frequency)
 
-        # Shapes must match
-        assert roas_filtered.dims == roas_full.dims
-        assert roas_filtered.shape == roas_full.shape
+        with pytest.warns(UserWarning, match="pre-filtered data"):
+            roas_filtered = incr_filtered.contribution_over_spend(frequency="monthly")
 
-        # Values must be numerically close
-        xr.testing.assert_allclose(roas_filtered, roas_full, rtol=1e-5)
+        # Must have chain, draw, channel, and country dims
+        assert "chain" in roas_filtered.dims
+        assert "draw" in roas_filtered.dims
+        assert "channel" in roas_filtered.dims
+        assert "country" in roas_filtered.dims
+        assert "date" not in roas_filtered.dims
+
+        # Values should be finite (no crash, no all-NaN)
+        assert roas_filtered.notnull().any()
 
     def test_aggregate_time_raises_error(self, panel_fitted_mmm):
         """Pre-aggregated idata must raise ValueError in compute_incremental_contribution.

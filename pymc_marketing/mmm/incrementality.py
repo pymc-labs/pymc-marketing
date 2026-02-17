@@ -125,6 +125,7 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any
 
 import arviz as az
@@ -477,30 +478,74 @@ class Incrementality:
         tuple of (pd.Timestamp, pd.Timestamp)
             Validated ``(period_start, period_end)``.
 
+        Warns
+        -----
+        UserWarning
+            If the idata has fewer dates than the model but they are a
+            subset of the original fitted dates (i.e. pre-filtered via
+            ``filter_dates``).  Adstock carry-in context is lost at
+            boundaries, which may reduce accuracy.
+
         Raises
         ------
         ValueError
             If the idata dates do not match the model's fitted date
-            dimension (e.g. because idata was pre-aggregated), if dates
-            are outside the fitted data range, or if start > end.
+            dimension and are *not* a subset (e.g. because idata was
+            pre-aggregated via ``aggregate_time``), if dates are outside
+            the fitted data range, or if start > end.
         """
         # Adstock effects are defined at the original temporal resolution
         # of the fitted data.  If the idata has been pre-aggregated (e.g.
         # weekly → monthly), the per-period adstock carry-in and carry-out
-        # cannot be computed correctly.
+        # cannot be computed correctly.  Pre-filtered dates (a subset of
+        # the original dates at the same resolution) are allowed with a
+        # warning about lost boundary context.
         model_n_dates = self.model.model["channel_data"].get_value().shape[0]
         idata_n_dates = len(self.data.dates)
         if idata_n_dates != model_n_dates:
-            raise ValueError(
-                f"The idata date dimension ({idata_n_dates}) does not match "
-                f"the model's fitted date dimension ({model_n_dates}). "
-                "This typically happens when idata has been pre-aggregated "
-                "(e.g. via aggregate_time). Adstock effects are defined at "
-                "the original temporal resolution, so incrementality cannot "
-                "be computed on aggregated data. Pass the original "
-                "(unaggregated) data and use the `frequency` argument to "
-                "control time aggregation of the results."
+            idata_dates = self.data.dates
+            model_idata: az.InferenceData | None = self.model.idata
+            model_dates = pd.DatetimeIndex([])
+            if model_idata is not None:
+                if hasattr(model_idata, "constant_data"):
+                    model_dates = pd.DatetimeIndex(
+                        model_idata.constant_data.coords["date"].values
+                    )
+                elif hasattr(model_idata, "fit_data"):
+                    model_dates = pd.DatetimeIndex(
+                        model_idata.fit_data.coords["date"].values
+                    )
+
+            is_date_subset = (
+                len(idata_dates) > 0 and idata_dates.isin(model_dates).all()
             )
+
+            if is_date_subset:
+                warnings.warn(
+                    f"The idata contains {idata_n_dates} dates, fewer than "
+                    f"the model's {model_n_dates} fitted dates. This appears "
+                    "to be pre-filtered data (e.g. via filter_dates). "
+                    "Adstock carry-in context from before the filter start "
+                    "date is lost, which may affect accuracy near the "
+                    "boundaries of the date range. For full accuracy, pass "
+                    "the original (unfiltered) data and use the "
+                    "period_start/period_end parameters to select the "
+                    "evaluation window.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            else:
+                raise ValueError(
+                    f"The idata date dimension ({idata_n_dates}) does not "
+                    f"match the model's fitted date dimension "
+                    f"({model_n_dates}). This typically happens when idata "
+                    "has been pre-aggregated (e.g. via aggregate_time). "
+                    "Adstock effects are defined at the original temporal "
+                    "resolution, so incrementality cannot be computed on "
+                    "aggregated data. Pass the original (unaggregated) data "
+                    "and use the `frequency` argument to control time "
+                    "aggregation of the results."
+                )
 
         # Custom dimension values must be a subset of the model's fitted
         # coordinate values.  Aggregating dimensions (e.g. via
@@ -522,6 +567,7 @@ class Incrementality:
                 "needed."
             )
 
+        # Validate period_start and period_end
         dates = self.data.dates
         data_start = dates[0]
         data_end = dates[-1]
