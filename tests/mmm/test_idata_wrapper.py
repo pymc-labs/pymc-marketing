@@ -1437,6 +1437,60 @@ def test_mmm_data_property_does_not_validate_on_every_access(fitted_mmm):
     assert wrapper is not None
 
 
+def test_get_unknown_coords_returns_empty_when_compatible(multidim_idata):
+    """Compatible idata returns an empty dict (no unknown coords)."""
+    from types import SimpleNamespace
+
+    channels = list(multidim_idata.constant_data.channel.values)
+    countries = list(multidim_idata.constant_data.country.values)
+
+    wrapper = MMMIDataWrapper(multidim_idata, validate_on_init=False)
+    mmm_stub = SimpleNamespace(
+        model=SimpleNamespace(
+            named_vars_to_dims={"channel_data": ("date", "country", "channel")},
+            coords={"country": countries, "channel": channels},
+        )
+    )
+    assert wrapper.get_unknown_coords(mmm_stub) == {}
+
+
+def test_get_unknown_coords_detects_aggregated_labels(multidim_idata):
+    """Aggregated dimension labels not in model coords are detected."""
+    from types import SimpleNamespace
+
+    channels = list(multidim_idata.constant_data.channel.values)
+    countries = list(multidim_idata.constant_data.country.values)
+    dates = multidim_idata.constant_data.date.values
+
+    # Build fresh idata with an aggregated country label ("All")
+    aggregated_idata = az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    multidim_idata.constant_data.channel_data.isel(country=[0]).values,
+                    dims=("date", "country", "channel"),
+                    coords={
+                        "date": dates,
+                        "country": ["All"],
+                        "channel": channels,
+                    },
+                ),
+            }
+        ),
+    )
+
+    wrapper = MMMIDataWrapper(aggregated_idata, validate_on_init=False)
+    mmm_stub = SimpleNamespace(
+        model=SimpleNamespace(
+            named_vars_to_dims={"channel_data": ("date", "country", "channel")},
+            coords={"country": countries, "channel": channels},
+        )
+    )
+    unknowns = wrapper.get_unknown_coords(mmm_stub)
+    assert "country" in unknowns
+    assert unknowns["country"] == {"All"}
+
+
 # ============================================================================
 # Category 14: Additional Coverage Tests - Error Paths and Edge Cases
 # ============================================================================

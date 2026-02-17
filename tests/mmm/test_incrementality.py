@@ -29,6 +29,19 @@ from pymc_marketing.mmm.incrementality import Incrementality
 _SIMPLE_L_MAX = 4
 
 
+class _ModelStub(dict):
+    """Dict subclass supporting attribute access for model metadata.
+
+    Used in lightweight test fixtures to mimic a PyMC model object that
+    supports both ``model["channel_data"]`` and ``model.named_vars_to_dims``.
+    """
+
+    def __init__(self, items, **attrs):
+        super().__init__(items)
+        for k, v in attrs.items():
+            object.__setattr__(self, k, v)
+
+
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
     """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.
 
@@ -173,7 +186,7 @@ def incrementality_lite():
     """Lightweight Incrementality stub for testing helpers without model fitting.
 
     Provides an ``Incrementality`` instance whose ``data`` and ``idata``
-    attributes are thin stubs — just enough for ``_validate_input_dates``,
+    attributes are thin stubs — just enough for ``_validate_input``,
     ``_create_period_groups``, and the static helper methods.  Avoids the
     expensive model-build + prior-sampling that ``simple_fitted_mmm`` requires.
 
@@ -203,11 +216,12 @@ def incrementality_lite():
     channel_data_stub = SimpleNamespace(
         get_value=lambda: spend_values,
     )
-    incr.model = SimpleNamespace(
-        model={
-            "channel_data": channel_data_stub,
-        },
+    model_stub = _ModelStub(
+        {"channel_data": channel_data_stub},
+        named_vars_to_dims={"channel_data": ("date",)},
+        coords={"date": dates.values},
     )
+    incr.model = SimpleNamespace(model=model_stub)
 
     return incr, _SIMPLE_L_MAX
 
@@ -406,27 +420,51 @@ class TestIncrementality:
 class TestHelperMethods:
     """Tests for extracted helper methods."""
 
-    def test_validate_input_dates(self, incrementality_lite):
+    def test_validate_input(self, incrementality_lite):
         """None dates default to data bounds; invalid ranges are rejected."""
         incr, _ = incrementality_lite
         dates = incr.data.dates
 
         # None dates default to data bounds
-        start, end = incr._validate_input_dates(None, None)
+        start, end = incr._validate_input(None, None)
         assert start == dates[0]
         assert end == dates[-1]
 
         # Start before data raises
         with pytest.raises(ValueError, match="before fitted data"):
-            incr._validate_input_dates("1900-01-01", None)
+            incr._validate_input("1900-01-01", None)
 
         # End after data raises
         with pytest.raises(ValueError, match="after fitted data"):
-            incr._validate_input_dates(None, "2099-12-31")
+            incr._validate_input(None, "2099-12-31")
 
         # Reversed range raises
         with pytest.raises(ValueError, match="is after"):
-            incr._validate_input_dates(dates[-1], dates[0])
+            incr._validate_input(dates[-1], dates[0])
+
+    def test_validate_input_rejects_aggregated_dims(self):
+        """Aggregated custom dimensions (unknown coordinate values) are rejected."""
+        dates = pd.date_range("2023-01-01", periods=14, freq="W")
+        spend_values = (
+            np.random.default_rng(42).integers(100, 500, size=(14, 2, 2)).astype(float)
+        )
+
+        channel_data_stub = SimpleNamespace(get_value=lambda: spend_values)
+        model_stub = _ModelStub(
+            {"channel_data": channel_data_stub},
+            named_vars_to_dims={"channel_data": ("date", "country")},
+            coords={"date": dates.values, "country": ["US", "UK"]},
+        )
+
+        incr = object.__new__(Incrementality)
+        incr.data = SimpleNamespace(
+            dates=dates,
+            get_unknown_coords=lambda mmm: {"country": {"All"}},
+        )
+        incr.model = SimpleNamespace(model=model_stub)
+
+        with pytest.raises(ValueError, match="unknown values for dimension"):
+            incr._validate_input(None, None)
 
     def test_compute_window_metadata_no_padding_interior(self, incrementality_lite):
         """Interior periods have no left/right padding."""
@@ -812,29 +850,15 @@ class TestFilteredVsPostProcessed:
         with pytest.raises(ValueError, match="does not match the model's fitted"):
             incr_aggregated.compute_incremental_contribution(frequency="monthly")
 
-    @pytest.mark.xfail(
-        reason="Summing posterior params across dims pushes values out of valid range"
-    )
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
-    def test_aggregate_dims_matches_post_processed(self, panel_fitted_mmm, frequency):
-        """Pre-aggregated dims must match post-processed aggregation.
+    def test_aggregate_dims_raises_error(self, panel_fitted_mmm):
+        """Pre-aggregated dims must raise ValueError.
 
-        Approach A (post-processing): compute on full data, then sum across countries.
-        Approach B (pre-aggregation): aggregate countries via ``aggregate_dims``,
-        then compute.
-
-        Note: This test may fail because summing channel data across countries
-        and then passing through saturation/adstock is not equivalent to
-        processing each country separately and then summing contributions.
+        Incrementality must be computed on the original (unaggregated) data
+        because the model's saturation and adstock parameters are fitted per
+        dimension value.
         """
         countries = ["US", "UK"]
 
-        # Approach A: full data + post-process (sum across countries)
-        incr_full = panel_fitted_mmm.incrementality
-        roas_full = incr_full.contribution_over_spend(frequency=frequency)
-        roas_post = roas_full.sel(country=countries).sum(dim="country")
-
-        # Approach B: pre-aggregated data
         aggregated_data = panel_fitted_mmm.data.aggregate_dims(
             dim="country",
             values=countries,
@@ -842,15 +866,6 @@ class TestFilteredVsPostProcessed:
             method="sum",
         )
         incr_aggregated = Incrementality(panel_fitted_mmm, aggregated_data.idata)
-        roas_aggregated = incr_aggregated.contribution_over_spend(frequency=frequency)
 
-        # The aggregated result should have the new label
-        if "country" in roas_aggregated.dims:
-            assert "All" in roas_aggregated.country.values
-
-        # Values must be numerically close
-        xr.testing.assert_allclose(
-            roas_aggregated.squeeze("country", drop=True),
-            roas_post,
-            rtol=1e-5,
-        )
+        with pytest.raises(ValueError, match="unknown values for dimension"):
+            incr_aggregated.compute_incremental_contribution(frequency="monthly")

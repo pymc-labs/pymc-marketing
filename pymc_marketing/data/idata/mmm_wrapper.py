@@ -124,6 +124,52 @@ class MMMIDataWrapper:
 
         return cls(idata, schema=schema, validate_on_init=False)
 
+    def get_unknown_coords(
+        self,
+        mmm: MMM,
+        variable: str = "channel_data",
+    ) -> dict[str, set[str]]:
+        """Find idata coordinates not present in the model's coordinates.
+
+        Compares the coordinate values for each custom dimension (i.e. not
+        ``"date"``) of the specified variable between this wrapper's idata
+        and the fitted PyMC model.  Returns only dimensions that contain
+        unknown coordinate values.
+
+        Parameters
+        ----------
+        mmm : MMM
+            Fitted MMM model instance whose ``model`` attribute contains the
+            PyMC model with coordinate metadata.
+        variable : str, default ``"channel_data"``
+            Name of the model variable whose dimensions are checked.
+
+        Returns
+        -------
+        dict[str, set[str]]
+            Mapping from dimension name to the set of coordinate values
+            present in the idata but absent from the model's coordinates.
+            Only dimensions with at least one unknown coordinate are
+            included; an empty dict means all coordinates are compatible.
+        """
+        pymc_model = mmm.model
+        variable_dims = pymc_model.named_vars_to_dims.get(variable, ())
+        idata_var = self.get_channel_spend()
+
+        unknowns: dict[str, set[str]] = {}
+        for dim_name in variable_dims:
+            if dim_name == "date":
+                continue
+            if dim_name not in idata_var.dims:
+                continue
+            model_coords = {str(v) for v in pymc_model.coords[dim_name]}
+            idata_coords = {str(v) for v in idata_var.coords[dim_name].values}
+            unknown = idata_coords - model_coords
+            if unknown:
+                unknowns[dim_name] = unknown
+
+        return unknowns
+
     # ==================== Scale Accessor Methods ====================
 
     def get_channel_scale(self) -> xr.DataArray:

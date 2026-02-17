@@ -313,9 +313,7 @@ class Incrementality:
             )
 
         # Validate and parse dates
-        period_start_ts, period_end_ts = self._validate_input_dates(
-            period_start, period_end
-        )
+        period_start_ts, period_end_ts = self._validate_input(period_start, period_end)
 
         # Subsample posterior if needed (correctly across chain x draw)
         idata_sub = self._get_subsampled_idata(num_samples, random_state)
@@ -460,7 +458,7 @@ class Incrementality:
             n_draws=n_draws,
         )
 
-    def _validate_input_dates(
+    def _validate_input(
         self,
         period_start: str | pd.Timestamp | None,
         period_end: str | pd.Timestamp | None,
@@ -502,6 +500,26 @@ class Incrementality:
                 "be computed on aggregated data. Pass the original "
                 "(unaggregated) data and use the `frequency` argument to "
                 "control time aggregation of the results."
+            )
+
+        # Custom dimension values must be a subset of the model's fitted
+        # coordinate values.  Aggregating dimensions (e.g. via
+        # aggregate_dims) introduces new labels that the
+        # model's per-dimension saturation and adstock parameters were
+        # never fitted for, producing incorrect results.  Filtering
+        # (selecting a subset of existing values) is fine.
+        unknowns = self.data.get_unknown_coords(self.model)
+        for dim_name, unknown_values in unknowns.items():
+            raise ValueError(
+                f"The idata contains unknown values for dimension "
+                f"'{dim_name}': {sorted(unknown_values)}. "
+                "This typically happens when custom dimensions have been "
+                "aggregated (e.g. via aggregate_dims). Incrementality "
+                "must be computed on the original (unaggregated) data "
+                "because the model's saturation and adstock parameters "
+                "are fitted per dimension value. Compute incrementality "
+                "on the full data first, then aggregate the results as "
+                "needed."
             )
 
         dates = self.data.dates
