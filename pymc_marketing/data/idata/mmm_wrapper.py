@@ -124,17 +124,16 @@ class MMMIDataWrapper:
 
         return cls(idata, schema=schema, validate_on_init=False)
 
-    def get_unknown_coords(
+    def compare_coords(
         self,
         mmm: MMM,
         variable: str = "channel_data",
-    ) -> dict[str, set[str]]:
-        """Find idata coordinates not present in the model's coordinates.
+    ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+        """Find coordinate mismatches between idata and the model.
 
         Compares the coordinate values for each custom dimension (i.e. not
         ``"date"``) of the specified variable between this wrapper's idata
-        and the fitted PyMC model.  Returns only dimensions that contain
-        unknown coordinate values.
+        and the fitted PyMC model.
 
         Parameters
         ----------
@@ -146,29 +145,43 @@ class MMMIDataWrapper:
 
         Returns
         -------
-        dict[str, set[str]]
-            Mapping from dimension name to the set of coordinate values
-            present in the idata but absent from the model's coordinates.
-            Only dimensions with at least one unknown coordinate are
-            included; an empty dict means all coordinates are compatible.
+        tuple of (dict[str, set[str]], dict[str, set[str]])
+            ``(in_model_not_idata, in_idata_not_model)`` where:
+
+            - ``in_model_not_idata``: mapping from dimension name to the
+              set of coordinate values present in the model but absent from
+              the idata.  When a dimension is entirely missing from the
+              idata (e.g. dropped by a scalar ``filter_dims`` call), *all*
+              of the model's coordinates for that dimension are included.
+            - ``in_idata_not_model``: mapping from dimension name to the
+              set of coordinate values present in the idata but absent from
+              the model (e.g. new labels introduced by ``aggregate_dims``).
+
+            Only dimensions with at least one mismatched coordinate are
+            included in each dict; empty dicts mean full compatibility.
         """
         pymc_model = mmm.model
         variable_dims = pymc_model.named_vars_to_dims.get(variable, ())
         idata_var = self.get_channel_spend()
 
-        unknowns: dict[str, set[str]] = {}
+        in_model_not_idata: dict[str, set[str]] = {}
+        in_idata_not_model: dict[str, set[str]] = {}
         for dim_name in variable_dims:
             if dim_name == "date":
                 continue
-            if dim_name not in idata_var.dims:
-                continue
             model_coords = {str(v) for v in pymc_model.coords[dim_name]}
+            if dim_name not in idata_var.dims:
+                in_model_not_idata[dim_name] = model_coords
+                continue
             idata_coords = {str(v) for v in idata_var.coords[dim_name].values}
-            unknown = idata_coords - model_coords
-            if unknown:
-                unknowns[dim_name] = unknown
+            missing = model_coords - idata_coords
+            if missing:
+                in_model_not_idata[dim_name] = missing
+            extra = idata_coords - model_coords
+            if extra:
+                in_idata_not_model[dim_name] = extra
 
-        return unknowns
+        return in_model_not_idata, in_idata_not_model
 
     # ==================== Scale Accessor Methods ====================
 

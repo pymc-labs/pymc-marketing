@@ -1437,8 +1437,8 @@ def test_mmm_data_property_does_not_validate_on_every_access(fitted_mmm):
     assert wrapper is not None
 
 
-def test_get_unknown_coords_returns_empty_when_compatible(multidim_idata):
-    """Compatible idata returns an empty dict (no unknown coords)."""
+def test_compare_coords_returns_empty_when_compatible(multidim_idata):
+    """Compatible idata returns empty dicts (no coord mismatches)."""
     from types import SimpleNamespace
 
     channels = list(multidim_idata.constant_data.channel.values)
@@ -1451,10 +1451,12 @@ def test_get_unknown_coords_returns_empty_when_compatible(multidim_idata):
             coords={"country": countries, "channel": channels},
         )
     )
-    assert wrapper.get_unknown_coords(mmm_stub) == {}
+    in_model_not_idata, in_idata_not_model = wrapper.compare_coords(mmm_stub)
+    assert in_model_not_idata == {}
+    assert in_idata_not_model == {}
 
 
-def test_get_unknown_coords_detects_aggregated_labels(multidim_idata):
+def test_compare_coords_detects_aggregated_labels(multidim_idata):
     """Aggregated dimension labels not in model coords are detected."""
     from types import SimpleNamespace
 
@@ -1486,9 +1488,11 @@ def test_get_unknown_coords_detects_aggregated_labels(multidim_idata):
             coords={"country": countries, "channel": channels},
         )
     )
-    unknowns = wrapper.get_unknown_coords(mmm_stub)
-    assert "country" in unknowns
-    assert unknowns["country"] == {"All"}
+    in_model_not_idata, in_idata_not_model = wrapper.compare_coords(mmm_stub)
+    assert "country" in in_model_not_idata
+    assert in_model_not_idata["country"] == set(countries)
+    assert "country" in in_idata_not_model
+    assert in_idata_not_model["country"] == {"All"}
 
 
 # ============================================================================

@@ -206,7 +206,7 @@ def incrementality_lite():
     incr.data = SimpleNamespace(
         dates=dates,
         get_channel_spend=lambda: spend,
-        get_unknown_coords=lambda mmm: {},
+        compare_coords=lambda mmm: ({}, {}),
     )
     incr.idata = SimpleNamespace(
         fit_data=SimpleNamespace(
@@ -460,7 +460,7 @@ class TestHelperMethods:
         incr = object.__new__(Incrementality)
         incr.data = SimpleNamespace(
             dates=dates,
-            get_unknown_coords=lambda mmm: {"country": {"All"}},
+            compare_coords=lambda mmm: ({}, {"country": {"All"}}),
         )
         incr.model = SimpleNamespace(model=model_stub)
 
@@ -772,34 +772,19 @@ class TestFilteredVsPostProcessed:
         # Values must be numerically close
         xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
 
-    @pytest.mark.xfail(
-        reason="Scalar filter drops the dimension; PyTensor graph shape mismatch"
-    )
-    def test_scalar_filtered_dims_matches_post_processed(self, panel_fitted_mmm):
-        """Scalar dim filter (drops dimension) matches post-processed selection.
+    def test_scalar_filtered_dims_raises_error(self, panel_fitted_mmm):
+        """Scalar dim filter (drops dimension) raises a clear error.
 
         When a scalar value is passed to ``filter_dims`` (e.g. ``country="US"``
         instead of ``country=["US"]``), xarray drops the dimension entirely.
-        The PyTensor model graph still expects that dimension, so this currently
-        raises a shape error.  Once supported, values should be numerically
-        identical to selecting from the full computation.
+        The PyTensor model graph still expects that dimension, so we raise a
+        ``ValueError`` instructing the user to use a list instead.
         """
-        # Approach A: full data + post-process (squeeze drops the dim)
-        incr_full = panel_fitted_mmm.incrementality
-        roas_full = incr_full.contribution_over_spend(frequency="original")
-        roas_post = roas_full.sel(country="US", drop=True)
-
-        # Approach B: scalar-filtered data (country dim is dropped)
         filtered_data = panel_fitted_mmm.data.filter_dims(country="US")
         incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
-        roas_filtered = incr_filtered.contribution_over_spend(frequency="original")
 
-        # The filtered result should not have a country dimension
-        assert "country" not in roas_filtered.dims
-        assert "country" not in roas_post.dims
-
-        # Values must be numerically close
-        xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
+        with pytest.raises(ValueError, match=r"missing dimension.*country"):
+            incr_filtered.contribution_over_spend(frequency="original")
 
     def test_filtered_dates_warns_and_computes(self, panel_fitted_mmm):
         """Pre-filtered dates should warn about boundary effects but still compute.
@@ -827,7 +812,7 @@ class TestFilteredVsPostProcessed:
         assert "draw" in roas_filtered.dims
         assert "channel" in roas_filtered.dims
         assert "country" in roas_filtered.dims
-        assert "date" not in roas_filtered.dims
+        assert "date" in roas_filtered.dims
 
         # Values should be finite (no crash, no all-NaN)
         assert roas_filtered.notnull().any()

@@ -547,17 +547,35 @@ class Incrementality:
                     "aggregation of the results."
                 )
 
-        # Custom dimension values must be a subset of the model's fitted
-        # coordinate values.  Aggregating dimensions (e.g. via
-        # aggregate_dims) introduces new labels that the
-        # model's per-dimension saturation and adstock parameters were
-        # never fitted for, producing incorrect results.  Filtering
-        # (selecting a subset of existing values) is fine.
-        unknowns = self.data.get_unknown_coords(self.model)
-        for dim_name, unknown_values in unknowns.items():
+        # Validate custom dimensions: detect coords in model but not idata
+        # (scalar filter dropped them) and coords in idata but not model
+        # (aggregation added new labels the model was never fitted for).
+        in_model_not_idata, in_idata_not_model = self.data.compare_coords(self.model)
+
+        for dim_name, missing_values in in_model_not_idata.items():
+            model_dims = self.model.model.named_vars_to_dims.get("channel_data", ())
+            if (
+                dim_name in model_dims
+                and dim_name not in self.data.get_channel_spend().dims
+            ):
+                raise ValueError(
+                    f"The idata is missing dimension '{dim_name}' expected by "
+                    f"the model. This typically happens when a scalar value "
+                    f'is passed to filter_dims (e.g. {dim_name}="US"), which '
+                    "causes xarray to drop the dimension. Use a list instead "
+                    f'to preserve the dimension (e.g. {dim_name}=["US"]).'
+                )
+            raise ValueError(
+                f"The idata is missing coordinate values for dimension "
+                f"'{dim_name}': {sorted(missing_values)}. "
+                "Incrementality must be computed on data that includes "
+                "all coordinate values the model was fitted with."
+            )
+
+        for dim_name, extra_values in in_idata_not_model.items():
             raise ValueError(
                 f"The idata contains unknown values for dimension "
-                f"'{dim_name}': {sorted(unknown_values)}. "
+                f"'{dim_name}': {sorted(extra_values)}. "
                 "This typically happens when custom dimensions have been "
                 "aggregated (e.g. via aggregate_dims). Incrementality "
                 "must be computed on the original (unaggregated) data "
