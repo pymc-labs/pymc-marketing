@@ -693,3 +693,176 @@ class TestConvenienceFunctions:
             random_state=42,
         )
         assert result.sizes["draw"] == 10
+
+
+class TestFilteredVsPostProcessed:
+    """Compare contribution_over_spend on pre-filtered data vs full data with post-processing."""
+
+    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    def test_filtered_dims_matches_post_processed(self, panel_fitted_mmm, frequency):
+        """Pre-filtered incrementality must match post-processed selection.
+
+        Approach A (post-processing): compute on full data, then ``.sel(country=...)``.
+        Approach B (pre-filtering): filter idata via ``filter_dims``, then compute.
+        """
+        countries_to_keep = ["US"]
+
+        # Approach A: full data + post-process
+        incr_full = panel_fitted_mmm.incrementality
+        roas_full = incr_full.contribution_over_spend(frequency=frequency)
+        roas_post = roas_full.sel(country=countries_to_keep)
+
+        # Approach B: pre-filtered data
+        filtered_data = panel_fitted_mmm.data.filter_dims(country=countries_to_keep)
+        incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
+        roas_filtered = incr_filtered.contribution_over_spend(frequency=frequency)
+
+        # Shapes must match
+        assert roas_filtered.dims == roas_post.dims
+        assert roas_filtered.shape == roas_post.shape
+
+        # Values must be numerically close
+        xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
+
+    @pytest.mark.xfail(
+        reason="Scalar filter drops the dimension; PyTensor graph shape mismatch"
+    )
+    def test_scalar_filtered_dims_matches_post_processed(self, panel_fitted_mmm):
+        """Scalar dim filter (drops dimension) matches post-processed selection.
+
+        When a scalar value is passed to ``filter_dims`` (e.g. ``country="US"``
+        instead of ``country=["US"]``), xarray drops the dimension entirely.
+        The PyTensor model graph still expects that dimension, so this currently
+        raises a shape error.  Once supported, values should be numerically
+        identical to selecting from the full computation.
+        """
+        # Approach A: full data + post-process (squeeze drops the dim)
+        incr_full = panel_fitted_mmm.incrementality
+        roas_full = incr_full.contribution_over_spend(frequency="original")
+        roas_post = roas_full.sel(country="US", drop=True)
+
+        # Approach B: scalar-filtered data (country dim is dropped)
+        filtered_data = panel_fitted_mmm.data.filter_dims(country="US")
+        incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
+        roas_filtered = incr_filtered.contribution_over_spend(frequency="original")
+
+        # The filtered result should not have a country dimension
+        assert "country" not in roas_filtered.dims
+        assert "country" not in roas_post.dims
+
+        # Values must be numerically close
+        xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
+
+    @pytest.mark.xfail(reason="Pre-filtering dates removes adstock carry-in context")
+    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    def test_filtered_dates_matches_post_processed(self, panel_fitted_mmm, frequency):
+        """Pre-filtered date range must match post-processed date selection.
+
+        Approach A (post-processing): compute on full data, then select dates.
+        Approach B (pre-filtering): filter idata via ``filter_dates``, then compute.
+        """
+        all_dates = pd.to_datetime(panel_fitted_mmm.idata.fit_data.date.values)
+        start_date = all_dates[3]
+        end_date = all_dates[10]
+
+        # Approach A: full data + post-process
+        incr_full = panel_fitted_mmm.incrementality
+        roas_full = incr_full.contribution_over_spend(
+            frequency=frequency,
+            period_start=start_date,
+            period_end=end_date,
+        )
+
+        # Approach B: pre-filtered data
+        filtered_data = panel_fitted_mmm.data.filter_dates(
+            start_date=start_date, end_date=end_date
+        )
+        incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
+        roas_filtered = incr_filtered.contribution_over_spend(frequency=frequency)
+
+        # Shapes must match
+        assert roas_filtered.dims == roas_full.dims
+        assert roas_filtered.shape == roas_full.shape
+
+        # Values must be numerically close
+        xr.testing.assert_allclose(roas_filtered, roas_full, rtol=1e-5)
+
+    @pytest.mark.xfail(
+        reason="Aggregated idata date dimension mismatches PyTensor model graph"
+    )
+    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    def test_aggregate_time_matches_post_processed(self, panel_fitted_mmm, frequency):
+        """Pre-aggregated time must match computing with that frequency directly.
+
+        Approach A (direct): compute contribution_over_spend at the given frequency.
+        Approach B (pre-aggregation): aggregate idata via ``aggregate_time``,
+        then compute at ``"original"`` frequency (since data is already aggregated).
+
+        Note: This test may fail because the PyTensor model graph expects the
+        original date dimension size, and aggregating before evaluation changes
+        the adstock context.
+        """
+        # Approach A: direct frequency computation
+        incr_full = panel_fitted_mmm.incrementality
+        roas_direct = incr_full.contribution_over_spend(frequency=frequency)
+
+        # Approach B: pre-aggregated data
+        if frequency == "original":
+            agg_period = "weekly"
+        else:
+            agg_period = frequency
+        aggregated_data = panel_fitted_mmm.data.aggregate_time(
+            period=agg_period, method="sum"
+        )
+        incr_aggregated = Incrementality(panel_fitted_mmm, aggregated_data.idata)
+        roas_aggregated = incr_aggregated.contribution_over_spend(frequency="original")
+
+        # Shapes must match
+        assert roas_aggregated.dims == roas_direct.dims
+        assert roas_aggregated.shape == roas_direct.shape
+
+        # Values must be numerically close
+        xr.testing.assert_allclose(roas_aggregated, roas_direct, rtol=1e-5)
+
+    @pytest.mark.xfail(
+        reason="Summing posterior params across dims pushes values out of valid range"
+    )
+    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
+    def test_aggregate_dims_matches_post_processed(self, panel_fitted_mmm, frequency):
+        """Pre-aggregated dims must match post-processed aggregation.
+
+        Approach A (post-processing): compute on full data, then sum across countries.
+        Approach B (pre-aggregation): aggregate countries via ``aggregate_dims``,
+        then compute.
+
+        Note: This test may fail because summing channel data across countries
+        and then passing through saturation/adstock is not equivalent to
+        processing each country separately and then summing contributions.
+        """
+        countries = ["US", "UK"]
+
+        # Approach A: full data + post-process (sum across countries)
+        incr_full = panel_fitted_mmm.incrementality
+        roas_full = incr_full.contribution_over_spend(frequency=frequency)
+        roas_post = roas_full.sel(country=countries).sum(dim="country")
+
+        # Approach B: pre-aggregated data
+        aggregated_data = panel_fitted_mmm.data.aggregate_dims(
+            dim="country",
+            values=countries,
+            new_label="All",
+            method="sum",
+        )
+        incr_aggregated = Incrementality(panel_fitted_mmm, aggregated_data.idata)
+        roas_aggregated = incr_aggregated.contribution_over_spend(frequency=frequency)
+
+        # The aggregated result should have the new label
+        if "country" in roas_aggregated.dims:
+            assert "All" in roas_aggregated.country.values
+
+        # Values must be numerically close
+        xr.testing.assert_allclose(
+            roas_aggregated.squeeze("country", drop=True),
+            roas_post,
+            rtol=1e-5,
+        )
