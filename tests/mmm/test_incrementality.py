@@ -199,6 +199,15 @@ def incrementality_lite():
             date=SimpleNamespace(values=dates.values),
         ),
     )
+    # Stub model with channel_data shared variable matching date count
+    channel_data_stub = SimpleNamespace(
+        get_value=lambda: spend_values,
+    )
+    incr.model = SimpleNamespace(
+        model={
+            "channel_data": channel_data_stub,
+        },
+    )
 
     return incr, _SIMPLE_L_MAX
 
@@ -787,42 +796,21 @@ class TestFilteredVsPostProcessed:
         # Values must be numerically close
         xr.testing.assert_allclose(roas_filtered, roas_full, rtol=1e-5)
 
-    @pytest.mark.xfail(
-        reason="Aggregated idata date dimension mismatches PyTensor model graph"
-    )
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
-    def test_aggregate_time_matches_post_processed(self, panel_fitted_mmm, frequency):
-        """Pre-aggregated time must match computing with that frequency directly.
+    def test_aggregate_time_raises_error(self, panel_fitted_mmm):
+        """Pre-aggregated idata must raise ValueError in compute_incremental_contribution.
 
-        Approach A (direct): compute contribution_over_spend at the given frequency.
-        Approach B (pre-aggregation): aggregate idata via ``aggregate_time``,
-        then compute at ``"original"`` frequency (since data is already aggregated).
-
-        Note: This test may fail because the PyTensor model graph expects the
-        original date dimension size, and aggregating before evaluation changes
-        the adstock context.
+        It is impossible to compute incrementality over aggregated dates because
+        the adstock model graph expects the original temporal resolution.  Users
+        should pass the original (unaggregated) data and use the ``frequency``
+        argument for time aggregation of results.
         """
-        # Approach A: direct frequency computation
-        incr_full = panel_fitted_mmm.incrementality
-        roas_direct = incr_full.contribution_over_spend(frequency=frequency)
-
-        # Approach B: pre-aggregated data
-        if frequency == "original":
-            agg_period = "weekly"
-        else:
-            agg_period = frequency
         aggregated_data = panel_fitted_mmm.data.aggregate_time(
-            period=agg_period, method="sum"
+            period="monthly", method="sum"
         )
         incr_aggregated = Incrementality(panel_fitted_mmm, aggregated_data.idata)
-        roas_aggregated = incr_aggregated.contribution_over_spend(frequency="original")
 
-        # Shapes must match
-        assert roas_aggregated.dims == roas_direct.dims
-        assert roas_aggregated.shape == roas_direct.shape
-
-        # Values must be numerically close
-        xr.testing.assert_allclose(roas_aggregated, roas_direct, rtol=1e-5)
+        with pytest.raises(ValueError, match="does not match the model's fitted"):
+            incr_aggregated.compute_incremental_contribution(frequency="monthly")
 
     @pytest.mark.xfail(
         reason="Summing posterior params across dims pushes values out of valid range"

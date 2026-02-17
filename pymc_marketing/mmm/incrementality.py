@@ -482,8 +482,28 @@ class Incrementality:
         Raises
         ------
         ValueError
-            If dates are outside fitted data range or start > end.
+            If the idata dates do not match the model's fitted date
+            dimension (e.g. because idata was pre-aggregated), if dates
+            are outside the fitted data range, or if start > end.
         """
+        # Adstock effects are defined at the original temporal resolution
+        # of the fitted data.  If the idata has been pre-aggregated (e.g.
+        # weekly → monthly), the per-period adstock carry-in and carry-out
+        # cannot be computed correctly.
+        model_n_dates = self.model.model["channel_data"].get_value().shape[0]
+        idata_n_dates = len(self.data.dates)
+        if idata_n_dates != model_n_dates:
+            raise ValueError(
+                f"The idata date dimension ({idata_n_dates}) does not match "
+                f"the model's fitted date dimension ({model_n_dates}). "
+                "This typically happens when idata has been pre-aggregated "
+                "(e.g. via aggregate_time). Adstock effects are defined at "
+                "the original temporal resolution, so incrementality cannot "
+                "be computed on aggregated data. Pass the original "
+                "(unaggregated) data and use the `frequency` argument to "
+                "control time aggregation of the results."
+            )
+
         dates = self.data.dates
         data_start = dates[0]
         data_end = dates[-1]
