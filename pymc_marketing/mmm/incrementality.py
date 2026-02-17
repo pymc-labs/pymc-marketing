@@ -552,8 +552,9 @@ class Incrementality:
         # (aggregation added new labels the model was never fitted for).
         in_model_not_idata, in_idata_not_model = self.data.compare_coords(self.model)
 
-        for dim_name, missing_values in in_model_not_idata.items():
+        for dim_name, _missing_values in in_model_not_idata.items():
             model_dims = self.model.model.named_vars_to_dims.get("channel_data", ())
+            # Case 1: dimension entirely dropped (scalar filter like country="US")
             if (
                 dim_name in model_dims
                 and dim_name not in self.data.get_channel_spend().dims
@@ -565,12 +566,24 @@ class Incrementality:
                     "causes xarray to drop the dimension. Use a list instead "
                     f'to preserve the dimension (e.g. {dim_name}=["US"]).'
                 )
-            raise ValueError(
-                f"The idata is missing coordinate values for dimension "
-                f"'{dim_name}': {sorted(missing_values)}. "
-                "Incrementality must be computed on data that includes "
-                "all coordinate values the model was fitted with."
-            )
+            # Case 2: dimension has replacement values (aggregation created
+            # new labels AND removed old ones for the same dimension)
+            if dim_name in in_idata_not_model:
+                raise ValueError(
+                    f"The idata contains unknown values for dimension "
+                    f"'{dim_name}': {sorted(in_idata_not_model[dim_name])}. "
+                    "This typically happens when custom dimensions have been "
+                    "aggregated (e.g. via aggregate_dims). Incrementality "
+                    "must be computed on the original (unaggregated) data "
+                    "because the model's saturation and adstock parameters "
+                    "are fitted per dimension value. Compute incrementality "
+                    "on the full data first, then aggregate the results as "
+                    "needed."
+                )
+            # Case 3: dimension present with a strict subset of values
+            # (e.g. filter_dims(country=["US"])) — this is allowed because
+            # each dimension value's saturation/adstock parameters are
+            # independent.
 
         for dim_name, extra_values in in_idata_not_model.items():
             raise ValueError(
