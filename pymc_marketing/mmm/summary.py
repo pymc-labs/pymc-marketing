@@ -43,6 +43,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import aggregate_idata_dims
 from pymc_marketing.mmm.incrementality import Incrementality
 
 # Type aliases
@@ -487,6 +488,9 @@ class MMMSummaryFactory:
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
+        aggregate_dims: dict[str, Any] | list[dict[str, Any]] | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
         """Create ROAS (Return on Ad Spend) summary DataFrame.
@@ -521,6 +525,53 @@ class MMMSummaryFactory:
         random_state : int, np.random.Generator, np.random.RandomState, or None, optional
             Random state for reproducible subsampling. Only used when
             ``method="incremental"`` and ``num_samples`` is not None.
+        start_date : str or pd.Timestamp, optional
+            Start date for the evaluation window. Only used when
+            ``method="incremental"``. Passed to
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+        end_date : str or pd.Timestamp, optional
+            End date for the evaluation window. Only used when
+            ``method="incremental"``. Passed to
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+        aggregate_dims : dict or list[dict], optional
+            Post-computation dimension aggregation. Accepts either a single
+            dict or a list of dicts. Each dict contains keyword arguments
+            that are passed directly to
+            :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims`:
+
+            - ``dim`` (str): Dimension to aggregate (e.g. ``"channel"``).
+            - ``values`` (list[str]): Coordinate values to aggregate.
+            - ``new_label`` (str): Label for the aggregated value.
+            - ``method`` (str, optional): ``"sum"`` (default) or ``"mean"``.
+
+            When a **list** is provided, each element is applied
+            sequentially, which allows multiple aggregations on the same
+            dimension (e.g. grouping different sets of channels).
+
+            Single dict example::
+
+                aggregate_dims = {
+                    "dim": "channel",
+                    "values": ["Facebook", "Instagram"],
+                    "new_label": "Social",
+                    "method": "sum",
+                }
+
+            List of dicts example::
+
+                aggregate_dims = [
+                    {
+                        "dim": "channel",
+                        "values": ["Facebook", "Instagram"],
+                        "new_label": "Social",
+                    },
+                    {
+                        "dim": "channel",
+                        "values": ["Google", "Bing"],
+                        "new_label": "Search",
+                    },
+                ]
+
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
 
@@ -542,6 +593,32 @@ class MMMSummaryFactory:
         >>> df = mmm.summary.roas(frequency="monthly")
         >>> df = mmm.summary.roas(method="incremental", include_carryover=True)
         >>> df = factory.roas(method="elementwise")
+        >>> df = mmm.summary.roas(
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-06-30",
+        ...     frequency="quarterly",
+        ... )
+        >>> df = mmm.summary.roas(
+        ...     aggregate_dims={
+        ...         "dim": "channel",
+        ...         "values": ["channel_1", "channel_2"],
+        ...         "new_label": "combined",
+        ...     }
+        ... )
+        >>> df = mmm.summary.roas(
+        ...     aggregate_dims=[
+        ...         {
+        ...             "dim": "channel",
+        ...             "values": ["ch_1", "ch_2"],
+        ...             "new_label": "group_A",
+        ...         },
+        ...         {
+        ...             "dim": "channel",
+        ...             "values": ["ch_3", "ch_4"],
+        ...             "new_label": "group_B",
+        ...         },
+        ...     ]
+        ... )
 
         """
         # Resolve all defaults in one call
@@ -553,9 +630,11 @@ class MMMSummaryFactory:
             self._require_model("roas with method='incremental'")
             if self.model is None:
                 raise RuntimeError("Model should not be None after _require_model")
-            incr = Incrementality(model=self.model, data=data)
+            incr = Incrementality(model=self.model, data=self.data)
             roas = incr.contribution_over_spend(
                 frequency=frequency or "original",
+                period_start=start_date,
+                period_end=end_date,
                 include_carryover=include_carryover,
                 num_samples=num_samples,
                 random_state=random_state,
@@ -567,10 +646,48 @@ class MMMSummaryFactory:
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
             )
 
+        if aggregate_dims is not None:
+            if isinstance(aggregate_dims, dict):
+                aggregate_dims = [aggregate_dims]
+            roas = self._apply_aggregate_dims(roas, aggregate_dims)
+
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
 
         return self._convert_output(df, output_format)
+
+    @staticmethod
+    def _apply_aggregate_dims(
+        data: xr.DataArray,
+        aggregate_dims: list[dict[str, Any]],
+    ) -> xr.DataArray:
+        """Aggregate dimensions on an xr.DataArray via idata utilities.
+
+        Converts the DataArray to an ``az.InferenceData`` object, applies
+        :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims` for
+        each entry, and extracts the result back.
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            Data with ``(chain, draw, ...)`` dimensions.
+        aggregate_dims : list[dict[str, Any]]
+            List of aggregation specs. Each dict contains keyword arguments
+            passed directly to ``aggregate_idata_dims`` (``dim``,
+            ``values``, ``new_label``, optional ``method``). Specs are
+            applied sequentially, so multiple aggregations on the same
+            dimension are supported.
+
+        Returns
+        -------
+        xr.DataArray
+            Data with the requested dimensions aggregated.
+        """
+        var_name = "roas"
+        idata = az.InferenceData(roas=data.to_dataset(name=var_name))
+        for agg_spec in aggregate_dims:
+            idata = aggregate_idata_dims(idata, **agg_spec)
+        return idata.roas[var_name]
 
     def channel_spend(
         self,
