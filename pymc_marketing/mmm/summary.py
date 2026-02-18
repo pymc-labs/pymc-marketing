@@ -621,6 +621,21 @@ class MMMSummaryFactory:
         ... )
 
         """
+        if method == "elementwise":
+            incremental_only_params = {
+                "include_carryover": include_carryover != True,  # noqa: E712
+                "num_samples": num_samples is not None,
+                "random_state": random_state is not None,
+                "start_date": start_date is not None,
+                "end_date": end_date is not None,
+            }
+            for name, was_set in incremental_only_params.items():
+                if was_set:
+                    raise ValueError(
+                        f"parameter {name} is only supported with method='incremental', "
+                        f"either remove it or use method='incremental'."
+                    )
+
         # Resolve all defaults in one call
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
             hdi_probs, frequency, output_format
