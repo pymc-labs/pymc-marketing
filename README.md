@@ -19,7 +19,7 @@
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
 
-# <span style="color:limegreen">PyMC-Marketing</span>: Bayesian Marketing Mix Modeling (MMM) & Customer Lifetime Value (CLV)
+# <span style="color:limegreen">PyMC-Marketing</span>: Bayesian Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) & Customer Choice Analysis (CSA)
 
 ## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
