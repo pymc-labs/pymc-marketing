@@ -526,13 +526,17 @@ class MMMSummaryFactory:
             Random state for reproducible subsampling. Only used when
             ``method="incremental"`` and ``num_samples`` is not None.
         start_date : str or pd.Timestamp, optional
-            Start date for the evaluation window. Only used when
-            ``method="incremental"``. Passed to
+            Start date for the evaluation window.  For
+            ``method="incremental"`` this is passed to
             :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+            For ``method="elementwise"`` the ROAS result is filtered to
+            dates on or after this value.
         end_date : str or pd.Timestamp, optional
-            End date for the evaluation window. Only used when
-            ``method="incremental"``. Passed to
+            End date for the evaluation window.  For
+            ``method="incremental"`` this is passed to
             :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+            For ``method="elementwise"`` the ROAS result is filtered to
+            dates on or before this value.
         aggregate_dims : dict or list[dict], optional
             Post-computation dimension aggregation. Accepts either a single
             dict or a list of dicts. Each dict contains keyword arguments
@@ -626,8 +630,6 @@ class MMMSummaryFactory:
                 "include_carryover": include_carryover != True,  # noqa: E712
                 "num_samples": num_samples is not None,
                 "random_state": random_state is not None,
-                "start_date": start_date is not None,
-                "end_date": end_date is not None,
             }
             for name, was_set in incremental_only_params.items():
                 if was_set:
@@ -655,6 +657,7 @@ class MMMSummaryFactory:
                 random_state=random_state,
             )
         elif method == "elementwise":
+            data = data.filter_dates(start_date=start_date, end_date=end_date)
             roas = data.get_elementwise_roas(original_scale=True)
         else:
             raise ValueError(

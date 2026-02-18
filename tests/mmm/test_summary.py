@@ -1049,6 +1049,49 @@ class TestROASMethods:
         assert required_columns.issubset(set(df.columns))
         assert len(df) > 0
 
+    def test_roas_elementwise_with_date_filter(self, mock_mmm_idata_wrapper):
+        """Test that start_date/end_date filter elementwise ROAS results."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+
+        df_full = factory.roas(method="elementwise")
+
+        dates = mock_mmm_idata_wrapper.dates
+        mid = dates[len(dates) // 2]
+
+        df_filtered = factory.roas(
+            method="elementwise",
+            start_date=str(dates[0].date()),
+            end_date=str(mid.date()),
+        )
+
+        assert len(df_filtered) > 0
+        assert len(df_filtered) < len(df_full)
+        assert df_filtered["date"].max() <= mid
+
+    def test_roas_elementwise_with_start_date_only(self, mock_mmm_idata_wrapper):
+        """Test that only start_date filters elementwise ROAS results."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+
+        dates = mock_mmm_idata_wrapper.dates
+        mid = dates[len(dates) // 2]
+
+        df_filtered = factory.roas(method="elementwise", start_date=str(mid.date()))
+
+        assert len(df_filtered) > 0
+        assert df_filtered["date"].min() >= mid
+
+    def test_roas_elementwise_with_end_date_only(self, mock_mmm_idata_wrapper):
+        """Test that only end_date filters elementwise ROAS results."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+
+        dates = mock_mmm_idata_wrapper.dates
+        mid = dates[len(dates) // 2]
+
+        df_filtered = factory.roas(method="elementwise", end_date=str(mid.date()))
+
+        assert len(df_filtered) > 0
+        assert df_filtered["date"].max() <= mid
+
     def test_roas_invalid_method_raises(self, mock_mmm_idata_wrapper):
         """Test that invalid method value raises ValueError."""
         factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
