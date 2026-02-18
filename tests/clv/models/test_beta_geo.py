@@ -189,6 +189,96 @@ class TestBetaGeoModel:
                 data=data,
             )
 
+    def test_check_inputs_frequency_negative(self):
+        """Invalid data: frequency < 0 should raise ValueError before fitting."""
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([-1]),
+                "recency": np.asarray([0]),
+                "T": np.asarray([10]),
+            }
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"Frequency must be >= 0\. Found negative value\(s\) in frequency\.",
+        ):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_recency_negative(self):
+        """Invalid data: recency < 0 should raise ValueError before fitting."""
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([0]),
+                "recency": np.asarray([-1]),
+                "T": np.asarray([10]),
+            }
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"Recency must be >= 0\. Found negative value\(s\) in recency\.",
+        ):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_T_negative(self):
+        """Invalid data: T < 0 should raise ValueError before fitting."""
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([0]),
+                "recency": np.asarray([0]),
+                "T": np.asarray([-5]),
+            }
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"T \(observation period length\) must be >= 0\. "
+            r"Found negative value\(s\) in T\.",
+        ):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_recency_greater_than_T(self):
+        """Invalid data: recency > T should raise ValueError before fitting."""
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([2]),
+                "recency": np.asarray([15]),
+                "T": np.asarray([10]),
+            }
+        )
+        with pytest.raises(
+            ValueError,
+            match=r"Recency cannot be greater than T\. "
+            r"Customers cannot have visited more recently than the total observation period\.",
+        ):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_valid_data_passes(self):
+        """Valid data should pass _check_inputs and allow model construction."""
+        data_valid = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1, 2]),
+                "frequency": np.asarray([0, 3]),
+                "recency": np.asarray([0, 5]),
+                "T": np.asarray([10, 10]),
+            }
+        )
+        model = BetaGeoModel(data=data_valid)
+        assert model.data is not None
+        # Edge case: recency == T is valid
+        data_edge = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([1]),
+                "recency": np.asarray([10]),
+                "T": np.asarray([10]),
+            }
+        )
+        model_edge = BetaGeoModel(data=data_edge)
+        assert model_edge.data is not None
+
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
         [
