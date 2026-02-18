@@ -762,7 +762,7 @@ class TestFilteredVsPostProcessed:
 
         # Approach B: pre-filtered data
         filtered_data = panel_fitted_mmm.data.filter_dims(country=countries_to_keep)
-        incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
+        incr_filtered = Incrementality(panel_fitted_mmm, data=filtered_data)
         roas_filtered = incr_filtered.contribution_over_spend(frequency=frequency)
 
         # Shapes must match
@@ -781,7 +781,7 @@ class TestFilteredVsPostProcessed:
         ``ValueError`` instructing the user to use a list instead.
         """
         filtered_data = panel_fitted_mmm.data.filter_dims(country="US")
-        incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
+        incr_filtered = Incrementality(panel_fitted_mmm, data=filtered_data)
 
         with pytest.raises(ValueError, match=r"missing dimension.*country"):
             incr_filtered.contribution_over_spend(frequency="original")
@@ -802,7 +802,7 @@ class TestFilteredVsPostProcessed:
         filtered_data = panel_fitted_mmm.data.filter_dates(
             start_date=start_date, end_date=end_date
         )
-        incr_filtered = Incrementality(panel_fitted_mmm, filtered_data.idata)
+        incr_filtered = Incrementality(panel_fitted_mmm, data=filtered_data)
 
         with pytest.warns(UserWarning, match="pre-filtered data"):
             roas_filtered = incr_filtered.contribution_over_spend(frequency="monthly")
@@ -828,7 +828,7 @@ class TestFilteredVsPostProcessed:
         aggregated_data = panel_fitted_mmm.data.aggregate_time(
             period="monthly", method="sum"
         )
-        incr_aggregated = Incrementality(panel_fitted_mmm, aggregated_data.idata)
+        incr_aggregated = Incrementality(panel_fitted_mmm, data=aggregated_data)
 
         with pytest.raises(ValueError, match="does not match the model's fitted"):
             incr_aggregated.compute_incremental_contribution(frequency="monthly")
@@ -848,7 +848,7 @@ class TestFilteredVsPostProcessed:
             new_label="All",
             method="sum",
         )
-        incr_aggregated = Incrementality(panel_fitted_mmm, aggregated_data.idata)
+        incr_aggregated = Incrementality(panel_fitted_mmm, data=aggregated_data)
 
         with pytest.raises(ValueError, match="unknown values for dimension"):
             incr_aggregated.compute_incremental_contribution(frequency="monthly")

@@ -43,6 +43,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.mmm.incrementality import Incrementality
 
 # Type aliases
 OutputFormat = Literal["pandas", "polars"]
@@ -552,7 +553,7 @@ class MMMSummaryFactory:
             self._require_model("roas with method='incremental'")
             if self.model is None:
                 raise RuntimeError("Model should not be None after _require_model")
-            incr = self.model.incrementality
+            incr = Incrementality(model=self.model, data=data)
             roas = incr.contribution_over_spend(
                 frequency=frequency or "original",
                 include_carryover=include_carryover,

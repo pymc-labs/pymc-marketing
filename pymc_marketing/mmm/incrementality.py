@@ -161,8 +161,13 @@ class Incrementality:
     ----------
     model : MMM
         Fitted MMM model instance.
-    idata : az.InferenceData
+    idata : az.InferenceData, optional
         InferenceData containing posterior samples and fit data.
+        Mutually exclusive with ``data``.
+    data : MMMIDataWrapper, optional
+        Pre-built data wrapper. When provided, ``idata`` is taken from
+        ``data.idata`` and no re-wrapping occurs.
+        Mutually exclusive with ``idata``.
 
     Attributes
     ----------
@@ -173,6 +178,11 @@ class Incrementality:
     data : MMMIDataWrapper
         Data wrapper for accessing model data.
 
+    Raises
+    ------
+    ValueError
+        If both ``idata`` and ``data`` are provided, or neither is.
+
     Examples
     --------
     >>> incr = mmm.incrementality
@@ -180,10 +190,24 @@ class Incrementality:
     >>> cac = incr.spend_over_contribution(frequency="monthly")
     """
 
-    def __init__(self, model: MMM, idata: az.InferenceData):
+    def __init__(
+        self,
+        model: MMM,
+        idata: az.InferenceData | None = None,
+        data: MMMIDataWrapper | None = None,
+    ):
+        if idata is not None and data is not None:
+            raise ValueError("Provide either 'idata' or 'data', not both.")
+        if idata is None and data is None:
+            raise ValueError("Provide either 'idata' or 'data'.")
+
         self.model = model
-        self.idata = idata
-        self.data = MMMIDataWrapper.from_mmm(model, idata)
+        if data is not None:
+            self.data = data
+            self.idata = data.idata
+        else:
+            self.idata = idata
+            self.data = MMMIDataWrapper.from_mmm(model, idata)
 
     def compute_incremental_contribution(
         self,
