@@ -529,12 +529,18 @@ class MMMSummaryFactory:
             Start date for the evaluation window.  For
             ``method="incremental"`` this is passed to
             :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+            Spend *before* this date still influences ROAS through adstock
+            carryover effects (the counterfactual analysis automatically
+            includes the necessary carry-in context).
             For ``method="elementwise"`` the ROAS result is filtered to
             dates on or after this value.
         end_date : str or pd.Timestamp, optional
             End date for the evaluation window.  For
             ``method="incremental"`` this is passed to
             :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+            Spend *during* the window continues to generate returns *after*
+            this date through adstock carryover; those trailing effects are
+            included in the ROAS calculation.
             For ``method="elementwise"`` the ROAS result is filtered to
             dates on or before this value.
         aggregate_dims : dict or list[dict], optional
