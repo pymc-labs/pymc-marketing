@@ -407,12 +407,12 @@ class Transformation:
     ) -> xr.Dataset:
         """Sample the priors for the transformation.
 
-        When all parameters are fixed constant tensors (rather than probability
-        distributions), ``pm.sample_prior_predictive`` would normally return an
-        ``InferenceData`` without a ``prior`` group because there are no free
-        random variables to sample. This method handles that edge case by
-        registering constant parameters as ``pm.Deterministic`` nodes so that
-        they are included in the returned prior dataset.
+        When parameters include constant tensors (rather than probability
+        distributions), those constants need to be explicitly registered as
+        ``pm.Deterministic`` nodes to ensure they are captured in the prior
+        output. This handles both cases where all priors are constants and
+        mixed cases where some priors are distributions and others are constant
+        tensors.
 
         Parameters
         ----------
@@ -429,18 +429,18 @@ class Transformation:
         """
         coords = coords or {}
         dims = tuple(coords.keys())
-        with pm.Model(coords=coords) as model:
+        with pm.Model(coords=coords):
             variables = self._create_distributions(dims=dims)
 
-            # When there are no free random variables (all priors are constant
-            # tensors), pm.sample_prior_predictive returns an InferenceData
-            # without a 'prior' group.  Register each constant as a
-            # pm.Deterministic so it is captured in the prior output.
-            if not model.free_RVs:
-                for param_name, var_name in self.variable_mapping.items():
-                    prior = self.function_priors[param_name]
-                    if not hasattr(prior, "create_variable"):
-                        pm.Deterministic(var_name, variables[param_name])
+            # Register any constant tensors (non-distribution priors) as
+            # pm.Deterministic nodes so they are captured in the prior output.
+            # This handles both the case where all priors are constants and
+            # mixed cases where some priors are distributions and others are
+            # constant tensors.
+            for param_name, var_name in self.variable_mapping.items():
+                prior = self.function_priors[param_name]
+                if not hasattr(prior, "create_variable"):
+                    pm.Deterministic(var_name, variables[param_name])
 
             idata = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
             return idata.prior

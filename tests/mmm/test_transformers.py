@@ -18,6 +18,7 @@ import pytensor
 import pytensor.tensor as pt
 import pytest
 import scipy as sp
+import xarray as xr
 from pymc.logprob.utils import ParameterValueError
 from pytensor.tensor.variable import TensorVariable
 
@@ -342,6 +343,41 @@ class TestsAdstockTransformers:
     def test_weibull_adstock_type(self, type, expectation):
         with expectation:
             weibull_adstock(x=np.ones(shape=(100)), lam=0.5, k=0.5, l_max=10, type=type)
+
+
+class TestGeometricAdstockSamplePrior:
+    """Test for GitHub issue #1749.
+
+    The `sample_prior` method must succeed when a transformation is initialized
+    with constant tensor parameters instead of probability distributions.
+    """
+
+    def test_sample_prior_with_constant_tensor(self):
+        """Test that sample_prior works with constant tensor parameters.
+
+        Regression test for GitHub issue #1749. When GeometricAdstock is
+        initialized with a constant pt.as_tensor_variable (not a distribution),
+        sample_prior should run without error and return the expected shape.
+        """
+        from pymc_marketing.mmm import GeometricAdstock
+
+        # Initialize with constant tensor (not a distribution)
+        alpha = pt.as_tensor_variable([0.5, 0.3, 0.2])
+        adstock = GeometricAdstock(l_max=4, priors={"alpha": alpha})
+        coords = {"channel": ["A", "B", "C"]}
+
+        # This should not raise an error
+        prior = adstock.sample_prior(coords=coords)
+
+        # Assert it returns the expected structure
+        assert isinstance(prior, xr.Dataset)
+        assert "adstock_alpha" in prior.data_vars
+        assert prior.sizes["chain"] == 1
+        assert prior.sizes["draw"] >= 1
+        # Expected shape: (chain=1, draw=N, channel=3)
+        assert prior["adstock_alpha"].shape == (1, prior.sizes["draw"], 3)
+        # Each draw should contain the same constant values
+        np.testing.assert_allclose(prior["adstock_alpha"].values[0, 0], [0.5, 0.3, 0.2])
 
 
 class TestSaturationTransformers:
