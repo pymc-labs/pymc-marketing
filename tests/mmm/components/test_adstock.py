@@ -235,6 +235,28 @@ def test_deserialization(
     assert alpha.value == 1
 
 
+def test_geometric_adstock_sample_prior_constant_alpha() -> None:
+    """Regression test for GitHub issue #1749.
+
+    GeometricAdstock.sample_prior must not raise when ``alpha`` is provided as
+    a constant tensor rather than a Prior distribution.
+    """
+    import pytensor.tensor as pt
+
+    alpha = pt.as_tensor_variable([0.5, 0.3, 0.2])
+    adstock = GeometricAdstock(l_max=4, priors={"alpha": alpha})
+    coords = {"channel": ["A", "B", "C"]}
+
+    prior = adstock.sample_prior(coords=coords)
+
+    assert isinstance(prior, xr.Dataset)
+    assert "adstock_alpha" in prior.data_vars
+    assert prior.sizes["chain"] == 1
+    assert prior.sizes["draw"] >= 1
+    # Each draw holds the same constant vector; check the first draw.
+    np.testing.assert_allclose(prior["adstock_alpha"].values[0, 0], [0.5, 0.3, 0.2])
+
+
 def test_deserialize_new_transformation() -> None:
     class NewAdstock(AdstockTransformation):
         lookup_name = "new_adstock"
