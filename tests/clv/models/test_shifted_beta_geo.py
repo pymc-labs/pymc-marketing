@@ -389,9 +389,7 @@ class TestShiftedBetaGeoModel:
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(
-            ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
-        ):
+        with pytest.raises(ValueError, match=r"Recency cannot be greater than T\."):
             ShiftedBetaGeoModel(data=data)
 
     def test_invalid_T(self):
@@ -404,7 +402,7 @@ class TestShiftedBetaGeoModel:
             }
         )
         with pytest.raises(
-            ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
+            ValueError, match=r"T \(observation period length\) must be >= 2\."
         ):
             ShiftedBetaGeoModel(data=data)
 
