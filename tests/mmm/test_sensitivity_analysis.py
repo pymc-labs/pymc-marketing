@@ -513,3 +513,53 @@ def test_run_sweep_with_2d_mask(simple_model_and_idata):
 
     # The masked result should be smaller than the full result
     assert masked.sum().item() < full.sum().item()
+
+
+def test_run_sweep_integer_channel_data_no_truncation():
+    """Fractional sweep_values must not be truncated when channel_data has integer dtype."""
+    rng = np.random.default_rng(42)
+    n_dates, n_channels, n_draws = 8, 3, 10
+    coords = {"date": np.arange(n_dates), "channel": list("abc")}
+    channel_data_int = rng.integers(50, 200, size=(n_dates, n_channels)).astype(
+        np.int32
+    )
+
+    with pm.Model(coords=coords) as model:
+        X = pm.Data("channel_data", channel_data_int, dims=("date", "channel"))
+        alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pm.Deterministic(
+            "channel_contribution",
+            (alpha * X) / (X + lam),
+            dims=("date", "channel"),
+        )
+
+    idata = az.from_dict(
+        posterior={
+            "alpha": np.full((1, n_draws, n_channels), 0.8, dtype=np.float64),
+            "lam": np.full((1, n_draws, n_channels), 1.2, dtype=np.float64),
+        }
+    )
+
+    sa = SensitivityAnalysis(model, idata)
+    sweep_values = np.array([0.5, 1.0, 1.5])
+
+    result = sa.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        sweep_type="multiplicative",
+    )
+
+    # The channel contribution (alpha*X)/(X+lam) is strictly monotone in X for
+    # positive alpha and lam.  So mean contribution must be strictly ordered with
+    # sweep index — any truncation of fractional values breaks this ordering.
+    mean_by_sweep = result.mean(dim=["sample", "channel"])  # shape: (sweep,)
+    sweep_vals = mean_by_sweep.values
+
+    assert sweep_vals[0] > 0
+    assert sweep_vals[0] < sweep_vals[1] < sweep_vals[2], (
+        f"expected strictly increasing contributions across sweep values "
+        f"{sweep_values.tolist()}, got {sweep_vals.tolist()}. "
+        "Integer truncation of fractional sweep_values may be the cause."
+    )
