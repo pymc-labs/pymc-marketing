@@ -88,8 +88,8 @@ Compute quarterly incremental contributions:
 
     incremental = mmm.incrementality.compute_incremental_contribution(
         frequency="quarterly",
-        period_start="2024-01-01",
-        period_end="2024-12-31",
+        start_date="2024-01-01",
+        end_date="2024-12-31",
     )
 
 Compute quarterly ROAS (when target variable is revenue):
@@ -98,8 +98,8 @@ Compute quarterly ROAS (when target variable is revenue):
 
     roas = mmm.incrementality.contribution_over_spend(
         frequency="quarterly",
-        period_start="2024-01-01",
-        period_end="2024-12-31",
+        start_date="2024-01-01",
+        end_date="2024-12-31",
     )
 
 Compute monthly CAC (when target variable is customer count):
@@ -221,8 +221,8 @@ class Incrementality:
     def compute_incremental_contribution(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -243,9 +243,9 @@ class Incrementality:
             Time aggregation frequency. ``"original"`` uses data's native
             frequency. ``"all_time"`` returns a single value across the entire
             period.
-        period_start : str or pd.Timestamp, optional
+        start_date : str or pd.Timestamp, optional
             Start date for evaluation window. If None, uses start of fitted data.
-        period_end : str or pd.Timestamp, optional
+        end_date : str or pd.Timestamp, optional
             End date for evaluation window. If None, uses end of fitted data.
         include_carryover : bool, default=True
             Include adstock carryover effects.  When True, prepends ``l_max``
@@ -310,8 +310,8 @@ class Incrementality:
 
             incremental = mmm.incrementality.compute_incremental_contribution(
                 frequency="quarterly",
-                period_start="2024-01-01",
-                period_end="2024-12-31",
+                start_date="2024-01-01",
+                end_date="2024-12-31",
             )
 
         Mean contribution per channel per quarter:
@@ -326,8 +326,8 @@ class Incrementality:
 
             annual = mmm.incrementality.compute_incremental_contribution(
                 frequency="all_time",
-                period_start="2024-01-01",
-                period_end="2024-12-31",
+                start_date="2024-01-01",
+                end_date="2024-12-31",
             )
 
         Quarterly marginal incrementality (1 % spend increase):
@@ -347,7 +347,7 @@ class Incrementality:
             )
 
         # Validate and parse dates
-        period_start_ts, period_end_ts = self._validate_input(period_start, period_end)
+        start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
 
         # Subsample posterior if needed (correctly across chain x draw)
         idata_sub = self._get_subsampled_idata(num_samples, random_state)
@@ -356,7 +356,7 @@ class Incrementality:
 
         # Create period groups based on frequency
         dates = self.data.dates
-        periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
+        periods = self._create_period_groups(start_date_ts, end_date_ts, frequency)
 
         # Get l_max for carryover calculations
         l_max = self.model.adstock.l_max
@@ -570,22 +570,22 @@ class Incrementality:
 
     def _validate_input(
         self,
-        period_start: str | pd.Timestamp | None,
-        period_end: str | pd.Timestamp | None,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
     ) -> tuple[pd.Timestamp, pd.Timestamp]:
         """Parse and validate input dates against the fitted data range.
 
         Parameters
         ----------
-        period_start : str or pd.Timestamp or None
+        start_date : str or pd.Timestamp or None
             Start date. If None, uses start of fitted data.
-        period_end : str or pd.Timestamp or None
+        end_date : str or pd.Timestamp or None
             End date. If None, uses end of fitted data.
 
         Returns
         -------
         tuple of (pd.Timestamp, pd.Timestamp)
-            Validated ``(period_start, period_end)``.
+            Validated ``(start_date, end_date)``.
 
         Warns
         -----
@@ -638,7 +638,7 @@ class Incrementality:
                     "date is lost, which may affect accuracy near the "
                     "boundaries of the date range. For full accuracy, pass "
                     "the original (unfiltered) data and use the "
-                    "period_start/period_end parameters to select the "
+                    "start_date/end_date parameters to select the "
                     "evaluation window.",
                     UserWarning,
                     stacklevel=3,
@@ -707,35 +707,35 @@ class Incrementality:
                 "needed."
             )
 
-        # Validate period_start and period_end
+        # Validate start_date and end_date
         dates = self.data.dates
         data_start = dates[0]
         data_end = dates[-1]
 
-        period_start_ts: pd.Timestamp = (
-            data_start if period_start is None else pd.to_datetime(period_start)
+        start_date_ts: pd.Timestamp = (
+            data_start if start_date is None else pd.to_datetime(start_date)
         )
-        period_end_ts: pd.Timestamp = (
-            data_end if period_end is None else pd.to_datetime(period_end)
+        end_date_ts: pd.Timestamp = (
+            data_end if end_date is None else pd.to_datetime(end_date)
         )
 
-        if period_start_ts < data_start:
+        if start_date_ts < data_start:
             raise ValueError(
-                f"period_start '{period_start_ts.date()}' is before fitted data "
+                f"start_date '{start_date_ts.date()}' is before fitted data "
                 f"start '{data_start.date()}'."
             )
-        if period_end_ts > data_end:
+        if end_date_ts > data_end:
             raise ValueError(
-                f"period_end '{period_end_ts.date()}' is after fitted data "
+                f"end_date '{end_date_ts.date()}' is after fitted data "
                 f"end '{data_end.date()}'."
             )
-        if period_start_ts > period_end_ts:
+        if start_date_ts > end_date_ts:
             raise ValueError(
-                f"period_start '{period_start_ts.date()}' is after "
-                f"period_end '{period_end_ts.date()}'."
+                f"start_date '{start_date_ts.date()}' is after "
+                f"end_date '{end_date_ts.date()}'."
             )
 
-        return period_start_ts, period_end_ts
+        return start_date_ts, end_date_ts
 
     @staticmethod
     def _compute_window_metadata(
@@ -1107,8 +1107,8 @@ class Incrementality:
     def contribution_over_spend(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -1125,7 +1125,7 @@ class Incrementality:
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
             Time aggregation frequency.
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
             Include adstock carryover effects.
@@ -1145,21 +1145,21 @@ class Incrementality:
         --------
         >>> roas = mmm.incrementality.contribution_over_spend(
         ...     frequency="quarterly",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-12-31",
         ... )
         """
         incremental = self.compute_incremental_contribution(
             frequency=frequency,
-            period_start=period_start,
-            period_end=period_end,
+            start_date=start_date,
+            end_date=end_date,
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=0.0,
         )
 
-        spend = self._aggregate_spend(frequency, period_start, period_end)
+        spend = self._aggregate_spend(frequency, start_date, end_date)
         spend_safe = xr.where(spend == 0, np.nan, spend)
 
         return incremental / spend_safe
@@ -1167,8 +1167,8 @@ class Incrementality:
     def spend_over_contribution(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -1183,7 +1183,7 @@ class Incrementality:
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
             Time aggregation frequency.
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
             Include adstock carryover effects.
@@ -1207,8 +1207,8 @@ class Incrementality:
         """
         ratio = self.contribution_over_spend(
             frequency=frequency,
-            period_start=period_start,
-            period_end=period_end,
+            start_date=start_date,
+            end_date=end_date,
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
@@ -1219,8 +1219,8 @@ class Incrementality:
     def marginal_contribution_over_spend(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -1241,7 +1241,7 @@ class Incrementality:
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
             Time aggregation frequency.
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
             Include adstock carryover effects.
@@ -1270,8 +1270,8 @@ class Incrementality:
         --------
         >>> mroas = mmm.incrementality.marginal_contribution_over_spend(
         ...     frequency="quarterly",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-12-31",
         ... )
         """
         if spend_increase_pct <= 0:
@@ -1283,15 +1283,15 @@ class Incrementality:
 
         marginal_contribution = self.compute_incremental_contribution(
             frequency=frequency,
-            period_start=period_start,
-            period_end=period_end,
+            start_date=start_date,
+            end_date=end_date,
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=factor,
         )
 
-        spend = self._aggregate_spend(frequency, period_start, period_end)
+        spend = self._aggregate_spend(frequency, start_date, end_date)
 
         # Denominator is the *incremental* spend: pct * total_spend
         incremental_spend = spend_increase_pct * spend
@@ -1359,11 +1359,11 @@ class Incrementality:
             data_last_date = self.data.dates[-1]
             if end != data_last_date:
                 raise ValueError(
-                    f"period_end ({end.strftime('%Y-%m-%d')}) falls in the "
+                    f"end_date ({end.strftime('%Y-%m-%d')}) falls in the "
                     f"middle of a {frequency} period that ends on "
                     f"{last_period_boundary.strftime('%Y-%m-%d')}. "
-                    f"Use a period_end that aligns with a {frequency} "
-                    f"boundary, or omit period_end to use the last date "
+                    f"Use an end_date that aligns with a {frequency} "
+                    f"boundary, or omit end_date to use the last date "
                     f"of the fitted data "
                     f"({data_last_date.strftime('%Y-%m-%d')})."
                 )
@@ -1442,8 +1442,8 @@ class Incrementality:
     def _aggregate_spend(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
     ) -> xr.DataArray:
         """Aggregate channel spend by frequency over a date range.
 
@@ -1454,7 +1454,7 @@ class Incrementality:
         ----------
         frequency : Frequency
             Time aggregation frequency
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range. If None, uses full fitted data range.
 
         Returns
@@ -1464,7 +1464,7 @@ class Incrementality:
             (channel, *custom_dims) for "all_time"
         """
         # 1. Filter to date range
-        data = self.data.filter_dates(period_start, period_end)
+        data = self.data.filter_dates(start_date, end_date)
 
         # 2. Aggregate over time (no-op for "original")
         if frequency != "original":

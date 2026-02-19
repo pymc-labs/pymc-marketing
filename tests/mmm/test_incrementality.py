@@ -313,16 +313,16 @@ class TestIncrementality:
                 counterfactual_spend_factor=-0.5,
             )
 
-    def test_period_start_end_filters_dates(self, simple_fitted_mmm):
-        """Test that period_start and period_end filter date range."""
+    def test_start_date_end_date_filters_dates(self, simple_fitted_mmm):
+        """Test that start_date and end_date filter date range."""
         incr = simple_fitted_mmm.incrementality
         all_dates = pd.to_datetime(simple_fitted_mmm.idata.fit_data.date.values)
         mid_date = all_dates[len(all_dates) // 2]
 
         result = incr.compute_incremental_contribution(
             frequency="original",
-            period_start=all_dates[0],
-            period_end=mid_date,
+            start_date=all_dates[0],
+            end_date=mid_date,
         )
 
         result_dates = pd.to_datetime(result.date.values)
@@ -407,7 +407,7 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(spend_incr, spend_data)
 
-    def test_create_period_groups_rejects_mid_period_end(self, incrementality_lite):
+    def test_create_period_groups_rejects_mid_end_date(self, incrementality_lite):
         """_create_period_groups raises ValueError for mid-period end dates."""
         incr, _ = incrementality_lite
 
@@ -707,7 +707,7 @@ class TestConvenienceFunctions:
     def test_convenience_functions_support_period_filtering(
         self, simple_fitted_mmm, method_name
     ):
-        """Test that convenience functions accept period_start/period_end."""
+        """Test that convenience functions accept start_date/end_date."""
         incr = simple_fitted_mmm.incrementality
         all_dates = pd.to_datetime(simple_fitted_mmm.idata.fit_data.date.values)
         mid_date = all_dates[len(all_dates) // 2]
@@ -715,8 +715,8 @@ class TestConvenienceFunctions:
         method = getattr(incr, method_name)
         result = method(
             frequency="original",
-            period_start=all_dates[0],
-            period_end=mid_date,
+            start_date=all_dates[0],
+            end_date=mid_date,
         )
 
         assert len(result.date) < len(all_dates)
@@ -810,7 +810,7 @@ class TestFilteredVsPostProcessed:
 
         Adstock carry-in context from before the filter start is lost, so
         results may differ from the full-data computation with
-        period_start/period_end.  We verify the warning is emitted and
+        start_date/end_date.  We verify the warning is emitted and
         the output has the correct shape and dims.
         """
         all_dates = pd.to_datetime(panel_fitted_mmm.idata.fit_data.date.values)

@@ -656,8 +656,8 @@ class MMMSummaryFactory:
             incr = Incrementality(model=self.model, data=self.data)
             roas = incr.contribution_over_spend(
                 frequency=frequency or "original",
-                period_start=start_date,
-                period_end=end_date,
+                start_date=start_date,
+                end_date=end_date,
                 include_carryover=include_carryover,
                 num_samples=num_samples,
                 random_state=random_state,
