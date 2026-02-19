@@ -93,26 +93,35 @@ class CLVModel(ModelBuilder):
 
     @staticmethod
     def _check_inputs(
-        frequency: np.ndarray | pd.Series,
         recency: np.ndarray | pd.Series,
         T: np.ndarray | pd.Series,
+        frequency: np.ndarray | pd.Series | None = None,
+        min_recency: int = 0,
+        min_T: int = 0,
     ) -> None:
         r"""Validate CLV input data constraints before model fitting.
 
-        Ensures frequency >= 0, recency >= 0, T >= 0, and recency <= T
-        for all observations. Intended to be called at model construction
-        so invalid data is caught before ``build_model`` or ``fit``.
+        Ensures frequency >= 0 (if provided), recency >= min_recency, T >= min_T,
+        and recency <= T for all observations. Intended to be called at model
+        construction so invalid data is caught before ``build_model`` or ``fit``.
 
         Parameters
         ----------
-        frequency : np.ndarray or pd.Series
-            Number of repeat purchases per customer (must be >= 0).
         recency : np.ndarray or pd.Series
-            Time between first and last purchase per customer (must be >= 0
+            Time between first and last purchase per customer (must be >= min_recency
             and <= T).
         T : np.ndarray or pd.Series
             Time between first purchase and end of observation period per
-            customer (must be >= 0).
+            customer (must be >= min_T).
+        frequency : np.ndarray or pd.Series, optional
+            Number of repeat purchases per customer (must be >= 0 if provided).
+            Default is None, which skips frequency validation.
+        min_recency : int, default 0
+            Minimum allowed value for recency. Default 0 for BG/NBD, Pareto/NBD,
+            and MBG/NBD. Use 1 for ShiftedBetaGeoModel.
+        min_T : int, default 0
+            Minimum allowed value for T. Default 0 for BG/NBD, Pareto/NBD,
+            and MBG/NBD. Use 2 for ShiftedBetaGeoModel.
 
         Raises
         ------
@@ -120,22 +129,34 @@ class CLVModel(ModelBuilder):
             If any constraint is violated, with a message indicating which
             constraint failed (e.g. ``"Recency cannot be greater than T"``).
         """
-        frequency = np.asarray(frequency)
         recency = np.asarray(recency)
         T = np.asarray(T)
 
-        if np.any(frequency < 0):
-            raise ValueError(
-                "Frequency must be >= 0. Found negative value(s) in frequency."
-            )
-        if np.any(recency < 0):
-            raise ValueError(
-                "Recency must be >= 0. Found negative value(s) in recency."
-            )
-        if np.any(T < 0):
-            raise ValueError(
-                "T (observation period length) must be >= 0. Found negative value(s) in T."
-            )
+        if frequency is not None:
+            frequency = np.asarray(frequency)
+            if np.any(frequency < 0):
+                raise ValueError(
+                    "Frequency must be >= 0. Found negative value(s) in frequency."
+                )
+
+        if np.any(recency < min_recency):
+            if min_recency == 0:
+                raise ValueError(
+                    "Recency must be >= 0. Found negative value(s) in recency."
+                )
+            else:
+                raise ValueError(
+                    f"Recency must be >= {min_recency}. Found value(s) < {min_recency} in recency."
+                )
+        if np.any(T < min_T):
+            if min_T == 0:
+                raise ValueError(
+                    "T (observation period length) must be >= 0. Found negative value(s) in T."
+                )
+            else:
+                raise ValueError(
+                    f"T (observation period length) must be >= {min_T}. Found value(s) < {min_T} in T."
+                )
         if np.any(recency > T):
             raise ValueError(
                 "Recency cannot be greater than T. "
