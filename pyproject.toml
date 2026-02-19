@@ -47,6 +47,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+experiment = ["causalpy>=0.7.0"]
 docs = [
     "Setuptools<81",
     "blackjax",
