@@ -210,7 +210,7 @@ from pymc_marketing.mmm.constraints import (
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
-from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
+from pymc_marketing.mmm.utils import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
