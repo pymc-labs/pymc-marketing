@@ -579,9 +579,19 @@ class TestHelperMethods:
 
         # With factor=0, some values should be zero (the target period dates)
         assert (cf_array_zero == 0).any()
-        # With factor=1, arrays should be identical to each other
-        # (no change from baseline) within padded windows
-        np.testing.assert_allclose(cf_array_one, cf_array_one)
+        # With factor=1, counterfactual should equal baseline (no modification)
+        # within padded windows
+        expected_baseline = np.zeros(
+            (len(periods), max_window, *extra_shape), dtype="float64"
+        )
+        for i, info in enumerate(window_infos):
+            start_pos = info["left_pad"]
+            end_pos = start_pos + info["n_actual"]
+            if info["n_actual"] > 0:
+                expected_baseline[i, start_pos:end_pos] = baseline_array[
+                    info["in_window"]
+                ].astype("float64")
+        np.testing.assert_allclose(cf_array_one, expected_baseline)
 
     def test_invalid_frequency_raises_validation_error(self, incrementality_lite):
         """Invalid frequency raises pydantic ValidationError."""
