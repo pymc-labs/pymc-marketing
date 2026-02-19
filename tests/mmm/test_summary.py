@@ -1348,6 +1348,13 @@ class TestROASMethods:
         assert len(df) > 0
         assert set(df["country"].unique()) == {"All"}
 
+    def test_roas_incremental_filter_dims_with_list(self, panel_fitted_mmm):
+        """Test that roas() respects filter_dims()."""
+        filtered_data = panel_fitted_mmm.data.filter_dims(country=["US"])
+        factory = MMMSummaryFactory(filtered_data, panel_fitted_mmm)
+        df = factory.roas(method="incremental", frequency="all_time", num_samples=10)
+        assert set(df["country"].unique()) == {"US"}
+
 
 # =============================================================================
 # MMM.summary Property Tests

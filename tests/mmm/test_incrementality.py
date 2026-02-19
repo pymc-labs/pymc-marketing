@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 # Matches simple_fitted_mmm's GeometricAdstock(l_max=4)
 _SIMPLE_L_MAX = 4
@@ -771,6 +772,24 @@ class TestFilteredVsPostProcessed:
 
         # Values must be numerically close
         xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
+
+    def test_roas_incremental_filter_dims_with_loaded_model(
+        self, panel_fitted_mmm, tmp_path
+    ):
+        """filter_dims + incremental ROAS works with a saved-and-loaded model.
+
+        Reproduces the flow in sandbox/test_filter_dims.py: load MMM from disk,
+        filter_dims to a subset (e.g. geo=["geo_a"]), then roas(method="incremental").
+        Fails with AssertionError if batched_input lacks broadcastable for size-1 axes.
+        """
+        from pymc_marketing.mmm.multidimensional import MMM
+
+        panel_fitted_mmm.save(str(tmp_path / "mmm.pm"))
+        mmm_loaded = MMM.load(str(tmp_path / "mmm.pm"), check=False)
+        filtered_data = mmm_loaded.data.filter_dims(country=["US"])
+        factory = MMMSummaryFactory(filtered_data, mmm_loaded)
+        df = factory.roas(method="incremental", frequency="all_time", num_samples=10)
+        assert set(df["country"].unique()) == {"US"}
 
     def test_scalar_filtered_dims_raises_error(self, panel_fitted_mmm):
         """Scalar dim filter (drops dimension) raises a clear error.

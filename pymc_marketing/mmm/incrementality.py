@@ -345,14 +345,6 @@ class Incrementality:
         n_chains = idata_sub.posterior.sizes["chain"]
         n_draws = idata_sub.posterior.sizes["draw"]
 
-        # Extract response distribution (batched over samples)
-        response_graph = extract_response_distribution(
-            pymc_model=self.model.model,
-            idata=idata_sub,
-            response_variable="channel_contribution",
-        )
-        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
-
         # Create period groups based on frequency
         dates = self.data.dates
         periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
@@ -369,14 +361,65 @@ class Incrementality:
         freq_offset = pd.tseries.frequencies.to_offset(freq)
 
         # Compile vectorized evaluator (once, reused for both)
-        # Use float64 for evaluation to avoid integer truncation when
-        # counterfactual_spend_factor produces fractional values (e.g. 1.01).
         data_shared = self.model.model["channel_data"]
         eval_dtype = "float64"
+        baseline_array = self.data.get_channel_spend().values
+
+        # Temporarily set ALL shared variables to their filtered shapes so
+        # that the response graph is built with consistent dimensions.
+        # When the idata has been filtered (e.g. geo=["geo_a"]), shared
+        # variables like channel_data (date,geo,channel), channel_scale
+        # (geo,channel), and target_scale (geo,) still hold their original
+        # (unfiltered) values inside the PyTensor model.  Broadcasting
+        # inside extract_response_distribution bakes these shapes into
+        # Assert nodes; replacing only channel_data later with a
+        # differently-shaped input causes those Asserts to fail at runtime
+        # for ANY shared variable whose shape doesn't match.
+        saved_shared_values: dict[str, np.ndarray] = {}
+        if hasattr(self.idata, "constant_data"):
+            for var_name in list(self.model.model.named_vars):
+                model_var = self.model.model[var_name]
+                if (
+                    hasattr(model_var, "get_value")
+                    and var_name in self.idata.constant_data
+                ):
+                    original_val = model_var.get_value()
+                    filtered_val = self.idata.constant_data[var_name].values
+                    if original_val.shape != filtered_val.shape:
+                        saved_shared_values[var_name] = original_val
+                        model_var.set_value(filtered_val.astype(model_var.dtype))
+
+        # Extract response distribution (batched over samples).
+        # The try/finally block spans the entire evaluator lifecycle because
+        # shared variables like channel_scale are read at runtime by the
+        # compiled evaluator function.  Restoring them before evaluation
+        # would reintroduce the original (unfiltered) shapes.
+        try:
+            response_graph = extract_response_distribution(
+                pymc_model=self.model.model,
+                idata=idata_sub,
+                response_variable="channel_contribution",
+            )
+        except Exception:
+            for var_name, original_val in saved_shared_values.items():
+                self.model.model[var_name].set_value(original_val)
+            raise
+        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
+        # Date dim must stay variable (None): baseline uses n_dates, counterfactual
+        # uses max_window (n_dates + 2*l_max). Non-date dims come from actual data.
+        extra_shape = baseline_array.shape[1:]  # (custom_dims..., channel)
+        effective_shape = (None, *extra_shape)
+        # PyTensor requires axes with size 1 to be marked broadcastable when the graph
+        # involves broadcasting (e.g. in vectorize_graph). Otherwise Assert fails with
+        # "Broadcasting is only allowed along axes that have a statically known length 1."
+        # Mark batch and date as non-broadcastable; size-1 axes in extra_shape
+        # (filtered dims like geo=["geo_a"]) as broadcastable.
+        broadcastable = (False, False, *(s == 1 for s in extra_shape))
         batched_input = pt.tensor(
             name="channel_data_batched",
             dtype=eval_dtype,
-            shape=(None, *data_shared.type.shape),
+            shape=(None, *effective_shape),
+            broadcastable=broadcastable,
         )
         replace_dict: dict = {data_shared: batched_input}
         func_inputs: list = [batched_input]
@@ -398,10 +441,10 @@ class Incrementality:
             func_inputs.append(batched_time)
 
         batched_graph = vectorize_graph(response_graph, replace=replace_dict)
+
         evaluator = function(func_inputs, batched_graph)
 
-        # Evaluate baseline on full dataset (once)
-        baseline_array = self.data.get_channel_spend().values
+        # Evaluate baseline on full dataset (once) - baseline_array already set above
         baseline_eval_args: list[np.ndarray] = [
             baseline_array[np.newaxis].astype(eval_dtype)
         ]
@@ -462,8 +505,12 @@ class Incrementality:
                     dtype=time_shared.dtype,
                 )
             )
-        cf_predictions = evaluator(*cf_eval_args)
-        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+        try:
+            cf_predictions = evaluator(*cf_eval_args)
+            # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+        finally:
+            for var_name, original_val in saved_shared_values.items():
+                self.model.model[var_name].set_value(original_val)
 
         # Assemble results
         return self._compute_period_increments(
