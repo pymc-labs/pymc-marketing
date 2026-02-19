@@ -245,6 +245,65 @@ def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     assert all(isinstance(a, Axes) for a in ax.flat)
 
 
+def test_posterior_predictive_with_gradient(fit_mmm_with_channel_original_scale, df):
+    """Test posterior_predictive with gradient visualization."""
+    fit_mmm_with_channel_original_scale.sample_posterior_predictive(
+        df.drop(columns=["y"])
+    )
+    fig, ax = fit_mmm_with_channel_original_scale.plot.posterior_predictive(
+        add_gradient=True,
+        hdi_prob=0.95,
+    )
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+    # Verify gradient was drawn (check for fill_between patches)
+    for a in ax.flat:
+        patches = [p for p in a.patches if hasattr(p, "get_paths")]
+        assert len(patches) > 0, "Expected gradient patches on axes"
+
+
+def test_posterior_predictive_gradient_parameters(
+    fit_mmm_with_channel_original_scale, df
+):
+    """Test gradient with custom parameters."""
+    fit_mmm_with_channel_original_scale.sample_posterior_predictive(
+        df.drop(columns=["y"])
+    )
+    # Test with different n_percentiles
+    fig1, _ = fit_mmm_with_channel_original_scale.plot.posterior_predictive(
+        add_gradient=True,
+        n_percentiles=20,
+    )
+    assert isinstance(fig1, Figure)
+
+    # Test with different palette
+    fig2, _ = fit_mmm_with_channel_original_scale.plot.posterior_predictive(
+        add_gradient=True,
+        palette="Reds",
+    )
+    assert isinstance(fig2, Figure)
+
+
+def test_posterior_predictive_gradient_with_hdi(
+    fit_mmm_with_channel_original_scale, df
+):
+    """Test that gradient and HDI can be displayed together."""
+    fit_mmm_with_channel_original_scale.sample_posterior_predictive(
+        df.drop(columns=["y"])
+    )
+    fig, ax = fit_mmm_with_channel_original_scale.plot.posterior_predictive(
+        add_gradient=True,
+        hdi_prob=0.85,
+    )
+    assert isinstance(fig, Figure)
+    # Verify both gradient patches and HDI fills exist
+    for a in ax.flat:
+        # Should have multiple fill_between patches from both gradient and HDI
+        patches = [p for p in a.patches if hasattr(p, "get_paths")]
+        assert len(patches) > 1, "Expected both gradient and HDI patches"
+
+
 @pytest.fixture(scope="module")
 def mock_idata() -> az.InferenceData:
     seed = sum(map(ord, "Fake posterior"))
