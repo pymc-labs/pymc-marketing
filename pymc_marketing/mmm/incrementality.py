@@ -126,7 +126,7 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import arviz as az
 import numpy as np
@@ -144,8 +144,17 @@ from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
+    from pytensor.compile.function.types import Function
 
     from pymc_marketing.mmm.multidimensional import MMM
+
+
+class _EvaluatorContext(NamedTuple):
+    """Bundle returned by :meth:`Incrementality._build_evaluator`."""
+
+    evaluator: Function
+    has_time_index: bool
+    saved_shared_values: dict[str, np.ndarray]
 
 
 class Incrementality:
@@ -360,100 +369,25 @@ class Incrementality:
         freq: str = inferred_freq
         freq_offset = pd.tseries.frequencies.to_offset(freq)
 
-        # Compile vectorized evaluator (once, reused for both)
-        data_shared = self.model.model["channel_data"]
+        # Compile vectorized evaluator (once, reused for both baseline and
+        # counterfactual evaluations).  Shared variables are temporarily
+        # swapped to filtered shapes inside _build_evaluator; the caller
+        # must restore them via saved_shared_values after all evaluations.
         eval_dtype = "float64"
         baseline_array = self.data.get_channel_spend().values
+        ctx = self._build_evaluator(idata_sub, baseline_array)
+        evaluator = ctx.evaluator
 
-        # Temporarily set ALL shared variables to their filtered shapes so
-        # that the response graph is built with consistent dimensions.
-        # When the idata has been filtered (e.g. geo=["geo_a"]), shared
-        # variables like channel_data (date,geo,channel), channel_scale
-        # (geo,channel), and target_scale (geo,) still hold their original
-        # (unfiltered) values inside the PyTensor model.  Broadcasting
-        # inside extract_response_distribution bakes these shapes into
-        # Assert nodes; replacing only channel_data later with a
-        # differently-shaped input causes those Asserts to fail at runtime
-        # for ANY shared variable whose shape doesn't match.
-        saved_shared_values: dict[str, np.ndarray] = {}
-        if hasattr(self.idata, "constant_data"):
-            for var_name in list(self.model.model.named_vars):
-                model_var = self.model.model[var_name]
-                if (
-                    hasattr(model_var, "get_value")
-                    and var_name in self.idata.constant_data
-                ):
-                    original_val = model_var.get_value()
-                    filtered_val = self.idata.constant_data[var_name].values
-                    if original_val.shape != filtered_val.shape:
-                        saved_shared_values[var_name] = original_val
-                        model_var.set_value(filtered_val.astype(model_var.dtype))
-
-        # Extract response distribution (batched over samples).
-        # The try/finally block spans the entire evaluator lifecycle because
-        # shared variables like channel_scale are read at runtime by the
-        # compiled evaluator function.  Restoring them before evaluation
-        # would reintroduce the original (unfiltered) shapes.
-        try:
-            response_graph = extract_response_distribution(
-                pymc_model=self.model.model,
-                idata=idata_sub,
-                response_variable="channel_contribution",
-            )
-        except Exception:
-            for var_name, original_val in saved_shared_values.items():
-                self.model.model[var_name].set_value(original_val)
-            raise
-        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
-        # Date dim must stay variable (None): baseline uses n_dates, counterfactual
-        # uses max_window (n_dates + 2*l_max). Non-date dims come from actual data.
-        extra_shape = baseline_array.shape[1:]  # (custom_dims..., channel)
-        effective_shape = (None, *extra_shape)
-        # PyTensor requires axes with size 1 to be marked broadcastable when the graph
-        # involves broadcasting (e.g. in vectorize_graph). Otherwise Assert fails with
-        # "Broadcasting is only allowed along axes that have a statically known length 1."
-        # Mark batch and date as non-broadcastable; size-1 axes in extra_shape
-        # (filtered dims like geo=["geo_a"]) as broadcastable.
-        broadcastable = (False, False, *(s == 1 for s in extra_shape))
-        batched_input = pt.tensor(
-            name="channel_data_batched",
-            dtype=eval_dtype,
-            shape=(None, *effective_shape),
-            broadcastable=broadcastable,
-        )
-        replace_dict: dict = {data_shared: batched_input}
-        func_inputs: list = [batched_input]
-
-        # When time_varying_media (or time_varying_intercept) is enabled,
-        # the response graph contains HSGP-based latent variables that
-        # depend on the ``time_index`` shared variable (shape n_dates).
-        # We must replace it alongside ``channel_data`` so that both
-        # tensors have a consistent date dimension (max_window).
-        has_time_index = "time_index" in self.model.model.named_vars
-        if has_time_index:
-            time_shared = self.model.model["time_index"]
-            batched_time = pt.tensor(
-                name="time_index_batched",
-                dtype=time_shared.dtype,
-                shape=(None, *time_shared.type.shape),
-            )
-            replace_dict[time_shared] = batched_time
-            func_inputs.append(batched_time)
-
-        batched_graph = vectorize_graph(response_graph, replace=replace_dict)
-
-        evaluator = function(func_inputs, batched_graph)
-
-        # Evaluate baseline on full dataset (once) - baseline_array already set above
+        # Evaluate baseline on full dataset (once)
         baseline_eval_args: list[np.ndarray] = [
             baseline_array[np.newaxis].astype(eval_dtype)
         ]
-        if has_time_index:
+        if ctx.has_time_index:
+            time_shared = self.model.model["time_index"]
             baseline_eval_args.append(
                 np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
             )
         baseline_pred = evaluator(*baseline_eval_args)[0]
-        # Shape: (n_samples, n_dates, *non_date_dims)
 
         # Determine actual axis ordering from the model's channel_contribution
         # variable. The PyTensor graph preserves the model's dim order, which
@@ -462,7 +396,7 @@ class Incrementality:
             self.model.model.named_vars_to_dims.get("channel_contribution", ())
         )
         non_date_dims = [d for d in cc_dims if d != "date"]
-        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
+        extra_shape = baseline_array.shape[1:]
 
         # Compute, for each period, the required window metadata including
         # the start/end indices into `dates` and any necessary left/right padding,
@@ -475,12 +409,6 @@ class Incrementality:
             periods, dates, l_max, freq_offset, freq
         )
 
-        # Build counterfactual scenarios
-        # Build counterfactual scenarios:
-        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
-        #   - cf_eval_masks: period-specific boolean masks indicating which
-        #     max_window indices correspond to the period's actual dates
-        #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
         cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
             periods=periods,
             window_infos=window_infos,
@@ -496,7 +424,8 @@ class Incrementality:
 
         # Evaluate all counterfactuals at once
         cf_eval_args: list[np.ndarray] = [cf_array]
-        if has_time_index:
+        if ctx.has_time_index:
+            time_shared = self.model.model["time_index"]
             cf_eval_args.append(
                 self._build_time_index_array(
                     window_infos=window_infos,
@@ -507,9 +436,8 @@ class Incrementality:
             )
         try:
             cf_predictions = evaluator(*cf_eval_args)
-            # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
         finally:
-            for var_name, original_val in saved_shared_values.items():
+            for var_name, original_val in ctx.saved_shared_values.items():
                 self.model.model[var_name].set_value(original_val)
 
         # Assemble results
@@ -528,6 +456,116 @@ class Incrementality:
             frequency=frequency,
             n_chains=n_chains,
             n_draws=n_draws,
+        )
+
+    def _build_evaluator(
+        self,
+        idata_sub: az.InferenceData,
+        baseline_array: np.ndarray,
+    ) -> _EvaluatorContext:
+        """Compile a vectorized PyTensor evaluator for channel contributions.
+
+        Handles the full pipeline of:
+
+        1. Temporarily swapping shared variables to match potentially
+           filtered idata shapes (so that ``extract_response_distribution``
+           builds a graph with consistent dimensions).
+        2. Extracting and vectorizing the response graph across posterior
+           samples.
+        3. Building a batched input tensor with correct shape and
+           broadcastability for the (possibly filtered) data.
+        4. Compiling the final ``pytensor.function``.
+
+        The caller **must** restore the original shared variable values
+        after all evaluations are complete by iterating over
+        ``ctx.saved_shared_values`` — shared variables like
+        ``channel_scale`` are still read at runtime by the compiled
+        evaluator, so they cannot be restored before evaluation finishes.
+
+        Parameters
+        ----------
+        idata_sub : az.InferenceData
+            (Sub-sampled) posterior inference data.
+        baseline_array : np.ndarray
+            Channel spend array from the (possibly filtered) data wrapper,
+            shape ``(n_dates, *non_date_dims)``.
+
+        Returns
+        -------
+        _EvaluatorContext
+            Named tuple with ``evaluator`` (compiled function),
+            ``has_time_index`` (whether the model uses HSGP time-varying
+            effects), and ``saved_shared_values`` (original values that
+            must be restored after evaluation).
+        """
+        data_shared = self.model.model["channel_data"]
+        eval_dtype = "float64"
+
+        # When the idata has been filtered (e.g. geo=["geo_a"]), shared
+        # variables like channel_data, channel_scale, and target_scale
+        # still hold their original (unfiltered) values inside the PyTensor
+        # model.  Broadcasting inside extract_response_distribution bakes
+        # these shapes into Assert nodes; replacing only channel_data later
+        # with a differently-shaped input causes those Asserts to fail.
+        # Temporarily swap all affected shared variables to the filtered
+        # values so the graph is built with consistent dimensions.
+        saved_shared_values: dict[str, np.ndarray] = {}
+        if hasattr(self.idata, "constant_data"):
+            for var_name in list(self.model.model.named_vars):
+                model_var = self.model.model[var_name]
+                if (
+                    hasattr(model_var, "get_value")
+                    and var_name in self.idata.constant_data
+                ):
+                    original_val = model_var.get_value()
+                    filtered_val = self.idata.constant_data[var_name].values
+                    if original_val.shape != filtered_val.shape:
+                        saved_shared_values[var_name] = original_val
+                        model_var.set_value(filtered_val.astype(model_var.dtype))
+
+        try:
+            response_graph = extract_response_distribution(
+                pymc_model=self.model.model,
+                idata=idata_sub,
+                response_variable="channel_contribution",
+            )
+        except Exception:
+            for var_name, original_val in saved_shared_values.items():
+                self.model.model[var_name].set_value(original_val)
+            raise
+
+        # Date dim must stay variable (None) because baseline uses n_dates
+        # while counterfactual uses max_window (n_dates + 2*l_max).
+        # Non-date dims come from the actual (possibly filtered) data.
+        extra_shape = baseline_array.shape[1:]
+        broadcastable = (False, False, *(s == 1 for s in extra_shape))
+        batched_input = pt.tensor(
+            name="channel_data_batched",
+            dtype=eval_dtype,
+            shape=(None, None, *extra_shape),
+            broadcastable=broadcastable,
+        )
+        replace_dict: dict = {data_shared: batched_input}
+        func_inputs: list = [batched_input]
+
+        has_time_index = "time_index" in self.model.model.named_vars
+        if has_time_index:
+            time_shared = self.model.model["time_index"]
+            batched_time = pt.tensor(
+                name="time_index_batched",
+                dtype=time_shared.dtype,
+                shape=(None, *time_shared.type.shape),
+            )
+            replace_dict[time_shared] = batched_time
+            func_inputs.append(batched_time)
+
+        batched_graph = vectorize_graph(response_graph, replace=replace_dict)
+        evaluator = function(func_inputs, batched_graph)
+
+        return _EvaluatorContext(
+            evaluator=evaluator,
+            has_time_index=has_time_index,
+            saved_shared_values=saved_shared_values,
         )
 
     def _validate_input(
