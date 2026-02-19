@@ -835,6 +835,7 @@ class MMMPlotlyFactory:
         start_date: str | pd.Timestamp | None = None,
         end_date: str | pd.Timestamp | None = None,
         aggregate_dims: dict[str, Any] | list[dict[str, Any]] | None = None,
+        filter_dims: dict[str, Any] | None = None,
         round_digits: int = 3,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
@@ -881,6 +882,12 @@ class MMMPlotlyFactory:
             arguments passed to
             :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims`
             (``dim``, ``values``, ``new_label``, optional ``method``).
+            Passed through to
+            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
+        filter_dims : dict, optional
+            Dimension filters applied to data before computing ROAS.
+            E.g. ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
+            Scalar values are converted to single-element lists.
             Passed through to
             :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
         round_digits : int, default 3
@@ -945,6 +952,7 @@ class MMMPlotlyFactory:
             start_date=start_date,
             end_date=end_date,
             aggregate_dims=aggregate_dims,
+            filter_dims=filter_dims,
         )
 
         nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(

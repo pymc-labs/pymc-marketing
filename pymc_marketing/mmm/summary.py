@@ -291,11 +291,27 @@ class MMMSummaryFactory:
 
         return df
 
+    @staticmethod
+    def _ensure_filter_dims_list_values(
+        filter_dims: dict[str, Any],
+    ) -> dict[str, list[Any]]:
+        """Ensure filter_dims values are lists; wrap scalars in single-element lists.
+
+        This keeps dimensions intact when filtering (e.g. geo="geo_a" →
+        geo=["geo_a"]), which is required for incremental ROAS with
+        adstock carryover.
+        """
+        return {
+            k: [v] if not isinstance(v, (list, tuple)) else list(v)
+            for k, v in filter_dims.items()
+        }
+
     def _prepare_data_and_hdi(
         self,
         hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
+        filter_dims: dict[str, Any] | None = None,
     ) -> tuple[MMMIDataWrapper, Sequence[float], OutputFormat]:
         """Prepare data, resolve defaults, and validate.
 
@@ -304,7 +320,8 @@ class MMMSummaryFactory:
         1. Resolves hdi_probs default from self.hdi_probs
         2. Resolves output_format default from self.output_format
         3. Validates hdi_probs
-        4. Aggregates data by frequency if specified
+        4. Applies filter_dims if specified (scalars ensured to be list values)
+        5. Aggregates data by frequency if specified
 
         Parameters
         ----------
@@ -314,6 +331,13 @@ class MMMSummaryFactory:
             Time aggregation period (None or "original" means no aggregation)
         output_format : OutputFormat or None
             Output format (None uses factory default)
+        filter_dims : dict or None
+            Dimension filters to apply before computation, e.g.
+            ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
+            Scalar values are automatically converted to single-element
+            lists (e.g. ``{"country": "US"}`` → ``{"country": ["US"]}``)
+            so the dimension is preserved, which is required for
+            incremental ROAS. If None, no filtering is applied.
 
         Returns
         -------
@@ -328,6 +352,9 @@ class MMMSummaryFactory:
         self._validate_hdi_probs(effective_hdi_probs)
 
         data = self.data
+        if filter_dims:
+            list_values = self._ensure_filter_dims_list_values(filter_dims)
+            data = data.filter_dims(**list_values)
         if frequency is not None and frequency != "original":
             data = data.aggregate_time(frequency)
 
@@ -491,6 +518,7 @@ class MMMSummaryFactory:
         start_date: str | pd.Timestamp | None = None,
         end_date: str | pd.Timestamp | None = None,
         aggregate_dims: dict[str, Any] | list[dict[str, Any]] | None = None,
+        filter_dims: dict[str, Any] | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
         """Create ROAS (Return on Ad Spend) summary DataFrame.
@@ -582,6 +610,14 @@ class MMMSummaryFactory:
                     },
                 ]
 
+        filter_dims : dict, optional
+            Dimension filters applied to data before computing ROAS, via
+            :meth:`~pymc_marketing.data.idata.mmm_wrapper.MMMIDataWrapper.filter_dims`.
+            E.g. ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
+            Scalar values are converted to single-element lists
+            (e.g. ``{"country": "US"}`` → ``{"country": ["US"]}``) so
+            dimensions stay intact for incremental ROAS. If None, no
+            filtering is applied.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
 
@@ -629,6 +665,7 @@ class MMMSummaryFactory:
         ...         },
         ...     ]
         ... )
+        >>> df = mmm.summary.roas(filter_dims={"country": ["US"]})
 
         """
         if method == "elementwise":
@@ -644,16 +681,20 @@ class MMMSummaryFactory:
                         f"either remove it or use method='incremental'."
                     )
 
-        # Resolve all defaults in one call
+        # Resolve all defaults. For incremental, skip time aggregation here—
+        # Incrementality needs raw temporal resolution; it handles frequency itself.
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs,
+            frequency=None if method == "incremental" else frequency,
+            output_format=output_format,
+            filter_dims=filter_dims,
         )
 
         if method == "incremental":
             self._require_model("roas with method='incremental'")
             if self.model is None:
                 raise RuntimeError("Model should not be None after _require_model")
-            incr = Incrementality(model=self.model, data=self.data)
+            incr = Incrementality(model=self.model, data=data)
             roas = incr.contribution_over_spend(
                 frequency=frequency or "original",
                 start_date=start_date,
