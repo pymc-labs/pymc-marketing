@@ -18,7 +18,6 @@ from collections.abc import Sequence
 from typing import Literal, cast
 
 import arviz as az
-import numpy as np
 import pandas as pd
 import pymc as pm
 from pydantic import ConfigDict, InstanceOf, validate_call
@@ -90,57 +89,6 @@ class CLVModel(ModelBuilder):
             if col in must_be_homogenous:
                 if data[col].nunique() != 1:
                     raise ValueError(f"Column {col} has non-homogeneous entries")
-
-    @staticmethod
-    def _check_inputs(
-        frequency: np.ndarray | pd.Series,
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-    ) -> None:
-        r"""Validate CLV input data constraints before model fitting.
-
-        Ensures frequency >= 0, recency >= 0, T >= 0, and recency <= T
-        for all observations. Intended to be called at model construction
-        so invalid data is caught before ``build_model`` or ``fit``.
-
-        Parameters
-        ----------
-        frequency : np.ndarray or pd.Series
-            Number of repeat purchases per customer (must be >= 0).
-        recency : np.ndarray or pd.Series
-            Time between first and last purchase per customer (must be >= 0
-            and <= T).
-        T : np.ndarray or pd.Series
-            Time between first purchase and end of observation period per
-            customer (must be >= 0).
-
-        Raises
-        ------
-        ValueError
-            If any constraint is violated, with a message indicating which
-            constraint failed (e.g. ``"Recency cannot be greater than T"``).
-        """
-        frequency = np.asarray(frequency)
-        recency = np.asarray(recency)
-        T = np.asarray(T)
-
-        if np.any(frequency < 0):
-            raise ValueError(
-                "Frequency must be >= 0. Found negative value(s) in frequency."
-            )
-        if np.any(recency < 0):
-            raise ValueError(
-                "Recency must be >= 0. Found negative value(s) in recency."
-            )
-        if np.any(T < 0):
-            raise ValueError(
-                "T (observation period length) must be >= 0. Found negative value(s) in T."
-            )
-        if np.any(recency > T):
-            raise ValueError(
-                "Recency cannot be greater than T. "
-                "Customers cannot have visited more recently than the total observation period."
-            )
 
     def __repr__(self) -> str:
         """Representation of the model."""
