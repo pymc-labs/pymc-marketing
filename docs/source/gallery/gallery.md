@@ -56,6 +56,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/plot_interactive.html
 :::
 
+:::{grid-item-card} Parameter Recovery
+:img-top: ../gallery/images/mmm_data_generator.png
+:link: ../notebooks/mmm/mmm_data_generator.html
+:::
+
 :::{grid-item-card} MMM API Migration Guide
 :img-top: ../gallery/images/mmm_migration_guide.png
 :link: ../notebooks/mmm/mmm_migration_guide.html
