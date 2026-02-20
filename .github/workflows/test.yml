@@ -32,6 +32,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true} ]
@@ -70,6 +71,7 @@ jobs:
   test_slow:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         group: [1, 2]  # Reduced from 3 to 2 groups for better balance
