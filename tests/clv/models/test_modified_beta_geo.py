@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import os
+from unittest.mock import patch
 
 import arviz as az
 import numpy as np
@@ -76,6 +77,87 @@ class TestModifiedBetaGeoModel:
         )
 
         mock_fit(cls.model, cls.chains, cls.draws, cls.rng)
+
+    @pytest.mark.parametrize(
+        "invalid_data, expected_error_match",
+        [
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [-1], "recency": [5], "T": [10]}
+                ),
+                "frequency",
+            ),
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [2], "recency": [-5], "T": [10]}
+                ),
+                "recency",
+            ),
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [2], "recency": [5], "T": [-10]}
+                ),
+                "T",
+            ),
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [2], "recency": [15], "T": [10]}
+                ),
+                "recency",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "frequency": pd.Series([np.nan], dtype="Int64"),
+                        "recency": [5],
+                        "T": [10],
+                    }
+                ),
+                "Missing values",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "frequency": [2],
+                        "recency": pd.Series([np.nan], dtype="Int64"),
+                        "T": [10],
+                    }
+                ),
+                "Missing values",
+            ),
+        ],
+    )
+    def test_check_inputs_validation(self, invalid_data, expected_error_match):
+        """Test that _check_inputs correctly catches invalid frequency, recency, and T values."""
+        with pytest.raises(ValueError):
+            ModifiedBetaGeoModel(data=invalid_data)
+
+    @patch("pymc_marketing.clv.models.modified_beta_geo.customer_lifetime_value")
+    def test_expected_customer_lifetime_value_monetary_value(self, mock_clv):
+        """Test that expected_customer_lifetime_value handles the monetary_value parameter."""
+        dummy_data = pd.DataFrame(
+            {"customer_id": [1], "frequency": [2], "recency": [5], "T": [10]}
+        )
+        model = ModifiedBetaGeoModel(data=dummy_data)
+
+        # 1. Default
+        model.expected_customer_lifetime_value(data=dummy_data)
+        assert "future_spend" not in mock_clv.call_args[1]["data"].columns
+
+        mock_clv.reset_mock()
+
+        # 2. Custom monetary_value
+        custom_monetary_value = pd.Series([25.0])
+        model.expected_customer_lifetime_value(
+            data=dummy_data, monetary_value=custom_monetary_value
+        )
+        called_data = mock_clv.call_args[1]["data"]
+        assert "future_spend" in called_data.columns
+        np.testing.assert_array_equal(
+            called_data["future_spend"], custom_monetary_value
+        )
 
     @pytest.fixture(scope="class")
     def model_config(self):

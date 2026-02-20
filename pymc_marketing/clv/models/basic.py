@@ -129,39 +129,27 @@ class CLVModel(ModelBuilder):
             If any constraint is violated, with a message indicating which
             constraint failed (e.g. ``"Recency cannot be greater than T"``).
         """
-        recency = np.asarray(recency)
-        T = np.asarray(T)
+        # Cast to float64 immediately to normalize np.nan and pd.NA
+        recency = np.asarray(recency).astype(float)
+        T = np.asarray(T).astype(float)
+
+        if np.isnan(recency).any() or np.isnan(T).any():
+            raise ValueError("Missing values (NaN/pd.NA) found in recency or T.")
 
         if frequency is not None:
-            frequency = np.asarray(frequency)
+            frequency = np.asarray(frequency).astype(float)
+            if np.isnan(frequency).any():
+                raise ValueError("Missing values (NaN/pd.NA) found in frequency.")
             if np.any(frequency < 0):
-                raise ValueError(
-                    "Frequency must be >= 0. Found negative value(s) in frequency."
-                )
+                raise ValueError("Frequency must be >= 0.")
 
+        # Existing boundary checks...
         if np.any(recency < min_recency):
-            if min_recency == 0:
-                raise ValueError(
-                    "Recency must be >= 0. Found negative value(s) in recency."
-                )
-            else:
-                raise ValueError(
-                    f"Recency must be >= {min_recency}. Found value(s) < {min_recency} in recency."
-                )
+            raise ValueError(f"Recency must be >= {min_recency}.")
         if np.any(T < min_T):
-            if min_T == 0:
-                raise ValueError(
-                    "T (observation period length) must be >= 0. Found negative value(s) in T."
-                )
-            else:
-                raise ValueError(
-                    f"T (observation period length) must be >= {min_T}. Found value(s) < {min_T} in T."
-                )
+            raise ValueError(f"T must be >= {min_T}.")
         if np.any(recency > T):
-            raise ValueError(
-                "Recency cannot be greater than T. "
-                "Customers cannot have visited more recently than the total observation period."
-            )
+            raise ValueError("Recency cannot be greater than T.")
 
     def __repr__(self) -> str:
         """Representation of the model."""

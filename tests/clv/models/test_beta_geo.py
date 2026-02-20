@@ -190,69 +190,55 @@ class TestBetaGeoModel:
             )
 
     def test_check_inputs_frequency_negative(self):
-        """Invalid data: frequency < 0 should raise ValueError before fitting."""
         data_invalid = pd.DataFrame(
             {
-                "customer_id": np.asarray([1]),
-                "frequency": np.asarray([-1]),
-                "recency": np.asarray([0]),
-                "T": np.asarray([10]),
+                "customer_id": [1],
+                "frequency": [-1],
+                "recency": [0],
+                "T": [10],
             }
         )
-        with pytest.raises(
-            ValueError,
-            match=r"Frequency must be >= 0\. Found negative value\(s\) in frequency\.",
-        ):
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="Frequency must be >= 0"):
             BetaGeoModel(data=data_invalid)
 
     def test_check_inputs_recency_negative(self):
-        """Invalid data: recency < 0 should raise ValueError before fitting."""
         data_invalid = pd.DataFrame(
             {
-                "customer_id": np.asarray([1]),
-                "frequency": np.asarray([0]),
-                "recency": np.asarray([-1]),
-                "T": np.asarray([10]),
+                "customer_id": [1],
+                "frequency": [0],
+                "recency": [-1],
+                "T": [10],
             }
         )
-        with pytest.raises(
-            ValueError,
-            match=r"Recency must be >= 0\. Found negative value\(s\) in recency\.",
-        ):
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="Recency must be >= 0"):
             BetaGeoModel(data=data_invalid)
 
     def test_check_inputs_T_negative(self):
-        """Invalid data: T < 0 should raise ValueError before fitting."""
         data_invalid = pd.DataFrame(
             {
-                "customer_id": np.asarray([1]),
-                "frequency": np.asarray([0]),
-                "recency": np.asarray([0]),
-                "T": np.asarray([-5]),
+                "customer_id": [1],
+                "frequency": [0],
+                "recency": [0],
+                "T": [-1],
             }
         )
-        with pytest.raises(
-            ValueError,
-            match=r"T \(observation period length\) must be >= 0\. "
-            r"Found negative value\(s\) in T\.",
-        ):
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="T must be >= 0"):
             BetaGeoModel(data=data_invalid)
 
     def test_check_inputs_recency_greater_than_T(self):
-        """Invalid data: recency > T should raise ValueError before fitting."""
         data_invalid = pd.DataFrame(
             {
-                "customer_id": np.asarray([1]),
-                "frequency": np.asarray([2]),
-                "recency": np.asarray([15]),
-                "T": np.asarray([10]),
+                "customer_id": [1],
+                "frequency": [0],
+                "recency": [11],
+                "T": [10],
             }
         )
-        with pytest.raises(
-            ValueError,
-            match=r"Recency cannot be greater than T\. "
-            r"Customers cannot have visited more recently than the total observation period\.",
-        ):
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="Recency cannot be greater than T"):
             BetaGeoModel(data=data_invalid)
 
     def test_check_inputs_valid_data_passes(self):

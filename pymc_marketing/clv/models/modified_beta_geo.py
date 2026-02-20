@@ -25,6 +25,7 @@ from scipy.special import hyp2f1
 
 from pymc_marketing.clv.distributions import ModifiedBetaGeoNBD
 from pymc_marketing.clv.models import BetaGeoModel
+from pymc_marketing.clv.utils import customer_lifetime_value
 
 
 class ModifiedBetaGeoModel(BetaGeoModel):
@@ -282,6 +283,29 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 ),
                 dims=["customer_id", "obs_var"],
             )
+
+    def expected_customer_lifetime_value(
+        self,
+        data: pd.DataFrame,
+        future_t: int = 12,
+        discount_rate: float = 0.00,
+        time_unit: str = "D",
+        monetary_value: xarray.DataArray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """Compute the average lifetime value for a group of one or more customers."""
+        data = data.copy()
+
+        # Inject custom monetary value if provided
+        if monetary_value is not None:
+            data["future_spend"] = monetary_value
+
+        return customer_lifetime_value(
+            transaction_model=self,
+            data=data,
+            future_t=future_t,
+            discount_rate=discount_rate,
+            time_unit=time_unit,
+        )
 
     def expected_purchases(
         self,

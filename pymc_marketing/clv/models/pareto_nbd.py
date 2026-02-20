@@ -36,7 +36,7 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
-from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.clv.utils import customer_lifetime_value, to_xarray
 from pymc_marketing.model_config import ModelConfig
 
 
@@ -551,6 +551,29 @@ class ParetoNBDModel(CLVModel):
 
         return exp_purchases.transpose(
             "chain", "draw", "customer_id", missing_dims="ignore"
+        )
+
+    def expected_customer_lifetime_value(
+        self,
+        data: pd.DataFrame,
+        future_t: int = 12,
+        discount_rate: float = 0.00,
+        time_unit: str = "D",
+        monetary_value: xarray.DataArray | pd.Series | None = None,
+    ) -> xarray.DataArray:
+        """Compute the average lifetime value for a group of one or more customers."""
+        data = data.copy()
+
+        # Inject custom monetary value if provided
+        if monetary_value is not None:
+            data["future_spend"] = monetary_value
+
+        return customer_lifetime_value(
+            transaction_model=self,
+            data=data,
+            future_t=future_t,
+            discount_rate=discount_rate,
+            time_unit=time_unit,
         )
 
     def expected_probability_alive(

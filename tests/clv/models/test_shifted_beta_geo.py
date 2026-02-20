@@ -393,18 +393,19 @@ class TestShiftedBetaGeoModel:
             ShiftedBetaGeoModel(data=data)
 
     def test_invalid_T(self):
-        data = pd.DataFrame(
+        """Test that T < 2 raises a ValueError for ShiftedBetaGeoModel."""
+        invalid_data = pd.DataFrame(
             {
-                "customer_id": np.asarray([1, 2]),
-                "recency": np.asarray([1, 1]),
-                "T": np.asarray([1, 1]),
-                "cohort": np.asarray(["A", "A"]),
+                "customer_id": [1],
+                "frequency": [1],
+                "recency": [1],
+                "T": [1],  # Invalid because min_T is 2 for sBG
+                "cohort": [1],  # Added to pass column validation
             }
         )
-        with pytest.raises(
-            ValueError, match=r"T \(observation period length\) must be >= 2\."
-        ):
-            ShiftedBetaGeoModel(data=data)
+
+        with pytest.raises(ValueError, match=r"T must be >= 2\."):
+            ShiftedBetaGeoModel(data=invalid_data)
 
     def test_cohort_T_homogeneity(self):
         data = pd.DataFrame(
