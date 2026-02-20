@@ -126,7 +126,7 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import arviz as az
 import numpy as np
@@ -140,6 +140,7 @@ from pytensor.graph import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
@@ -350,7 +351,10 @@ class Incrementality:
         start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
 
         # Subsample posterior if needed (correctly across chain x draw)
-        idata_sub = self._get_subsampled_idata(num_samples, random_state)
+        posterior_sub = subsample_draws(
+            self.idata.posterior, num_samples=num_samples, random_state=random_state
+        )
+        idata_sub = az.InferenceData(posterior=posterior_sub)
         n_chains = idata_sub.posterior.sizes["chain"]
         n_draws = idata_sub.posterior.sizes["draw"]
 
@@ -409,6 +413,11 @@ class Incrementality:
             periods, dates, l_max, freq_offset, freq
         )
 
+        # Build counterfactual scenarios:
+        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
+        #   - cf_eval_masks: period-specific boolean masks indicating which
+        #     max_window indices correspond to the period's actual dates
+        #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
         cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
             periods=periods,
             window_infos=window_infos,
@@ -1380,64 +1389,6 @@ class Incrementality:
             period_ranges.append((period_start, period_end))
 
         return period_ranges
-
-    def _get_subsampled_idata(
-        self,
-        num_samples: int | None,
-        random_state: RandomState | Generator | None,
-    ) -> az.InferenceData:
-        """Return idata with posterior subsampled to ``num_samples`` total samples.
-
-        Subsamples from the flattened chain x draw space (matching the
-        approach in ``MMM._subsample_posterior``), then wraps the result
-        back into an ``InferenceData`` (1 chain, ``num_samples`` draws)
-        so that a subsequent ``az.extract`` inside
-        ``extract_response_distribution`` produces exactly
-        ``num_samples`` samples.
-
-        Parameters
-        ----------
-        num_samples : int or None
-            Number of total samples to keep.  If None, returns the
-            original idata unchanged.
-        random_state : RandomState or Generator or None
-            Random state for reproducibility.
-
-        Returns
-        -------
-        az.InferenceData
-            Either the original idata (when no subsampling is needed) or
-            a new idata whose posterior has 1 chain and ``num_samples``
-            draws.
-        """
-        if num_samples is None:
-            return self.idata
-
-        posterior = self.idata.posterior
-        n_chains = posterior.sizes["chain"]
-        n_draws = posterior.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples >= total_samples:
-            return self.idata
-
-        rng = np.random.default_rng(random_state)
-        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-        stacked = posterior.stack(sample=("chain", "draw"))
-        selected = stacked.isel(sample=flat_indices)
-        # Drop MultiIndex components, rename sample -> draw, add chain dim
-        posterior_ds = (
-            selected.drop_vars(["chain", "draw", "sample"])
-            .rename({"sample": "draw"})
-            .expand_dims("chain")
-        )
-
-        groups: dict[str, Any] = {"posterior": posterior_ds}
-        if hasattr(self.idata, "fit_data"):
-            groups["fit_data"] = self.idata.fit_data
-
-        return az.InferenceData(**groups)
 
     def _aggregate_spend(
         self,

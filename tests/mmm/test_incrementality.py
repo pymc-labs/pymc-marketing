@@ -21,13 +21,9 @@ import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-# Matches simple_fitted_mmm's GeometricAdstock(l_max=4)
-_SIMPLE_L_MAX = 4
 
 
 class _ModelStub(dict):
@@ -54,7 +50,7 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
         if original_scale
         else "channel_contribution"
     )
-    model = cm(mmm.model)
+    model = mmm.model.copy()
     with model:
         pm.set_data(
             {
@@ -225,7 +221,7 @@ def incrementality_lite():
     )
     incr.model = SimpleNamespace(model=model_stub, idata=None)
 
-    return incr, _SIMPLE_L_MAX
+    return incr, 4
 
 
 class TestIncrementality:
