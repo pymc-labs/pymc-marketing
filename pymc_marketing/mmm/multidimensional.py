@@ -896,7 +896,7 @@ class MMM(RegressionModelBuilder):
 
     @property
     def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+        """Use the MMMPlotSuite to plot the results. bla bla."""
         self._validate_model_was_built()
         self._validate_idata_exists()
         return MMMPlotSuite(idata=self.idata)
