@@ -21,7 +21,7 @@ dependencies:
   # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
   - pymc>=5.23.0
   - pytensor>=2.31.3
-  - pymc-extras>=0.2.7
+  - pymc-extras>=0.2.7,<0.9
   - nutpie>=0.15.1
   - blackjax>=1.2.4
   - scikit-learn>=1.1.1
