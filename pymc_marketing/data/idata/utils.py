@@ -13,11 +13,15 @@
 #   limitations under the License.
 """Standalone utility functions for InferenceData operations."""
 
+from __future__ import annotations
+
 from typing import Literal
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import xarray as xr
+from numpy.random import Generator, RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
 
@@ -338,3 +342,66 @@ def aggregate_idata_dims(
         aggregated_groups[group_name] = combined
 
     return az.InferenceData(**aggregated_groups)
+
+
+def subsample_idata(
+    idata: az.InferenceData,
+    *,
+    num_samples: int | None,
+    random_state: RandomState | Generator | None = None,
+) -> az.InferenceData:
+    """Subsample posterior draws from an InferenceData object.
+
+    Randomly selects ``num_samples`` draws from the flattened
+    chain × draw space and returns a new ``InferenceData`` with a single
+    chain and ``num_samples`` draws.  All non-posterior groups are
+    carried over unchanged.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        InferenceData with a ``posterior`` group.
+    num_samples : int or None
+        Number of draws to keep.  If ``None`` or >= total available
+        draws, returns *idata* unchanged.
+    random_state : RandomState, Generator, or None, optional
+        Seed or random state for reproducibility.
+
+    Returns
+    -------
+    az.InferenceData
+        Either the original *idata* (when no subsampling is needed) or
+        a new object whose posterior has shape ``(1, num_samples)``.
+
+    Examples
+    --------
+    >>> sub = subsample_idata(idata, num_samples=100, random_state=42)
+    >>> sub.posterior.sizes["draw"]
+    100
+    """
+    if num_samples is None:
+        return idata
+
+    posterior = idata.posterior
+    total_samples = posterior.sizes["chain"] * posterior.sizes["draw"]
+
+    if num_samples >= total_samples:
+        return idata
+
+    rng = np.random.default_rng(random_state)
+    flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+    stacked = posterior.stack(sample=("chain", "draw"))
+    selected = stacked.isel(sample=flat_indices)
+    posterior_ds = (
+        selected.drop_vars(["chain", "draw", "sample"])
+        .rename({"sample": "draw"})
+        .expand_dims("chain")
+    )
+
+    groups: dict[str, object] = {"posterior": posterior_ds}
+    for group_name in idata.groups():
+        if group_name != "posterior":
+            groups[group_name] = getattr(idata, group_name)
+
+    return az.InferenceData(**groups)
