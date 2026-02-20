@@ -33,7 +33,6 @@ class TestParetoNBDModel:
         # Set random seed
         cls.rng = np.random.default_rng(34)
 
-        # Parameterspytest tests/clv/models/test_pareto_nbd.py
         cls.r_true = 0.5534
         cls.alpha_true = 10.5802
         cls.s_true = 0.6061
@@ -160,7 +159,7 @@ class TestParetoNBDModel:
 
         # 1. Default (monetary_value = None)
         model.expected_customer_lifetime_value(data=dummy_data)
-        assert "future_spend" not in mock_clv.call_args[1]["data"].columns
+        assert "monetary_value" not in mock_clv.call_args[1]["data"].columns
 
         mock_clv.reset_mock()
 
@@ -170,9 +169,9 @@ class TestParetoNBDModel:
             data=dummy_data, monetary_value=custom_monetary_value
         )
         called_data = mock_clv.call_args[1]["data"]
-        assert "future_spend" in called_data.columns
+        assert "monetary_value" in called_data.columns
         np.testing.assert_array_equal(
-            called_data["future_spend"], custom_monetary_value
+            called_data["monetary_value"], custom_monetary_value
         )
 
     @pytest.fixture(scope="class")

@@ -144,7 +144,7 @@ class TestModifiedBetaGeoModel:
 
         # 1. Default
         model.expected_customer_lifetime_value(data=dummy_data)
-        assert "future_spend" not in mock_clv.call_args[1]["data"].columns
+        assert "monetary_value" not in mock_clv.call_args[1]["data"].columns
 
         mock_clv.reset_mock()
 
@@ -154,9 +154,9 @@ class TestModifiedBetaGeoModel:
             data=dummy_data, monetary_value=custom_monetary_value
         )
         called_data = mock_clv.call_args[1]["data"]
-        assert "future_spend" in called_data.columns
+        assert "monetary_value" in called_data.columns
         np.testing.assert_array_equal(
-            called_data["future_spend"], custom_monetary_value
+            called_data["monetary_value"], custom_monetary_value
         )
 
     @pytest.fixture(scope="class")

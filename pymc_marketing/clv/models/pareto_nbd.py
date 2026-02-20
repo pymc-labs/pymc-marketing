@@ -566,7 +566,7 @@ class ParetoNBDModel(CLVModel):
 
         # Inject custom monetary value if provided
         if monetary_value is not None:
-            data["future_spend"] = monetary_value
+            data["monetary_value"] = monetary_value
 
         return customer_lifetime_value(
             transaction_model=self,
