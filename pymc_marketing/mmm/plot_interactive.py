@@ -105,11 +105,12 @@ Create custom factories with filtered or aggregated data:
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 import matplotlib.colors as mcolors
 import narwhals as nw
 import numpy as np
+import pandas as pd
 from narwhals.typing import IntoDataFrameT
 
 try:
@@ -120,6 +121,8 @@ except ImportError as e:
         "Plotly is required for interactive plotting. "
         "Install it with: pip install pymc-marketing[plotly]"
     ) from e
+
+from pymc.util import RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.summary import MMMSummaryFactory
@@ -825,6 +828,14 @@ class MMMPlotlyFactory:
         self,
         hdi_prob: float | None = 0.94,
         frequency: Frequency | None = "all_time",
+        method: Literal["incremental", "elementwise"] = "incremental",
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
+        aggregate_dims: dict[str, Any] | list[dict[str, Any]] | None = None,
+        filter_dims: dict[str, Any] | None = None,
         round_digits: int = 3,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
@@ -842,6 +853,43 @@ class MMMPlotlyFactory:
         frequency : str, optional
             Time aggregation (default: "all_time"). Options: "original", "weekly",
             "monthly", "quarterly", "yearly", "all_time".
+        method : {"incremental", "elementwise"}, default "incremental"
+            ROAS computation method. "incremental" (recommended) uses counterfactual
+            analysis with carryover; "elementwise" uses simple contribution/spend
+            division.
+        include_carryover : bool, default True
+            Include adstock carryover effects. Only used when method="incremental".
+        num_samples : int or None, optional
+            Number of posterior samples. Only used when method="incremental".
+        random_state : int, np.random.Generator, np.random.RandomState, or None, optional
+            Random state for reproducibility. Only used when method="incremental".
+        start_date : str or pd.Timestamp, optional
+            Start date for the evaluation window. When
+            ``method="incremental"``, spend *before* this date still
+            influences ROAS through adstock carryover effects (the
+            counterfactual analysis automatically includes the necessary
+            carry-in context). Passed through to
+            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
+        end_date : str or pd.Timestamp, optional
+            End date for the evaluation window. When
+            ``method="incremental"``, spend *during* the window continues
+            to generate returns *after* this date through adstock
+            carryover; those trailing effects are included in the ROAS
+            calculation. Passed through to
+            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
+        aggregate_dims : dict or list[dict], optional
+            Post-computation dimension aggregation. Each dict contains keyword
+            arguments passed to
+            :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims`
+            (``dim``, ``values``, ``new_label``, optional ``method``).
+            Passed through to
+            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
+        filter_dims : dict, optional
+            Dimension filters applied to data before computing ROAS.
+            E.g. ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
+            Scalar values are converted to single-element lists.
+            Passed through to
+            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
         round_digits : int, default 3
             Number of decimal places for rounding values in hover text.
         auto_facet : bool, default True
@@ -864,7 +912,7 @@ class MMMPlotlyFactory:
 
         Examples
         --------
-        >>> # Basic ROAS plot
+        >>> # Basic ROAS plot (incremental, carryover-aware)
         >>> fig = mmm.plot_interactive.roas()
         >>> fig.show()
 
@@ -872,8 +920,24 @@ class MMMPlotlyFactory:
         >>> fig = mmm.plot_interactive.roas(facet_col="country")
         >>> fig.show()
 
-        >>> # Custom frequency and HDI
-        >>> fig = mmm.plot_interactive.roas(frequency="monthly", hdi_prob=0.80)
+        >>> # ROAS for a specific date range
+        >>> fig = mmm.plot_interactive.roas(
+        ...     start_date="2024-01-01", end_date="2024-06-30"
+        ... )
+        >>> fig.show()
+
+        >>> # ROAS with aggregated channels
+        >>> fig = mmm.plot_interactive.roas(
+        ...     aggregate_dims={
+        ...         "dim": "channel",
+        ...         "values": ["Facebook", "Instagram"],
+        ...         "new_label": "Social",
+        ...     }
+        ... )
+        >>> fig.show()
+
+        >>> # Element-wise ROAS (e.g., with data-only factory)
+        >>> fig = mmm.plot_interactive.roas(method="elementwise")
         >>> fig.show()
         """
         # Get data from summary factory
@@ -881,6 +945,14 @@ class MMMPlotlyFactory:
         df = self.summary.roas(
             hdi_probs=hdi_probs,
             frequency=frequency,
+            method=method,
+            include_carryover=include_carryover,
+            num_samples=num_samples,
+            random_state=random_state,
+            start_date=start_date,
+            end_date=end_date,
+            aggregate_dims=aggregate_dims,
+            filter_dims=filter_dims,
         )
 
         nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(

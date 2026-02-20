@@ -391,14 +391,6 @@ class TestDataFrameSchemas:
             "Channel coordinate values may have been replaced with integer indices."
         )
 
-    def test_roas_summary_schema(self, mock_mmm_idata_wrapper):
-        """Test ROAS summary returns DataFrame with correct schema."""
-        df = MMMSummaryFactory(mock_mmm_idata_wrapper, hdi_probs=[0.94]).roas()
-
-        required_columns = {"date", "channel", "mean", "median"}
-        assert required_columns.issubset(set(df.columns))
-        assert "abs_error_94_lower" in df.columns
-
     def test_channel_spend_dataframe_schema(self, mock_mmm_idata_wrapper):
         """Test channel spend DataFrame has correct schema (no HDI columns)."""
         df = MMMSummaryFactory(mock_mmm_idata_wrapper).channel_spend()
@@ -494,7 +486,11 @@ class TestOutputFormats:
         method = getattr(factory, method_name)
 
         # Act - should not raise TypeError for unexpected keyword argument
-        df = method(output_format="pandas")
+        # roas with data-only factory requires method="elementwise"
+        kwargs = {"output_format": "pandas"}
+        if method_name == "roas":
+            kwargs["method"] = "elementwise"
+        df = method(**kwargs)
 
         # Assert it returned a pandas DataFrame
         assert df is not None, f"{method_name} returned None"
@@ -546,8 +542,11 @@ class TestOutputFormats:
         factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
         method = getattr(factory, method_name)
 
-        # Act
-        df = method(output_format="polars")
+        # Act - roas with data-only factory requires method="elementwise"
+        kwargs = {"output_format": "polars"}
+        if method_name == "roas":
+            kwargs["method"] = "elementwise"
+        df = method(**kwargs)
 
         # Assert it returned a polars DataFrame
         assert df is not None, f"{method_name} returned None"
@@ -726,6 +725,15 @@ class TestComponent1Integration:
 
         assert df_monthly["date"].nunique() < df_original["date"].nunique()
 
+    def test_change_over_time_requires_date_dimension(self, mock_mmm_idata_wrapper):
+        """Test that change_over_time raises error when date dimension is missing."""
+        aggregated_data = mock_mmm_idata_wrapper.aggregate_time("all_time")
+
+        with pytest.raises(
+            ValueError, match=r"change_over_time requires date dimension.*all_time"
+        ):
+            MMMSummaryFactory(aggregated_data).change_over_time()
+
 
 # =============================================================================
 # MMMSummaryFactory Tests
@@ -832,6 +840,12 @@ class TestModelRequiringMethods:
             match=r"adstock_curves requires model.*MMMSummaryFactory\(data, model=mmm\)",
         ):
             factory.adstock_curves()
+
+        with pytest.raises(
+            ValueError,
+            match=r"roas with method='incremental' requires model",
+        ):
+            factory.roas()
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_accepts_data_and_model(self, fitted_mmm, request):
@@ -995,7 +1009,9 @@ class TestEdgeCases:
         self, mock_mmm_idata_wrapper_with_zero_spend
     ):
         """Test that ROAS computation handles zero spend without errors."""
-        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_zero_spend).roas()
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper_with_zero_spend).roas(
+            method="elementwise"
+        )
 
         zero_spend_rows = df[df["channel"] == "zero_spend_channel"]
         assert (
@@ -1004,14 +1020,365 @@ class TestEdgeCases:
             or np.isinf(zero_spend_rows["mean"]).all()
         )
 
-    def test_change_over_time_requires_date_dimension(self, mock_mmm_idata_wrapper):
-        """Test that change_over_time raises error when date dimension is missing."""
-        aggregated_data = mock_mmm_idata_wrapper.aggregate_time("all_time")
+
+# =============================================================================
+# ROAS Method Tests
+# =============================================================================
+
+
+class TestROASMethods:
+    """Test ROAS method parameter (incremental vs elementwise)."""
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_roas_incremental_method_with_model(self, fitted_mmm, request):
+        """Test that method='incremental' works when model is provided."""
+        mmm = request.getfixturevalue(fitted_mmm)
+        df = mmm.summary.roas(
+            method="incremental", frequency="original", num_samples=10
+        )
+
+        required_columns = {"date", "channel", "mean", "median"}
+        assert required_columns.issubset(set(df.columns))
+        assert len(df) > 0
+
+    def test_roas_elementwise_method_without_model(self, mock_mmm_idata_wrapper):
+        """Test that method='elementwise' works with data-only factory."""
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).roas(method="elementwise")
+
+        required_columns = {"date", "channel", "mean", "median"}
+        assert required_columns.issubset(set(df.columns))
+        assert len(df) > 0
+
+    def test_roas_elementwise_with_date_filter(self, mock_mmm_idata_wrapper):
+        """Test that start_date/end_date filter elementwise ROAS results."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+
+        df_full = factory.roas(method="elementwise")
+
+        dates = mock_mmm_idata_wrapper.dates
+        mid = dates[len(dates) // 2]
+
+        df_filtered = factory.roas(
+            method="elementwise",
+            start_date=str(dates[0].date()),
+            end_date=str(mid.date()),
+        )
+
+        assert len(df_filtered) > 0
+        assert len(df_filtered) < len(df_full)
+        assert df_filtered["date"].max() <= mid
+
+    def test_roas_elementwise_with_start_date_only(self, mock_mmm_idata_wrapper):
+        """Test that only start_date filters elementwise ROAS results."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+
+        dates = mock_mmm_idata_wrapper.dates
+        mid = dates[len(dates) // 2]
+
+        df_filtered = factory.roas(method="elementwise", start_date=str(mid.date()))
+
+        assert len(df_filtered) > 0
+        assert df_filtered["date"].min() >= mid
+
+    def test_roas_elementwise_with_end_date_only(self, mock_mmm_idata_wrapper):
+        """Test that only end_date filters elementwise ROAS results."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+
+        dates = mock_mmm_idata_wrapper.dates
+        mid = dates[len(dates) // 2]
+
+        df_filtered = factory.roas(method="elementwise", end_date=str(mid.date()))
+
+        assert len(df_filtered) > 0
+        assert df_filtered["date"].max() <= mid
+
+    def test_roas_invalid_method_raises(self, mock_mmm_idata_wrapper):
+        """Test that invalid method value raises ValueError."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
 
         with pytest.raises(
-            ValueError, match=r"change_over_time requires date dimension.*all_time"
+            ValueError,
+            match=r"method must be 'incremental' or 'elementwise'",
         ):
-            MMMSummaryFactory(aggregated_data).change_over_time()
+            factory.roas(method="invalid")
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_roas_incremental_and_elementwise_both_produce_valid_output(
+        self, fitted_mmm, request
+    ):
+        """Integration test: both methods produce valid ROAS DataFrames."""
+        mmm = request.getfixturevalue(fitted_mmm)
+
+        df_incremental = mmm.summary.roas(
+            method="incremental", frequency="monthly", num_samples=10
+        )
+        df_elementwise = mmm.summary.roas(method="elementwise", frequency="monthly")
+
+        for df in (df_incremental, df_elementwise):
+            assert "mean" in df.columns
+            assert "median" in df.columns
+            assert "channel" in df.columns
+            assert len(df) > 0
+            # ROAS values should be non-negative or NaN (for zero spend)
+            valid_means = df["mean"].dropna()
+            assert (valid_means >= 0).all() or len(valid_means) == 0
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_roas_start_end_date_filters_output(self, fitted_mmm, request):
+        """Test that start_date and end_date restrict the ROAS evaluation window."""
+        mmm = request.getfixturevalue(fitted_mmm)
+
+        dates = mmm.data.dates
+        mid = dates[len(dates) // 2]
+        start = dates[0]
+
+        df_full = mmm.summary.roas(frequency="original", num_samples=10)
+        df_partial = mmm.summary.roas(
+            frequency="original",
+            start_date=str(start.date()),
+            end_date=str(mid.date()),
+            num_samples=10,
+        )
+
+        assert len(df_partial) > 0
+        assert len(df_partial) < len(df_full)
+        assert df_partial["date"].max() <= mid
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_roas_start_end_date_with_frequency(self, fitted_mmm, request):
+        """Test start/end_date with a non-original frequency."""
+        mmm = request.getfixturevalue(fitted_mmm)
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            start_date=str(mmm.data.dates[0].date()),
+            end_date=str(mmm.data.dates[-1].date()),
+            num_samples=10,
+        )
+
+        assert len(df) > 0
+        assert "channel" in df.columns
+
+    def test_roas_aggregate_dims_channel(self, simple_fitted_mmm):
+        """Test aggregate_dims collapses channels in incremental ROAS."""
+        mmm = simple_fitted_mmm
+        channels = mmm.channel_columns
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            num_samples=10,
+            aggregate_dims={
+                "dim": "channel",
+                "values": channels[:2],
+                "new_label": "combined_12",
+                "method": "sum",
+            },
+        )
+
+        result_channels = set(df["channel"].unique())
+        assert "combined_12" in result_channels
+        for ch in channels[:2]:
+            assert ch not in result_channels
+        assert channels[2] in result_channels
+
+    def test_roas_aggregate_dims_country(self, panel_fitted_mmm):
+        """Test aggregate_dims collapses a custom dimension (country)."""
+        mmm = panel_fitted_mmm
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            num_samples=10,
+            aggregate_dims={
+                "dim": "country",
+                "values": ["US", "UK"],
+                "new_label": "All",
+            },
+        )
+
+        assert "country" in df.columns
+        assert set(df["country"].unique()) == {"All"}
+
+    def test_roas_aggregate_dims_elementwise(self, mock_panel_idata_wrapper):
+        """Test aggregate_dims works with method='elementwise' too."""
+        factory = MMMSummaryFactory(mock_panel_idata_wrapper)
+
+        df = factory.roas(
+            method="elementwise",
+            aggregate_dims={
+                "dim": "country",
+                "values": ["US", "UK"],
+                "new_label": "All",
+                "method": "sum",
+            },
+        )
+
+        assert "country" in df.columns
+        assert set(df["country"].unique()) == {"All"}
+
+    def test_roas_aggregate_dims_default_method_is_sum(self, simple_fitted_mmm):
+        """Test that aggregate_dims defaults to method='sum' when not specified."""
+        mmm = simple_fitted_mmm
+        channels = mmm.channel_columns
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            num_samples=10,
+            aggregate_dims={
+                "dim": "channel",
+                "values": channels[:2],
+                "new_label": "combined_12",
+            },
+        )
+
+        assert "combined_12" in df["channel"].values
+
+    def test_roas_aggregate_dims_list_single_entry(self, simple_fitted_mmm):
+        """Test aggregate_dims as a list with a single dict element."""
+        mmm = simple_fitted_mmm
+        channels = mmm.channel_columns
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            num_samples=10,
+            aggregate_dims=[
+                {
+                    "dim": "channel",
+                    "values": channels[:2],
+                    "new_label": "combined_12",
+                    "method": "sum",
+                }
+            ],
+        )
+
+        result_channels = set(df["channel"].unique())
+        assert "combined_12" in result_channels
+        for ch in channels[:2]:
+            assert ch not in result_channels
+        assert channels[2] in result_channels
+
+    def test_roas_aggregate_dims_list_multiple_same_dim(self, simple_fitted_mmm):
+        """Test aggregate_dims as a list with multiple aggregations on the same dimension."""
+        mmm = simple_fitted_mmm
+        channels = mmm.channel_columns
+        assert len(channels) >= 3, "Need at least 3 channels for this test"
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            num_samples=10,
+            aggregate_dims=[
+                {
+                    "dim": "channel",
+                    "values": channels[:2],
+                    "new_label": "group_A",
+                },
+                {
+                    "dim": "channel",
+                    "values": [channels[2], "group_A"],
+                    "new_label": "all_channels",
+                },
+            ],
+        )
+
+        result_channels = set(df["channel"].unique())
+        assert "all_channels" in result_channels
+        for ch in channels:
+            assert ch not in result_channels
+
+    def test_roas_aggregate_dims_list_multiple_different_dims(self, panel_fitted_mmm):
+        """Test aggregate_dims as a list with aggregations on different dimensions."""
+        mmm = panel_fitted_mmm
+        channels = mmm.channel_columns
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            num_samples=10,
+            aggregate_dims=[
+                {
+                    "dim": "channel",
+                    "values": channels[:2],
+                    "new_label": "combined_ch",
+                },
+                {
+                    "dim": "country",
+                    "values": ["US", "UK"],
+                    "new_label": "All",
+                },
+            ],
+        )
+
+        assert "combined_ch" in set(df["channel"].unique())
+        assert set(df["country"].unique()) == {"All"}
+
+    def test_roas_aggregate_dims_list_elementwise(self, mock_panel_idata_wrapper):
+        """Test aggregate_dims as list works with method='elementwise'."""
+        factory = MMMSummaryFactory(mock_panel_idata_wrapper)
+
+        df = factory.roas(
+            method="elementwise",
+            aggregate_dims=[
+                {
+                    "dim": "country",
+                    "values": ["US", "UK"],
+                    "new_label": "All",
+                    "method": "sum",
+                }
+            ],
+        )
+
+        assert "country" in df.columns
+        assert set(df["country"].unique()) == {"All"}
+
+    def test_roas_start_end_date_and_aggregate_dims_combined(self, panel_fitted_mmm):
+        """Test start/end_date and aggregate_dims work together."""
+        mmm = panel_fitted_mmm
+        dates = mmm.data.dates
+
+        df = mmm.summary.roas(
+            frequency="all_time",
+            start_date=str(dates[0].date()),
+            end_date=str(dates[-1].date()),
+            num_samples=10,
+            aggregate_dims={
+                "dim": "country",
+                "values": ["US", "UK"],
+                "new_label": "All",
+            },
+        )
+
+        assert len(df) > 0
+        assert set(df["country"].unique()) == {"All"}
+
+    def test_roas_incremental_filter_dims_with_list(self, panel_fitted_mmm):
+        """Test that roas() respects filter_dims() when using pre-filtered factory."""
+        filtered_data = panel_fitted_mmm.data.filter_dims(country=["US"])
+        factory = MMMSummaryFactory(filtered_data, panel_fitted_mmm)
+        df = factory.roas(method="incremental", frequency="all_time", num_samples=10)
+        assert set(df["country"].unique()) == {"US"}
+
+    def test_roas_incremental_filter_dims_argument(self, panel_fitted_mmm):
+        """Test that roas(filter_dims=...)"""
+        df = panel_fitted_mmm.summary.roas(
+            method="incremental",
+            frequency="all_time",
+            num_samples=10,
+            filter_dims={"country": ["US"]},
+        )
+        assert set(df["country"].unique()) == {"US"}
+
+        df = panel_fitted_mmm.summary.roas(
+            method="incremental",
+            frequency="all_time",
+            num_samples=10,
+            filter_dims={"country": "US"},  # scalar, ensured to ["US"]
+        )
+        assert set(df["country"].unique()) == {"US"}
+
+        """Test that filter_dims works with elementwise ROAS."""
+        df = panel_fitted_mmm.summary.roas(
+            method="elementwise",
+            filter_dims={"country": ["US"]},
+        )
+        assert set(df["country"].unique()) == {"US"}
 
 
 # =============================================================================
@@ -1020,17 +1387,6 @@ class TestEdgeCases:
 
 
 class TestMMMSummaryProperty:
-    """Test MMM model has summary property."""
-
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_mmm_has_summary_property(self, fitted_mmm, request):
-        """Test that MMM model has summary property returning MMMSummaryFactory."""
-        mmm = request.getfixturevalue(fitted_mmm)
-
-        assert hasattr(mmm, "summary")
-        summary_factory = mmm.summary
-        assert isinstance(summary_factory, MMMSummaryFactory)
-
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_summary_property_returns_fresh_factory(self, fitted_mmm, request):
         """Test that summary property returns fresh factory on each access."""
@@ -1065,7 +1421,7 @@ class TestMMMSummaryProperty:
         assert len(contributions_df) > 0
         assert "channel" in contributions_df.columns
 
-        roas_df = mmm.summary.roas()
+        roas_df = mmm.summary.roas(num_samples=10)
         assert len(roas_df) > 0
 
         saturation_df = mmm.summary.saturation_curves()

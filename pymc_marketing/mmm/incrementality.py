@@ -88,8 +88,8 @@ Compute quarterly incremental contributions:
 
     incremental = mmm.incrementality.compute_incremental_contribution(
         frequency="quarterly",
-        period_start="2024-01-01",
-        period_end="2024-12-31",
+        start_date="2024-01-01",
+        end_date="2024-12-31",
     )
 
 Compute quarterly ROAS (when target variable is revenue):
@@ -98,8 +98,8 @@ Compute quarterly ROAS (when target variable is revenue):
 
     roas = mmm.incrementality.contribution_over_spend(
         frequency="quarterly",
-        period_start="2024-01-01",
-        period_end="2024-12-31",
+        start_date="2024-01-01",
+        end_date="2024-12-31",
     )
 
 Compute monthly CAC (when target variable is customer count):
@@ -125,7 +125,8 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import warnings
+from typing import TYPE_CHECKING, NamedTuple
 
 import arviz as az
 import numpy as np
@@ -144,8 +145,17 @@ from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
+    from pytensor.compile.function.types import Function
 
     from pymc_marketing.mmm.multidimensional import MMM
+
+
+class _EvaluatorContext(NamedTuple):
+    """Bundle returned by :meth:`Incrementality._build_evaluator`."""
+
+    evaluator: Function
+    has_time_index: bool
+    saved_shared_values: dict[str, np.ndarray]
 
 
 class Incrementality:
@@ -161,8 +171,13 @@ class Incrementality:
     ----------
     model : MMM
         Fitted MMM model instance.
-    idata : az.InferenceData
+    idata : az.InferenceData, optional
         InferenceData containing posterior samples and fit data.
+        Mutually exclusive with ``data``.
+    data : MMMIDataWrapper, optional
+        Pre-built data wrapper. When provided, ``idata`` is taken from
+        ``data.idata`` and no re-wrapping occurs.
+        Mutually exclusive with ``idata``.
 
     Attributes
     ----------
@@ -173,6 +188,11 @@ class Incrementality:
     data : MMMIDataWrapper
         Data wrapper for accessing model data.
 
+    Raises
+    ------
+    ValueError
+        If both ``idata`` and ``data`` are provided, or neither is.
+
     Examples
     --------
     >>> incr = mmm.incrementality
@@ -180,16 +200,30 @@ class Incrementality:
     >>> cac = incr.spend_over_contribution(frequency="monthly")
     """
 
-    def __init__(self, model: MMM, idata: az.InferenceData):
+    def __init__(
+        self,
+        model: MMM,
+        idata: az.InferenceData | None = None,
+        data: MMMIDataWrapper | None = None,
+    ):
+        if idata is not None and data is not None:
+            raise ValueError("Provide either 'idata' or 'data', not both.")
+        if idata is None and data is None:
+            raise ValueError("Provide either 'idata' or 'data'.")
+
         self.model = model
-        self.idata = idata
-        self.data = MMMIDataWrapper.from_mmm(model, idata)
+        if data is not None:
+            self.data = data
+            self.idata = data.idata
+        else:
+            self.idata = idata
+            self.data = MMMIDataWrapper.from_mmm(model, idata)
 
     def compute_incremental_contribution(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -210,9 +244,9 @@ class Incrementality:
             Time aggregation frequency. ``"original"`` uses data's native
             frequency. ``"all_time"`` returns a single value across the entire
             period.
-        period_start : str or pd.Timestamp, optional
+        start_date : str or pd.Timestamp, optional
             Start date for evaluation window. If None, uses start of fitted data.
-        period_end : str or pd.Timestamp, optional
+        end_date : str or pd.Timestamp, optional
             End date for evaluation window. If None, uses end of fitted data.
         include_carryover : bool, default=True
             Include adstock carryover effects.  When True, prepends ``l_max``
@@ -277,8 +311,8 @@ class Incrementality:
 
             incremental = mmm.incrementality.compute_incremental_contribution(
                 frequency="quarterly",
-                period_start="2024-01-01",
-                period_end="2024-12-31",
+                start_date="2024-01-01",
+                end_date="2024-12-31",
             )
 
         Mean contribution per channel per quarter:
@@ -293,8 +327,8 @@ class Incrementality:
 
             annual = mmm.incrementality.compute_incremental_contribution(
                 frequency="all_time",
-                period_start="2024-01-01",
-                period_end="2024-12-31",
+                start_date="2024-01-01",
+                end_date="2024-12-31",
             )
 
         Quarterly marginal incrementality (1 % spend increase):
@@ -314,28 +348,19 @@ class Incrementality:
             )
 
         # Validate and parse dates
-        period_start_ts, period_end_ts = self._validate_input_dates(
-            period_start, period_end
-        )
+        start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
 
         # Subsample posterior if needed (correctly across chain x draw)
         posterior_sub = subsample_draws(
             self.idata.posterior, num_samples=num_samples, random_state=random_state
         )
-        n_chains = posterior_sub.sizes["chain"]
-        n_draws = posterior_sub.sizes["draw"]
-
-        # Extract response distribution (batched over samples)
-        response_graph = extract_response_distribution(
-            pymc_model=self.model.model,
-            idata=az.InferenceData(posterior=posterior_sub),
-            response_variable="channel_contribution",
-        )
-        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
+        idata_sub = az.InferenceData(posterior=posterior_sub)
+        n_chains = idata_sub.posterior.sizes["chain"]
+        n_draws = idata_sub.posterior.sizes["draw"]
 
         # Create period groups based on frequency
         dates = self.data.dates
-        periods = self._create_period_groups(period_start_ts, period_end_ts, frequency)
+        periods = self._create_period_groups(start_date_ts, end_date_ts, frequency)
 
         # Get l_max for carryover calculations
         l_max = self.model.adstock.l_max
@@ -348,101 +373,76 @@ class Incrementality:
         freq: str = inferred_freq
         freq_offset = pd.tseries.frequencies.to_offset(freq)
 
-        # Compile vectorized evaluator (once, reused for both)
-        # Use float64 for evaluation to avoid integer truncation when
-        # counterfactual_spend_factor produces fractional values (e.g. 1.01).
-        data_shared = self.model.model["channel_data"]
+        # Compile vectorized evaluator (once, reused for both baseline and
+        # counterfactual evaluations).  Shared variables are temporarily
+        # swapped to filtered shapes inside _build_evaluator; the caller
+        # must restore them via saved_shared_values after all evaluations.
         eval_dtype = "float64"
-        batched_input = pt.tensor(
-            name="channel_data_batched",
-            dtype=eval_dtype,
-            shape=(None, *data_shared.type.shape),
-        )
-        replace_dict: dict = {data_shared: batched_input}
-        func_inputs: list = [batched_input]
-
-        # When time_varying_media (or time_varying_intercept) is enabled,
-        # the response graph contains HSGP-based latent variables that
-        # depend on the ``time_index`` shared variable (shape n_dates).
-        # We must replace it alongside ``channel_data`` so that both
-        # tensors have a consistent date dimension (max_window).
-        has_time_index = "time_index" in self.model.model.named_vars
-        if has_time_index:
-            time_shared = self.model.model["time_index"]
-            batched_time = pt.tensor(
-                name="time_index_batched",
-                dtype=time_shared.dtype,
-                shape=(None, *time_shared.type.shape),
-            )
-            replace_dict[time_shared] = batched_time
-            func_inputs.append(batched_time)
-
-        batched_graph = vectorize_graph(response_graph, replace=replace_dict)
-        evaluator = function(func_inputs, batched_graph)
-
-        # Evaluate baseline on full dataset (once)
         baseline_array = self.data.get_channel_spend().values
-        baseline_eval_args: list[np.ndarray] = [
-            baseline_array[np.newaxis].astype(eval_dtype)
-        ]
-        if has_time_index:
-            baseline_eval_args.append(
-                np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+        ctx = self._build_evaluator(idata_sub, baseline_array)
+        evaluator = ctx.evaluator
+
+        try:
+            # Evaluate baseline on full dataset (once)
+            baseline_eval_args: list[np.ndarray] = [
+                baseline_array[np.newaxis].astype(eval_dtype)
+            ]
+            if ctx.has_time_index:
+                time_shared = self.model.model["time_index"]
+                baseline_eval_args.append(
+                    np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+                )
+            baseline_pred = evaluator(*baseline_eval_args)[0]
+
+            # Determine actual axis ordering from the model's channel_contribution
+            # variable. The PyTensor graph preserves the model's dim order, which
+            # may have custom dims (e.g. "country") before "channel".
+            cc_dims = list(
+                self.model.model.named_vars_to_dims.get("channel_contribution", ())
             )
-        baseline_pred = evaluator(*baseline_eval_args)[0]
-        # Shape: (n_samples, n_dates, *non_date_dims)
+            non_date_dims = [d for d in cc_dims if d != "date"]
+            extra_shape = baseline_array.shape[1:]
 
-        # Determine actual axis ordering from the model's channel_contribution
-        # variable. The PyTensor graph preserves the model's dim order, which
-        # may have custom dims (e.g. "country") before "channel".
-        cc_dims = list(
-            self.model.model.named_vars_to_dims.get("channel_contribution", ())
-        )
-        non_date_dims = [d for d in cc_dims if d != "date"]
-        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
+            # Compute, for each period, the required window metadata including
+            # the start/end indices into `dates` and any necessary left/right
+            # padding, and determine the maximum window length across all
+            # periods.
+            window_infos, max_window = self._compute_window_metadata(
+                periods, dates, l_max, freq_offset, freq
+            )
 
-        # Compute, for each period, the required window metadata including
-        # the start/end indices into `dates` and any necessary left/right padding,
-        # and determine the maximum window length across all periods.
-        # Output:
-        #   - window_infos: list of dicts (one per period), each containing
-        #       info about the window's bounds and padding for use in evaluation
-        #   - max_window: int, the maximum window length needed for counterfactual evaluation
-        window_infos, max_window = self._compute_window_metadata(
-            periods, dates, l_max, freq_offset, freq
-        )
-
-        # Build counterfactual scenarios:
-        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
-        #   - cf_eval_masks: period-specific boolean masks indicating which
-        #     max_window indices correspond to the period's actual dates
-        #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
-        cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
-            periods=periods,
-            window_infos=window_infos,
-            max_window=max_window,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            include_carryover=include_carryover,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            extra_shape=extra_shape,
-            dtype=eval_dtype,
-        )
-
-        # Evaluate all counterfactuals at once
-        cf_eval_args: list[np.ndarray] = [cf_array]
-        if has_time_index:
-            cf_eval_args.append(
-                self._build_time_index_array(
+            # Build counterfactual scenarios
+            cf_array, cf_eval_masks, period_labels = (
+                self._build_counterfactual_scenarios(
+                    periods=periods,
                     window_infos=window_infos,
-                    dates=dates,
                     max_window=max_window,
-                    dtype=time_shared.dtype,
+                    baseline_array=baseline_array,
+                    counterfactual_spend_factor=counterfactual_spend_factor,
+                    include_carryover=include_carryover,
+                    l_max=l_max,
+                    freq_offset=freq_offset,
+                    extra_shape=extra_shape,
+                    dtype=eval_dtype,
                 )
             )
-        cf_predictions = evaluator(*cf_eval_args)
-        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+
+            # Evaluate all counterfactuals at once
+            cf_eval_args: list[np.ndarray] = [cf_array]
+            if ctx.has_time_index:
+                time_shared = self.model.model["time_index"]
+                cf_eval_args.append(
+                    self._build_time_index_array(
+                        window_infos=window_infos,
+                        dates=dates,
+                        max_window=max_window,
+                        dtype=time_shared.dtype,
+                    )
+                )
+            cf_predictions = evaluator(*cf_eval_args)
+        finally:
+            for var_name, original_val in ctx.saved_shared_values.items():
+                self.model.model[var_name].set_value(original_val)
 
         # Assemble results
         return self._compute_period_increments(
@@ -462,58 +462,284 @@ class Incrementality:
             n_draws=n_draws,
         )
 
-    def _validate_input_dates(
+    def _build_evaluator(
         self,
-        period_start: str | pd.Timestamp | None,
-        period_end: str | pd.Timestamp | None,
+        idata_sub: az.InferenceData,
+        baseline_array: np.ndarray,
+    ) -> _EvaluatorContext:
+        """Compile a vectorized PyTensor evaluator for channel contributions.
+
+        Handles the full pipeline of:
+
+        1. Temporarily swapping shared variables to match potentially
+           filtered idata shapes (so that ``extract_response_distribution``
+           builds a graph with consistent dimensions).
+        2. Extracting and vectorizing the response graph across posterior
+           samples.
+        3. Building a batched input tensor with correct shape and
+           broadcastability for the (possibly filtered) data.
+        4. Compiling the final ``pytensor.function``.
+
+        The caller **must** restore the original shared variable values
+        after all evaluations are complete by iterating over
+        ``ctx.saved_shared_values`` — shared variables like
+        ``channel_scale`` are still read at runtime by the compiled
+        evaluator, so they cannot be restored before evaluation finishes.
+
+        Parameters
+        ----------
+        idata_sub : az.InferenceData
+            (Sub-sampled) posterior inference data.
+        baseline_array : np.ndarray
+            Channel spend array from the (possibly filtered) data wrapper,
+            shape ``(n_dates, *non_date_dims)``.
+
+        Returns
+        -------
+        _EvaluatorContext
+            Named tuple with ``evaluator`` (compiled function),
+            ``has_time_index`` (whether the model uses HSGP time-varying
+            effects), and ``saved_shared_values`` (original values that
+            must be restored after evaluation).
+        """
+        data_shared = self.model.model["channel_data"]
+        eval_dtype = "float64"
+
+        # When the idata has been filtered (e.g. geo=["geo_a"]), shared
+        # variables like channel_data, channel_scale, and target_scale
+        # still hold their original (unfiltered) values inside the PyTensor
+        # model.  Broadcasting inside extract_response_distribution bakes
+        # these shapes into Assert nodes; replacing only channel_data later
+        # with a differently-shaped input causes those Asserts to fail.
+        # Temporarily swap all affected shared variables to the filtered
+        # values so the graph is built with consistent dimensions.
+        saved_shared_values: dict[str, np.ndarray] = {}
+        if hasattr(self.idata, "constant_data"):
+            for var_name in list(self.model.model.named_vars):
+                model_var = self.model.model[var_name]
+                if (
+                    hasattr(model_var, "get_value")
+                    and var_name in self.idata.constant_data
+                ):
+                    original_val = model_var.get_value()
+                    filtered_val = self.idata.constant_data[var_name].values
+                    if original_val.shape != filtered_val.shape:
+                        saved_shared_values[var_name] = original_val
+                        model_var.set_value(filtered_val.astype(model_var.dtype))
+
+        try:
+            response_graph = extract_response_distribution(
+                pymc_model=self.model.model,
+                idata=idata_sub,
+                response_variable="channel_contribution",
+            )
+        except Exception:
+            for var_name, original_val in saved_shared_values.items():
+                self.model.model[var_name].set_value(original_val)
+            raise
+
+        # Date dim must stay variable (None) because baseline uses n_dates
+        # while counterfactual uses max_window (n_dates + 2*l_max).
+        # Non-date dims come from the actual (possibly filtered) data.
+        extra_shape = baseline_array.shape[1:]
+        broadcastable = (False, False, *(s == 1 for s in extra_shape))
+        batched_input = pt.tensor(
+            name="channel_data_batched",
+            dtype=eval_dtype,
+            shape=(None, None, *extra_shape),
+            broadcastable=broadcastable,
+        )
+        replace_dict: dict = {data_shared: batched_input}
+        func_inputs: list = [batched_input]
+
+        has_time_index = "time_index" in self.model.model.named_vars
+        if has_time_index:
+            time_shared = self.model.model["time_index"]
+            batched_time = pt.tensor(
+                name="time_index_batched",
+                dtype=time_shared.dtype,
+                shape=(None, *time_shared.type.shape),
+            )
+            replace_dict[time_shared] = batched_time
+            func_inputs.append(batched_time)
+
+        batched_graph = vectorize_graph(response_graph, replace=replace_dict)
+        evaluator = function(func_inputs, batched_graph)
+
+        return _EvaluatorContext(
+            evaluator=evaluator,
+            has_time_index=has_time_index,
+            saved_shared_values=saved_shared_values,
+        )
+
+    def _validate_input(
+        self,
+        start_date: str | pd.Timestamp | None,
+        end_date: str | pd.Timestamp | None,
     ) -> tuple[pd.Timestamp, pd.Timestamp]:
         """Parse and validate input dates against the fitted data range.
 
         Parameters
         ----------
-        period_start : str or pd.Timestamp or None
+        start_date : str or pd.Timestamp or None
             Start date. If None, uses start of fitted data.
-        period_end : str or pd.Timestamp or None
+        end_date : str or pd.Timestamp or None
             End date. If None, uses end of fitted data.
 
         Returns
         -------
         tuple of (pd.Timestamp, pd.Timestamp)
-            Validated ``(period_start, period_end)``.
+            Validated ``(start_date, end_date)``.
+
+        Warns
+        -----
+        UserWarning
+            If the idata has fewer dates than the model but they are a
+            subset of the original fitted dates (i.e. pre-filtered via
+            ``filter_dates``).  Adstock carry-in context is lost at
+            boundaries, which may reduce accuracy.
 
         Raises
         ------
         ValueError
-            If dates are outside fitted data range or start > end.
+            If the idata dates do not match the model's fitted date
+            dimension and are *not* a subset (e.g. because idata was
+            pre-aggregated via ``aggregate_time``), if dates are outside
+            the fitted data range, or if start > end.
         """
+        # Adstock effects are defined at the original temporal resolution
+        # of the fitted data.  If the idata has been pre-aggregated (e.g.
+        # weekly → monthly), the per-period adstock carry-in and carry-out
+        # cannot be computed correctly.  Pre-filtered dates (a subset of
+        # the original dates at the same resolution) are allowed with a
+        # warning about lost boundary context.
+        model_n_dates = self.model.model["channel_data"].get_value().shape[0]
+        idata_n_dates = len(self.data.dates)
+        if idata_n_dates != model_n_dates:
+            idata_dates = self.data.dates
+            model_idata: az.InferenceData | None = self.model.idata
+            model_dates = pd.DatetimeIndex([])
+            if model_idata is not None:
+                if hasattr(model_idata, "constant_data"):
+                    model_dates = pd.DatetimeIndex(
+                        model_idata.constant_data.coords["date"].values
+                    )
+                elif hasattr(model_idata, "fit_data"):
+                    model_dates = pd.DatetimeIndex(
+                        model_idata.fit_data.coords["date"].values
+                    )
+
+            is_date_subset = (
+                len(idata_dates) > 0 and idata_dates.isin(model_dates).all()
+            )
+
+            if is_date_subset:
+                warnings.warn(
+                    f"The idata contains {idata_n_dates} dates, fewer than "
+                    f"the model's {model_n_dates} fitted dates. This appears "
+                    "to be pre-filtered data (e.g. via filter_dates). "
+                    "Adstock carry-in context from before the filter start "
+                    "date is lost, which may affect accuracy near the "
+                    "boundaries of the date range. For full accuracy, pass "
+                    "the original (unfiltered) data and use the "
+                    "start_date/end_date parameters to select the "
+                    "evaluation window.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            else:
+                raise ValueError(
+                    f"The idata date dimension ({idata_n_dates}) does not "
+                    f"match the model's fitted date dimension "
+                    f"({model_n_dates}). This typically happens when idata "
+                    "has been pre-aggregated (e.g. via aggregate_time). "
+                    "Adstock effects are defined at the original temporal "
+                    "resolution, so incrementality cannot be computed on "
+                    "aggregated data. Pass the original (unaggregated) data "
+                    "and use the `frequency` argument to control time "
+                    "aggregation of the results."
+                )
+
+        # Validate custom dimensions: detect coords in model but not idata
+        # (scalar filter dropped them) and coords in idata but not model
+        # (aggregation added new labels the model was never fitted for).
+        in_model_not_idata, in_idata_not_model = self.data.compare_coords(self.model)
+
+        for dim_name, _missing_values in in_model_not_idata.items():
+            model_dims = self.model.model.named_vars_to_dims.get("channel_data", ())
+            # Case 1: dimension entirely dropped (scalar filter like country="US")
+            if (
+                dim_name in model_dims
+                and dim_name not in self.data.get_channel_spend().dims
+            ):
+                raise ValueError(
+                    f"The idata is missing dimension '{dim_name}' expected by "
+                    f"the model. This typically happens when a scalar value "
+                    f'is passed to filter_dims (e.g. {dim_name}="US"), which '
+                    "causes xarray to drop the dimension. Use a list instead "
+                    f'to preserve the dimension (e.g. {dim_name}=["US"]).'
+                )
+            # Case 2: dimension has replacement values (aggregation created
+            # new labels AND removed old ones for the same dimension)
+            if dim_name in in_idata_not_model:
+                raise ValueError(
+                    f"The idata contains unknown values for dimension "
+                    f"'{dim_name}': {sorted(in_idata_not_model[dim_name])}. "
+                    "This typically happens when custom dimensions have been "
+                    "aggregated (e.g. via aggregate_dims). Incrementality "
+                    "must be computed on the original (unaggregated) data "
+                    "because the model's saturation and adstock parameters "
+                    "are fitted per dimension value. Compute incrementality "
+                    "on the full data first, then aggregate the results as "
+                    "needed."
+                )
+            # Case 3: dimension present with a strict subset of values
+            # (e.g. filter_dims(country=["US"])) — this is allowed because
+            # each dimension value's saturation/adstock parameters are
+            # independent.
+
+        for dim_name, extra_values in in_idata_not_model.items():
+            raise ValueError(
+                f"The idata contains unknown values for dimension "
+                f"'{dim_name}': {sorted(extra_values)}. "
+                "This typically happens when custom dimensions have been "
+                "aggregated (e.g. via aggregate_dims). Incrementality "
+                "must be computed on the original (unaggregated) data "
+                "because the model's saturation and adstock parameters "
+                "are fitted per dimension value. Compute incrementality "
+                "on the full data first, then aggregate the results as "
+                "needed."
+            )
+
+        # Validate start_date and end_date
         dates = self.data.dates
         data_start = dates[0]
         data_end = dates[-1]
 
-        period_start_ts: pd.Timestamp = (
-            data_start if period_start is None else pd.to_datetime(period_start)
+        start_date_ts: pd.Timestamp = (
+            data_start if start_date is None else pd.to_datetime(start_date)
         )
-        period_end_ts: pd.Timestamp = (
-            data_end if period_end is None else pd.to_datetime(period_end)
+        end_date_ts: pd.Timestamp = (
+            data_end if end_date is None else pd.to_datetime(end_date)
         )
 
-        if period_start_ts < data_start:
+        if start_date_ts < data_start:
             raise ValueError(
-                f"period_start '{period_start_ts.date()}' is before fitted data "
+                f"start_date '{start_date_ts.date()}' is before fitted data "
                 f"start '{data_start.date()}'."
             )
-        if period_end_ts > data_end:
+        if end_date_ts > data_end:
             raise ValueError(
-                f"period_end '{period_end_ts.date()}' is after fitted data "
+                f"end_date '{end_date_ts.date()}' is after fitted data "
                 f"end '{data_end.date()}'."
             )
-        if period_start_ts > period_end_ts:
+        if start_date_ts > end_date_ts:
             raise ValueError(
-                f"period_start '{period_start_ts.date()}' is after "
-                f"period_end '{period_end_ts.date()}'."
+                f"start_date '{start_date_ts.date()}' is after "
+                f"end_date '{end_date_ts.date()}'."
             )
 
-        return period_start_ts, period_end_ts
+        return start_date_ts, end_date_ts
 
     @staticmethod
     def _compute_window_metadata(
@@ -885,8 +1111,8 @@ class Incrementality:
     def contribution_over_spend(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -903,7 +1129,7 @@ class Incrementality:
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
             Time aggregation frequency.
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
             Include adstock carryover effects.
@@ -923,21 +1149,21 @@ class Incrementality:
         --------
         >>> roas = mmm.incrementality.contribution_over_spend(
         ...     frequency="quarterly",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-12-31",
         ... )
         """
         incremental = self.compute_incremental_contribution(
             frequency=frequency,
-            period_start=period_start,
-            period_end=period_end,
+            start_date=start_date,
+            end_date=end_date,
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=0.0,
         )
 
-        spend = self._aggregate_spend(frequency, period_start, period_end)
+        spend = self._aggregate_spend(frequency, start_date, end_date)
         spend_safe = xr.where(spend == 0, np.nan, spend)
 
         return incremental / spend_safe
@@ -945,8 +1171,8 @@ class Incrementality:
     def spend_over_contribution(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -961,7 +1187,7 @@ class Incrementality:
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
             Time aggregation frequency.
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
             Include adstock carryover effects.
@@ -985,8 +1211,8 @@ class Incrementality:
         """
         ratio = self.contribution_over_spend(
             frequency=frequency,
-            period_start=period_start,
-            period_end=period_end,
+            start_date=start_date,
+            end_date=end_date,
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
@@ -997,8 +1223,8 @@ class Incrementality:
     def marginal_contribution_over_spend(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
@@ -1019,7 +1245,7 @@ class Incrementality:
         ----------
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
             Time aggregation frequency.
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range for computation.
         include_carryover : bool, default=True
             Include adstock carryover effects.
@@ -1048,8 +1274,8 @@ class Incrementality:
         --------
         >>> mroas = mmm.incrementality.marginal_contribution_over_spend(
         ...     frequency="quarterly",
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-12-31",
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-12-31",
         ... )
         """
         if spend_increase_pct <= 0:
@@ -1061,15 +1287,15 @@ class Incrementality:
 
         marginal_contribution = self.compute_incremental_contribution(
             frequency=frequency,
-            period_start=period_start,
-            period_end=period_end,
+            start_date=start_date,
+            end_date=end_date,
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=factor,
         )
 
-        spend = self._aggregate_spend(frequency, period_start, period_end)
+        spend = self._aggregate_spend(frequency, start_date, end_date)
 
         # Denominator is the *incremental* spend: pct * total_spend
         incremental_spend = spend_increase_pct * spend
@@ -1137,11 +1363,11 @@ class Incrementality:
             data_last_date = self.data.dates[-1]
             if end != data_last_date:
                 raise ValueError(
-                    f"period_end ({end.strftime('%Y-%m-%d')}) falls in the "
+                    f"end_date ({end.strftime('%Y-%m-%d')}) falls in the "
                     f"middle of a {frequency} period that ends on "
                     f"{last_period_boundary.strftime('%Y-%m-%d')}. "
-                    f"Use a period_end that aligns with a {frequency} "
-                    f"boundary, or omit period_end to use the last date "
+                    f"Use an end_date that aligns with a {frequency} "
+                    f"boundary, or omit end_date to use the last date "
                     f"of the fitted data "
                     f"({data_last_date.strftime('%Y-%m-%d')})."
                 )
@@ -1162,8 +1388,8 @@ class Incrementality:
     def _aggregate_spend(
         self,
         frequency: Frequency,
-        period_start: str | pd.Timestamp | None = None,
-        period_end: str | pd.Timestamp | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
     ) -> xr.DataArray:
         """Aggregate channel spend by frequency over a date range.
 
@@ -1174,7 +1400,7 @@ class Incrementality:
         ----------
         frequency : Frequency
             Time aggregation frequency
-        period_start, period_end : str or pd.Timestamp, optional
+        start_date, end_date : str or pd.Timestamp, optional
             Date range. If None, uses full fitted data range.
 
         Returns
@@ -1184,7 +1410,7 @@ class Incrementality:
             (channel, *custom_dims) for "all_time"
         """
         # 1. Filter to date range
-        data = self.data.filter_dates(period_start, period_end)
+        data = self.data.filter_dates(start_date, end_date)
 
         # 2. Aggregate over time (no-op for "original")
         if frequency != "original":
