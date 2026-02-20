@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.gamma_gamma import (
@@ -80,6 +81,133 @@ class BaseTestGammaGammaModel:
 
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
+    @patch("pymc_marketing.clv.models.gamma_gamma.customer_lifetime_value")
+    def test_expected_customer_lifetime_value_monetary_value(self, mock_clv):
+        """Test that expected_customer_lifetime_value correctly handles the monetary_value parameter."""
+        # Initialize a basic model configuration
+        model = GammaGammaModel(data=self.data)
+
+        # We don't need a real transaction model for this test, a string acts as a dummy
+        dummy_transaction_model = "dummy_transaction_model"
+
+        # 1. Test default behavior (monetary_value = None)
+        # We patch expected_customer_spend so we don't need to actually fit the model
+        dummy_expected_spend = xr.DataArray(
+            np.full((1, 1, len(self.data)), 15.0), dims=("chain", "draw", "customer_id")
+        )
+
+        with patch.object(
+            model, "expected_customer_spend", return_value=dummy_expected_spend
+        ) as mock_expected_spend:
+            model.expected_customer_lifetime_value(
+                transaction_model=dummy_transaction_model,
+                data=self.data,
+            )
+
+            # Assert the model calculated expected spend itself
+            mock_expected_spend.assert_called_once()
+
+            # Assert it passed the calculated values to the utility function
+            called_data = mock_clv.call_args[1]["data"]
+            assert "future_spend" in called_data.columns
+            np.testing.assert_array_equal(called_data["future_spend"], 15.0)
+
+        # Reset the mock for the second part of the test
+        mock_clv.reset_mock()
+
+        # 2. Test passing a custom monetary_value
+        custom_monetary_value = pd.Series(np.full(len(self.data), 99.0))
+        with patch.object(model, "expected_customer_spend") as mock_expected_spend:
+            model.expected_customer_lifetime_value(
+                transaction_model=dummy_transaction_model,
+                data=self.data,
+                monetary_value=custom_monetary_value,
+            )
+
+            # Assert the model's internal calculation was BYPASSED
+            mock_expected_spend.assert_not_called()
+
+            # Assert it passed our custom values to the utility function
+            called_data = mock_clv.call_args[1]["data"]
+            assert "future_spend" in called_data.columns
+            np.testing.assert_array_equal(called_data["future_spend"], 99.0)
+
+        @pytest.mark.parametrize(
+            "invalid_data, expected_error_match",
+            [
+                (
+                    pd.DataFrame(
+                        {
+                            "customer_id": [1],
+                            "frequency": [-1],
+                            "recency": [5],
+                            "T": [10],
+                        }
+                    ),
+                    "frequency",
+                ),
+                (
+                    pd.DataFrame(
+                        {
+                            "customer_id": [1],
+                            "frequency": [2],
+                            "recency": [-5],
+                            "T": [10],
+                        }
+                    ),
+                    "recency",
+                ),
+                (
+                    pd.DataFrame(
+                        {
+                            "customer_id": [1],
+                            "frequency": [2],
+                            "recency": [5],
+                            "T": [-10],
+                        }
+                    ),
+                    "T",
+                ),
+                (
+                    pd.DataFrame(
+                        {
+                            "customer_id": [1],
+                            "frequency": [2],
+                            "recency": [15],
+                            "T": [10],
+                        }
+                    ),
+                    "recency",
+                ),
+                (
+                    pd.DataFrame(
+                        {
+                            "customer_id": [1],
+                            "frequency": pd.Series([np.nan], dtype="Int64"),
+                            "recency": [5],
+                            "T": [10],
+                        }
+                    ),
+                    "Missing values",
+                ),
+                (
+                    pd.DataFrame(
+                        {
+                            "customer_id": [1],
+                            "frequency": [2],
+                            "recency": pd.Series([np.nan], dtype="Int64"),
+                            "T": [10],
+                        }
+                    ),
+                    "Missing values",
+                ),
+            ],
+        )
+        def test_check_inputs_validation(self, invalid_data, expected_error_match):
+            """Test that _check_inputs correctly catches invalid frequency, recency, and T values."""
+            with pytest.raises(ValueError):
+                GammaGammaModel(data=invalid_data)
+
     def test_missing_columns(self):
         data_invalid = self.data.drop(columns="customer_id")
         with pytest.raises(
