@@ -642,6 +642,17 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    cost_per_unit: DataArray | None = Field(
+        default=None,
+        description=(
+            "Cost per unit conversion factors for converting budgets from "
+            "monetary units (dollars) to original units (impressions, clicks). "
+            "Must have dims (date, *budget_dims) where date has length "
+            "num_periods. If None, budgets are assumed to already be in "
+            "the model's native units (no conversion applied)."
+        ),
+    )
+
     compile_kwargs: dict | None = Field(
         default=None,
         description="Keyword arguments for the model compilation. Specially usefull to pass compilation mode",
@@ -729,6 +740,13 @@ class BudgetOptimizer(BaseModel):
                 budget_dims=self._budget_dims,
                 budgets_to_optimize=self.budgets_to_optimize,
             )
+        )
+
+        # 5b. Validate and process cost_per_unit
+        self._cost_per_unit_tensor = self._validate_and_process_cost_per_unit(
+            cost_per_unit=self.cost_per_unit,
+            num_periods=self.num_periods,
+            budget_dims=self._budget_dims,
         )
 
         # 6. Replace channel_data with budgets in the PyMC model
@@ -838,6 +856,56 @@ class BudgetOptimizer(BaseModel):
         # Store only the masked tensor
         return pt.constant(time_factors_masked, name="budget_distribution_over_period")
 
+    def _validate_and_process_cost_per_unit(
+        self,
+        cost_per_unit: DataArray | None,
+        num_periods: int,
+        budget_dims: list[str],
+    ) -> pt.TensorConstant | None:
+        """Validate and convert cost_per_unit to a PyTensor constant.
+
+        Parameters
+        ----------
+        cost_per_unit : DataArray or None
+            Cost per unit with dims (date, *budget_dims).
+        num_periods : int
+            Number of optimization periods.
+        budget_dims : list[str]
+            Budget dimension names (excluding 'date').
+
+        Returns
+        -------
+        pt.TensorConstant or None
+            Constant tensor with shape (num_periods, *budget_shape), or
+            None if no cost_per_unit provided.
+
+        Raises
+        ------
+        ValueError
+            If dimensions or date length don't match expectations.
+        """
+        if cost_per_unit is None:
+            return None
+
+        expected_dims = ("date", *budget_dims)
+        if set(cost_per_unit.dims) != set(expected_dims):
+            raise ValueError(
+                f"cost_per_unit must have dims {expected_dims}, "
+                f"but got {cost_per_unit.dims}"
+            )
+
+        if len(cost_per_unit.coords["date"]) != num_periods:
+            raise ValueError(
+                f"cost_per_unit date dimension must have length {num_periods}, "
+                f"but got {len(cost_per_unit.coords['date'])}"
+            )
+
+        if (cost_per_unit <= 0).any():
+            raise ValueError("cost_per_unit values must be positive.")
+
+        values = cost_per_unit.transpose(*expected_dims).values
+        return pt.constant(values, name="cost_per_unit")
+
     def _apply_budget_distribution_over_period(
         self,
         budgets: pt.TensorVariable,
@@ -894,32 +962,53 @@ class BudgetOptimizer(BaseModel):
         return repeated_budgets
 
     def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-        """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
+        """Replace `channel_data` in the model graph with our newly created `_budgets` variable.
+
+        Budget Unit Conversion Pipeline
+        --------------------------------
+        1. User Input: Budgets in monetary units (e.g., dollars)
+        2. Time Distribution: Spread per-channel budget over optimization periods
+        3. cost_per_unit Conversion: Convert to original units (if provided)
+           budgets_in_units[t] = budgets_in_dollars[t] / cost_per_unit[t]
+        4. Channel Scaling: Apply model's normalization
+        5. Model Propagation: Scaled budgets flow through saturation/adstock
+        """
         num_periods = self.num_periods
         max_lag = self.mmm_model.adstock.l_max
         channel_data_dims = model.named_vars_to_dims["channel_data"]
         date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
 
-        # Scale budgets by channel_scales
         budgets = self._budgets
-        budgets /= channel_scales
 
-        # Repeat budgets over num_periods
+        # Repeat budgets over num_periods (still in monetary units)
         repeated_budgets_shape = list(tuple(budgets.shape))
         repeated_budgets_shape.insert(date_dim_idx, num_periods)
 
         if self._budget_distribution_over_period_tensor is not None:
-            # Apply time distribution factors
             repeated_budgets = self._apply_budget_distribution_over_period(
                 budgets, num_periods, date_dim_idx
             )
         else:
-            # Default behavior: distribute evenly across periods
             repeated_budgets = pt.broadcast_to(
                 pt.expand_dims(budgets, date_dim_idx),
                 shape=repeated_budgets_shape,
             )
+
+        # Convert from monetary units to original units using date-specific rates.
+        # Applied AFTER time distribution so each period uses its own cost rate.
+        if self._cost_per_unit_tensor is not None:
+            if date_dim_idx != 0:
+                raise ValueError(
+                    "cost_per_unit conversion assumes date is the first dimension "
+                    f"in channel_data_dims, but date_dim_idx={date_dim_idx}. "
+                    "If channel_data_dims ordering has changed, update "
+                    "_cost_per_unit_tensor transpose accordingly."
+                )
+            repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
+
+        # Apply model's channel scaling (original units -> model scale)
+        repeated_budgets /= channel_scales
 
         repeated_budgets.name = "repeated_budgets"
 
@@ -1062,6 +1151,16 @@ class BudgetOptimizer(BaseModel):
         ------
         MinimizeException
             If the optimization fails for any reason, the exception message will contain the details.
+
+        Notes
+        -----
+        **Units and cost_per_unit**:
+
+        - All budget inputs (total_budget, budget_bounds) are in monetary units.
+        - If cost_per_unit is provided, the optimizer converts internally:
+          ``budget_in_original_units[t] = budget_in_dollars[t] / cost_per_unit[t]``
+        - Each time period uses its own cost_per_unit value (no averaging).
+        - Output optimal_budgets are in monetary units for user convenience.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))

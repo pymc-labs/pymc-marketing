@@ -473,6 +473,16 @@ class MMM(RegressionModelBuilder):
         outcome_node: str | None = Field(
             None, description="Name of the outcome variable."
         ),
+        cost_per_unit: InstanceOf[pd.DataFrame] | None = Field(
+            default=None,
+            description=(
+                "Cost per unit conversion factors for non-spend channels. "
+                "Wide-format DataFrame where rows are (date, *custom_dims) "
+                "combinations and columns are channel names containing cost "
+                "values. Not all model channels need to appear; missing "
+                "channels default to 1.0 (already in spend units)."
+            ),
+        ),
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
@@ -574,6 +584,8 @@ class MMM(RegressionModelBuilder):
                         stacklevel=2,
                     )
                     self.yearly_seasonality = None
+
+        self._cost_per_unit_input = cost_per_unit
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -699,6 +711,15 @@ class MMM(RegressionModelBuilder):
         if self.sampler_config != other.sampler_config:
             return False
 
+        # cost_per_unit
+        if (self._cost_per_unit_input is None) != (other._cost_per_unit_input is None):
+            return False
+        if (
+            self._cost_per_unit_input is not None
+            and not self._cost_per_unit_input.equals(other._cost_per_unit_input)
+        ):
+            return False
+
         # Final validation: model IDs must match
         # This is a content-based hash that validates the entire config
         if self.id != other.id:
@@ -718,6 +739,134 @@ class MMM(RegressionModelBuilder):
             raise ValueError(
                 f"Saturation effect dims {self.saturation.combined_dims} must contain {allowed_dims}"
             )
+
+    @staticmethod
+    def _parse_cost_per_unit_df(
+        df: pd.DataFrame,
+        channels: list[str],
+        dates: pd.DatetimeIndex | np.ndarray,
+        custom_dims: tuple[str, ...] = (),
+        custom_dim_coords: dict[str, np.ndarray] | None = None,
+    ) -> xr.DataArray:
+        """Convert a cost_per_unit DataFrame to an xr.DataArray.
+
+        The DataFrame is wide-format: rows are ``(date, *custom_dims)``
+        combinations, and columns include channel names with cost values.
+        Channels not present in the DataFrame default to 1.0 (assumed
+        already in spend units).
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Wide-format DataFrame.  Must contain a ``"date"`` column and
+            one column per custom dimension.  Remaining columns are
+            interpreted as channel names.
+        channels : list of str
+            All channel names the model knows about.
+        dates : pd.DatetimeIndex or np.ndarray
+            Expected date coordinates.
+        custom_dims : tuple of str, optional
+            Names of custom dimensions (e.g. ``("geo",)``).
+        custom_dim_coords : dict[str, np.ndarray] or None, optional
+            Coordinate values for each custom dimension.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``("date", "channel")`` when no custom dims, or
+            ``("date", *custom_dims, "channel")`` otherwise.
+            Matches ``channel_data``'s dim convention (channel last).
+            Missing channels are filled with 1.0.
+
+        Raises
+        ------
+        ValueError
+            If ``"date"`` column is missing, if custom dim columns are
+            missing, if unknown channel columns are present, if no channel
+            columns are present, if any values are non-positive, or if
+            ``reindex`` against the model's coordinates produces NaN values.
+        """
+        if "date" not in df.columns:
+            raise ValueError("cost_per_unit DataFrame must contain a 'date' column.")
+
+        dim_cols = ["date", *custom_dims]
+        missing_dims = set(dim_cols) - set(df.columns)
+        if missing_dims:
+            raise ValueError(
+                f"cost_per_unit DataFrame missing dim columns: {missing_dims}"
+            )
+
+        value_cols = [c for c in df.columns if c not in dim_cols]
+        unknown_channels = set(value_cols) - set(channels)
+        if unknown_channels:
+            raise ValueError(
+                f"cost_per_unit DataFrame contains unknown channels: "
+                f"{unknown_channels}. Model channels are: {channels}"
+            )
+
+        if not value_cols:
+            raise ValueError(
+                "cost_per_unit DataFrame has no channel columns. "
+                f"Expected at least one of: {channels}"
+            )
+
+        numeric_values = df[value_cols]
+        if (numeric_values <= 0).any().any():
+            raise ValueError(
+                "cost_per_unit values must be positive (> 0). "
+                "Zero or negative values would cause division-by-zero "
+                "or negative spend in downstream calculations."
+            )
+
+        df_indexed = df.set_index(dim_cols)
+        ds = df_indexed.to_xarray()
+
+        dim_order = ["date", *custom_dims]
+        coord_dict: dict[str, Any] = {"date": dates}
+        if custom_dim_coords:
+            coord_dict.update(custom_dim_coords)
+
+        full_shape = tuple(len(coord_dict[d]) for d in dim_order)
+        channel_arrays = []
+        for ch in channels:
+            if ch in ds:
+                reindexed = ds[ch].reindex(coord_dict)
+                if reindexed.isnull().any():
+                    nan_positions = reindexed.where(reindexed.isnull(), drop=True)
+                    raise ValueError(
+                        f"cost_per_unit reindex produced NaN values for channel "
+                        f"'{ch}'. This typically means the DataFrame's date (or "
+                        f"custom dim) values don't exactly match the model's "
+                        f"coordinates (e.g. timezone mismatch, missing dates, or "
+                        f"subset of dates). NaN positions:\n{nan_positions.coords}"
+                    )
+                channel_arrays.append(reindexed.values)
+            else:
+                channel_arrays.append(np.ones(full_shape))
+
+        result = xr.DataArray(
+            np.stack(channel_arrays, axis=len(dim_order)),
+            dims=(*dim_order, "channel"),
+            coords={**coord_dict, "channel": channels},
+        )
+
+        return result.transpose("date", *custom_dims, "channel")
+
+    def _build_cost_per_unit_array(self, df: pd.DataFrame) -> xr.DataArray:
+        """Parse cost_per_unit DataFrame using coordinates from the fitted model."""
+        custom_dims = tuple(self.data.custom_dims)
+        return MMM._parse_cost_per_unit_df(
+            df=df,
+            channels=self.data.channels,
+            dates=self.data.dates,
+            custom_dims=custom_dims,
+            custom_dim_coords={
+                dim: self.data.idata.constant_data.coords[dim].values
+                for dim in custom_dims
+            }
+            if custom_dims
+            else None,
+        )
 
     @property
     def default_sampler_config(self) -> dict:
@@ -828,6 +977,13 @@ class MMM(RegressionModelBuilder):
         mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
+        if self._cost_per_unit_input is not None:
+            attrs["cost_per_unit"] = self._cost_per_unit_input.to_json(
+                orient="split", date_format="iso"
+            )
+        else:
+            attrs["cost_per_unit"] = json.dumps(None)
+
         return attrs
 
     @classmethod
@@ -892,6 +1048,11 @@ class MMM(RegressionModelBuilder):
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
+            "cost_per_unit": (
+                pd.read_json(attrs["cost_per_unit"], orient="split")
+                if attrs.get("cost_per_unit") and attrs["cost_per_unit"] != "null"
+                else None
+            ),
         }
 
     @property
@@ -1584,6 +1745,45 @@ class MMM(RegressionModelBuilder):
                     ),
                     dims=deterministic_dims,
                 )
+
+    def fit(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        **kwargs: Any,
+    ) -> az.InferenceData:
+        """Fit the model and inject cost_per_unit metadata if provided.
+
+        Delegates to the parent ``fit()`` and then injects the parsed
+        ``cost_per_unit`` DataArray into ``idata.constant_data``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame or xr.Dataset or xr.DataArray
+            Training input samples.
+        y : pd.Series or xr.DataArray or np.ndarray or None
+            Target values.
+        progressbar : bool, optional
+            Whether to show the progress bar.
+        random_seed : RandomState, optional
+            Random seed for reproducibility.
+        **kwargs : Any
+            Additional keyword arguments passed to the sampler.
+
+        Returns
+        -------
+        az.InferenceData
+            Inference data of the fitted model.
+        """
+        idata = super().fit(
+            X, y, progressbar=progressbar, random_seed=random_seed, **kwargs
+        )
+        if self._cost_per_unit_input is not None:
+            cpu_array = self._build_cost_per_unit_array(self._cost_per_unit_input)
+            self.idata.constant_data["cost_per_unit"] = cpu_array  # type: ignore[union-attr]
+        return idata
 
     def build_model(  # type: ignore[override]
         self,
@@ -3079,6 +3279,55 @@ class MMM(RegressionModelBuilder):
 
         self.build_model(X, y)  # type: ignore
 
+    def set_cost_per_unit(
+        self,
+        cost_per_unit: pd.DataFrame,
+        overwrite: bool = False,
+    ) -> None:
+        """Set or update cost_per_unit metadata for the fitted model.
+
+        Allows post-hoc specification of conversion factors after model
+        fitting.  The cost_per_unit metadata is stored in
+        ``idata.constant_data`` and used by ``get_channel_spend()`` to
+        convert from original units to spend units.
+
+        Parameters
+        ----------
+        cost_per_unit : pd.DataFrame
+            Wide-format DataFrame.  Rows are ``(date, *custom_dims)``
+            combinations; columns are channel names with cost values.
+            Not all model channels need to appear; missing channels
+            default to 1.0 (assumed already in spend units).
+        overwrite : bool, default False
+            If True, overwrite existing cost_per_unit. If False and
+            cost_per_unit already exists, raise ValueError.
+
+        Raises
+        ------
+        RuntimeError
+            If model has not been fitted yet (no idata available).
+        ValueError
+            If cost_per_unit exists and overwrite=False, or if
+            date/dim values don't match the fitted data.
+        """
+        if not hasattr(self, "idata") or self.idata is None:
+            raise RuntimeError(
+                "Model must be fitted before setting cost_per_unit. "
+                "Call mmm.fit() first."
+            )
+
+        if not hasattr(self.idata, "constant_data"):
+            raise ValueError("InferenceData missing constant_data group")
+
+        if "cost_per_unit" in self.idata.constant_data and not overwrite:
+            raise ValueError(
+                "cost_per_unit already exists in InferenceData. "
+                "Use overwrite=True to replace it."
+            )
+
+        cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
+        self.idata.constant_data["cost_per_unit"] = cost_per_unit_array
+
 
 def create_sample_kwargs(
     sampler_config: dict[str, Any] | None,
@@ -3183,6 +3432,46 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         return pymc_model
 
+    def _parse_cost_per_unit_for_optimizer(
+        self,
+        df: pd.DataFrame,
+    ) -> xr.DataArray:
+        """Parse a cost_per_unit DataFrame for the optimization window.
+
+        Delegates to ``MMM._parse_cost_per_unit_df()`` with coordinates
+        appropriate for the optimization window rather than training data.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Wide-format DataFrame with ``"date"`` column and channel columns.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``("date", *custom_dims, "channel")`` with ``date`` length
+            ``num_periods``.
+        """
+        channels = self.model_class.channel_columns
+        custom_dims = tuple(self.model_class.dims)
+        dates = sorted(df["date"].unique())
+
+        custom_dim_coords = None
+        if custom_dims:
+            idata = self.model_class.idata
+            custom_dim_coords = {
+                dim: idata.constant_data.coords[dim].values  # type: ignore[union-attr]
+                for dim in custom_dims
+            }
+
+        return MMM._parse_cost_per_unit_df(
+            df=df,
+            channels=channels,
+            dates=dates,
+            custom_dims=custom_dims,
+            custom_dim_coords=custom_dim_coords,
+        )
+
     def optimize_budget(
         self,
         budget: float | int,
@@ -3193,6 +3482,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
+        cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
         **minimize_kwargs,
     ) -> (
@@ -3221,6 +3511,21 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
             where date dimension has length num_periods. Values along date dimension should sum to 1 for
             each combination of other dimensions. If None, budget is distributed evenly across periods.
+        cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
+            Cost per unit conversion factors for the **optimization period**.
+            Converts budgets from monetary units (e.g., dollars) to the
+            model's native channel units (e.g., impressions).
+
+            - pd.DataFrame: Wide-format with a ``"date"`` column matching the
+              optimization window dates, plus one column per channel.
+              Missing channels default to 1.0 (no conversion).
+            - xr.DataArray: Must have dims ``("date", *budget_dims)`` where
+              ``date`` has length ``num_periods``.
+
+            If None, no conversion is applied (budgets are assumed to be in
+            the model's native units).
+
+            **This is independent of Phase 1's historical cost_per_unit.**
         callback : bool
             Whether to return callback information tracking optimization progress.
         **minimize_kwargs
@@ -3234,6 +3539,20 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
+        cost_per_unit_da = None
+        if cost_per_unit is not None:
+            if isinstance(cost_per_unit, pd.DataFrame):
+                cost_per_unit_da = self._parse_cost_per_unit_for_optimizer(
+                    cost_per_unit
+                )
+            elif isinstance(cost_per_unit, xr.DataArray):
+                cost_per_unit_da = cost_per_unit
+            else:
+                raise TypeError(
+                    "cost_per_unit must be a pd.DataFrame or xr.DataArray, "
+                    f"got {type(cost_per_unit)}"
+                )
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
@@ -3242,7 +3561,8 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             default_constraints=default_constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
-            model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
+            cost_per_unit=cost_per_unit_da,
+            model=self,
             compile_kwargs=self.compile_kwargs,
         )
 

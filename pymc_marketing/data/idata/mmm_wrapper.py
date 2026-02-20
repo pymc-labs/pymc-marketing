@@ -284,15 +284,29 @@ class MMMIDataWrapper:
             target_scale = self.get_target_scale()
             return data / target_scale
 
-    def get_channel_spend(self) -> xr.DataArray:
-        """Get channel spend data with consistent access pattern.
+    def get_channel_spend(
+        self,
+        apply_cost_per_unit: bool = True,
+    ) -> xr.DataArray:
+        """Get channel spend data, optionally converting non-spend units.
 
-        Returns raw channel spend data (not MCMC samples).
+        Returns raw channel spend data (not MCMC samples). If cost_per_unit
+        metadata exists and apply_cost_per_unit=True, multiplies channel_data
+        by cost_per_unit to convert from original units to spend units.
+
+        Parameters
+        ----------
+        apply_cost_per_unit : bool, default True
+            If True and cost_per_unit metadata exists, converts non-spend
+            channel data to spend units by multiplying by cost_per_unit.
+            If False, returns raw channel_data without conversion.
 
         Returns
         -------
         xr.DataArray
-            Channel spend values with dims (date, channel)
+            Channel spend values with dims (date, channel) or
+            (date, *custom_dims, channel). Values are in spend units
+            if apply_cost_per_unit=True and conversion metadata exists.
 
         Raises
         ------
@@ -308,7 +322,29 @@ class MMMIDataWrapper:
                 "Expected 'channel_data' variable in idata.constant_data."
             )
 
-        return self.idata.constant_data.channel_data
+        channel_data = self.idata.constant_data.channel_data
+
+        if apply_cost_per_unit and self.cost_per_unit is not None:
+            channel_data = channel_data * self.cost_per_unit
+
+        return channel_data
+
+    @property
+    def cost_per_unit(self) -> xr.DataArray | None:
+        """Cost per unit conversion factors, or None if not set.
+
+        Returns
+        -------
+        xr.DataArray or None
+            Cost per unit values with dims ("date", *custom_dims, "channel").
+            Returns None if cost_per_unit metadata not present.
+        """
+        if (
+            hasattr(self.idata, "constant_data")
+            and "cost_per_unit" in self.idata.constant_data
+        ):
+            return self.idata.constant_data.cost_per_unit
+        return None
 
     # ==================== Contribution Access ====================
 

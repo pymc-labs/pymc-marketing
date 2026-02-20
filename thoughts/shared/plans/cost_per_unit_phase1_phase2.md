@@ -1561,20 +1561,20 @@ fit-time injection, post-hoc setter).
 ## Implementation Order
 
 **Phase 1** (Core Infrastructure):
-1. Update schema (1.1)
-2. Add model parameter (1.2)
-3. Shared parsing utility + post-fit injection (1.3)
-4. Modify get_channel_spend (1.4)
-5. Add cost_per_unit property on wrapper (1.5)
-6. Add MMM setter (1.6)
-7. Write Phase 1 tests
+1. [x] Update schema (1.1)
+2. [x] Add model parameter (1.2)
+3. [x] Shared parsing utility + post-fit injection (1.3)
+4. [x] Modify get_channel_spend (1.4)
+5. [x] Add cost_per_unit property on wrapper (1.5)
+6. [x] Add MMM setter (1.6)
+7. [x] Write Phase 1 tests
 
 **Phase 2** (Budget Optimization):
-1. Add `cost_per_unit` parameter + validation to `BudgetOptimizer` (2.1)
-2. Update `_replace_channel_data_by_optimization_variable` (2.2)
-3. Add `cost_per_unit` to `optimize_budget()` with DataFrame parsing (2.3)
-4. Document units (2.4, 2.5)
-5. Write Phase 2 tests
+1. [x] Add `cost_per_unit` parameter + validation to `BudgetOptimizer` (2.1)
+2. [x] Update `_replace_channel_data_by_optimization_variable` (2.2)
+3. [x] Add `cost_per_unit` to `optimize_budget()` with DataFrame parsing (2.3)
+4. [x] Document units (2.4, 2.5)
+5. [x] Write Phase 2 tests
 
 **Phase dependency**: Phase 2 depends on Phase 1's static
 `_parse_cost_per_unit_df()` method (section 1.3a) for DataFrame parsing.
@@ -1610,155 +1610,3 @@ must exist before Phase 2's wrapper parsing can work).  Phase 1 stores
 - `tests/data/test_idata_schema.py` (updated)
 - `tests/mmm/test_multidimensional.py` (updated)
 - `tests/mmm/test_incrementality.py` (updated — verify raw data usage with cost_per_unit)
-
----
-
-## Changelog
-
-- **2026-02-20 (k)**: Fix test cases 3 & 4 dim order (review Issue 7)
-  - Testing Strategy: Changed dims from `(date, channel, geo)` to
-    `(date, geo, channel)` in test cases 3 and 4, matching the plan's
-    channel-last convention `(date, *custom_dims, channel)`.
-- **2026-02-20 (j)**: Rename MMM-level `self.cost_per_unit` to `self._cost_per_unit_input`
-  - Problem: The plan had both `mmm.cost_per_unit` (a `pd.DataFrame` on
-    the MMM instance, set at init) and `mmm.data.cost_per_unit` (an
-    `xr.DataArray` property on the wrapper, reading from idata).  Both
-    are needed (they serve different lifecycle stages — pre-fit vs
-    post-fit), but sharing the same public name caused confusion about
-    which is the canonical accessor.
-  - Fix: Renamed the MMM-level attribute from `self.cost_per_unit` to
-    `self._cost_per_unit_input` (private).  The `__init__` parameter
-    remains `cost_per_unit` for user-friendliness, but is stored
-    internally with a private name.  The public read API is
-    `mmm.data.cost_per_unit` (the wrapper property from section 1.5).
-  - Updated sections: 1.2 (storage + `__eq__`), 1.3b (`fit()` override),
-    1.5 (rationale clarifying public API role).
-  - Added comparison table in section 1.2 documenting the two attributes,
-    their types, availability, purpose, and visibility.
-- **2026-02-20 (i)**: Update `__eq__` for `cost_per_unit` (review Issue 5)
-  - Section 1.2: Added `cost_per_unit` comparison to `MMM.__eq__` (lines
-    590–707).  Without this, two models with different `cost_per_unit`
-    DataFrames would incorrectly compare as equal.  Uses `DataFrame.equals()`
-    for comparison, with a `None`-vs-non-`None` guard.
-- **2026-02-20 (h)**: Fix `fit()` override signature mismatch (review Issue 3)
-  - Section 1.3b: Replaced minimal `fit(self, X, y, **kwargs)` with the full
-    parent signature from `RegressionModelBuilder.fit` (model_builder.py:960):
-    `fit(self, X, y=None, progressbar=None, random_seed=None, **kwargs)`.
-    The minimal version would incorrectly bind `progressbar` or `random_seed`
-    when passed positionally.  Forward all named parameters explicitly to
-    `super().fit()`.
-- **2026-02-20 (g)**: Fix critical `get_channel_spend()` default breaking `Incrementality` (review Issue 1, Option B)
-  - Problem: Section 1.4 proposes `get_channel_spend(apply_cost_per_unit=True)` as default.
-    The `Incrementality` module calls `get_channel_spend()` at line 377 to obtain raw
-    channel data for the compiled PyTensor model graph.  With the default conversion,
-    this would silently feed dollar-converted values into saturation curves calibrated
-    for raw units (impressions, clicks), producing incorrect counterfactual results.
-  - Fix (Option B): Keep `apply_cost_per_unit=True` as default (correct for ROAS/reporting
-    callers), but update `incrementality.py` line 377 to explicitly pass
-    `apply_cost_per_unit=False`.  This is the minimal fix — only the one caller that
-    needs raw data opts out.
-  - Added `incrementality.py` to Key Files Modified (Phase 1) in References section.
-  - Added incrementality integration test cases (20a, 20b) to Testing Strategy:
-    verify raw data usage in `compute_incremental_contribution()` and correct ROAS
-    via `contribution_over_spend()`.
-  - Added `tests/mmm/test_incrementality.py` to Test Files in References.
-- **2026-02-19 (f)**: Fix redundant hasattr, misleading section title, and document static/instance split
-  - Problem 10: Removed redundant `hasattr(self.idata, "constant_data")`
-    check in `set_cost_per_unit()` (section 1.6).  Line 705 already
-    validates this and raises `ValueError` if missing, so the second
-    check on line 710 was guaranteed to be true — dead code that added
-    noise.  Simplified to a direct `"cost_per_unit" in self.idata.constant_data`
-    check.
-  - Problem 11: Renamed "Init-time injection" to "Fit-time injection" in
-    section 1.3b title and all 6 references throughout the document.  The
-    `cost_per_unit` DataFrame is stored at `__init__` time, but the
-    xarray injection into `idata.constant_data` happens during `fit()`
-    (after `super().fit()` returns).  The old title was misleading about
-    *when* the injection actually executes.
-  - Problem 12: Added explicit "Design note — static/instance split"
-    to section 1.3a documenting *why* `_parse_cost_per_unit_df()` is a
-    `@staticmethod` with explicit parameters while
-    `_build_cost_per_unit_array()` is an instance method wrapper.  The
-    core refactoring was already done in changelog (d) (problem 4), but
-    the design rationale (testability in isolation, reusability across
-    Phase 1 and Phase 2 with different coordinates) was not documented.
-- **2026-02-19 (e)**: Fix reindex NaN, broadcasting assumption, and serialization tests
-  - Problem 6: Added explicit NaN validation after `reindex()` in
-    `_parse_cost_per_unit_df()`.  Previously, if a user's dates didn't
-    exactly match the model's dates (timezone mismatch, subset of dates,
-    off-by-one), `reindex` would silently fill positions with NaN,
-    leading to silent corruption downstream.  Now raises `ValueError`
-    with diagnostic info showing which coordinates caused the mismatch.
-    Added corresponding test case `test_parse_reindex_nan_raises()`.
-  - Problem 8: Added explicit documentation of the `date_dim_idx == 0`
-    broadcasting assumption in section 2.2.  The division
-    `repeated_budgets / _cost_per_unit_tensor` relies on both tensors
-    having date as their first dimension.  This is guaranteed by
-    `channel_data_dims = ("date", *custom_dims, "channel")`, but was
-    previously implicit.  Added an assertion guard and documented the
-    assumption so future refactorings don't silently break it.
-  - Problem 9: Added serialization roundtrip tests (tests 20-22) to the
-    Testing Strategy.  The Migration Notes claimed "Models saved with
-    cost_per_unit will load correctly" but there were no tests verifying
-    this.  New tests cover: save/load with cost_per_unit preserved,
-    load old model without cost_per_unit (backward compat), and
-    post-hoc set → save → load roundtrip.
-- **2026-02-19 (d)**: Fix DRY violation and add positive-value validation
-  - Problem 4: Refactored `_parse_cost_per_unit_df()` from instance method
-    to **static method** with explicit coordinate parameters (`channels`,
-    `dates`, `custom_dims`, `custom_dim_coords`).  Phase 2's
-    `_parse_cost_per_unit_for_optimizer()` now delegates to this shared
-    static method instead of duplicating the parsing logic.  One parser,
-    two call sites — bug fixes apply to both phases automatically.
-  - Added `_build_cost_per_unit_array()` convenience wrapper on MMM that
-    extracts coordinates from the fitted model and delegates to the static
-    method (used by 1.3b `fit()` override and 1.6 `set_cost_per_unit()`).
-  - Problem 5: Added positive-value validation to `_parse_cost_per_unit_df()`.
-    Phase 2 already rejected non-positive values in
-    `_validate_and_process_cost_per_unit()`, but Phase 1's parser had no
-    validation — a user could set `cost_per_unit` to 0 or negative via
-    `mmm.set_cost_per_unit()`, causing silent division-by-zero in
-    `get_roas()`.  Now both phases validate consistently via the shared
-    parser.
-- **2026-02-19 (c)**: Concretized fit-time injection hook (section 1.3b)
-  - Replaced vague "end of `fit()`, after `pm.sample()`" with explicit
-    "Option A: Override `fit()` in MMM" — call `super().fit()`, then inject
-  - Documented the full `fit()` flow from the base class (8 steps) and why
-    injection must happen after `super().fit()` returns
-  - Added concrete `fit()` override implementation
-  - Documented alternatives considered and rejected (Options B and C)
-- **2026-02-19 (b)**: Review fixes — correct class target and dim ordering
-  - Section 1.2: Retargeted from `MMMModelBuilder` in `base.py` to `MMM` in
-    `multidimensional.py` (`MMM` inherits from `RegressionModelBuilder`, not
-    `MMMModelBuilder` — they are sibling classes)
-  - All dim orderings changed from `("date", "channel", *custom_dims)` to
-    `("date", *custom_dims, "channel")` to match `channel_data`'s convention
-    (channel last): sections 1.1, 1.3a, 1.5, 2.3
-  - Removed `base.py` from Key Files Modified (Phase 1)
-- **2026-02-19 (a)**: Redesigned Phase 2 — user-provided forward-looking cost_per_unit
-  - Phase 2 no longer reads historical cost_per_unit from the model's InferenceData
-  - User provides future cost_per_unit as a parameter to `optimize_budget()` / `BudgetOptimizer`
-  - Date-varying rates: each optimization period uses its own cost_per_unit (no averaging)
-  - Conversion applied AFTER time distribution (budget has date dim), BEFORE channel scaling
-  - Phases 1 and 2 are now fully independent (can be implemented in any order)
-  - Removed `_get_cost_per_unit()` helper and `data` property on Protocol (no longer needed)
-  - Added `_validate_and_process_cost_per_unit()` and `_parse_cost_per_unit_for_optimizer()`
-  - Updated success criteria, tests, and documentation sections
-- **2026-02-18 (b)**: Simplified setter design — single `mmm.set_cost_per_unit()`, no separate file
-  - Removed `mmm.data.set_cost_per_unit()` — only `mmm.set_cost_per_unit()` needed
-  - Moved `_parse_cost_per_unit_df()` from `utils.py` to a `@staticmethod` on the MMM class
-  - All cost_per_unit logic (parsing, fit-time injection, post-hoc setter) lives in MMM class
-  - Wrapper retains read-only `cost_per_unit` property (1.5) for `get_channel_spend()` conversion
-- **2026-02-18 (a)**: Major revision — DataFrame-only input, shared parsing, no duplication
-  - Replaced 5 input formats with single `pd.DataFrame` (wide-format)
-  - DataFrame rows = `(date, *custom_dims)`, columns = channel names
-  - Missing channels default to 1.0 (not all channels need cost_per_unit)
-  - Extracted shared `_parse_cost_per_unit_df()` utility used by both
-    fit-time injection (1.3b) and post-hoc setter (1.6)
-  - Replaced `pm.Data` with direct xarray injection into `idata.constant_data`
-  - `cost_per_unit` is pure metadata, never used in the model graph
-- **2026-02-16**: Initial plan created based on research document
-  - Focused on Phase 1 (Core Infrastructure) and Phase 2 (Budget Optimization)
-  - Added support for 5 input formats including numpy arrays
-  - Included `mmm.set_cost_per_unit()` convenience method
-  - Documented time-varying aggregation strategy for budget optimization
