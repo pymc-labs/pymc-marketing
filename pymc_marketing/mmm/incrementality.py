@@ -412,7 +412,6 @@ class Incrementality:
             periods, dates, l_max, freq_offset, freq
         )
 
-        # Build counterfactual scenarios
         # Build counterfactual scenarios:
         #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
         #   - cf_eval_masks: period-specific boolean masks indicating which
