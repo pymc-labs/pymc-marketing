@@ -248,6 +248,52 @@ def test_new_transformation_sample_prior(new_transformation) -> None:
     assert set(prior.keys()) == {"new_a", "new_b"}
 
 
+def test_sample_prior_all_constant_tensors(new_transformation_class) -> None:
+    """Regression test for GitHub issue #1749.
+
+    sample_prior must succeed when all priors are constant tensors (no free
+    random variables).  Previously it raised ``AttributeError`` because
+    ``pm.sample_prior_predictive`` returned an ``InferenceData`` without a
+    ``prior`` group when the model contained no stochastic nodes.
+    """
+    transformation = new_transformation_class(
+        priors={
+            "a": pt.as_tensor_variable(2.0),
+            "b": pt.as_tensor_variable(3.0),
+        }
+    )
+
+    prior = transformation.sample_prior()
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes["chain"] == 1
+    assert prior.sizes["draw"] >= 1
+    assert set(prior.keys()) == {"new_a", "new_b"}
+    np.testing.assert_allclose(prior["new_a"].values, 2.0)
+    np.testing.assert_allclose(prior["new_b"].values, 3.0)
+
+
+def test_sample_prior_constant_tensor_with_coords(new_transformation_class) -> None:
+    """Constant vector tensors work correctly with coordinate dimensions."""
+    transformation = new_transformation_class(
+        priors={
+            "a": pt.as_tensor_variable([1.0, 2.0, 3.0]),
+            "b": pt.as_tensor_variable(0.5),
+        }
+    )
+
+    coords = {"channel": ["C1", "C2", "C3"]}
+    prior = transformation.sample_prior(coords=coords)
+
+    assert isinstance(prior, xr.Dataset)
+    assert prior.sizes["chain"] == 1
+    assert prior.sizes["draw"] >= 1
+    assert "new_a" in prior.data_vars
+    assert "new_b" in prior.data_vars
+    # Each draw holds the same constant vector; check the first draw.
+    np.testing.assert_allclose(prior["new_a"].values[0, 0], [1.0, 2.0, 3.0])
+
+
 def create_curve(coords) -> xr.DataArray:
     size = [len(values) for values in coords.values()]
     dims = list(coords.keys())
