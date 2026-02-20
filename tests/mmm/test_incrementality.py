@@ -21,7 +21,6 @@ import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm.incrementality import Incrementality
 
@@ -37,7 +36,7 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
         if original_scale
         else "channel_contribution"
     )
-    model = cm(mmm.model)
+    model = mmm.model.copy()
     with model:
         pm.set_data(
             {
