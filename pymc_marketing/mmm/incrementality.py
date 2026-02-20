@@ -139,7 +139,7 @@ from pytensor.graph import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.data.idata.utils import subsample_idata
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
@@ -319,16 +319,16 @@ class Incrementality:
         )
 
         # Subsample posterior if needed (correctly across chain x draw)
-        idata_sub = subsample_idata(
-            self.idata, num_samples=num_samples, random_state=random_state
+        posterior_sub = subsample_draws(
+            self.idata.posterior, num_samples=num_samples, random_state=random_state
         )
-        n_chains = idata_sub.posterior.sizes["chain"]
-        n_draws = idata_sub.posterior.sizes["draw"]
+        n_chains = posterior_sub.sizes["chain"]
+        n_draws = posterior_sub.sizes["draw"]
 
         # Extract response distribution (batched over samples)
         response_graph = extract_response_distribution(
             pymc_model=self.model.model,
-            idata=idata_sub,
+            idata=az.InferenceData(posterior=posterior_sub),
             response_variable="channel_contribution",
         )
         # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw

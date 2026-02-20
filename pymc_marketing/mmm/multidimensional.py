@@ -169,7 +169,7 @@ from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import subsample_idata
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
@@ -2291,9 +2291,9 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = subsample_idata(
-            idata, num_samples=num_samples, random_state=random_state
-        ).posterior
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
+        )
 
         # Sample curve using transformation's method
         curve = self.saturation.sample_curve(
@@ -2426,9 +2426,9 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = subsample_idata(
-            idata, num_samples=num_samples, random_state=random_state
-        ).posterior
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
+        )
 
         # Sample curve using transformation's method
         curve = self.adstock.sample_curve(

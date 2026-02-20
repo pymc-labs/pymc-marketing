@@ -344,64 +344,56 @@ def aggregate_idata_dims(
     return az.InferenceData(**aggregated_groups)
 
 
-def subsample_idata(
-    idata: az.InferenceData,
+def subsample_draws(
+    dataset: xr.Dataset,
     *,
     num_samples: int | None,
     random_state: RandomState | Generator | None = None,
-) -> az.InferenceData:
-    """Subsample posterior draws from an InferenceData object.
+) -> xr.Dataset:
+    """Subsample draws from a Dataset with chain and draw dimensions.
 
     Randomly selects ``num_samples`` draws from the flattened
-    chain × draw space and returns a new ``InferenceData`` with a single
-    chain and ``num_samples`` draws.  All non-posterior groups are
-    carried over unchanged.
+    chain × draw space and returns a new Dataset with a single
+    chain and ``num_samples`` draws.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData with a ``posterior`` group.
+    dataset : xr.Dataset
+        Dataset with ``chain`` and ``draw`` dimensions.
     num_samples : int or None
         Number of draws to keep.  If ``None`` or >= total available
-        draws, returns *idata* unchanged.
+        draws, returns *dataset* unchanged.
     random_state : RandomState, Generator, or None, optional
         Seed or random state for reproducibility.
 
     Returns
     -------
-    az.InferenceData
-        Either the original *idata* (when no subsampling is needed) or
-        a new object whose posterior has shape ``(1, num_samples)``.
+    xr.Dataset
+        Either the original *dataset* (when no subsampling is needed) or
+        a new Dataset whose chain/draw dimensions have shape ``(1, num_samples)``.
 
     Examples
     --------
-    >>> sub = subsample_idata(idata, num_samples=100, random_state=42)
-    >>> sub.posterior.sizes["draw"]
+    >>> sub = subsample_draws(posterior, num_samples=100, random_state=42)
+    >>> sub.sizes["draw"]
     100
     """
     if num_samples is None:
-        return idata
+        return dataset
 
-    posterior = idata.posterior
-    total_samples = posterior.sizes["chain"] * posterior.sizes["draw"]
+    total_samples = dataset.sizes["chain"] * dataset.sizes["draw"]
 
     if num_samples >= total_samples:
-        return idata
+        return dataset
 
     rng = np.random.default_rng(random_state)
     flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
 
-    stacked = posterior.stack(sample=("chain", "draw"))
+    stacked = dataset.stack(sample=("chain", "draw"))
     selected = stacked.isel(sample=flat_indices)
-    posterior_ds = (
+
+    return (
         selected.drop_vars(["chain", "draw", "sample"])
         .rename({"sample": "draw"})
         .expand_dims("chain")
     )
-
-    groups: dict[str, object] = {"posterior": posterior_ds}
-    for group_name in idata.groups():
-        if group_name != "posterior":
-            groups[group_name] = getattr(idata, group_name)
-
-    return az.InferenceData(**groups)
