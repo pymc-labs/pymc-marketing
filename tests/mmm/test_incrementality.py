@@ -25,9 +25,6 @@ from pymc.model.fgraph import clone_model as cm
 
 from pymc_marketing.mmm.incrementality import Incrementality
 
-# Matches simple_fitted_mmm's GeometricAdstock(l_max=4)
-_SIMPLE_L_MAX = 4
-
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
     """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.
@@ -200,7 +197,7 @@ def incrementality_lite():
         ),
     )
 
-    return incr, _SIMPLE_L_MAX
+    return incr, 4
 
 
 class TestIncrementality:
