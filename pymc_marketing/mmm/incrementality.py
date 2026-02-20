@@ -382,68 +382,63 @@ class Incrementality:
         ctx = self._build_evaluator(idata_sub, baseline_array)
         evaluator = ctx.evaluator
 
-        # Evaluate baseline on full dataset (once)
-        baseline_eval_args: list[np.ndarray] = [
-            baseline_array[np.newaxis].astype(eval_dtype)
-        ]
-        if ctx.has_time_index:
-            time_shared = self.model.model["time_index"]
-            baseline_eval_args.append(
-                np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+        try:
+            # Evaluate baseline on full dataset (once)
+            baseline_eval_args: list[np.ndarray] = [
+                baseline_array[np.newaxis].astype(eval_dtype)
+            ]
+            if ctx.has_time_index:
+                time_shared = self.model.model["time_index"]
+                baseline_eval_args.append(
+                    np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+                )
+            baseline_pred = evaluator(*baseline_eval_args)[0]
+
+            # Determine actual axis ordering from the model's channel_contribution
+            # variable. The PyTensor graph preserves the model's dim order, which
+            # may have custom dims (e.g. "country") before "channel".
+            cc_dims = list(
+                self.model.model.named_vars_to_dims.get("channel_contribution", ())
             )
-        baseline_pred = evaluator(*baseline_eval_args)[0]
+            non_date_dims = [d for d in cc_dims if d != "date"]
+            extra_shape = baseline_array.shape[1:]
 
-        # Determine actual axis ordering from the model's channel_contribution
-        # variable. The PyTensor graph preserves the model's dim order, which
-        # may have custom dims (e.g. "country") before "channel".
-        cc_dims = list(
-            self.model.model.named_vars_to_dims.get("channel_contribution", ())
-        )
-        non_date_dims = [d for d in cc_dims if d != "date"]
-        extra_shape = baseline_array.shape[1:]
+            # Compute, for each period, the required window metadata including
+            # the start/end indices into `dates` and any necessary left/right
+            # padding, and determine the maximum window length across all
+            # periods.
+            window_infos, max_window = self._compute_window_metadata(
+                periods, dates, l_max, freq_offset, freq
+            )
 
-        # Compute, for each period, the required window metadata including
-        # the start/end indices into `dates` and any necessary left/right padding,
-        # and determine the maximum window length across all periods.
-        # Output:
-        #   - window_infos: list of dicts (one per period), each containing
-        #       info about the window's bounds and padding for use in evaluation
-        #   - max_window: int, the maximum window length needed for counterfactual evaluation
-        window_infos, max_window = self._compute_window_metadata(
-            periods, dates, l_max, freq_offset, freq
-        )
-
-        # Build counterfactual scenarios:
-        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
-        #   - cf_eval_masks: period-specific boolean masks indicating which
-        #     max_window indices correspond to the period's actual dates
-        #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
-        cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
-            periods=periods,
-            window_infos=window_infos,
-            max_window=max_window,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            include_carryover=include_carryover,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            extra_shape=extra_shape,
-            dtype=eval_dtype,
-        )
-
-        # Evaluate all counterfactuals at once
-        cf_eval_args: list[np.ndarray] = [cf_array]
-        if ctx.has_time_index:
-            time_shared = self.model.model["time_index"]
-            cf_eval_args.append(
-                self._build_time_index_array(
+            # Build counterfactual scenarios
+            cf_array, cf_eval_masks, period_labels = (
+                self._build_counterfactual_scenarios(
+                    periods=periods,
                     window_infos=window_infos,
-                    dates=dates,
                     max_window=max_window,
-                    dtype=time_shared.dtype,
+                    baseline_array=baseline_array,
+                    counterfactual_spend_factor=counterfactual_spend_factor,
+                    include_carryover=include_carryover,
+                    l_max=l_max,
+                    freq_offset=freq_offset,
+                    extra_shape=extra_shape,
+                    dtype=eval_dtype,
                 )
             )
-        try:
+
+            # Evaluate all counterfactuals at once
+            cf_eval_args: list[np.ndarray] = [cf_array]
+            if ctx.has_time_index:
+                time_shared = self.model.model["time_index"]
+                cf_eval_args.append(
+                    self._build_time_index_array(
+                        window_infos=window_infos,
+                        dates=dates,
+                        max_window=max_window,
+                        dtype=time_shared.dtype,
+                    )
+                )
             cf_predictions = evaluator(*cf_eval_args)
         finally:
             for var_name, original_val in ctx.saved_shared_values.items():

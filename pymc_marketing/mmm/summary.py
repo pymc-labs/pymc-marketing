@@ -681,11 +681,12 @@ class MMMSummaryFactory:
                         f"either remove it or use method='incremental'."
                     )
 
-        # Resolve all defaults. For incremental, skip time aggregation here—
-        # Incrementality needs raw temporal resolution; it handles frequency itself.
+        # Skip time aggregation in _prepare_data_and_hdi for both methods.
+        # Incremental: Incrementality handles frequency itself.
+        # Elementwise: date filtering must happen *before* aggregation,
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
             hdi_probs,
-            frequency=None if method == "incremental" else frequency,
+            frequency=None,
             output_format=output_format,
             filter_dims=filter_dims,
         )
@@ -705,6 +706,8 @@ class MMMSummaryFactory:
             )
         elif method == "elementwise":
             data = data.filter_dates(start_date=start_date, end_date=end_date)
+            if frequency is not None and frequency != "original":
+                data = data.aggregate_time(frequency)
             roas = data.get_elementwise_roas(original_scale=True)
         else:
             raise ValueError(
