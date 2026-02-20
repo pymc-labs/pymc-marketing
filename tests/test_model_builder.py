@@ -1019,7 +1019,7 @@ def test_fit_sampler_config_seed_reproducibility(toy_X, toy_y) -> None:
     assert idata.posterior.equals(idata2.posterior)
 
 
-def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> None:
+def test_fit_sampler_config_with_rng(toy_X, toy_y, mock_pymc_sample) -> None:
     sampler_config = {
         "chains": 1,
         "draws": 10,
@@ -1028,9 +1028,8 @@ def test_fit_sampler_config_with_rng_fails(toy_X, toy_y, mock_pymc_sample) -> No
     }
     model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
-    match = r"Object of type Generator is not JSON serializable"
-    with pytest.raises(TypeError, match=match):
-        model.fit(toy_X, toy_y)
+    idata = model.fit(toy_X, toy_y)
+    assert isinstance(idata, az.InferenceData)
 
 
 def test_unmatched_index(toy_X, toy_y) -> None:

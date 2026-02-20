@@ -268,7 +268,7 @@ class ModelIO:
         attrs["id"] = self.id
         attrs["model_type"] = self._model_type
         attrs["version"] = self.version
-        attrs["sampler_config"] = json.dumps(self.sampler_config)
+        attrs["sampler_config"] = json.dumps(self.sampler_config, default=_json_default)
         attrs["model_config"] = json.dumps(
             self._serializable_model_config, default=_json_default
         )
