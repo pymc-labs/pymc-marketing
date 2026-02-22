@@ -30,7 +30,7 @@ Basic MMM fit:
             "C2": [80, 70, 95, 85, 90, 88, 92, 94],
         }
     )
-    y = pd.Series([230, 260, 220, 240, 245, 255, 235, 238], name="y")
+    y = pd.Series([230, 260, 220, 240, 245, 255, 235, 239], name="y")
 
     mmm = MMM(
         date_column="date",
