@@ -32,6 +32,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true} ]
@@ -59,7 +60,7 @@ jobs:
                  --durations-path .test_durations
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
-        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
+        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -70,6 +71,7 @@ jobs:
   test_slow:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         group: [1, 2]  # Reduced from 3 to 2 groups for better balance
