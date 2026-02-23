@@ -99,7 +99,7 @@ def monthly_mmm_data():
     months as fixed 30-day periods.
 
     Returns dict with:
-    - X: DataFrame with date and 2 channels (18 monthly periods)
+    - X: DataFrame with date and 3 channels (18 monthly periods)
     - y: Series with target values
     """
     return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
