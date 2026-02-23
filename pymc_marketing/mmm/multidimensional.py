@@ -3283,7 +3283,6 @@ class MMM(RegressionModelBuilder):
     def set_cost_per_unit(
         self,
         cost_per_unit: pd.DataFrame,
-        overwrite: bool = False,
     ) -> None:
         """Set or update cost_per_unit metadata for the fitted model.
 
@@ -3299,17 +3298,13 @@ class MMM(RegressionModelBuilder):
             combinations; columns are channel names with cost values.
             Not all model channels need to appear; missing channels
             default to 1.0 (assumed already in spend units).
-        overwrite : bool, default False
-            If True, overwrite existing cost_per_unit. If False and
-            cost_per_unit already exists, raise ValueError.
 
         Raises
         ------
         RuntimeError
             If model has not been fitted yet (no idata available).
         ValueError
-            If cost_per_unit exists and overwrite=False, or if
-            date/dim values don't match the fitted data.
+            If date/dim values don't match the fitted data.
         """
         if not hasattr(self, "idata") or self.idata is None:
             raise RuntimeError(
@@ -3319,12 +3314,6 @@ class MMM(RegressionModelBuilder):
 
         if not hasattr(self.idata, "constant_data"):
             raise ValueError("InferenceData missing constant_data group")
-
-        if "channel_spend" in self.idata.constant_data and not overwrite:
-            raise ValueError(
-                "cost_per_unit already set (channel_spend exists in InferenceData). "
-                "Use overwrite=True to replace it."
-            )
 
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
         channel_data = self.idata.constant_data.channel_data

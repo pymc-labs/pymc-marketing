@@ -291,11 +291,6 @@ class TestParseCostPerUnitDf:
             MMM._parse_cost_per_unit_df(df, channels=channels, dates=model_dates)
 
 
-# ============================================================================
-# Wrapper Tests: get_channel_spend() and cost_per_unit property
-# ============================================================================
-
-
 class TestWrapperCostPerUnit:
     """Tests for the MMMIDataWrapper cost_per_unit support."""
 
@@ -564,30 +559,6 @@ class TestSetCostPerUnit:
             mmm.data.cost_per_unit.sel(channel="channel_3").values,
             np.ones(len(dates)),
         )
-
-    def test_set_cost_per_unit_overwrite_protection(self, simple_fitted_mmm):
-        """Test 13: Overwrite protection and override."""
-        mmm = simple_fitted_mmm
-        dates = mmm.data.dates
-
-        cpu_df = pd.DataFrame(
-            {
-                "date": dates,
-                "channel_1": [0.01] * len(dates),
-            }
-        )
-        mmm.set_cost_per_unit(cpu_df)
-
-        with pytest.raises(ValueError, match="channel_spend exists"):
-            mmm.set_cost_per_unit(cpu_df)
-
-        new_cpu_df = pd.DataFrame(
-            {
-                "date": dates,
-                "channel_1": [0.05] * len(dates),
-            }
-        )
-        mmm.set_cost_per_unit(new_cpu_df, overwrite=True)
 
         np.testing.assert_array_almost_equal(
             mmm.data.cost_per_unit.sel(channel="channel_1").values,
