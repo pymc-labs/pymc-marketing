@@ -91,6 +91,34 @@ Quickstart (multi‑dimensional MMM)
     )
     # `optimal` is an xr.DataArray with dims (channel, geo)
 
+Using cost_per_unit (non-monetary channels)
+-------------------------------------------
+
+When channels are measured in non-monetary units (impressions, clicks, GRPs),
+pass ``cost_per_unit`` so the optimizer converts dollar budgets into the
+model's native units internally.  All user-facing inputs and outputs remain
+in monetary units.
+
+.. code-block:: python
+
+    # cost_per_unit DataFrame (xr.DataArray) for the optimisation window.
+    # Rows = dates in the future window; columns = channels with $/unit rates.
+    # Channels absent from the DataFrame default to 1.0 (already in spend units).
+    cpu_df = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-03-03", periods=8, freq="W-MON"),
+            "C1": [0.05] * 8,  # $0.05 per impression
+            "C2": [1.20] * 8,  # $1.20 per click
+        }
+    )
+
+    optimal, res = wrapper.optimize_budget(
+        budget=100.0,
+        cost_per_unit=cpu_df,
+    )
+    # `optimal` budgets are in dollars.  The optimizer divided by
+    # cost_per_unit internally before feeding into the model.
+
 Use a custom pymc model with any dimensionality
 ----------------------------------------------
 
