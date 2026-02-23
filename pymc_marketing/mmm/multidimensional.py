@@ -1782,7 +1782,8 @@ class MMM(RegressionModelBuilder):
         )
         if self._cost_per_unit_input is not None:
             cpu_array = self._build_cost_per_unit_array(self._cost_per_unit_input)
-            self.idata.constant_data["cost_per_unit"] = cpu_array  # type: ignore[union-attr]
+            channel_data = self.idata.constant_data.channel_data  # type: ignore[union-attr]
+            self.idata.constant_data["channel_spend"] = channel_data * cpu_array  # type: ignore[union-attr]
         return idata
 
     def build_model(  # type: ignore[override]
@@ -3287,9 +3288,9 @@ class MMM(RegressionModelBuilder):
         """Set or update cost_per_unit metadata for the fitted model.
 
         Allows post-hoc specification of conversion factors after model
-        fitting.  The cost_per_unit metadata is stored in
-        ``idata.constant_data`` and used by ``get_channel_spend()`` to
-        convert from original units to spend units.
+        fitting.  Computes ``channel_spend = channel_data * cost_per_unit``
+        and stores it in ``idata.constant_data``.  This precomputed spend
+        is used by ``get_channel_spend()`` for ROAS calculations.
 
         Parameters
         ----------
@@ -3319,14 +3320,15 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self.idata, "constant_data"):
             raise ValueError("InferenceData missing constant_data group")
 
-        if "cost_per_unit" in self.idata.constant_data and not overwrite:
+        if "channel_spend" in self.idata.constant_data and not overwrite:
             raise ValueError(
-                "cost_per_unit already exists in InferenceData. "
+                "cost_per_unit already set (channel_spend exists in InferenceData). "
                 "Use overwrite=True to replace it."
             )
 
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
-        self.idata.constant_data["cost_per_unit"] = cost_per_unit_array
+        channel_data = self.idata.constant_data.channel_data
+        self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
 
 
 def create_sample_kwargs(

@@ -374,7 +374,7 @@ class Incrementality:
         # swapped to filtered shapes inside _build_evaluator; the caller
         # must restore them via saved_shared_values after all evaluations.
         eval_dtype = "float64"
-        baseline_array = self.data.get_channel_spend(apply_cost_per_unit=False).values
+        baseline_array = self.data.get_channel_data().values
         ctx = self._build_evaluator(idata_sub, baseline_array)
         evaluator = ctx.evaluator
 

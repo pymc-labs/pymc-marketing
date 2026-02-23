@@ -295,13 +295,14 @@ class MMMIdataSchema(BaseModel):
             ),
         }
 
-        constant_data_vars["cost_per_unit"] = VariableSchema(
-            name="cost_per_unit",
+        constant_data_vars["channel_spend"] = VariableSchema(
+            name="channel_spend",
             dims=("date", *custom_dims, "channel"),
             dtype=("float64", "float32", "int64", "int32"),
             description=(
-                "Cost per unit conversion factors for non-spend channels. "
-                "Shape: (date, *custom_dims, channel)"
+                "Channel spend in monetary units. Precomputed as "
+                "channel_data * cost_per_unit when cost_per_unit is provided; "
+                "otherwise absent (falls back to channel_data)."
             ),
             required=False,
         )
