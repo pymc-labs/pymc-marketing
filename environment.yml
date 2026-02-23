@@ -19,7 +19,7 @@ dependencies:
   - pyprojroot
   - plotly>=6.3.0
   # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-  - pymc==5.27.1
+  - pymc>=5.27.1
   - pytensor>=2.31.3
   - pymc-extras>=0.2.7,<0.9
   - nutpie>=0.15.1

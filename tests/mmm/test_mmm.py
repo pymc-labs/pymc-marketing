@@ -1401,16 +1401,23 @@ def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
 
 
 @pytest.fixture(scope="module")
-def mmm_with_prior(mmm) -> MMM:
+def mmm_with_prior() -> MMM:
     n_chains = 1
     n_samples = 100
 
-    channels = mmm.channel_columns
+    mmm_prior = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+    channels = mmm_prior.channel_columns
     n_channels = len(channels)
 
     idata = az.from_dict(
         prior={
-            # Arbitrary but close to the default parameterization
             "adstock_alpha": rng.uniform(size=(n_chains, n_samples, n_channels)),
             "saturation_lam": rng.exponential(size=(n_chains, n_samples, n_channels)),
             "saturation_beta": np.abs(
@@ -1424,9 +1431,9 @@ def mmm_with_prior(mmm) -> MMM:
             "saturation_beta": ["chain", "draw", "channel"],
         },
     )
-    mmm.idata = idata
+    mmm_prior.idata = idata
 
-    return mmm
+    return mmm_prior
 
 
 def test_plot_new_spend_contributions_prior(mmm_with_prior) -> None:
