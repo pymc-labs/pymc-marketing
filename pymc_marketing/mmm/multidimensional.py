@@ -169,6 +169,7 @@ from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
@@ -2129,53 +2130,6 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
-    def _subsample_posterior(
-        self,
-        parameters: xr.Dataset,
-        num_samples: int | None = None,
-        random_state: RandomState | None = None,
-    ) -> xr.Dataset:
-        """Subsample posterior parameters if needed.
-
-        Parameters
-        ----------
-        parameters : xr.Dataset
-            Dataset with parameter values (posterior samples).
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-            If less than total available samples, random subsampling is performed.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
-
-        Returns
-        -------
-        xr.Dataset
-            Subsampled parameters (or original if no subsampling needed).
-        """
-        if num_samples is None:
-            return parameters
-
-        n_chains = parameters.sizes["chain"]
-        n_draws = parameters.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples >= total_samples:
-            return parameters
-
-        rng = np.random.default_rng(random_state)
-        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-        stacked = parameters.stack(sample=("chain", "draw"))
-        selected = stacked.isel(sample=flat_indices)
-        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
-        params = (
-            selected.drop_vars(["chain", "draw", "sample"])
-            .rename({"sample": "draw"})
-            .expand_dims("chain")
-        )
-
-        return params
-
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -2538,10 +2492,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2675,10 +2627,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method

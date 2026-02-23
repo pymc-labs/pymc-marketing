@@ -126,7 +126,7 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import arviz as az
 import numpy as np
@@ -140,6 +140,7 @@ from pytensor.graph import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
@@ -350,7 +351,10 @@ class Incrementality:
         start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
 
         # Subsample posterior if needed (correctly across chain x draw)
-        idata_sub = self._get_subsampled_idata(num_samples, random_state)
+        posterior_sub = subsample_draws(
+            self.idata.posterior, num_samples=num_samples, random_state=random_state
+        )
+        idata_sub = az.InferenceData(posterior=posterior_sub)
         n_chains = idata_sub.posterior.sizes["chain"]
         n_draws = idata_sub.posterior.sizes["draw"]
 
@@ -378,63 +382,63 @@ class Incrementality:
         ctx = self._build_evaluator(idata_sub, baseline_array)
         evaluator = ctx.evaluator
 
-        # Evaluate baseline on full dataset (once)
-        baseline_eval_args: list[np.ndarray] = [
-            baseline_array[np.newaxis].astype(eval_dtype)
-        ]
-        if ctx.has_time_index:
-            time_shared = self.model.model["time_index"]
-            baseline_eval_args.append(
-                np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+        try:
+            # Evaluate baseline on full dataset (once)
+            baseline_eval_args: list[np.ndarray] = [
+                baseline_array[np.newaxis].astype(eval_dtype)
+            ]
+            if ctx.has_time_index:
+                time_shared = self.model.model["time_index"]
+                baseline_eval_args.append(
+                    np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
+                )
+            baseline_pred = evaluator(*baseline_eval_args)[0]
+
+            # Determine actual axis ordering from the model's channel_contribution
+            # variable. The PyTensor graph preserves the model's dim order, which
+            # may have custom dims (e.g. "country") before "channel".
+            cc_dims = list(
+                self.model.model.named_vars_to_dims.get("channel_contribution", ())
             )
-        baseline_pred = evaluator(*baseline_eval_args)[0]
+            non_date_dims = [d for d in cc_dims if d != "date"]
+            extra_shape = baseline_array.shape[1:]
 
-        # Determine actual axis ordering from the model's channel_contribution
-        # variable. The PyTensor graph preserves the model's dim order, which
-        # may have custom dims (e.g. "country") before "channel".
-        cc_dims = list(
-            self.model.model.named_vars_to_dims.get("channel_contribution", ())
-        )
-        non_date_dims = [d for d in cc_dims if d != "date"]
-        extra_shape = baseline_array.shape[1:]
+            # Compute, for each period, the required window metadata including
+            # the start/end indices into `dates` and any necessary left/right
+            # padding, and determine the maximum window length across all
+            # periods.
+            window_infos, max_window = self._compute_window_metadata(
+                periods, dates, l_max, freq_offset, freq
+            )
 
-        # Compute, for each period, the required window metadata including
-        # the start/end indices into `dates` and any necessary left/right padding,
-        # and determine the maximum window length across all periods.
-        # Output:
-        #   - window_infos: list of dicts (one per period), each containing
-        #       info about the window's bounds and padding for use in evaluation
-        #   - max_window: int, the maximum window length needed for counterfactual evaluation
-        window_infos, max_window = self._compute_window_metadata(
-            periods, dates, l_max, freq_offset, freq
-        )
-
-        cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
-            periods=periods,
-            window_infos=window_infos,
-            max_window=max_window,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=counterfactual_spend_factor,
-            include_carryover=include_carryover,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            extra_shape=extra_shape,
-            dtype=eval_dtype,
-        )
-
-        # Evaluate all counterfactuals at once
-        cf_eval_args: list[np.ndarray] = [cf_array]
-        if ctx.has_time_index:
-            time_shared = self.model.model["time_index"]
-            cf_eval_args.append(
-                self._build_time_index_array(
+            # Build counterfactual scenarios
+            cf_array, cf_eval_masks, period_labels = (
+                self._build_counterfactual_scenarios(
+                    periods=periods,
                     window_infos=window_infos,
-                    dates=dates,
                     max_window=max_window,
-                    dtype=time_shared.dtype,
+                    baseline_array=baseline_array,
+                    counterfactual_spend_factor=counterfactual_spend_factor,
+                    include_carryover=include_carryover,
+                    l_max=l_max,
+                    freq_offset=freq_offset,
+                    extra_shape=extra_shape,
+                    dtype=eval_dtype,
                 )
             )
-        try:
+
+            # Evaluate all counterfactuals at once
+            cf_eval_args: list[np.ndarray] = [cf_array]
+            if ctx.has_time_index:
+                time_shared = self.model.model["time_index"]
+                cf_eval_args.append(
+                    self._build_time_index_array(
+                        window_infos=window_infos,
+                        dates=dates,
+                        max_window=max_window,
+                        dtype=time_shared.dtype,
+                    )
+                )
             cf_predictions = evaluator(*cf_eval_args)
         finally:
             for var_name, original_val in ctx.saved_shared_values.items():
@@ -1380,64 +1384,6 @@ class Incrementality:
             period_ranges.append((period_start, period_end))
 
         return period_ranges
-
-    def _get_subsampled_idata(
-        self,
-        num_samples: int | None,
-        random_state: RandomState | Generator | None,
-    ) -> az.InferenceData:
-        """Return idata with posterior subsampled to ``num_samples`` total samples.
-
-        Subsamples from the flattened chain x draw space (matching the
-        approach in ``MMM._subsample_posterior``), then wraps the result
-        back into an ``InferenceData`` (1 chain, ``num_samples`` draws)
-        so that a subsequent ``az.extract`` inside
-        ``extract_response_distribution`` produces exactly
-        ``num_samples`` samples.
-
-        Parameters
-        ----------
-        num_samples : int or None
-            Number of total samples to keep.  If None, returns the
-            original idata unchanged.
-        random_state : RandomState or Generator or None
-            Random state for reproducibility.
-
-        Returns
-        -------
-        az.InferenceData
-            Either the original idata (when no subsampling is needed) or
-            a new idata whose posterior has 1 chain and ``num_samples``
-            draws.
-        """
-        if num_samples is None:
-            return self.idata
-
-        posterior = self.idata.posterior
-        n_chains = posterior.sizes["chain"]
-        n_draws = posterior.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples >= total_samples:
-            return self.idata
-
-        rng = np.random.default_rng(random_state)
-        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-        stacked = posterior.stack(sample=("chain", "draw"))
-        selected = stacked.isel(sample=flat_indices)
-        # Drop MultiIndex components, rename sample -> draw, add chain dim
-        posterior_ds = (
-            selected.drop_vars(["chain", "draw", "sample"])
-            .rename({"sample": "draw"})
-            .expand_dims("chain")
-        )
-
-        groups: dict[str, Any] = {"posterior": posterior_ds}
-        if hasattr(self.idata, "fit_data"):
-            groups["fit_data"] = self.idata.fit_data
-
-        return az.InferenceData(**groups)
 
     def _aggregate_spend(
         self,
