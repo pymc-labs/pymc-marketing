@@ -3527,7 +3527,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             If None, no conversion is applied (budgets are assumed to be in
             the model's native units).
 
-            **This is independent of Phase 1's historical cost_per_unit.**
+            **This is independent of the historical cost_per_unit.**
         callback : bool
             Whether to return callback information tracking optimization progress.
         **minimize_kwargs
