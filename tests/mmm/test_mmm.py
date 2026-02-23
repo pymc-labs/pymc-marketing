@@ -1401,9 +1401,17 @@ def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
 
 
 @pytest.fixture(scope="module")
-def mmm_with_prior(mmm) -> MMM:
+def mmm_with_prior() -> MMM:
     n_chains = 1
     n_samples = 100
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
 
     channels = mmm.channel_columns
     n_channels = len(channels)
@@ -2989,12 +2997,6 @@ class TestMMMHelperMethods:
             assert isinstance(median_val, (int, float))
             assert isinstance(upper_val, (int, float))
 
-    @pytest.mark.xfail(
-        reason="""
-        Test is expected currently failing on the CI, but we ill remove the MMM module in the next release.
-        I (Juan) can not reproduce the failure locally.
-        """
-    )
     def test_format_recovered_transformation_parameters_prefix_stripping(
         self, mmm_fitted: MMM
     ):
