@@ -1,0 +1,67 @@
+name: Generate Test Durations
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-durations:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        linker: [cvm]  # Only generate once, cvm is faster
+    env:
+      PYTENSOR_FLAGS: linker=${{ matrix.linker }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
+      - name: Install dependencies
+        run: |
+          sudo apt-get install graphviz graphviz-dev
+          pip install -e .[test]
+      - name: Run all tests with duration tracking
+        run: |
+          pytest --store-durations --durations-path .test_durations -v
+        continue-on-error: true  # Generate durations even if some tests fail
+      - name: Ensure newline at end of durations file
+        run: |
+          # Add newline if missing (pre-commit requirement)
+          [ -n "$(tail -c1 .test_durations)" ] && echo >> .test_durations || true
+      - name: Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          commit-message: "chore: update test durations"
+          branch: update-test-durations
+          delete-branch: true
+          title: "chore: update test durations"
+          add-paths: |
+            .test_durations
+          body: |
+            ## Automated Test Durations Update
+
+            This PR updates the `.test_durations` file with the latest test execution times from the full test suite.
+
+            **Details:**
+            - 🤖 Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            - 📅 Trigger: ${{ github.event_name == 'schedule' && 'Scheduled (weekly)' || format('Manual trigger by @{0}', github.actor) }}
+
+            **Note:** This is an automated update. The file will be used by pytest-split to balance test groups in CI.
+          labels: |
+            no releasenotes
+            maintenance
+      - name: Enable auto-merge
+        if: steps.cpr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr merge --auto --squash ${{ steps.cpr.outputs.pull-request-number }}

@@ -909,7 +909,7 @@ def test_budget_distribution_over_period_integration(dummy_df, dummy_idata):
     assert result_without_factors.dims == ("channel",)
 
 
-def test_custom_protocol_model_budget_optimizer_works():
+def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     """Validate the optimizer works with the built-in CustomModelWrapper.
 
     This serves as an example for users wanting to plug in their own PyMC models via

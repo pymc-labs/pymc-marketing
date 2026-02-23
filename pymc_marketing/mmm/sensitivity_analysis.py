@@ -390,18 +390,23 @@ class SensitivityAnalysis:
         base_value = data_shared.get_value()
         num_sweeps = int(np.asarray(sweep_values).shape[0])
 
+        # Always evaluate in float64 so fractional sweep_values are not truncated
+        # when channel_data has an integer dtype (e.g. int32 spend counts).
+        eval_dtype = np.float64
+
         # Build a (sweep, 1, 1, ..., 1) array to broadcast against base_value
-        sweep_col = np.asarray(sweep_values, dtype=base_value.dtype).reshape(
+        sweep_col = np.asarray(sweep_values, dtype=eval_dtype).reshape(
             (num_sweeps,) + (1,) * base_value.ndim
         )
+        base_value_f = base_value.astype(eval_dtype)
         if sweep_type == "multiplicative":
-            batched_input = sweep_col * base_value[None, ...]
+            batched_input = sweep_col * base_value_f[None, ...]
         elif sweep_type == "additive":
-            batched_input = sweep_col + base_value[None, ...]
+            batched_input = sweep_col + base_value_f[None, ...]
         elif sweep_type == "absolute":
             batched_input = np.broadcast_to(
                 sweep_col,
-                (num_sweeps, *base_value.shape),
+                (num_sweeps, *base_value_f.shape),
             )
         else:
             raise ValueError(f"Unknown sweep_type {sweep_type!r}")
@@ -410,7 +415,7 @@ class SensitivityAnalysis:
         #    input with a tensor that carries a leading sweep dimension.
         channel_in = pt.tensor(
             name=f"{var_input}_sweep_in",
-            dtype=data_shared.dtype,
+            dtype=eval_dtype,
             shape=(None, *data_shared.type.shape),
         )
         sweep_graph = vectorize_graph(resp_graph, replace={data_shared: channel_in})

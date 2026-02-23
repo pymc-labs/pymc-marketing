@@ -159,6 +159,8 @@ def test_save_load(fit_mmm: MMM):
     loaded = MMM.load(file)
     assert isinstance(loaded, MMM)
 
+    os.remove(file)
+
 
 def test_save_load_equality(fit_mmm: MMM):
     """Test that save/load produces an equivalent MMM instance.
@@ -3509,6 +3511,8 @@ def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     assert loaded_mmm.dag == dag
     assert loaded_mmm.treatment_nodes == treatment_nodes
     assert loaded_mmm.outcome_node == outcome_node
+
+    os.remove("test_model_multi")
 
 
 def test_multidimensional_mmm_causal_attributes_initialization():
