@@ -1405,7 +1405,7 @@ def mmm_with_prior() -> MMM:
     n_chains = 1
     n_samples = 100
 
-    mmm_prior = MMM(
+    mmm = MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         control_columns=["control_1", "control_2"],
@@ -1413,11 +1413,12 @@ def mmm_with_prior() -> MMM:
         saturation=LogisticSaturation(),
     )
 
-    channels = mmm_prior.channel_columns
+    channels = mmm.channel_columns
     n_channels = len(channels)
 
     idata = az.from_dict(
         prior={
+            # Arbitrary but close to the default parameterization
             "adstock_alpha": rng.uniform(size=(n_chains, n_samples, n_channels)),
             "saturation_lam": rng.exponential(size=(n_chains, n_samples, n_channels)),
             "saturation_beta": np.abs(
@@ -1431,9 +1432,9 @@ def mmm_with_prior() -> MMM:
             "saturation_beta": ["chain", "draw", "channel"],
         },
     )
-    mmm_prior.idata = idata
+    mmm.idata = idata
 
-    return mmm_prior
+    return mmm
 
 
 def test_plot_new_spend_contributions_prior(mmm_with_prior) -> None:
