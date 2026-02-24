@@ -481,7 +481,7 @@ class TestSetCostPerUnit:
     """Tests for set_cost_per_unit on fitted MMM models."""
 
     def test_set_cost_per_unit_post_hoc(self, simple_fitted_mmm):
-        """Test 12: Set cost_per_unit after fitting and verify conversion."""
+        """Set cost_per_unit after fitting and verify conversion."""
         mmm = simple_fitted_mmm
         dates = mmm.data.dates
 
@@ -535,7 +535,7 @@ class TestSetCostPerUnit:
 
 
 class TestBudgetOptimizerCostPerUnitIntegration:
-    """Tests 15-16, 18-19: Budget optimizer with cost_per_unit."""
+    """Budget optimizer with cost_per_unit."""
 
     RESPONSE_VAR = "total_media_contribution_original_scale"
 
@@ -549,7 +549,7 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         return wrapper, mmm.channel_columns
 
     def test_budget_optimizer_with_constant_cost_per_unit(self, budget_mmm_setup):
-        """Test 15: Constant cost_per_unit (same rate every period)."""
+        """Constant cost_per_unit (same rate every period)."""
         wrapper, channel_columns = budget_mmm_setup
         num_periods = wrapper.num_periods
 
@@ -577,7 +577,7 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         assert opt_result.success or opt_result.fun < 0
 
     def test_budget_optimizer_with_date_varying_cost_per_unit(self, budget_mmm_setup):
-        """Test 16: Date-varying cost_per_unit (different rate per period)."""
+        """Date-varying cost_per_unit (different rate per period)."""
         wrapper, channel_columns = budget_mmm_setup
         num_periods = wrapper.num_periods
 
@@ -609,7 +609,7 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         assert opt_result.success or opt_result.fun < 0
 
     def test_optimize_budget_cost_per_unit_dataframe_input(self, panel_fitted_mmm):
-        """Test 18: Pass pd.DataFrame to optimize_budget(), verify parsing."""
+        """Pass pd.DataFrame to optimize_budget(), verify parsing."""
         mmm = panel_fitted_mmm
         start_date = "2025-01-06"
         end_date = "2025-02-03"
@@ -647,7 +647,7 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         assert set(allocation.dims) == set((*mmm.dims, "channel"))
 
     def test_budget_optimizer_cost_per_unit_with_distribution(self, budget_mmm_setup):
-        """Test 19: Combined budget_distribution_over_period + cost_per_unit."""
+        """Combined budget_distribution_over_period + cost_per_unit."""
         wrapper, channel_columns = budget_mmm_setup
         num_periods = wrapper.num_periods
 
@@ -685,10 +685,10 @@ class TestBudgetOptimizerCostPerUnitIntegration:
 
 
 class TestSerializationRoundtrip:
-    """Tests 20-22: Save/load with cost_per_unit."""
+    """Save/load with cost_per_unit."""
 
     def test_save_load_with_cost_per_unit(self, simple_fitted_mmm, tmp_path):
-        """Test 20: Model with cost_per_unit saves and loads correctly."""
+        """Model with cost_per_unit saves and loads correctly."""
         mmm = simple_fitted_mmm
         dates = mmm.data.dates
 
@@ -715,7 +715,7 @@ class TestSerializationRoundtrip:
         xr.testing.assert_allclose(loaded_spend, original_spend)
 
     def test_load_old_model_without_cost_per_unit(self, simple_fitted_mmm, tmp_path):
-        """Test 21: Model without cost_per_unit loads correctly, supports post-hoc."""
+        """Model without cost_per_unit loads correctly, supports post-hoc."""
         mmm = simple_fitted_mmm
 
         fname = str(tmp_path / "model_no_cpu.pm")
@@ -740,7 +740,7 @@ class TestSerializationRoundtrip:
         assert not converted_spend.equals(raw_spend)
 
     def test_save_load_set_cost_per_unit_posthoc(self, simple_fitted_mmm, tmp_path):
-        """Test 22: Fit -> save -> load -> set_cost_per_unit -> save -> load."""
+        """Fit -> save -> load -> set_cost_per_unit -> save -> load."""
         mmm = simple_fitted_mmm
 
         fname1 = str(tmp_path / "model_v1.pm")
@@ -774,12 +774,12 @@ class TestSerializationRoundtrip:
 
 
 class TestIncrementalityCostPerUnit:
-    """Tests 20a-20b: Incrementality integration with cost_per_unit."""
+    """Incrementality integration with cost_per_unit."""
 
     def test_incremental_contribution_uses_raw_data_with_cost_per_unit(
         self, simple_fitted_mmm
     ):
-        """Test 20a: Incremental contributions use raw data, not converted."""
+        """Incremental contributions use raw data, not converted."""
         mmm = simple_fitted_mmm
 
         result_no_cpu = mmm.incrementality.compute_incremental_contribution(
@@ -803,7 +803,7 @@ class TestIncrementalityCostPerUnit:
         xr.testing.assert_allclose(result_with_cpu, result_no_cpu)
 
     def test_roas_via_incrementality_with_cost_per_unit(self, simple_fitted_mmm):
-        """Test 20b: ROAS via incrementality uses converted spend."""
+        """ROAS via incrementality uses converted spend."""
         mmm = simple_fitted_mmm
 
         roas_no_cpu = mmm.incrementality.contribution_over_spend(frequency="all_time")
