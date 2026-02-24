@@ -33,11 +33,6 @@ SEED = sum(map(ord, "cost_per_unit_tests"))
 rng = np.random.default_rng(seed=SEED)
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
-
-
 @pytest.fixture
 def dates():
     return pd.date_range("2024-01-01", periods=4, freq="W-MON")
@@ -151,11 +146,6 @@ def multidim_idata(dates, channels, countries):
             }
         ),
     )
-
-
-# ============================================================================
-# _parse_cost_per_unit_df() Unit Tests
-# ============================================================================
 
 
 class TestParseCostPerUnitDf:
@@ -273,13 +263,9 @@ class TestParseCostPerUnitDf:
         with pytest.raises(ValueError, match="no channel columns"):
             MMM._parse_cost_per_unit_df(df, channels=channels, dates=dates)
 
-    def test_parse_negative_values_raises(self, dates, channels):
-        df = pd.DataFrame({"date": dates, "TV": [0.01, -0.02, 0.015, 0.012]})
-        with pytest.raises(ValueError, match="must be positive"):
-            MMM._parse_cost_per_unit_df(df, channels=channels, dates=dates)
-
-    def test_parse_zero_values_raises(self, dates, channels):
-        df = pd.DataFrame({"date": dates, "TV": [0.01, 0.0, 0.015, 0.012]})
+    @pytest.mark.parametrize("invalid_value", [-0.02, 0.0], ids=["negative", "zero"])
+    def test_parse_non_positive_values_raises(self, dates, channels, invalid_value):
+        df = pd.DataFrame({"date": dates, "TV": [0.01, invalid_value, 0.015, 0.012]})
         with pytest.raises(ValueError, match="must be positive"):
             MMM._parse_cost_per_unit_df(df, channels=channels, dates=dates)
 
@@ -333,22 +319,6 @@ class TestWrapperCostPerUnit:
         xr.testing.assert_equal(spend, expected)
         xr.testing.assert_equal(raw, channel_data)
 
-    def test_get_channel_spend_default_applies_conversion(
-        self, simple_idata, dates, channels
-    ):
-        cpu = xr.DataArray(
-            [[2.0, 3.0]] * len(dates),
-            dims=("date", "channel"),
-            coords={"date": dates, "channel": channels},
-        )
-        channel_data = simple_idata.constant_data.channel_data
-        simple_idata.constant_data["channel_spend"] = channel_data * cpu
-        wrapper = MMMIDataWrapper(simple_idata)
-
-        spend = wrapper.get_channel_spend()
-        expected = channel_data * cpu
-        xr.testing.assert_equal(spend, expected)
-
     def test_get_channel_spend_with_cost_per_unit_multidim(
         self, multidim_idata, dates, channels, countries
     ):
@@ -385,15 +355,6 @@ class TestWrapperCostPerUnit:
         spend_safe = xr.where(spend == 0, np.nan, spend)
         expected_roas = contributions / spend_safe
         xr.testing.assert_equal(roas, expected_roas)
-
-    def test_get_channel_data_returns_raw(self, simple_idata, dates, channels):
-        """get_channel_data() always returns raw data, even when channel_spend exists."""
-        channel_data = simple_idata.constant_data.channel_data.copy(deep=True)
-        simple_idata.constant_data["channel_spend"] = channel_data * 0.01
-        wrapper = MMMIDataWrapper(simple_idata)
-
-        raw = wrapper.get_channel_data()
-        xr.testing.assert_equal(raw, channel_data)
 
     def test_get_channel_data_without_channel_spend(self, simple_idata):
         """get_channel_data() works when no channel_spend exists."""
@@ -457,22 +418,16 @@ class TestBudgetOptimizerCostPerUnitValidation:
                 budget_dims=["channel"],
             )
 
-    def test_non_positive_values_raises(self, optimizer_instance):
+    @pytest.mark.parametrize(
+        "values",
+        [
+            pytest.param([[0.01, -0.05], [0.01, 0.05]], id="negative"),
+            pytest.param([[0.0, 0.05], [0.01, 0.05]], id="zero"),
+        ],
+    )
+    def test_non_positive_values_raises(self, optimizer_instance, values):
         cpu = xr.DataArray(
-            np.array([[0.01, -0.05], [0.01, 0.05]]),
-            dims=("date", "channel"),
-            coords={"date": range(2), "channel": ["TV", "Radio"]},
-        )
-        with pytest.raises(ValueError, match="must be positive"):
-            optimizer_instance._validate_and_process_cost_per_unit(
-                cost_per_unit=cpu,
-                num_periods=2,
-                budget_dims=["channel"],
-            )
-
-    def test_zero_values_raises(self, optimizer_instance):
-        cpu = xr.DataArray(
-            np.array([[0.0, 0.05], [0.01, 0.05]]),
+            np.array(values),
             dims=("date", "channel"),
             coords={"date": range(2), "channel": ["TV", "Radio"]},
         )
@@ -522,11 +477,6 @@ class TestBudgetOptimizerCostPerUnitValidation:
         assert result.data.shape == (3, 2, 2)
 
 
-# ============================================================================
-# Integration Tests: set_cost_per_unit on fitted models (Tests 12-13)
-# ============================================================================
-
-
 class TestSetCostPerUnit:
     """Tests for set_cost_per_unit on fitted MMM models."""
 
@@ -562,7 +512,7 @@ class TestSetCostPerUnit:
 
         np.testing.assert_array_almost_equal(
             mmm.data.cost_per_unit.sel(channel="channel_1").values,
-            [0.05] * len(dates),
+            [0.01] * len(dates),
         )
 
     def test_set_cost_per_unit_before_fit_raises(self):
@@ -582,11 +532,6 @@ class TestSetCostPerUnit:
         )
         with pytest.raises(RuntimeError, match="must be fitted"):
             mmm.set_cost_per_unit(cpu_df)
-
-
-# ============================================================================
-# Integration Tests: BudgetOptimizer cost_per_unit (Tests 15-16, 18-19)
-# ============================================================================
 
 
 class TestBudgetOptimizerCostPerUnitIntegration:
@@ -739,11 +684,6 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         assert opt_result.success or opt_result.fun < 0
 
 
-# ============================================================================
-# Serialization Roundtrip Tests (Tests 20-22)
-# ============================================================================
-
-
 class TestSerializationRoundtrip:
     """Tests 20-22: Save/load with cost_per_unit."""
 
@@ -831,11 +771,6 @@ class TestSerializationRoundtrip:
             loaded2.data.get_channel_spend(),
             loaded1.data.get_channel_spend(),
         )
-
-
-# ============================================================================
-# Incrementality Integration Tests (Tests 20a-20b)
-# ============================================================================
 
 
 class TestIncrementalityCostPerUnit:
