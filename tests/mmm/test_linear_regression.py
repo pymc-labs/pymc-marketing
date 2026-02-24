@@ -65,7 +65,6 @@ def linear_regression() -> MMM:
     )
 
 
-@pytest.mark.xfail(reason="MMM not refactored with pymc.dims")
 def test_fancy_linear_regression(
     linear_regression: MMM,
     toy_X: pd.DataFrame,
