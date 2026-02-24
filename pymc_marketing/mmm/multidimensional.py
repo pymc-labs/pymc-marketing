@@ -199,10 +199,9 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
-    UtilityFunctionType,
     add_noise_to_channel_allocation,
-    average_response,
     create_zero_dataset,
 )
 from pymc_marketing.model_builder import (
