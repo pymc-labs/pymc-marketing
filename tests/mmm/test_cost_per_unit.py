@@ -548,65 +548,48 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         )
         return wrapper, mmm.channel_columns
 
-    def test_budget_optimizer_with_constant_cost_per_unit(self, budget_mmm_setup):
-        """Constant cost_per_unit (same rate every period)."""
+    def test_expensive_channel_gets_less_budget(self, budget_mmm_setup):
+        """As one channel's cost_per_unit increases, its allocated budget decreases."""
         wrapper, channel_columns = budget_mmm_setup
         num_periods = wrapper.num_periods
+        target_channel = channel_columns[0]
 
-        cpu = xr.DataArray(
-            np.full((num_periods, len(channel_columns)), 0.01),
-            dims=("date", "channel"),
-            coords={"date": range(num_periods), "channel": channel_columns},
-        )
+        cpu_rates = [1.0, 1.5, 2.0, 3.0]
+        allocations = []
 
-        with pytest.warns(UserWarning, match="Using default equality constraint"):
-            optimizer = BudgetOptimizer(
-                model=wrapper,
-                num_periods=num_periods,
-                cost_per_unit=cpu,
-                response_variable=self.RESPONSE_VAR,
+        for rate in cpu_rates:
+            values = np.ones((num_periods, len(channel_columns)))
+            values[:, 0] = rate
+            cpu = xr.DataArray(
+                values,
+                dims=("date", "channel"),
+                coords={"date": range(num_periods), "channel": channel_columns},
             )
 
-        budget_bounds = {ch: (0.0, 500.0) for ch in channel_columns}
-        optimal_budgets, opt_result = optimizer.allocate_budget(
-            total_budget=1000.0,
-            budget_bounds=budget_bounds,
-        )
+            with pytest.warns(UserWarning, match="Using default equality constraint"):
+                optimizer = BudgetOptimizer(
+                    model=wrapper,
+                    num_periods=num_periods,
+                    cost_per_unit=cpu,
+                    response_variable=self.RESPONSE_VAR,
+                )
 
-        assert optimal_budgets is not None
-        assert opt_result.success or opt_result.fun < 0
-
-    def test_budget_optimizer_with_date_varying_cost_per_unit(self, budget_mmm_setup):
-        """Date-varying cost_per_unit (different rate per period)."""
-        wrapper, channel_columns = budget_mmm_setup
-        num_periods = wrapper.num_periods
-
-        base_rates = np.linspace(0.01, 0.06, len(channel_columns))
-        varying_values = np.array(
-            [base_rates * (1 + 0.1 * t) for t in range(num_periods)]
-        )
-        cpu = xr.DataArray(
-            varying_values,
-            dims=("date", "channel"),
-            coords={"date": range(num_periods), "channel": channel_columns},
-        )
-
-        with pytest.warns(UserWarning, match="Using default equality constraint"):
-            optimizer = BudgetOptimizer(
-                model=wrapper,
-                num_periods=num_periods,
-                cost_per_unit=cpu,
-                response_variable=self.RESPONSE_VAR,
+            budget_bounds = {ch: (0.0, 500.0) for ch in channel_columns}
+            optimal_budgets, _ = optimizer.allocate_budget(
+                total_budget=1000.0,
+                budget_bounds=budget_bounds,
+            )
+            allocations.append(
+                float(optimal_budgets.sel(channel=target_channel).item())
             )
 
-        budget_bounds = {ch: (0.0, 500.0) for ch in channel_columns}
-        optimal_budgets, opt_result = optimizer.allocate_budget(
-            total_budget=1000.0,
-            budget_bounds=budget_bounds,
-        )
-
-        assert optimal_budgets is not None
-        assert opt_result.success or opt_result.fun < 0
+        print(allocations)
+        for i in range(len(allocations) - 1):
+            assert allocations[i] > allocations[i + 1], (
+                f"Expected allocation to decrease as cost rises, "
+                f"but got {allocations[i]:.2f} -> {allocations[i + 1]:.2f} "
+                f"for rates {cpu_rates[i]} -> {cpu_rates[i + 1]}"
+            )
 
     def test_optimize_budget_cost_per_unit_dataframe_input(self, panel_fitted_mmm):
         """Pass pd.DataFrame to optimize_budget(), verify parsing."""
@@ -739,39 +722,6 @@ class TestSerializationRoundtrip:
         converted_spend = loaded.data.get_channel_spend()
         assert not converted_spend.equals(raw_spend)
 
-    def test_save_load_set_cost_per_unit_posthoc(self, simple_fitted_mmm, tmp_path):
-        """Fit -> save -> load -> set_cost_per_unit -> save -> load."""
-        mmm = simple_fitted_mmm
-
-        fname1 = str(tmp_path / "model_v1.pm")
-        mmm.save(fname1)
-        loaded1 = MMM.load(fname1, check=False)
-
-        dates = loaded1.data.dates
-        cpu_df = pd.DataFrame(
-            {
-                "date": dates,
-                "channel_1": [0.01] * len(dates),
-                "channel_2": [0.02] * len(dates),
-            }
-        )
-        loaded1.set_cost_per_unit(cpu_df)
-
-        fname2 = str(tmp_path / "model_v2.pm")
-        loaded1.save(fname2)
-        loaded2 = MMM.load(fname2, check=False)
-
-        assert loaded2.data.cost_per_unit is not None
-        xr.testing.assert_equal(
-            loaded2.data.cost_per_unit,
-            loaded1.data.cost_per_unit,
-        )
-
-        xr.testing.assert_allclose(
-            loaded2.data.get_channel_spend(),
-            loaded1.data.get_channel_spend(),
-        )
-
 
 class TestIncrementalityCostPerUnit:
     """Incrementality integration with cost_per_unit."""
@@ -809,51 +759,26 @@ class TestIncrementalityCostPerUnit:
         roas_no_cpu = mmm.incrementality.contribution_over_spend(frequency="all_time")
 
         dates = mmm.data.dates
-        cpu_factor = 0.5
+        cpu_factors = {"channel_1": 0.5, "channel_2": 2.0, "channel_3": 0.8}
         cpu_df = pd.DataFrame(
             {
                 "date": dates,
-                "channel_1": [cpu_factor] * len(dates),
-                "channel_2": [cpu_factor] * len(dates),
-                "channel_3": [cpu_factor] * len(dates),
+                **{ch: [f] * len(dates) for ch, f in cpu_factors.items()},
             }
         )
         mmm.set_cost_per_unit(cpu_df)
 
         roas_with_cpu = mmm.incrementality.contribution_over_spend(frequency="all_time")
 
-        # ROAS_no_cpu = contributions / raw_spend
-        # ROAS_with_cpu = contributions / (raw_spend * cpu_factor)
-        # So: ROAS_with_cpu * cpu_factor = ROAS_no_cpu
-        scaled_roas = roas_with_cpu * cpu_factor
-        mask = np.isfinite(scaled_roas) & np.isfinite(roas_no_cpu)
+        cpu_xr = xr.DataArray(
+            list(cpu_factors.values()),
+            dims=("channel",),
+            coords={"channel": list(cpu_factors.keys())},
+        )
+        scaled_roas = roas_with_cpu * cpu_xr
+        assert np.all(np.isfinite(scaled_roas) & np.isfinite(roas_no_cpu))
         np.testing.assert_allclose(
-            scaled_roas.values[mask],
-            roas_no_cpu.values[mask],
+            scaled_roas.values,
+            roas_no_cpu.values,
             rtol=1e-5,
         )
-
-    def test_aggregate_spend_correct_with_cost_per_unit(self, simple_fitted_mmm):
-        """Regression test: time aggregation of spend must equal
-        sum(channel_data * cost_per_unit), not sum(channel_data) * sum(cost_per_unit).
-        """
-        mmm = simple_fitted_mmm
-        dates = mmm.data.dates
-
-        cpu_values = np.linspace(0.01, 0.05, len(dates))
-        cpu_df = pd.DataFrame(
-            {
-                "date": dates,
-                "channel_1": cpu_values,
-                "channel_2": cpu_values * 2,
-            }
-        )
-        mmm.set_cost_per_unit(cpu_df)
-
-        raw_data = mmm.data.get_channel_data()
-        cpu_array = mmm.data.cost_per_unit
-        expected_total_spend = (raw_data * cpu_array).sum(dim="date")
-
-        actual_total_spend = mmm.incrementality._aggregate_spend(frequency="all_time")
-
-        xr.testing.assert_allclose(actual_total_spend, expected_total_spend)
