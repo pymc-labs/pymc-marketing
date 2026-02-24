@@ -25,7 +25,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "arviz>=0.13.0",
+    "arviz>=0.13.0,<1.0.0",
     "matplotlib>=3.5.1",
     "narwhals",
     "numpy>=2.0",
