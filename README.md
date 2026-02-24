@@ -81,14 +81,16 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 
 ### MMM Quickstart
 
+The following snippet of code shows how to initiate and fit a `MMM` model.
+
 ```python
 import pandas as pd
 
 from pymc_marketing.mmm import (
     GeometricAdstock,
     LogisticSaturation,
-    MMM,
 )
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.paths import data_dir
 
 file_path = data_dir / "mmm_example.csv"
@@ -106,16 +108,13 @@ mmm = MMM(
     ],
     yearly_seasonality=2,
 )
-```
 
-Initiate fitting and get insightful plots and summaries. For example, we can plot the components contributions:
-
-```python
 X = data.drop("y", axis=1)
 y = data["y"]
 mmm.fit(X, y)
-mmm.plot_components_contributions()
 ```
+
+After the model is fitted, we can explore the reults and insights. For example, we can plot the components contributions:
 
 ![](docs/source/_static/mmm_plot_components_contributions.png)
 

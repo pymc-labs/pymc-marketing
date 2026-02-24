@@ -167,6 +167,7 @@ except ImportError:  # pragma: no cover
     raise ImportError(msg)
 
 from mlflow.utils.autologging_utils import autologging_integration
+from packaging import version
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
@@ -174,16 +175,12 @@ from pymc_marketing.mmm.evaluation import compute_summary_metrics
 from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
-FLAVOR_NAME = "pymc"
-
-
-PYMC_MARKETING_ISSUE = "https://github.com/pymc-labs/pymc-marketing/issues/new"
-warning_msg = (
-    "This functionality is experimental and subject to change. "
-    "If you encounter any issues or have suggestions, please raise them at: "
-    f"{PYMC_MARKETING_ISSUE}"
+# MLflow 2.18.0+ deprecated artifact_path in favor of name
+_MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse(
+    "2.18.0"
 )
-warnings.warn(warning_msg, FutureWarning, stacklevel=1)
+
+FLAVOR_NAME = "pymc"
 
 
 def _exclude_tuning(func):
@@ -887,10 +884,14 @@ def log_mmm(
         original_scale=original_scale,
     )
 
-    mlflow.pyfunc.log_model(
-        artifact_path=artifact_path,
-        python_model=mlflow_mmm,
-    )
+    # MLflow 2.18.0+ uses 'name' parameter, older versions use 'artifact_path'
+    log_model_kwargs: dict[str, Any] = {"python_model": mlflow_mmm}
+    if _MLFLOW_SUPPORTS_NAME_PARAM:
+        log_model_kwargs["name"] = artifact_path
+    else:
+        log_model_kwargs["artifact_path"] = artifact_path
+
+    mlflow.pyfunc.log_model(**log_model_kwargs)
     run_id = mlflow.active_run().info.run_id
     model_uri = f"runs:/{run_id}/{artifact_path}"
 

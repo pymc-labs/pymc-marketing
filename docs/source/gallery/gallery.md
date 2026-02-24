@@ -36,6 +36,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
 :::
 
+:::{grid-item-card} Understanding Media Saturation
+:img-top: ../gallery/images/mmm_media_saturation.png
+:link: ../notebooks/mmm/mmm_media_saturation.html
+:::
+
 :::{grid-item-card} Build MMM from YAML Configuration
 :img-top: ../gallery/images/mmm_build_from_yml_example.png
 :link: ../notebooks/mmm/mmm_build_from_yml_example.html
@@ -44,6 +49,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Sensitivity Analysis and Marginal Effects
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
+:::
+
+:::{grid-item-card} Interactive MMM Visualizations
+:img-top: ../gallery/images/plot_interactive.png
+:link: ../notebooks/mmm/plot_interactive.html
+:::
+
+:::{grid-item-card} MMM API Migration Guide
+:img-top: ../gallery/images/mmm_migration_guide.png
+:link: ../notebooks/mmm/mmm_migration_guide.html
 :::
 ::::
 
@@ -54,6 +69,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Custom Models with MMM components
 :img-top: ../gallery/images/mmm_components.png
 :link: ../notebooks/mmm/mmm_components.html
+:::
+
+:::{grid-item-card} Custom Geo-Hierarchical MMM with Splines
+:img-top: ../gallery/images/mmm_custom_splines.png
+:link: ../notebooks/mmm/mmm_custom_splines.html
 :::
 ::::
 
@@ -97,6 +117,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Introduction to Lift Test Calibration
 :img-top: ../gallery/images/mmm_lift_test.png
 :link: ../notebooks/mmm/mmm_lift_test.html
+:::
+
+:::{grid-item-card} MMM Calibration with Geo-Level Lift Tests
+:img-top: ../gallery/images/mmm_lift_test.png
+:link: ../notebooks/mmm/mmm_geolift_calibration.html
 :::
 
 :::{grid-item-card} Case Study: Unobserved Confounders, ROAS and Lift Tests
@@ -178,6 +203,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
 :::
+
+:::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM
+:img-top: ../gallery/images/mmm_chronos.png
+:link: ../notebooks/mmm/mmm_chronos.html
+:::
 ::::
 
 ## Customer Lifetime Value (CLV) Models
@@ -244,6 +274,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Nested Logit Discrete Choice
 :img-top: ../gallery/images/nested_logit.png
 :link: ../notebooks/customer_choice/nested_logit.html
+:::
+
+:::{grid-item-card} Mixed Logit Discrete Choice
+:img-top: ../gallery/images/mixed_logit.png
+:link: ../notebooks/customer_choice/mixed_logit.html
 :::
 ::::
 
