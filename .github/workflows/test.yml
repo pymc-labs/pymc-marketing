@@ -22,7 +22,7 @@ concurrency:
 
 env:
   # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *[>=]' pyproject.toml | sed -n 's/.*[>=]=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
   # NOTE: .test_durations is managed manually (committed to repo)
   # - pytest-split uses this file to balance test execution times
   # - Update by running the "Generate Test Durations" workflow manually
@@ -32,6 +32,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true} ]
@@ -59,7 +60,7 @@ jobs:
                  --durations-path .test_durations
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
-        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
+        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -70,6 +71,7 @@ jobs:
   test_slow:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         group: [1, 2]  # Reduced from 3 to 2 groups for better balance
