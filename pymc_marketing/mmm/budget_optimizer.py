@@ -908,7 +908,9 @@ class BudgetOptimizer(BaseModel):
 
         # Scale budgets by channel_scales
         budgets = self._budgets
-        budgets /= channel_scales
+        budgets /= as_xtensor(
+            channel_scales, dims=() if np.ndim(channel_scales) == 0 else ("channel",)
+        )
 
         # Repeat budgets over num_periods
         if self._budget_distribution_over_period_tensor is not None:

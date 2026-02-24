@@ -21,6 +21,8 @@ import pytest
 import xarray as xr
 from matplotlib import pyplot as plt
 from pymc_extras.prior import Prior
+from pytensor.xtensor.vectorization import XRV
+from xarray import DataArray
 
 from pymc_marketing.mmm.components.adstock import DelayedAdstock, GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
@@ -30,8 +32,6 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.model_builder import DifferentModelError
-
-pytest.skip(reason="MMM not refactored with pymc.dims", allow_module_level=True)
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -87,12 +87,18 @@ def toy_X_with_bad_dates() -> pd.DataFrame:
 def model_config_requiring_serialization() -> dict:
     model_config = {
         "intercept": Prior("Normal", mu=0, sigma=2),
-        "saturation_beta": Prior("HalfNormal", sigma=np.array([0.4533017, 0.25488063])),
+        "saturation_beta": Prior(
+            "HalfNormal", sigma=DataArray([0.4533017, 0.25488063], dims=("channel",))
+        ),
         "adstock_alpha": Prior(
-            "Beta", alpha=np.array([3, 3]), beta=np.array([3.55001301, 2.87092431])
+            "Beta",
+            alpha=DataArray([3, 3], dims=("channel",)),
+            beta=DataArray([3.55001301, 2.87092431], dims=("channel",)),
         ),
         "saturation_lam": Prior(
-            "Gamma", alpha=np.array([3, 3]), beta=np.array([4.12231653, 5.02896872])
+            "Gamma",
+            alpha=DataArray([3, 3], dims=("channel",)),
+            beta=DataArray([4.12231653, 5.02896872], dims=("channel",)),
         ),
         "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
         "gamma_control": Prior("HalfNormal", sigma=2),
@@ -219,6 +225,9 @@ class TestMMM:
                         return False
                 elif isinstance(value, np.ndarray):
                     if not np.array_equal(value, dict2[key]):
+                        return False
+                elif isinstance(value, DataArray):
+                    if not value.equals(dict2[key]):
                         return False
                 else:
                     if value != dict2[key]:
@@ -878,17 +887,18 @@ class TestMMM:
             {
                 "intercept": Prior("Normal", mu=0, sigma=2),
                 "saturation_beta": Prior(
-                    "HalfNormal", sigma=np.array([0.4533017, 0.25488063])
+                    "HalfNormal",
+                    sigma=DataArray([0.4533017, 0.25488063], dims=("channel",)),
                 ),
                 "adstock_alpha": Prior(
                     "Beta",
-                    alpha=np.array([3, 3]),
-                    beta=np.array([3.55001301, 2.87092431]),
+                    alpha=DataArray([3, 3], dims=("channel",)),
+                    beta=DataArray([3.55001301, 2.87092431], dims=("channel",)),
                 ),
                 "saturation_lam": Prior(
                     "Gamma",
-                    alpha=np.array([3, 3]),
-                    beta=np.array([4.12231653, 5.02896872]),
+                    alpha=DataArray([3, 3], dims=("channel",)),
+                    beta=DataArray([4.12231653, 5.02896872], dims=("channel",)),
                 ),
                 "likelihood": Prior("StudentT", nu=3, sigma=2),
                 "gamma_control": Prior("Normal", sigma=2),
@@ -914,20 +924,27 @@ class TestMMM:
         # Check for default configuration
         if model_config is None:
             # assert observed RV type, and priors of some/all free_RVs.
-            assert isinstance(
-                model.model.observed_RVs[0].owner.op, pm.Normal
-            )  # likelihood
+            assert (
+                # likelihood
+                isinstance(model.model.observed_RVs[0].owner.op, XRV)
+                and isinstance(model.model.observed_RVs[0].owner.op.core_op, pm.Normal)
+            )
             # Add more asserts as needed for default configuration
 
         # Check for custom configuration
         else:
             # assert custom configuration is applied correctly
-            assert isinstance(
-                model.model.observed_RVs[0].owner.op, pm.StudentT
-            )  # likelihood
-            assert isinstance(
-                model.model["saturation_beta"].owner.op, pm.HalfNormal
-            )  # saturation_beta
+            # likelihood
+            assert isinstance(model.model.observed_RVs[0].owner.op, XRV) and isinstance(
+                model.model.observed_RVs[0].owner.op.core_op, pm.StudentT
+            )
+            assert (
+                # saturation_beta
+                isinstance(model.model["saturation_beta"].owner.op, XRV)
+                and isinstance(
+                    model.model["saturation_beta"].owner.op.core_op, pm.HalfNormal
+                )
+            )
 
     def test_mmm_causal_attributes_initialization(self):
         dag = """
@@ -1596,7 +1613,7 @@ def test_save_load_with_tvp(
 class CustomSaturation(SaturationTransformation):
     lookup_name: str = "custom_saturation"
 
-    def function(self, x, beta):
+    def function(self, x, beta, dim: str | None = None):
         return beta * x
 
     default_priors = {
@@ -2003,8 +2020,8 @@ class TestMMMEdgeCases:
         mmm.build_model(X=X, y=toy_y)
         assert hasattr(mmm, "model")
 
-    def test_nan_values_in_input(self, toy_y: pd.Series):
-        """Test that NaN values in input raise appropriate error."""
+    def test_nan_values_in_input(self):
+        """Test behavior of NaN values in input."""
         X = pd.DataFrame(
             {
                 "date": pd.date_range("2020-01-01", periods=50, freq="W-MON"),
@@ -2012,6 +2029,7 @@ class TestMMMEdgeCases:
                 "channel_2": rng.integers(100, 1000, size=50),
             }
         )
+        y = pd.Series(rng.uniform(100, 1000, size=50), name="y")
 
         mmm = MMM(
             date_column="date",
@@ -2019,10 +2037,8 @@ class TestMMMEdgeCases:
             adstock=GeometricAdstock(l_max=4),
             saturation=LogisticSaturation(),
         )
-
-        # NaN values cause NotImplementedError when creating pm.Data
-        with pytest.raises(NotImplementedError):
-            mmm.build_model(X=X, y=toy_y)
+        mmm.build_model(X=X, y=y)
+        assert np.isfinite(mmm.model.compile_logp()(mmm.model.initial_point()))
 
     def test_infinite_values_in_input(self, toy_y: pd.Series):
         """Test handling of infinite values in input."""

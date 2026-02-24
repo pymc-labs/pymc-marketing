@@ -25,10 +25,12 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import seaborn as sns
 from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.prior import Prior
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy.optimize import OptimizeResult
 from xarray import DataArray, Dataset
 
@@ -43,6 +45,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import SoftPlusHSGP
 from pymc_marketing.mmm.lift_test import (
@@ -508,7 +511,7 @@ class BaseMMM(BaseValidateMMM):
 
         return attrs
 
-    def forward_pass(self, x: pt.TensorVariable | npt.NDArray) -> pt.TensorVariable:
+    def forward_pass(self, x: XTensorLike | npt.NDArray) -> XTensorVariable:
         """Transform channel input into target contributions of each channel.
 
         This method handles the ordering of the adstock and saturation
@@ -520,7 +523,7 @@ class BaseMMM(BaseValidateMMM):
 
         Parameters
         ----------
-        x : pt.TensorVariable | npt.NDArray
+        x : XTensorVariable | npt.NDArray
             The channel input which could be spends or impressions
 
         Returns
@@ -534,13 +537,11 @@ class BaseMMM(BaseValidateMMM):
             else (self.saturation, self.adstock)
         )
 
-        return second.apply(x=first.apply(x=x, dims="channel"), dims="channel")
+        return second.apply(x=first.apply(x=x, core_dim="date"), core_dim="date")
 
     def _create_scaled_data_variables(
         self, channel_data_value: pd.DataFrame, target_value: pd.Series | np.ndarray
-    ) -> tuple[
-        pt.TensorVariable, pt.TensorVariable, pt.TensorVariable, pt.TensorVariable
-    ]:
+    ) -> tuple[XTensorVariable, XTensorVariable, XTensorVariable, XTensorVariable]:
         """Create scaled data variables for the model.
 
         Parameters
@@ -555,25 +556,25 @@ class BaseMMM(BaseValidateMMM):
         tuple
             (channel_data_scaled, target_scaled, channel_scale, target_scale)
         """
-        # Store scaling factors as pm.Data
-        channel_scale_ = pm.Data(
+        # Store scaling factors as pmd.Data
+        channel_scale_ = pmd.Data(
             "channel_scale",
             self.channel_scale,
             dims=("channel",),
         )
-        target_scale_ = pm.Data(
+        target_scale_ = pmd.Data(
             "target_scale",
-            self.target_scale,
+            np.float64(self.target_scale),
             dims=(),
         )
 
-        # Store raw data as pm.Data
-        channel_data = pm.Data(
+        # Store raw data as pmd.Data
+        channel_data = pmd.Data(
             name="channel_data",
             value=channel_data_value,
             dims=("date", "channel"),
         )
-        target_data = pm.Data(
+        target_data = pmd.Data(
             name="target_data",
             value=target_value,
             dims="date",
@@ -581,8 +582,8 @@ class BaseMMM(BaseValidateMMM):
 
         # Apply scaling within the model graph
         channel_data_scaled = channel_data / channel_scale_
-        channel_data_scaled = pt.switch(
-            pt.isnan(channel_data_scaled), 0.0, channel_data_scaled
+        channel_data_scaled = ptx.math.switch(
+            ptx.math.isnan(channel_data_scaled), 0.0, channel_data_scaled
         )
         channel_data_scaled.name = "channel_data_scaled"
 
@@ -592,25 +593,27 @@ class BaseMMM(BaseValidateMMM):
         return channel_data_scaled, target_scaled, channel_scale_, target_scale_
 
     def _build_intercept(
-        self, time_index: pt.TensorVariable | None = None
-    ) -> pt.TensorVariable:
+        self, time_index: XTensorVariable | None = None
+    ) -> XTensorVariable:
         """Build intercept variable (time-varying or static).
 
         Parameters
         ----------
-        time_index : pt.TensorVariable | None
+        time_index : XTensorVariable | None
             Time index for time-varying intercept
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Intercept variable
         """
         if not self.time_varying_intercept:
-            return self.model_config["intercept"].create_variable(name="intercept")
+            return self.model_config["intercept"].create_variable(
+                name="intercept", xdist=True
+            )
 
         intercept_baseline = self.model_config["intercept"].create_variable(
-            "intercept_baseline"
+            "intercept_baseline", xdist=True
         )
         intercept_latent_process = create_time_varying_gp_multiplier(
             name="intercept",
@@ -620,41 +623,41 @@ class BaseMMM(BaseValidateMMM):
             time_resolution=self._time_resolution,
             hsgp_kwargs=self.model_config["intercept_tvp_config"],
         )
-        return pm.Deterministic(
-            name="intercept",
-            var=intercept_baseline * intercept_latent_process,
+        return pmd.Deterministic(
+            "intercept",
+            intercept_baseline * intercept_latent_process,
             dims="date",
         )
 
     def _build_channel_contribution(
         self,
-        channel_data_scaled: pt.TensorVariable,
-        time_index: pt.TensorVariable | None = None,
-    ) -> pt.TensorVariable:
+        channel_data_scaled: XTensorVariable,
+        time_index: XTensorVariable | None = None,
+    ) -> XTensorVariable:
         """Build channel contribution variable (time-varying or static).
 
         Parameters
         ----------
-        channel_data_scaled : pt.TensorVariable
+        channel_data_scaled : XTensorVariable
             Scaled channel data
-        time_index : pt.TensorVariable | None
+        time_index : XTensorVariable | None
             Time index for time-varying media
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Channel contribution variable
         """
         if not self.time_varying_media:
-            return pm.Deterministic(
-                name="channel_contribution",
-                var=self.forward_pass(x=channel_data_scaled),
+            return pmd.Deterministic(
+                "channel_contribution",
+                self.forward_pass(x=channel_data_scaled),
                 dims=("date", "channel"),
             )
 
-        baseline_channel_contribution = pm.Deterministic(
-            name="baseline_channel_contribution",
-            var=self.forward_pass(x=channel_data_scaled),
+        baseline_channel_contribution = pmd.Deterministic(
+            "baseline_channel_contribution",
+            self.forward_pass(x=channel_data_scaled),
             dims=("date", "channel"),
         )
         media_latent_process = create_time_varying_gp_multiplier(
@@ -665,18 +668,18 @@ class BaseMMM(BaseValidateMMM):
             time_resolution=self._time_resolution,
             hsgp_kwargs=self.model_config["media_tvp_config"],
         )
-        return pm.Deterministic(
-            name="channel_contribution",
-            var=baseline_channel_contribution * media_latent_process[:, None],
+        return pmd.Deterministic(
+            "channel_contribution",
+            baseline_channel_contribution * media_latent_process,
             dims=("date", "channel"),
         )
 
-    def _build_control_contribution(self) -> pt.TensorVariable | None:
+    def _build_control_contribution(self) -> XTensorVariable | None:
         """Build control contribution variable.
 
         Returns
         -------
-        pt.TensorVariable | None
+        XTensorVariable | None
             Control contribution variable or None if no controls
         """
         if self.control_columns is None or len(self.control_columns) == 0:
@@ -694,25 +697,25 @@ class BaseMMM(BaseValidateMMM):
             self.model_config["gamma_control"].dims = "control"
 
         gamma_control = self.model_config["gamma_control"].create_variable(
-            name="gamma_control"
+            name="gamma_control", xdist=True
         )
-        control_data_ = pm.Data(
+        control_data_ = pmd.Data(
             name="control_data",
             value=X_data[self.control_columns],
             dims=("date", "control"),
         )
-        return pm.Deterministic(
-            name="control_contribution",
-            var=control_data_ * gamma_control,
+        return pmd.Deterministic(
+            "control_contribution",
+            control_data_ * gamma_control,
             dims=("date", "control"),
         )
 
-    def _build_yearly_seasonality_contribution(self) -> pt.TensorVariable | None:
+    def _build_yearly_seasonality_contribution(self) -> XTensorVariable | None:
         """Build yearly seasonality contribution variable.
 
         Returns
         -------
-        pt.TensorVariable | None
+        XTensorVariable | None
             Yearly seasonality contribution or None if not enabled
         """
         if self.yearly_seasonality is None:
@@ -723,71 +726,71 @@ class BaseMMM(BaseValidateMMM):
             raise TypeError("X data must be a DataFrame for yearly seasonality")
 
         dayofyear_value = X_data[self.date_column].dt.dayofyear.to_numpy()
-        dayofyear = pm.Data(name="dayofyear", value=dayofyear_value, dims="date")
+        dayofyear = pmd.Data(name="dayofyear", value=dayofyear_value, dims="date")
 
-        fourier_contribution = pm.Deterministic(
+        fourier_contribution = pmd.Deterministic(
             "fourier_contribution",
             self.yearly_fourier.apply(dayofyear, sum=False),
             dims=("date", *self.yearly_fourier.prior.dims),
         )
 
-        return pm.Deterministic(
-            name="yearly_seasonality_contribution",
-            var=fourier_contribution.sum(tuple(range(1, fourier_contribution.ndim))),
+        return pmd.Deterministic(
+            "yearly_seasonality_contribution",
+            fourier_contribution.sum(dim="fourier_mode"),
             dims="date",
         )
 
     def _add_original_scale_deterministics(
         self,
-        channel_contribution: pt.TensorVariable,
-        target_scale: pt.TensorVariable,
-        control_contribution: pt.TensorVariable | None,
-        yearly_seasonality_contribution: pt.TensorVariable | None,
-        mu: pt.TensorVariable,
+        channel_contribution: XTensorVariable,
+        target_scale: XTensorVariable,
+        control_contribution: XTensorVariable | None,
+        yearly_seasonality_contribution: XTensorVariable | None,
+        mu: XTensorVariable,
     ) -> None:
         """Add deterministic variables in original scale.
 
         Parameters
         ----------
-        channel_contribution : pt.TensorVariable
+        channel_contribution : XTensorVariable
             Channel contribution in scaled space
-        target_scale : pt.TensorVariable
+        target_scale : XTensorVariable
             Target scaling factor
-        control_contribution : pt.TensorVariable | None
+        control_contribution : XTensorVariable | None
             Control contribution in scaled space
-        yearly_seasonality_contribution : pt.TensorVariable | None
+        yearly_seasonality_contribution : XTensorVariable | None
             Yearly seasonality contribution in scaled space
-        mu : pt.TensorVariable
+        mu : XTensorVariable
             Model prediction in scaled space
         """
-        pm.Deterministic(
-            name="channel_contribution_original_scale",
-            var=channel_contribution * target_scale,
+        pmd.Deterministic(
+            "channel_contribution_original_scale",
+            channel_contribution * target_scale,
             dims=("date", "channel"),
         )
-        pm.Deterministic(
-            name="total_contribution_original_scale",
-            var=channel_contribution.sum(axis=-1) * target_scale,
+        pmd.Deterministic(
+            "total_contribution_original_scale",
+            channel_contribution.sum(dim="channel") * target_scale,
             dims="date",
         )
 
         if control_contribution is not None:
-            pm.Deterministic(
-                name="control_contribution_original_scale",
-                var=control_contribution * target_scale,
+            pmd.Deterministic(
+                "control_contribution_original_scale",
+                control_contribution * target_scale,
                 dims=("date", "control"),
             )
 
         if yearly_seasonality_contribution is not None:
-            pm.Deterministic(
-                name="yearly_seasonality_contribution_original_scale",
-                var=yearly_seasonality_contribution * target_scale,
+            pmd.Deterministic(
+                "yearly_seasonality_contribution_original_scale",
+                yearly_seasonality_contribution * target_scale,
                 dims="date",
             )
 
-        pm.Deterministic(
-            name="y_original_scale",
-            var=(mu * target_scale),
+        pmd.Deterministic(
+            "y_original_scale",
+            (mu * target_scale),
             dims="date",
         )
 
@@ -878,7 +881,7 @@ class BaseMMM(BaseValidateMMM):
             # Create time index if needed
             time_index = None
             if self.time_varying_intercept or self.time_varying_media:
-                time_index = pm.Data("time_index", self._time_index, dims="date")
+                time_index = pmd.Data("time_index", self._time_index, dims="date")
 
             # Build model components
             intercept = self._build_intercept(time_index)
@@ -887,19 +890,19 @@ class BaseMMM(BaseValidateMMM):
             )
 
             # Total contribution deterministic for optimization
-            pm.Deterministic(
-                name="total_contribution",
-                var=channel_contribution.sum(axis=(-2, -1)),
+            pmd.Deterministic(
+                "total_contribution",
+                channel_contribution.sum(dim=("date", "channel")),
                 dims=(),
             )
 
             # Build mu starting with intercept and channels
-            mu_var = intercept + channel_contribution.sum(axis=-1)
+            mu_var = intercept + channel_contribution.sum(dim="channel")
 
             # Add control contribution if present
             control_contribution = self._build_control_contribution()
             if control_contribution is not None:
-                mu_var += control_contribution.sum(axis=-1)
+                mu_var += control_contribution.sum(dim="control")
 
             # Add yearly seasonality if present
             yearly_seasonality_contribution = (
@@ -909,7 +912,7 @@ class BaseMMM(BaseValidateMMM):
                 mu_var += yearly_seasonality_contribution
 
             # Create mu deterministic
-            mu = pm.Deterministic(name="mu", var=mu_var, dims="date")
+            mu = pmd.Deterministic("mu", mu_var, dims="date")
 
             # Create likelihood
             self.model_config["likelihood"].dims = "date"
@@ -917,6 +920,7 @@ class BaseMMM(BaseValidateMMM):
                 name=self.output_var,
                 mu=mu,
                 observed=target_scaled,
+                xdist=True,
             )
 
             # Add original scale deterministics
@@ -993,15 +997,15 @@ class BaseMMM(BaseValidateMMM):
             **self.model_coords,
         }
         with pm.Model(coords=coords):
-            # Create channel_data as a pm.Data tensor to ensure proper shape handling
-            channel_data_tensor = pm.Data(
+            # Create channel_data as a pmd.Data tensor to ensure proper shape handling
+            channel_data_tensor = pmd.Data(
                 name="channel_data",
                 value=channel_data,
                 dims=("date", "channel"),
             )
 
             # Apply the same scaling as in the original model - scale by channel_scale
-            channel_scale_ = pm.Data(
+            channel_scale_ = pmd.Data(
                 "channel_scale",
                 self.channel_scale,
                 dims=("channel",),
@@ -1009,12 +1013,12 @@ class BaseMMM(BaseValidateMMM):
 
             # Apply scaling within the model graph (same as build_model)
             channel_data_scaled = channel_data_tensor / channel_scale_
-            channel_data_scaled = pt.switch(
-                pt.isnan(channel_data_scaled), 0.0, channel_data_scaled
+            channel_data_scaled = ptx.math.switch(
+                ptx.math.isnan(channel_data_scaled), 0.0, channel_data_scaled
             )
             channel_data_scaled.name = "channel_data_scaled"
 
-            pm.Deterministic(
+            pmd.Deterministic(
                 "channel_contribution",
                 self.forward_pass(x=channel_data_scaled),
                 dims=("date", "channel"),
@@ -1978,9 +1982,11 @@ class MMM(
             "channel": self.channel_columns,
         }
         with pm.Model(coords=coords):
-            pm.Deterministic(
+            pmd.Deterministic(
                 "channel_contribution",
-                self.forward_pass(x=new_data),
+                self.forward_pass(
+                    x=as_xtensor(new_data, dims=("date", "channel"))
+                ).rename(date="time_since_spend"),
                 dims=("time_since_spend", "channel"),
             )
 
@@ -2560,7 +2566,7 @@ class MMM(
     def add_lift_test_measurements(
         self,
         df_lift_test: pd.DataFrame,
-        dist: type[pm.Distribution] = pm.Gamma,
+        dist: type[pmd.DimDistribution] = pmd.Gamma,
         name: str = "lift_measurements",
     ) -> None:
         """Add lift tests to the model.
