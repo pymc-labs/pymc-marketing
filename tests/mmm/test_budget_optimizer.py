@@ -32,7 +32,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.utils import _check_samples_dimensionality
+from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
 @pytest.fixture(scope="module")

@@ -52,10 +52,9 @@ from pymc_marketing.mmm.lift_test import (
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
-    UtilityFunctionType,
     apply_sklearn_transformer_across_dim,
-    average_response,
     create_new_spend_data,
 )
 from pymc_marketing.mmm.validating import ValidateControlColumns
