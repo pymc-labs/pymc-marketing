@@ -66,7 +66,7 @@ def _make_mmm_data(
     np.random.seed(seed)
 
     channels = {
-        f"channel_{i + 1}": np.random.randint(100, 500, size=len(date_range))
+        f"channel_{i + 1}": np.random.uniform(100, 500, size=len(date_range))
         for i in range(n_channels)
     }
 
@@ -195,7 +195,7 @@ def simple_fitted_mmm(simple_mmm_data):
 
 
 @pytest.fixture
-def simple_fitted_mmm_float(simple_mmm_data):
+def simple_fitted_mmm_int(simple_mmm_data):
     """Like simple_fitted_mmm but with float channel data (same values).
 
     Used to obtain correct marginal incrementality when factor produces
@@ -207,7 +207,7 @@ def simple_fitted_mmm_float(simple_mmm_data):
     y = simple_mmm_data["y"]
     # Convert channel columns to float so counterfactual factor preserves fractions
     for col in ["channel_1", "channel_2", "channel_3"]:
-        X[col] = X[col].astype(np.float64)
+        X[col] = X[col].astype(np.int64)
 
     mmm = MMM(
         channel_columns=["channel_1", "channel_2", "channel_3"],
