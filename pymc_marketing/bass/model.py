@@ -289,7 +289,9 @@ def create_bass_model(
     """
     with pm.Model(coords=coords) as model:
         parameter_dims = (
-            set(priors["p"].dims).union(priors["q"].dims).union(priors["m"].dims)
+            set(priors["p"].dims or ())
+            .union(priors["q"].dims or ())
+            .union(priors["m"].dims or ())
         )
         likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
 
