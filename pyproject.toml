@@ -28,7 +28,7 @@ dependencies = [
     "arviz>=0.13.0,<1.0.0",
     "matplotlib>=3.5.1",
     "narwhals",
-    "numpy>=2.0",
+    "numpy>=2.0,<2.4",
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
