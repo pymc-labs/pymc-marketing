@@ -50,17 +50,20 @@ jobs:
       - name: Install oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
         run: pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
-      - name: Run tests
+      - name: Install package and dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
+          pip list
+      - name: Check oldest version of PyMC
+        if: ${{ matrix.config.oldest-pymc }}
+        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
+      - name: Run tests
+        run: |
           pytest --splits 6 \
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
-      - name: Check oldest version of PyMC
-        if: ${{ matrix.config.oldest-pymc }}
-        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -85,10 +88,13 @@ jobs:
           python-version: "3.13"
           cache: "pip"
           cache-dependency-path: "pyproject.toml"
-      - name: Run tests
+      - name: Install package and dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
+          pip list
+      - name: Run tests
+        run: |
           pytest --only-slow \
                  --splits 2 \
                  --group ${{ matrix.group }} \
