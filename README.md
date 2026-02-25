@@ -37,7 +37,7 @@ For businesses looking to integrate PyMC-Marketing into their operational framew
 
 Explore these topics further by watching our video on [Bayesian Marketing Mix Models: State of the Art](https://www.youtube.com/watch?v=xVx91prC81g).
 
-### Community Resources bla
+### Community Resources bla bla
 
 - [PyMC-Marketing Discussions](https://github.com/pymc-labs/pymc-marketing/discussions)
 - [PyMC Discourse](https://discourse.pymc.io/)
