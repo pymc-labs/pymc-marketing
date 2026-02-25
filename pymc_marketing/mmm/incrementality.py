@@ -375,6 +375,7 @@ class Incrementality:
             idata=az.InferenceData(posterior=posterior_sub),
             response_variable="channel_contribution",
         )
+        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
 
         # Create period groups based on frequency
         dates = self.data.dates
@@ -392,6 +393,8 @@ class Incrementality:
         freq_offset = pd.tseries.frequencies.to_offset(freq)
 
         # Compile vectorized evaluator (once, reused for both)
+        # Use float64 for evaluation to avoid integer truncation when
+        # counterfactual_spend_factor produces fractional values (e.g. 1.01).
         data_shared = self.model.model["channel_data"]
         eval_dtype = "float64"
         batched_input = pt.tensor(
@@ -402,6 +405,11 @@ class Incrementality:
         replace_dict: dict = {data_shared: batched_input}
         func_inputs: list = [batched_input]
 
+        # When time_varying_media (or time_varying_intercept) is enabled,
+        # the response graph contains HSGP-based latent variables that
+        # depend on the ``time_index`` shared variable (shape n_dates).
+        # We must replace it alongside ``channel_data`` so that both
+        # tensors have a consistent date dimension (max_window).
         has_time_index = "time_index" in self.model.model.named_vars
         if has_time_index:
             time_shared = self.model.model["time_index"]
@@ -426,17 +434,33 @@ class Incrementality:
                 np.arange(len(dates))[np.newaxis].astype(time_shared.dtype)
             )
         baseline_pred = evaluator(*baseline_eval_args)[0]
+        # Shape: (n_samples, n_dates, *non_date_dims)
 
+        # Determine actual axis ordering from the model's channel_contribution
+        # variable. The PyTensor graph preserves the model's dim order, which
+        # may have custom dims (e.g. "country") before "channel".
         cc_dims = list(
             self.model.model.named_vars_to_dims.get("channel_contribution", ())
         )
         non_date_dims = [d for d in cc_dims if d != "date"]
-        extra_shape = baseline_array.shape[1:]
+        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
 
+        # Compute, for each period, the required window metadata including
+        # the start/end indices into `dates` and any necessary left/right padding,
+        # and determine the maximum window length across all periods.
+        # Output:
+        #   - window_infos: list of dicts (one per period), each containing
+        #       info about the window's bounds and padding for use in evaluation
+        #   - max_window: int, the maximum window length needed for counterfactual evaluation
         window_infos, max_window = self._compute_window_metadata(
             periods, dates, l_max, freq_offset, freq
         )
 
+        # Build counterfactual scenarios:
+        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
+        #   - cf_eval_masks: period-specific boolean masks indicating which
+        #     max_window indices correspond to the period's actual dates
+        #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
         cf_array, cf_eval_masks, period_labels = self._build_counterfactual_scenarios(
             periods=periods,
             window_infos=window_infos,
@@ -450,6 +474,7 @@ class Incrementality:
             dtype=eval_dtype,
         )
 
+        # Evaluate all counterfactuals at once
         cf_eval_args: list[np.ndarray] = [cf_array]
         if has_time_index:
             cf_eval_args.append(
@@ -461,6 +486,7 @@ class Incrementality:
                 )
             )
         cf_predictions = evaluator(*cf_eval_args)
+        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
 
         # Assemble results
         return self._compute_period_increments(
