@@ -209,27 +209,13 @@ class Incrementality:
             self.idata = idata
             self.data = MMMIDataWrapper.from_mmm(model, idata)
 
-        # Validate that idata dimensions/coordinates match the model
         in_model_not_idata, in_idata_not_model = self.data.compare_coords(model)
-        if in_idata_not_model:
-            dim_name = next(iter(in_idata_not_model))
+        if in_idata_not_model or in_model_not_idata:
             raise ValueError(
-                f"The idata contains unknown coordinate values for dimension "
-                f"'{dim_name}': {sorted(in_idata_not_model[dim_name])}. "
-                "The model's saturation and adstock parameters are fitted per "
-                "dimension value, so incrementality cannot be computed on "
-                "aggregated data. Compute incrementality on the original data "
+                "idata coordinates don't match the fitted model. "
+                "Compute incrementality on the original (unfiltered) data "
                 "first, then aggregate the results."
             )
-        if in_model_not_idata:
-            dim_name = next(iter(in_model_not_idata))
-            channel_spend = self.data.get_channel_spend()
-            if dim_name not in channel_spend.dims:
-                raise ValueError(
-                    f"The idata is missing dimension '{dim_name}' expected by "
-                    f"the model. Use a list value in filter_dims to preserve "
-                    f'the dimension (e.g. {dim_name}=["US"]).'
-                )
 
     def compute_incremental_contribution(
         self,
