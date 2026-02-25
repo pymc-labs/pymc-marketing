@@ -24,7 +24,6 @@ from pymc_marketing.data.idata.utils import (
     aggregate_idata_time,
     filter_idata_by_dates,
     filter_idata_by_dims,
-    subsample_draws,
 )
 
 __all__ = [
@@ -36,5 +35,4 @@ __all__ = [
     "aggregate_idata_time",
     "filter_idata_by_dates",
     "filter_idata_by_dims",
-    "subsample_draws",
 ]

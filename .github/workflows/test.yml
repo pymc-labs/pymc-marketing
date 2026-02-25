@@ -22,7 +22,7 @@ concurrency:
 
 env:
   # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *[>=]' pyproject.toml | sed -n 's/.*[>=]=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
   # NOTE: .test_durations is managed manually (committed to repo)
   # - pytest-split uses this file to balance test execution times
   # - Update by running the "Generate Test Durations" workflow manually

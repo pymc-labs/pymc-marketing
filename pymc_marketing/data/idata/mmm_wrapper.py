@@ -13,9 +13,7 @@
 #   limitations under the License.
 """MMMIDataWrapper class for validated access to InferenceData."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 import arviz as az
 import numpy as np
@@ -23,9 +21,6 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
-
-if TYPE_CHECKING:
-    from pymc_marketing.mmm.multidimensional import MMM
 
 
 class MMMIDataWrapper:
@@ -67,61 +62,6 @@ class MMMIDataWrapper:
 
         # Cache for expensive operations
         self._cache: dict[str, Any] = {}
-
-    @classmethod
-    def from_mmm(
-        cls,
-        mmm: MMM,
-        idata: az.InferenceData | None = None,
-    ) -> MMMIDataWrapper:
-        """Create an MMMIDataWrapper from a fitted MMM model.
-
-        Builds the appropriate schema from the model configuration
-        and wraps the provided (or model's own) InferenceData.
-
-        Parameters
-        ----------
-        mmm : MMM
-            Fitted MMM model instance.
-        idata : az.InferenceData, optional
-            InferenceData to wrap. If None, uses ``mmm.idata``.
-
-        Returns
-        -------
-        MMMIDataWrapper
-            Wrapper with schema derived from the model configuration.
-
-        Raises
-        ------
-        ValueError
-            If no idata is provided and ``mmm.idata`` is not available.
-
-        Examples
-        --------
-        >>> wrapper = MMMIDataWrapper.from_mmm(mmm)
-        >>> wrapper = MMMIDataWrapper.from_mmm(mmm, idata=custom_idata)
-        """
-        from pymc_marketing.data.idata.schema import MMMIdataSchema
-
-        if idata is None:
-            if not hasattr(mmm, "idata") or mmm.idata is None:
-                raise ValueError(
-                    "No idata provided and mmm.idata is not available. "
-                    "Either pass idata explicitly or fit the model first."
-                )
-            idata = mmm.idata
-
-        schema = MMMIdataSchema.from_model_config(
-            custom_dims=mmm.dims if hasattr(mmm, "dims") and mmm.dims else (),
-            has_controls=bool(mmm.control_columns),
-            has_seasonality=bool(mmm.yearly_seasonality),
-            time_varying=(
-                getattr(mmm, "time_varying_intercept", False)
-                or getattr(mmm, "time_varying_media", False)
-            ),
-        )
-
-        return cls(idata, schema=schema, validate_on_init=False)
 
     # ==================== Scale Accessor Methods ====================
 
@@ -551,7 +491,7 @@ class MMMIDataWrapper:
         self,
         start_date: str | pd.Timestamp | None = None,
         end_date: str | pd.Timestamp | None = None,
-    ) -> MMMIDataWrapper:
+    ) -> "MMMIDataWrapper":
         """Filter to date range, returning new wrapper.
 
         Delegates to standalone `filter_idata_by_dates` utility function.
@@ -579,7 +519,7 @@ class MMMIDataWrapper:
             filtered_idata, schema=self.schema, validate_on_init=False
         )
 
-    def filter_dims(self, **dim_filters) -> MMMIDataWrapper:
+    def filter_dims(self, **dim_filters) -> "MMMIDataWrapper":
         """Filter by custom dimensions, returning new wrapper.
 
         Delegates to standalone `filter_idata_by_dims` utility function.
@@ -626,7 +566,7 @@ class MMMIDataWrapper:
         self,
         period: Frequency,
         method: Literal["sum", "mean"] = "sum",
-    ) -> MMMIDataWrapper:
+    ) -> "MMMIDataWrapper":
         """Aggregate data over time periods.
 
         Delegates to standalone `aggregate_idata_time` utility function.
@@ -658,7 +598,7 @@ class MMMIDataWrapper:
         values: list[str],
         new_label: str,
         method: Literal["sum", "mean"] = "sum",
-    ) -> MMMIDataWrapper:
+    ) -> "MMMIDataWrapper":
         """Aggregate multiple dimension values into one.
 
         Delegates to standalone `aggregate_idata_dims` utility function.
