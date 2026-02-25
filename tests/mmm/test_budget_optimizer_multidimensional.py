@@ -37,7 +37,7 @@ def dummy_df():
             "channel_1": np.linspace(0, 1, num=n),
             "channel_2": np.linspace(0, 1, num=n),
             # Dim
-            "geo": np.random.choice(["A", "B"], size=n),
+            "geo": ["A", "B"] * (n // 2),
             "event_1": np.concatenate([np.zeros(n - 1), [1]]),
             "event_2": np.concatenate([[1], np.zeros(n - 1)]),
             "t": range(n),
