@@ -45,6 +45,8 @@ jobs:
           branch: update-test-durations
           delete-branch: true
           title: "chore: update test durations"
+          add-paths: |
+            .test_durations
           body: |
             ## Automated Test Durations Update
 
