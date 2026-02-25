@@ -3,4 +3,3 @@ alwaysApply: true
 ---
 - Always activate conda env `pymc-marketing-dev`.
 - Run pre-commit everytime you create or modify a file.
-- Temporary or test scripts that are not meant to be commited should be created in the sandbox folder

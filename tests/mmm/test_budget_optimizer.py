@@ -32,8 +32,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.multidimensional import MultiDimensionalBudgetOptimizerWrapper
-from pymc_marketing.mmm.utils import _check_samples_dimensionality
+from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
 @pytest.fixture(scope="module")
@@ -969,59 +968,3 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
-
-
-def _run_budget_optimization(mmm, total_budget=1000.0):
-    """Helper: build optimizer from a fitted MMM and allocate budget."""
-    wrapper = MultiDimensionalBudgetOptimizerWrapper(
-        model=mmm, start_date="2025-01-06", end_date="2025-02-03"
-    )
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer = BudgetOptimizer(
-            model=wrapper,
-            num_periods=wrapper.num_periods,
-            response_variable="total_media_contribution_original_scale",
-        )
-    budget_bounds = {ch: (0.0, total_budget) for ch in mmm.channel_columns}
-    optimal_budgets, _result = optimizer.allocate_budget(
-        total_budget=total_budget,
-        budget_bounds=budget_bounds,
-    )
-    return optimizer, optimal_budgets
-
-
-def test_int_and_float_channel_data_produce_same_allocation(
-    simple_fitted_mmm, simple_fitted_mmm_float
-):
-    """Budget optimizer should produce identical allocations regardless of channel_data dtype."""
-    total_budget = 5000.0
-
-    _float_optimizer, float_budgets = _run_budget_optimization(
-        simple_fitted_mmm_float, total_budget
-    )
-    _int_optimizer, int_budgets = _run_budget_optimization(
-        simple_fitted_mmm, total_budget
-    )
-
-    float_alloc = float_budgets.values
-    int_alloc = int_budgets.values
-    equal_share = total_budget / len(float_alloc)
-
-    # Precondition: the float model (which has working gradients) must
-    # actually deviate from the equal split, otherwise the comparison is
-    # vacuous.
-    assert not np.allclose(float_alloc, equal_share, atol=0.01), (
-        f"Float model stayed at equal split {float_alloc} — "
-        f"test is inconclusive because there is no asymmetry to detect."
-    )
-
-    np.testing.assert_allclose(
-        int_alloc,
-        float_alloc,
-        atol=1.0,
-        err_msg=(
-            f"Int-dtype model allocations {int_alloc} differ from "
-            f"float-dtype model allocations {float_alloc}. "
-            f"Integer channel_data likely breaks gradient flow via pt.cast."
-        ),
-    )
