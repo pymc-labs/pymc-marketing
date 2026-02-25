@@ -105,7 +105,7 @@ Create custom factories with filtered or aggregated data:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 import matplotlib.colors as mcolors
 import narwhals as nw
@@ -834,8 +834,6 @@ class MMMPlotlyFactory:
         random_state: RandomState | None = None,
         start_date: str | pd.Timestamp | None = None,
         end_date: str | pd.Timestamp | None = None,
-        aggregate_dims: dict[str, Any] | list[dict[str, Any]] | None = None,
-        filter_dims: dict[str, Any] | None = None,
         round_digits: int = 3,
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
@@ -877,19 +875,6 @@ class MMMPlotlyFactory:
             carryover; those trailing effects are included in the ROAS
             calculation. Passed through to
             :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
-        aggregate_dims : dict or list[dict], optional
-            Post-computation dimension aggregation. Each dict contains keyword
-            arguments passed to
-            :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims`
-            (``dim``, ``values``, ``new_label``, optional ``method``).
-            Passed through to
-            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
-        filter_dims : dict, optional
-            Dimension filters applied to data before computing ROAS.
-            E.g. ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
-            Scalar values are converted to single-element lists.
-            Passed through to
-            :meth:`~pymc_marketing.mmm.summary.MMMSummaryFactory.roas`.
         round_digits : int, default 3
             Number of decimal places for rounding values in hover text.
         auto_facet : bool, default True
@@ -926,16 +911,6 @@ class MMMPlotlyFactory:
         ... )
         >>> fig.show()
 
-        >>> # ROAS with aggregated channels
-        >>> fig = mmm.plot_interactive.roas(
-        ...     aggregate_dims={
-        ...         "dim": "channel",
-        ...         "values": ["Facebook", "Instagram"],
-        ...         "new_label": "Social",
-        ...     }
-        ... )
-        >>> fig.show()
-
         >>> # Element-wise ROAS (e.g., with data-only factory)
         >>> fig = mmm.plot_interactive.roas(method="elementwise")
         >>> fig.show()
@@ -951,8 +926,6 @@ class MMMPlotlyFactory:
             random_state=random_state,
             start_date=start_date,
             end_date=end_date,
-            aggregate_dims=aggregate_dims,
-            filter_dims=filter_dims,
         )
 
         nw_df, plotly_kwargs = self._prepare_summaries_for_bar_plot(
