@@ -544,12 +544,12 @@ def diversification_ratio(
     The Diversification Ratio is calculated as:
 
     .. math::
-        DR = \frac{\\sum_{i=1}^{n} w_i \\cdot \\sigma_i}{\\sigma_p}
+        DR = \frac{\sum_{i=1}^{n} w_i \cdot \sigma_i}{\sigma_p} \
 
     where:
         - :math:`w_i` is the weight of asset \\( i \\)
-        - :math:`\\sigma_i` is the volatility (standard deviation) of asset \\( i \\)
-        - :math:`\\sigma_p` is the volatility of the portfolio
+        - :math:`\sigma_i` is the volatility (standard deviation) of asset \\( i \\)
+        - :math:`\sigma_p` is the volatility of the portfolio
 
     Parameters
     ----------
