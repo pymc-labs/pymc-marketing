@@ -95,7 +95,6 @@ def simple_idata(dates, channels):
 def multidim_idata(dates, channels, countries):
     """InferenceData with custom dims (country)."""
     n_dates = len(dates)
-    print(f"n_dates: {n_dates}")
     n_channels = len(channels)
     n_countries = len(countries)
     return az.InferenceData(
