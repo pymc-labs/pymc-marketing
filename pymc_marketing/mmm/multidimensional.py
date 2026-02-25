@@ -169,7 +169,7 @@ from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.schema import MMMIdataSchema
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
@@ -190,6 +190,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
+from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
@@ -992,17 +993,7 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        schema = MMMIdataSchema.from_model_config(
-            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
-            has_controls=bool(self.control_columns),
-            has_seasonality=bool(self.yearly_seasonality),
-            time_varying=(
-                getattr(self, "time_varying_intercept", False)
-                or getattr(self, "time_varying_media", False)
-            ),
-        )
-
-        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+        return MMMIDataWrapper.from_mmm(self)
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
@@ -1938,53 +1929,6 @@ class MMM(RegressionModelBuilder):
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
 
-    def _subsample_posterior(
-        self,
-        parameters: xr.Dataset,
-        num_samples: int | None = None,
-        random_state: RandomState | None = None,
-    ) -> xr.Dataset:
-        """Subsample posterior parameters if needed.
-
-        Parameters
-        ----------
-        parameters : xr.Dataset
-            Dataset with parameter values (posterior samples).
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-            If less than total available samples, random subsampling is performed.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
-
-        Returns
-        -------
-        xr.Dataset
-            Subsampled parameters (or original if no subsampling needed).
-        """
-        if num_samples is None:
-            return parameters
-
-        n_chains = parameters.sizes["chain"]
-        n_draws = parameters.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples >= total_samples:
-            return parameters
-
-        rng = np.random.default_rng(random_state)
-        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-        stacked = parameters.stack(sample=("chain", "draw"))
-        selected = stacked.isel(sample=flat_indices)
-        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
-        params = (
-            selected.drop_vars(["chain", "draw", "sample"])
-            .rename({"sample": "draw"})
-            .expand_dims("chain")
-        )
-
-        return params
-
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame,
@@ -2347,10 +2291,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2484,10 +2426,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2528,6 +2468,33 @@ class MMM(RegressionModelBuilder):
         return SensitivityAnalysis(
             pymc_model=self.model, idata=self.idata, dims=self.dims
         )
+
+    @property
+    def incrementality(self) -> Incrementality:
+        """Access incrementality and counterfactual analysis functionality.
+
+        Returns an Incrementality instance for computing incremental contributions,
+        ROAS, and CAC using counterfactual analysis with proper adstock carryover
+        handling.
+
+        Returns
+        -------
+        Incrementality
+            An instance configured with this MMM model for computing
+            incremental contributions, ROAS, and CAC.
+
+        Examples
+        --------
+        Compute incremental contributions:
+
+        >>> incremental = mmm.incrementality.compute_incremental_contribution(
+        ...     period_start="2024-01-01",
+        ...     period_end="2024-03-31",
+        ...     frequency="weekly",
+        ... )
+        """
+        self._validate_idata_exists()
+        return Incrementality(model=self, idata=self.idata)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame

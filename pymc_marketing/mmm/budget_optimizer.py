@@ -661,6 +661,10 @@ class BudgetOptimizer(BaseModel):
             self.num_periods
         )  # TODO: Once multidimensional class becomes the main class.
 
+        # Ensure channel_data is float so pt.grad can differentiate through
+        # the do() replacement. Integer dtypes have zero gradient for pt.cast.
+        self._ensure_float_channel_data(pymc_model)
+
         # 2. Shared variable for total_budget: Use annotation to avoid type checking
         self._total_budget: SharedVariable = shared(
             np.array(0.0, dtype="float64"), name="total_budget"
@@ -892,6 +896,22 @@ class BudgetOptimizer(BaseModel):
         repeated_budgets *= num_periods
 
         return repeated_budgets
+
+    @staticmethod
+    def _ensure_float_channel_data(pymc_model: Model) -> None:
+        """Cast channel_data to float64 in-place if it has an integer dtype.
+
+        Integer channel_data produces zero gradients through ``pt.cast``,
+        which prevents the optimizer from moving away from x0.
+        """
+        from pytensor.tensor.type import TensorType
+
+        cd = pymc_model["channel_data"]
+        if "int" in str(cd.dtype):
+            new_type = TensorType("float64", shape=cd.type.shape)
+            cd.type = new_type
+            cd.container.type = new_type
+            cd.set_value(cd.get_value().astype("float64"))
 
     def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
         """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
