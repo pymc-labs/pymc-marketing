@@ -1373,3 +1373,53 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     assert hasattr(opt_result, "success")
     assert hasattr(opt_result, "x")
     assert hasattr(opt_result, "fun")
+
+
+def test_int_channel_data_cannot_be_optimized(simple_fitted_mmm_int):
+    # TODO: We could work with discrete optimizers in this case
+    # Or we convert channel data to float regardless of input (may not always make sense)
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=simple_fitted_mmm_int, start_date="2025-01-06", end_date="2025-02-03"
+    )
+    with pytest.raises(
+        ValueError, match=r"Optimization requires channel data of float type, got int*"
+    ):
+        BudgetOptimizer(
+            model=wrapper,
+            num_periods=wrapper.num_periods,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_float_channel_data_optimized(simple_fitted_mmm):
+    """Budget optimizer should produce identical allocations regardless of channel_data dtype."""
+    total_budget = 5000.0
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=simple_fitted_mmm, start_date="2025-01-06", end_date="2025-02-03"
+    )
+    with pytest.warns(UserWarning, match="Using default equality constraint"):
+        optimizer = BudgetOptimizer(
+            model=wrapper,
+            num_periods=wrapper.num_periods,
+            response_variable="total_media_contribution_original_scale",
+        )
+    budget_bounds = {
+        ch: (0.0, total_budget) for ch in simple_fitted_mmm.channel_columns
+    }
+    optimal_budgets, _result = optimizer.allocate_budget(
+        total_budget=total_budget,
+        budget_bounds=budget_bounds,
+    )
+
+    float_alloc = optimal_budgets.values
+    equal_share = total_budget / len(float_alloc)
+
+    # Precondition: the float model (which has working gradients) must
+    # actually deviate from the equal split, otherwise the comparison is
+    # vacuous.
+    assert not np.allclose(float_alloc, equal_share, atol=0.01), (
+        f"Float model stayed at equal split {float_alloc} — "
+        f"test is inconclusive because there is no asymmetry to detect."
+    )
