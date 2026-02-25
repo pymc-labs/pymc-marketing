@@ -256,7 +256,9 @@ class LinearTrend(BaseModel):
     def _check_dims_are_subsets(self) -> Self:
         allowed_dims = {"changepoint"}.union(cast(Dims, self.dims))
 
-        if not all(set(prior.dims) <= allowed_dims for prior in self.priors.values()):
+        if not all(
+            set(prior.dims or {}) <= allowed_dims for prior in self.priors.values()
+        ):
             msg = "Invalid dimensions in the priors."
             raise ValueError(msg)
 
