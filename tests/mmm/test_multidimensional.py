@@ -67,10 +67,10 @@ def df(target_column) -> pd.DataFrame:
     dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
     df = pd.DataFrame(
         {
-            ("A", "C1"): [1, 2, 3],
-            ("B", "C1"): [4, 5, 6],
-            ("A", "C2"): [7, 8, 9],
-            ("B", "C2"): [10, 11, 12],
+            ("A", "C1"): [1, 2, 3.0],
+            ("B", "C1"): [4, 5, 6.0],
+            ("A", "C2"): [7, 8, 9.0],
+            ("B", "C2"): [10, 11, 12.0],
         },
         index=dates,
     )
