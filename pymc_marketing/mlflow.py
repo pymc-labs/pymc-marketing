@@ -177,7 +177,7 @@ from pymc_marketing.version import __version__
 
 # MLflow 2.18.0+ deprecated artifact_path in favor of name
 _MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse(
-    "2.18.0"
+    "3.0.1"
 )
 
 FLAVOR_NAME = "pymc"
