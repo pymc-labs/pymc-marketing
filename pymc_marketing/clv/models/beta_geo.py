@@ -178,11 +178,6 @@ class BetaGeoModel(CLVModel):
             ],
             must_be_unique=["customer_id"],
         )
-        self._check_inputs(
-            recency=data["recency"],
-            T=data["T"],
-            frequency=data["frequency"],
-        )
 
     @property
     def default_model_config(self) -> ModelConfig:

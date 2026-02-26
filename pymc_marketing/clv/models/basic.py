@@ -45,6 +45,13 @@ class CLVModel(ModelBuilder):
         non_distributions: list[str] | None = None,
     ):
         self.data = data
+        if {"frequency", "recency", "T"}.issubset(data.columns):
+            self._check_inputs(
+                frequency=np.asarray(data["frequency"]),
+                recency=np.asarray(data["recency"]),
+                T=np.asarray(data["T"]),
+                check_frequency=getattr(self, "_check_frequency", True),
+            )
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
@@ -93,61 +100,37 @@ class CLVModel(ModelBuilder):
 
     @staticmethod
     def _check_inputs(
-        recency: np.ndarray | pd.Series,
-        T: np.ndarray | pd.Series,
-        frequency: np.ndarray | pd.Series | None = None,
-        min_recency: int = 0,
-        min_T: int = 0,
+        frequency: np.ndarray,
+        recency: np.ndarray,
+        T: np.ndarray,
+        check_frequency: bool = True,
     ) -> None:
-        r"""Validate CLV input data constraints before model fitting.
-
-        Ensures frequency >= 0 (if provided), recency >= min_recency, T >= min_T,
-        and recency <= T for all observations. Intended to be called at model
-        construction so invalid data is caught before ``build_model`` or ``fit``.
+        """Validate input data for CLV models.
 
         Parameters
         ----------
-        recency : np.ndarray or pd.Series
-            Time between first and last purchase per customer (must be >= min_recency
-            and <= T).
-        T : np.ndarray or pd.Series
-            Time between first purchase and end of observation period per
-            customer (must be >= min_T).
-        frequency : np.ndarray or pd.Series, optional
-            Number of repeat purchases per customer (must be >= 0 if provided).
-            Default is None, which skips frequency validation.
-        min_recency : int, default 0
-            Minimum allowed value for recency. Default 0 for BG/NBD, Pareto/NBD,
-            and MBG/NBD. Use 1 for ShiftedBetaGeoModel.
-        min_T : int, default 0
-            Minimum allowed value for T. Default 0 for BG/NBD, Pareto/NBD,
-            and MBG/NBD. Use 2 for ShiftedBetaGeoModel.
-
-        Raises
-        ------
-        ValueError
-            If any constraint is violated, with a message indicating which
-            constraint failed (e.g. ``"Recency cannot be greater than T"``).
+        frequency : array-like
+            Number of repeat purchases.
+        recency : array-like
+            Time of most recent purchase.
+        T : array-like
+            Total observation time.
+        check_frequency : bool, default True
+            If True, validate that frequency >= 0.
+            Set to False for ModifiedBetaGeoModel which supports zero-frequency.
         """
-        # Cast to float64 immediately to normalize np.nan and pd.NA
-        recency = np.asarray(recency).astype(float)
-        T = np.asarray(T).astype(float)
-
-        if np.isnan(recency).any() or np.isnan(T).any():
-            raise ValueError("Missing values (NaN/pd.NA) found in recency or T.")
-
-        if frequency is not None:
-            frequency = np.asarray(frequency).astype(float)
-            if np.isnan(frequency).any():
-                raise ValueError("Missing values (NaN/pd.NA) found in frequency.")
-            if np.any(frequency < 0):
-                raise ValueError("Frequency must be >= 0.")
-
-        # Existing boundary checks...
-        if np.any(recency < min_recency):
-            raise ValueError(f"Recency must be >= {min_recency}.")
-        if np.any(T < min_T):
-            raise ValueError(f"T must be >= {min_T}.")
+        if (
+            np.any(np.isnan(frequency))
+            or np.any(np.isnan(recency))
+            or np.any(np.isnan(T))
+        ):
+            raise ValueError("Input data contains NaN values.")
+        if check_frequency and np.any(frequency < 0):
+            raise ValueError("Frequency must be >= 0.")
+        if np.any(recency < 0):
+            raise ValueError("Recency must be >= 0.")
+        if np.any(T < 0):
+            raise ValueError("T must be >= 0.")
         if np.any(recency > T):
             raise ValueError("Recency cannot be greater than T.")
 

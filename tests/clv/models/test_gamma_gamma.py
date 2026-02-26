@@ -82,8 +82,8 @@ class BaseTestGammaGammaModel:
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
     @patch("pymc_marketing.clv.models.gamma_gamma.customer_lifetime_value")
-    def test_expected_customer_lifetime_value_monetary_value(self, mock_clv):
-        """Test that expected_customer_lifetime_value correctly handles the monetary_value parameter."""
+    def test_expected_customer_lifetime_value_uses_expected_spend(self, mock_clv):
+        """Test that expected_customer_lifetime_value always uses expected_customer_spend."""
         # Initialize a basic model configuration
         model = GammaGammaModel(data=self.data)
 
@@ -111,26 +111,6 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             called_data = mock_clv.call_args[1]["data"]
             assert "future_spend" in called_data.columns
             np.testing.assert_array_equal(called_data["future_spend"], 15.0)
-
-        # Reset the mock for the second part of the test
-        mock_clv.reset_mock()
-
-        # 2. Test passing a custom monetary_value
-        custom_monetary_value = pd.Series(np.full(len(self.data), 99.0))
-        with patch.object(model, "expected_customer_spend") as mock_expected_spend:
-            model.expected_customer_lifetime_value(
-                transaction_model=dummy_transaction_model,
-                data=self.data,
-                monetary_value=custom_monetary_value,
-            )
-
-            # Assert the model's internal calculation was BYPASSED
-            mock_expected_spend.assert_not_called()
-
-            # Assert it passed our custom values to the utility function
-            called_data = mock_clv.call_args[1]["data"]
-            assert "future_spend" in called_data.columns
-            np.testing.assert_array_equal(called_data["future_spend"], 99.0)
 
         @pytest.mark.parametrize(
             "invalid_data, expected_error_match",

@@ -202,12 +202,15 @@ class ShiftedBetaGeoModel(CLVModel):
         )
 
         self._check_inputs(
-            recency=data["recency"],
-            T=data["T"],
-            frequency=None,
-            min_recency=1,
-            min_T=2,
+            frequency=np.zeros(len(data)),
+            recency=np.asarray(data["recency"]),
+            T=np.asarray(data["T"]),
+            check_frequency=False,
         )
+        if np.any(data["recency"] < 1):
+            raise ValueError("Recency must be >= 1.")
+        if np.any(data["T"] < 2):
+            raise ValueError("T must be >= 2.")
 
         self._validate_cohorts(self.data, check_param_dims=("alpha", "beta"))
 

@@ -170,11 +170,6 @@ class BetaGeoBetaBinomModel(CLVModel):
             must_be_unique=["customer_id"],
             must_be_homogenous=["T"],
         )
-        self._check_inputs(
-            recency=data["recency"],
-            T=data["T"],
-            frequency=data["frequency"],
-        )
 
     @property
     def default_model_config(self) -> ModelConfig:

@@ -159,7 +159,6 @@ class BaseGammaGammaModel(CLVModel):
         future_t: int = 12,
         discount_rate: float = 0.00,
         time_unit: str = "D",
-        monetary_value: xarray.DataArray | pandas.Series | None = None,
     ) -> xarray.DataArray:
         """Compute the average lifetime value for a group of one or more customers.
 
@@ -173,7 +172,8 @@ class BaseGammaGammaModel(CLVModel):
         Parameters
         ----------
         transaction_model : ~CLVModel
-            Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+            Predictive model for future transactions. `BetaGeoModel`,
+            `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
 
@@ -191,9 +191,6 @@ class BaseGammaGammaModel(CLVModel):
             Other options are "W" (weekly), "M" (monthly), and "H" (hourly).
             Example: If your dataset contains information about weekly purchases,
             you should use "W".
-        monetary_value : xarray.DataArray or pandas.Series, optional
-            An array or series of monetary values to use for the lifetime value calculation.
-            If not provided, the model will use its own expected customer spend estimates. Default: None
 
         Returns
         -------
@@ -202,16 +199,8 @@ class BaseGammaGammaModel(CLVModel):
 
         """
         data = data.copy()
-
-        if monetary_value is None:
-            # Use Gamma-Gamma estimates for the expected_spend values
-            predicted_monetary_value = self.expected_customer_spend(data=data)
-            data["future_spend"] = predicted_monetary_value.mean(
-                ("chain", "draw")
-            ).copy()
-        else:
-            # Use the explicitly provided monetary_value
-            data["future_spend"] = monetary_value
+        predicted_monetary_value = self.expected_customer_spend(data=data)
+        data["future_spend"] = predicted_monetary_value.mean(("chain", "draw")).copy()
 
         return customer_lifetime_value(
             transaction_model=transaction_model,

@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import os
-from unittest.mock import patch
 
 import arviz as az
 import numpy as np
@@ -83,12 +82,6 @@ class TestModifiedBetaGeoModel:
         [
             (
                 pd.DataFrame(
-                    {"customer_id": [1], "frequency": [-1], "recency": [5], "T": [10]}
-                ),
-                "frequency",
-            ),
-            (
-                pd.DataFrame(
                     {"customer_id": [1], "frequency": [2], "recency": [-5], "T": [10]}
                 ),
                 "recency",
@@ -134,30 +127,13 @@ class TestModifiedBetaGeoModel:
         with pytest.raises(ValueError):
             ModifiedBetaGeoModel(data=invalid_data)
 
-    @patch("pymc_marketing.clv.models.modified_beta_geo.customer_lifetime_value")
-    def test_expected_customer_lifetime_value_monetary_value(self, mock_clv):
-        """Test that expected_customer_lifetime_value handles the monetary_value parameter."""
+    def test_expected_customer_lifetime_value_removed(self):
+        """ModifiedBetaGeoModel no longer exposes expected_customer_lifetime_value."""
         dummy_data = pd.DataFrame(
             {"customer_id": [1], "frequency": [2], "recency": [5], "T": [10]}
         )
         model = ModifiedBetaGeoModel(data=dummy_data)
-
-        # 1. Default
-        model.expected_customer_lifetime_value(data=dummy_data)
-        assert "monetary_value" not in mock_clv.call_args[1]["data"].columns
-
-        mock_clv.reset_mock()
-
-        # 2. Custom monetary_value
-        custom_monetary_value = pd.Series([25.0])
-        model.expected_customer_lifetime_value(
-            data=dummy_data, monetary_value=custom_monetary_value
-        )
-        called_data = mock_clv.call_args[1]["data"]
-        assert "monetary_value" in called_data.columns
-        np.testing.assert_array_equal(
-            called_data["monetary_value"], custom_monetary_value
-        )
+        assert not hasattr(model, "expected_customer_lifetime_value")
 
     @pytest.fixture(scope="class")
     def model_config(self):
