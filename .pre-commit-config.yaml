@@ -41,3 +41,11 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         exclude: ^(docs/source/notebooks/|docs/source/gallery/images/)
+  - repo: local
+    hooks:
+      - id: validate-api-docs
+        name: Validate API Documentation Completeness
+        entry: python3 scripts/validate_api_docs.py
+        language: system
+        pass_filenames: false
+        files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
