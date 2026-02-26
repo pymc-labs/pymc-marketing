@@ -84,19 +84,19 @@ class TestModifiedBetaGeoModel:
                 pd.DataFrame(
                     {"customer_id": [1], "frequency": [2], "recency": [-5], "T": [10]}
                 ),
-                "recency",
+                "Recency must be >= 0.",
             ),
             (
                 pd.DataFrame(
                     {"customer_id": [1], "frequency": [2], "recency": [5], "T": [-10]}
                 ),
-                "T",
+                "T must be >= 0.",
             ),
             (
                 pd.DataFrame(
                     {"customer_id": [1], "frequency": [2], "recency": [15], "T": [10]}
                 ),
-                "recency",
+                "Recency cannot be greater than T.",
             ),
             (
                 pd.DataFrame(
@@ -107,7 +107,7 @@ class TestModifiedBetaGeoModel:
                         "T": [10],
                     }
                 ),
-                "Missing values",
+                "Input data contains NaN values.",
             ),
             (
                 pd.DataFrame(
@@ -118,13 +118,13 @@ class TestModifiedBetaGeoModel:
                         "T": [10],
                     }
                 ),
-                "Missing values",
+                "Input data contains NaN values.",
             ),
         ],
     )
     def test_check_inputs_validation(self, invalid_data, expected_error_match):
         """Test that _check_inputs correctly catches invalid frequency, recency, and T values."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=expected_error_match):
             ModifiedBetaGeoModel(data=invalid_data)
 
     def test_expected_customer_lifetime_value_removed(self):

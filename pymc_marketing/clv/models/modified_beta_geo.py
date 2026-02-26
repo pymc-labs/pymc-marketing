@@ -147,7 +147,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        self._check_frequency = False
         super().__init__(
             data=data,
             model_config=model_config,
