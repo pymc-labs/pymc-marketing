@@ -17,11 +17,12 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor as pt
 import pytest
 import xarray as xr
 from pymc.distributions.censored import CensoredRV
 from pymc_extras.prior import Prior
+from pytensor.compile import ViewOp
+from pytensor.tensor.elemwise import Elemwise
 from scipy import stats
 
 from pymc_marketing.clv import ShiftedBetaGeoModel, ShiftedBetaGeoModelIndividual
@@ -215,13 +216,13 @@ class TestShiftedBetaGeoModel:
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "alpha" not in model.model_config
                 else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "beta" not in model.model_config
                 else model.model_config["beta"].pymc_distribution,
             )
