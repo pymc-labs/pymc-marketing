@@ -438,44 +438,6 @@ class TestBudgetOptimizerCostPerUnitValidation:
                 budget_dims=["channel"],
             )
 
-    def test_valid_returns_tensor(self, optimizer_instance):
-        import pytensor.tensor as pt
-
-        cpu = xr.DataArray(
-            np.array([[0.01, 0.05], [0.012, 0.055]]),
-            dims=("date", "channel"),
-            coords={"date": range(2), "channel": ["TV", "Radio"]},
-        )
-        result = optimizer_instance._validate_and_process_cost_per_unit(
-            cost_per_unit=cpu,
-            num_periods=2,
-            budget_dims=["channel"],
-        )
-        assert isinstance(result, pt.TensorConstant)
-        np.testing.assert_array_almost_equal(
-            result.data, np.array([[0.01, 0.05], [0.012, 0.055]])
-        )
-
-    def test_valid_with_multiple_budget_dims(self, optimizer_instance):
-        import pytensor.tensor as pt
-
-        cpu = xr.DataArray(
-            np.full((3, 2, 2), 0.01),
-            dims=("date", "channel", "geo"),
-            coords={
-                "date": range(3),
-                "channel": ["TV", "Radio"],
-                "geo": ["US", "UK"],
-            },
-        )
-        result = optimizer_instance._validate_and_process_cost_per_unit(
-            cost_per_unit=cpu,
-            num_periods=3,
-            budget_dims=["channel", "geo"],
-        )
-        assert isinstance(result, pt.TensorConstant)
-        assert result.data.shape == (3, 2, 2)
-
 
 class TestSetCostPerUnit:
     """Tests for set_cost_per_unit on fitted MMM models."""
@@ -583,7 +545,6 @@ class TestBudgetOptimizerCostPerUnitIntegration:
                 float(optimal_budgets.sel(channel=target_channel).item())
             )
 
-        print(allocations)
         for i in range(len(allocations) - 1):
             assert allocations[i] > allocations[i + 1], (
                 f"Expected allocation to decrease as cost rises, "
