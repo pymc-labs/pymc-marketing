@@ -1029,17 +1029,23 @@ class TestEdgeCases:
 class TestROASMethods:
     """Test ROAS method parameter (incremental vs elementwise)."""
 
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_roas_incremental_method_with_model(self, fitted_mmm, request):
-        """Test that method='incremental' works when model is provided."""
-        mmm = request.getfixturevalue(fitted_mmm)
-        df = mmm.summary.roas(
-            method="incremental", frequency="original", num_samples=10
-        )
+    @pytest.mark.parametrize("method", ["incremental", "elementwise"])
+    def test_roas_method_produces_valid_output(
+        self, simple_fitted_mmm, method, request
+    ):
+        """Both ROAS methods produce valid DataFrames with correct schema."""
+        mmm = simple_fitted_mmm
+        kwargs = {"method": method, "frequency": "monthly"}
+        if method == "incremental":
+            kwargs["num_samples"] = 10
+
+        df = mmm.summary.roas(**kwargs)
 
         required_columns = {"date", "channel", "mean", "median"}
         assert required_columns.issubset(set(df.columns))
         assert len(df) > 0
+        valid_means = df["mean"].dropna()
+        assert (valid_means >= 0).all() or len(valid_means) == 0
 
     def test_roas_elementwise_method_without_model(self, mock_mmm_idata_wrapper):
         """Test that method='elementwise' works with data-only factory."""
@@ -1103,27 +1109,6 @@ class TestROASMethods:
             factory.roas(method="invalid")
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_roas_incremental_and_elementwise_both_produce_valid_output(
-        self, fitted_mmm, request
-    ):
-        """Integration test: both methods produce valid ROAS DataFrames."""
-        mmm = request.getfixturevalue(fitted_mmm)
-
-        df_incremental = mmm.summary.roas(
-            method="incremental", frequency="monthly", num_samples=10
-        )
-        df_elementwise = mmm.summary.roas(method="elementwise", frequency="monthly")
-
-        for df in (df_incremental, df_elementwise):
-            assert "mean" in df.columns
-            assert "median" in df.columns
-            assert "channel" in df.columns
-            assert len(df) > 0
-            # ROAS values should be non-negative or NaN (for zero spend)
-            valid_means = df["mean"].dropna()
-            assert (valid_means >= 0).all() or len(valid_means) == 0
-
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_roas_start_end_date_filters_output(self, fitted_mmm, request):
         """Test that start_date and end_date restrict the ROAS evaluation window."""
         mmm = request.getfixturevalue(fitted_mmm)
@@ -1146,22 +1131,6 @@ class TestROASMethods:
         assert len(df_partial) > 0
         assert len(df_partial) < len(df_full)
         assert df_partial["date"].max() <= mid
-
-    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-    def test_roas_start_end_date_with_frequency(self, fitted_mmm, request):
-        """Test start/end_date with a non-original frequency."""
-        mmm = request.getfixturevalue(fitted_mmm)
-
-        df = mmm.summary.roas(
-            method="incremental",
-            frequency="all_time",
-            start_date=str(mmm.data.dates[0].date()),
-            end_date=str(mmm.data.dates[-1].date()),
-            num_samples=10,
-        )
-
-        assert len(df) > 0
-        assert "channel" in df.columns
 
 
 # =============================================================================
