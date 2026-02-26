@@ -828,7 +828,7 @@ class MMMPlotlyFactory:
         self,
         hdi_prob: float | None = 0.94,
         frequency: Frequency | None = "all_time",
-        method: Literal["incremental", "elementwise"] = "incremental",
+        method: Literal["incremental", "elementwise"] = "elementwise",
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | None = None,
@@ -851,8 +851,8 @@ class MMMPlotlyFactory:
         frequency : str, optional
             Time aggregation (default: "all_time"). Options: "original", "weekly",
             "monthly", "quarterly", "yearly", "all_time".
-        method : {"incremental", "elementwise"}, default "incremental"
-            ROAS computation method. "incremental" (recommended) uses counterfactual
+        method : {"incremental", "elementwise"}, default "elementwise"
+            ROAS computation method. "incremental" uses counterfactual
             analysis with carryover; "elementwise" uses simple contribution/spend
             division.
         include_carryover : bool, default True
@@ -897,7 +897,7 @@ class MMMPlotlyFactory:
 
         Examples
         --------
-        >>> # Basic ROAS plot (incremental, carryover-aware)
+        >>> # Basic ROAS plot (element-wise)
         >>> fig = mmm.plot_interactive.roas()
         >>> fig.show()
 
@@ -905,14 +905,14 @@ class MMMPlotlyFactory:
         >>> fig = mmm.plot_interactive.roas(facet_col="country")
         >>> fig.show()
 
+        >>> # Incremental ROAS (carryover-aware)
+        >>> fig = mmm.plot_interactive.roas(method="incremental")
+        >>> fig.show()
+
         >>> # ROAS for a specific date range
         >>> fig = mmm.plot_interactive.roas(
         ...     start_date="2024-01-01", end_date="2024-06-30"
         ... )
-        >>> fig.show()
-
-        >>> # Element-wise ROAS (e.g., with data-only factory)
-        >>> fig = mmm.plot_interactive.roas(method="elementwise")
         >>> fig.show()
         """
         # Get data from summary factory

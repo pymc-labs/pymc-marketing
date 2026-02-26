@@ -483,7 +483,7 @@ class MMMSummaryFactory:
         self,
         hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
-        method: Literal["incremental", "elementwise"] = "incremental",
+        method: Literal["incremental", "elementwise"] = "elementwise",
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | None = None,
@@ -502,7 +502,7 @@ class MMMSummaryFactory:
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
-        method : {"incremental", "elementwise"}, default "incremental"
+        method : {"incremental", "elementwise"}, default "elementwise"
             Method for computing ROAS:
 
             - **incremental** (recommended): Uses counterfactual analysis

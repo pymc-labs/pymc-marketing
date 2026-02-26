@@ -845,7 +845,7 @@ class TestModelRequiringMethods:
             ValueError,
             match=r"roas with method='incremental' requires model",
         ):
-            factory.roas()
+            factory.roas(method="incremental")
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_accepts_data_and_model(self, fitted_mmm, request):
@@ -1132,8 +1132,11 @@ class TestROASMethods:
         mid = dates[len(dates) // 2]
         start = dates[0]
 
-        df_full = mmm.summary.roas(frequency="original", num_samples=10)
+        df_full = mmm.summary.roas(
+            method="incremental", frequency="original", num_samples=10
+        )
         df_partial = mmm.summary.roas(
+            method="incremental",
             frequency="original",
             start_date=str(start.date()),
             end_date=str(mid.date()),
@@ -1150,6 +1153,7 @@ class TestROASMethods:
         mmm = request.getfixturevalue(fitted_mmm)
 
         df = mmm.summary.roas(
+            method="incremental",
             frequency="all_time",
             start_date=str(mmm.data.dates[0].date()),
             end_date=str(mmm.data.dates[-1].date()),
@@ -1200,7 +1204,7 @@ class TestMMMSummaryProperty:
         assert len(contributions_df) > 0
         assert "channel" in contributions_df.columns
 
-        roas_df = mmm.summary.roas(num_samples=10)
+        roas_df = mmm.summary.roas(method="incremental", num_samples=10)
         assert len(roas_df) > 0
 
         saturation_df = mmm.summary.saturation_curves()
