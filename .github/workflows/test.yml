@@ -107,5 +107,5 @@ jobs:
     needs: [test, test_slow]
     steps:
       - name: Check build matrix status
-        if: ${{ needs.test.result != 'success' || needs.test_slow.result != 'success' }}
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.test.result) || !contains(fromJSON('["success", "skipped"]'), needs.test_slow.result) }}
         run: exit 1

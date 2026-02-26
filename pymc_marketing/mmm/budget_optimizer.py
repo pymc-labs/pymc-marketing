@@ -700,10 +700,6 @@ class BudgetOptimizer(BaseModel):
             self.num_periods
         )  # TODO: Once multidimensional class becomes the main class.
 
-        # Ensure channel_data is float so pt.grad can differentiate through
-        # the do() replacement. Integer dtypes have zero gradient for pt.cast.
-        self._ensure_float_channel_data(pymc_model)
-
         # 2. Shared variable for total_budget: Use annotation to avoid type checking
         self._total_budget: SharedVariable = shared(
             np.array(0.0, dtype="float64"), name="total_budget"
@@ -1026,6 +1022,11 @@ class BudgetOptimizer(BaseModel):
         channel_data_dims = model.named_vars_to_dims["channel_data"]
         date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
+        channel_data_dtype = model["channel_data"].dtype
+        if np.dtype(channel_data_dtype).kind != "f":
+            raise ValueError(
+                f"Optimization requires channel data of float type, got {channel_data_dtype}"
+            )
 
         budgets = self._budgets
 
