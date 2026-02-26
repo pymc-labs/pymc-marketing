@@ -1417,10 +1417,7 @@ class MMM(RegressionModelBuilder):
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
 
-        if not np.issubdtype(self.xarray_dataset["_channel"].dtype, np.floating):
-            self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(
-                float
-            )
+        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
 
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
