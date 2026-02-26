@@ -845,7 +845,7 @@ class TestModelRequiringMethods:
             ValueError,
             match=r"roas with method='incremental' requires model",
         ):
-            factory.roas()
+            factory.roas(method="incremental")
 
     @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
     def test_factory_accepts_data_and_model(self, fitted_mmm, request):
@@ -1132,8 +1132,11 @@ class TestROASMethods:
         mid = dates[len(dates) // 2]
         start = dates[0]
 
-        df_full = mmm.summary.roas(frequency="original", num_samples=10)
+        df_full = mmm.summary.roas(
+            method="incremental", frequency="original", num_samples=10
+        )
         df_partial = mmm.summary.roas(
+            method="incremental",
             frequency="original",
             start_date=str(start.date()),
             end_date=str(mid.date()),
@@ -1150,6 +1153,7 @@ class TestROASMethods:
         mmm = request.getfixturevalue(fitted_mmm)
 
         df = mmm.summary.roas(
+            method="incremental",
             frequency="all_time",
             start_date=str(mmm.data.dates[0].date()),
             end_date=str(mmm.data.dates[-1].date()),
@@ -1158,227 +1162,6 @@ class TestROASMethods:
 
         assert len(df) > 0
         assert "channel" in df.columns
-
-    def test_roas_aggregate_dims_channel(self, simple_fitted_mmm):
-        """Test aggregate_dims collapses channels in incremental ROAS."""
-        mmm = simple_fitted_mmm
-        channels = mmm.channel_columns
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            num_samples=10,
-            aggregate_dims={
-                "dim": "channel",
-                "values": channels[:2],
-                "new_label": "combined_12",
-                "method": "sum",
-            },
-        )
-
-        result_channels = set(df["channel"].unique())
-        assert "combined_12" in result_channels
-        for ch in channels[:2]:
-            assert ch not in result_channels
-        assert channels[2] in result_channels
-
-    def test_roas_aggregate_dims_country(self, panel_fitted_mmm):
-        """Test aggregate_dims collapses a custom dimension (country)."""
-        mmm = panel_fitted_mmm
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            num_samples=10,
-            aggregate_dims={
-                "dim": "country",
-                "values": ["US", "UK"],
-                "new_label": "All",
-            },
-        )
-
-        assert "country" in df.columns
-        assert set(df["country"].unique()) == {"All"}
-
-    def test_roas_aggregate_dims_elementwise(self, mock_panel_idata_wrapper):
-        """Test aggregate_dims works with method='elementwise' too."""
-        factory = MMMSummaryFactory(mock_panel_idata_wrapper)
-
-        df = factory.roas(
-            method="elementwise",
-            aggregate_dims={
-                "dim": "country",
-                "values": ["US", "UK"],
-                "new_label": "All",
-                "method": "sum",
-            },
-        )
-
-        assert "country" in df.columns
-        assert set(df["country"].unique()) == {"All"}
-
-    def test_roas_aggregate_dims_default_method_is_sum(self, simple_fitted_mmm):
-        """Test that aggregate_dims defaults to method='sum' when not specified."""
-        mmm = simple_fitted_mmm
-        channels = mmm.channel_columns
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            num_samples=10,
-            aggregate_dims={
-                "dim": "channel",
-                "values": channels[:2],
-                "new_label": "combined_12",
-            },
-        )
-
-        assert "combined_12" in df["channel"].values
-
-    def test_roas_aggregate_dims_list_single_entry(self, simple_fitted_mmm):
-        """Test aggregate_dims as a list with a single dict element."""
-        mmm = simple_fitted_mmm
-        channels = mmm.channel_columns
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            num_samples=10,
-            aggregate_dims=[
-                {
-                    "dim": "channel",
-                    "values": channels[:2],
-                    "new_label": "combined_12",
-                    "method": "sum",
-                }
-            ],
-        )
-
-        result_channels = set(df["channel"].unique())
-        assert "combined_12" in result_channels
-        for ch in channels[:2]:
-            assert ch not in result_channels
-        assert channels[2] in result_channels
-
-    def test_roas_aggregate_dims_list_multiple_same_dim(self, simple_fitted_mmm):
-        """Test aggregate_dims as a list with multiple aggregations on the same dimension."""
-        mmm = simple_fitted_mmm
-        channels = mmm.channel_columns
-        assert len(channels) >= 3, "Need at least 3 channels for this test"
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            num_samples=10,
-            aggregate_dims=[
-                {
-                    "dim": "channel",
-                    "values": channels[:2],
-                    "new_label": "group_A",
-                },
-                {
-                    "dim": "channel",
-                    "values": [channels[2], "group_A"],
-                    "new_label": "all_channels",
-                },
-            ],
-        )
-
-        result_channels = set(df["channel"].unique())
-        assert "all_channels" in result_channels
-        for ch in channels:
-            assert ch not in result_channels
-
-    def test_roas_aggregate_dims_list_multiple_different_dims(self, panel_fitted_mmm):
-        """Test aggregate_dims as a list with aggregations on different dimensions."""
-        mmm = panel_fitted_mmm
-        channels = mmm.channel_columns
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            num_samples=10,
-            aggregate_dims=[
-                {
-                    "dim": "channel",
-                    "values": channels[:2],
-                    "new_label": "combined_ch",
-                },
-                {
-                    "dim": "country",
-                    "values": ["US", "UK"],
-                    "new_label": "All",
-                },
-            ],
-        )
-
-        assert "combined_ch" in set(df["channel"].unique())
-        assert set(df["country"].unique()) == {"All"}
-
-    def test_roas_aggregate_dims_list_elementwise(self, mock_panel_idata_wrapper):
-        """Test aggregate_dims as list works with method='elementwise'."""
-        factory = MMMSummaryFactory(mock_panel_idata_wrapper)
-
-        df = factory.roas(
-            method="elementwise",
-            aggregate_dims=[
-                {
-                    "dim": "country",
-                    "values": ["US", "UK"],
-                    "new_label": "All",
-                    "method": "sum",
-                }
-            ],
-        )
-
-        assert "country" in df.columns
-        assert set(df["country"].unique()) == {"All"}
-
-    def test_roas_start_end_date_and_aggregate_dims_combined(self, panel_fitted_mmm):
-        """Test start/end_date and aggregate_dims work together."""
-        mmm = panel_fitted_mmm
-        dates = mmm.data.dates
-
-        df = mmm.summary.roas(
-            frequency="all_time",
-            start_date=str(dates[0].date()),
-            end_date=str(dates[-1].date()),
-            num_samples=10,
-            aggregate_dims={
-                "dim": "country",
-                "values": ["US", "UK"],
-                "new_label": "All",
-            },
-        )
-
-        assert len(df) > 0
-        assert set(df["country"].unique()) == {"All"}
-
-    def test_roas_incremental_filter_dims_with_list(self, panel_fitted_mmm):
-        """Test that roas() respects filter_dims() when using pre-filtered factory."""
-        filtered_data = panel_fitted_mmm.data.filter_dims(country=["US"])
-        factory = MMMSummaryFactory(filtered_data, panel_fitted_mmm)
-        df = factory.roas(method="incremental", frequency="all_time", num_samples=10)
-        assert set(df["country"].unique()) == {"US"}
-
-    def test_roas_incremental_filter_dims_argument(self, panel_fitted_mmm):
-        """Test that roas(filter_dims=...)"""
-        df = panel_fitted_mmm.summary.roas(
-            method="incremental",
-            frequency="all_time",
-            num_samples=10,
-            filter_dims={"country": ["US"]},
-        )
-        assert set(df["country"].unique()) == {"US"}
-
-        df = panel_fitted_mmm.summary.roas(
-            method="incremental",
-            frequency="all_time",
-            num_samples=10,
-            filter_dims={"country": "US"},  # scalar, ensured to ["US"]
-        )
-        assert set(df["country"].unique()) == {"US"}
-
-        """Test that filter_dims works with elementwise ROAS."""
-        df = panel_fitted_mmm.summary.roas(
-            method="elementwise",
-            filter_dims={"country": ["US"]},
-        )
-        assert set(df["country"].unique()) == {"US"}
 
 
 # =============================================================================
@@ -1421,7 +1204,7 @@ class TestMMMSummaryProperty:
         assert len(contributions_df) > 0
         assert "channel" in contributions_df.columns
 
-        roas_df = mmm.summary.roas(num_samples=10)
+        roas_df = mmm.summary.roas(method="incremental", num_samples=10)
         assert len(roas_df) > 0
 
         saturation_df = mmm.summary.saturation_curves()

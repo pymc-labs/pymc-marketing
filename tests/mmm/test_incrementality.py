@@ -23,20 +23,6 @@ import xarray as xr
 from pydantic import ValidationError
 
 from pymc_marketing.mmm.incrementality import Incrementality
-from pymc_marketing.mmm.summary import MMMSummaryFactory
-
-
-class _ModelStub(dict):
-    """Dict subclass supporting attribute access for model metadata.
-
-    Used in lightweight test fixtures to mimic a PyMC model object that
-    supports both ``model["channel_data"]`` and ``model.named_vars_to_dims``.
-    """
-
-    def __init__(self, items, **attrs):
-        super().__init__(items)
-        for k, v in attrs.items():
-            object.__setattr__(self, k, v)
 
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
@@ -190,36 +176,25 @@ def incrementality_lite():
     Returns ``(incr, l_max)`` tuple.
     """
     dates = pd.date_range("2023-01-01", periods=14, freq="W")
-    channels = ["channel_1", "channel_2", "channel_3"]
-    rng = np.random.default_rng(42)
-    spend_values = rng.integers(100, 500, size=(14, 3)).astype(float)
+    spend_values = (
+        np.random.default_rng(42).integers(100, 500, size=(14, 2)).astype(float)
+    )
     spend = xr.DataArray(
         spend_values,
         dims=("date", "channel"),
-        coords={"date": dates, "channel": channels},
+        coords={"date": dates, "channel": ["ch_A", "ch_B"]},
     )
 
-    incr = object.__new__(Incrementality)  # skip __init__
+    incr = object.__new__(Incrementality)
     incr.data = SimpleNamespace(
         dates=dates,
         get_channel_spend=lambda: spend,
-        compare_coords=lambda mmm: ({}, {}),
     )
     incr.idata = SimpleNamespace(
         fit_data=SimpleNamespace(
             date=SimpleNamespace(values=dates.values),
         ),
     )
-    # Stub model with channel_data shared variable matching date count
-    channel_data_stub = SimpleNamespace(
-        get_value=lambda: spend_values,
-    )
-    model_stub = _ModelStub(
-        {"channel_data": channel_data_stub},
-        named_vars_to_dims={"channel_data": ("date",)},
-        coords={"date": dates.values},
-    )
-    incr.model = SimpleNamespace(model=model_stub, idata=None)
 
     return incr, 4
 
@@ -439,30 +414,6 @@ class TestHelperMethods:
         # Reversed range raises
         with pytest.raises(ValueError, match="is after"):
             incr._validate_input(dates[-1], dates[0])
-
-    def test_validate_input_rejects_aggregated_dims(self):
-        """Aggregated custom dimensions (unknown coordinate values) are rejected."""
-        dates = pd.date_range("2023-01-01", periods=14, freq="W")
-        spend_values = (
-            np.random.default_rng(42).integers(100, 500, size=(14, 2, 2)).astype(float)
-        )
-
-        channel_data_stub = SimpleNamespace(get_value=lambda: spend_values)
-        model_stub = _ModelStub(
-            {"channel_data": channel_data_stub},
-            named_vars_to_dims={"channel_data": ("date", "country")},
-            coords={"date": dates.values, "country": ["US", "UK"]},
-        )
-
-        incr = object.__new__(Incrementality)
-        incr.data = SimpleNamespace(
-            dates=dates,
-            compare_coords=lambda mmm: ({}, {"country": {"All"}}),
-        )
-        incr.model = SimpleNamespace(model=model_stub)
-
-        with pytest.raises(ValueError, match="unknown values for dimension"):
-            incr._validate_input(None, None)
 
     def test_compute_window_metadata_no_padding_interior(self, incrementality_lite):
         """Interior periods have no left/right padding."""
@@ -748,132 +699,3 @@ class TestConvenienceFunctions:
             random_state=42,
         )
         assert result.sizes["draw"] == 10
-
-
-class TestFilteredVsPostProcessed:
-    """Compare contribution_over_spend on pre-filtered data vs full data with post-processing."""
-
-    @pytest.mark.parametrize("frequency", ["original", "monthly", "all_time"])
-    def test_filtered_dims_matches_post_processed(self, panel_fitted_mmm, frequency):
-        """Pre-filtered incrementality must match post-processed selection.
-
-        Approach A (post-processing): compute on full data, then ``.sel(country=...)``.
-        Approach B (pre-filtering): filter idata via ``filter_dims``, then compute.
-        """
-        countries_to_keep = ["US"]
-
-        # Approach A: full data + post-process
-        incr_full = panel_fitted_mmm.incrementality
-        roas_full = incr_full.contribution_over_spend(frequency=frequency)
-        roas_post = roas_full.sel(country=countries_to_keep)
-
-        # Approach B: pre-filtered data
-        filtered_data = panel_fitted_mmm.data.filter_dims(country=countries_to_keep)
-        incr_filtered = Incrementality(panel_fitted_mmm, data=filtered_data)
-        roas_filtered = incr_filtered.contribution_over_spend(frequency=frequency)
-
-        # Shapes must match
-        assert roas_filtered.dims == roas_post.dims
-        assert roas_filtered.shape == roas_post.shape
-
-        # Values must be numerically close
-        xr.testing.assert_allclose(roas_filtered, roas_post, rtol=1e-5)
-
-    def test_roas_incremental_filter_dims_with_loaded_model(
-        self, panel_fitted_mmm, tmp_path
-    ):
-        """filter_dims + incremental ROAS works with a saved-and-loaded model.
-
-        Reproduces the flow in sandbox/test_filter_dims.py: load MMM from disk,
-        filter_dims to a subset (e.g. geo=["geo_a"]), then roas(method="incremental").
-        Fails with AssertionError if batched_input lacks broadcastable for size-1 axes.
-        """
-        from pymc_marketing.mmm.multidimensional import MMM
-
-        panel_fitted_mmm.save(str(tmp_path / "mmm.pm"))
-        mmm_loaded = MMM.load(str(tmp_path / "mmm.pm"), check=False)
-        filtered_data = mmm_loaded.data.filter_dims(country=["US"])
-        factory = MMMSummaryFactory(filtered_data, mmm_loaded)
-        df = factory.roas(method="incremental", frequency="all_time", num_samples=10)
-        assert set(df["country"].unique()) == {"US"}
-
-    def test_scalar_filtered_dims_raises_error(self, panel_fitted_mmm):
-        """Scalar dim filter (drops dimension) raises a clear error.
-
-        When a scalar value is passed to ``filter_dims`` (e.g. ``country="US"``
-        instead of ``country=["US"]``), xarray drops the dimension entirely.
-        The PyTensor model graph still expects that dimension, so we raise a
-        ``ValueError`` instructing the user to use a list instead.
-        """
-        filtered_data = panel_fitted_mmm.data.filter_dims(country="US")
-        incr_filtered = Incrementality(panel_fitted_mmm, data=filtered_data)
-
-        with pytest.raises(ValueError, match=r"missing dimension.*country"):
-            incr_filtered.contribution_over_spend(frequency="original")
-
-    def test_filtered_dates_warns_and_computes(self, panel_fitted_mmm):
-        """Pre-filtered dates should warn about boundary effects but still compute.
-
-        Adstock carry-in context from before the filter start is lost, so
-        results may differ from the full-data computation with
-        start_date/end_date.  We verify the warning is emitted and
-        the output has the correct shape and dims.
-        """
-        all_dates = pd.to_datetime(panel_fitted_mmm.idata.fit_data.date.values)
-        start_date = all_dates[3]
-        end_date = all_dates[10]
-
-        # Pre-filtered data: should warn, not error
-        filtered_data = panel_fitted_mmm.data.filter_dates(
-            start_date=start_date, end_date=end_date
-        )
-        incr_filtered = Incrementality(panel_fitted_mmm, data=filtered_data)
-
-        with pytest.warns(UserWarning, match="pre-filtered data"):
-            roas_filtered = incr_filtered.contribution_over_spend(frequency="monthly")
-
-        # Must have chain, draw, channel, and country dims
-        assert "chain" in roas_filtered.dims
-        assert "draw" in roas_filtered.dims
-        assert "channel" in roas_filtered.dims
-        assert "country" in roas_filtered.dims
-        assert "date" in roas_filtered.dims
-
-        # Values should be finite (no crash, no all-NaN)
-        assert roas_filtered.notnull().any()
-
-    def test_aggregate_time_raises_error(self, panel_fitted_mmm):
-        """Pre-aggregated idata must raise ValueError in compute_incremental_contribution.
-
-        It is impossible to compute incrementality over aggregated dates because
-        the adstock model graph expects the original temporal resolution.  Users
-        should pass the original (unaggregated) data and use the ``frequency``
-        argument for time aggregation of results.
-        """
-        aggregated_data = panel_fitted_mmm.data.aggregate_time(
-            period="monthly", method="sum"
-        )
-        incr_aggregated = Incrementality(panel_fitted_mmm, data=aggregated_data)
-
-        with pytest.raises(ValueError, match="does not match the model's fitted"):
-            incr_aggregated.compute_incremental_contribution(frequency="monthly")
-
-    def test_aggregate_dims_raises_error(self, panel_fitted_mmm):
-        """Pre-aggregated dims must raise ValueError.
-
-        Incrementality must be computed on the original (unaggregated) data
-        because the model's saturation and adstock parameters are fitted per
-        dimension value.
-        """
-        countries = ["US", "UK"]
-
-        aggregated_data = panel_fitted_mmm.data.aggregate_dims(
-            dim="country",
-            values=countries,
-            new_label="All",
-            method="sum",
-        )
-        incr_aggregated = Incrementality(panel_fitted_mmm, data=aggregated_data)
-
-        with pytest.raises(ValueError, match="unknown values for dimension"):
-            incr_aggregated.compute_incremental_contribution(frequency="monthly")

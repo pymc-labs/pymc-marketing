@@ -43,7 +43,6 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.data.idata.utils import aggregate_idata_dims
 from pymc_marketing.mmm.incrementality import Incrementality
 
 # Type aliases
@@ -291,27 +290,11 @@ class MMMSummaryFactory:
 
         return df
 
-    @staticmethod
-    def _ensure_filter_dims_list_values(
-        filter_dims: dict[str, Any],
-    ) -> dict[str, list[Any]]:
-        """Ensure filter_dims values are lists; wrap scalars in single-element lists.
-
-        This keeps dimensions intact when filtering (e.g. geo="geo_a" →
-        geo=["geo_a"]), which is required for incremental ROAS with
-        adstock carryover.
-        """
-        return {
-            k: [v] if not isinstance(v, (list, tuple)) else list(v)
-            for k, v in filter_dims.items()
-        }
-
     def _prepare_data_and_hdi(
         self,
         hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
         output_format: OutputFormat | None = None,
-        filter_dims: dict[str, Any] | None = None,
     ) -> tuple[MMMIDataWrapper, Sequence[float], OutputFormat]:
         """Prepare data, resolve defaults, and validate.
 
@@ -320,8 +303,7 @@ class MMMSummaryFactory:
         1. Resolves hdi_probs default from self.hdi_probs
         2. Resolves output_format default from self.output_format
         3. Validates hdi_probs
-        4. Applies filter_dims if specified (scalars ensured to be list values)
-        5. Aggregates data by frequency if specified
+        4. Aggregates data by frequency if specified
 
         Parameters
         ----------
@@ -331,13 +313,6 @@ class MMMSummaryFactory:
             Time aggregation period (None or "original" means no aggregation)
         output_format : OutputFormat or None
             Output format (None uses factory default)
-        filter_dims : dict or None
-            Dimension filters to apply before computation, e.g.
-            ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
-            Scalar values are automatically converted to single-element
-            lists (e.g. ``{"country": "US"}`` → ``{"country": ["US"]}``)
-            so the dimension is preserved, which is required for
-            incremental ROAS. If None, no filtering is applied.
 
         Returns
         -------
@@ -352,9 +327,6 @@ class MMMSummaryFactory:
         self._validate_hdi_probs(effective_hdi_probs)
 
         data = self.data
-        if filter_dims:
-            list_values = self._ensure_filter_dims_list_values(filter_dims)
-            data = data.filter_dims(**list_values)
         if frequency is not None and frequency != "original":
             data = data.aggregate_time(frequency)
 
@@ -511,14 +483,12 @@ class MMMSummaryFactory:
         self,
         hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
-        method: Literal["incremental", "elementwise"] = "incremental",
+        method: Literal["incremental", "elementwise"] = "elementwise",
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | None = None,
         start_date: str | pd.Timestamp | None = None,
         end_date: str | pd.Timestamp | None = None,
-        aggregate_dims: dict[str, Any] | list[dict[str, Any]] | None = None,
-        filter_dims: dict[str, Any] | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
         """Create ROAS (Return on Ad Spend) summary DataFrame.
@@ -532,7 +502,7 @@ class MMMSummaryFactory:
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
-        method : {"incremental", "elementwise"}, default "incremental"
+        method : {"incremental", "elementwise"}, default "elementwise"
             Method for computing ROAS:
 
             - **incremental** (recommended): Uses counterfactual analysis
@@ -571,53 +541,6 @@ class MMMSummaryFactory:
             included in the ROAS calculation.
             For ``method="elementwise"`` the ROAS result is filtered to
             dates on or before this value.
-        aggregate_dims : dict or list[dict], optional
-            Post-computation dimension aggregation. Accepts either a single
-            dict or a list of dicts. Each dict contains keyword arguments
-            that are passed directly to
-            :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims`:
-
-            - ``dim`` (str): Dimension to aggregate (e.g. ``"channel"``).
-            - ``values`` (list[str]): Coordinate values to aggregate.
-            - ``new_label`` (str): Label for the aggregated value.
-            - ``method`` (str, optional): ``"sum"`` (default) or ``"mean"``.
-
-            When a **list** is provided, each element is applied
-            sequentially, which allows multiple aggregations on the same
-            dimension (e.g. grouping different sets of channels).
-
-            Single dict example::
-
-                aggregate_dims = {
-                    "dim": "channel",
-                    "values": ["Facebook", "Instagram"],
-                    "new_label": "Social",
-                    "method": "sum",
-                }
-
-            List of dicts example::
-
-                aggregate_dims = [
-                    {
-                        "dim": "channel",
-                        "values": ["Facebook", "Instagram"],
-                        "new_label": "Social",
-                    },
-                    {
-                        "dim": "channel",
-                        "values": ["Google", "Bing"],
-                        "new_label": "Search",
-                    },
-                ]
-
-        filter_dims : dict, optional
-            Dimension filters applied to data before computing ROAS, via
-            :meth:`~pymc_marketing.data.idata.mmm_wrapper.MMMIDataWrapper.filter_dims`.
-            E.g. ``{"country": ["US"], "channel": ["TV", "Radio"]}``.
-            Scalar values are converted to single-element lists
-            (e.g. ``{"country": "US"}`` → ``{"country": ["US"]}``) so
-            dimensions stay intact for incremental ROAS. If None, no
-            filtering is applied.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
 
@@ -644,28 +567,6 @@ class MMMSummaryFactory:
         ...     end_date="2024-06-30",
         ...     frequency="quarterly",
         ... )
-        >>> df = mmm.summary.roas(
-        ...     aggregate_dims={
-        ...         "dim": "channel",
-        ...         "values": ["channel_1", "channel_2"],
-        ...         "new_label": "combined",
-        ...     }
-        ... )
-        >>> df = mmm.summary.roas(
-        ...     aggregate_dims=[
-        ...         {
-        ...             "dim": "channel",
-        ...             "values": ["ch_1", "ch_2"],
-        ...             "new_label": "group_A",
-        ...         },
-        ...         {
-        ...             "dim": "channel",
-        ...             "values": ["ch_3", "ch_4"],
-        ...             "new_label": "group_B",
-        ...         },
-        ...     ]
-        ... )
-        >>> df = mmm.summary.roas(filter_dims={"country": ["US"]})
 
         """
         if method == "elementwise":
@@ -681,14 +582,10 @@ class MMMSummaryFactory:
                         f"either remove it or use method='incremental'."
                     )
 
-        # Skip time aggregation in _prepare_data_and_hdi for both methods.
-        # Incremental: Incrementality handles frequency itself.
-        # Elementwise: date filtering must happen *before* aggregation,
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
             hdi_probs,
             frequency=None,
             output_format=output_format,
-            filter_dims=filter_dims,
         )
 
         if method == "incremental":
@@ -714,48 +611,10 @@ class MMMSummaryFactory:
                 f"method must be 'incremental' or 'elementwise', got {method!r}"
             )
 
-        if aggregate_dims is not None:
-            if isinstance(aggregate_dims, dict):
-                aggregate_dims = [aggregate_dims]
-            roas = self._apply_aggregate_dims(roas, aggregate_dims)
-
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
 
         return self._convert_output(df, output_format)
-
-    @staticmethod
-    def _apply_aggregate_dims(
-        data: xr.DataArray,
-        aggregate_dims: list[dict[str, Any]],
-    ) -> xr.DataArray:
-        """Aggregate dimensions on an xr.DataArray via idata utilities.
-
-        Converts the DataArray to an ``az.InferenceData`` object, applies
-        :func:`~pymc_marketing.data.idata.utils.aggregate_idata_dims` for
-        each entry, and extracts the result back.
-
-        Parameters
-        ----------
-        data : xr.DataArray
-            Data with ``(chain, draw, ...)`` dimensions.
-        aggregate_dims : list[dict[str, Any]]
-            List of aggregation specs. Each dict contains keyword arguments
-            passed directly to ``aggregate_idata_dims`` (``dim``,
-            ``values``, ``new_label``, optional ``method``). Specs are
-            applied sequentially, so multiple aggregations on the same
-            dimension are supported.
-
-        Returns
-        -------
-        xr.DataArray
-            Data with the requested dimensions aggregated.
-        """
-        var_name = "roas"
-        idata = az.InferenceData(roas=data.to_dataset(name=var_name))
-        for agg_spec in aggregate_dims:
-            idata = aggregate_idata_dims(idata, **agg_spec)
-        return idata.roas[var_name]
 
     def channel_spend(
         self,
