@@ -141,18 +141,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
     _model_type = "MBG/NBD"
 
-    def __init__(
-        self,
-        data: pd.DataFrame,
-        model_config: dict | None = None,
-        sampler_config: dict | None = None,
-    ):
-        super().__init__(
-            data=data,
-            model_config=model_config,
-            sampler_config=sampler_config,
-        )
-
     def build_model(self) -> None:  # type: ignore[override]
         """Build the model."""
         coords = {
