@@ -3017,6 +3017,31 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
     )
 
 
+def test_integer_channel_data_is_cast_to_float(multi_dim_data):
+    """Integer channel data is cast to float at construction time (GH #2340)."""
+    X, y = multi_dim_data
+
+    # Verify the fixture actually produces integer channel columns
+    assert X["channel_1"].dtype.kind == "i", "Fixture should produce int channel data"
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # xarray dataset should have float channel data
+    assert np.issubdtype(mmm.xarray_dataset["_channel"].dtype, np.floating)
+
+    # The PyTensor pm.Data node should also be float
+    channel_data_var = mmm.model["channel_data"]
+    assert np.issubdtype(np.dtype(channel_data_var.type.dtype), np.floating)
+
+
 def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
     """Test that _set_xarray_data preserves dtypes when control columns are present."""
     X, y = multi_dim_data

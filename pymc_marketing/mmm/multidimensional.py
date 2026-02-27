@@ -1417,6 +1417,8 @@ class MMM(RegressionModelBuilder):
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
 
+        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
             for dim in self.xarray_dataset.coords.dims
