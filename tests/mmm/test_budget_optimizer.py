@@ -17,10 +17,11 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor
-import pytensor.tensor as pt
 import pytest
 import xarray as xr
+from xarray import DataArray
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
@@ -400,7 +401,7 @@ def mean_response_eq_constraint_fun(
     i.e. returns (mean_resp - target_response).
     """
     resp_dist = optimizer.extract_response_distribution("total_contribution")
-    mean_resp = pt.mean(_check_samples_dimensionality(resp_dist))
+    mean_resp = _check_samples_dimensionality(resp_dist).mean()
     return mean_resp - target_response
 
 
@@ -410,7 +411,7 @@ def minimize_budget_utility(samples, budgets):
     Since the BudgetOptimizer by default *maximizes* the utility,
     we use the negative sign to effectively force minimization.
     """
-    return -pt.sum(budgets)
+    return -budgets.sum()
 
 
 @pytest.mark.parametrize(
@@ -469,7 +470,7 @@ def test_allocate_budget_custom_response_constraint(
     )
 
     resp_dist_sym = optimizer.extract_response_distribution("total_contribution")
-    resp_mean_sym = pt.mean(_check_samples_dimensionality(resp_dist_sym))
+    resp_mean_sym = _check_samples_dimensionality(resp_dist_sym).mean()
     test_fn = pytensor.function([optimizer._budgets_flat], resp_mean_sym)
     final_resp = test_fn(res.x)
 
@@ -741,7 +742,7 @@ def test_budget_distribution_over_period(
             num_optimized = optimizer.budgets_to_optimize.sum().item()
             expected_shape = (num_periods, num_optimized)
             assert (
-                tuple(optimizer._budget_distribution_over_period_tensor.shape.eval())
+                optimizer._budget_distribution_over_period_tensor.type.shape
                 == expected_shape
             )
         else:
@@ -921,21 +922,21 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     channels = ["C1", "C2", "C3"]
     X = rng.uniform(0.0, 1.0, size=(num_obs, len(channels)))
     true_beta = np.array([0.8, 0.4, 0.2])
-    y = (X @ true_beta) + rng.normal(0.0, 0.05, size=num_obs)
+    y = DataArray((X @ true_beta) + rng.normal(0.0, 0.05, size=num_obs), dims=("date",))
 
     coords = {"date": np.arange(num_obs), "channel": channels}
     with pm.Model(coords=coords) as train_model:
-        pm.Data("channel_data", X, dims=("date", "channel"))
-        beta = pm.Normal("beta", 0.0, 1.0, dims="channel")
-        mu = (train_model["channel_data"] * beta).sum(axis=-1)
-        pm.Deterministic("total_contribution", mu.sum(), dims=())
-        pm.Deterministic(
+        pmd.Data("channel_data", X, dims=("date", "channel"))
+        beta = pmd.Normal("beta", 0.0, 1.0, dims="channel")
+        mu = (train_model["channel_data"] * beta).sum(dim="channel")
+        pmd.Deterministic("total_contribution", mu.sum(), dims=())
+        pmd.Deterministic(
             "channel_contribution",
             train_model["channel_data"] * beta,
             dims=("date", "channel"),
         )
-        sigma = pm.HalfNormal("sigma", 0.2)
-        pm.Normal("y", mu=mu, sigma=sigma, observed=y, dims="date")
+        sigma = pmd.HalfNormal("sigma", 0.2)
+        pmd.Normal("y", mu=mu, sigma=sigma, observed=y, dims="date")
 
         idata = pm.sample(50, tune=50, chains=1, progressbar=False, random_seed=1)
 

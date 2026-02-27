@@ -16,6 +16,7 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc_extras.deserialize import (
@@ -24,6 +25,7 @@ from pymc_extras.deserialize import (
     register_deserialization,
 )
 from pymc_extras.prior import Prior
+from xarray import DataArray
 
 from pymc_marketing.mmm.fourier import (
     FourierBase,
@@ -330,7 +332,7 @@ def test_bad_non_integer_order(n_order, seasonality) -> None:
     ],
 )
 def test_fourier_modes_shape(periods, n_order, expected_shape, seasonality) -> None:
-    result = generate_fourier_modes(periods, n_order)
+    result = generate_fourier_modes(DataArray(periods, dims=("date",)), n_order)
     assert result.eval().shape == expected_shape
 
 
@@ -343,7 +345,9 @@ def test_fourier_modes_shape(periods, n_order, expected_shape, seasonality) -> N
     ],
 )
 def test_fourier_modes_range(periods, n_order):
-    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+    fourier_modes = generate_fourier_modes(
+        periods=DataArray(periods, dims=("date",)), n_order=n_order
+    ).eval()
 
     assert fourier_modes.min() >= -1.0
     assert fourier_modes.max() <= 1.0
@@ -358,8 +362,9 @@ def test_fourier_modes_range(periods, n_order):
     ],
 )
 def test_fourier_modes_frequency_integer_range(periods, n_order):
-    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
-
+    fourier_modes = generate_fourier_modes(
+        periods=DataArray(periods, dims=("date",)), n_order=n_order
+    ).eval()
     assert (fourier_modes[:, :n_order].mean(axis=0) < 1e-10).all()
     assert (fourier_modes[:-1, n_order:].mean(axis=0) < 1e-10).all()
 
@@ -381,7 +386,9 @@ def test_fourier_modes_frequency_integer_range(periods, n_order):
     ],
 )
 def test_fourier_modes_pythagoras(periods, n_order):
-    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+    fourier_modes = generate_fourier_modes(
+        periods=DataArray(periods, dims=("date",)), n_order=n_order
+    ).eval()
     norm = fourier_modes[:, :n_order] ** 2 + fourier_modes[:, n_order:] ** 2
 
     assert (abs(norm - 1) < 1e-10).all()
@@ -396,26 +403,18 @@ def test_fourier_modes_pythagoras(periods, n_order):
         "weekly",
     ],
 )
-def test_apply_result_callback(seasonality) -> None:
+def test_apply_sum_kwarg(seasonality) -> None:
     n_order = 3
     fourier = seasonality(n_order=n_order)
+    dayofyear = DataArray(np.arange(365), dims=("date",))
 
-    def result_callback(x):
-        pm.Deterministic(
-            "components",
-            x,
-            dims=("dayofyear", *fourier.prior.dims),
-        )
+    with pm.Model():
+        res = fourier.apply(dayofyear, sum=False)
+        assert res.dims == ("date", "fourier")
 
-    dayofyear = np.arange(365)
-    coords = {
-        "dayofyear": dayofyear,
-    }
-    with pm.Model(coords=coords) as model:
-        fourier.apply(dayofyear, result_callback=result_callback)
-
-    assert "components" in model
-    assert model["components"].eval().shape == (365, n_order * 2)
+    with pm.Model():
+        res = fourier.apply(dayofyear, sum=True)
+        assert res.dims == ("date",)
 
 
 @pytest.mark.parametrize(
@@ -582,8 +581,11 @@ class ArbitraryCode:
     def __init__(self, dims: tuple[str, ...]) -> None:
         self.dims = dims
 
-    def create_variable(self, name: str):
-        return pm.Normal(name, dims=self.dims)
+    def create_variable(self, name: str, xdist: bool = False):
+        if xdist:
+            return pmd.Normal(name, dims=self.dims)
+        else:
+            return pm.Normal(name, dims=self.dims)
 
 
 @pytest.mark.parametrize(
@@ -599,7 +601,7 @@ def test_fourier_arbitrary_prior(seasonality) -> None:
     prior = ArbitraryCode(dims=("fourier",))
     fourier = seasonality(n_order=4, prior=prior)
 
-    x = np.arange(10)
+    x = DataArray(np.arange(10), dims=("date",))
     with pm.Model():
         y = fourier.apply(x)
 

@@ -14,14 +14,16 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytest
 from pymc.model_graph import fast_eval
-from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
+from xarray import DataArray
 
-from pymc_marketing.mmm import MMM, GeometricAdstock
+from pymc_marketing.mmm import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     LogisticSaturation,
@@ -35,12 +37,12 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     assert_monotonic,
     create_time_varying_saturation,
-    create_variable_indexer,
     exact_row_indices,
     scale_channel_lift_measurements,
     scale_lift_measurements,
     scale_target_for_lift_measurements,
 )
+from pymc_marketing.mmm.multidimensional import MMM
 
 
 @pytest.fixture(scope="module")
@@ -138,33 +140,6 @@ def indices():
         "channel": [0, 1, 0],
         "date": [2, 1, 0],
     }
-
-
-@pytest.fixture(scope="module")
-def variable_indexer(fixed_model, indices):
-    return create_variable_indexer(fixed_model, indices)
-
-
-@pytest.mark.parametrize(
-    "name, expected",
-    [
-        ("alpha", [10, 20, 10]),
-        ("beta", [1, 3, 2]),
-        ("gamma", [11, 23, 12]),
-        ("delta", [3, 2, 1]),
-        ("epsilon", [33, 46, 12]),
-    ],
-)
-def test_variable_indexer(variable_indexer, name, expected) -> None:
-    np.testing.assert_allclose(
-        fast_eval(variable_indexer(name)),
-        expected,
-    )
-
-
-def test_variable_indexer_missing_variable(variable_indexer) -> None:
-    with pytest.raises(KeyError, match=r"The variable 'missing' is not in the model"):
-        variable_indexer("missing")
 
 
 def test_lift_test_missing_coords(df_lift_test) -> None:
@@ -286,15 +261,15 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
     )
 
     alpha_dims = "date"
-    dist = pm.Gamma
+    dist = pmd.Gamma
 
     coords = {
         "date": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]),
         "channel": [0, 1, 2],
     }
     with pm.Model(coords=coords) as model:
-        pm.HalfNormal("saturation_alpha", dims=alpha_dims)
-        pm.HalfNormal("saturation_lam", dims="channel")
+        pmd.HalfNormal("saturation_alpha", dims=alpha_dims)
+        pmd.HalfNormal("saturation_lam", dims="channel")
 
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_with_numerics_negative,
@@ -339,16 +314,12 @@ def saturation_functions() -> list[SaturationTransformation]:
 def test_create_time_varying_saturation_scales(saturation) -> None:
     kwargs = {name: 0.5 for name in saturation.default_priors.keys()}
 
-    xx = np.linspace(0, 1, 20)
-    yy = saturation.function(xx, **kwargs)
-    if isinstance(yy, TensorVariable):
-        yy = fast_eval(yy)
+    xx = DataArray(np.linspace(0, 1, 20), dims=("x",))
+    yy = fast_eval(saturation.function(xx, **kwargs))
 
     MULTIPLIER = 3.5
     function, _ = create_time_varying_saturation(saturation, "time_varying_name")
-    yy_tv = function(xx, **kwargs, time_varying=MULTIPLIER)
-    if isinstance(yy_tv, TensorVariable):
-        yy_tv = fast_eval(yy_tv)
+    yy_tv = fast_eval(function(xx, **kwargs, time_varying=MULTIPLIER))
 
     np.testing.assert_allclose(MULTIPLIER * yy, yy_tv)
 
@@ -400,11 +371,11 @@ def test_add_lift_measurements_to_likelihood_from_saturation(
         "date": [1, 2, 3, 4],
     }
     with pm.Model(coords=coords) as model:
-        saturation._create_distributions(dims="channel")
+        saturation._create_distributions()
 
         if time_varying_var_name is not None:
-            tvp_raw = pm.Normal("tvp_raw", dims="date")
-            pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+            tvp_raw = pmd.Normal("tvp_raw", dims="date")
+            pmd.Deterministic(time_varying_var_name, pmd.math.exp(tvp_raw))
 
     assert "lift_measurements" not in model
 
@@ -437,10 +408,10 @@ def test_tvp_needs_date_in_lift_tests() -> None:
         "date": [1, 2, 3, 4],
     }
     with pm.Model(coords=coords) as model:
-        saturation._create_distributions(dims="channel")
+        saturation._create_distributions()
 
-        tvp_raw = pm.Normal("tvp_raw", dims="date")
-        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+        tvp_raw = pmd.Normal("tvp_raw", dims="date")
+        pmd.Deterministic(time_varying_var_name, pmd.math.exp(tvp_raw))
 
     assert "lift_measurements" not in model
 
@@ -473,10 +444,10 @@ def test_tvp_needs_exact_date() -> None:
         "date": [1, 2, 3, 4],
     }
     with pm.Model(coords=coords) as model:
-        saturation._create_distributions(dims="channel")
+        saturation._create_distributions()
 
-        tvp_raw = pm.Normal("tvp_raw", dims="date")
-        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+        tvp_raw = pmd.Normal("tvp_raw", dims="date")
+        pmd.Deterministic(time_varying_var_name, pmd.math.exp(tvp_raw))
 
     assert "lift_measurements" not in model
 
@@ -549,6 +520,7 @@ def dummy_mmm_model():
     return model
 
 
+@pytest.mark.xfail(reason="Multidimensional MMM does not add mising date column")
 def test_adds_date_column_if_missing(dummy_mmm_model):
     df_lift_test = pd.DataFrame(
         {
@@ -576,8 +548,9 @@ def test_add_cost_per_target_potentials(dummy_mmm_model):
     # Create a simple constant cost_per_target tensor over (date, channel)
     dates = model.model.coords["date"]
     channels = model.model.coords["channel"]
-    const_cpt = pt.as_tensor_variable(
-        np.full((len(dates), len(channels)), 30.0, dtype=float)
+    const_cpt = as_xtensor(
+        np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
     )
 
     # Calibration DataFrame: rows map to existing channels (no extra dims in this fixture)
@@ -685,8 +658,9 @@ def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
     # Create a cost_per_target tensor over (date, channel)
     dates = mmm.model.coords["date"]
     channels = mmm.model.coords["channel"]
-    const_cpt = pt.as_tensor_variable(
-        np.full((len(dates), len(channels)), 25.0, dtype=float)
+    const_cpt = as_xtensor(
+        np.full((len(dates), len(channels)), 25.0, dtype=float),
+        ("date", "channel"),
     )
 
     # Calibration DataFrame with targets

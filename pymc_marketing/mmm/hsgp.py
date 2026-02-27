@@ -22,17 +22,21 @@ from typing import Literal, Self, cast
 import numpy as np
 import numpy.typing as npt
 import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.deserialize import register_deserialization
-from pymc_extras.prior import Prior, VariableFactory, _get_transform, create_dim_handler
-from pytensor.tensor import TensorLike
-from pytensor.tensor.variable import TensorVariable
+from pymc_extras.prior import Prior, VariableFactory, _get_transform
+from pytensor.graph import Variable
+from pytensor.tensor import as_tensor
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
+from xarray import DataArray
 
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
 
 
@@ -69,12 +73,12 @@ def create_complexity_penalizing_prior(
     .. [1] Geir-Arne Fuglstad, Daniel Simpson, Finn Lindgren, Håvard Rue (2015).
 
     """
-    lam_ell = -pt.log(alpha) * (1.0 / pt.sqrt(lower))
+    lam_ell = -ptx.math.log(alpha) * (1.0 / ptx.math.sqrt(lower))
 
     return Prior(
         "Weibull",
         alpha=0.5,
-        beta=1.0 / pt.square(lam_ell),
+        beta=1.0 / ptx.math.square(lam_ell),
         transform="reciprocal",
     )
 
@@ -201,7 +205,7 @@ def create_eta_prior(mass: float = 0.05, upper: float = 1.0) -> Prior:
     """
     return Prior(
         "Exponential",
-        lam=-pt.log(mass) / upper,
+        lam=-ptx.math.log(mass) / upper,
     )
 
 
@@ -253,7 +257,12 @@ class HSGPBase(BaseModel):
     """Shared logic between HSGP and HSGPPeriodic."""
 
     m: int = Field(..., description="Number of basis functions")
-    X: InstanceOf[TensorVariable] | InstanceOf[np.ndarray] | None = Field(
+    X: (
+        InstanceOf[XTensorVariable]
+        | InstanceOf[DataArray]
+        | InstanceOf[np.ndarray]
+        | None
+    ) = Field(
         None,
         description="The data to be used in the model",
         exclude=True,
@@ -292,7 +301,7 @@ class HSGPBase(BaseModel):
         """
         return []
 
-    def register_data(self, X: TensorLike) -> Self:
+    def register_data(self, X: XTensorLike) -> Self:
         """Register the data to be used in the model.
 
         To be used before creating a variable but not for out-of-sample prediction.
@@ -309,7 +318,10 @@ class HSGPBase(BaseModel):
             The object with the data registered.
 
         """
-        self.X = pt.as_tensor_variable(X)
+        dims = self.dims
+        if isinstance(dims, str):
+            dims = (dims,)
+        self.X = as_xtensor(X, dims=(dims[0],))
 
         return self
 
@@ -334,7 +346,7 @@ class HSGPBase(BaseModel):
 
         return self
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(self, name: str, xdist: bool = False) -> XTensorVariable:
         """Create a variable from configuration."""
         raise NotImplementedError
 
@@ -376,7 +388,7 @@ class HSGPBase(BaseModel):
         """
         coords = coords or {}
         with pm.Model(coords=coords) as model:
-            self.create_variable("f")
+            self.create_variable("f", xdist=True)
 
         return pm.sample_prior_predictive(
             model=model,
@@ -621,6 +633,7 @@ class HSGP(HSGPBase):
         from pymc_marketing.mmm import HSGP
         from pymc_extras.prior import Prior
 
+
         seed = sum(map(ord, "New data predictions"))
         rng = np.random.default_rng(seed)
 
@@ -755,7 +768,7 @@ class HSGP(HSGPBase):
     @classmethod
     def parameterize_from_data(
         cls,
-        X: TensorLike | np.ndarray,
+        X: Variable | np.ndarray,
         dims: Dims,
         X_mid: float | None = None,
         eta_mass: float = 0.05,
@@ -786,8 +799,8 @@ class HSGP(HSGPBase):
         numeric_X = None
         if isinstance(X, np.ndarray):
             numeric_X = np.asarray(X)
-        elif isinstance(X, TensorVariable):
-            numeric_X = X.get_value(borrow=False)
+        elif isinstance(X, Variable):
+            numeric_X = X.eval()
         else:
             raise ValueError(
                 "X must be a NumPy array (or list) or a TensorVariable. "
@@ -821,7 +834,7 @@ class HSGP(HSGPBase):
             demeaned_basis=demeaned_basis,
         )
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(self, name: str, xdist: bool = False) -> XTensorVariable:
         """Create a variable from HSGP configuration.
 
         Parameters
@@ -831,10 +844,12 @@ class HSGP(HSGPBase):
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The variable created from the HSGP configuration.
 
         """
+        if not xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=True")
 
         def add_suffix(suffix: str) -> str:
             if self.transform is None:
@@ -863,16 +878,19 @@ class HSGP(HSGPBase):
         eta = (
             self.eta
             if not hasattr(self.eta, "create_variable")
-            else self.eta.create_variable(add_suffix("eta"))
+            else self.eta.create_variable(add_suffix("eta"), xdist=True)
         )
         ls = (
             self.ls
             if not hasattr(self.ls, "create_variable")
-            else self.ls.create_variable(add_suffix("ls"))
+            else self.ls.create_variable(add_suffix("ls"), xdist=True)
         )
 
-        cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
+        # GP functionality is implemented exclusively in tensor
+        eta = as_tensor(eta, allow_xtensor_conversion=True)
+        ls = as_tensor(ls, allow_xtensor_conversion=True)
 
+        cov_func = eta**2 * cov_funcs[self.cov_func.lower()](input_dim=1, ls=ls)
         gp = pm.gp.HSGP(
             m=[self.m],
             L=[self.L],
@@ -880,42 +898,37 @@ class HSGP(HSGPBase):
             drop_first=self.drop_first,
         )
         phi, sqrt_psd = gp.prior_linearized(
-            self.X[:, None] - self.X_mid,
+            self.X.values[:, None] - self.X_mid,
         )
+
         if self.demeaned_basis:
             phi = phi - phi.mean(axis=0).eval()
 
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
+
+        phi = as_xtensor(phi, dims=(first_dim, coord_name))
+        sqrt_psd = as_xtensor(sqrt_psd, dims=(coord_name,))
+
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
             sigma=sqrt_psd,
             dims=hsgp_dims,
             centered=self.centered,
-        ).create_variable(add_suffix("hsgp_coefs"))
-        # (date, m-1) and (*rest_dims, m-1) -> (date, *rest_dims)
-        if len(rest_dims) <= 1:
-            f = phi @ hsgp_coefs.T
-        else:
-            result_dims = (first_dim, coord_name, *rest_dims)
-            dim_handler = create_dim_handler(desired_dims=result_dims)
-            f = (
-                dim_handler(phi, (first_dim, coord_name))
-                * dim_handler(
-                    hsgp_coefs,
-                    hsgp_dims,
-                )
-            ).sum(axis=1)
+        ).create_variable(add_suffix("hsgp_coefs"), xdist=True)
+
+        f = phi.dot(hsgp_coefs)
 
         if self.transform is not None:
             raw_name = f"{name}_raw"
-            f = pm.Deterministic(raw_name, f, dims=self.dims)
+            f = pmd.Deterministic(raw_name, f, dims=self.dims)
 
+            # FIXME: These should be implemented with xtensor Ops
             transform = _get_transform(self.transform)
-            f = pm.Deterministic(name, transform(f), dims=self.dims)
+            f = pmd.Deterministic(name, transform(f.values), dims=self.dims)
         else:
-            f = pm.Deterministic(name, f, dims=self.dims)
+            f = pmd.Deterministic(name, f, dims=self.dims)
 
         return f
 
@@ -1180,7 +1193,7 @@ class HSGPPeriodic(HSGPBase):
 
         return self
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(self, name: str, xdist: bool = False) -> XTensorVariable:
         """Create HSGP variable.
 
         Parameters
@@ -1190,10 +1203,12 @@ class HSGPPeriodic(HSGPBase):
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The variable created from the HSGP configuration.
 
         """
+        if not xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=True")
 
         def add_suffix(suffix: str) -> str:
             if self.transform is None:
@@ -1210,20 +1225,27 @@ class HSGPPeriodic(HSGPBase):
         scale = (
             self.scale
             if not hasattr(self.scale, "create_variable")
-            else self.scale.create_variable(add_suffix("scale"))
+            else self.scale.create_variable(add_suffix("scale"), xdist=True)
         )
 
         ls = (
             self.ls
             if not hasattr(self.ls, "create_variable")
-            else self.ls.create_variable(add_suffix("ls"))
+            else self.ls.create_variable(add_suffix("ls"), xdist=True)
         )
-        cov_func = pm.gp.cov.Periodic(1, period=self.period, ls=ls)
 
-        gp = pm.gp.HSGPPeriodic(m=self.m, scale=scale, cov_func=cov_func)
+        cov_func = pm.gp.cov.Periodic(
+            1, period=self.period, ls=as_tensor(ls, allow_xtensor_conversion=True)
+        )
+
+        gp = pm.gp.HSGPPeriodic(
+            m=self.m,
+            scale=as_tensor(scale, allow_xtensor_conversion=True),
+            cov_func=cov_func,
+        )
 
         (phi_cos, phi_sin), psd = gp.prior_linearized(
-            self.X[:, None] - self.X_mid,
+            self.X.values[:, None] - self.X_mid,
         )
         if self.demeaned_basis:
             phi_cos = phi_cos - phi_cos.mean(axis=0).eval()
@@ -1234,37 +1256,32 @@ class HSGPPeriodic(HSGPBase):
         model.add_coord(coord_name, np.arange((self.m * 2) - 1))
         first_dim, *rest_dims = self.dims
         hsgp_dims: Dims = (*rest_dims, coord_name)
-        sigma = pt.concatenate([psd, psd[..., 1:]])
+
+        phi_cos = as_xtensor(phi_cos, dims=(first_dim, coord_name))
+        phi_sin = as_xtensor(phi_sin, dims=(first_dim, coord_name))
+        psd = as_xtensor(psd, dims=(coord_name,))
+        slice_idx = {coord_name: slice(1, None)}
+
+        sigma = ptx.concat([psd, psd.isel(slice_idx)], dim=coord_name)
         hsgp_coefs = Prior(
             "Normal",
             mu=0,
             sigma=sigma,
             dims=hsgp_dims,
             centered=False,
-        ).create_variable(add_suffix("hsgp_coefs"))
-        phi = pt.concatenate([phi_cos, phi_sin[..., 1:]], axis=1)
+        ).create_variable(add_suffix("hsgp_coefs"), xdist=True)
 
-        if len(rest_dims) <= 1:
-            f = phi @ hsgp_coefs.T
-        else:
-            result_dims = (first_dim, coord_name, *rest_dims)
-            dim_handler = create_dim_handler(desired_dims=result_dims)
-            f = (
-                dim_handler(phi, (first_dim, coord_name))
-                * dim_handler(
-                    hsgp_coefs,
-                    hsgp_dims,
-                )
-            ).sum(axis=1)
+        phi = ptx.concat([phi_cos, phi_sin.isel(slice_idx)], dim=coord_name)
+        f = phi.dot(hsgp_coefs)
 
         if self.transform is not None:
             raw_name = f"{name}_raw"
-            f = pm.Deterministic(raw_name, f, dims=self.dims)
+            f = pmd.Deterministic(raw_name, f, dims=self.dims)
 
-            transform = _get_transform(self.transform)
-            f = pm.Deterministic(name, transform(f), dims=self.dims)
+            transform = getattr(ptx.math, self.transform)
+            f = pmd.Deterministic(name, transform(f), dims=self.dims)
         else:
-            f = pm.Deterministic(name, f, dims=self.dims)
+            f = pmd.Deterministic(name, f, dims=self.dims)
 
         return f
 
@@ -1429,18 +1446,20 @@ class SoftPlusHSGP(HSGP):
         """
         return [f"{name}_f_mean"]
 
-    def create_variable(self, name: str) -> TensorVariable:
+    def create_variable(self, name: str, xdist: bool = False) -> XTensorVariable:
         """Create the variable."""
-        f = super().create_variable(f"{name}_raw")
-        f = pt.softplus(f)
+        if not xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=True")
+        f = super().create_variable(f"{name}_raw", xdist=True)
+        f = pmd.math.softplus(f)
 
-        _, *f_mean_dims = self.dims
+        time_dim, *_f_mean_dims = self.dims
         f_mean_name = f"{name}_f_mean"
-        f_mean = pm.Deterministic(f_mean_name, f.mean(axis=0), dims=f_mean_dims)
+        f_mean = pmd.Deterministic(f_mean_name, f.mean(dim=time_dim))
 
         # Multiplicative centering to preserve positivity and enforce mean 1
         centered_f = f / f_mean
-        return pm.Deterministic(name, centered_f, dims=self.dims)
+        return pmd.Deterministic(name, centered_f)
 
 
 # TODO: Replace this with a more robust implementation

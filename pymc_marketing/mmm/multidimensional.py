@@ -156,17 +156,20 @@ from typing import Annotated, Any, cast
 
 import arviz as az
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from pymc_extras.deserialize import deserialize
-from pymc_extras.prior import Prior, create_dim_handler
+from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult
+from xarray import DataArray
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -187,6 +190,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
@@ -1423,7 +1427,9 @@ class MMM(RegressionModelBuilder):
         }
 
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-            self._time_index = np.arange(0, X[self.date_column].unique().shape[0])
+            self._time_index = DataArray(
+                np.arange(0, X[self.date_column].unique().shape[0]), dims=("date",)
+            )
             self._time_index_mid = X[self.date_column].unique().shape[0] // 2
             self._time_resolution = (
                 X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
@@ -1431,9 +1437,9 @@ class MMM(RegressionModelBuilder):
 
     def forward_pass(
         self,
-        x: pt.TensorVariable | npt.NDArray[np.float64],
+        x: XTensorLike,
         dims: tuple[str, ...],
-    ) -> pt.TensorVariable:
+    ) -> XTensorVariable:
         """Transform channel input into target contributions of each channel.
 
         This method handles the ordering of the adstock and saturation
@@ -1445,7 +1451,7 @@ class MMM(RegressionModelBuilder):
 
         Parameters
         ----------
-        x : pt.TensorVariable | npt.NDArray[np.float64]
+        x : XTensorLike
             The channel input which could be spends or impressions
 
         Returns
@@ -1469,7 +1475,7 @@ class MMM(RegressionModelBuilder):
             else (self.saturation, self.adstock)
         )
 
-        return second.apply(x=first.apply(x=x, dims=dims), dims=dims)
+        return second.apply(x=first.apply(x=x, core_dim="date"), core_dim="date")
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
@@ -1538,7 +1544,7 @@ class MMM(RegressionModelBuilder):
             raise ValueError(f"Variable {var} is not in the model")
 
     def add_original_scale_contribution_variable(self, var: list[str]) -> None:
-        """Add a pm.Deterministic variable to the model that multiplies by the scaler.
+        """Add a pymc.dims.Deterministic variable to the model that multiplies by the scaler.
 
         Restricted to the model parameters. Only make it possible for "_contribution" variables.
 
@@ -1557,41 +1563,16 @@ class MMM(RegressionModelBuilder):
 
         """
         self._validate_model_was_built()
-        target_dims = self.scalers._target.dims
+        target_scale = self.model["target_scale"]
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                var_dims = self.model.named_vars_to_dims.get(v, ())
-                mmm_dims_order = ("date", *self.dims)
 
-                if v == "channel_contribution":
-                    mmm_dims_order += ("channel",)
-                elif v == "control_contribution":
-                    mmm_dims_order += ("control",)
-                elif v == "fourier_contribution":
-                    mmm_dims_order += ("fourier_mode",)
-                elif v == "yearly_seasonality_contribution":
-                    pass  # Only has date dim
-                elif v == "intercept_contribution":
-                    pass  # Only has date dim
-
-                deterministic_dims = tuple(
-                    [
-                        dim
-                        for dim in mmm_dims_order
-                        if dim in set(target_dims).union(var_dims)
-                    ]
-                )
-                dim_handler = create_dim_handler(deterministic_dims)
-
-                pm.Deterministic(
-                    name=v + "_original_scale",
-                    var=dim_handler(self.model[v], var_dims)
-                    * dim_handler(
-                        self.model["target_scale"],
-                        target_dims,
+                pmd.Deterministic(
+                    f"{v}_original_scale",
+                    (self.model[v] * target_scale).transpose(
+                        "date", ..., missing_dims="ignore"
                     ),
-                    dims=deterministic_dims,
                 )
 
     def build_model(  # type: ignore[override]
@@ -1668,236 +1649,155 @@ class MMM(RegressionModelBuilder):
         with pm.Model(
             coords=self.model_coords,
         ) as self.model:
-            _channel_scale = pm.Data(
-                "channel_scale",
-                self.scalers._channel.values,
-                dims=self.scalers._channel.dims,
-            )
-            _target_scale = pm.Data(
-                "target_scale",
-                self.scalers._target,
-                dims=self.scalers._target.dims,
-            )
+            _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
+            _target_scale = pmd.Data("target_scale", self.scalers._target)
 
-            _channel_data = pm.Data(
-                name="channel_data",
-                value=self.xarray_dataset._channel.transpose(
-                    "date", *self.dims, "channel"
-                ).values,
-                dims=("date", *self.dims, "channel"),
-            )
+            _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
 
-            _target = pm.Data(
-                name="target_data",
-                value=(
-                    self.xarray_dataset._target.transpose("date", *self.dims).values
-                ),
-                dims=("date", *self.dims),
-            )
+            _target = pmd.Data("target_data", self.xarray_dataset._target)
 
             # Scale `channel_data` and `target`
-            channel_dim_handler = create_dim_handler(("date", *self.dims, "channel"))
-            channel_data_ = _channel_data / channel_dim_handler(
-                _channel_scale,
-                self.scalers._channel.dims,
+            channel_data_ = _channel_data / _channel_scale
+            channel_data_ = pmd.math.switch(
+                pmd.math.isnan(channel_data_), 0.0, channel_data_
             )
-            channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
             channel_data_.name = "channel_data_scaled"
-            channel_data_.dims = ("date", *self.dims, "channel")
 
-            target_dim_handler = create_dim_handler(("date", *self.dims))
-
-            target_data_scaled = _target / target_dim_handler(
-                _target_scale, self.scalers._target.dims
-            )
+            target_data_scaled = _target / _target_scale
             target_data_scaled.name = "target_scaled"
-            target_data_scaled.dims = ("date", *self.dims)
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
-            if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-                time_index = pm.Data(
-                    name="time_index",
-                    value=self._time_index,
-                    dims="date",
-                )
+            if self.time_varying_intercept or self.time_varying_media:
+                time_index = pmd.Data("time_index", self._time_index)
 
             # Add intercept logic
-            if (
-                isinstance(self.time_varying_intercept, bool)
-                and self.time_varying_intercept
-            ):
+            if self.time_varying_intercept:
                 intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline"
+                    "intercept_baseline", xdist=True
                 )
 
-                intercept_latent_process = create_hsgp_from_config(
-                    X=time_index,
-                    dims=("date", *self.dims),
-                    config=self.model_config["intercept_tvp_config"],
-                ).create_variable("intercept_latent_process")
+                if isinstance(self.time_varying_intercept, HSGPBase):
+                    # Register internal time index and build latent process
+                    self.time_varying_intercept.register_data(time_index)
+                    intercept_latent_process = (
+                        self.time_varying_intercept.create_variable(
+                            "intercept_latent_process", xdist=True
+                        )
+                    )
+                else:
+                    intercept_latent_process = create_hsgp_from_config(
+                        X=time_index,
+                        dims=("date", *self.dims),
+                        config=self.model_config["intercept_tvp_config"],
+                    ).create_variable("intercept_latent_process", xdist=True)
 
-                intercept = pm.Deterministic(
-                    name="intercept_contribution",
-                    var=intercept_baseline[None, ...] * intercept_latent_process,
-                    dims=("date", *self.dims),
+                intercept = pmd.Deterministic(
+                    "intercept_contribution",
+                    (intercept_baseline * intercept_latent_process).transpose(
+                        "date", ...
+                    ),
                 )
 
-            elif isinstance(self.time_varying_intercept, HSGPBase):
-                intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline"
-                )
-
-                # Register internal time index and build latent process
-                self.time_varying_intercept.register_data(time_index)
-                intercept_latent_process = self.time_varying_intercept.create_variable(
-                    "intercept_latent_process"
-                )
-
-                intercept = pm.Deterministic(
-                    name="intercept_contribution",
-                    var=intercept_baseline[None, ...] * intercept_latent_process,
-                    dims=("date", *self.dims),
-                )
             else:
                 intercept = self.model_config["intercept"].create_variable(
-                    name="intercept_contribution"
+                    name="intercept_contribution", xdist=True
                 )
 
             # Add media logic
-            if isinstance(self.time_varying_media, bool) and self.time_varying_media:
-                baseline_channel_contribution = pm.Deterministic(
-                    name="baseline_channel_contribution",
-                    var=self.forward_pass(
-                        x=channel_data_, dims=(*self.dims, "channel")
-                    ),
-                    dims=("date", *self.dims, "channel"),
+            if self.time_varying_media:
+                baseline_channel_contribution = pmd.Deterministic(
+                    "baseline_channel_contribution",
+                    (
+                        self.forward_pass(x=channel_data_, dims=(*self.dims, "channel"))
+                    ).transpose("date", ...),
                 )
 
-                media_latent_process = create_hsgp_from_config(
-                    X=time_index,
-                    dims=("date", *self.dims),
-                    config=self.model_config["media_tvp_config"],
-                ).create_variable("media_temporal_latent_multiplier")
-
-                channel_contribution = pm.Deterministic(
-                    name="channel_contribution",
-                    var=baseline_channel_contribution * media_latent_process[..., None],
-                    dims=("date", *self.dims, "channel"),
-                )
-            elif isinstance(self.time_varying_media, HSGPBase):
-                baseline_channel_contribution = self.forward_pass(
-                    x=channel_data_, dims=(*self.dims, "channel")
-                )
-                baseline_channel_contribution.name = "baseline_channel_contribution"
-                baseline_channel_contribution.dims = (
-                    "date",
-                    *self.dims,
-                    "channel",
-                )
-
-                # Register internal time index and build latent process
-                self.time_varying_media.register_data(time_index)
-                media_latent_process = self.time_varying_media.create_variable(
-                    "media_temporal_latent_multiplier"
-                )
-
-                # Determine broadcasting over channel axis
-                media_dims = pm.modelcontext(None).named_vars_to_dims[
-                    media_latent_process.name
-                ]
-                if "channel" in media_dims:
-                    media_broadcast = media_latent_process
+                if isinstance(self.time_varying_media, HSGPBase):
+                    # Register internal time index and build latent process
+                    self.time_varying_media.register_data(time_index)
+                    media_latent_process = self.time_varying_media.create_variable(
+                        "media_temporal_latent_multiplier", xdist=True
+                    )
                 else:
-                    media_broadcast = media_latent_process[..., None]
+                    media_latent_process = create_hsgp_from_config(
+                        X=time_index,
+                        dims=("date", *self.dims),
+                        config=self.model_config["media_tvp_config"],
+                    ).create_variable("media_temporal_latent_multiplier", xdist=True)
 
-                channel_contribution = pm.Deterministic(
-                    name="channel_contribution",
-                    var=baseline_channel_contribution * media_broadcast,
-                    dims=("date", *self.dims, "channel"),
+                channel_contribution = (
+                    baseline_channel_contribution * media_latent_process
                 )
             else:
-                channel_contribution = pm.Deterministic(
-                    name="channel_contribution",
-                    var=self.forward_pass(
-                        x=channel_data_, dims=(*self.dims, "channel")
-                    ),
-                    dims=("date", *self.dims, "channel"),
+                channel_contribution = self.forward_pass(
+                    x=channel_data_, dims=(*self.dims, "channel")
                 )
 
-            dim_handler = create_dim_handler(("date", *self.dims))
-            pm.Deterministic(
-                name="total_media_contribution_original_scale",
-                var=(
-                    channel_contribution.sum(axis=-1)
-                    * dim_handler(_target_scale, self.scalers._target.dims)
-                ).sum(),
-                dims=(),
+            channel_contribution = pmd.Deterministic(
+                "channel_contribution",
+                channel_contribution.transpose("date", ...),
+            )
+
+            pmd.Deterministic(
+                "total_media_contribution_original_scale",
+                (channel_contribution.sum(dim="date") * _target_scale).sum(),
             )
 
             # Add other contributions and likelihood
-            mu_var = intercept + channel_contribution.sum(axis=-1)
+            mu_var = intercept + channel_contribution.sum(dim="channel")
 
             if self.control_columns is not None and len(self.control_columns) > 0:
                 gamma_control = self.model_config["gamma_control"].create_variable(
-                    name="gamma_control"
+                    name="gamma_control", xdist=True
                 )
 
-                control_data_ = pm.Data(
-                    name="control_data",
-                    value=self.xarray_dataset._control.transpose(
-                        "date", *self.dims, "control"
-                    ).values,
-                    dims=("date", *self.dims, "control"),
+                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
+
+                control_contribution = pmd.Deterministic(
+                    "control_contribution",
+                    control_data_ * gamma_control,
                 )
 
-                control_contribution = pm.Deterministic(
-                    name="control_contribution",
-                    var=control_data_ * gamma_control,
-                    dims=("date", *self.dims, "control"),
-                )
-
-                mu_var += control_contribution.sum(axis=-1)
+                mu_var += control_contribution.sum(dim="control")
 
             if self.yearly_seasonality is not None:
-                dayofyear = pm.Data(
-                    name="dayofyear",
-                    value=pd.to_datetime(
-                        self.model_coords["date"]
-                    ).dayofyear.to_numpy(),
+                dayofyear = pmd.Data(
+                    "dayofyear",
+                    pd.to_datetime(self.model_coords["date"]).dayofyear.to_numpy(),
                     dims="date",
                 )
 
-                def create_deterministic(x: pt.TensorVariable) -> None:
-                    pm.Deterministic(
-                        "fourier_contribution",
-                        x,
-                        dims=("date", *self.yearly_fourier.prior.dims),
-                    )
-
-                yearly_seasonality_contribution = pm.Deterministic(
-                    name="yearly_seasonality_contribution",
-                    var=self.yearly_fourier.apply(
-                        dayofyear, result_callback=create_deterministic
+                # Fourier doesn't work with XTensorVariable / DataArray dayofyear yet
+                fourier_dim = self.yearly_fourier.prefix
+                fourier_contributions = pmd.Deterministic(
+                    "fourier_contribution",
+                    self.yearly_fourier.apply(dayofyear, sum=False).transpose(
+                        "date", ..., fourier_dim
                     ),
-                    dims=("date", *self.dims),
                 )
+
+                yearly_seasonality_contribution = pmd.Deterministic(
+                    "yearly_seasonality_contribution",
+                    fourier_contributions.sum(dim=fourier_dim),
+                )
+
                 mu_var += yearly_seasonality_contribution
 
             for mu_effect in self.mu_effects:
                 mu_var += mu_effect.create_effect(self)
 
             mu_var.name = "mu"
-            mu_var.dims = ("date", *self.dims)
-
+            # TODO: Are these dims still needed, they should be implied by mu_var?
             self.model_config["likelihood"].dims = ("date", *self.dims)
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
                 observed=target_data_scaled,
+                xdist=True,
             )
 
     def _validate_date_overlap_with_include_last_observations(
@@ -2598,7 +2498,7 @@ class MMM(RegressionModelBuilder):
     def add_lift_test_measurements(
         self,
         df_lift_test: pd.DataFrame,
-        dist: type[pm.Distribution] = pm.Gamma,
+        dist: type[pmd.DimDistribution] = pmd.Gamma,
         name: str = "lift_measurements",
     ) -> None:
         """Add lift tests to the model.
@@ -2629,8 +2529,8 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
-        dist : pm.Distribution, optional
-            The distribution to use for the likelihood, by default pm.Gamma
+        dist : pymc.dims.DimDistribution, optional
+            The distribution to use for the likelihood, by default pymc.dims.Gamma
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
             by default "lift_measurements". Name change required if calling
@@ -2809,6 +2709,8 @@ class MMM(RegressionModelBuilder):
                     f"The {dim} column is required in calibration_data to map to model dims."
                 )
 
+        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
+
         # Prepare spend data as xarray (original units)
         spend_ds = (
             self._create_xarray_from_pandas(
@@ -2818,35 +2720,20 @@ class MMM(RegressionModelBuilder):
                 metric_list=self.channel_columns,
                 metric_coordinate_name="channel",
             )
-            .transpose("date", *self.dims, "channel")
+            .transpose(*channel_data_dims)
             .fillna(0)
         )
 
-        spend_array = spend_ds._channel
-        # Compute expected shape from the model
-        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
-        expected_shape = tuple(len(self.model.coords[dim]) for dim in channel_data_dims)
-
-        # Align spend array to the models dim order
-        spend_aligned = spend_array.transpose(*channel_data_dims)
-
-        # Now the check will fail when a coord (e.g., a country) is missing
-        if spend_aligned.shape != expected_shape:
-            raise ValueError(
-                "Spend data shape does not match channel data dims in the model: "
-                f"expected {expected_shape}, got {spend_aligned.shape}"
-            )
+        spend_xarray = spend_ds._channel
 
         for dim in channel_data_dims:
-            spend_labels = np.asarray(spend_aligned.coords[dim].values)
+            spend_labels = np.asarray(spend_xarray.coords[dim].values)
             model_labels = np.asarray(self.model.coords[dim])
             if not np.array_equal(spend_labels, model_labels):
                 raise ValueError(
                     f"Spend data coordinates for dim {dim!r} do not match model coords: "
                     f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
                 )
-
-        spend_tensor = pt.as_tensor_variable(spend_aligned.values)
 
         with self.model:
             # Ensure original-scale contribution exists
@@ -2857,10 +2744,10 @@ class MMM(RegressionModelBuilder):
                     "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
                 )
 
-            denom = pt.clip(
+            denom = ptx.math.clip(
                 self.model["channel_contribution_original_scale"], 1e-12, np.inf
             )
-            cpt_tensor = spend_tensor / denom
+            cpt_tensor = as_xtensor(spend_xarray) / denom
 
         add_cost_per_target_potentials(
             calibration_df=calibration_data,

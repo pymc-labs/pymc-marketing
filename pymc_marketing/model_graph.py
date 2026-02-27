@@ -95,7 +95,7 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
         model_var = memo[variable]
         dims = extract_dims(model_var)
 
-        new_rv = pm.Flat.dist(shape=model_var.shape)
+        new_rv = pm.Flat.dist(shape=model_var.owner.inputs[0].shape)
         new_rv.name = model_var.name
 
         replacements[model_var] = model_free_rv(
@@ -105,6 +105,8 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
             *dims,
         )
 
+    # TODO: use pytensorf helper to extract rv shapes coming in soon
+    # This mutates the model graph, just for the sake of lifting the shapes
     toposort_replace(fg, replacements=tuple(replacements.items()))
     fg = rewrite_graph(
         fg,

@@ -14,6 +14,7 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 from pymc_extras.deserialize import deserialize
 
@@ -118,7 +119,7 @@ def test_apply_media_transformation(
     }
 
     with pm.Model(coords=coords) as model:
-        data = pm.Data(
+        data = pmd.Data(
             "media_data",
             media_data.loc[:, media_columns].to_numpy(),
             dims=("date", "media"),

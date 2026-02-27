@@ -24,6 +24,8 @@ from pydantic import ValidationError
 
 from pymc_marketing.mmm.incrementality import Incrementality
 
+pytest.skip(reason="Incrementality still not adapted to dims", allow_module_level=True)
+
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
     """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.

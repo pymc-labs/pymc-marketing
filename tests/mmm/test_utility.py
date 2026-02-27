@@ -13,9 +13,10 @@
 #   limitations under the License.
 import numpy as np
 import pymc as pm
-import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import pytest
 from pytensor import function
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.utility import (
     _calculate_roas_distribution_for_allocation,
@@ -54,7 +55,8 @@ def test_data():
     """
     samples = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     budgets = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000]
-    return pt.as_tensor_variable(samples), pt.as_tensor_variable(budgets)
+    # Shouldn't budget have their own dim?
+    return as_xtensor(samples, dims=("sample",)), as_xtensor(budgets, dims=("sample",))
 
 
 def test_mean_tightness_score(test_data):
@@ -155,11 +157,13 @@ def test_portfolio_entropy(test_data):
 )
 def test_tail_distance(mean1, std1, mean2, std2, expected_order):
     # Generate samples for both distributions
-    samples1 = pt.as_tensor(
-        pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
+    samples1 = as_xtensor(
+        pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng),
+        dims=("sample",),
     )
-    samples2 = pt.as_tensor(
-        pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
+    samples2 = as_xtensor(
+        pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng),
+        dims=("sample",),
     )
 
     # Calculate tail distances
@@ -203,11 +207,13 @@ def test_compare_mean_tightness_score(
     mean1, std1, mean2, std2, alpha, expected_relation
 ):
     # Generate samples for both distributions
-    samples1 = pt.as_tensor(
-        pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng)
+    samples1 = as_xtensor(
+        pm.draw(pm.Normal.dist(mu=mean1, sigma=std1, size=100), random_seed=rng),
+        dims=("sample",),
     )
-    samples2 = pt.as_tensor(
-        pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng)
+    samples2 = as_xtensor(
+        pm.draw(pm.Normal.dist(mu=mean2, sigma=std2, size=100), random_seed=rng),
+        dims=("sample",),
     )
 
     # Calculate mean tightness scores
@@ -248,7 +254,9 @@ def test_compute_quantile_matches_numpy(data, quantile):
     np_data = np.array(data)
 
     # Define symbolic variable for input
-    pt_data = pt.vector("pt_data")  # Symbolic variable for 1D input data
+    pt_data = ptx.xtensor(
+        "pt_data", dims=("sample",)
+    )  # Symbolic variable for 1D input data
 
     # Compile the PyTensor quantile function
     pt_quantile_func = function([pt_data], _compute_quantile(pt_data, quantile))
@@ -278,10 +286,12 @@ def test_compute_quantile_matches_numpy(data, quantile):
 )
 def test_covariance_matrix_matches_numpy(data):
     # Define symbolic variable for input
-    pt_data = pt.matrix("pt_data")  # Symbolic variable for 2D input data
+    pt_data = ptx.xtensor(
+        "pt_data", dims=("sample", "assets")
+    )  # Symbolic variable for 2D input data
 
     # Compile the PyTensor covariance matrix function
-    pt_cov_func = function([pt_data], _covariance_matrix(pt_data))
+    pt_cov_func = function([pt_data], _covariance_matrix(pt_data, asset_dim="assets"))
 
     # Compute results
     pytensor_result = pt_cov_func(data)  # Pass NumPy array directly
@@ -312,9 +322,11 @@ def test_covariance_matrix_matches_numpy(data):
 def test_compute_quantile(data):
     if data.size == 0:
         with pytest.raises(Exception, match=r".*"):
-            _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
+            _compute_quantile(ptx.as_xtensor(data), 0.95).eval()
     else:
-        pytensor_quantile = _compute_quantile(pt.as_tensor_variable(data), 0.95).eval()
+        pytensor_quantile = _compute_quantile(
+            ptx.as_xtensor(data, dims=("sample",)), 0.95
+        ).eval()
         numpy_quantile = np.quantile(data, 0.95)
         np.testing.assert_allclose(
             pytensor_quantile,
@@ -336,8 +348,8 @@ def test_compute_quantile(data):
     ],
 )
 def test_roas_distribution(samples, budgets):
-    pt_samples = pt.as_tensor_variable(samples)
-    pt_budgets = pt.as_tensor_variable(budgets)
+    pt_samples = as_xtensor(samples, dims=("sample",))
+    pt_budgets = as_xtensor(budgets, dims=("budget",))
 
     pytensor_roas = _calculate_roas_distribution_for_allocation(
         pt_samples, pt_budgets
@@ -377,8 +389,8 @@ def test_general_functions(samples, budgets, func):
     """
     Test utility functions for general behavior.
     """
-    pt_samples = pt.as_tensor_variable(samples)
-    pt_budgets = pt.as_tensor_variable(budgets)
+    pt_samples = as_xtensor(samples, dims=("sample",))
+    pt_budgets = as_xtensor(budgets, dims=("budget",))
 
     try:
         pytensor_result = func(pt_samples, pt_budgets).eval()

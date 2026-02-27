@@ -17,11 +17,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from numpy.testing import assert_array_equal
 from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
+from xarray import DataArray
 
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.events import (
     AsymmetricGaussianBasis,
     EventEffect,
@@ -30,13 +34,19 @@ from pymc_marketing.mmm.events import (
     basis_from_dict,
     days_from_reference,
 )
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.plot import plot_curve
 
 
 def test_gaussian_basis_plot() -> None:
     gaussian = GaussianBasis(
         priors={
-            "sigma": Prior("Gamma", mu=[4, 7, 10], sigma=1, dims="event"),
+            "sigma": Prior(
+                "Gamma",
+                mu=as_xtensor([4, 7, 10], dims=("event",)),
+                sigma=1,
+                dims="event",
+            ),
         },
     )
     coords = {"event": ["NYE", "Grand Opening Game Show", "Super Bowl"]}
@@ -88,11 +98,13 @@ def test_event_basis_in_model() -> None:
 
     dates = pd.date_range("2022-12-01", periods=3 * 31, freq="D")
 
-    X = create_basis_matrix(df_events, model_dates=dates)
+    X = as_xtensor(
+        create_basis_matrix(df_events, model_dates=dates), dims=("date", "event")
+    )
 
     coords = {"date": dates, "event": df_events["event"].to_numpy()}
     with pm.Model(coords=coords):
-        pm.Deterministic("effect", effect.apply(X), dims=("date", "event"))
+        pmd.Deterministic("effect", effect.apply(X))
 
         idata = pm.sample_prior_predictive()
 
@@ -171,8 +183,8 @@ def test_gaussian_basis_function():
     )
 
     # Test the Gaussian function directly
-    x = np.array([0.0, 1.0, -1.0])
-    sigma = np.array([1.0])
+    x = DataArray([0.0, 1.0, -1.0], dims=("x",))
+    sigma = 1.0
 
     result = gaussian.function(x, sigma).eval()
     expected = 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-0.5 * (x / sigma) ** 2)
@@ -184,7 +196,9 @@ def test_gaussian_basis_multiple_events():
     # Test GaussianBasis with multiple events
     gaussian = GaussianBasis(
         priors={
-            "sigma": Prior("Gamma", mu=[5, 8], sigma=1, dims="event"),
+            "sigma": Prior(
+                "Gamma", mu=DataArray([5, 8], dims=("event",)), sigma=1, dims="event"
+            ),
         },
     )
     coords = {"event": ["Event1", "Event2"]}
@@ -200,14 +214,21 @@ def test_event_effect_different_dims():
     # Test EventEffect with different dimension configurations
     gaussian = GaussianBasis(
         priors={
-            "sigma": Prior("Gamma", mu=[7, 5], sigma=1, dims="campaign"),
+            "sigma": Prior(
+                "Gamma",
+                mu=DataArray([7, 5], dims=("campaign",)),
+                sigma=1,
+                dims="campaign",
+            ),
         },
     )
-    effect_size = Prior("Normal", mu=[1, 2], sigma=1, dims="campaign")
+    effect_size = Prior(
+        "Normal", mu=DataArray([1, 2], dims=("campaign")), sigma=1, dims="campaign"
+    )
     effect = EventEffect(basis=gaussian, effect_size=effect_size, dims=("campaign",))
 
     # Create test data
-    X = np.random.randn(10, 2)  # 10 time points, 2 campaigns
+    X = DataArray(np.random.randn(10, 2), dims=("date", "campaign"))
     coords = {"campaign": ["Campaign1", "Campaign2"]}
 
     with pm.Model(coords=coords) as model:
@@ -507,8 +528,8 @@ def test_event_effect_dim_validation(sigma_dims, effect_dims) -> None:
 def test_half_gaussian_function_after_include_event_true(mode, include_event):
     half = HalfGaussianBasis(mode=mode, include_event=include_event)
 
-    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
-    sigma = np.array([1.0])
+    x = DataArray([-2.0, -1.0, 0.0, 1.0, 2.0], dims="time")
+    sigma = 1.0
 
     result = half.function(x, sigma).eval()
     expected = 1 / np.sqrt(2 * np.pi) * np.exp(-0.5 * (x / sigma) ** 2)
@@ -525,7 +546,9 @@ def test_half_gaussian_function_after_include_event_true(mode, include_event):
 def test_half_gaussian_basis_curve_sampling_shape():
     half = HalfGaussianBasis(
         priors={
-            "sigma": Prior("Gamma", mu=[4, 7], sigma=1, dims="event"),
+            "sigma": Prior(
+                "Gamma", mu=DataArray([4, 7], dims=("event",)), sigma=1, dims="event"
+            ),
         },
     )
     coords = {"event": ["A", "B"]}
@@ -567,7 +590,10 @@ def test_half_gaussian_in_event_effect_apply():
             np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
         )
 
-    X = create_basis_matrix(df_events, dates)
+    X = DataArray(
+        create_basis_matrix(df_events, dates),
+        dims=("date", "event"),
+    )
 
     half = HalfGaussianBasis(
         priors={
@@ -582,7 +608,7 @@ def test_half_gaussian_in_event_effect_apply():
     coords = {"date": dates, "event": df_events["event"].to_numpy()}
     with pm.Model(coords=coords):
         y = effect.apply(X)
-        assert tuple(y.shape.eval()) == (len(dates), 1)
+        assert y.type.shape == (len(dates), 1)
 
 
 def test_half_gaussian_serialization():
@@ -616,10 +642,10 @@ def test_asymmetric_gaussian_basis_function(event_in):
     # Test with event_in="after" (default)
     asymmetric = AsymmetricGaussianBasis(event_in=event_in)
 
-    x = np.array([-2.0, -1.0, 0.0, 1.0, 2.0])
-    sigma_before = np.array([1.0])
-    sigma_after = np.array([2.0])
-    a_after = np.array([1.0])
+    x = DataArray([-2.0, -1.0, 0.0, 1.0, 2.0], dims=("x",))
+    sigma_before = 1.0
+    sigma_after = 2.0
+    a_after = 1.0
 
     result = asymmetric.function(x, sigma_before, sigma_after, a_after).eval()
 
@@ -688,9 +714,15 @@ def test_asymmetric_gaussian_basis_multiple_events():
     """Test AsymmetricGaussianBasis with multiple events."""
     asymmetric = AsymmetricGaussianBasis(
         priors={
-            "sigma_before": Prior("Gamma", mu=[3, 5], sigma=1, dims="event"),
-            "sigma_after": Prior("Gamma", mu=[7, 10], sigma=2, dims="event"),
-            "a_after": Prior("Normal", mu=[1, 2], sigma=0.5, dims="event"),
+            "sigma_before": Prior(
+                "Gamma", mu=DataArray([3, 5], dims=("event",)), sigma=1, dims="event"
+            ),
+            "sigma_after": Prior(
+                "Gamma", mu=DataArray([7, 10], dims=("event",)), sigma=2, dims="event"
+            ),
+            "a_after": Prior(
+                "Normal", mu=DataArray([1, 2], dims=("event",)), sigma=0.5, dims="event"
+            ),
         },
     )
 
@@ -733,7 +765,10 @@ def test_asymmetric_gaussian_basis_in_event_effect_apply():
             np.where(np.abs(s_ref) < np.abs(e_ref), s_ref, e_ref),
         )
 
-    X = create_basis_matrix(df_events, dates)
+    X = DataArray(
+        create_basis_matrix(df_events, dates),
+        dims=("date", "event"),
+    )
 
     asymmetric = AsymmetricGaussianBasis(
         priors={
@@ -749,7 +784,7 @@ def test_asymmetric_gaussian_basis_in_event_effect_apply():
     coords = {"date": dates, "event": df_events["event"].to_numpy()}
     with pm.Model(coords=coords):
         y = effect.apply(X)
-        assert tuple(y.shape.eval()) == (len(dates), 1)
+        assert y.type.shape == (len(dates), 1)
 
 
 def test_asymmetric_gaussian_basis_serialization():
@@ -803,10 +838,10 @@ def test_asymmetric_gaussian_basis_invalid_event_in():
     """Test that AsymmetricGaussianBasis raises error for invalid event_in."""
     asymmetric = AsymmetricGaussianBasis()
 
-    x = np.array([0.0])
-    sigma_before = np.array([1.0])
-    sigma_after = np.array([1.0])
-    a_after = np.array([1.0])
+    x = 0.0
+    sigma_before = 1.0
+    sigma_after = 1.0
+    a_after = 1.0
 
     # Temporarily set invalid event_in to test error
     asymmetric.event_in = "invalid_mode"
@@ -837,25 +872,79 @@ def test_asymmetric_gaussian_basis_parameter_shapes():
     """Test AsymmetricGaussianBasis with different parameter shapes."""
     asymmetric = AsymmetricGaussianBasis()
 
-    x = np.array([-1.0, 0.0, 1.0])
+    x = DataArray([-1.0, 0.0, 1.0], dims=("date",))
 
     # Test with scalar parameters
-    sigma_before = np.array([1.0])
-    sigma_after = np.array([2.0])
-    a_after = np.array([1.0])
+    sigma_before = 1.0
+    sigma_after = 2.0
+    a_after = 1.0
 
     result_scalar = asymmetric.function(x, sigma_before, sigma_after, a_after).eval()
     assert result_scalar.shape == x.shape
 
     # Test with broadcasted parameters
-    sigma_before_bc = np.array([1.0, 2.0])
-    sigma_after_bc = np.array([2.0, 3.0])
-    a_after_bc = np.array([1.0, 1.5])
+    sigma_before_bc = DataArray([1.0, 2.0], dims=("event",))
+    sigma_after_bc = DataArray([2.0, 3.0], dims=("event",))
+    a_after_bc = DataArray([1.0, 1.5], dims=("event",))
 
     result_bc = asymmetric.function(
-        np.tile(x, (2, 1)).reshape(3, 2),
+        x,
         sigma_before_bc,
         sigma_after_bc,
         a_after_bc,
-    ).eval()
-    assert result_bc.shape == (3, 2)
+    )
+    assert result_bc.type.shape == (3, 2)
+    assert result_bc.dims == ("date", "event")
+
+
+def test_event_batch_dims():
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1981
+    n_date = 13
+    rng = np.random.default_rng(42)
+    X = pd.DataFrame(
+        {
+            "date": np.tile(
+                pd.date_range(start="2022-12-24", periods=n_date, freq="W"), 2
+            ),
+            "geo": ["geo_a"] * n_date + ["geo_b"] * n_date,
+            "x1": rng.normal(4_000, 500, size=n_date * 2),
+            "x2": rng.normal(4_000, 500, size=n_date * 2),
+            "event_1": rng.binomial(n=1, p=0.1, size=n_date * 2),
+            "event_2": rng.binomial(n=1, p=0.1, size=n_date * 2),
+        },
+    )
+    y = pd.Series(rng.normal(4_000, 500, size=n_date * 2), name="y")
+
+    mmm = MMM(
+        date_column="date",
+        target_column="y",
+        channel_columns=["x1", "x2"],
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+
+    event_df = pd.DataFrame(
+        {
+            "name": ["christmas", "christmas", "my birthday", "my birthday"],
+            "start_date": pd.to_datetime(
+                ["2022-12-24", "2023-12-24", "2022-09-11", "2022-09-12"]
+            ),
+            "end_date": pd.to_datetime(
+                ["2022-12-25", "2023-12-25", "2022-09-12", "2022-09-13"]
+            ),
+        }
+    )
+
+    gaussian = GaussianBasis(
+        priors={"sigma": Prior("Gamma", mu=3, sigma=2, dims=("holiday", "geo"))}
+    )
+    effect_size = Prior("Normal", mu=2.5, sigma=2.5, dims=("holiday", "geo"))
+    effect = EventEffect(
+        basis=gaussian, effect_size=effect_size, dims=("holiday", "geo")
+    )
+    mmm.add_events(df_events=event_df, effect=effect, prefix="holiday")
+
+    mmm.build_model(X, y)
+    assert mmm.model["y"].dims == ("date", "geo")
+    assert mmm.model["y"].eval(mode="FAST_COMPILE").shape == (n_date, 2)

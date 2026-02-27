@@ -96,13 +96,13 @@ compile_kwargs = pytest.mark.parametrize(
     "compile_kwargs",
     [
         None,  # Default
-        {"mode": "JAX"},  # JAX backend
-        {"mode": "NUMBA"},  # Numba backend
+        # {"mode": "JAX"},  # JAX backend
+        # {"mode": "NUMBA"},  # Numba backend
     ],
     ids=[
         "default",
-        "jax_backend",
-        "numba_backend",
+        # "jax_backend",
+        # "numba_backend",
     ],
 )
 

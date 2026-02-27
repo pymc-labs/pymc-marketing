@@ -69,7 +69,7 @@ def test_LogNormalPrior_args(mean, std, centered, dims):
         assert "variable_log_offset" in prior.data_vars
 
     with pm.Model(coords=coords):
-        rv.create_variable("test")
+        rv.create_variable("test", xdist=True)
 
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
@@ -131,7 +131,7 @@ def test_LaplacePrior_args(mu, b, centered, dims):
         assert "variable_sigma" in prior.data_vars
 
     with pm.Model(coords=coords):
-        rv.create_variable("test")
+        rv.create_variable("test", xdist=True)
 
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 

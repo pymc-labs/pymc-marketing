@@ -55,8 +55,9 @@ for saturation parameter of logistic saturation.
 
 .. code-block:: python
 
-    from pymc_extras.prior import Prior
     from pymc_marketing.mmm import LogisticSaturation
+    from pymc_extras.prior import Prior
+
 
     hierarchical_lam = Prior(
         "Gamma",
@@ -75,11 +76,11 @@ for saturation parameter of logistic saturation.
 from __future__ import annotations
 
 import numpy as np
-import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
@@ -181,15 +182,11 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         """
         x = np.linspace(0, max_value, num_points)
 
-        coords = {
-            "x": x,
-        }
-
         return self._sample_curve(
             var_name="saturation",
             parameters=parameters,
             x=x,
-            coords=coords,
+            coords={"x": x},
         )
 
 
@@ -217,7 +214,7 @@ class LogisticSaturation(SaturationTransformation):
 
     lookup_name = "logistic"
 
-    def function(self, x, lam, beta):
+    def function(self, x, lam, beta, *, dim: str | None = None):
         """Logistic saturation function."""
         return beta * logistic_saturation(x, lam)
 
@@ -251,7 +248,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
 
     lookup_name = "inverse_scaled_logistic"
 
-    def function(self, x, lam, beta):
+    def function(self, x, lam, beta, *, dim: str | None = None):
         """Inverse scaled logistic saturation function."""
         return beta * inverse_scaled_logistic_saturation(x, lam)
 
@@ -285,7 +282,7 @@ class TanhSaturation(SaturationTransformation):
 
     lookup_name = "tanh"
 
-    def function(self, x, b, c):
+    def function(self, x, b, c, *, dim: str | None = None):
         """Tanh saturation function."""
         return tanh_saturation(x, b, c)
 
@@ -319,7 +316,7 @@ class TanhSaturationBaselined(SaturationTransformation):
 
     lookup_name = "tanh_baselined"
 
-    def function(self, x, x0, gain, r, beta):
+    def function(self, x, x0, gain, r, beta, *, dim: str | None = None):
         """Tanh saturation function."""
         return beta * tanh_saturation_baselined(x, x0, gain, r)
 
@@ -355,9 +352,9 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     lookup_name = "michaelis_menten"
 
-    def function(self, x, alpha, lam):
+    def function(self, x, alpha, lam, *, dim: str | None = None):
         """Michaelis-Menten saturation function."""
-        return pt.as_tensor_variable(michaelis_menten(x, alpha, lam))
+        return michaelis_menten(x, alpha, lam)
 
     default_priors = {
         "alpha": Prior("Gamma", mu=2, sigma=1),
@@ -389,7 +386,7 @@ class HillSaturation(SaturationTransformation):
 
     lookup_name = "hill"
 
-    def function(self, x, slope, kappa, beta):
+    def function(self, x, slope, kappa, beta, *, dim: str | None = None):
         """Hill saturation function."""
         return beta * hill_function(x, slope, kappa)
 
@@ -424,7 +421,9 @@ class HillSaturationSigmoid(SaturationTransformation):
 
     lookup_name = "hill_sigmoid"
 
-    function = hill_saturation_sigmoid
+    def function(self, x, sigma, beta, lam, *, dim: str | None = None):
+        """Hill sigmoid function."""
+        return hill_saturation_sigmoid(x, sigma, beta, lam)
 
     default_priors = {
         "sigma": Prior("HalfNormal", sigma=1.5),
@@ -457,7 +456,7 @@ class RootSaturation(SaturationTransformation):
 
     lookup_name = "root"
 
-    def function(self, x, alpha, beta):
+    def function(self, x, alpha, beta, *, dim: str | None = None):
         """Root saturation function."""
         return beta * root_saturation(x, alpha)
 
@@ -489,9 +488,11 @@ class NoSaturation(SaturationTransformation):
 
     lookup_name = "no_saturation"
 
-    def function(self, x, beta):
+    def function(self, x, beta, *, dim: str | None = None):
         """Linear saturation function."""
-        return pt.as_tensor_variable(beta * x)
+        x = as_xtensor(x)
+        beta = as_xtensor(beta)
+        return beta * x
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1)}
 

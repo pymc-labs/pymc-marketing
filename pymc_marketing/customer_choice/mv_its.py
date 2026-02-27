@@ -24,6 +24,7 @@ import pandas as pd
 import pymc as pm
 from matplotlib.axes import Axes
 from pymc_extras.prior import Prior
+from pytensor.tensor import as_tensor
 from xarray import DataArray
 
 from pymc_marketing.mmm.additive_effect import MuEffect
@@ -313,7 +314,9 @@ class MVITS(RegressionModelBuilder):
             mu = intercept[None, :] - y[:, None] * beta[None, :]  # type: ignore[index]
 
             for mu_effect in self.mu_effects:
-                mu += mu_effect.create_effect(self)
+                mu += as_tensor(
+                    mu_effect.create_effect(self), allow_xtensor_conversion=True
+                )
 
             mu = pm.Deterministic("mu", mu, dims=("time", "existing_product"))
 
