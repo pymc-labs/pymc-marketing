@@ -147,6 +147,7 @@ Notes
 
 from __future__ import annotations
 
+import io
 import json
 import warnings
 from collections.abc import Callable, Sequence
@@ -1058,7 +1059,7 @@ class MMM(RegressionModelBuilder):
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
             "cost_per_unit": (
-                pd.read_json(attrs["cost_per_unit"], orient="split")
+                pd.read_json(io.StringIO(attrs["cost_per_unit"]), orient="split")
                 if attrs.get("cost_per_unit") and attrs["cost_per_unit"] != "null"
                 else None
             ),
