@@ -176,5 +176,49 @@ def _(mo):
     return
 
 
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## Static Plots with cost_per_unit
+
+    The static plot suite supports cost_per_unit via the `apply_cost_per_unit` flag.
+    When True, x-axes show **spend (dollars)** instead of raw channel data.
+    """
+    )
+    return
+
+
+@app.cell
+def _(mmm, plt):
+    fig_sat, axes_sat = mmm.plot.saturation_scatterplot(
+        original_scale=True,
+        apply_cost_per_unit=True,
+    )
+    plt.tight_layout()
+    fig_sat
+    return axes_sat, fig_sat
+
+
+@app.cell
+def _(mmm, np, plt):
+    mmm.sensitivity.run_sweep(
+        var_input="channel_data",
+        sweep_values=np.linspace(0.5, 1.5, 11),
+        var_names="channel_contribution",
+        sweep_type="multiplicative",
+        extend_idata=True,
+    )
+    sens_result = mmm.plot.sensitivity_analysis(
+        apply_cost_per_unit=True,
+        hue_dim="channel",
+        x_sweep_axis="absolute",
+    )
+    fig_sens = sens_result.figure if hasattr(sens_result, "figure") else sens_result[0]
+    plt.tight_layout()
+    fig_sens
+    return fig_sens, sens_result
+
+
 if __name__ == "__main__":
     app.run()
