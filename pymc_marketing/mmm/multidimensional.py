@@ -1069,7 +1069,10 @@ class MMM(RegressionModelBuilder):
         """Use the MMMPlotSuite to plot the results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        data = self.data
+        if data.schema is not None:
+            data.validate_or_raise()
+        return MMMPlotSuite(data=data)
 
     @property
     def plot_interactive(self):  # type: ignore[no-any-return]

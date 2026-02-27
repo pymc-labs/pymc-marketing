@@ -1423,9 +1423,10 @@ class MMMPlotlyFactory:
 
         # Convert x-axis to original scale if requested
         if original_scale:
-            # Get channel scale factors and convert to DataFrame
             channel_scale = self.summary.data.get_channel_scale()
-            scale_df = channel_scale.to_dataframe(name="channel_scale").reset_index()
+            avg_cpu = self.summary.data.get_avg_cost_per_unit()
+            spend_scale = channel_scale * avg_cpu
+            scale_df = spend_scale.to_dataframe(name="channel_scale").reset_index()
             nw_scale = nw.from_native(scale_df)
 
             # Determine join columns: "channel" plus any custom dimensions

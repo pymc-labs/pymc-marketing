@@ -374,6 +374,26 @@ class MMMIDataWrapper:
         channel_data = self.idata.constant_data.channel_data
         return xr.where(channel_data == 0, np.nan, channel_spend / channel_data)
 
+    def get_avg_cost_per_unit(self) -> xr.DataArray:
+        """Get the weighted-average cost per unit for each channel.
+
+        Computed as ``channel_spend.sum("date") / channel_data.sum("date")``.
+        Returns 1.0 (as a broadcast-compatible DataArray) if
+        ``channel_spend`` is not available, making this backward compatible.
+
+        Returns
+        -------
+        xr.DataArray
+            Average cost per unit with dims (channel,) [+ custom dims].
+        """
+        if self.cost_per_unit is None:
+            return xr.ones_like(self.get_channel_scale())
+
+        total_spend = self.get_channel_spend().sum(dim="date")
+        total_data = self.get_channel_data().sum(dim="date")
+        total_data_safe = xr.where(total_data == 0, np.nan, total_data)
+        return total_spend / total_data_safe
+
     # ==================== Contribution Access ====================
 
     def get_channel_contributions(self, original_scale: bool = True) -> xr.DataArray:

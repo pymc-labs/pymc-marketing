@@ -53,6 +53,13 @@ def simple_idata(dates, channels):
     """InferenceData without custom dims."""
     n_dates = len(dates)
     n_channels = len(channels)
+    contrib = rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_channels))
+    contrib_coords = {
+        "chain": [0, 1],
+        "draw": np.arange(50),
+        "date": dates,
+        "channel": channels,
+    }
     return az.InferenceData(
         constant_data=xr.Dataset(
             {
@@ -77,14 +84,14 @@ def simple_idata(dates, channels):
         posterior=xr.Dataset(
             {
                 "channel_contribution": xr.DataArray(
-                    rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_channels)),
+                    contrib,
                     dims=("chain", "draw", "date", "channel"),
-                    coords={
-                        "chain": [0, 1],
-                        "draw": np.arange(50),
-                        "date": dates,
-                        "channel": channels,
-                    },
+                    coords=contrib_coords,
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    contrib * 1000.0,
+                    dims=("chain", "draw", "date", "channel"),
+                    coords=contrib_coords,
                 ),
             }
         ),
@@ -97,6 +104,14 @@ def multidim_idata(dates, channels, countries):
     n_dates = len(dates)
     n_channels = len(channels)
     n_countries = len(countries)
+    contrib = rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_countries, n_channels))
+    contrib_coords = {
+        "chain": [0, 1],
+        "draw": np.arange(50),
+        "date": dates,
+        "country": countries,
+        "channel": channels,
+    }
     return az.InferenceData(
         constant_data=xr.Dataset(
             {
@@ -129,19 +144,14 @@ def multidim_idata(dates, channels, countries):
         posterior=xr.Dataset(
             {
                 "channel_contribution": xr.DataArray(
-                    rng.normal(
-                        0.5,
-                        0.1,
-                        size=(2, 50, n_dates, n_countries, n_channels),
-                    ),
+                    contrib,
                     dims=("chain", "draw", "date", "country", "channel"),
-                    coords={
-                        "chain": [0, 1],
-                        "draw": np.arange(50),
-                        "date": dates,
-                        "country": countries,
-                        "channel": channels,
-                    },
+                    coords=contrib_coords,
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    contrib * 1000.0,
+                    dims=("chain", "draw", "date", "country", "channel"),
+                    coords=contrib_coords,
                 ),
             }
         ),
@@ -748,3 +758,307 @@ class TestIncrementalityCostPerUnit:
             roas_no_cpu.values,
             rtol=1e-5,
         )
+
+
+@pytest.fixture
+def simple_idata_with_spend(simple_idata, dates, channels):
+    """simple_idata with channel_spend added (constant cpu: TV=2, Radio=3)."""
+    cpu = xr.DataArray(
+        [[2.0, 3.0]] * len(dates),
+        dims=("date", "channel"),
+        coords={"date": dates, "channel": channels},
+    )
+    channel_data = simple_idata.constant_data.channel_data
+    simple_idata.constant_data["channel_spend"] = channel_data * cpu
+    return simple_idata
+
+
+@pytest.fixture
+def multidim_idata_with_spend(multidim_idata, dates, channels, countries):
+    """multidim_idata with channel_spend added."""
+    n_dates = len(dates)
+    n_countries = len(countries)
+    n_channels = len(channels)
+    cpu = xr.DataArray(
+        rng.uniform(1.5, 4.0, size=(n_dates, n_countries, n_channels)),
+        dims=("date", "country", "channel"),
+        coords={"date": dates, "country": countries, "channel": channels},
+    )
+    channel_data = multidim_idata.constant_data.channel_data
+    multidim_idata.constant_data["channel_spend"] = channel_data * cpu
+    return multidim_idata
+
+
+class TestGetAvgCostPerUnit:
+    def test_no_spend_returns_ones(self, simple_idata):
+        wrapper = MMMIDataWrapper(simple_idata)
+        result = wrapper.get_avg_cost_per_unit()
+        expected = xr.ones_like(wrapper.get_channel_scale())
+        xr.testing.assert_equal(result, expected)
+
+    def test_with_spend_returns_weighted_average(self, simple_idata_with_spend):
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        result = wrapper.get_avg_cost_per_unit()
+
+        total_spend = wrapper.get_channel_spend().sum(dim="date")
+        total_data = wrapper.get_channel_data().sum(dim="date")
+        expected = total_spend / total_data
+        assert not np.isnan(expected).any()
+        assert not np.isinf(expected).any()
+        assert not expected.isnull().any()
+        xr.testing.assert_allclose(result, expected)
+
+    def test_with_spend_correct_values(self, simple_idata_with_spend):
+        """Verify avg cpu = 2.0 for TV, 3.0 for Radio (constant cpu)."""
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        result = wrapper.get_avg_cost_per_unit()
+        np.testing.assert_allclose(result.sel(channel="TV").values, 2.0, rtol=1e-10)
+        np.testing.assert_allclose(result.sel(channel="Radio").values, 3.0, rtol=1e-10)
+
+    def test_multidim_with_spend(self, multidim_idata_with_spend):
+        wrapper = MMMIDataWrapper(multidim_idata_with_spend)
+        result = wrapper.get_avg_cost_per_unit()
+        assert "country" in result.dims
+        assert "channel" in result.dims
+        assert "date" not in result.dims
+
+
+class TestMMMPlotSuiteConstructor:
+    def test_with_raw_idata(self, simple_idata):
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        suite = MMMPlotSuite(idata=simple_idata)
+        assert suite.idata is simple_idata
+        assert isinstance(suite.data, MMMIDataWrapper)
+
+    def test_with_wrapper(self, simple_idata):
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata)
+        suite = MMMPlotSuite(data=wrapper)
+        assert suite.data is wrapper
+        assert suite.idata is simple_idata
+
+    def test_both_raises(self, simple_idata):
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata)
+        with pytest.raises(ValueError, match="Provide either"):
+            MMMPlotSuite(idata=simple_idata, data=wrapper)
+
+    def test_neither_raises(self):
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        with pytest.raises(ValueError, match="Provide either"):
+            MMMPlotSuite()
+
+
+class TestSaturationScatterplotCostPerUnit:
+    def test_uses_channel_spend_when_cpu_set(self, simple_idata_with_spend):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=True)
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == "Spend"
+
+    def test_uses_channel_data_when_cpu_false(self, simple_idata_with_spend):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=False)
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
+
+    def test_no_cpu_label_unchanged(self, simple_idata):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=True)
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
+
+
+class TestSaturationCurvesCostPerUnit:
+    @pytest.fixture
+    def curve_data(self, channels):
+        """Minimal curve DataArray for saturation_curves()."""
+        x = np.linspace(0, 1, 50)
+        return xr.DataArray(
+            rng.uniform(0, 1, size=(2, 10, len(channels), 50)),
+            dims=("chain", "draw", "channel", "x"),
+            coords={
+                "chain": [0, 1],
+                "draw": np.arange(10),
+                "channel": channels,
+                "x": x,
+            },
+        )
+
+    def test_curve_xaxis_scales_with_cpu(self, simple_idata_with_spend, curve_data):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_curves(
+            curve=curve_data,
+            original_scale=True,
+            n_samples=2,
+            apply_cost_per_unit=True,
+        )
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == "Spend"
+
+    def test_curve_xaxis_no_cpu(self, simple_idata_with_spend, curve_data):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_curves(
+            curve=curve_data,
+            original_scale=True,
+            n_samples=2,
+            apply_cost_per_unit=False,
+        )
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
+
+    def test_no_spend_label_unchanged(self, simple_idata, curve_data):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        wrapper = MMMIDataWrapper(simple_idata)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_curves(
+            curve=curve_data,
+            original_scale=True,
+            n_samples=2,
+            apply_cost_per_unit=True,
+        )
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
+
+
+class TestSummaryColumnName:
+    def test_channel_spend_col_name_with_cpu(self, simple_idata_with_spend):
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        factory = MMMSummaryFactory(wrapper)
+        df = factory.channel_spend()
+        assert "channel_spend" in df.columns
+
+    def test_channel_spend_col_name_without_cpu(self, simple_idata):
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        wrapper = MMMIDataWrapper(simple_idata)
+        factory = MMMSummaryFactory(wrapper)
+        df = factory.channel_spend()
+        assert "channel_data" in df.columns
+
+
+class TestSensitivityAnalysisCostPerUnit:
+    @pytest.fixture
+    def _add_sensitivity(self, simple_idata, channels):
+        """Attach a minimal sensitivity_analysis group to simple_idata."""
+        sweep = np.linspace(0.5, 2.0, 5)
+        sa = xr.DataArray(
+            rng.normal(size=(20, len(channels), len(sweep))),
+            dims=("sample", "channel", "sweep"),
+            coords={"channel": channels, "sweep": sweep},
+        )
+        simple_idata.sensitivity_analysis = xr.Dataset({"x": sa})
+        return simple_idata
+
+    @pytest.fixture
+    def _add_sensitivity_with_spend(self, simple_idata_with_spend, channels):
+        """Attach sensitivity_analysis to idata that has channel_spend."""
+        sweep = np.linspace(0.5, 2.0, 5)
+        sa = xr.DataArray(
+            rng.normal(size=(20, len(channels), len(sweep))),
+            dims=("sample", "channel", "sweep"),
+            coords={"channel": channels, "sweep": sweep},
+        )
+        simple_idata_with_spend.sensitivity_analysis = xr.Dataset({"x": sa})
+        return simple_idata_with_spend
+
+    def test_absolute_uses_channel_spend_with_cpu(
+        self, _add_sensitivity_with_spend, channels
+    ):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        idata = _add_sensitivity_with_spend
+        wrapper = MMMIDataWrapper(idata)
+        suite = MMMPlotSuite(data=wrapper)
+
+        result = suite.sensitivity_analysis(
+            hue_dim="channel",
+            x_sweep_axis="absolute",
+            apply_cost_per_unit=True,
+        )
+        if isinstance(result, tuple):
+            fig = result[0]
+        else:
+            fig = result.figure
+        plt.close(fig)
+        assert fig is not None
+
+    def test_absolute_uses_channel_data_without_cpu(self, _add_sensitivity, channels):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        idata = _add_sensitivity
+        wrapper = MMMIDataWrapper(idata)
+        suite = MMMPlotSuite(data=wrapper)
+
+        result = suite.sensitivity_analysis(
+            hue_dim="channel",
+            x_sweep_axis="absolute",
+            apply_cost_per_unit=True,
+        )
+        if isinstance(result, tuple):
+            fig = result[0]
+        else:
+            fig = result.figure
+        plt.close(fig)
+        assert fig is not None
+
+    def test_absolute_no_cpu_flag_uses_raw_data(
+        self, _add_sensitivity_with_spend, channels
+    ):
+        import matplotlib.pyplot as plt
+
+        from pymc_marketing.mmm.plot import MMMPlotSuite
+
+        idata = _add_sensitivity_with_spend
+        wrapper = MMMIDataWrapper(idata)
+        suite = MMMPlotSuite(data=wrapper)
+
+        result = suite.sensitivity_analysis(
+            hue_dim="channel",
+            x_sweep_axis="absolute",
+            apply_cost_per_unit=False,
+        )
+        if isinstance(result, tuple):
+            fig = result[0]
+        else:
+            fig = result.figure
+        plt.close(fig)
+        assert fig is not None

@@ -637,7 +637,7 @@ class MMMSummaryFactory:
 
             - date: Time index
             - channel: Channel name
-            - channel_data: Spend value
+            - channel_data or channel_spend: Spend value
 
         Examples
         --------
@@ -649,7 +649,13 @@ class MMMSummaryFactory:
         )
 
         spend = self.data.get_channel_spend()
-        df = spend.to_dataframe(name="channel_data").reset_index()
+        col_name = (
+            "channel_spend"
+            if hasattr(self.data.idata, "constant_data")
+            and "channel_spend" in self.data.idata.constant_data
+            else "channel_data"
+        )
+        df = spend.to_dataframe(name=col_name).reset_index()
 
         return self._convert_output(df, effective_output_format)
 
