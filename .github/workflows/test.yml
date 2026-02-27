@@ -32,7 +32,7 @@ jobs:
         with:
           filters: |
             code:
-              # - ".github/workflows/test.yml"
+              - ".github/workflows/test.yml"
               - "pyproject.toml"
               - "tests/**.py"
               - "pymc_marketing/**"
