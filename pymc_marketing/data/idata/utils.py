@@ -13,11 +13,17 @@
 #   limitations under the License.
 """Standalone utility functions for InferenceData operations."""
 
+from __future__ import annotations
+
 from typing import Literal
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import xarray as xr
+from numpy.random import Generator, RandomState
+
+from pymc_marketing.data.idata.schema import Frequency
 
 
 def filter_idata_by_dates(
@@ -135,7 +141,7 @@ def filter_idata_by_dims(
 
 def aggregate_idata_time(
     idata: az.InferenceData,
-    period: Literal["weekly", "monthly", "quarterly", "yearly", "all_time"],
+    period: Frequency,
     method: Literal["sum", "mean"] = "sum",
 ) -> az.InferenceData:
     """Aggregate InferenceData over time periods.
@@ -144,22 +150,28 @@ def aggregate_idata_time(
     ----------
     idata : az.InferenceData
         InferenceData object to aggregate
-    period : {"weekly", "monthly", "quarterly", "yearly", "all_time"}
-        Time period to aggregate to. Use "all_time" to aggregate over
-        the entire time dimension (removes the date dimension).
+    period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
+        Time period to aggregate to. Use "original" for no aggregation (returns
+        unchanged), "all_time" to aggregate over the entire time dimension
+        (removes the date dimension).
     method : {"sum", "mean"}, default "sum"
         Aggregation method
 
     Returns
     -------
     az.InferenceData
-        New InferenceData with aggregated groups
+        New InferenceData with aggregated groups (or unchanged if period="original")
 
     Examples
     --------
+    >>> original = aggregate_idata_time(idata, "original")  # No aggregation
     >>> monthly = aggregate_idata_time(idata, "monthly", method="sum")
     >>> total = aggregate_idata_time(idata, "all_time", method="sum")
     """
+    # Handle "original" - no aggregation, return unchanged
+    if period == "original":
+        return idata
+
     # Handle "all_time" aggregation (removes date dimension entirely)
     if period == "all_time":
         aggregated_groups = {}
@@ -330,3 +342,58 @@ def aggregate_idata_dims(
         aggregated_groups[group_name] = combined
 
     return az.InferenceData(**aggregated_groups)
+
+
+def subsample_draws(
+    dataset: xr.Dataset,
+    *,
+    num_samples: int | None,
+    random_state: RandomState | Generator | None = None,
+) -> xr.Dataset:
+    """Subsample draws from a Dataset with chain and draw dimensions.
+
+    Randomly selects ``num_samples`` draws from the flattened
+    chain × draw space and returns a new Dataset with a single
+    chain and ``num_samples`` draws.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Dataset with ``chain`` and ``draw`` dimensions.
+    num_samples : int or None
+        Number of draws to keep.  If ``None`` or >= total available
+        draws, returns *dataset* unchanged.
+    random_state : RandomState, Generator, or None, optional
+        Seed or random state for reproducibility.
+
+    Returns
+    -------
+    xr.Dataset
+        Either the original *dataset* (when no subsampling is needed) or
+        a new Dataset whose chain/draw dimensions have shape ``(1, num_samples)``.
+
+    Examples
+    --------
+    >>> sub = subsample_draws(posterior, num_samples=100, random_state=42)
+    >>> sub.sizes["draw"]
+    100
+    """
+    if num_samples is None:
+        return dataset
+
+    total_samples = dataset.sizes["chain"] * dataset.sizes["draw"]
+
+    if num_samples >= total_samples:
+        return dataset
+
+    rng = np.random.default_rng(random_state)
+    flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
+
+    stacked = dataset.stack(sample=("chain", "draw"))
+    selected = stacked.isel(sample=flat_indices)
+
+    return (
+        selected.drop_vars(["chain", "draw", "sample"])
+        .rename({"sample": "draw"})
+        .expand_dims("chain")
+    )

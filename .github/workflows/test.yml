@@ -3,18 +3,8 @@ name: Test
 on:
   pull_request:
     branches: [main]
-    paths:
-     - ".github/workflows/test.yml"
-     - "pyproject.toml"
-     - "tests/**.py"
-     - "pymc_marketing/**"
   push:
     branches: [main]
-    paths:
-     - ".github/workflows/test.yml"
-     - "pyproject.toml"
-     - "tests/**.py"
-     - "pymc_marketing/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,27 +12,41 @@ concurrency:
 
 env:
   # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
-
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *[>=]' pyproject.toml | sed -n 's/.*[>=]=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
+  # NOTE: .test_durations is managed manually (committed to repo)
+  # - pytest-split uses this file to balance test execution times
+  # - Update by running the "Generate Test Durations" workflow manually
+  # - Only needed every few weeks or after major test changes
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      should_test: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - ".github/workflows/test.yml"
+              - "pyproject.toml"
+              - "tests/**.py"
+              - "pymc_marketing/**"
+
   test:
+    needs: changes
+    if: ${{ needs.changes.outputs.should_test == 'true' }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
         config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true} ]
-        split:
-          - "--ignore tests/mmm --ignore tests/clv"
-          - "tests/mmm --ignore tests/mmm/test_tvp.py --ignore tests/mmm/test_budget_optimizer.py --ignore tests/mmm/test_hsgp.py --ignore tests/mmm/test_transformers.py"
-          - "tests/mmm/test_tvp.py tests/mmm/test_budget_optimizer.py tests/mmm/test_hsgp.py tests/mmm/test_transformers.py"
-          - "tests/clv/models/test_pareto_nbd.py"
-          - "tests/clv/models/test_beta_geo_beta_binom.py"
-          - "tests/clv/models/test_beta_geo.py"
-          - "tests/clv/models/test_shifted_beta_geo.py"
-          - "tests/clv/models/test_basic.py"
-          - "tests/clv/test_distributions.py"
-          - "tests/clv/ --ignore=tests/clv/models/test_pareto_nbd.py --ignore=tests/clv/models/test_beta_geo_beta_binom.py --ignore=tests/clv/models/test_beta_geo.py --ignore=tests/clv/models/test_shifted_beta_geo.py --ignore=tests/clv/models/test_basic.py --ignore=tests/clv/test_distributions.py"
+        group: [1, 2, 3, 4, 5, 6]
     env:
       PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
@@ -60,10 +64,13 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
-          pytest ${{ matrix.split }}
+          pytest --splits 6 \
+                 --group ${{ matrix.group }} \
+                 --splitting-algorithm least_duration \
+                 --durations-path .test_durations
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
-        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}'"
+        run: python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -72,15 +79,14 @@ jobs:
           fail_ci_if_error: false
 
   test_slow:
+    needs: changes
+    if: ${{ needs.changes.outputs.should_test == 'true' }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         linker: [cvm, numba]
-        # From referencing https://github.com/pymc-labs/pymc-marketing/issues/1158
-        split:
-          - "tests/clv/models/test_beta_geo_beta_binom.py"
-          - "tests/clv/models/test_pareto_nbd.py"
-          - "--ignore tests/clv/models/test_beta_geo_beta_binom.py --ignore tests/clv/models/test_pareto_nbd.py"
+        group: [1, 2]  # Reduced from 3 to 2 groups for better balance
     env:
       PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
@@ -95,10 +101,23 @@ jobs:
         run: |
           sudo apt-get install graphviz graphviz-dev
           pip install -e .[test]
-          pytest --only-slow ${{ matrix.split }}
+          pytest --only-slow \
+                 --splits 2 \
+                 --group ${{ matrix.group }} \
+                 --splitting-algorithm least_duration \
+                 --durations-path .test_durations
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
           fail_ci_if_error: false
+
+  all_tests:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    needs: [changes, test, test_slow]
+    steps:
+      - name: Check build matrix status
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.test.result) || !contains(fromJSON('["success", "skipped"]'), needs.test_slow.result) }}
+        run: exit 1

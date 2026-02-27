@@ -151,6 +151,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
+from functools import singledispatch
 from typing import Annotated, Any, cast
 
 import arviz as az
@@ -163,14 +164,19 @@ import xarray as xr
 from pydantic import Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.schema import MMMIdataSchema
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, MuEffect
+from pymc_marketing.mmm.additive_effect import (
+    EventAdditiveEffect,
+    MuEffect,
+    safe_to_datetime,
+)
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import (
@@ -184,6 +190,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
+from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
@@ -204,6 +211,144 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+
+
+@singledispatch
+def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
+    """Serialize a MuEffect to JSON-compatible dict.
+
+    Default implementation uses Pydantic's model_dump for unknown types.
+    Register new types with: @_serialize_mu_effect.register(YourEffect)
+    """
+    # Check if the effect has model_dump (Pydantic BaseModel)
+    if not hasattr(effect, "model_dump"):
+        raise TypeError(
+            f"Cannot serialize MuEffect of type '{effect.__class__.__name__}': "
+            f"MuEffect subclasses must inherit from pydantic.BaseModel. "
+            f"Update your custom effect class to inherit from MuEffect (which is now a BaseModel). "
+            f"See pymc_marketing.mmm.additive_effect.MuEffect for the new base class definition."
+        )
+
+    return {
+        "class": effect.__class__.__name__,
+        **effect.model_dump(mode="json"),
+    }
+
+
+def _deserialize_mu_effect(data: dict[str, Any]) -> MuEffect:
+    """Deserialize a MuEffect from dict using class name."""
+    class_name = data.get("class")
+    if class_name not in _MUEFFECT_DESERIALIZERS:
+        raise ValueError(
+            f"Unknown MuEffect class: {class_name}. "
+            f"Registered types: {list(_MUEFFECT_DESERIALIZERS.keys())}"
+        )
+    return _MUEFFECT_DESERIALIZERS[class_name](data)
+
+
+# Deserialization registry: maps class name -> deserializer function
+_MUEFFECT_DESERIALIZERS: dict[str, Callable[[dict[str, Any]], MuEffect]] = {}
+
+
+# Register serializers/deserializers at module load
+# Imports are inside function to avoid circular dependencies
+def _register_mu_effect_handlers():
+    """Register all known MuEffect serialization handlers."""
+    from pymc_marketing.mmm import fourier as fourier_module
+    from pymc_marketing.mmm.additive_effect import (
+        EventAdditiveEffect,
+        FourierEffect,
+        LinearTrendEffect,
+    )
+    from pymc_marketing.mmm.linear_trend import LinearTrend
+
+    # FourierEffect
+    @_serialize_mu_effect.register(FourierEffect)
+    def _(effect: FourierEffect) -> dict[str, Any]:
+        return {
+            "class": "FourierEffect",
+            "fourier": effect.fourier.to_dict(),
+            "date_dim_name": effect.date_dim_name,
+        }
+
+    def _deser_fourier(data: dict[str, Any]) -> FourierEffect:
+        # Get Fourier class from module by name and use its from_dict method
+        fourier_data = data["fourier"]
+        fourier_class_name = fourier_data.get("class")
+        fourier_class = getattr(fourier_module, fourier_class_name, None)
+        if fourier_class is None:
+            raise ValueError(
+                f"Unknown Fourier class: {fourier_class_name}. "
+                f"Not found in pymc_marketing.mmm.fourier module."
+            )
+
+        fourier = fourier_class.from_dict(fourier_data)
+        return FourierEffect(
+            fourier=fourier,
+            date_dim_name=data.get("date_dim_name", "date"),
+        )
+
+    # LinearTrendEffect
+    @_serialize_mu_effect.register(LinearTrendEffect)
+    def _(effect: LinearTrendEffect) -> dict[str, Any]:
+        # Serialize trend data, handling priors separately
+        trend_data = effect.trend.model_dump(mode="json", exclude={"priors"})
+        # Manually serialize priors using Prior.to_dict()
+        if effect.trend.priors is not None:
+            trend_data["priors"] = {
+                key: prior.to_dict() for key, prior in effect.trend.priors.items()
+            }
+        return {
+            "class": "LinearTrendEffect",
+            "trend": trend_data,
+            "prefix": effect.prefix,
+            "date_dim_name": effect.date_dim_name,
+        }
+
+    def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
+        # Deserialize priors separately using generic deserialize()
+        # to support both Prior and SpecialPrior (e.g., LogNormalPrior)
+        trend_data = data["trend"].copy()
+        if "priors" in trend_data and trend_data["priors"] is not None:
+            trend_data["priors"] = {
+                key: deserialize(prior_dict)
+                for key, prior_dict in trend_data["priors"].items()
+            }
+        return LinearTrendEffect(
+            trend=LinearTrend.model_validate(trend_data),
+            prefix=data["prefix"],
+            date_dim_name=data.get("date_dim_name", "date"),
+        )
+
+    # EventAdditiveEffect
+    @_serialize_mu_effect.register(EventAdditiveEffect)
+    def _(effect: EventAdditiveEffect) -> dict[str, Any]:
+        result = {
+            "class": "EventAdditiveEffect",
+            **effect.model_dump(mode="json", exclude={"df_events", "effect"}),
+        }
+        result["event_names"] = effect.df_events["name"].tolist()
+        return result
+
+    def _deser_event(data: dict[str, Any]) -> EventAdditiveEffect:
+        raise ValueError(
+            "EventAdditiveEffect deserialization not supported: "
+            "requires original df_events DataFrame. "
+            f"Event names in saved model: {data.get('event_names', [])}"
+        )
+
+    # Populate deserialization registry
+    _MUEFFECT_DESERIALIZERS.update(
+        {
+            "FourierEffect": _deser_fourier,
+            "LinearTrendEffect": _deser_linear_trend,
+            "EventAdditiveEffect": _deser_event,
+        }
+    )
+
+
+# Register handlers at module load
+_register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
@@ -336,9 +481,6 @@ class MMM(RegressionModelBuilder):
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
-
-        self.adstock = adstock
-        self.saturation = saturation
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
@@ -382,9 +524,20 @@ class MMM(RegressionModelBuilder):
             hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
+        self.adstock, self.saturation = adstock, saturation
+        del adstock, saturation
         if model_config is not None:
-            self.adstock.update_priors({**self.default_model_config, **model_config})
-            self.saturation.update_priors({**self.default_model_config, **model_config})
+            # self.default_model_config accesses self.adstock and self.saturation
+            self.adstock = self.adstock.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+            self.saturation = self.saturation.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+        self.adstock = self.adstock.with_default_prior_dims((*self.dims, "channel"))
+        self.saturation = self.saturation.with_default_prior_dims(
+            (*self.dims, "channel")
+        )
 
         self._check_compatible_media_dims()
 
@@ -442,6 +595,125 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+
+    def __eq__(self, other: object) -> bool:
+        """Compare two MMM instances for equivalence.
+
+        Compares all configuration attributes including:
+        - Core configuration (date, channels, target, dims, scaling)
+        - Transformations (adstock, saturation, adstock_first)
+        - Time-varying effects (time_varying_intercept, time_varying_media)
+        - Additive effects (mu_effects)
+        - Causal graph (dag, treatment_nodes, outcome_node)
+        - Control columns and seasonality settings
+        - Model and sampler configuration
+        - Model ID (which validates full config consistency)
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare with.
+
+        Returns
+        -------
+        bool
+            True if all configuration attributes are equal, False otherwise.
+
+        """
+        if not isinstance(other, MMM):
+            return False
+
+        # Core configuration
+        if (
+            self.date_column != other.date_column
+            or self.channel_columns != other.channel_columns
+            or self.target_column != other.target_column
+            or self.dims != other.dims
+            or self.control_columns != other.control_columns
+            or self.adstock_first != other.adstock_first
+        ):
+            return False
+
+        # Transformations - compare by type and serialized form
+        if self.adstock.__class__ is not other.adstock.__class__:
+            return False
+        if hasattr(self.adstock, "to_dict"):
+            if self.adstock.to_dict() != other.adstock.to_dict():
+                return False
+
+        if self.saturation.__class__ is not other.saturation.__class__:
+            return False
+        if hasattr(self.saturation, "to_dict"):
+            if self.saturation.to_dict() != other.saturation.to_dict():
+                return False
+
+        # Time-varying effects
+        if (
+            self.time_varying_intercept.__class__
+            is not other.time_varying_intercept.__class__
+        ):
+            return False
+        if isinstance(self.time_varying_intercept, HSGPBase):
+            if (
+                self.time_varying_intercept.to_dict()
+                != other.time_varying_intercept.to_dict()
+            ):
+                return False
+        else:
+            if self.time_varying_intercept != other.time_varying_intercept:
+                return False
+
+        if self.time_varying_media.__class__ is not other.time_varying_media.__class__:
+            return False
+        if isinstance(self.time_varying_media, HSGPBase):
+            if self.time_varying_media.to_dict() != other.time_varying_media.to_dict():
+                return False
+        else:
+            if self.time_varying_media != other.time_varying_media:
+                return False
+
+        # Additive effects (mu_effects)
+        if len(self.mu_effects) != len(other.mu_effects):
+            return False
+        # Length check above ensures zip lengths match, suppressing B905 warning
+        for self_effect, other_effect in zip(self.mu_effects, other.mu_effects):  # noqa: B905
+            if self_effect.__class__ is not other_effect.__class__:
+                return False
+            if hasattr(self_effect, "model_dump") and hasattr(
+                other_effect, "model_dump"
+            ):
+                if self_effect.model_dump() != other_effect.model_dump():
+                    return False
+
+        # Causal graph
+        if (
+            self.dag != other.dag
+            or self.treatment_nodes != other.treatment_nodes
+            or self.outcome_node != other.outcome_node
+        ):
+            return False
+
+        # Seasonality
+        if self.yearly_seasonality != other.yearly_seasonality:
+            return False
+
+        # Scaling configuration
+        if self.scaling.__class__ is not other.scaling.__class__:
+            return False
+        if hasattr(self.scaling, "model_dump"):
+            if self.scaling.model_dump() != other.scaling.model_dump():
+                return False
+
+        # Model and sampler config (validated by ID comparison)
+        if self.sampler_config != other.sampler_config:
+            return False
+
+        # Final validation: model IDs must match
+        # This is a content-based hash that validates the entire config
+        if self.id != other.id:
+            return False
+
+        return True
 
     def _check_compatible_media_dims(self) -> None:
         allowed_dims = set(self.dims).union({"channel"})
@@ -505,19 +777,28 @@ class MMM(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
-        def ndarray_to_list(d: dict) -> dict:
-            new_d = d.copy()  # Copy the dictionary to avoid mutating the original one
-            for key, value in new_d.items():
-                if isinstance(value, np.ndarray):
-                    new_d[key] = value.tolist()
-                elif isinstance(value, HSGPKwargs):
-                    new_d[key] = value.model_dump()
-                elif isinstance(value, dict):
-                    new_d[key] = ndarray_to_list(value)
-            return new_d
+        def serialize_value(value):
+            """Recursively serialize values to JSON-compatible types."""
+            if isinstance(value, np.ndarray):
+                return value.tolist()
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            elif isinstance(value, (list, tuple)):
+                return [serialize_value(v) for v in value]
+            elif hasattr(value, "to_dict"):
+                # Handle any object with a to_dict method (Prior, SpecialPrior, etc.)
+                return value.to_dict()
+            elif hasattr(value, "model_dump"):
+                # Handle Pydantic models
+                return value.model_dump()
+            else:
+                return value
 
-        serializable_config = self.model_config.copy()
-        return ndarray_to_list(serializable_config)
+        serializable_config = {}
+        for key, value in self.model_config.items():
+            serializable_config[key] = serialize_value(value)
+
+        return serializable_config
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
@@ -551,6 +832,10 @@ class MMM(RegressionModelBuilder):
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
+
+        # Serialize mu_effects
+        mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
+        attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         return attrs
 
@@ -626,6 +911,61 @@ class MMM(RegressionModelBuilder):
         return MMMPlotSuite(idata=self.idata)
 
     @property
+    def plot_interactive(self):  # type: ignore[no-any-return]
+        """Access interactive Plotly plotting functionality.
+
+        Returns a factory for creating interactive plots using Plotly.
+        Automatically integrates with Component 2 (MMMSummaryFactory)
+        to fetch data and apply faceting for custom dimensions.
+
+        Returns
+        -------
+        MMMPlotlyFactory
+            Factory for creating interactive plots
+
+        Examples
+        --------
+        .. code-block:: python
+
+            # Interactive posterior predictive plot
+            fig = mmm.plot_interactive.posterior_predictive()
+            fig.show()
+
+            # Contributions with faceting
+            fig = mmm.plot_interactive.contributions(facet_col="country")
+            fig.show()
+
+            # ROAS bar chart
+            fig = mmm.plot_interactive.roas()
+            fig.show()
+
+            # Saturation curves
+            fig = mmm.plot_interactive.saturation_curves()
+            fig.show()
+
+            # Adstock curves
+            fig = mmm.plot_interactive.adstock_curves()
+            fig.show()
+
+        See Also
+        --------
+        MMMPlotSuite : Static matplotlib plotting functionality
+        MMMPlotlyFactory : Interactive plotting class documentation
+        """
+        try:
+            from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
+        except ImportError:
+            raise ImportError(
+                "Plotly is required for interactive plotting. "
+                "Install it with: pip install pymc-marketing[plotly]"
+            )
+
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+
+        return MMMPlotlyFactory(summary=self.summary)
+
+    @property
     def data(self) -> Any:  # type: ignore[no-any-return]
         """Get data wrapper for InferenceData access and manipulation.
 
@@ -661,17 +1001,7 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        schema = MMMIdataSchema.from_model_config(
-            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
-            has_controls=bool(self.control_columns),
-            has_seasonality=bool(self.yearly_seasonality),
-            time_varying=(
-                getattr(self, "time_varying_intercept", False)
-                or getattr(self, "time_varying_media", False)
-            ),
-        )
-
-        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+        return MMMIDataWrapper.from_mmm(self)
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
@@ -738,7 +1068,7 @@ class MMM(RegressionModelBuilder):
             "likelihood": Prior(
                 "Normal",
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
-                dims=self.dims,
+                dims=("date", *self.dims),
             ),
             "gamma_control": Prior(
                 "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
@@ -1087,6 +1417,8 @@ class MMM(RegressionModelBuilder):
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
 
+        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
             for dim in self.xarray_dataset.coords.dims
@@ -1231,7 +1563,7 @@ class MMM(RegressionModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                var_dims = self.model.named_vars_to_dims[v]
+                var_dims = self.model.named_vars_to_dims.get(v, ())
                 mmm_dims_order = ("date", *self.dims)
 
                 if v == "channel_contribution":
@@ -1591,8 +1923,8 @@ class MMM(RegressionModelBuilder):
             return
 
         # Get training dates and input dates
-        training_dates = pd.to_datetime(self.model_coords["date"])
-        input_dates = pd.to_datetime(X[self.date_column].unique())
+        training_dates = safe_to_datetime(self.model_coords["date"], "date")
+        input_dates = safe_to_datetime(X[self.date_column].unique(), self.date_column)
 
         # Check for overlap
         overlapping_dates = set(training_dates).intersection(set(input_dates))
@@ -1606,53 +1938,6 @@ class MMM(RegressionModelBuilder):
                 f"Overlapping dates found: {overlapping_dates_str}. "
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
-
-    def _subsample_posterior(
-        self,
-        parameters: xr.Dataset,
-        num_samples: int | None = None,
-        random_state: RandomState | None = None,
-    ) -> xr.Dataset:
-        """Subsample posterior parameters if needed.
-
-        Parameters
-        ----------
-        parameters : xr.Dataset
-            Dataset with parameter values (posterior samples).
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-            If less than total available samples, random subsampling is performed.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
-
-        Returns
-        -------
-        xr.Dataset
-            Subsampled parameters (or original if no subsampling needed).
-        """
-        if num_samples is None:
-            return parameters
-
-        n_chains = parameters.sizes["chain"]
-        n_draws = parameters.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples >= total_samples:
-            return parameters
-
-        rng = np.random.default_rng(random_state)
-        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-        stacked = parameters.stack(sample=("chain", "draw"))
-        selected = stacked.isel(sample=flat_indices)
-        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
-        params = (
-            selected.drop_vars(["chain", "draw", "sample"])
-            .rename({"sample": "draw"})
-            .expand_dims("chain")
-        )
-
-        return params
 
     def _posterior_predictive_data_transformation(
         self,
@@ -2016,10 +2301,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2153,10 +2436,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2197,6 +2478,33 @@ class MMM(RegressionModelBuilder):
         return SensitivityAnalysis(
             pymc_model=self.model, idata=self.idata, dims=self.dims
         )
+
+    @property
+    def incrementality(self) -> Incrementality:
+        """Access incrementality and counterfactual analysis functionality.
+
+        Returns an Incrementality instance for computing incremental contributions,
+        ROAS, and CAC using counterfactual analysis with proper adstock carryover
+        handling.
+
+        Returns
+        -------
+        Incrementality
+            An instance configured with this MMM model for computing
+            incremental contributions, ROAS, and CAC.
+
+        Examples
+        --------
+        Compute incremental contributions:
+
+        >>> incremental = mmm.incrementality.compute_incremental_contribution(
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-03-31",
+        ...     frequency="weekly",
+        ... )
+        """
+        self._validate_idata_exists()
+        return Incrementality(model=self, idata=self.idata)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
@@ -2706,6 +3014,19 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
+        # Restore mu_effects from idata attrs if present
+        if "mu_effects" in idata.attrs:
+            mu_effects_data = json.loads(idata.attrs["mu_effects"])
+            self.mu_effects = []
+            for effect_data in mu_effects_data:
+                try:
+                    effect = _deserialize_mu_effect(effect_data)
+                    self.mu_effects.append(effect)
+                except Exception as e:
+                    # Log warning but continue - don't fail the load for unsupported effects
+                    # Catches ValueError, KeyError, AttributeError, pydantic.ValidationError, etc.
+                    warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
+
         dataset = idata.fit_data.to_dataframe()
 
         if isinstance(dataset.index, pd.MultiIndex) or isinstance(
@@ -2939,7 +3260,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # If budget_distribution has integer date indices, map them to actual dates
         if np.issubdtype(budget_distribution.coords["date"].dtype, np.integer):
             # Get unique dates from data_xr_stacked
-            unique_dates = pd.to_datetime(data_xr_stacked.coords["date"].values)
+            unique_dates = safe_to_datetime(
+                data_xr_stacked.coords["date"].values, "date"
+            )
             unique_dates_sorted = sorted(unique_dates.unique())
 
             # Map integer indices to actual dates
@@ -3006,7 +3329,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
         # Get date series and infer frequency
-        date_series = pd.to_datetime(data_with_noise[self.date_column])
+        date_series = safe_to_datetime(
+            data_with_noise[self.date_column], self.date_column
+        )
         inferred_freq = pd.infer_freq(date_series.unique())
 
         if inferred_freq is None:  # fall-back if inference fails

@@ -287,7 +287,10 @@ class BetaGeoBetaBinomModel(CLVModel):
         values = pt.constant(np.stack((t_x.values, x.values), axis=-1))
         loglike = vectorize_graph(
             dummy_logp,
-            replace={dummy_T: T.values[:, None], dummy_values: values[:, None, :]},
+            replace={
+                dummy_T: pt.as_tensor(T.values[:, None]),
+                dummy_values: pt.as_tensor(values[:, None, :]),
+            },
         ).eval()
         # Unstack chain/draw and put customer in last axis
         loglike = np.moveaxis(

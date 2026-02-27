@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from enum import Enum
+from enum import StrEnum
 from typing import Literal, Self, cast
 
 import numpy as np
@@ -180,7 +180,7 @@ def approx_hsgp_hyperparams(
     return m, c
 
 
-class CovFunc(str, Enum):
+class CovFunc(StrEnum):
     """Supported covariance functions for the HSGP model."""
 
     ExpQuad = "expquad"
@@ -737,7 +737,7 @@ class HSGP(HSGPBase):
         if not isinstance(self.ls, VariableFactory):
             return self
 
-        if self.ls.dims != ():
+        if self.ls.dims:
             raise ValueError("The lengthscale prior must be scalar random variable.")
 
         return self
@@ -747,7 +747,7 @@ class HSGP(HSGPBase):
         if not isinstance(self.eta, VariableFactory):
             return self
 
-        if self.eta.dims != ():
+        if self.eta.dims:
             raise ValueError("The eta prior must be scalar random variable.")
 
         return self
@@ -941,7 +941,7 @@ class HSGP(HSGPBase):
         return cls(**data)
 
 
-class PeriodicCovFunc(str, Enum):
+class PeriodicCovFunc(StrEnum):
     """Supported covariance functions for the HSGP model."""
 
     Periodic = "periodic"
@@ -1165,7 +1165,7 @@ class HSGPPeriodic(HSGPBase):
         if not isinstance(self.ls, VariableFactory):
             return self
 
-        if self.ls.dims != ():
+        if self.ls.dims:
             raise ValueError("The lengthscale prior must be scalar random variable.")
 
         return self
@@ -1175,7 +1175,7 @@ class HSGPPeriodic(HSGPBase):
         if not isinstance(self.scale, VariableFactory):
             return self
 
-        if self.scale.dims != ():
+        if self.scale.dims:
             raise ValueError("The scale prior must be scalar random variable.")
 
         return self

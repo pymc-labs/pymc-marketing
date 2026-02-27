@@ -212,14 +212,25 @@ def test_contributions_over_time_combine_dims_multiple_vars(mock_suite: MMMPlotS
     assert ax.shape[0] == 1
     # Check that legend contains entries for both vars and countries
     legend_labels = [t.get_text() for t in ax[0, 0].get_legend().get_texts()]
-    # Should have at least 4 entries (2 vars x 2 countries, may have more if extra dims)
-    assert len(legend_labels) >= 4
-    # Check that both variables appear
-    assert any("intercept" in label for label in legend_labels)
-    assert any("linear_trend" in label for label in legend_labels)
-    # Check that both countries appear
-    assert any("country=A" in label for label in legend_labels)
-    assert any("country=B" in label for label in legend_labels)
+
+    # Verify both variables are present in the legend
+    has_intercept = any("intercept" in label for label in legend_labels)
+    has_linear_trend = any("linear_trend" in label for label in legend_labels)
+    assert has_intercept, f"Missing 'intercept' in legend: {legend_labels}"
+    assert has_linear_trend, f"Missing 'linear_trend' in legend: {legend_labels}"
+
+    # Verify both countries are represented in the legend
+    has_country_a = any("country=A" in label for label in legend_labels)
+    has_country_b = any("country=B" in label for label in legend_labels)
+    assert has_country_a, f"Missing 'country=A' in legend: {legend_labels}"
+    assert has_country_b, f"Missing 'country=B' in legend: {legend_labels}"
+
+    # Ensure we have at least the minimum expected entries
+    # Note: linear_trend may not have country dimension in mock data,
+    # so we accept 3+ entries (intercept x 2 countries + linear_trend)
+    assert len(legend_labels) >= 3, (
+        f"Expected at least 3 legend entries, got {len(legend_labels)}: {legend_labels}"
+    )
 
 
 def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):

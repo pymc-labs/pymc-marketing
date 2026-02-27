@@ -54,8 +54,8 @@ def sample_multidim_data():
             {
                 "date": dates,
                 "country": country,
-                "C1": np.random.randint(10, 50, n_obs_per_country),
-                "C2": np.random.randint(5, 40, n_obs_per_country),
+                "C1": np.random.uniform(10, 50, n_obs_per_country),
+                "C2": np.random.uniform(5, 40, n_obs_per_country),
                 "control": np.random.normal(10, 2, n_obs_per_country),
             }
         )
