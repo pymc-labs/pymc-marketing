@@ -5208,27 +5208,26 @@ class TestMMMPlotSuiteConstructor:
             MMMPlotSuite()
 
 
+_CPU_XLABEL_CASES = [
+    pytest.param("cpu_simple_idata_with_spend", True, "Spend", id="spend+cpu"),
+    pytest.param(
+        "cpu_simple_idata_with_spend", False, "Channel Data (X)", id="spend-no_cpu"
+    ),
+    pytest.param("cpu_simple_idata", True, "Channel Data (X)", id="no_spend+cpu"),
+]
+
+
 class TestSaturationScatterplotCostPerUnit:
-    def test_uses_channel_spend_when_cpu_set(self, cpu_simple_idata_with_spend):
-        wrapper = MMMIDataWrapper(cpu_simple_idata_with_spend)
+    @pytest.mark.parametrize(
+        "idata_fixture, apply_cpu, expected_label", _CPU_XLABEL_CASES
+    )
+    def test_xlabel(self, idata_fixture, apply_cpu, expected_label, request):
+        idata = request.getfixturevalue(idata_fixture)
+        wrapper = MMMIDataWrapper(idata)
         suite = MMMPlotSuite(data=wrapper)
-        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=True)
+        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=apply_cpu)
         plt.close(fig)
-        assert axes.flat[0].get_xlabel() == "Spend"
-
-    def test_uses_channel_data_when_cpu_false(self, cpu_simple_idata_with_spend):
-        wrapper = MMMIDataWrapper(cpu_simple_idata_with_spend)
-        suite = MMMPlotSuite(data=wrapper)
-        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=False)
-        plt.close(fig)
-        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
-
-    def test_no_cpu_label_unchanged(self, cpu_simple_idata):
-        wrapper = MMMIDataWrapper(cpu_simple_idata)
-        suite = MMMPlotSuite(data=wrapper)
-        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=True)
-        plt.close(fig)
-        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
+        assert axes.flat[0].get_xlabel() == expected_label
 
 
 class TestSaturationCurvesCostPerUnit:
@@ -5248,123 +5247,52 @@ class TestSaturationCurvesCostPerUnit:
             },
         )
 
-    def test_curve_xaxis_scales_with_cpu(self, cpu_simple_idata_with_spend, curve_data):
-        wrapper = MMMIDataWrapper(cpu_simple_idata_with_spend)
+    @pytest.mark.parametrize(
+        "idata_fixture, apply_cpu, expected_label", _CPU_XLABEL_CASES
+    )
+    def test_xlabel(
+        self, idata_fixture, apply_cpu, expected_label, curve_data, request
+    ):
+        idata = request.getfixturevalue(idata_fixture)
+        wrapper = MMMIDataWrapper(idata)
         suite = MMMPlotSuite(data=wrapper)
         fig, axes = suite.saturation_curves(
             curve=curve_data,
             original_scale=True,
             n_samples=2,
-            apply_cost_per_unit=True,
+            apply_cost_per_unit=apply_cpu,
         )
         plt.close(fig)
-        assert axes.flat[0].get_xlabel() == "Spend"
-
-    def test_curve_xaxis_no_cpu(self, cpu_simple_idata_with_spend, curve_data):
-        wrapper = MMMIDataWrapper(cpu_simple_idata_with_spend)
-        suite = MMMPlotSuite(data=wrapper)
-        fig, axes = suite.saturation_curves(
-            curve=curve_data,
-            original_scale=True,
-            n_samples=2,
-            apply_cost_per_unit=False,
-        )
-        plt.close(fig)
-        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
-
-    def test_no_spend_label_unchanged(self, cpu_simple_idata, curve_data):
-        wrapper = MMMIDataWrapper(cpu_simple_idata)
-        suite = MMMPlotSuite(data=wrapper)
-        fig, axes = suite.saturation_curves(
-            curve=curve_data,
-            original_scale=True,
-            n_samples=2,
-            apply_cost_per_unit=True,
-        )
-        plt.close(fig)
-        assert axes.flat[0].get_xlabel() == "Channel Data (X)"
+        assert axes.flat[0].get_xlabel() == expected_label
 
 
 class TestSensitivityAnalysisCostPerUnit:
-    @pytest.fixture
-    def _add_sensitivity(self, cpu_simple_idata, cpu_channels):
-        """Attach a minimal sensitivity_analysis group to cpu_simple_idata."""
+    @pytest.mark.parametrize(
+        "idata_fixture, apply_cpu",
+        [
+            pytest.param("cpu_simple_idata_with_spend", True, id="spend+cpu"),
+            pytest.param("cpu_simple_idata", True, id="no_spend+cpu"),
+            pytest.param("cpu_simple_idata_with_spend", False, id="spend-no_cpu"),
+        ],
+    )
+    def test_absolute_sweep(self, idata_fixture, apply_cpu, cpu_channels, request):
         rng = np.random.default_rng(seed=_CPU_SEED + 2)
+        idata = request.getfixturevalue(idata_fixture)
         sweep = np.linspace(0.5, 2.0, 5)
         sa = xr.DataArray(
             rng.normal(size=(20, len(cpu_channels), len(sweep))),
             dims=("sample", "channel", "sweep"),
             coords={"channel": cpu_channels, "sweep": sweep},
         )
-        cpu_simple_idata.sensitivity_analysis = xr.Dataset({"x": sa})
-        return cpu_simple_idata
+        idata.sensitivity_analysis = xr.Dataset({"x": sa})
 
-    @pytest.fixture
-    def _add_sensitivity_with_spend(self, cpu_simple_idata_with_spend, cpu_channels):
-        """Attach sensitivity_analysis to idata that has channel_spend."""
-        rng = np.random.default_rng(seed=_CPU_SEED + 3)
-        sweep = np.linspace(0.5, 2.0, 5)
-        sa = xr.DataArray(
-            rng.normal(size=(20, len(cpu_channels), len(sweep))),
-            dims=("sample", "channel", "sweep"),
-            coords={"channel": cpu_channels, "sweep": sweep},
-        )
-        cpu_simple_idata_with_spend.sensitivity_analysis = xr.Dataset({"x": sa})
-        return cpu_simple_idata_with_spend
-
-    def test_absolute_uses_channel_spend_with_cpu(
-        self, _add_sensitivity_with_spend, cpu_channels
-    ):
-        idata = _add_sensitivity_with_spend
         wrapper = MMMIDataWrapper(idata)
         suite = MMMPlotSuite(data=wrapper)
-
         result = suite.sensitivity_analysis(
             hue_dim="channel",
             x_sweep_axis="absolute",
-            apply_cost_per_unit=True,
+            apply_cost_per_unit=apply_cpu,
         )
-        if isinstance(result, tuple):
-            fig = result[0]
-        else:
-            fig = result.figure
-        plt.close(fig)
-        assert fig is not None
-
-    def test_absolute_uses_channel_data_without_cpu(
-        self, _add_sensitivity, cpu_channels
-    ):
-        idata = _add_sensitivity
-        wrapper = MMMIDataWrapper(idata)
-        suite = MMMPlotSuite(data=wrapper)
-
-        result = suite.sensitivity_analysis(
-            hue_dim="channel",
-            x_sweep_axis="absolute",
-            apply_cost_per_unit=True,
-        )
-        if isinstance(result, tuple):
-            fig = result[0]
-        else:
-            fig = result.figure
-        plt.close(fig)
-        assert fig is not None
-
-    def test_absolute_no_cpu_flag_uses_raw_data(
-        self, _add_sensitivity_with_spend, cpu_channels
-    ):
-        idata = _add_sensitivity_with_spend
-        wrapper = MMMIDataWrapper(idata)
-        suite = MMMPlotSuite(data=wrapper)
-
-        result = suite.sensitivity_analysis(
-            hue_dim="channel",
-            x_sweep_axis="absolute",
-            apply_cost_per_unit=False,
-        )
-        if isinstance(result, tuple):
-            fig = result[0]
-        else:
-            fig = result.figure
+        fig = result[0] if isinstance(result, tuple) else result.figure
         plt.close(fig)
         assert fig is not None
