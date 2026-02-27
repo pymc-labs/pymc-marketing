@@ -2498,8 +2498,8 @@ class MMM(RegressionModelBuilder):
         Compute incremental contributions:
 
         >>> incremental = mmm.incrementality.compute_incremental_contribution(
-        ...     period_start="2024-01-01",
-        ...     period_end="2024-03-31",
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-03-31",
         ...     frequency="weekly",
         ... )
         """

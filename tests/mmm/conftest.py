@@ -99,7 +99,7 @@ def monthly_mmm_data():
     months as fixed 30-day periods.
 
     Returns dict with:
-    - X: DataFrame with date and 3 channels (18 monthly periods)
+    - X: DataFrame with date and 2 channels (18 monthly periods)
     - y: Series with target values
     """
     return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
@@ -145,6 +145,12 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
     """Mock fit function that mimics the fit process without actual sampling."""
     model.build_model(X=X, y=y)
     model.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    # Explicitly set model data via pm.set_data so channel_data has concrete shape,
+    # matching real mmm.fit() behavior. Without this, channel_data may retain
+    # symbolic shape unlike mmm.fit().
+    model._set_xarray_data(model.xarray_dataset, clone_model=False)
+
     if random_seed is None:
         random_seed = rng
     with model.model:

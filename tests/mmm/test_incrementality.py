@@ -169,23 +169,23 @@ def incrementality_lite():
     """Lightweight Incrementality stub for testing helpers without model fitting.
 
     Provides an ``Incrementality`` instance whose ``data`` and ``idata``
-    attributes are thin stubs — just enough for ``_validate_input_dates``,
+    attributes are thin stubs — just enough for ``_validate_input``,
     ``_create_period_groups``, and the static helper methods.  Avoids the
     expensive model-build + prior-sampling that ``simple_fitted_mmm`` requires.
 
     Returns ``(incr, l_max)`` tuple.
     """
     dates = pd.date_range("2023-01-01", periods=14, freq="W")
-    channels = ["channel_1", "channel_2", "channel_3"]
-    rng = np.random.default_rng(42)
-    spend_values = rng.integers(100, 500, size=(14, 3)).astype(float)
+    spend_values = (
+        np.random.default_rng(42).integers(100, 500, size=(14, 2)).astype(float)
+    )
     spend = xr.DataArray(
         spend_values,
         dims=("date", "channel"),
-        coords={"date": dates, "channel": channels},
+        coords={"date": dates, "channel": ["ch_A", "ch_B"]},
     )
 
-    incr = object.__new__(Incrementality)  # skip __init__
+    incr = object.__new__(Incrementality)
     incr.data = SimpleNamespace(
         dates=dates,
         get_channel_spend=lambda: spend,
@@ -262,16 +262,16 @@ class TestIncrementality:
                 counterfactual_spend_factor=-0.5,
             )
 
-    def test_period_start_end_filters_dates(self, simple_fitted_mmm):
-        """Test that period_start and period_end filter date range."""
+    def test_start_date_end_date_filters_dates(self, simple_fitted_mmm):
+        """Test that start_date and end_date filter date range."""
         incr = simple_fitted_mmm.incrementality
         all_dates = pd.to_datetime(simple_fitted_mmm.idata.fit_data.date.values)
         mid_date = all_dates[len(all_dates) // 2]
 
         result = incr.compute_incremental_contribution(
             frequency="original",
-            period_start=all_dates[0],
-            period_end=mid_date,
+            start_date=all_dates[0],
+            end_date=mid_date,
         )
 
         result_dates = pd.to_datetime(result.date.values)
@@ -356,7 +356,7 @@ class TestIncrementality:
 
         xr.testing.assert_allclose(spend_incr, spend_data)
 
-    def test_create_period_groups_rejects_mid_period_end(self, incrementality_lite):
+    def test_create_period_groups_rejects_mid_end_date(self, incrementality_lite):
         """_create_period_groups raises ValueError for mid-period end dates."""
         incr, _ = incrementality_lite
 
@@ -371,27 +371,27 @@ class TestIncrementality:
 class TestHelperMethods:
     """Tests for extracted helper methods."""
 
-    def test_validate_input_dates(self, incrementality_lite):
+    def test_validate_input(self, incrementality_lite):
         """None dates default to data bounds; invalid ranges are rejected."""
         incr, _ = incrementality_lite
         dates = incr.data.dates
 
         # None dates default to data bounds
-        start, end = incr._validate_input_dates(None, None)
+        start, end = incr._validate_input(None, None)
         assert start == dates[0]
         assert end == dates[-1]
 
         # Start before data raises
         with pytest.raises(ValueError, match="before fitted data"):
-            incr._validate_input_dates("1900-01-01", None)
+            incr._validate_input("1900-01-01", None)
 
         # End after data raises
         with pytest.raises(ValueError, match="after fitted data"):
-            incr._validate_input_dates(None, "2099-12-31")
+            incr._validate_input(None, "2099-12-31")
 
         # Reversed range raises
         with pytest.raises(ValueError, match="is after"):
-            incr._validate_input_dates(dates[-1], dates[0])
+            incr._validate_input(dates[-1], dates[0])
 
     def test_compute_window_metadata_no_padding_interior(self, incrementality_lite):
         """Interior periods have no left/right padding."""
@@ -642,7 +642,7 @@ class TestConvenienceFunctions:
     def test_convenience_functions_support_period_filtering(
         self, simple_fitted_mmm, method_name
     ):
-        """Test that convenience functions accept period_start/period_end."""
+        """Test that convenience functions accept start_date/end_date."""
         incr = simple_fitted_mmm.incrementality
         all_dates = pd.to_datetime(simple_fitted_mmm.idata.fit_data.date.values)
         mid_date = all_dates[len(all_dates) // 2]
@@ -650,8 +650,8 @@ class TestConvenienceFunctions:
         method = getattr(incr, method_name)
         result = method(
             frequency="original",
-            period_start=all_dates[0],
-            period_end=mid_date,
+            start_date=all_dates[0],
+            end_date=mid_date,
         )
 
         assert len(result.date) < len(all_dates)
