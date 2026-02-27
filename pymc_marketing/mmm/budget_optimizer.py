@@ -238,7 +238,7 @@ from pymc_marketing.mmm.constraints import (
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
-from pymc_marketing.mmm.utils import UtilityFunctionType, average_response
+from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
@@ -990,34 +990,33 @@ class BudgetOptimizer(BaseModel):
         return repeated_budgets
 
     def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-        """Replace `channel_data` in the model graph with our newly created `_budgets` variable.
-
-        Budget Unit Conversion Pipeline
-        --------------------------------
-        1. User Input: Budgets in monetary units (e.g., dollars)
-        2. Time Distribution: Spread per-channel budget over optimization periods
-        3. cost_per_unit Conversion: Convert to original units (if provided)
-           budgets_in_units[t] = budgets_in_dollars[t] / cost_per_unit[t]
-        4. Channel Scaling: Apply model's normalization
-        5. Model Propagation: Scaled budgets flow through saturation/adstock
-        """
+        """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
         num_periods = self.num_periods
         max_lag = self.mmm_model.adstock.l_max
         channel_data_dims = model.named_vars_to_dims["channel_data"]
         date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
+        channel_data_dtype = model["channel_data"].dtype
+        if np.dtype(channel_data_dtype).kind != "f":
+            raise ValueError(
+                f"Optimization requires channel data of float type, got {channel_data_dtype}"
+            )
 
+        # Scale budgets by channel_scales
         budgets = self._budgets
+        budgets /= channel_scales
 
         # Repeat budgets over num_periods (still in monetary units)
         repeated_budgets_shape = list(tuple(budgets.shape))
         repeated_budgets_shape.insert(date_dim_idx, num_periods)
 
         if self._budget_distribution_over_period_tensor is not None:
+            # Apply time distribution factors
             repeated_budgets = self._apply_budget_distribution_over_period(
                 budgets, num_periods, date_dim_idx
             )
         else:
+            # Default behavior: distribute evenly across periods
             repeated_budgets = pt.broadcast_to(
                 pt.expand_dims(budgets, date_dim_idx),
                 shape=repeated_budgets_shape,
@@ -1035,9 +1034,6 @@ class BudgetOptimizer(BaseModel):
                 )
             repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
 
-        # Apply model's channel scaling (original units -> model scale)
-        repeated_budgets /= channel_scales
-
         repeated_budgets.name = "repeated_budgets"
 
         # Pad the repeated budgets with zeros to account for carry-over effects
@@ -1052,7 +1048,7 @@ class BudgetOptimizer(BaseModel):
 
         repeated_budgets_with_carry_over = pt.zeros(
             repeated_budgets_with_carry_over_shape,
-            dtype=channel_data_dtype,  # Use the same dtype as channel_data
+            dtype=channel_data_dtype,
         )
         set_idxs = (*((slice(None),) * date_dim_idx), slice(None, num_periods))
         repeated_budgets_with_carry_over = repeated_budgets_with_carry_over[

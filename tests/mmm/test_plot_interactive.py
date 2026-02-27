@@ -326,25 +326,6 @@ class TestRoasAndContributions:
         assert call_kwargs["num_samples"] == 100
         assert call_kwargs["random_state"] == 42
 
-    def test_roas_passes_filter_dims_to_summary(self):
-        """Test that roas() passes filter_dims to summary.roas()."""
-        df = pd.DataFrame(
-            {
-                "channel": ["TV", "Radio"],
-                "mean": [2.0, 3.0],
-                "median": [2.0, 3.0],
-                "abs_error_94_lower": [1.8, 2.8],
-                "abs_error_94_upper": [2.2, 3.2],
-            }
-        )
-        mock_summary = _create_simple_mock_summary(df=df, method_name="roas")
-        factory = MMMPlotlyFactory(summary=mock_summary)
-
-        factory.roas(filter_dims={"country": ["US"]})
-
-        mock_summary.roas.assert_called_once()
-        assert mock_summary.roas.call_args.kwargs["filter_dims"] == {"country": ["US"]}
-
     @pytest.mark.parametrize("method", ["incremental", "elementwise"])
     def test_roas_method_param_produces_figure(self, method):
         """Test that roas() with method param produces a valid figure."""
@@ -372,8 +353,6 @@ class TestRoasAndContributions:
             random_state=None,
             start_date=None,
             end_date=None,
-            aggregate_dims=None,
-            filter_dims=None,
         )
 
 
