@@ -1373,7 +1373,6 @@ class CustomModelWrapper(BaseModel):
             model=model_clone,
             coords=coords,
         )
-        print(num_periods)
         return model_clone
 
 
