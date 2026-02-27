@@ -144,5 +144,37 @@ def _(mmm, pd):
     return comparison, raw, spend
 
 
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## ROAS with cost_per_unit
+
+    With cost_per_unit set, ROAS is now computed in consistent **$/$** terms for both
+    channels. Below we show the interactive ROAS plot.
+    """
+    )
+    return
+
+
+@app.cell
+def _(mmm):
+    fig_roas = mmm.plot_interactive.roas()
+    fig_roas
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    Both channels now have ROAS in $/$ terms. Without cost_per_unit, channel_2's ROAS
+    would be revenue-per-impression — meaningless for comparison with channel_1's
+    revenue-per-dollar.
+    """
+    )
+    return
+
+
 if __name__ == "__main__":
     app.run()
