@@ -22,7 +22,7 @@ concurrency:
 
 env:
   # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *>' pyproject.toml | sed -n 's/.*>=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
+  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *[>=]' pyproject.toml | sed -n 's/.*[>=]=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
   # NOTE: .test_durations is managed manually (committed to repo)
   # - pytest-split uses this file to balance test execution times
   # - Update by running the "Generate Test Durations" workflow manually
@@ -100,3 +100,12 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
           fail_ci_if_error: false
+
+  all_tests:
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    needs: [test, test_slow]
+    steps:
+      - name: Check build matrix status
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.test.result) || !contains(fromJSON('["success", "skipped"]'), needs.test_slow.result) }}
+        run: exit 1

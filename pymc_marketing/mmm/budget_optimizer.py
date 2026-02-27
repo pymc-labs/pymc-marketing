@@ -900,6 +900,11 @@ class BudgetOptimizer(BaseModel):
         channel_data_dims = model.named_vars_to_dims["channel_data"]
         date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
+        channel_data_dtype = model["channel_data"].dtype
+        if np.dtype(channel_data_dtype).kind != "f":
+            raise ValueError(
+                f"Optimization requires channel data of float type, got {channel_data_dtype}"
+            )
 
         # Scale budgets by channel_scales
         budgets = self._budgets
