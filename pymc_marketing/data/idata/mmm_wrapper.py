@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Any, Literal
 
 import arviz as az
@@ -471,36 +470,6 @@ class MMMIDataWrapper:
         spend_safe = xr.where(spend == 0, np.nan, spend)
 
         return contributions / spend_safe
-
-    def get_roas(self, original_scale: bool = True) -> xr.DataArray:
-        """Compute ROAS (Return on Ad Spend) for each channel.
-
-        .. deprecated::
-            Use :meth:`get_elementwise_roas` for element-wise ROAS, or
-            :meth:`pymc_marketing.mmm.summary.MMMSummaryFactory.roas` with
-            ``method="incremental"`` for correct carryover-aware ROAS.
-
-        ROAS = contribution / spend for each channel. This method uses
-        element-wise division and does NOT account for adstock carryover effects.
-
-        Parameters
-        ----------
-        original_scale : bool, default True
-            Whether to return contributions in original scale.
-
-        Returns
-        -------
-        xr.DataArray
-            ROAS values with dims (chain, draw, date, channel) plus any custom dims.
-            Zero spend values result in NaN to avoid division by zero.
-        """
-        warnings.warn(
-            "get_roas() is deprecated. Use get_elementwise_roas() for element-wise "
-            "ROAS, or summary.roas(method='incremental') for carryover-aware ROAS.",
-            FutureWarning,
-            stacklevel=2,
-        )
-        return self.get_elementwise_roas(original_scale=original_scale)
 
     # ==================== Scaling Operations ====================
 

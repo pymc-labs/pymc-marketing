@@ -507,7 +507,7 @@ class MMMSummaryFactory:
 
             - **incremental** (recommended): Uses counterfactual analysis
               accounting for adstock carryover effects. Computes the true
-              incremental return on ad spend using Google MMM Formula 10.
+              incremental return on ad spend as defined in [1]_ (Formula 10).
               Requires model to be provided (e.g. via ``mmm.summary``).
 
             - **elementwise**: Simple element-wise division of contributions
@@ -555,6 +555,13 @@ class MMMSummaryFactory:
             - median: Median ROAS
             - abs_error_{prob}_lower: HDI lower bound for each prob
             - abs_error_{prob}_upper: HDI upper bound for each prob
+
+        References
+        ----------
+        .. [1] Jin, Y., Wang, Y., Sun, Y., Chan, D., & Koehler, J. (2017).
+           Bayesian Methods for Media Mix Modeling with Carryover and Shape
+           Effects. Google Inc.
+           https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/
 
         Examples
         --------
