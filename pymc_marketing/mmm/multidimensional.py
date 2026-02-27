@@ -3276,6 +3276,10 @@ class MMM(RegressionModelBuilder):
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
         channel_data = self.idata.constant_data.channel_data
         self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
+        self._cost_per_unit_input = cost_per_unit
+        self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
+            orient="split", date_format="iso"
+        )
 
 
 def create_sample_kwargs(

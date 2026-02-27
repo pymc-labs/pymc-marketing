@@ -457,8 +457,12 @@ class TestSetCostPerUnit:
                 "channel_2": [0.02] * len(dates),
             }
         )
+        assert mmm._cost_per_unit_input is None
+
         mmm.set_cost_per_unit(cpu_df)
 
+        assert mmm._cost_per_unit_input is not None
+        pd.testing.assert_frame_equal(mmm._cost_per_unit_input, cpu_df)
         assert mmm.data.cost_per_unit is not None
         assert "channel_spend" in mmm.idata.constant_data
 
@@ -652,6 +656,7 @@ class TestSerializationRoundtrip:
         mmm.save(fname)
         loaded = MMM.load(fname, check=False)
 
+        assert loaded._cost_per_unit_input is not None
         assert loaded.data.cost_per_unit is not None
         xr.testing.assert_equal(loaded.data.cost_per_unit, original_cpu)
 
