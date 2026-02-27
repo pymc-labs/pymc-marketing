@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@ import warnings
 
 import numpy as np
 import pymc as pm
-import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -25,15 +24,13 @@ from pymc_extras.deserialize import (
     register_deserialization,
 )
 from pymc_extras.prior import Prior
+from pytensor.tensor.variable import TensorVariable
 
-from pymc_marketing.mmm import (
+from pymc_marketing.mmm.components.adstock import (
+    ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
-    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
-    NoAdstock,
-    WeibullCDFAdstock,
-    WeibullPDFAdstock,
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
@@ -42,18 +39,10 @@ from pymc_marketing.mmm.transformers import ConvMode
 def adstocks() -> list:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        transformations = [
-            BinomialAdstock(l_max=10),
-            DelayedAdstock(l_max=10),
-            GeometricAdstock(l_max=10),
-            WeibullPDFAdstock(l_max=10),
-            WeibullCDFAdstock(l_max=10),
-            NoAdstock(l_max=1),
+        return [
+            pytest.param(adstock(l_max=10), id=name)
+            for name, adstock in ADSTOCK_TRANSFORMATIONS.items()
         ]
-
-    return [
-        pytest.param(adstock, id=adstock.lookup_name) for adstock in transformations
-    ]
 
 
 @pytest.fixture
@@ -73,15 +62,15 @@ x[0] = 1
 @pytest.mark.parametrize(
     "x, dims",
     [
-        (x, None),
-        (np.broadcast_to(x, (3, 20)).T, "channel"),
+        pytest.param(x, None, id="vector"),
+        pytest.param(np.broadcast_to(x, (3, 20)).T, "channel", id="matrix"),
     ],
 )
-def test_apply(model, adstock, x, dims) -> None:
+def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
     with model:
         y = adstock.apply(x, dims=dims)
 
-    assert isinstance(y, pt.TensorVariable)
+    assert isinstance(y, TensorVariable)
     assert y.eval().shape == x.shape
 
 
@@ -89,7 +78,7 @@ def test_apply(model, adstock, x, dims) -> None:
     "adstock",
     adstocks(),
 )
-def test_default_prefix(adstock) -> None:
+def test_default_prefix(adstock: AdstockTransformation) -> None:
     assert adstock.prefix == "adstock"
     for value in adstock.variable_mapping.values():
         assert value.startswith("adstock_")
@@ -104,7 +93,7 @@ def test_adstock_no_negative_lmax():
     "adstock",
     adstocks(),
 )
-def test_adstock_sample_curve(adstock) -> None:
+def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
     if adstock.lookup_name == "no_adstock":
         raise pytest.skip(reason="NoAdstock has no parameters to sample.")
 
@@ -150,7 +139,10 @@ def test_adstock_from_dict(deserialize_func) -> None:
     adstocks(),
 )
 @pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_adstock_from_dict_without_priors(adstock, deserialize_func) -> None:
+def test_adstock_from_dict_without_priors(
+    adstock: AdstockTransformation,
+    deserialize_func,
+) -> None:
     data = {
         "lookup_name": adstock.lookup_name,
         "l_max": 10,
@@ -164,16 +156,15 @@ def test_adstock_from_dict_without_priors(adstock, deserialize_func) -> None:
     }
 
 
-class AnotherNewTransformation(AdstockTransformation):
-    lookup_name: str = "another_new_transformation"
-    default_priors = {}
-
-    def function(self, x):
-        return x
-
-
 @pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
 def test_automatic_register_adstock_transformation(deserialize_func) -> None:
+    class AnotherNewTransformation(AdstockTransformation):
+        lookup_name: str = "another_new_transformation"
+        default_priors = {}
+
+        def function(self, x):
+            return x
+
     data = {
         "lookup_name": "another_new_transformation",
         "l_max": 10,
@@ -185,6 +176,8 @@ def test_automatic_register_adstock_transformation(deserialize_func) -> None:
     assert adstock == AnotherNewTransformation(
         l_max=10, mode=ConvMode.Before, normalize=False, priors={}
     )
+
+    ADSTOCK_TRANSFORMATIONS.pop("another_new_transformation")
 
 
 def test_repr() -> None:
@@ -259,3 +252,5 @@ def test_deserialize_new_transformation() -> None:
     instance = deserialize(data)
     assert isinstance(instance, NewAdstock)
     assert instance.l_max == 10
+
+    ADSTOCK_TRANSFORMATIONS.pop("new_adstock")

@@ -18,7 +18,6 @@ benefits/model_deployment
 :maxdepth: 1
 
 mmm/mmm_intro
-mmm/comparison
 mmm/resources
 :::
 

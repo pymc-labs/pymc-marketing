@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -88,6 +88,8 @@ Create a basic PyMC model using the time-varying GP multiplier:
 
 """
 
+from typing import Any
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -98,6 +100,54 @@ from pymc_extras.prior import Prior
 from pymc_marketing.constants import DAYS_IN_YEAR
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
+
+__all__ = [
+    "HSGP_KWARGS_DISTINCTIVE_KEYS",
+    "create_hsgp_from_config",
+    "create_time_varying_gp_multiplier",
+    "infer_time_index",
+    "is_hsgp_kwargs_format",
+    "time_varying_prior",
+]
+
+# Keys unique to HSGPKwargs format (not present in parameterize_from_data)
+# m and L are HSGPKwargs-only keys that parameterize_from_data computes internally
+HSGP_KWARGS_DISTINCTIVE_KEYS: frozenset[str] = frozenset(
+    {"m", "L", "eta_lam", "ls_mu", "ls_sigma"}
+)
+
+
+def is_hsgp_kwargs_format(config: dict[str, Any]) -> bool:
+    """Check if a dictionary uses HSGPKwargs-style keys.
+
+    This function detects whether a configuration dictionary follows the
+    HSGPKwargs format (with keys like ``eta_lam``, ``ls_mu``, ``ls_sigma``) or
+    the ``parameterize_from_data`` format (with keys like ``ls_lower``, ``ls_upper``).
+
+    Parameters
+    ----------
+    config : dict[str, Any]
+        Configuration dictionary to check.
+
+    Returns
+    -------
+    bool
+        True if the config contains HSGPKwargs-style keys, False otherwise.
+
+    Examples
+    --------
+    HSGPKwargs format detection:
+
+    >>> is_hsgp_kwargs_format({"m": 200, "eta_lam": 1.0, "ls_mu": 5.0})
+    True
+
+    parameterize_from_data format detection:
+
+    >>> is_hsgp_kwargs_format({"ls_lower": 0.3, "ls_upper": 2.0})
+    False
+
+    """
+    return bool(config.keys() & HSGP_KWARGS_DISTINCTIVE_KEYS)
 
 
 def _create_hsgp_instance(
@@ -134,6 +184,89 @@ def _create_hsgp_instance(
         centered=False,
         dims=dims,
         drop_first=False,
+    )
+
+
+def create_hsgp_from_config(
+    X: pt.TensorVariable | npt.NDArray[np.floating[Any]],
+    dims: Dims,
+    config: HSGPKwargs | dict[str, Any],
+    X_mid: int | float | None = None,
+) -> SoftPlusHSGP:
+    """Create a SoftPlusHSGP instance from either HSGPKwargs or dict config.
+
+    This function provides a unified interface for creating SoftPlusHSGP
+    instances, supporting both the legacy HSGPKwargs format and the newer
+    parameterize_from_data format.
+
+    Parameters
+    ----------
+    X : pt.TensorVariable | npt.NDArray[np.floating[Any]]
+        Time index or input data for the HSGP.
+    dims : Dims
+        Dimensions for the HSGP variable (e.g., ``("date",)`` or ``("date", "channel")``).
+    config : HSGPKwargs | dict[str, Any]
+        Configuration for the HSGP. Can be:
+
+        - An ``HSGPKwargs`` instance
+        - A dict with HSGPKwargs keys (``m``, ``L``, ``eta_lam``, ``ls_mu``, ``ls_sigma``, ``cov_func``)
+        - A dict with parameterize_from_data keys (``ls_lower``, ``ls_upper``, etc.)
+
+    X_mid : int | float | None, optional
+        Midpoint of the time index. If None, computed from X.
+
+    Returns
+    -------
+    SoftPlusHSGP
+        Configured SoftPlusHSGP instance ready for use.
+
+    Raises
+    ------
+    TypeError
+        If config is neither HSGPKwargs, dict, nor a valid format.
+
+    See Also
+    --------
+    pymc_marketing.hsgp_kwargs.HSGPKwargs : Legacy configuration format.
+    pymc_marketing.mmm.hsgp.SoftPlusHSGP.parameterize_from_data : New configuration format.
+
+    Examples
+    --------
+    Using HSGPKwargs instance:
+
+    >>> from pymc_marketing.hsgp_kwargs import HSGPKwargs
+    >>> config = HSGPKwargs(m=200, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0)
+    >>> hsgp = create_hsgp_from_config(X=np.arange(52), dims="date", config=config)
+
+    Using parameterize_from_data format dict:
+
+    >>> config = {"ls_lower": 0.3, "ls_upper": 2.0}
+    >>> hsgp = create_hsgp_from_config(X=np.arange(52), dims="date", config=config)
+
+    """
+    # Case 1: HSGPKwargs instance -> use existing _create_hsgp_instance
+    if isinstance(config, HSGPKwargs):
+        return _create_hsgp_instance(X=X, X_mid=X_mid, dims=dims, hsgp_kwargs=config)
+
+    # Case 2: Must be a dict
+    if not isinstance(config, dict):
+        raise TypeError(
+            f"config must be HSGPKwargs or dict, got {type(config).__name__}"
+        )
+
+    # Case 3: Dict with HSGPKwargs-style keys -> convert to HSGPKwargs first
+    if is_hsgp_kwargs_format(config):
+        hsgp_kwargs = HSGPKwargs.model_validate(config)
+        return _create_hsgp_instance(
+            X=X, X_mid=X_mid, dims=dims, hsgp_kwargs=hsgp_kwargs
+        )
+
+    # Case 4: Dict with parameterize_from_data keys -> use SoftPlusHSGP.parameterize_from_data
+    # Filter out keys that are explicitly passed to avoid "multiple values" error
+    reserved_keys = {"X", "dims", "X_mid"}
+    filtered_config = {k: v for k, v in config.items() if k not in reserved_keys}
+    return SoftPlusHSGP.parameterize_from_data(
+        X=X, dims=dims, X_mid=X_mid, **filtered_config
     )
 
 

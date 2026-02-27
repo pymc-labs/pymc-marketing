@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 from collections.abc import Callable
 from warnings import warn
 
+import numpy.typing as npt
 import pandas as pd
 
 __all__ = [
@@ -26,6 +27,41 @@ __all__ = [
     "validation_method_X",
     "validation_method_y",
 ]
+
+
+def _validate_non_numeric_dtype(
+    values: pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray,
+    name: str,
+) -> None:
+    """Validate that values are not numeric dtype (to prevent ambiguous date parsing).
+
+    Parameters
+    ----------
+    values : array-like
+        The values to validate
+    name : str
+        The name of the column/coordinate for error messages
+
+    Raises
+    ------
+    ValueError
+        If the values have numeric dtype (excluding empty arrays)
+    """
+    temp = pd.Series(values)
+
+    # Skip validation for empty arrays (they default to float64 but are not truly numeric)
+    if len(temp) == 0:
+        return
+
+    # Check if the values are numeric
+    if pd.api.types.is_numeric_dtype(temp.dtype):
+        raise ValueError(
+            f"'{name}' has numeric dtype ({temp.dtype}). "
+            "Date columns must have string or datetime dtype to avoid ambiguous date parsing. "
+            "For example, pd.to_datetime([0, 1, 2, 3]) would create dates starting from "
+            "January 1st 1970 with nanosecond intervals, which is likely not intended. "
+            "Please ensure your date column is properly formatted as strings or datetime objects."
+        )
 
 
 def validation_method_y(method: Callable) -> Callable:
@@ -86,6 +122,11 @@ class ValidateDateColumn:
             raise ValueError(f"date_col {self.date_column} not in data")
         if not data[self.date_column].is_unique:
             raise ValueError(f"date_col {self.date_column} has repeated values")
+
+        # Validate that the date column is not numeric dtype
+        _validate_non_numeric_dtype(
+            data[self.date_column], f"date_col {self.date_column}"
+        )
 
 
 class ValidateChannelColumns:

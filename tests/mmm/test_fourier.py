@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ def test_prior_without_dims(seasonality) -> None:
     periodicity = seasonality(n_order=2, prior=prior)
 
     assert periodicity.prior.dims == (periodicity.prefix,)
-    assert prior.dims == ()
+    assert prior.dims is None
 
 
 @pytest.mark.parametrize(

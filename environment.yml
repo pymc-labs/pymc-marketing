@@ -4,61 +4,69 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-# Base dependencies
-- python=3.12
-- arviz>=0.13.0
-- matplotlib>=3.5.1
-- numpy>=1.17
-- scipy>=1.15
-- pandas
-- streamlit>=1.25.0
-- pip
-- pydantic
-- preliz>=0.20.0
-- pyprojroot
-# NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
-- pymc>=5.23.0
-- pytensor>=2.31.3
-- pymc-extras>=0.2.7
-- nutpie>=0.15.1
-- blackjax>=1.2.4
-- scikit-learn>=1.1.1
-- seaborn>=0.12.2
-- xarray
-- xarray-einstats>=0.5.1
-# Extra dependencies for lint, testing and docs build
-# docs
-- sphinx
-- sphinx-intl
-- ipython!=8.7.0
-- myst-parser
-- myst-nb>=1.1.2
-- numpydoc
-- pydata-sphinx-theme
-- sphinx-copybutton
-- sphinx-autodoc-typehints
-- sphinxext-opengraph
-- sphinx-notfound-page
-- sphinx-design
-- sphinx-remove-toctrees
-- watermark
-- typing
-- networkx
-- dowhy
-# lint
-- mypy
-- pandas-stubs
-- pre-commit>=2.19.0
-- ruff>=0.1.4
-# test
-- lifetimes>=0.11.3
-- pytest>=7.4.0
-- pytest-cov==3.0.0
-- pytest-mock
-- blas
-- mlflow
-- hatch
-- pyprojroot
-- pip:
-  - roadmapper
-  - labs-sphinx-theme
+  # Base dependencies
+  - python=3.12
+  - arviz>=0.13.0,<1.0.0
+  - matplotlib>=3.5.1
+  - narwhals
+  - numpy>=1.17
+  - scipy>=1.15
+  - pandas
+  - streamlit>=1.25.0
+  - pip
+  - pydantic
+  - preliz>=0.20.0
+  - pyprojroot
+  - plotly>=6.3.0
+  # NOTE: Keep minimum pymc version in sync with ci.yml `OLDEST_PYMC_VERSION`
+  - pymc>=5.27.1
+  - pytensor>=2.31.3
+  - pymc-extras>=0.2.7,<0.9
+  - nutpie>=0.15.1
+  - blackjax>=1.2.4
+  - scikit-learn>=1.1.1
+  - seaborn>=0.12.2
+  - xarray
+  - xarray-einstats>=0.5.1
+  # Extra dependencies for lint, testing and docs build
+  # docs
+  - sphinx
+  - sphinx-intl
+  - ipython!=8.7.0
+  - myst-parser
+  - myst-nb>=1.1.2
+  - numpydoc
+  - pydata-sphinx-theme
+  - sphinx-copybutton
+  - sphinx-autodoc-typehints
+  - sphinxext-opengraph
+  - sphinx-notfound-page
+  - sphinx-design
+  - sphinx-remove-toctrees
+  - sphinx-sitemap
+  - watermark
+  - typing
+  - networkx
+  - dowhy
+  # lint
+  - mypy
+  - pandas-stubs
+  - pre-commit>=2.19.0
+  - ruff>=0.1.4
+  # test
+  - lifetimes>=0.11.3
+  - polars>=1.0.0
+  - pytest>=7.4.0
+  - pytest-cov==3.0.0
+  - pytest-mock
+  - pytest-split
+  - blas
+  - mlflow
+  - hatch
+  - pyprojroot
+  - papermill
+  - plotly
+  - tqdm
+  - pip:
+      - roadmapper
+      - labs-sphinx-theme

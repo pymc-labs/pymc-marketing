@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -31,7 +31,6 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.utils import from_netcdf
 from pymc_marketing.version import __version__
 
@@ -194,8 +193,31 @@ class ModelIO:
             "0123456789abcdef"
 
         """
+
+        def _serialize_for_hash(obj):
+            """Serialize objects for deterministic hashing."""
+            if hasattr(obj, "to_dict"):
+                return obj.to_dict()
+            if hasattr(obj, "model_dump"):
+                # Handle Pydantic models (e.g., HSGPKwargs)
+                return obj.model_dump(mode="json")
+            # For other objects, try to use their __dict__ but filter out non-serializable items
+            if hasattr(obj, "__dict__"):
+                # Filter out methods, functions, and other non-serializable attributes
+                return {
+                    k: v
+                    for k, v in obj.__dict__.items()
+                    if not callable(v) and not k.startswith("_")
+                }
+            # Last resort: convert to string representation
+            return str(obj)
+
         hasher = hashlib.sha256()
-        hasher.update(str(self.model_config.values()).encode())
+        # Use JSON serialization with custom default for deterministic model IDs
+        config_json = json.dumps(
+            self._serializable_model_config, sort_keys=True, default=_serialize_for_hash
+        )
+        hasher.update(config_json.encode())
         hasher.update(self.version.encode())
         hasher.update(self._model_type.encode())
         return hasher.hexdigest()[:16]
@@ -223,22 +245,32 @@ class ModelIO:
             A dictionary of attributes for the inference data.
         """
 
-        def default(x):
-            if hasattr(x, "to_dict"):
-                return x.to_dict()
-            elif isinstance(x, HSGPKwargs):
-                return x.model_dump(mode="json")
-            return x.__dict__
+        def _json_default(obj):
+            """Handle objects that aren't JSON serializable by default."""
+            if hasattr(obj, "to_dict"):
+                return obj.to_dict()
+            if hasattr(obj, "model_dump"):
+                # Handle Pydantic models (e.g., HSGPKwargs)
+                return obj.model_dump(mode="json")
+            # For other objects, try to use their __dict__ but filter out non-serializable items
+            if hasattr(obj, "__dict__"):
+                # Filter out methods, functions, and other non-serializable attributes
+                return {
+                    k: v
+                    for k, v in obj.__dict__.items()
+                    if not callable(v) and not k.startswith("_")
+                }
+            # Last resort: convert to string representation
+            return str(obj)
 
         attrs: dict[str, str] = {}
 
         attrs["id"] = self.id
         attrs["model_type"] = self._model_type
         attrs["version"] = self.version
-        attrs["sampler_config"] = json.dumps(self.sampler_config)
+        attrs["sampler_config"] = json.dumps(self.sampler_config, default=_json_default)
         attrs["model_config"] = json.dumps(
-            self._serializable_model_config,
-            default=default,
+            self._serializable_model_config, default=_json_default
         )
 
         return attrs

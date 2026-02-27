@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -209,7 +209,7 @@ class EventEffect(BaseModel):
         if not set(self.basis.combined_dims).issubset(set(self.dims)):
             raise ValueError("The dims must contain all dimensions of the basis.")
 
-        if not set(self.effect_size.dims).issubset(set(self.dims)):
+        if not set(self.effect_size.dims or {}).issubset(set(self.dims)):
             raise ValueError("The dims must contain all dimensions of the effect size.")
 
         return self

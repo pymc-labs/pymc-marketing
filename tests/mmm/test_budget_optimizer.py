@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -353,9 +353,9 @@ def test_allocate_budget_custom_minimize_args(
             [
                 Constraint(
                     key="channel_1_min_constraint",
-                    constraint_fun=lambda budgets_sym,
-                    total_budget_sym,
-                    optimizer: budgets_sym[0] - 60,
+                    constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                        budgets_sym[0] - 60
+                    ),
                     constraint_type="ineq",
                 ),
             ],
@@ -909,7 +909,7 @@ def test_budget_distribution_over_period_integration(dummy_df, dummy_idata):
     assert result_without_factors.dims == ("channel",)
 
 
-def test_custom_protocol_model_budget_optimizer_works():
+def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     """Validate the optimizer works with the built-in CustomModelWrapper.
 
     This serves as an example for users wanting to plug in their own PyMC models via

@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -14,8 +14,11 @@
 """PyMC-Marketing."""
 
 # Load the data accessor
-import pymc_marketing.data.fivetran  # noqa: F401
-from pymc_marketing import clv, customer_choice, mmm
+import pymc_marketing.data.fivetran
+
+# Register SpecialPrior deserializers (LogNormalPrior, LaplacePrior, etc.)
+import pymc_marketing.special_priors  # noqa: F401
+from pymc_marketing import bass, clv, customer_choice, mmm
 from pymc_marketing.version import __version__
 
-__all__ = ["__version__", "clv", "customer_choice", "mmm"]
+__all__ = ["__version__", "bass", "clv", "customer_choice", "mmm"]

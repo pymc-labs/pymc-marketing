@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -1401,9 +1401,17 @@ def test_plot_new_spend_contributions_original_scale(mmm_fitted) -> None:
 
 
 @pytest.fixture(scope="module")
-def mmm_with_prior(mmm) -> MMM:
+def mmm_with_prior() -> MMM:
     n_chains = 1
     n_samples = 100
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        control_columns=["control_1", "control_2"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
 
     channels = mmm.channel_columns
     n_channels = len(channels)

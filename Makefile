@@ -8,7 +8,7 @@ PACKAGE_DIR = pymc_marketing
 # COMMANDS                                                                      #
 #################################################################################
 
-.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml help
+.PHONY: init lint check_lint format check_format test html cleandocs run_notebooks uml linkcheck help
 
 init: ## Install the package in editable mode
 	python3 -m pip install -e .
@@ -57,6 +57,10 @@ uml: ## Install documentation dependencies and generate UML diagrams
 	pyreverse pymc_marketing/mmm -d docs/source/uml -f 'ALL' -o png -p mmm
 	pyreverse pymc_marketing/clv -d docs/source/uml -f 'ALL' -o png -p clv
 	pyreverse pymc_marketing/customer_choice -d docs/source/uml -f 'ALL' -o png -p customer_choice
+
+linkcheck: ## Check documentation links with Sphinx
+	pip install .[docs]
+	sphinx-build docs/source docs/build -b linkcheck
 
 mlflow_server: ## Start MLflow server on port 5000
 	mlflow server --backend-store-uri sqlite:///mlruns.db --default-artifact-root ./mlruns

@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -186,7 +186,7 @@ Notes
 import itertools
 import warnings
 from collections.abc import Iterable
-from typing import Any
+from typing import Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -224,6 +224,7 @@ class MMMPlotSuite:
         ncols: int = 1,
         width_per_col: float = 10.0,
         height_per_row: float = 4.0,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Initialize a grid of subplots.
 
@@ -237,6 +238,8 @@ class MMMPlotSuite:
             Width (in inches) for each column of subplots.
         height_per_row : float
             Height (in inches) for each row of subplots.
+        figsize : tuple of float, optional
+            If provided, overrides the calculated figure size (width, height) in inches.
 
         Returns
         -------
@@ -245,10 +248,12 @@ class MMMPlotSuite:
         axes : np.ndarray of matplotlib.axes.Axes
             2D array of axes of shape (n_subplots, ncols).
         """
+        if figsize is None:
+            figsize = (width_per_col * ncols, height_per_row * n_subplots)
         fig, axes = plt.subplots(
             nrows=n_subplots,
             ncols=ncols,
-            figsize=(width_per_col * ncols, height_per_row * n_subplots),
+            figsize=figsize,
             squeeze=False,
         )
         return fig, axes
@@ -345,9 +350,35 @@ class MMMPlotSuite:
         return self.idata.prior_predictive  # type: ignore
 
     def _add_median_and_hdi(
-        self, ax: Axes, data: xr.DataArray, var: str, hdi_prob: float = 0.85
+        self,
+        ax: Axes,
+        data: xr.DataArray,
+        var: str,
+        hdi_prob: float = 0.85,
+        label: str | None = None,
     ) -> Axes:
-        """Add median and HDI to the given axis."""
+        """Add median and HDI to the given axis.
+
+        Parameters
+        ----------
+        ax : Axes
+            The matplotlib axes to plot on.
+        data : xr.DataArray
+            The data array containing samples.
+        var : str
+            The variable name (used as key for HDI results).
+        hdi_prob : float, optional
+            The HDI probability mass. Default is 0.85.
+        label : str, optional
+            The label to use in the legend. If None, uses `var`.
+
+        Returns
+        -------
+        Axes
+            The axes with the plot added.
+        """
+        if label is None:
+            label = var
         median = data.median(dim="sample") if "sample" in data.dims else data.median()
         hdi = az.hdi(
             data,
@@ -359,7 +390,7 @@ class MMMPlotSuite:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
         dates = data.coords["date"].values
         # Add median and HDI to the plot
-        ax.plot(dates, median, label=var, alpha=0.9)
+        ax.plot(dates, median, label=label, alpha=0.9)
         ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
         return ax
 
@@ -944,6 +975,8 @@ class MMMPlotSuite:
         var: list[str],
         hdi_prob: float = 0.85,
         dims: dict[str, str | int | list] | None = None,
+        combine_dims: bool = False,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the time-series contributions for each variable in `var`.
 
@@ -960,6 +993,13 @@ class MMMPlotSuite:
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"country": ["US", "UK"], "user_type": "new"}.
             If provided, only the selected slice(s) will be plotted.
+        combine_dims : bool, optional
+            If True, all dimension combinations are plotted on a single axis with
+            different colors. If False (default), creates separate subplots for each
+            dimension combination.
+        figsize : tuple of float, optional
+            Figure size as (width, height) in inches. If None (default), size is
+            calculated automatically based on the number of subplots.
 
         Returns
         -------
@@ -1016,51 +1056,102 @@ class MMMPlotSuite:
 
         # Prepare subplots: one for each combo of dims_lists and additional_dims
         total_combos = list(itertools.product(dims_combos, dim_combinations))
-        fig, axes = self._init_subplots(len(total_combos), ncols=1)
 
-        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
-            ax = axes[row_idx][0]
-            # Build indexers for dims and additional_dims
-            indexers = (
+        # --- Nested helper functions ---
+        def build_indexers(dims_combo: tuple, addl_combo: tuple) -> dict[str, Any]:
+            """Build indexers dictionary for a given dimension combination."""
+            indexers: dict[str, Any] = (
                 dict(zip(additional_dims, addl_combo, strict=False))
                 if additional_dims
                 else {}
             )
             if dims:
-                # For dims with lists, use the current value from dims_combo
                 for i, k in enumerate(dims_keys):
                     indexers[k] = dims_combo[i]
-                # For dims with single values, use as is
-                for k, v in (dims or {}).items():
+                for k, v in dims.items():
                     if k not in dims_keys:
                         indexers[k] = v
+            return indexers
 
-            # Plot posterior median and HDI for each var
-            for v in var:
-                data = self.idata.posterior[v]
-                missing_coords = {
-                    key: value for key, value in coords.items() if key not in data.dims
-                }
-                data = data.expand_dims(**missing_coords)
-                data = data.sel(**indexers)  # apply slice
-                data = self._reduce_and_stack(
-                    data, dims_to_ignore={"date", "chain", "draw", "sample"}
+        def prepare_var_data(
+            var_name: str, indexers: dict[str, Any]
+        ) -> tuple[xr.DataArray, dict[str, Any]]:
+            """Prepare variable data for plotting."""
+            data = self.idata.posterior[var_name]
+            # Only expand 'date' if missing (needed for time series plotting)
+            if "date" not in data.dims and "date" in coords:
+                data = data.expand_dims(date=coords["date"])
+            # Filter indexers to only include dimensions that exist in this variable
+            var_indexers = {k: val for k, val in indexers.items() if k in data.dims}
+            if var_indexers:
+                data = data.sel(**var_indexers)
+            data = self._reduce_and_stack(
+                data, dims_to_ignore={"date", "chain", "draw", "sample"}
+            )
+            return data, var_indexers
+
+        def get_title_dims() -> list[str]:
+            """Get the list of dimensions for title/label building."""
+            return list(dims.keys()) + additional_dims if dims else additional_dims
+
+        # --- End nested helper functions ---
+
+        title_dims = get_title_dims()
+
+        if combine_dims:
+            # Single subplot with all dimension combinations overlaid
+            fig, axes = self._init_subplots(1, ncols=1, figsize=figsize)
+            ax = axes[0][0]
+            # Track variables without indexed dims to avoid duplicate plotting
+            plotted_vars_without_indexed_dims: set[str] = set()
+
+            for dims_combo, addl_combo in total_combos:
+                indexers = build_indexers(dims_combo, addl_combo)
+                title_combo = tuple(indexers[k] for k in title_dims)
+                label_suffix = self._build_subplot_title(
+                    dims=title_dims, combo=title_combo, fallback_title=""
                 )
-                ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
 
-            # Title includes both fixed and combo dims
-            title_dims = (
-                list(dims.keys()) + additional_dims if dims else additional_dims
-            )
-            title_combo = tuple(indexers[k] for k in title_dims)
+                for v in var:
+                    data, var_indexers = prepare_var_data(v, indexers)
+                    # Skip if this variable has no indexed dims and was already plotted
+                    if not var_indexers:
+                        if v in plotted_vars_without_indexed_dims:
+                            continue
+                        plotted_vars_without_indexed_dims.add(v)
+                    # Create combined label: "var_name (dim=value, ...)"
+                    if var_indexers and label_suffix:
+                        plot_label = f"{v} ({label_suffix})"
+                    else:
+                        plot_label = v
+                    ax = self._add_median_and_hdi(
+                        ax, data, v, hdi_prob=hdi_prob, label=plot_label
+                    )
 
-            title = self._build_subplot_title(
-                dims=title_dims, combo=title_combo, fallback_title="Time Series"
-            )
-            ax.set_title(title)
+            ax.set_title("Time Series Contributions")
             ax.set_xlabel("Date")
             ax.set_ylabel("Posterior Value")
             ax.legend(loc="best")
+        else:
+            # Original behavior: separate subplots for each dimension combination
+            fig, axes = self._init_subplots(len(total_combos), ncols=1, figsize=figsize)
+
+            for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
+                ax = axes[row_idx][0]
+                indexers = build_indexers(dims_combo, addl_combo)
+
+                for v in var:
+                    data, _ = prepare_var_data(v, indexers)
+                    ax = self._add_median_and_hdi(ax, data, v, hdi_prob=hdi_prob)
+
+                title_combo = tuple(indexers[k] for k in title_dims)
+                title = self._build_subplot_title(
+                    dims=title_dims, combo=title_combo, fallback_title="Time Series"
+                )
+                ax.set_title(title)
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Posterior Value")
+                ax.legend(loc="best")
 
         return fig, axes
 
@@ -1246,6 +1337,598 @@ class MMMPlotSuite:
                 ax.set_xlabel(plot_dim)
                 ax.set_ylabel(var)
 
+        fig.tight_layout()
+        return fig, axes
+
+    def channel_parameter(
+        self,
+        param_name: str,
+        orient: str = "h",
+        dims: dict[str, str | int | list] | None = None,
+        figsize: tuple[float, float] = (10, 6),
+    ) -> Figure:
+        """Plot the posterior distribution of a channel parameter using violin plots.
+
+        Creates violin plots showing the posterior distribution of a parameter
+        for each channel. Handles both channel-indexed parameters (with a "channel"
+        dimension) and scalar parameters gracefully. If additional dimensions are
+        present beyond chain, draw, and channel, creates a subplot for each combination.
+
+        Parameters
+        ----------
+        param_name : str
+            The name of the parameter to plot from posterior. Examples include
+            "saturation_alpha", "saturation_lam", "adstock_alpha".
+        orient : str, optional
+            Orientation of the violin plot. Either "h" (horizontal) or "v" (vertical).
+            Default is "h".
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US", "country": ["A", "B"]}.
+            If provided, only the selected slice(s) will be plotted.
+        figsize : tuple[float, float], optional
+            The size of each subplot. Default is (10, 6).
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot.
+
+        Raises
+        ------
+        ValueError
+            If `param_name` is not found in the posterior.
+            If no posterior data is found in idata.
+
+        Examples
+        --------
+        Plot posterior distribution of saturation alpha parameter:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(param_name="saturation_alpha")
+
+        Plot with dimension filtering:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(
+                param_name="saturation_alpha", dims={"geo": "US"}
+            )
+
+        Plot with vertical orientation:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(
+                param_name="adstock_alpha", orient="v", figsize=(8, 10)
+            )
+
+        Add reference lines after plotting:
+
+        .. code-block:: python
+
+            fig = mmm.plot.channel_parameter(param_name="saturation_alpha")
+            ax = fig.axes[0]
+            ax.axvline(x=0.5, color="red", linestyle="--", label="reference")
+            ax.legend()
+        """
+        if not hasattr(self.idata, "posterior"):
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group."
+            )
+
+        if param_name not in self.idata.posterior:
+            raise ValueError(
+                f"Parameter '{param_name}' not found in posterior. "
+                f"Available variables: {list(self.idata.posterior.data_vars)}"
+            )
+
+        var_data = self.idata.posterior[param_name]
+        all_dims = list(var_data.dims)
+
+        # Determine if this is a channel-indexed parameter
+        has_channel_dim = "channel" in all_dims
+
+        # Validate dims parameter
+        if dims:
+            self._validate_dims(dims=dims, all_dims=all_dims)
+
+        # Build all combinations for dims with lists
+        dims_keys, dims_combos = self._dim_list_handler(dims)
+
+        # Identify additional dimensions (beyond chain, draw, and channel if present)
+        ignored_dims = {"chain", "draw"}
+        if has_channel_dim:
+            ignored_dims.add("channel")
+        additional_dims = [
+            d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+        ]
+
+        # Get combinations for remaining dims
+        if additional_dims:
+            additional_coords = [
+                self.idata.posterior.coords[dim].values for dim in additional_dims
+            ]
+            additional_combos = list(itertools.product(*additional_coords))
+        else:
+            additional_combos = [()]
+
+        # Total combinations for subplots
+        total_combos = list(itertools.product(dims_combos, additional_combos))
+        n_subplots = len(total_combos)
+
+        # Create subplots
+        fig, axes = self._init_subplots(
+            n_subplots=n_subplots,
+            ncols=1,
+            width_per_col=figsize[0],
+            height_per_row=figsize[1],
+        )
+
+        for row_idx, (dims_combo, addl_combo) in enumerate(total_combos):
+            ax = axes[row_idx][0]
+
+            # Build indexers
+            indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            if dims:
+                # For dims with lists, use the current value from dims_combo
+                for i, k in enumerate(dims_keys):
+                    indexers[k] = dims_combo[i]
+                # For dims with single values, use as is
+                for k, v in (dims or {}).items():
+                    if k not in dims_keys:
+                        indexers[k] = v
+
+            # Select data for this subplot
+            subset = var_data.sel(**indexers)
+
+            # Stack chain and draw into sample dimension
+            if "chain" in subset.dims and "draw" in subset.dims:
+                subset = subset.stack(sample=("chain", "draw"))
+
+            if has_channel_dim:
+                # Get channel values for labeling
+                channel_values = subset.coords["channel"].values
+
+                # Convert to DataFrame for seaborn
+                # Transpose so that channel values are columns
+                samples_df = pd.DataFrame(
+                    data=subset.values.T,
+                    columns=channel_values,
+                )
+            else:
+                # Scalar parameter - create a single-column DataFrame
+                samples_df = pd.DataFrame(
+                    data=subset.values,
+                    columns=[param_name],
+                )
+
+            # Create violin plot
+            sns.violinplot(data=samples_df, orient=orient, ax=ax)
+
+            # Build subplot title
+            title_dims = (list(dims.keys()) if dims else []) + additional_dims
+            title_combo = tuple(indexers[k] for k in title_dims)
+            title = self._build_subplot_title(
+                dims=title_dims,
+                combo=title_combo,
+                fallback_title=f"Posterior Distribution: {param_name}",
+            )
+
+            ax.set_title(title)
+
+            if orient == "h":
+                ax.set_xlabel(param_name)
+                ax.set_ylabel("channel" if has_channel_dim else "")
+            else:
+                ax.set_xlabel("channel" if has_channel_dim else "")
+                ax.set_ylabel(param_name)
+
+        fig.tight_layout()
+        return fig
+
+    def prior_vs_posterior(
+        self,
+        var: str,
+        plot_dim: str = "channel",
+        alphabetical_sort: bool = True,
+        dims: dict[str, str | int | list] | None = None,
+        figsize: tuple[float, float] | None = None,
+    ) -> tuple[Figure, NDArray[Axes]]:
+        """Plot the prior vs posterior distribution for a variable across a dimension.
+
+        Creates KDE plots showing the prior and posterior distributions with their
+        respective means highlighted. Each subplot represents a value in the plot_dim
+        (e.g., each channel). If additional dimensions are present, creates a grid
+        of subplots for each combination.
+
+        For scalar variables (those without the specified plot_dim), a single subplot
+        is created showing the overall prior vs posterior comparison. If the variable
+        has other dimensions besides chain/draw, subplots are created for each
+        combination of those dimensions.
+
+        Parameters
+        ----------
+        var : str
+            The name of the variable to plot (e.g., 'adstock_alpha', 'lam').
+        plot_dim : str, optional
+            The dimension to create subplots over. Default is "channel".
+            Each value in this dimension will get its own subplot showing
+            prior vs posterior comparison. If the variable does not have this
+            dimension, it is treated as a scalar variable.
+        alphabetical_sort : bool, optional
+            Whether to sort the plot_dim values alphabetically (True) or by the
+            difference between the posterior and prior means (False), with the
+            largest positive difference at the top. Default is True.
+            Only applies when plot_dim exists in the variable.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be plotted.
+        figsize : tuple[float, float], optional
+            The size of the figure. If None, it will be calculated based on
+            the number of subplots.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the subplots.
+        axes : np.ndarray of matplotlib.axes.Axes
+            Array of Axes objects corresponding to each subplot.
+
+        Raises
+        ------
+        ValueError
+            If `var` is not found in both prior and posterior.
+            If no prior or posterior data is found in idata.
+
+        Examples
+        --------
+        Plot prior vs posterior distribution of an adstock parameter:
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(var="adstock_alpha", plot_dim="channel")
+
+        Plot a scalar variable (no channel dimension):
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(var="intercept")
+
+        Plot with dimension filtering:
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(
+                var="lam", plot_dim="channel", dims={"geo": "US"}
+            )
+
+        Sort by magnitude of update (largest posterior - prior difference first):
+
+        .. code-block:: python
+
+            mmm.plot.prior_vs_posterior(
+                var="adstock_alpha", plot_dim="channel", alphabetical_sort=False
+            )
+        """
+        # Validate that prior and posterior exist
+        if not hasattr(self.idata, "prior") or self.idata.prior is None:
+            raise ValueError(
+                "No prior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'prior' group. "
+                "Run 'MMM.sample_prior_predictive()' to generate prior samples."
+            )
+
+        if not hasattr(self.idata, "posterior") or self.idata.posterior is None:
+            raise ValueError(
+                "No posterior data found in 'self.idata'. "
+                "Please ensure 'self.idata' contains a 'posterior' group. "
+                "Run 'MMM.fit()' to generate posterior samples."
+            )
+
+        # Validate variable exists in both prior and posterior
+        if var not in self.idata.prior:
+            raise ValueError(
+                f"Variable '{var}' not found in prior. "
+                f"Available variables: {list(self.idata.prior.data_vars)}"
+            )
+
+        if var not in self.idata.posterior:
+            raise ValueError(
+                f"Variable '{var}' not found in posterior. "
+                f"Available variables: {list(self.idata.posterior.data_vars)}"
+            )
+
+        prior_data = self.idata.prior[var]
+        posterior_data = self.idata.posterior[var]
+
+        all_dims = list(prior_data.dims)
+
+        # Check if plot_dim exists - if not, treat as scalar variable
+        is_scalar = plot_dim not in prior_data.dims
+
+        if is_scalar:
+            # Handle scalar variables (no plot_dim dimension)
+            # Identify additional dimensions beyond chain, draw
+            ignored_dims = {"chain", "draw"}
+            additional_dims = [
+                d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+            ]
+
+            # Validate dims parameter if provided
+            if dims:
+                for key in dims:
+                    if key not in all_dims:
+                        raise ValueError(
+                            f"Dimension '{key}' not found in variable '{var}'. "
+                            f"Available dimensions: {list(prior_data.dims)}"
+                        )
+
+            # Get combinations for additional dims
+            if additional_dims:
+                additional_coords = [
+                    self.idata.prior.coords[dim].values for dim in additional_dims
+                ]
+                additional_combos = list(itertools.product(*additional_coords))
+            else:
+                additional_combos = [()]
+
+            # Calculate figsize if not provided
+            if figsize is None:
+                figsize = (12.0, 4.0)
+
+            n_subplots = max(1, len(additional_combos))
+            fig, axes = self._init_subplots(
+                n_subplots=n_subplots,
+                ncols=1,
+                width_per_col=figsize[0],
+                height_per_row=figsize[1],
+            )
+
+            # Plot for each additional dimension combination (or single plot if scalar)
+            for row_idx, addl_combo in enumerate(additional_combos):
+                ax = axes[row_idx][0]
+
+                # Build indexers for additional dimensions
+                indexers = (
+                    dict(zip(additional_dims, addl_combo, strict=False))
+                    if additional_dims
+                    else {}
+                )
+
+                # Add single-value dims filters
+                if dims:
+                    for k, v in dims.items():
+                        if not isinstance(v, (list, tuple, np.ndarray)):
+                            indexers[k] = v
+
+                # Extract samples
+                prior_samples = prior_data.sel(**indexers).values.flatten()
+                posterior_samples = posterior_data.sel(**indexers).values.flatten()
+                prior_mean = float(np.mean(prior_samples))
+                posterior_mean = float(np.mean(posterior_samples))
+                difference = posterior_mean - prior_mean
+
+                # Plot prior KDE
+                sns.kdeplot(
+                    prior_samples,
+                    ax=ax,
+                    label="Prior",
+                    color="C0",
+                    fill=True,
+                )
+
+                # Add vertical line for prior mean
+                ax.axvline(
+                    prior_mean,
+                    color="C0",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Prior Mean: {prior_mean:.2f}",
+                )
+
+                # Plot posterior KDE
+                sns.kdeplot(
+                    posterior_samples,
+                    ax=ax,
+                    label="Posterior",
+                    color="C1",
+                    fill=True,
+                    alpha=0.15,
+                )
+
+                # Add vertical line for posterior mean
+                ax.axvline(
+                    posterior_mean,
+                    color="C1",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+                )
+
+                # Build title
+                if additional_dims:
+                    title_parts = [
+                        f"{d}={v}"
+                        for d, v in zip(additional_dims, addl_combo, strict=False)
+                    ]
+                    ax.set_title(", ".join(title_parts))
+                else:
+                    ax.set_title(var)
+
+                ax.set_xlabel(var)
+                ax.set_ylabel("Density")
+                ax.legend(loc="upper right", fontsize="small")
+
+            fig.suptitle(
+                f"Prior vs Posterior Distributions | {var}",
+                fontsize=14,
+                fontweight="bold",
+                y=1.02,
+            )
+            fig.tight_layout()
+            return fig, axes
+
+        # Non-scalar case: variable has the plot_dim dimension
+        # Validate dims parameter
+        if dims:
+            self._validate_dims(dims=dims, all_dims=all_dims)
+
+        # Identify additional dimensions (beyond chain, draw, and plot_dim)
+        ignored_dims = {"chain", "draw", plot_dim}
+        additional_dims = [
+            d for d in all_dims if d not in ignored_dims and d not in (dims or {})
+        ]
+
+        # Get combinations for remaining dims
+        if additional_dims:
+            additional_coords = [
+                self.idata.prior.coords[dim].values for dim in additional_dims
+            ]
+            additional_combos = list(itertools.product(*additional_coords))
+        else:
+            additional_combos = [()]
+
+        # Get plot_dim values
+        plot_dim_values = prior_data.coords[plot_dim].values
+
+        # Apply dims filter if provided for plot_dim
+        if dims and plot_dim in dims:
+            filter_val = dims[plot_dim]
+            if isinstance(filter_val, (list, tuple, np.ndarray)):
+                plot_dim_values = [v for v in plot_dim_values if v in filter_val]
+            else:
+                plot_dim_values = [filter_val]
+
+        n_plot_dim = len(plot_dim_values)
+        n_addl = len(additional_combos)
+
+        # Calculate figsize if not provided
+        if figsize is None:
+            figsize = (12.0, 4.0)
+
+        # Create subplots - one row per plot_dim value, one column per additional combo
+        if n_addl > 1:
+            fig, axes = self._init_subplots(
+                n_subplots=n_plot_dim,
+                ncols=n_addl,
+                width_per_col=figsize[0] / max(n_addl, 1),
+                height_per_row=figsize[1],
+            )
+        else:
+            fig, axes = self._init_subplots(
+                n_subplots=n_plot_dim,
+                ncols=1,
+                width_per_col=figsize[0],
+                height_per_row=figsize[1],
+            )
+
+        # For each additional dimension combination, compute means and sort
+        for addl_idx, addl_combo in enumerate(additional_combos):
+            # Build indexers for additional dimensions
+            addl_indexers = (
+                dict(zip(additional_dims, addl_combo, strict=False))
+                if additional_dims
+                else {}
+            )
+
+            # Add single-value dims filters
+            if dims:
+                for k, v in dims.items():
+                    if k not in [plot_dim] and not isinstance(
+                        v, (list, tuple, np.ndarray)
+                    ):
+                        addl_indexers[k] = v
+
+            # Compute prior and posterior means for sorting
+            dim_means = []
+            for dim_val in plot_dim_values:
+                indexers = {**addl_indexers, plot_dim: dim_val}
+                prior_samples = prior_data.sel(**indexers).values.flatten()
+                posterior_samples = posterior_data.sel(**indexers).values.flatten()
+                prior_mean = float(np.mean(prior_samples))
+                posterior_mean = float(np.mean(posterior_samples))
+                difference = posterior_mean - prior_mean
+                dim_means.append((dim_val, prior_mean, posterior_mean, difference))
+
+            # Sort based on alphabetical_sort parameter
+            if alphabetical_sort:
+                sorted_dims = sorted(dim_means, key=lambda x: str(x[0]))
+            else:
+                # Sort by difference (largest positive first)
+                sorted_dims = sorted(dim_means, key=lambda x: x[3], reverse=True)
+
+            # Plot for each plot_dim value
+            for row_idx, (dim_val, prior_mean, posterior_mean, difference) in enumerate(
+                sorted_dims
+            ):
+                ax = axes[row_idx][addl_idx]
+
+                indexers = {**addl_indexers, plot_dim: dim_val}
+
+                # Extract samples
+                prior_samples = prior_data.sel(**indexers).values.flatten()
+                posterior_samples = posterior_data.sel(**indexers).values.flatten()
+
+                # Plot prior KDE
+                sns.kdeplot(
+                    prior_samples,
+                    ax=ax,
+                    label="Prior",
+                    color="C0",
+                    fill=True,
+                )
+
+                # Add vertical line for prior mean
+                ax.axvline(
+                    prior_mean,
+                    color="C0",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Prior Mean: {prior_mean:.2f}",
+                )
+
+                # Plot posterior KDE
+                sns.kdeplot(
+                    posterior_samples,
+                    ax=ax,
+                    label="Posterior",
+                    color="C1",
+                    fill=True,
+                    alpha=0.15,
+                )
+
+                # Add vertical line for posterior mean
+                ax.axvline(
+                    posterior_mean,
+                    color="C1",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Posterior Mean: {posterior_mean:.2f} (Diff: {difference:.2f})",
+                )
+
+                # Build title
+                title_parts = [f"{plot_dim}={dim_val}"]
+                if additional_dims:
+                    for d, v in zip(additional_dims, addl_combo, strict=False):
+                        title_parts.append(f"{d}={v}")
+                ax.set_title(", ".join(title_parts))
+                ax.set_xlabel(var)
+                ax.set_ylabel("Density")
+                ax.legend(loc="upper right", fontsize="small")
+
+        fig.suptitle(
+            f"Prior vs Posterior Distributions | {var}",
+            fontsize=14,
+            fontweight="bold",
+            y=1.02,
+        )
         fig.tight_layout()
         return fig, axes
 
@@ -1938,52 +2621,64 @@ class MMMPlotSuite:
         labels = ["Allocated Spend", "Channel Contributions"]
         ax.legend(bars, labels, loc="best")
 
-    def allocated_contribution_by_channel_over_time(
+    def _prepare_allocated_contribution_data(
         self,
-        samples: xr.Dataset,
-        scale_factor: float | None = None,
-        lower_quantile: float = 0.025,
-        upper_quantile: float = 0.975,
+        samples: xr.Dataset | az.InferenceData,
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
         original_scale: bool = True,
-        figsize: tuple[float, float] = (10, 6),
-        ax: plt.Axes | None = None,
-    ) -> tuple[Figure, plt.Axes | NDArray[Axes]]:
-        """Plot the allocated contribution by channel with uncertainty intervals.
+        scale_factor: float | None = None,
+    ) -> tuple[xr.DataArray, list[str], list[tuple]]:
+        """Prepare channel contribution data with dimension filtering.
 
-        This function visualizes the mean allocated contributions by channel along with
-        the uncertainty intervals defined by the lower and upper quantiles.
-        If additional dimensions besides 'channel', 'date', and 'sample' are present,
-        creates a subplot for each combination of these dimensions.
+        This method handles validation, data extraction, dimension filtering,
+        and split_by processing for the allocated contribution plot.
 
         Parameters
         ----------
-        samples : xr.Dataset
+        samples : xr.Dataset or az.InferenceData
             The dataset containing the samples of channel contributions.
-            Expected to have 'channel_contribution' variable with dimensions
-            'channel', 'date', and 'sample'.
+            Can be an xr.Dataset with 'sample' dimension, or an az.InferenceData
+            with 'chain' and 'draw' dimensions (from posterior_predictive).
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be included.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own subplot.
+        original_scale : bool, default True
+            If True, prefer 'channel_contribution_original_scale' variable.
         scale_factor : float, optional
-            Scale factor to convert to original scale, if original_scale=True.
-            If None and original_scale=True, assumes scale_factor=1.
-        lower_quantile : float, optional
-            The lower quantile for the uncertainty interval. Default is 0.025.
-        upper_quantile : float, optional
-            The upper quantile for the uncertainty interval. Default is 0.975.
-        original_scale : bool, optional
-            If True, the contributions are plotted on the original scale. Default is True.
-        figsize : tuple[float, float], optional
-            The size of the figure to be created. Default is (10, 6).
-        ax : plt.Axes, optional
-            The axis to plot on. If None, a new figure and axis will be created.
-            Only used when no extra dimensions are present.
+            Scale factor to apply to the contributions.
 
         Returns
         -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the plot.
-        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
-            The Axes object with the plot, or array of Axes for multiple subplots.
+        channel_contribution : xr.DataArray
+            The channel contribution data, filtered and scaled, with 'sample' dim.
+        split_dims : list of str
+            List of dimension names to split by.
+        dim_combinations : list of tuple
+            List of coordinate value combinations for split dimensions.
+
+        Raises
+        ------
+        ValueError
+            If required dimensions or variables are missing.
         """
-        # Check for expected dimensions and variables
+        # Handle InferenceData input - extract posterior_predictive
+        if isinstance(samples, az.InferenceData):
+            if hasattr(samples, "posterior_predictive"):
+                samples = samples.posterior_predictive
+            else:
+                raise ValueError(
+                    "InferenceData must contain 'posterior_predictive' group."
+                )
+
+        # Stack chain and draw into sample if present
+        if "chain" in samples.dims and "draw" in samples.dims:
+            samples = samples.stack(sample=("chain", "draw"))
+
+        # Validate required dimensions
         if "channel" not in samples.dims:
             raise ValueError(
                 "Expected 'channel' dimension in samples dataset, but none found."
@@ -1996,151 +2691,333 @@ class MMMPlotSuite:
             raise ValueError(
                 "Expected 'sample' dimension in samples dataset, but none found."
             )
+
         # Check if any variable contains channel contributions
         if not any(
             "channel_contribution" in var_name for var_name in samples.data_vars
         ):
             raise ValueError(
-                "Expected a variable containing 'channel_contribution' in samples, but none found."
+                "Expected a variable containing 'channel_contribution' in samples, "
+                "but none found."
             )
 
-        # Get channel contributions data
-        channel_contrib_var = next(
-            var_name
-            for var_name in samples.data_vars
-            if "channel_contribution" in var_name
+        # Get channel contributions data - prefer original scale if requested
+        if (
+            original_scale
+            and "channel_contribution_original_scale" in samples.data_vars
+        ):
+            channel_contrib_var = "channel_contribution_original_scale"
+        else:
+            channel_contrib_var = next(
+                var_name
+                for var_name in samples.data_vars
+                if "channel_contribution" in var_name
+            )
+
+        channel_contribution = samples[channel_contrib_var]
+
+        # Apply scale factor if provided
+        if scale_factor is not None:
+            channel_contribution = channel_contribution * scale_factor
+
+        # Apply dimension filtering
+        if dims is not None:
+            selection = {}
+            for key, val in dims.items():
+                if key in channel_contribution.dims:
+                    selection[key] = val
+            if selection:
+                channel_contribution = channel_contribution.sel(**selection)
+
+        # Determine split dimensions and combinations
+        if split_by is not None:
+            split_dims = [split_by] if isinstance(split_by, str) else list(split_by)
+
+            # Validate split dimensions exist in data
+            for dim in split_dims:
+                if dim not in channel_contribution.dims:
+                    available_dims = list(channel_contribution.dims)
+                    raise ValueError(
+                        f"Split dimension '{dim}' not found in data dimensions. "
+                        f"Available dimensions: {available_dims}"
+                    )
+
+            # Get unique combinations for split dimensions
+            unique_values = [
+                channel_contribution.coords[dim].values for dim in split_dims
+            ]
+            dim_combinations = list(itertools.product(*unique_values))
+        else:
+            # Auto-detect extra dimensions for backward compatibility
+            ignored_dims = {"channel", "date", "sample"}
+            extra_dims = [
+                dim for dim in channel_contribution.dims if dim not in ignored_dims
+            ]
+
+            if extra_dims:
+                split_dims = extra_dims
+                unique_values = [
+                    channel_contribution.coords[dim].values for dim in split_dims
+                ]
+                dim_combinations = list(itertools.product(*unique_values))
+            else:
+                split_dims = []
+                dim_combinations = [()]
+
+        return channel_contribution, split_dims, dim_combinations
+
+    def _plot_single_allocated_contribution(
+        self,
+        ax: Axes,
+        data: xr.DataArray,
+        hdi_prob: float = 0.94,
+        title: str = "Allocated Contribution by Channel Over Time",
+    ) -> None:
+        """Plot a single allocated contribution panel with HDI bands.
+
+        This helper method renders a time series plot showing channel contributions
+        over time with uncertainty intervals using HDI.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object to plot on.
+        data : xr.DataArray
+            DataArray with dimensions including 'sample', 'date', and 'channel'.
+        hdi_prob : float, default 0.94
+            The probability mass for the HDI interval.
+        title : str, default "Allocated Contribution by Channel Over Time"
+            Title for the subplot.
+        """
+        # Plot mean values by channel
+        data.mean(dim="sample").plot(hue="channel", ax=ax)
+
+        # Add HDI intervals for each channel
+        channels = data.coords["channel"].values
+        dates = data.coords["date"].values
+
+        for i, channel in enumerate(channels):
+            channel_data = data.sel(channel=channel)
+
+            # Compute HDI per date using arviz
+            # Transpose to have samples in first dimension: (sample, date) -> (date, sample)
+            # Then compute HDI for each date point
+            n_dates = len(dates)
+            hdi_lower = np.zeros(n_dates)
+            hdi_upper = np.zeros(n_dates)
+
+            for j, date in enumerate(dates):
+                date_samples = channel_data.sel(date=date).values.flatten()
+                hdi_result = az.hdi(date_samples, hdi_prob=hdi_prob)
+                hdi_lower[j] = hdi_result[0]
+                hdi_upper[j] = hdi_result[1]
+
+            ax.fill_between(
+                x=dates,
+                y1=hdi_lower,
+                y2=hdi_upper,
+                alpha=0.15,
+                color=f"C{i}",
+            )
+
+        ax.set_xlabel("Date")
+        ax.set_ylabel("Channel Contribution")
+        ax.set_title(title)
+
+    def allocated_contribution_by_channel_over_time(
+        self,
+        samples: xr.Dataset | az.InferenceData,
+        hdi_prob: float = 0.94,
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
+        original_scale: bool = True,
+        scale_factor: float | None = None,
+        figsize: tuple[float, float] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> tuple[Figure, Axes] | tuple[Figure, NDArray[Axes]]:
+        """Plot the allocated contribution by channel with uncertainty intervals.
+
+        This function visualizes the mean allocated contributions by channel along
+        with HDI (Highest Density Interval) uncertainty bands. Supports dimension
+        filtering via `dims` and creating separate subplots via `split_by`.
+
+        Parameters
+        ----------
+        samples : xr.Dataset or az.InferenceData
+            The dataset containing the samples of channel contributions.
+            Can be an xr.Dataset with 'sample' dimension, or az.InferenceData
+            (e.g., from sample_response_distribution) with 'chain' and 'draw' dims.
+        hdi_prob : float, default 0.94
+            The probability mass for the HDI interval.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"} to filter to a
+            single geo, or {"geo": ["US", "UK"]} to include multiple values.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own subplot.
+            If None, auto-detects extra dimensions beyond 'channel', 'date', 'sample'.
+        original_scale : bool, default True
+            If True, prefer 'channel_contribution_original_scale' variable if available.
+        scale_factor : float, optional
+            Scale factor to apply to the contributions.
+        figsize : tuple[float, float], optional
+            The size of the figure. Default is (10, 6) for single panel,
+            scaled automatically for multiple panels.
+        subplot_kwargs : dict, optional
+            Additional keyword arguments for subplot layout. Can include:
+            - 'nrows': Number of rows in subplot grid
+            - 'ncols': Number of columns in subplot grid
+            Only one of 'nrows' or 'ncols' can be specified when using split_by.
+        **kwargs
+            Additional keyword arguments passed to plt.subplots().
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot.
+        axes : matplotlib.axes.Axes or numpy.ndarray of matplotlib.axes.Axes
+            The Axes object with the plot for single panel, or array of Axes
+            for multiple subplots.
+
+        Examples
+        --------
+        Basic usage with optimization samples:
+
+        >>> allocation, _ = mmm.optimize_budget(budget=100_000, num_periods=52)
+        >>> samples = mmm.sample_response_distribution(
+        ...     allocation_strategy=allocation,
+        ...     time_granularity="weekly",
+        ...     num_periods=52,
+        ...     noise_level=0.1,
+        ... )
+        >>> fig, ax = mmm.plot.allocated_contribution_by_channel_over_time(samples)
+
+        Filter to a specific dimension value:
+
+        >>> fig, ax = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     samples, dims={"geo": "US"}
+        ... )
+
+        Create subplots split by dimension:
+
+        >>> fig, axes = mmm.plot.allocated_contribution_by_channel_over_time(
+        ...     samples, split_by="geo"
+        ... )
+        """
+        # Handle subplot_kwargs
+        if subplot_kwargs is None:
+            subplot_kwargs = {}
+        else:
+            subplot_kwargs = subplot_kwargs.copy()
+
+        # Validate nrows/ncols not both specified
+        if "nrows" in subplot_kwargs and "ncols" in subplot_kwargs:
+            raise ValueError(
+                "Specify only one of 'nrows' or 'ncols' in subplot_kwargs, not both."
+            )
+
+        # Prepare data with dimension filtering and split_by handling
+        channel_contribution, split_dims, dim_combinations = (
+            self._prepare_allocated_contribution_data(
+                samples=samples,
+                dims=dims,
+                split_by=split_by,
+                original_scale=original_scale,
+                scale_factor=scale_factor,
+            )
         )
 
-        # Identify extra dimensions beyond 'channel', 'date', and 'sample'
-        all_dims = list(samples[channel_contrib_var].dims)
-        ignored_dims = {"channel", "date", "sample"}
-        extra_dims = [dim for dim in all_dims if dim not in ignored_dims]
+        n_panels = len(dim_combinations)
 
-        # If no extra dimensions or using provided axis, create a single plot
-        if not extra_dims or ax is not None:
-            if ax is None:
-                fig, ax = plt.subplots(figsize=figsize)
-            else:
-                fig = ax.get_figure()
+        # Single panel case
+        if n_panels == 1:
+            if figsize is None:
+                figsize = (10, 6)
 
-            channel_contribution = samples[channel_contrib_var]
+            fig, ax = plt.subplots(figsize=figsize, **kwargs)
 
-            # Apply scale factor if in original scale
-            if original_scale and scale_factor is not None:
-                channel_contribution = channel_contribution * scale_factor
-
-            # Plot mean values by channel
-            channel_contribution.mean(dim="sample").plot(hue="channel", ax=ax)
-
-            # Add uncertainty intervals for each channel
-            for channel in samples.coords["channel"].values:
-                ax.fill_between(
-                    x=channel_contribution.date.values,
-                    y1=channel_contribution.sel(channel=channel).quantile(
-                        lower_quantile, dim="sample"
-                    ),
-                    y2=channel_contribution.sel(channel=channel).quantile(
-                        upper_quantile, dim="sample"
-                    ),
-                    alpha=0.1,
-                )
-
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Channel Contribution")
-            ax.set_title("Allocated Contribution by Channel Over Time")
+            self._plot_single_allocated_contribution(
+                ax=ax,
+                data=channel_contribution,
+                hdi_prob=hdi_prob,
+                title="Allocated Contribution by Channel Over Time",
+            )
 
             fig.tight_layout()
             return fig, ax
 
-        # For multiple dimensions, create a grid of subplots
-        # Determine layout based on number of extra dimensions
-        if len(extra_dims) == 1:
-            # One extra dimension: use for rows
-            dim_values = [samples.coords[extra_dims[0]].values]
-            nrows = len(dim_values[0])
-            ncols = 1
-            subplot_dims = [extra_dims[0], None]
-        elif len(extra_dims) == 2:
-            # Two extra dimensions: one for rows, one for columns
-            dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = extra_dims
+        # Multiple panels case
+        if figsize is None:
+            figsize = (10, 6)
+
+        # Determine grid layout
+        if "nrows" in subplot_kwargs:
+            nrows = subplot_kwargs.pop("nrows")
+            ncols = int(np.ceil(n_panels / nrows))
+        elif "ncols" in subplot_kwargs:
+            ncols = subplot_kwargs.pop("ncols")
+            nrows = int(np.ceil(n_panels / ncols))
         else:
-            # Three or more: use first two for rows/columns, average over the rest
-            dim_values = [
-                samples.coords[extra_dims[0]].values,
-                samples.coords[extra_dims[1]].values,
-            ]
-            nrows = len(dim_values[0])
-            ncols = len(dim_values[1])
-            subplot_dims = [extra_dims[0], extra_dims[1]]
+            # Default: single column layout
+            nrows = n_panels
+            ncols = 1
 
-        # Calculate figure size based on number of subplots
-        subplot_figsize = (figsize[0] * max(1, ncols), figsize[1] * max(1, nrows))
-        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=subplot_figsize)
+        # Calculate figure size based on grid
+        subplot_figsize = (figsize[0] * ncols, figsize[1] * nrows)
 
-        # Make axes indexable even for 1x1 grid
-        if nrows == 1 and ncols == 1:
-            axes = np.array([[axes]])
-        elif nrows == 1:
-            axes = axes.reshape(1, -1)
-        elif ncols == 1:
-            axes = axes.reshape(-1, 1)
+        fig, axes_grid = plt.subplots(
+            nrows=nrows,
+            ncols=ncols,
+            figsize=subplot_figsize,
+            layout="constrained",
+            **subplot_kwargs,
+            **kwargs,
+        )
 
-        # Create a subplot for each combination of dimension values
-        for i, row_val in enumerate(dim_values[0]):
-            for j, col_val in enumerate(
-                dim_values[1] if len(dim_values) > 1 else [None]
-            ):
-                ax = axes[i, j]
+        # Normalize axes to 2D array
+        if isinstance(axes_grid, Axes):
+            axes_array = np.array([[axes_grid]])
+        elif axes_grid.ndim == 1:
+            axes_array = (
+                axes_grid.reshape(1, -1) if nrows == 1 else axes_grid.reshape(-1, 1)
+            )
+        else:
+            axes_array = axes_grid
 
-                # Select data for this subplot
-                selection = {subplot_dims[0]: row_val}
-                if col_val is not None:
-                    selection[subplot_dims[1]] = col_val
+        # Flatten for iteration
+        axes_flat = axes_array.flatten()
 
-                # Select channel contributions for this subplot
-                subset = samples[channel_contrib_var].sel(**selection)
+        # Plot each combination
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
 
-                # Apply scale factor if needed
-                if original_scale and scale_factor is not None:
-                    subset = subset * scale_factor
+            # Filter data for this combination
+            if split_dims and combo:
+                selection = dict(zip(split_dims, combo, strict=False))
+                subset = channel_contribution.sel(**selection)
+            else:
+                subset = channel_contribution
 
-                # Plot mean values by channel for this subset
-                subset.mean(dim="sample").plot(hue="channel", ax=ax)
+            # Build subplot title
+            title = self._build_subplot_title(
+                dims=split_dims,
+                combo=combo,
+                fallback_title="Allocated Contribution by Channel Over Time",
+            )
 
-                # Add uncertainty intervals for each channel
-                for channel in samples.coords["channel"].values:
-                    channel_data = subset.sel(channel=channel)
-                    ax.fill_between(
-                        x=channel_data.date.values,
-                        y1=channel_data.quantile(lower_quantile, dim="sample"),
-                        y2=channel_data.quantile(upper_quantile, dim="sample"),
-                        alpha=0.1,
-                    )
+            self._plot_single_allocated_contribution(
+                ax=current_ax,
+                data=subset,
+                hdi_prob=hdi_prob,
+                title=title,
+            )
 
-                # Add subplot title based on dimension values
-                title_parts = []
-                if subplot_dims[0] is not None:
-                    title_parts.append(f"{subplot_dims[0]}={row_val}")
-                if subplot_dims[1] is not None:
-                    title_parts.append(f"{subplot_dims[1]}={col_val}")
+        # Hide unused axes
+        for ax_extra in axes_flat[n_panels:]:
+            ax_extra.set_visible(False)
 
-                base_title = "Allocated Contribution by Channel Over Time"
-                if title_parts:
-                    ax.set_title(f"{base_title} - {', '.join(title_parts)}")
-                else:
-                    ax.set_title(base_title)
-
-                ax.set_xlabel("Date")
-                ax.set_ylabel("Channel Contribution")
-
-        fig.tight_layout()
-        return fig, axes
+        return fig, axes_array
 
     def sensitivity_analysis(
         self,
@@ -2155,6 +3032,10 @@ class MMMPlotSuite:
         title: str | None = None,
         add_figure_title: bool = False,
         subplot_title_fallback: str = "Sensitivity Analysis",
+        hue_dim: str | None = None,
+        legend: bool | None = None,
+        legend_kwargs: dict[str, Any] | None = None,
+        x_sweep_axis: Literal["relative", "absolute"] = "relative",
     ) -> tuple[Figure, NDArray[Axes]] | plt.Axes:
         """Plot sensitivity analysis results.
 
@@ -2184,6 +3065,22 @@ class MMMPlotSuite:
         subplot_title_fallback : str, optional
             Fallback title used for subplot titles when no plotting dims exist. Defaults
             to "Sensitivity Analysis".
+        hue_dim : str, optional
+            Dimension to draw multiple lines per subplot (e.g., "channel"). When provided,
+            this dimension is excluded from the subplot grid.
+        legend : bool, optional
+            Whether to show a legend when ``hue_dim`` is provided. Defaults to ``True``
+            when ``hue_dim`` is set.
+        legend_kwargs : dict, optional
+            Keyword arguments forwarded to ``Axes.legend`` when ``hue_dim`` is set.
+        x_sweep_axis : {"relative", "absolute"}, optional
+            Controls how the X-axis values are displayed. Defaults to ``"relative"``.
+
+            - ``"relative"``: Shows sweep multipliers (e.g., 0.5x, 1.0x, 2.0x).
+            - ``"absolute"``: Shows absolute spend values by multiplying sweep values
+              by the ``channel_scale`` from ``idata.constant_data``. Requires ``hue_dim``
+              to be set so each line can be scaled appropriately. Each channel will have
+              its own X-axis range based on its scale factor.
 
         Examples
         --------
@@ -2203,10 +3100,31 @@ class MMMPlotSuite:
                 hdi_prob=0.9,
                 aggregation={"sum": ("channel",)},
             )
+
+        With multiple lines per subplot (e.g., channels within each geo):
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9,
+                hue_dim="channel",
+                subplot_kwargs={"nrows": 2, "figsize": (12, 8)},
+            )
+
+        With absolute X-axis values (requires ``hue_dim`` to be set):
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.sensitivity_analysis(
+                hdi_prob=0.9,
+                hue_dim="channel",
+                x_sweep_axis="absolute",
+                xlabel="Total Spend",
+            )
         """
         if not hasattr(self.idata, "sensitivity_analysis"):
             raise ValueError(
-                "No sensitivity analysis results found. Run run_sweep() first."
+                "No sensitivity analysis results found. Call .sensitivity.run_sweep() first."
             )
         sa = self.idata.sensitivity_analysis  # type: ignore
         x = sa["x"] if isinstance(sa, xr.Dataset) else sa
@@ -2233,8 +3151,39 @@ class MMMPlotSuite:
                     x = x.mean(dim=dims_list)
                 else:
                     x = x.median(dim=dims_list)
-        # Determine plotting dimensions (excluding sample & sweep)
-        plot_dims = [d for d in x.dims if d not in {"sample", "sweep"}]
+        # Determine plotting dimensions (excluding sample, sweep, and hue)
+        excluded_dims = {"sample", "sweep"}
+        if hue_dim is not None:
+            if hue_dim in excluded_dims:
+                raise ValueError(
+                    f"Invalid hue_dim '{hue_dim}'. It cannot be one of {sorted(excluded_dims)}."
+                )
+            if hue_dim not in x.dims:
+                raise ValueError(
+                    f"Dimension '{hue_dim}' not found in sensitivity analysis results."
+                )
+            excluded_dims.add(hue_dim)
+
+        # Validate and prepare for absolute x-axis
+        channel_scale = None
+        if x_sweep_axis == "absolute":
+            if hue_dim is None:
+                raise ValueError(
+                    "x_sweep_axis='absolute' requires hue_dim to be set "
+                    "(e.g., hue_dim='channel') so each line can be scaled appropriately."
+                )
+            if not hasattr(self.idata, "constant_data"):
+                raise ValueError(
+                    "x_sweep_axis='absolute' requires idata.constant_data to exist."
+                )
+            if "channel_scale" not in self.idata.constant_data:
+                raise ValueError(
+                    "x_sweep_axis='absolute' requires 'channel_scale' in "
+                    "idata.constant_data."
+                )
+            channel_scale = self.idata.constant_data.channel_data.sum(dim="date")
+
+        plot_dims = [d for d in x.dims if d not in excluded_dims]
         if plot_dims:
             dim_combinations = list(
                 itertools.product(*[x.coords[d].values for d in plot_dims])
@@ -2299,38 +3248,52 @@ class MMMPlotSuite:
         if plot_kwargs:
             _plot_kwargs.update(plot_kwargs)
         _line_color = _plot_kwargs.get("color", "C0")
+        legend_on = legend if legend is not None else hue_dim is not None
+        _legend_kwargs = legend_kwargs or {}
+        hue_values: list[Any] = []
+        if hue_dim is not None:
+            hue_values = (
+                list(x.coords[hue_dim].values)
+                if hue_dim in x.coords
+                else list(range(x.sizes[hue_dim]))
+            )
+            hue_colors = plt.rcParams["axes.prop_cycle"].by_key().get("color", ["C0"])
+            color_cycle = itertools.cycle(hue_colors)
 
-        axes_flat = axes_array.flatten()
-        for idx, combo in enumerate(dim_combinations):
-            current_ax = axes_flat[idx]
-            indexers = dict(zip(plot_dims, combo, strict=False)) if plot_dims else {}
-            subset = x.sel(**indexers) if indexers else x
-            subset = subset.squeeze(drop=True)
-            subset = subset.astype(float)
+        def _plot_line(
+            line_data: xr.DataArray,
+            line_kwargs: dict[str, Any],
+            line_color: str,
+            x_override: np.ndarray | None = None,
+        ) -> None:
+            line_data = line_data.squeeze(drop=True).astype(float)
 
-            if "sweep" in subset.dims:
+            if "sweep" in line_data.dims:
                 sweep_dim = "sweep"
             else:
-                cand = [d for d in subset.dims if d != "sample"]
+                cand = [d for d in line_data.dims if d != "sample"]
                 if not cand:
                     raise ValueError(
                         "Expected 'sweep' (or a non-sample) dimension in sensitivity results."
                     )
                 sweep_dim = cand[0]
 
-            sweep = (
-                np.asarray(subset.coords[sweep_dim].values)
-                if sweep_dim in subset.coords
-                else np.arange(subset.sizes[sweep_dim])
-            )
+            if x_override is not None:
+                sweep = x_override
+            else:
+                sweep = (
+                    np.asarray(line_data.coords[sweep_dim].values)
+                    if sweep_dim in line_data.coords
+                    else np.arange(line_data.sizes[sweep_dim])
+                )
 
-            mean = subset.mean("sample") if "sample" in subset.dims else subset
+            mean = line_data.mean("sample") if "sample" in line_data.dims else line_data
             reduce_dims = [d for d in mean.dims if d != sweep_dim]
             if reduce_dims:
                 mean = mean.sum(dim=reduce_dims)
 
-            if "sample" in subset.dims:
-                hdi = az.hdi(subset, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
+            if "sample" in line_data.dims:
+                hdi = az.hdi(line_data, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
                 if isinstance(hdi, xr.Dataset):
                     hdi = hdi[next(iter(hdi.data_vars))]
             else:
@@ -2347,14 +3310,69 @@ class MMMPlotSuite:
             ]:
                 hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
 
-            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **_plot_kwargs)
+            current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **line_kwargs)
             az.plot_hdi(
                 x=sweep,
                 hdi_data=np.asarray(hdi.values, dtype=float),
                 hdi_prob=hdi_prob,
-                color=_line_color,
+                color=line_color,
                 ax=current_ax,
             )
+
+        # Get sweep coordinate values for absolute x-axis computation
+        sweep_coord_values = None
+        if x_sweep_axis == "absolute" and "sweep" in x.coords:
+            sweep_coord_values = np.asarray(x.coords["sweep"].values)
+
+        axes_flat = axes_array.flatten()
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
+            indexers = dict(zip(plot_dims, combo, strict=False)) if plot_dims else {}
+            subset = x.sel(**indexers) if indexers else x
+
+            if hue_dim is None:
+                _plot_line(subset, _plot_kwargs, _line_color)
+            else:
+                for hue_value in hue_values:
+                    hue_subset = subset.sel({hue_dim: hue_value})
+                    line_kwargs = dict(_plot_kwargs)
+                    if plot_kwargs is None or "color" not in plot_kwargs:
+                        line_color = next(color_cycle)
+                        line_kwargs["color"] = line_color
+                    else:
+                        line_color = line_kwargs.get("color", _line_color)
+                    if "label" not in line_kwargs:
+                        line_kwargs["label"] = f"{hue_dim}={hue_value}"
+
+                    # Compute absolute x-values if requested
+                    x_override = None
+                    if x_sweep_axis == "absolute" and channel_scale is not None:
+                        # Build indexers for channel_scale selection
+                        scale_indexers = {**indexers, hue_dim: hue_value}
+                        # Filter to only dims present in channel_scale
+                        valid_scale_indexers = {
+                            k: v
+                            for k, v in scale_indexers.items()
+                            if k in channel_scale.dims
+                        }
+                        try:
+                            scale_value = float(
+                                channel_scale.sel(**valid_scale_indexers).values
+                            )
+                            if sweep_coord_values is not None:
+                                x_override = sweep_coord_values * scale_value
+                        except (KeyError, ValueError) as err:
+                            warnings.warn(
+                                f"Could not compute absolute x-axis for "
+                                f"{hue_dim}={hue_value}: {err}. "
+                                f"Using relative sweep values.",
+                                RuntimeWarning,
+                                stacklevel=2,
+                            )
+
+                    _plot_line(hue_subset, line_kwargs, line_color, x_override)
+                if legend_on:
+                    current_ax.legend(**_legend_kwargs)
 
             title = self._build_subplot_title(
                 dims=plot_dims,
@@ -2636,69 +3654,51 @@ class MMMPlotSuite:
 
         return dataframe
 
-    def waterfall_components_decomposition(
+    def _prepare_waterfall_data(
         self,
-        var: list[str],
-        figsize: tuple[int, int] = (14, 7),
-        **kwargs,
-    ) -> tuple[Figure, Axes]:
-        """Create a waterfall plot showing the decomposition of the target into its components.
+        var: list[str] | None = None,
+        agg: str = "mean",
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
+        original_scale: bool = True,
+    ) -> tuple[pd.DataFrame, list[str], list[tuple]]:
+        """Prepare data for waterfall plot with optional dimension filtering.
 
-        This plot visualizes how different model components (channels, controls, intercept,
-        seasonality, etc.) contribute to the overall prediction. Each component is shown
-        as a horizontal bar with its contribution value and percentage.
+        This method handles data extraction, aggregation, and dimension processing
+        for the waterfall components decomposition plot.
 
         Parameters
         ----------
-        var : list of str
-            List of contribution variable names from the posterior to include in the plot.
-            Example: ["intercept_contribution_original_scale",
-                     "channel_contribution_original_scale",
-                     "control_contribution_original_scale"]
+        var : list of str, optional
+            List of contribution variable names from the posterior to include.
+            If None, automatically detects all contribution variables.
+        agg : str, default "mean"
+            Aggregation method for samples. Can be "mean" or "median".
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be included.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own subplot.
         original_scale : bool, default True
-            If True, plot contributions in the original scale of the target.
-            Typically you'll want to use variables ending with "_original_scale".
-        figsize : tuple of int, default (14, 7)
-            The size of the figure in inches (width, height).
-        **kwargs
-            Additional keyword arguments passed to matplotlib's `subplots` function.
+            If True and var is None, use original scale contribution variables.
+            If False and var is None, use non-original scale contribution variables.
 
         Returns
         -------
-        fig : matplotlib.figure.Figure
-            The Figure object containing the plot.
-        ax : matplotlib.axes.Axes
-            The Axes object with the waterfall plot.
+        dataframe : pd.DataFrame
+            DataFrame with contribution data, ready for processing.
+        split_dims : list of str
+            List of dimension names to split by.
+        dim_combinations : list of tuple
+            List of coordinate value combinations for split dimensions.
 
         Raises
         ------
         ValueError
             If no posterior data is found in idata.
             If none of the requested variables are present in idata.posterior.
-
-        Examples
-        --------
-        Create a waterfall plot with contribution variables:
-
-        .. code-block:: python
-
-            fig, ax = mmm.plot.waterfall_components_decomposition(
-                var=[
-                    "intercept_contribution_original_scale",
-                    "channel_contribution_original_scale",
-                    "control_contribution_original_scale",
-                ]
-            )
-
-        With custom figure size:
-
-        .. code-block:: python
-
-            fig, ax = mmm.plot.waterfall_components_decomposition(
-                var=["channel_contribution", "intercept_contribution"],
-                original_scale=False,
-                figsize=(16, 8),
-            )
+            If split_by dimension is not found in the data.
         """
         if not hasattr(self.idata, "posterior"):
             raise ValueError(
@@ -2706,23 +3706,110 @@ class MMMPlotSuite:
                 "Please ensure the model has been fitted."
             )
 
+        # Auto-detect contribution variables if not specified
+        if var is None:
+            posterior_vars = list(self.idata.posterior.data_vars)
+            # Variables to exclude - total_media_contribution is a sum of channels
+            # and would double-count if included
+            excluded_vars = {
+                "total_media_contribution_original_scale",
+                "total_media_contribution",
+            }
+            if original_scale:
+                # Prefer original scale variables
+                var = [
+                    v
+                    for v in posterior_vars
+                    if v.endswith("_contribution_original_scale")
+                    and v not in excluded_vars
+                ]
+                # If no original scale vars, fall back to regular contribution vars
+                if not var:
+                    var = [
+                        v
+                        for v in posterior_vars
+                        if v.endswith("_contribution") and v not in excluded_vars
+                    ]
+            else:
+                # Use non-original scale contribution variables
+                var = [
+                    v
+                    for v in posterior_vars
+                    if v.endswith("_contribution") and v not in excluded_vars
+                ]
+
+            if not var:
+                raise ValueError(
+                    "No contribution variables found in posterior. "
+                    "Please specify the 'var' parameter explicitly."
+                )
+
         # Build contributions DataFrame using the utility function
         dataframe = build_contributions(
             idata=self.idata,
             var=var,
-            agg="mean",
+            agg=agg,
         )
 
-        # Process to get aggregated components with percentages
-        dataframe = self._process_decomposition_components(data=dataframe)
-        total_contribution = dataframe["contribution"].sum()
+        # Apply dimension filtering if provided
+        if dims:
+            for key, val in dims.items():
+                if key in dataframe.columns:
+                    if isinstance(val, (list, tuple, np.ndarray)):
+                        dataframe = dataframe[dataframe[key].isin(val)]
+                    else:
+                        dataframe = dataframe[dataframe[key] == val]
 
-        # Create the waterfall plot
-        fig, ax = plt.subplots(figsize=figsize, layout="constrained", **kwargs)
+        # Determine split dimensions and combinations
+        if split_by is not None:
+            split_dims = [split_by] if isinstance(split_by, str) else list(split_by)
 
+            # Validate split dimensions exist in data
+            for dim in split_dims:
+                if dim not in dataframe.columns:
+                    raise ValueError(
+                        f"Split dimension '{dim}' not found in data columns. "
+                        f"Available columns: {list(dataframe.columns)}"
+                    )
+
+            # Get unique combinations for split dimensions
+            if split_dims:
+                unique_values = [dataframe[dim].unique() for dim in split_dims]
+                dim_combinations = list(itertools.product(*unique_values))
+            else:
+                dim_combinations = [()]
+        else:
+            split_dims = []
+            dim_combinations = [()]
+
+        return dataframe, split_dims, dim_combinations
+
+    def _plot_single_waterfall(
+        self,
+        ax: Axes,
+        data: pd.DataFrame,
+        title: str = "Response Decomposition Waterfall by Components",
+    ) -> None:
+        """Plot a single waterfall chart on the given axes.
+
+        This helper method renders a horizontal waterfall bar chart showing
+        component contributions. It handles both positive and negative values,
+        with cumulative positioning.
+
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            The axes object to plot on.
+        data : pd.DataFrame
+            DataFrame with columns "component", "contribution", and "percentage".
+            Should be sorted by contribution in ascending order.
+        title : str, default "Response Decomposition Waterfall by Components"
+            Title for the subplot.
+        """
+        total_contribution = data["contribution"].sum()
         cumulative_contribution = 0
 
-        for index, row in dataframe.iterrows():
+        for index, row in data.iterrows():
             color = "C0" if row["contribution"] >= 0 else "C3"
 
             bar_start = (
@@ -2756,23 +3843,243 @@ class MMMPlotSuite:
                 fontsize=10,
             )
 
-        ax.set_title("Response Decomposition Waterfall by Components")
+        ax.set_title(title)
         ax.set_xlabel("Cumulative Contribution")
         ax.set_ylabel("Components")
 
-        xticks = np.linspace(0, total_contribution, num=11)
-        xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
-        ax.set_xticks(xticks)
-        ax.set_xticklabels(xticklabels)
+        if total_contribution > 0:
+            xticks = np.linspace(0, total_contribution, num=11)
+            xticklabels = [f"{(x / total_contribution) * 100:.0f}%" for x in xticks]
+            ax.set_xticks(xticks)
+            ax.set_xticklabels(xticklabels)
 
         ax.spines["right"].set_visible(False)
         ax.spines["top"].set_visible(False)
         ax.spines["left"].set_visible(False)
 
-        ax.set_yticks(np.arange(len(dataframe)))
-        ax.set_yticklabels(dataframe["component"])
+        ax.set_yticks(np.arange(len(data)))
+        ax.set_yticklabels(data["component"])
 
-        return fig, ax
+    def waterfall_components_decomposition(
+        self,
+        var: list[str] | None = None,
+        original_scale: bool = True,
+        dims: dict[str, str | int | list] | None = None,
+        split_by: str | list[str] | None = None,
+        figsize: tuple[int, int] | None = None,
+        subplot_kwargs: dict[str, Any] | None = None,
+        **kwargs,
+    ) -> tuple[Figure, Axes] | tuple[Figure, NDArray[Axes]]:
+        """Create a waterfall plot showing the decomposition of the target into its components.
+
+        This plot visualizes how different model components (channels, controls, intercept,
+        seasonality, etc.) contribute to the overall prediction. Each component is shown
+        as a horizontal bar with its contribution value and percentage.
+
+        Parameters
+        ----------
+        var : list of str, optional
+            List of contribution variable names from the posterior to include in the plot.
+            If None, automatically detects all contribution variables from the posterior.
+            Example: ["intercept_contribution_original_scale",
+                     "channel_contribution_original_scale",
+                     "control_contribution_original_scale"]
+        original_scale : bool, default True
+            If True and var is None, use original scale contribution variables
+            (ending with "_contribution_original_scale").
+            If False and var is None, use non-original scale contribution variables.
+            Ignored if var is explicitly provided.
+        dims : dict[str, str | int | list], optional
+            Dimension filters to apply. Example: {"geo": "US"}.
+            If provided, only the selected slice(s) will be included in the plot.
+        split_by : str or list of str, optional
+            Dimension(s) to create separate subplots for. Each unique combination
+            of values in these dimensions will get its own waterfall plot.
+            Example: "geo" or ["geo", "product"].
+        figsize : tuple of int, optional
+            The size of the figure in inches (width, height).
+            If None, defaults to (14, 7) for single plots, or auto-calculated
+            based on number of subplots.
+        subplot_kwargs : dict, optional
+            Additional keyword arguments for subplot layout configuration.
+            Supports "nrows" or "ncols" to control grid arrangement.
+            Only one of nrows or ncols should be specified.
+        **kwargs
+            Additional keyword arguments passed to matplotlib's `subplots` function.
+
+        Returns
+        -------
+        fig : matplotlib.figure.Figure
+            The Figure object containing the plot(s).
+        ax_or_axes : matplotlib.axes.Axes or np.ndarray of Axes
+            If split_by is None: single Axes object.
+            If split_by is provided: 2D array of Axes objects.
+
+        Raises
+        ------
+        ValueError
+            If no posterior data is found in idata.
+            If none of the requested variables are present in idata.posterior.
+            If split_by dimension is not found in the data.
+            If both nrows and ncols are specified in subplot_kwargs.
+
+        Examples
+        --------
+        Create a waterfall plot with all contribution variables (auto-detected):
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition()
+
+        Create a waterfall plot with specific contribution variables:
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition(
+                var=[
+                    "intercept_contribution_original_scale",
+                    "channel_contribution_original_scale",
+                    "control_contribution_original_scale",
+                ]
+            )
+
+        With custom figure size:
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition(figsize=(18, 10))
+
+        Filter by dimension:
+
+        .. code-block:: python
+
+            fig, ax = mmm.plot.waterfall_components_decomposition(dims={"geo": "US"})
+
+        Create subplots split by dimension:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.waterfall_components_decomposition(split_by="geo")
+
+        Control subplot layout:
+
+        .. code-block:: python
+
+            fig, axes = mmm.plot.waterfall_components_decomposition(
+                split_by="geo",
+                subplot_kwargs={"ncols": 2},
+            )
+        """
+        # Prepare the data with filtering and dimension handling
+        dataframe, split_dims, dim_combinations = self._prepare_waterfall_data(
+            var=var,
+            agg="mean",
+            dims=dims,
+            split_by=split_by,
+            original_scale=original_scale,
+        )
+
+        n_panels = len(dim_combinations)
+        subplot_kwargs = {**(subplot_kwargs or {})}
+
+        # Handle subplot grid configuration
+        nrows_user = subplot_kwargs.pop("nrows", None)
+        ncols_user = subplot_kwargs.pop("ncols", None)
+
+        if nrows_user is not None and ncols_user is not None:
+            raise ValueError(
+                "Specify only one of 'nrows' or 'ncols' in subplot_kwargs."
+            )
+
+        # Single panel case (no split_by or single combination)
+        if n_panels == 1:
+            if figsize is None:
+                figsize = (14, 7)
+
+            fig, ax = plt.subplots(
+                figsize=figsize, layout="constrained", **subplot_kwargs, **kwargs
+            )
+
+            # Process data and plot
+            processed_data = self._process_decomposition_components(data=dataframe)
+            self._plot_single_waterfall(
+                ax=ax,
+                data=processed_data,
+                title="Response Decomposition Waterfall by Components",
+            )
+
+            return fig, ax
+
+        # Multiple panels case (split_by provided)
+        if ncols_user is not None:
+            ncols = ncols_user
+            nrows = int(np.ceil(n_panels / ncols))
+        elif nrows_user is not None:
+            nrows = nrows_user
+            ncols = int(np.ceil(n_panels / nrows))
+        else:
+            ncols = max(1, int(np.ceil(np.sqrt(n_panels))))
+            nrows = int(np.ceil(n_panels / ncols))
+
+        if figsize is None:
+            figsize = (ncols * 10, nrows * 6)
+
+        fig, axes_grid = plt.subplots(
+            nrows=nrows,
+            ncols=ncols,
+            figsize=figsize,
+            layout="constrained",
+            **subplot_kwargs,
+            **kwargs,
+        )
+
+        # Normalize axes to 2D array
+        if isinstance(axes_grid, Axes):
+            axes_array = np.array([[axes_grid]])
+        elif axes_grid.ndim == 1:
+            axes_array = (
+                axes_grid.reshape(1, -1) if nrows == 1 else axes_grid.reshape(-1, 1)
+            )
+        else:
+            axes_array = axes_grid
+
+        # Flatten for iteration
+        axes_flat = axes_array.flatten()
+
+        # Plot each combination
+        for idx, combo in enumerate(dim_combinations):
+            current_ax = axes_flat[idx]
+
+            # Filter data for this combination
+            if split_dims:
+                mask = pd.Series(True, index=dataframe.index)
+                for dim, val in zip(split_dims, combo, strict=False):
+                    mask &= dataframe[dim] == val
+                subset = dataframe[mask].copy()
+            else:
+                subset = dataframe.copy()
+
+            # Process and plot
+            processed_data = self._process_decomposition_components(data=subset)
+
+            # Build subplot title
+            title = self._build_subplot_title(
+                dims=split_dims,
+                combo=combo,
+                fallback_title="Response Decomposition Waterfall by Components",
+            )
+
+            self._plot_single_waterfall(
+                ax=current_ax,
+                data=processed_data,
+                title=title,
+            )
+
+        # Hide unused axes
+        for ax_extra in axes_flat[n_panels:]:
+            ax_extra.set_visible(False)
+
+        return fig, axes_array
 
     def channel_contribution_share_hdi(
         self,

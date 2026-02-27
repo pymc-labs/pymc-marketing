@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -289,7 +289,9 @@ def create_bass_model(
     """
     with pm.Model(coords=coords) as model:
         parameter_dims = (
-            set(priors["p"].dims).union(priors["q"].dims).union(priors["m"].dims)
+            set(priors["p"].dims or ())
+            .union(priors["q"].dims or ())
+            .union(priors["m"].dims or ())
         )
         likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
 

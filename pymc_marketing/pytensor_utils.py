@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -18,25 +18,21 @@ from collections import Counter
 
 import arviz as az
 import pandas as pd
-import pytensor
 import pytensor.tensor as pt
 from arviz import InferenceData
-from pymc import Model
+from pymc.model.core import Model
 from pymc.model.fgraph import (
-    FunctionGraph,
     ModelVar,
     extract_dims,
     fgraph_from_model,
     model_from_fgraph,
 )
-from pytensor import clone_replace
-from pytensor.graph import rewrite_graph, vectorize_graph
-from pytensor.graph.basic import ancestors
-
-try:
-    from pymc.pytensorf import rvs_in_graph
-except ImportError:
-    from pymc.logprob.utils import rvs_in_graph
+from pymc.pytensorf import rvs_in_graph
+from pytensor import as_symbolic
+from pytensor.graph.fg import FunctionGraph
+from pytensor.graph.replace import clone_replace, vectorize_graph
+from pytensor.graph.rewriting import rewrite_graph
+from pytensor.graph.traversal import ancestors
 
 
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
@@ -91,7 +87,7 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
 
     # Don't rename dimensions that belong to excluded variables
     dims_rename = {
-        dim: pytensor.as_symbolic(f"{prefix}_{dim.data}")
+        dim: as_symbolic(f"{prefix}_{dim.data}")
         for dim in dims
         if dim.data not in exclude_dims
     }

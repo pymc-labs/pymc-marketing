@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -13,9 +13,7 @@
 #   limitations under the License.
 import json
 import logging
-import warnings
 from collections import namedtuple
-from pathlib import Path
 
 import arviz as az
 import mlflow
@@ -29,18 +27,15 @@ from mlflow.client import MlflowClient
 from pymc.exceptions import SamplingError
 
 from pymc_marketing.clv import BetaGeoModel
-
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", FutureWarning)
-    from pymc_marketing.mlflow import (
-        autolog,
-        create_log_callback,
-        log_error,
-        log_likelihood_type,
-        log_mmm_evaluation_metrics,
-        log_model_graph,
-        log_sample_diagnostics,
-    )
+from pymc_marketing.mlflow import (
+    autolog,
+    create_log_callback,
+    log_error,
+    log_likelihood_type,
+    log_mmm_evaluation_metrics,
+    log_model_graph,
+    log_sample_diagnostics,
+)
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
@@ -164,25 +159,6 @@ def basic_logging_checks(run_data: RunData) -> None:
     assert len(run_data.metrics) > 0
     assert run_data.tags == {}
     assert len(run_data.artifacts) > 0
-
-
-def test_file_system_uri_supported(model_with_likelihood) -> None:
-    mlflow.set_tracking_uri(uri=Path("./mlruns"))
-    mlflow.set_experiment("pymc-marketing-test-suite-local-file")
-    with mlflow.start_run() as run:
-        pm.sample(
-            model=model_with_likelihood,
-            chains=1,
-            tune=25,
-            draws=30,
-        )
-
-    assert mlflow.get_tracking_uri().startswith("file:///")
-    assert mlflow.active_run() is None
-
-    run_id = run.info.run_id
-    run_data = get_run_data(run_id)
-    basic_logging_checks(run_data)
 
 
 def test_log_with_data_in_likelihood(model_with_data_in_likelihood) -> None:

@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -256,7 +256,9 @@ class LinearTrend(BaseModel):
     def _check_dims_are_subsets(self) -> Self:
         allowed_dims = {"changepoint"}.union(cast(Dims, self.dims))
 
-        if not all(set(prior.dims) <= allowed_dims for prior in self.priors.values()):
+        if not all(
+            set(prior.dims or {}) <= allowed_dims for prior in self.priors.values()
+        ):
             msg = "Invalid dimensions in the priors."
             raise ValueError(msg)
 

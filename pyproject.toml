@@ -25,21 +25,22 @@ classifiers = [
 ]
 
 dependencies = [
-    "arviz>=0.13.0",
+    "arviz>=0.13.0,<1.0.0",
     "matplotlib>=3.5.1",
-    "numpy>=1.17",
+    "narwhals",
+    "numpy>=2.0",
     "pandas",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.24.1",
-    "pytensor>=2.31.3",
+    "pymc>=5.27.1",
+    "pytensor>=2.36.3",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "tqdm",
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
-    "pymc-extras>=0.4.0",
+    "pymc-extras>=0.9.0",
     "preliz>=0.20.0",
     "pyyaml",
 ]
@@ -47,6 +48,7 @@ dependencies = [
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 docs = [
+    "Setuptools<81",
     "blackjax",
     "fastprogress",
     "graphviz",
@@ -68,6 +70,7 @@ docs = [
     "sphinx-remove-toctrees",
     "sphinx",
     "sphinxext-opengraph",
+    "sphinx-sitemap",
     "watermark",
     "mlflow>=2.0.0",
     "networkx",
@@ -77,23 +80,28 @@ docs = [
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
+    "Setuptools<81",
     "blackjax",
     "nutpie",
     "numpyro",
+    "ipykernel",
     "jax",
     "graphviz>=0.20.1",
     "lifetimes==0.11.3",
     "papermill",
+    "polars>=1.0.0",
     "pyprojroot",
     "pytest-cov>=3.0.0",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
+    "pytest-split",
     "mlflow>=2.0.0",
     "networkx",
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
     "pygraphviz",
     "preliz>=0.20.0",
+    "plotly>=6.3.0",
 ]
 
 [tool.hatch.build.targets.sdist]

@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -444,7 +444,7 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
 
 def test_hsgp_with_unknown_transform_errors() -> None:
     X = np.arange(10)
-    match = r"Neither pytensor.tensor nor pymc.math"
+    match = r"not present in pytensor.tensor or pymc.math"
     with pytest.raises(UnknownTransformError, match=match):
         HSGP.parameterize_from_data(X, dims="time", transform="unknown")
 
@@ -548,3 +548,214 @@ def test_softplus_hsgp_intercept_is_non_negative() -> None:
 
     # Verify intercept contribution never negative
     assert (idata.prior["intercept"] >= 0).all()
+
+
+# VariableFactory Test Classes
+class ScalarVariableFactory:
+    """A VariableFactory with scalar dimensions."""
+
+    dims = ()  # Scalar: no dimensions
+
+    def create_variable(self, name: str):
+        """Create a scalar variable."""
+        return pm.HalfNormal(name, sigma=1.0)
+
+
+class NonScalarVariableFactory:
+    """A VariableFactory with non-scalar dimensions."""
+
+    dims = ("time",)  # Non-scalar: has dimensions
+
+    def create_variable(self, name: str):
+        """Create a non-scalar variable."""
+        return pm.HalfNormal(name, sigma=1.0, shape=(10,))
+
+
+class SerializableVariableFactory:
+    """A VariableFactory with serialization support."""
+
+    dims = ()
+
+    def create_variable(self, name: str):
+        """Create a variable."""
+        return pm.HalfNormal(name, sigma=1.0)
+
+    def to_dict(self):
+        """Serialization method."""
+        return {"type": "SerializableVariableFactory"}
+
+
+class TestVariableFactoryHSGP:
+    """Test HSGP class with VariableFactory support."""
+
+    def test_hsgp_accepts_scalar_variable_factory(self):
+        """Test that HSGP accepts scalar VariableFactory instances."""
+        data = np.arange(10)
+        scalar_factory = ScalarVariableFactory()
+
+        # Should not raise
+        hsgp = HSGP(
+            X=data,
+            dims="time",
+            m=200,
+            L=5,
+            eta=scalar_factory,
+            ls=scalar_factory,
+        )
+
+        assert hsgp.ls is scalar_factory
+        assert hsgp.eta is scalar_factory
+
+    def test_hsgp_rejects_non_scalar_ls_variable_factory(self):
+        """Test that HSGP rejects non-scalar VariableFactory for ls."""
+        data = np.arange(10)
+        non_scalar_factory = NonScalarVariableFactory()
+        scalar_factory = ScalarVariableFactory()
+
+        with pytest.raises(ValueError, match="lengthscale prior must be scalar"):
+            HSGP(
+                X=data,
+                dims="time",
+                m=200,
+                L=5,
+                eta=scalar_factory,
+                ls=non_scalar_factory,  # Non-scalar should fail
+            )
+
+    def test_hsgp_rejects_non_scalar_eta_variable_factory(self):
+        """Test that HSGP rejects non-scalar VariableFactory for eta."""
+        data = np.arange(10)
+        non_scalar_factory = NonScalarVariableFactory()
+        scalar_factory = ScalarVariableFactory()
+
+        with pytest.raises(ValueError, match="eta prior must be scalar"):
+            HSGP(
+                X=data,
+                dims="time",
+                m=200,
+                L=5,
+                eta=non_scalar_factory,  # Non-scalar should fail
+                ls=scalar_factory,
+            )
+
+    def test_hsgp_backwards_compatibility_with_prior(self):
+        """Test that HSGP still works with Prior objects (backwards compatibility)."""
+        data = np.arange(10)
+        ls_prior = Prior("HalfNormal", sigma=1.0)
+        eta_prior = Prior("HalfNormal", sigma=1.0)
+
+        # Should not raise - Prior objects implement VariableFactory
+        hsgp = HSGP(
+            X=data,
+            dims="time",
+            m=200,
+            L=5,
+            eta=eta_prior,
+            ls=ls_prior,
+        )
+
+        assert hsgp.ls is ls_prior
+        assert hsgp.eta is eta_prior
+
+
+class TestVariableFactoryHSGPPeriodic:
+    """Test HSGPPeriodic class with VariableFactory support."""
+
+    def test_hsgp_periodic_accepts_scalar_variable_factory(self):
+        """Test that HSGPPeriodic accepts scalar VariableFactory instances."""
+        scalar_factory = ScalarVariableFactory()
+
+        # Should not raise
+        hsgp = HSGPPeriodic(
+            scale=scalar_factory,
+            ls=scalar_factory,
+            m=20,
+            period=60,
+            dims="time",
+        )
+
+        assert hsgp.ls is scalar_factory
+        assert hsgp.scale is scalar_factory
+
+    def test_hsgp_periodic_rejects_non_scalar_ls_variable_factory(self):
+        """Test that HSGPPeriodic rejects non-scalar VariableFactory for ls."""
+        non_scalar_factory = NonScalarVariableFactory()
+        scalar_factory = ScalarVariableFactory()
+
+        with pytest.raises(ValueError, match="lengthscale prior must be scalar"):
+            HSGPPeriodic(
+                scale=scalar_factory,
+                ls=non_scalar_factory,  # Non-scalar should fail
+                m=20,
+                period=60,
+                dims="time",
+            )
+
+    def test_hsgp_periodic_rejects_non_scalar_scale_variable_factory(self):
+        """Test that HSGPPeriodic rejects non-scalar VariableFactory for scale."""
+        non_scalar_factory = NonScalarVariableFactory()
+        scalar_factory = ScalarVariableFactory()
+
+        with pytest.raises(ValueError, match="scale prior must be scalar"):
+            HSGPPeriodic(
+                scale=non_scalar_factory,  # Non-scalar should fail
+                ls=scalar_factory,
+                m=20,
+                period=60,
+                dims="time",
+            )
+
+    def test_hsgp_periodic_backwards_compatibility_with_prior(self):
+        """Test that HSGPPeriodic still works with Prior objects (backwards compatibility)."""
+        ls_prior = Prior("HalfNormal", sigma=1.0)
+        scale_prior = Prior("HalfNormal", sigma=1.0)
+
+        # Should not raise - Prior objects implement VariableFactory
+        hsgp = HSGPPeriodic(
+            scale=scale_prior,
+            ls=ls_prior,
+            m=20,
+            period=60,
+            dims="time",
+        )
+
+        assert hsgp.ls is ls_prior
+        assert hsgp.scale is scale_prior
+
+
+class TestVariableFactorySerialization:
+    """Test serialization behavior with VariableFactory objects."""
+
+    def test_serializable_variable_factory(self):
+        """Test VariableFactory with to_dict method is serializable."""
+        serializable_factory = SerializableVariableFactory()
+
+        hsgp = HSGP(
+            X=np.arange(10),
+            dims="time",
+            m=200,
+            L=5,
+            eta=serializable_factory,
+            ls=serializable_factory,
+        )
+
+        # Should not raise during to_dict - object has to_dict method
+        result = hsgp.to_dict()
+        assert isinstance(result, dict)
+
+    def test_non_serializable_variable_factory_fallback(self):
+        """Test VariableFactory without to_dict method falls back gracefully."""
+        non_serializable_factory = ScalarVariableFactory()  # No to_dict method
+
+        hsgp = HSGP(
+            X=np.arange(10),
+            dims="time",
+            m=200,
+            L=5,
+            eta=non_serializable_factory,
+            ls=non_serializable_factory,
+        )
+
+        # Should not raise - serialization should handle missing to_dict gracefully
+        result = hsgp.to_dict()
+        assert isinstance(result, dict)

@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -17,11 +17,12 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor as pt
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
 from pymc_extras.prior import Prior
+from pytensor.compile import ViewOp
+from pytensor.tensor.elemwise import Elemwise
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
@@ -128,25 +129,25 @@ class TestBetaGeoBetaBinomModel:
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "alpha" not in model.model_config
                 else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "beta" not in model.model_config
                 else model.model_config["beta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "delta" not in model.model_config
                 else model.model_config["delta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "gamma" not in model.model_config
                 else model.model_config["gamma"].pymc_distribution,
             )

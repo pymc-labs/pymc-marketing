@@ -1,0 +1,41 @@
+---
+name: Check for broken links
+
+on:
+  workflow_dispatch: # allow manual trigger
+  schedule:
+    # run weekly on Mondays at 4 am
+    # * is a special character in YAML so you have to quote this string
+    - cron: "0 4 * * 1"
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking links
+        uses: ScholliYT/Broken-Links-Crawler-Action@v3.3.2
+        with:
+          website_url: "https://www.pymc-marketing.io/en/latest/index.html,https://www.pymc-marketing.io/en/latest/getting_started/index.html,https://www.pymc-marketing.io/en/latest/contributing/index.html,https://www.pymc-marketing.io/en/latest/guide/index.html"
+          # Exclude external services that may rate-limit or redirect bots
+          exclude_url_prefix: "mailto:,https://www.linkedin.com,https://linkedin.com,https://twitter.com,https://x.com,https://calendly.com,https://discord.gg"
+          verbose: "error"
+          connect_limit_per_host: 50
+          resolve_before_filtering: "true"
+          max_retry_time: 30
+          max_retries: 5
+          max_depth: 2
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking links
+        uses: ScholliYT/Broken-Links-Crawler-Action@v3.3.2
+        with:
+          website_url: "https://www.pymc-marketing.io/en/latest/notebooks/index.html"
+          # Exclude external services that may rate-limit or redirect bots
+          exclude_url_prefix: "mailto:,https://www.linkedin.com,https://linkedin.com,https://twitter.com,https://x.com,https://calendly.com,https://discord.gg"
+          verbose: "error"
+          connect_limit_per_host: 50
+          resolve_before_filtering: "true"
+          max_retry_time: 30
+          max_retries: 5
+          max_depth: -1

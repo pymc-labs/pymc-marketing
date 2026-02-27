@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from enum import Enum
+from enum import StrEnum
 from typing import Literal, Self, cast
 
 import numpy as np
@@ -29,7 +29,7 @@ from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.deserialize import register_deserialization
-from pymc_extras.prior import Prior, _get_transform, create_dim_handler
+from pymc_extras.prior import Prior, VariableFactory, _get_transform, create_dim_handler
 from pytensor.tensor import TensorLike
 from pytensor.tensor.variable import TensorVariable
 
@@ -180,7 +180,7 @@ def approx_hsgp_hyperparams(
     return m, c
 
 
-class CovFunc(str, Enum):
+class CovFunc(StrEnum):
     """Supported covariance functions for the HSGP model."""
 
     ExpQuad = "expquad"
@@ -719,8 +719,12 @@ class HSGP(HSGPBase):
 
     """
 
-    ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscales")
-    eta: InstanceOf[Prior] | float = Field(..., description="Prior for the variance")
+    ls: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the lengthscales"
+    )
+    eta: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the variance"
+    )
     L: float = Field(..., gt=0, description="Extent of basis functions")
     centered: bool = Field(False, description="Whether the model is centered or not")
     drop_first: bool = Field(
@@ -730,20 +734,20 @@ class HSGP(HSGPBase):
 
     @model_validator(mode="after")
     def _ls_is_scalar_prior(self) -> Self:
-        if not isinstance(self.ls, Prior):
+        if not isinstance(self.ls, VariableFactory):
             return self
 
-        if self.ls.dims != ():
+        if self.ls.dims:
             raise ValueError("The lengthscale prior must be scalar random variable.")
 
         return self
 
     @model_validator(mode="after")
     def _eta_is_scalar_prior(self) -> Self:
-        if not isinstance(self.eta, Prior):
+        if not isinstance(self.eta, VariableFactory):
             return self
 
-        if self.eta.dims != ():
+        if self.eta.dims:
             raise ValueError("The eta prior must be scalar random variable.")
 
         return self
@@ -937,7 +941,7 @@ class HSGP(HSGPBase):
         return cls(**data)
 
 
-class PeriodicCovFunc(str, Enum):
+class PeriodicCovFunc(StrEnum):
     """Supported covariance functions for the HSGP model."""
 
     Periodic = "periodic"
@@ -1144,8 +1148,12 @@ class HSGPPeriodic(HSGPBase):
 
     """
 
-    ls: InstanceOf[Prior] | float = Field(..., description="Prior for the lengthscale")
-    scale: InstanceOf[Prior] | float = Field(..., description="Prior for the scale")
+    ls: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the lengthscale"
+    )
+    scale: InstanceOf[VariableFactory] | float = Field(
+        ..., description="Prior for the scale"
+    )
     cov_func: PeriodicCovFunc = Field(
         PeriodicCovFunc.Periodic,
         description="The covariance function",
@@ -1154,20 +1162,20 @@ class HSGPPeriodic(HSGPBase):
 
     @model_validator(mode="after")
     def _ls_is_scalar_prior(self) -> Self:
-        if not isinstance(self.ls, Prior):
+        if not isinstance(self.ls, VariableFactory):
             return self
 
-        if self.ls.dims != ():
+        if self.ls.dims:
             raise ValueError("The lengthscale prior must be scalar random variable.")
 
         return self
 
     @model_validator(mode="after")
     def _scale_is_scalar_prior(self) -> Self:
-        if not isinstance(self.scale, Prior):
+        if not isinstance(self.scale, VariableFactory):
             return self
 
-        if self.scale.dims != ():
+        if self.scale.dims:
             raise ValueError("The scale prior must be scalar random variable.")
 
         return self

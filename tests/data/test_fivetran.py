@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -99,7 +99,10 @@ def example_account_report_df() -> pd.DataFrame:
             "conversions_value": 5.0,
         },
     ]
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # Convert string dates to proper datetime objects for multi-backend support
+    df["date_day"] = pd.to_datetime(df["date_day"])
+    return df
 
 
 @pytest.fixture
@@ -187,7 +190,10 @@ def example_campaign_report_df() -> pd.DataFrame:
             "conversions_value": 5.0,
         },
     ]
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # Convert string dates to proper datetime objects for multi-backend support
+    df["date_day"] = pd.to_datetime(df["date_day"])
+    return df
 
 
 @pytest.fixture
@@ -305,10 +311,15 @@ def example_ad_report_df() -> pd.DataFrame:
         },
         # No google_ads record on 2024-01-02 to test fill_value behavior
     ]
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+    # Convert string dates to proper datetime objects for multi-backend support
+    df["date_day"] = pd.to_datetime(df["date_day"])
+    return df
 
 
-@pytest.mark.parametrize("accessor", [True, False])
+# ==================== Multi-backend tests (function calls) ====================
+
+
 @pytest.mark.parametrize(
     "value_columns, expected_columns, expected_values",
     [
@@ -329,18 +340,186 @@ def example_ad_report_df() -> pd.DataFrame:
         ),
     ],
 )
-def test_ad_report_schema(
+def test_ad_report_schema_multibackend(
     example_ad_report_df,
-    accessor: bool,
+    backend_converter,
     value_columns,
     expected_columns,
     expected_values,
 ):
-    kwargs = dict(value_columns=value_columns, rename_date_to="date")
-    if accessor:
-        result = example_ad_report_df.fivetran.process_ad_reporting(**kwargs)
-    else:
-        result = process_fivetran_ad_reporting(example_ad_report_df, **kwargs)
+    """Test process_fivetran_ad_reporting with ad_report schema across all backends."""
+    # Convert to target backend
+    df_backend = backend_converter.to_backend(example_ad_report_df)
+
+    # Call function
+    result = process_fivetran_ad_reporting(
+        df_backend, value_columns=value_columns, rename_date_to="date"
+    )
+
+    # Convert result back to pandas for assertions
+    result_pd = backend_converter.to_pandas(result)
+
+    # Build expected DataFrame
+    expected = (
+        pd.DataFrame(
+            data=expected_values,
+            columns=expected_columns,
+            index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+        )
+        .reset_index()
+        .rename(columns={"index": "date"})
+    )
+
+    # Ensure required columns exist and match expected values
+    assert set(["date", *expected_columns]).issubset(set(result_pd.columns))
+
+    result_subset = result_pd[["date", *expected_columns]]
+    pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    "value_columns, expected_columns, expected_values",
+    [
+        (
+            "spend",
+            ["facebook_ads_spend", "google_ads_spend"],
+            [[30.0, 10.0], [10.0, 0.0]],
+        ),
+        (
+            ["spend", "impressions"],
+            [
+                "facebook_ads_spend",
+                "google_ads_spend",
+                "facebook_ads_impressions",
+                "google_ads_impressions",
+            ],
+            [[30.0, 10.0, 1500.0, 1000.0], [10.0, 0.0, 500.0, 0.0]],
+        ),
+    ],
+)
+def test_account_report_schema_multibackend(
+    example_account_report_df,
+    backend_converter,
+    value_columns,
+    expected_columns,
+    expected_values,
+):
+    """Test process_fivetran_ad_reporting with account_report schema across all backends."""
+    # Convert to target backend
+    df_backend = backend_converter.to_backend(example_account_report_df)
+
+    # Call function
+    result = process_fivetran_ad_reporting(
+        df_backend, value_columns=value_columns, rename_date_to="date"
+    )
+
+    # Convert result back to pandas for assertions
+    result_pd = backend_converter.to_pandas(result)
+
+    # Build expected DataFrame
+    expected = (
+        pd.DataFrame(
+            data=expected_values,
+            columns=expected_columns,
+            index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+        )
+        .reset_index()
+        .rename(columns={"index": "date"})
+    )
+
+    assert set(["date", *expected_columns]).issubset(set(result_pd.columns))
+    result_subset = result_pd[["date", *expected_columns]]
+    pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
+
+
+@pytest.mark.parametrize(
+    "value_columns, expected_columns, expected_values",
+    [
+        (
+            "spend",
+            ["facebook_ads_spend", "google_ads_spend"],
+            [[30.0, 10.0], [10.0, 0.0]],
+        ),
+        (
+            ["spend", "impressions"],
+            [
+                "facebook_ads_spend",
+                "google_ads_spend",
+                "facebook_ads_impressions",
+                "google_ads_impressions",
+            ],
+            [[30.0, 10.0, 1500.0, 1000.0], [10.0, 0.0, 500.0, 0.0]],
+        ),
+    ],
+)
+def test_campaign_report_schema_multibackend(
+    example_campaign_report_df,
+    backend_converter,
+    value_columns,
+    expected_columns,
+    expected_values,
+):
+    """Test process_fivetran_ad_reporting with campaign_report schema across all backends."""
+    # Convert to target backend
+    df_backend = backend_converter.to_backend(example_campaign_report_df)
+
+    # Call function
+    result = process_fivetran_ad_reporting(
+        df_backend, value_columns=value_columns, rename_date_to="date"
+    )
+
+    # Convert result back to pandas for assertions
+    result_pd = backend_converter.to_pandas(result)
+
+    # Build expected DataFrame
+    expected = (
+        pd.DataFrame(
+            data=expected_values,
+            columns=expected_columns,
+            index=pd.to_datetime(["2024-01-01", "2024-01-02"]),
+        )
+        .reset_index()
+        .rename(columns={"index": "date"})
+    )
+
+    assert set(["date", *expected_columns]).issubset(set(result_pd.columns))
+    result_subset = result_pd[["date", *expected_columns]]
+    pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
+
+
+# ==================== Pandas-only accessor tests ====================
+
+
+@pytest.mark.parametrize(
+    "value_columns, expected_columns, expected_values",
+    [
+        (
+            "spend",
+            ["facebook_ads_spend", "google_ads_spend"],
+            [[30.0, 10.0], [10.0, 0.0]],
+        ),
+        (
+            ["spend", "impressions"],
+            [
+                "facebook_ads_spend",
+                "google_ads_spend",
+                "facebook_ads_impressions",
+                "google_ads_impressions",
+            ],
+            [[30.0, 10.0, 1500.0, 1000.0], [10.0, 0.0, 500.0, 0.0]],
+        ),
+    ],
+)
+def test_ad_report_schema_accessor(
+    example_ad_report_df,
+    value_columns,
+    expected_columns,
+    expected_values,
+):
+    """Test .fivetran.process_ad_reporting accessor with ad_report schema (pandas only)."""
+    result = example_ad_report_df.fivetran.process_ad_reporting(
+        value_columns=value_columns, rename_date_to="date"
+    )
 
     expected = (
         pd.DataFrame(
@@ -359,7 +538,6 @@ def test_ad_report_schema(
     pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
 
 
-@pytest.mark.parametrize("accessor", [True, False])
 @pytest.mark.parametrize(
     "value_columns, expected_columns, expected_values",
     [
@@ -380,18 +558,16 @@ def test_ad_report_schema(
         ),
     ],
 )
-def test_account_report_schema(
+def test_account_report_schema_accessor(
     example_account_report_df,
-    accessor: bool,
     value_columns,
     expected_columns,
     expected_values,
 ):
-    kwargs = dict(value_columns=value_columns, rename_date_to="date")
-    if accessor:
-        result = example_account_report_df.fivetran.process_ad_reporting(**kwargs)
-    else:
-        result = process_fivetran_ad_reporting(example_account_report_df, **kwargs)
+    """Test .fivetran.process_ad_reporting accessor with account_report schema (pandas only)."""
+    result = example_account_report_df.fivetran.process_ad_reporting(
+        value_columns=value_columns, rename_date_to="date"
+    )
 
     expected = (
         pd.DataFrame(
@@ -408,7 +584,6 @@ def test_account_report_schema(
     pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
 
 
-@pytest.mark.parametrize("accessor", [True, False])
 @pytest.mark.parametrize(
     "value_columns, expected_columns, expected_values",
     [
@@ -429,18 +604,16 @@ def test_account_report_schema(
         ),
     ],
 )
-def test_campaign_report_schema(
+def test_campaign_report_schema_accessor(
     example_campaign_report_df,
-    accessor: bool,
     value_columns,
     expected_columns,
     expected_values,
 ):
-    kwargs = dict(value_columns=value_columns, rename_date_to="date")
-    if accessor:
-        result = example_campaign_report_df.fivetran.process_ad_reporting(**kwargs)
-    else:
-        result = process_fivetran_ad_reporting(example_campaign_report_df, **kwargs)
+    """Test .fivetran.process_ad_reporting accessor with campaign_report schema (pandas only)."""
+    result = example_campaign_report_df.fivetran.process_ad_reporting(
+        value_columns=value_columns, rename_date_to="date"
+    )
 
     expected = (
         pd.DataFrame(
@@ -455,6 +628,66 @@ def test_campaign_report_schema(
     assert set(["date", *expected_columns]).issubset(set(result.columns))
     result_subset = result[["date", *expected_columns]]
     pd.testing.assert_frame_equal(result_subset, expected, check_dtype=False)
+
+
+@pytest.mark.requires_polars
+def test_polars_include_missing_dates_backend_alignment():
+    """Test that polars backend is preserved with include_missing_dates=True.
+
+    This is a regression test for the critical backend mismatch bug where
+    creating date ranges with pandas.date_range() would break polars DataFrames.
+
+    See: https://github.com/pymc-labs/pymc-marketing/pull/2224#discussion_r2741140644
+    """
+    from datetime import datetime
+
+    import polars as pl
+
+    # Create test data with a date gap: 2024-01-01, 2024-01-03 (missing 2024-01-02)
+    df_pl = pl.DataFrame(
+        {
+            "date_day": [
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 3),  # Gap: missing 2024-01-02
+                datetime(2024, 1, 3),
+            ],
+            "platform": ["facebook_ads", "google_ads", "facebook_ads", "google_ads"],
+            "spend": [10.0, 20.0, 15.0, 25.0],
+        }
+    )
+
+    # Process with include_missing_dates=True (should fill the gap with 2024-01-02)
+    result = process_fivetran_ad_reporting(
+        df_pl,
+        value_columns="spend",
+        include_missing_dates=True,
+        freq="1d",
+        fill_value=0.0,
+        rename_date_to=None,
+    )
+
+    # CRITICAL: Verify result is still polars DataFrame (not pandas)
+    assert isinstance(result, pl.DataFrame), (
+        f"Expected polars DataFrame, got {type(result)}"
+    )
+
+    # Verify missing date was filled
+    result_dates = sorted(result.select("date_day").to_series().to_list())
+    expected_dates = [
+        datetime(2024, 1, 1),
+        datetime(2024, 1, 2),  # This was missing, should be filled
+        datetime(2024, 1, 3),
+    ]
+    assert len(result_dates) == 3, f"Expected 3 rows, got {len(result_dates)}"
+    assert result_dates == expected_dates, (
+        f"Expected dates {expected_dates}, got {result_dates}"
+    )
+
+    # Verify fill_value was applied to missing date
+    result_row_2024_01_02 = result.filter(pl.col("date_day") == datetime(2024, 1, 2))
+    assert result_row_2024_01_02["facebook_ads_spend"][0] == 0.0
+    assert result_row_2024_01_02["google_ads_spend"][0] == 0.0
 
 
 # -------------------- Shopify orders unique orders --------------------
@@ -465,7 +698,7 @@ def example_shopify_orders_df() -> pd.DataFrame:
     # Minimal columns from Shopify orders schema needed for the function
     # We include duplicates within the same day and invalid timestamps, plus a few
     # extra fields inspired by the Shopify orders schema CSV
-    return pd.DataFrame(
+    df = pd.DataFrame(
         [
             {
                 "order_id": 7001,
@@ -594,17 +827,44 @@ def example_shopify_orders_df() -> pd.DataFrame:
             },
         ]
     )
+    # Convert string timestamps to proper datetime objects for multi-backend support
+    # Use errors="coerce" to handle None and "invalid" values (they become NaT)
+    df["processed_timestamp"] = pd.to_datetime(
+        df["processed_timestamp"], errors="coerce"
+    )
+    df["updated_timestamp"] = pd.to_datetime(df["updated_timestamp"], errors="coerce")
+    return df
 
 
-@pytest.mark.parametrize("accessor", [True, False])
-def test_shopify_orders_unique_orders(
+def test_shopify_orders_unique_orders_multibackend(
     example_shopify_orders_df: pd.DataFrame,
-    accessor: bool,
+    backend_converter,
 ) -> None:
-    if accessor:
-        result = example_shopify_orders_df.fivetran.process_shopify_unique_orders()
-    else:
-        result = process_fivetran_shopify_unique_orders(example_shopify_orders_df)
+    """Test process_fivetran_shopify_unique_orders across all backends."""
+    # Convert to target backend
+    df_backend = backend_converter.to_backend(example_shopify_orders_df)
+
+    # Call function
+    result = process_fivetran_shopify_unique_orders(df_backend)
+
+    # Convert result back to pandas for assertions
+    result_pd = backend_converter.to_pandas(result)
+
+    expected = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2025-07-12", "2025-07-13"]).normalize(),
+            "orders": [3, 1],  # 2025-07-12: o1, o2, o4; 2025-07-13: o3
+        }
+    )
+
+    pd.testing.assert_frame_equal(result_pd, expected, check_dtype=False)
+
+
+def test_shopify_orders_unique_orders_accessor(
+    example_shopify_orders_df: pd.DataFrame,
+) -> None:
+    """Test .fivetran.process_shopify_unique_orders accessor (pandas only)."""
+    result = example_shopify_orders_df.fivetran.process_shopify_unique_orders()
 
     expected = pd.DataFrame(
         {

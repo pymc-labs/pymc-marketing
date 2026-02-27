@@ -9,6 +9,7 @@ on:
 
 jobs:
   build:
+    if: ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref != 'automated/update-uml-diagrams') }}
     name: build source distribution
     runs-on: ubuntu-latest
     steps:

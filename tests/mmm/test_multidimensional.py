@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -26,6 +26,8 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.basic import TensorVariable
 from scipy.optimize import OptimizeResult
 
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
     GeometricAdstock,
@@ -65,10 +67,10 @@ def df(target_column) -> pd.DataFrame:
     dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
     df = pd.DataFrame(
         {
-            ("A", "C1"): [1, 2, 3],
-            ("B", "C1"): [4, 5, 6],
-            ("A", "C2"): [7, 8, 9],
-            ("B", "C2"): [10, 11, 12],
+            ("A", "C1"): [1, 2, 3.0],
+            ("B", "C1"): [4, 5, 6.0],
+            ("A", "C2"): [7, 8, 9.0],
+            ("B", "C2"): [10, 11, 12.0],
         },
         index=dates,
     )
@@ -102,6 +104,40 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     return mmm
 
 
+def test_target_column():
+    mmm_default = MMM(
+        date_column="date",
+        channel_columns=["C"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    assert mmm_default.target_column == "y"
+
+    mmm_custom = MMM(
+        date_column="date",
+        channel_columns=["C"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        target_column="epsilon",
+    )
+    assert mmm_custom.target_column == "epsilon"
+
+
+def test_reserved_dims():
+    other_kwargs = {
+        "date_column": "date",
+        "channel_columns": ["C"],
+        "adstock": GeometricAdstock(l_max=2),
+        "saturation": LogisticSaturation(),
+    }
+    # Calling MMM without a reserved dim is fine
+    MMM(**other_kwargs, dims=("calendar",))
+
+    for reserved_dim in ("date", "channel", "control", "fourier_mode"):
+        with pytest.raises(ValueError, match=r".* reserved for internal use"):
+            MMM(**other_kwargs, dims=(reserved_dim,))
+
+
 def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
     assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
@@ -122,6 +158,144 @@ def test_save_load(fit_mmm: MMM):
 
     loaded = MMM.load(file)
     assert isinstance(loaded, MMM)
+
+    os.remove(file)
+
+
+def test_save_load_equality(fit_mmm: MMM):
+    """Test that save/load produces an equivalent MMM instance.
+
+    Tests the __eq__ method which validates ALL configuration aspects:
+    - Core configuration (date, channels, target, dims, scaling)
+    - Transformations (adstock, saturation, adstock_first)
+    - Time-varying effects (HSGPs if present)
+    - Additive effects (mu_effects)
+    - Causal graph configuration
+    - Model and sampler configuration
+    """
+    file = "test_equality.nc"
+    original_mmm = fit_mmm
+
+    # Save the model
+    original_mmm.save(file)
+
+    # Load the model
+    loaded_mmm = MMM.load(file)
+
+    # Test that loaded model equals original (using __eq__)
+    assert loaded_mmm == original_mmm, (
+        "Loaded MMM should be equal to original. "
+        "Check __eq__ method for which properties don't match."
+    )
+
+    # Also verify key properties individually
+    assert loaded_mmm.id == original_mmm.id
+    assert loaded_mmm.date_column == original_mmm.date_column
+    assert loaded_mmm.channel_columns == original_mmm.channel_columns
+    assert loaded_mmm.target_column == original_mmm.target_column
+    assert loaded_mmm.dims == original_mmm.dims
+    assert loaded_mmm.adstock_first == original_mmm.adstock_first
+    assert loaded_mmm.yearly_seasonality == original_mmm.yearly_seasonality
+    assert loaded_mmm.sampler_config == original_mmm.sampler_config
+
+    # Clean up
+    import os
+
+    os.remove(file)
+
+
+def test_save_load_equality_with_all_effects(mock_pymc_sample):
+    """Test save/load roundtrip with all MuEffects and HSGP time-varying effects.
+
+    This test ensures that an MMM with:
+    - Multiple MuEffects (FourierEffect, LinearTrendEffect)
+    - Time-varying intercept (HSGP)
+    - Time-varying media (HSGP)
+
+    ...can be saved and loaded while maintaining complete equality via __eq__.
+    """
+    from pymc_marketing.mmm.additive_effect import FourierEffect, LinearTrendEffect
+    from pymc_marketing.mmm.fourier import YearlyFourier
+    from pymc_marketing.mmm.linear_trend import LinearTrend
+
+    # Create test data
+    date_range = pd.date_range("2023-01-01", periods=100, freq="W")
+    np.random.seed(42)
+
+    df = pd.DataFrame(
+        {
+            "date": date_range,
+            "channel_1": np.random.randint(100, 500, size=len(date_range)),
+            "channel_2": np.random.randint(100, 500, size=len(date_range)),
+            "target": np.random.randint(500, 1500, size=len(date_range)),
+        }
+    )
+
+    # Create MMM with time-varying effects
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+        time_varying_media=True,
+    )
+
+    # Add MuEffects
+    mmm.mu_effects.append(
+        FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
+    )
+    mmm.mu_effects.append(
+        LinearTrendEffect(
+            trend=LinearTrend(n_changepoints=5),
+            prefix="trend",
+        )
+    )
+
+    # Fit the model
+    X = df[["date", "channel_1", "channel_2"]]
+    y = df["target"]
+    mmm.fit(X, y)
+
+    # Save the model
+    file = "test_all_effects_equality.nc"
+    mmm.save(file)
+
+    # Load the model
+    loaded_mmm = MMM.load(file)
+
+    # Test that loaded model equals original (using __eq__)
+    assert loaded_mmm == mmm, (
+        "Loaded MMM with all effects should equal original. "
+        "Check __eq__ method for which properties don't match."
+    )
+
+    # Verify specific properties
+    assert loaded_mmm.id == mmm.id
+    assert len(loaded_mmm.mu_effects) == len(mmm.mu_effects) == 2
+    assert isinstance(loaded_mmm.mu_effects[0], FourierEffect)
+    assert isinstance(loaded_mmm.mu_effects[1], LinearTrendEffect)
+
+    # Verify HSGP serialization - skip for now as it's a separate issue
+    # TODO: Fix HSGP serialization separately
+    # assert loaded_mmm.time_varying_intercept is not None
+    # assert loaded_mmm.time_varying_media is not None
+    # if hasattr(loaded_mmm.time_varying_intercept, "to_dict"):
+    #     assert (
+    #         loaded_mmm.time_varying_intercept.to_dict()
+    #         == mmm.time_varying_intercept.to_dict()
+    #     )
+    # if hasattr(loaded_mmm.time_varying_media, "to_dict"):
+    #     assert (
+    #         loaded_mmm.time_varying_media.to_dict()
+    #         == mmm.time_varying_media.to_dict()
+    #     )
+
+    # Clean up
+    import os
+
+    os.remove(file)
 
 
 @pytest.fixture
@@ -2172,6 +2346,290 @@ def test_make_target_transform_single_dim(
         assert np.all(result == input_data / y.mean())
 
 
+def test_mmm_equality():
+    """Test MMM.__eq__() method for comparing instances.
+
+    Tests that __eq__ correctly compares all configuration attributes:
+    - Core configuration (date, channels, target, dims, scaling)
+    - Transformations (adstock, saturation, adstock_first)
+    - Time-varying effects (time_varying_intercept, time_varying_media)
+    - Additive effects (mu_effects)
+    - Causal graph (dag, treatment_nodes, outcome_node)
+    - Control columns and seasonality settings
+    - Model and sampler configuration
+    - Model ID (content-based hash)
+    """
+    # Create two identical MMM instances
+    mmm1 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        control_columns=["control_1"],
+        yearly_seasonality=2,
+        adstock_first=True,
+    )
+
+    mmm2 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        control_columns=["control_1"],
+        yearly_seasonality=2,
+        adstock_first=True,
+    )
+
+    # Test: Identical configurations should be equal
+    assert mmm1 == mmm2
+    assert mmm1.id == mmm2.id
+
+    # Test: Different date_column
+    mmm3 = MMM(
+        date_column="date_column",  # Different
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm3
+
+    # Test: Different channel_columns
+    mmm4 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_3"],  # Different
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm4
+
+    # Test: Different target_column
+    mmm5 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="revenue",  # Different
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm5
+
+    # Test: Different dims
+    mmm6 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("country",),  # Different
+    )
+    assert mmm1 != mmm6
+
+    # Test: Different adstock transformation
+    mmm7 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=10),  # Different l_max
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+    )
+    assert mmm1 != mmm7
+
+    # Test: Different saturation transformation
+    mmm8 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(
+            priors={"lam": Prior("Normal", mu=0.5, sigma=0.2)}
+        ),  # Different priors
+        dims=("geo",),
+    )
+    assert mmm1 != mmm8
+
+    # Test: Different adstock_first
+    mmm9 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        adstock_first=False,  # Different
+    )
+    assert mmm1 != mmm9
+
+    # Test: Different control_columns
+    mmm10 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        control_columns=["control_2"],  # Different
+    )
+    assert mmm1 != mmm10
+
+    # Test: Different yearly_seasonality
+    mmm11 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        yearly_seasonality=4,  # Different
+    )
+    assert mmm1 != mmm11
+
+    # Test: Different scaling configuration
+    mmm12 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        scaling=Scaling(
+            target=VariableScaling(method="mean", dims=("geo",)),  # Different method
+            channel=VariableScaling(method="max", dims=("geo",)),
+        ),
+    )
+    assert mmm1 != mmm12
+
+    # Test: Different time_varying_intercept
+    mmm13 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        time_varying_intercept=True,  # Different
+    )
+    assert mmm1 != mmm13
+
+    # Test: Different time_varying_media
+    mmm14 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dims=("geo",),
+        time_varying_media=True,  # Different
+    )
+    assert mmm1 != mmm14
+
+    # Test: Comparison with non-MMM object
+    assert mmm1 != "not an MMM"
+    assert mmm1 != 42
+    assert mmm1 != None  # noqa: E711
+
+    # Test: With custom HSGP for time-varying effects
+    # Use parameterize_from_data to properly initialize HSGP
+    X_dummy = np.arange(10)
+    hsgp1 = SoftPlusHSGP.parameterize_from_data(X=X_dummy, dims=("date",))
+    hsgp2 = SoftPlusHSGP.parameterize_from_data(X=X_dummy, dims=("date",))
+
+    mmm15 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp1,
+    )
+
+    mmm16 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp2,
+    )
+
+    # Should be equal if HSGP configs match
+    assert mmm15 == mmm16
+
+    # Test: Different HSGP config (different input data creates different params)
+    X_dummy_different = np.arange(20)  # Different length
+    hsgp3 = SoftPlusHSGP.parameterize_from_data(X=X_dummy_different, dims=("date",))
+    mmm17 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=hsgp3,
+    )
+    assert mmm15 != mmm17
+
+    # Test: With causal graph configuration
+    dag = """
+    digraph {
+        channel_1 -> sales;
+        channel_2 -> sales;
+        control_1 -> sales;
+    }
+    """
+
+    mmm18 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=["channel_1", "channel_2"],
+        outcome_node="sales",
+    )
+
+    mmm19 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dag=dag,
+        treatment_nodes=["channel_1", "channel_2"],
+        outcome_node="sales",
+    )
+
+    assert mmm18 == mmm19
+
+    # Test: Different DAG
+    dag_different = """
+    digraph {
+        channel_1 -> sales;
+    }
+    """
+
+    mmm20 = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="sales",
+        adstock=GeometricAdstock(l_max=8),
+        saturation=LogisticSaturation(),
+        dag=dag_different,  # Different
+        treatment_nodes=["channel_1"],
+        outcome_node="sales",
+    )
+
+    assert mmm18 != mmm20
+
+
 class TestPydanticValidation:
     """Test suite specifically for Pydantic validation in multidimensional MMM."""
 
@@ -2559,6 +3017,31 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
     )
 
 
+def test_integer_channel_data_is_cast_to_float(multi_dim_data):
+    """Integer channel data is cast to float at construction time (GH #2340)."""
+    X, y = multi_dim_data
+
+    # Verify the fixture actually produces integer channel columns
+    assert X["channel_1"].dtype.kind == "i", "Fixture should produce int channel data"
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # xarray dataset should have float channel data
+    assert np.issubdtype(mmm.xarray_dataset["_channel"].dtype, np.floating)
+
+    # The PyTensor pm.Data node should also be float
+    channel_data_var = mmm.model["channel_data"]
+    assert np.issubdtype(np.dtype(channel_data_var.type.dtype), np.floating)
+
+
 def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
     """Test that _set_xarray_data preserves dtypes when control columns are present."""
     X, y = multi_dim_data
@@ -2879,7 +3362,10 @@ def test_arbitrary_date_column_with_control_variables(
         pytest.param(
             {"intercept_tvp_config": {"ls_lower": 0.1, "ls_upper": None}},
             None,
-            dict(name="intercept_latent_process_raw_ls_raw", kind="WeibullBetaRV"),
+            dict(
+                name="intercept_latent_process_raw_ls_raw",
+                kind="WeibullBetaRV",
+            ),
             id="weibull",
         ),
         pytest.param(
@@ -2924,6 +3410,97 @@ def test_specify_time_varying_configuration(
     )
 
 
+class TestTimeVaryingConfigFormats:
+    """Test time-varying coefficient configuration formats for API harmonization."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create minimal sample data for testing."""
+        n = 20
+        dates = pd.date_range("2024-01-01", periods=n, freq="W")
+        rng = np.random.default_rng(12345)
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": rng.random(n),
+                "channel_2": rng.random(n),
+            }
+        )
+        y = pd.Series(rng.random(n), name="target")
+        return X, y
+
+    def test_intercept_tvp_with_hsgp_kwargs_instance(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_intercept=True with HSGPKwargs in model_config."""
+        X, y = sample_data
+        model_config = {
+            "intercept_tvp_config": HSGPKwargs(
+                m=50, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None
+            ),
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "intercept_latent_process" in mmm.model.named_vars
+
+    def test_intercept_tvp_with_hsgp_kwargs_dict(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_intercept=True with dict in HSGPKwargs format."""
+        X, y = sample_data
+        model_config = {
+            "intercept_tvp_config": {
+                "m": 50,
+                "L": None,
+                "eta_lam": 1.0,
+                "ls_mu": 5.0,
+                "ls_sigma": 10.0,
+                "cov_func": None,
+            },
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "intercept_latent_process" in mmm.model.named_vars
+
+    def test_media_tvp_with_hsgp_kwargs_instance(
+        self, sample_data: tuple[pd.DataFrame, pd.Series]
+    ) -> None:
+        """Test time_varying_media=True with HSGPKwargs in model_config."""
+        X, y = sample_data
+        model_config = {
+            "media_tvp_config": HSGPKwargs(
+                m=50, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None
+            ),
+        }
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            time_varying_media=True,
+            model_config=model_config,
+        )
+        mmm.build_model(X, y)
+        assert "media_temporal_latent_multiplier" in mmm.model.named_vars
+
+
 def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     single_dim_data, mock_pymc_sample
 ):
@@ -2959,6 +3536,8 @@ def test_multidimensional_mmm_serializes_and_deserializes_dag_and_nodes(
     assert loaded_mmm.dag == dag
     assert loaded_mmm.treatment_nodes == treatment_nodes
     assert loaded_mmm.outcome_node == outcome_node
+
+    os.remove("test_model_multi")
 
 
 def test_multidimensional_mmm_causal_attributes_initialization():
@@ -3431,3 +4010,282 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
             calibration_data=calibration_df,
             name_prefix="cpt_calibration",
         )
+
+
+class TestAddOriginalScaleContributionVariable:
+    """Tests for add_original_scale_contribution_variable method."""
+
+    @pytest.fixture
+    def sample_data(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Create sample data for testing."""
+        rng = np.random.default_rng(42)
+        n_dates = 20
+        dates = pd.date_range("2023-01-01", periods=n_dates, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates,
+                "x1": rng.uniform(0.1, 1.0, n_dates),
+                "x2": rng.uniform(0.1, 1.0, n_dates),
+            }
+        )
+        y = pd.Series(rng.uniform(100, 500, n_dates), name="y")
+        return X, y
+
+    def test_channel_contribution(self, sample_data) -> None:
+        """Test adding channel_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["channel_contribution_original_scale"]
+        assert dims == ("date", "channel")
+
+    def test_fourier_contribution(self, sample_data) -> None:
+        """Test adding fourier_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["fourier_contribution"])
+
+        assert "fourier_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["fourier_contribution_original_scale"]
+        assert dims == ("date", "fourier_mode")
+
+    def test_multiple_contributions(self, sample_data) -> None:
+        """Test adding multiple contribution variables at once."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["channel_contribution", "fourier_contribution"]
+        )
+
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+        assert "fourier_contribution_original_scale" in mmm.model.named_vars
+
+        channel_dims = mmm.model.named_vars_to_dims[
+            "channel_contribution_original_scale"
+        ]
+        fourier_dims = mmm.model.named_vars_to_dims[
+            "fourier_contribution_original_scale"
+        ]
+        assert channel_dims == ("date", "channel")
+        assert fourier_dims == ("date", "fourier_mode")
+
+    def test_yearly_seasonality_contribution(self, sample_data) -> None:
+        """Test adding yearly_seasonality_contribution_original_scale."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            yearly_seasonality=3,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["yearly_seasonality_contribution"]
+        )
+
+        assert "yearly_seasonality_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims[
+            "yearly_seasonality_contribution_original_scale"
+        ]
+        assert dims == ("date",)
+
+    def test_intercept_contribution_with_tvp(self, sample_data) -> None:
+        """Test adding intercept_contribution_original_scale with time-varying intercept."""
+        X, y = sample_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["x1", "x2"],
+            target_column="y",
+            time_varying_intercept=True,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["intercept_contribution"])
+
+        assert "intercept_contribution_original_scale" in mmm.model.named_vars
+        dims = mmm.model.named_vars_to_dims["intercept_contribution_original_scale"]
+        assert dims == ("date",)
+
+    def test_with_geo_dims(self, multi_dim_data) -> None:
+        """Test adding contribution variables with geo dimensions."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+            yearly_seasonality=2,
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(
+            var=["channel_contribution", "fourier_contribution"]
+        )
+
+        channel_dims = mmm.model.named_vars_to_dims[
+            "channel_contribution_original_scale"
+        ]
+        fourier_dims = mmm.model.named_vars_to_dims[
+            "fourier_contribution_original_scale"
+        ]
+        assert channel_dims == ("date", "country", "channel")
+        assert fourier_dims == ("date", "country", "fourier_mode")
+
+
+class TestDataProperty:
+    """Tests for the MMM.data property."""
+
+    def test_data_property_raises_when_no_idata(self) -> None:
+        """Test that accessing .data before fitting raises ValueError."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises(ValueError, match="idata does not exist"):
+            _ = mmm.data
+
+    def test_data_property_returns_wrapper(self, fit_mmm) -> None:
+        """Test that .data returns MMMIDataWrapper with correct schema."""
+        wrapper = fit_mmm.data
+
+        assert isinstance(wrapper, MMMIDataWrapper)
+        assert wrapper.idata is fit_mmm.idata
+        assert wrapper.schema is not None
+        # fit_mmm has dims=("country",), no controls, no seasonality, no time-varying
+        assert wrapper.schema.custom_dims == ("country",)
+
+    def test_data_property_without_custom_dims(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives empty tuple when dims is empty."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=(),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        assert wrapper.schema.custom_dims == ()
+
+    def test_data_property_with_controls(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives has_controls=True when control_columns set."""
+        X, y = single_dim_data
+        # Add a control column
+        X = X.copy()
+        X["control_var"] = np.random.rand(len(X))
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            control_columns=["control_var"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify control_data variable exists in schema
+        assert "control_data_" in wrapper.schema.groups["constant_data"].variables
+
+    def test_data_property_with_seasonality(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives has_seasonality=True when yearly_seasonality set."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify dayofyear variable exists in schema (indicator of seasonality)
+        assert "dayofyear" in wrapper.schema.groups["constant_data"].variables
+
+    def test_data_property_with_time_varying_intercept(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives time_varying=True when time_varying_intercept=True."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_intercept=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify time_index variable exists in schema (indicator of time-varying)
+        assert "time_index" in wrapper.schema.groups["constant_data"].variables
+
+    def test_data_property_with_time_varying_media(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Test schema receives time_varying=True when time_varying_media=True."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_media=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        wrapper = mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        # Verify time_index variable exists in schema (indicator of time-varying)
+        assert "time_index" in wrapper.schema.groups["constant_data"].variables

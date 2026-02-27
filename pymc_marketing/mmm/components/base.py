@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -280,6 +280,20 @@ class Transformation:
             )
 
         self.function_priors.update(new_priors)
+
+    def with_updated_priors(self, priors: dict[str, Prior]) -> "Transformation":
+        """Return a copy with updated priors."""
+        new = deepcopy(self)
+        new.update_priors(priors)
+        return new
+
+    def with_default_prior_dims(self, dims: tuple[str]) -> "Transformation":
+        """Return a copy with default prior dims (dims=None) set to `dims` instead."""
+        new = deepcopy(self)
+        for prior in new.function_priors.values():
+            if isinstance(prior, VariableFactory) and prior.dims is None:
+                prior.dims = dims
+        return new
 
     @property
     def model_config(self) -> dict[str, Any]:

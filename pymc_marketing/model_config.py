@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -162,11 +162,28 @@ def parse_model_config(
         if isinstance(config, HSGPKwargs):
             return config
 
+        # Only convert to HSGPKwargs if the config is a dict that has HSGPKwargs keys
+        # Don't convert old-style configs with ls_lower/ls_upper (parameterize_from_data format)
+        if not isinstance(config, dict):
+            return config
+
+        hsgp_keys = {"m", "L", "eta_lam", "ls_mu", "ls_sigma", "cov_func"}
+        old_style_keys = {"ls_lower", "ls_upper"}
+
+        # If config has old-style keys, keep it as dict for parameterize_from_data
+        if config.keys() & old_style_keys:
+            return config
+
+        # Only convert if config has at least one HSGPKwargs key
+        if not (config.keys() & hsgp_keys):
+            return config
+
         try:
             hsgp_kwargs = HSGPKwargs.model_validate(config)
             return hsgp_kwargs
         except Exception as e:
             parse_errors.append(f"Parameter {name}: {e}")
+            return config
 
     # Parse the model configuration to extrat the `Prior` objects.
     result: ModelConfig = {
