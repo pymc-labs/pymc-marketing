@@ -77,6 +77,64 @@ class TestModifiedBetaGeoModel:
 
         mock_fit(cls.model, cls.chains, cls.draws, cls.rng)
 
+    @pytest.mark.parametrize(
+        "invalid_data, expected_error_match",
+        [
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [2], "recency": [-5], "T": [10]}
+                ),
+                "Recency must be >= 0.",
+            ),
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [2], "recency": [5], "T": [-10]}
+                ),
+                "T must be >= 0.",
+            ),
+            (
+                pd.DataFrame(
+                    {"customer_id": [1], "frequency": [2], "recency": [15], "T": [10]}
+                ),
+                "Recency cannot be greater than T.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "frequency": pd.Series([np.nan], dtype="Int64"),
+                        "recency": [5],
+                        "T": [10],
+                    }
+                ),
+                "Input data contains NaN values.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "frequency": [2],
+                        "recency": pd.Series([np.nan], dtype="Int64"),
+                        "T": [10],
+                    }
+                ),
+                "Input data contains NaN values.",
+            ),
+        ],
+    )
+    def test_check_inputs_validation(self, invalid_data, expected_error_match):
+        """Test that _check_inputs correctly catches invalid frequency, recency, and T values."""
+        with pytest.raises(ValueError, match=expected_error_match):
+            ModifiedBetaGeoModel(data=invalid_data)
+
+    def test_expected_customer_lifetime_value_removed(self):
+        """ModifiedBetaGeoModel no longer exposes expected_customer_lifetime_value."""
+        dummy_data = pd.DataFrame(
+            {"customer_id": [1], "frequency": [2], "recency": [5], "T": [10]}
+        )
+        model = ModifiedBetaGeoModel(data=dummy_data)
+        assert not hasattr(model, "expected_customer_lifetime_value")
+
     @pytest.fixture(scope="class")
     def model_config(self):
         return {

@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.gamma_gamma import (
@@ -80,6 +81,119 @@ class BaseTestGammaGammaModel:
 
 
 class TestGammaGammaModel(BaseTestGammaGammaModel):
+    @patch("pymc_marketing.clv.models.gamma_gamma.customer_lifetime_value")
+    def test_expected_customer_lifetime_value_uses_expected_spend(self, mock_clv):
+        """Test that expected_customer_lifetime_value always uses expected_customer_spend."""
+        # Initialize a basic model configuration
+        model = GammaGammaModel(data=self.data)
+
+        # We don't need a real transaction model for this test, a string acts as a dummy
+        dummy_transaction_model = "dummy_transaction_model"
+
+        # 1. Test default behavior (monetary_value = None)
+        # We patch expected_customer_spend so we don't need to actually fit the model
+        dummy_expected_spend = xr.DataArray(
+            np.full((1, 1, len(self.data)), 15.0), dims=("chain", "draw", "customer_id")
+        )
+
+        with patch.object(
+            model, "expected_customer_spend", return_value=dummy_expected_spend
+        ) as mock_expected_spend:
+            model.expected_customer_lifetime_value(
+                transaction_model=dummy_transaction_model,
+                data=self.data,
+            )
+
+            # Assert the model calculated expected spend itself
+            mock_expected_spend.assert_called_once()
+
+            # Assert it passed the calculated values to the utility function
+            called_data = mock_clv.call_args[1]["data"]
+            assert "future_spend" in called_data.columns
+            np.testing.assert_array_equal(called_data["future_spend"], 15.0)
+
+    @pytest.mark.parametrize(
+        "invalid_data, expected_error_match",
+        [
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "monetary_value": [23.5],
+                        "frequency": [-1],
+                        "recency": [5],
+                        "T": [10],
+                    }
+                ),
+                "Frequency must be >= 0.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "monetary_value": [19.3],
+                        "frequency": [2],
+                        "recency": [-5],
+                        "T": [10],
+                    }
+                ),
+                "Recency must be >= 0.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "monetary_value": [11.2],
+                        "frequency": [2],
+                        "recency": [5],
+                        "T": [-10],
+                    }
+                ),
+                "T must be >= 0.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "monetary_value": [100.5],
+                        "frequency": [2],
+                        "recency": [15],
+                        "T": [10],
+                    }
+                ),
+                "Recency cannot be greater than T.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "monetary_value": [23.5],
+                        "frequency": pd.Series([np.nan], dtype="Int64"),
+                        "recency": [5],
+                        "T": [10],
+                    }
+                ),
+                "Input data contains NaN values.",
+            ),
+            (
+                pd.DataFrame(
+                    {
+                        "customer_id": [1],
+                        "monetary_value": [19.3],
+                        "frequency": [2],
+                        "recency": pd.Series([np.nan], dtype="Int64"),
+                        "T": [10],
+                    }
+                ),
+                "Input data contains NaN values.",
+            ),
+        ],
+    )
+    def test_check_inputs_validation(self, invalid_data, expected_error_match):
+        """Test that _check_inputs correctly catches invalid frequency, recency, and T values."""
+        with pytest.raises(ValueError, match=expected_error_match):
+            GammaGammaModel(data=invalid_data)
+
     def test_missing_columns(self):
         data_invalid = self.data.drop(columns="customer_id")
         with pytest.raises(

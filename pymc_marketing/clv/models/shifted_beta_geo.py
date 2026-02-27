@@ -201,10 +201,16 @@ class ShiftedBetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        if np.any(
-            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
-        ):
-            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
+        self._check_inputs(
+            frequency=np.zeros(len(data)),
+            recency=np.asarray(data["recency"]),
+            T=np.asarray(data["T"]),
+            check_frequency=False,
+        )
+        if np.any(data["recency"] < 1):
+            raise ValueError("Recency must be >= 1.")
+        if np.any(data["T"] < 2):
+            raise ValueError("T must be >= 2.")
 
         self._validate_cohorts(self.data, check_param_dims=("alpha", "beta"))
 

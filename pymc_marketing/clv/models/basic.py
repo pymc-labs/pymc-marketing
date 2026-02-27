@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from typing import Literal, cast
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import pymc as pm
 from pydantic import ConfigDict, InstanceOf, validate_call
@@ -44,6 +45,13 @@ class CLVModel(ModelBuilder):
         non_distributions: list[str] | None = None,
     ):
         self.data = data
+        if {"frequency", "recency", "T"}.issubset(data.columns):
+            self._check_inputs(
+                frequency=np.asarray(data["frequency"]),
+                recency=np.asarray(data["recency"]),
+                T=np.asarray(data["T"]),
+                check_frequency=getattr(self, "_check_frequency", True),
+            )
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
@@ -89,6 +97,42 @@ class CLVModel(ModelBuilder):
             if col in must_be_homogenous:
                 if data[col].nunique() != 1:
                     raise ValueError(f"Column {col} has non-homogeneous entries")
+
+    @staticmethod
+    def _check_inputs(
+        frequency: np.ndarray,
+        recency: np.ndarray,
+        T: np.ndarray,
+        check_frequency: bool = True,
+    ) -> None:
+        """Validate input data for CLV models.
+
+        Parameters
+        ----------
+        frequency : array-like
+            Number of repeat purchases.
+        recency : array-like
+            Time of most recent purchase.
+        T : array-like
+            Total observation time.
+        check_frequency : bool, default True
+            If True, validate that frequency >= 0.
+            Set to False for ModifiedBetaGeoModel which supports zero-frequency.
+        """
+        if (
+            np.any(np.isnan(frequency))
+            or np.any(np.isnan(recency))
+            or np.any(np.isnan(T))
+        ):
+            raise ValueError("Input data contains NaN values.")
+        if check_frequency and np.any(frequency < 0):
+            raise ValueError("Frequency must be >= 0.")
+        if np.any(recency < 0):
+            raise ValueError("Recency must be >= 0.")
+        if np.any(T < 0):
+            raise ValueError("T must be >= 0.")
+        if np.any(recency > T):
+            raise ValueError("Recency cannot be greater than T.")
 
     def __repr__(self) -> str:
         """Representation of the model."""

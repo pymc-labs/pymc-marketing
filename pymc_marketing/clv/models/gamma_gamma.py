@@ -172,7 +172,8 @@ class BaseGammaGammaModel(CLVModel):
         Parameters
         ----------
         transaction_model : ~CLVModel
-            Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+            Predictive model for future transactions. `BetaGeoModel`,
+            `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
 
@@ -197,11 +198,9 @@ class BaseGammaGammaModel(CLVModel):
             DataArray containing estimated customer lifetime values
 
         """
-        # Use Gamma-Gamma estimates for the expected_spend values
+        data = data.copy()
         predicted_monetary_value = self.expected_customer_spend(data=data)
-        data.loc[:, "future_spend"] = predicted_monetary_value.mean(
-            ("chain", "draw")
-        ).copy()
+        data["future_spend"] = predicted_monetary_value.mean(("chain", "draw")).copy()
 
         return customer_lifetime_value(
             transaction_model=transaction_model,
