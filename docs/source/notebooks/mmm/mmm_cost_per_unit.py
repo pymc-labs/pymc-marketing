@@ -22,13 +22,26 @@ def _():
     import xarray as xr
 
     from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+    from pymc_marketing.mmm.multidimensional import (
+        MultiDimensionalBudgetOptimizerWrapper,
+    )
     from pymc_marketing.paths import data_dir
 
     warnings.filterwarnings("ignore")
     az.style.use("arviz-darkgrid")
     plt.rcParams["figure.figsize"] = [12, 7]
     plt.rcParams["figure.dpi"] = 100
-    return az, build_mmm_from_yaml, data_dir, mo, np, pd, plt, xr
+    return (
+        az,
+        build_mmm_from_yaml,
+        data_dir,
+        mo,
+        np,
+        pd,
+        plt,
+        xr,
+        MultiDimensionalBudgetOptimizerWrapper,
+    )
 
 
 @app.cell
@@ -218,6 +231,129 @@ def _(mmm, np, plt):
     plt.tight_layout()
     fig_sens
     return fig_sens, sens_result
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## Budget Optimization with cost_per_unit
+
+    For budget optimization, we provide a *future* cost_per_unit for the optimization
+    window. This is independent of the historical cost_per_unit. The optimizer takes a
+    dollar budget, distributes it over time, converts channel_2's portion to impressions
+    using cost_per_unit, then optimizes. Output budgets are in dollars.
+    """
+    )
+    return
+
+
+@app.cell
+def _(MultiDimensionalBudgetOptimizerWrapper, mmm, np, pd, rng):
+    num_periods = 4
+    future_dates = pd.date_range(
+        start=mmm.data.dates[-1] + pd.Timedelta(days=1),
+        periods=num_periods,
+        freq="D",
+    )
+    start_date = future_dates[0]
+    end_date = future_dates[-1]
+    budget_wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    future_cpu_df = pd.DataFrame(
+        {
+            "date": future_dates,
+            "channel_2": np.abs(0.05 + rng.normal(0, 0.005, size=num_periods)),
+        }
+    )
+    future_cpu_df
+    return (
+        budget_wrapper,
+        end_date,
+        future_cpu_df,
+        future_dates,
+        num_periods,
+        start_date,
+    )
+
+
+@app.cell
+def _(budget_wrapper, future_cpu_df):
+    optimal_budgets, result = budget_wrapper.optimize_budget(
+        budget=10_000,
+        cost_per_unit=future_cpu_df,
+    )
+    optimal_budgets
+    return optimal_budgets, result
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    `optimal_budgets` are in dollars. The optimizer internally converted channel_2's
+    dollar allocation to impressions via cost_per_unit before feeding to the model's
+    response function.
+    """
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    ## Sensitivity to Different cost_per_unit Rates
+
+    The cost_per_unit rate directly affects budget allocation. Cheaper impressions
+    ($0.03) make Social Media more attractive per dollar; expensive impressions
+    ($0.10) shift budget toward TV.
+    """
+    )
+    return
+
+
+@app.cell
+def _(budget_wrapper, future_dates, num_periods, pd):
+    rates = [0.03, 0.05, 0.10]
+    results_list = []
+    for rate in rates:
+        cpu_df = pd.DataFrame(
+            {
+                "date": future_dates,
+                "channel_2": [rate] * num_periods,
+            }
+        )
+        budgets, _ = budget_wrapper.optimize_budget(
+            budget=10_000,
+            cost_per_unit=cpu_df,
+        )
+        row = budgets.to_dataframe(name="budget").reset_index()
+        row["cost_per_unit_channel_2"] = f"${rate:.2f}"
+        results_list.append(row)
+
+    comparison_df = pd.concat(results_list)
+    comparison_df.pivot_table(
+        index="cost_per_unit_channel_2",
+        columns="channel",
+        values="budget",
+        aggfunc="sum",
+    )
+    return comparison_df, cpu_df, rate, results_list
+
+
+@app.cell
+def _(mo):
+    mo.md(
+        r"""
+    As channel_2 gets cheaper, more budget flows there (more impressions per dollar =
+    more value). As it gets expensive, budget shifts to channel_1 (TV).
+    """
+    )
+    return
 
 
 if __name__ == "__main__":
