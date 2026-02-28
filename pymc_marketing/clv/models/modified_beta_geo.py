@@ -93,7 +93,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         # model_config and sampler_configs are optional
         model = ModifiedBetaGeoModel(
-            data=data,
             model_config={
                 "r": Prior("HalfFlat"),
                 "alpha": Prior("HalfFlat"),
@@ -110,12 +109,12 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         # The default 'mcmc' fit_method provides informative predictions
         # and reliable performance on small datasets
-        model.fit()
+        model.fit(data=rfm_df)
         print(model.fit_summary())
 
         # Maximum a Posteriori can quickly fit a model to large datasets,
         # but will give limited insights into predictive uncertainty.
-        model.fit(fit_method='map')
+        model.fit(data=rfm_df,fit_method='map')
         print(model.fit_summary())
 
         # Predict number of purchases for current customers
@@ -141,8 +140,29 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
     _model_type = "MBG/NBD"
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Input data with customer_id, frequency, recency, and T columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,

@@ -1263,10 +1263,12 @@ def autolog(
 
     def patch_clv_fit(fit):
         @wraps(fit)
-        def new_fit(self, fit_method: str = "mcmc", **kwargs):
+        def new_fit(self, data=None, method: str = "mcmc", fit_method=None, **kwargs):
             mlflow.log_param("model_type", self._model_type)
-            mlflow.log_param("fit_method", fit_method)
-            idata = fit(self, fit_method, **kwargs)
+            mlflow.log_param(
+                "fit_method", fit_method if fit_method is not None else method
+            )
+            idata = fit(self, data=data, method=method, fit_method=fit_method, **kwargs)
             mlflow.log_params(
                 idata.attrs,
             )

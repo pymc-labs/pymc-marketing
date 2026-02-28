@@ -658,9 +658,9 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
         "tune": 1,
     }
 
-    model = model_cls(data=clv_data, sampler_config=sampler_config)
+    model = model_cls(sampler_config=sampler_config)
     with mlflow.start_run() as run:
-        model.fit()
+        model.fit(data=clv_data)
 
     assert mlflow.active_run() is None
 
@@ -692,9 +692,9 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
 def test_clv_fit_map(model_cls, clv_data) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-clv")
 
-    model = model_cls(data=clv_data)
+    model = model_cls()
     with mlflow.start_run() as run:
-        model.fit(fit_method="map")
+        model.fit(data=clv_data, fit_method="map")
 
     assert mlflow.active_run() is None
 

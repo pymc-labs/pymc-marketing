@@ -567,7 +567,6 @@ class ModelBuilder(ABC, ModelIO):
     """Base class for building PyMC-Marketing models.
 
     Child classes must implement the following methods:
-
     - default_model_config: Returns a dictionary for default model configuration.
     - default_sampler_config: Returns a dictionary for default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
@@ -820,7 +819,6 @@ class RegressionModelBuilder(ModelBuilder):
     """ModelBuilder class providing an easy-to-use API similar to scikit-learn for regression models.
 
     Training data is provided in the fit method and must follow the following convention:
-
     - X: Matrix containing predictor variables
     - y: Target variable array
     """

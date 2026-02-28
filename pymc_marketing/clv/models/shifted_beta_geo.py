@@ -114,7 +114,6 @@ class ShiftedBetaGeoModel(CLVModel):
         from pymc_marketing.clv import ShiftedBetaGeoModel
 
         model = ShiftedBetaGeoModel(
-            data=data,
             model_config={
                 "alpha": Prior("HalfNormal", sigma=10),
                 "beta": Prior("HalfStudentT", nu=4, sigma=10),
@@ -133,7 +132,7 @@ class ShiftedBetaGeoModel(CLVModel):
         model.fit_summary()
 
         # Use 'mcmc' for more informative predictions and reliable performance on smaller datasets
-        model.fit(method="mcmc")
+        model.fit(data=data,method="mcmc")
         model.fit_summary()
 
         # Predict probability customers are still active
@@ -161,21 +160,21 @@ class ShiftedBetaGeoModel(CLVModel):
 
         # Example with customer-level covariates
         model_with_covariates = ShiftedBetaGeoModel(
-            data=covariate_data
             ),
             model_config={
                 "dropout_coefficient": Prior("Normal", mu=0, sigma=2),
                 "dropout_covariate_cols": ["covariate1", "covariate2"],
             },
         )
-        model_with_covariates.fit(method="demz")
+        model_with_covariates.fit(data=covariate_data, method="demz")
     """
 
     _model_type = "Shifted Beta-Geometric"
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | None = None,
+        *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
@@ -185,34 +184,6 @@ class ShiftedBetaGeoModel(CLVModel):
             sampler_config=sampler_config,
             non_distributions=["dropout_covariate_cols"],
         )
-
-        # Extract covariate columns from model_config
-        self.dropout_covariate_cols = list(self.model_config["dropout_covariate_cols"])
-
-        self._validate_cols(
-            data,
-            required_cols=[
-                "customer_id",
-                "recency",
-                "T",
-                "cohort",
-                *self.dropout_covariate_cols,
-            ],
-            must_be_unique=["customer_id"],
-        )
-
-        if np.any(
-            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
-        ):
-            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
-
-        self._validate_cohorts(self.data, check_param_dims=("alpha", "beta"))
-
-        # Create cohort dim & coords
-        self.cohorts = self.data["cohort"].unique()
-        self.cohort_idx = pd.Categorical(
-            self.data["cohort"], categories=self.cohorts
-        ).codes
 
     def _validate_cohorts(
         self,
@@ -271,8 +242,72 @@ class ShiftedBetaGeoModel(CLVModel):
             "dropout_covariate_cols": [],
         }
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    @property
+    def dropout_covariate_cols(self) -> list[str]:
+        """Dropout covariate column names from model_config."""
+        return list(self.model_config.get("dropout_covariate_cols", []))
+
+    @property
+    def cohorts(self):
+        """Unique cohort values from data."""
+        if not hasattr(self, "data") or self.data is None:
+            raise AttributeError(
+                "cohorts not available. Call build_model(data=...) first."
+            )
+        return self.data["cohort"].unique()
+
+    @property
+    def cohort_idx(self):
+        """Cohort indices for each customer."""
+        if not hasattr(self, "data") or self.data is None:
+            raise AttributeError(
+                "cohort_idx not available. Call build_model(data=...) first."
+            )
+        return pd.Categorical(self.data["cohort"], categories=self.cohorts).codes
+
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate Shifted Beta-Geometric-specific data requirements."""
+        self._validate_cols(
+            data,
+            required_cols=[
+                "customer_id",
+                "recency",
+                "T",
+                "cohort",
+                *self.dropout_covariate_cols,
+            ],
+            must_be_unique=["customer_id"],
+        )
+
+        if np.any(
+            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
+        ):
+            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
+
+        self._validate_cohorts(data, check_param_dims=("alpha", "beta"))
+
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Input data with customer_id, recency, T, and cohort columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         coords = {
             "customer_id": self.data["customer_id"],
             "cohort": self.cohorts,
@@ -755,17 +790,20 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     --------
         .. code-block:: python
 
+            import pandas as pd
             import pymc as pm
 
             from pymc_extras.prior import Prior
             from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
 
-            model = ShiftedBetaGeoModelIndividual(
-                data=pd.DataFrame({
+
+            data = pd.DataFrame({
                     customer_id=[0, 1, 2, 3, ...],
                     t_churn=[1, 2, 8, 4, 8 ...],
                     T=[8 for x in range(len(customer_id))],
-                }),
+                })
+
+            model = ShiftedBetaGeoModelIndividual(
                 model_config={
                     "alpha": Prior("HalfNormal", sigma=10),
                     "beta": Prior("HalfStudentT", nu=4, sigma=10),
@@ -779,7 +817,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 },
             )
 
-            model.fit()
+            model.fit(data=data)
             print(model.fit_summary())
 
             # Predict how many periods in the future are existing customers
@@ -806,25 +844,11 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | None = None,
+        *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
-        self._validate_cols(
-            data,
-            required_cols=["customer_id", "t_churn", "T"],
-            must_be_unique=["customer_id"],
-        )
-
-        if np.any(
-            (data["t_churn"] < 0)
-            | (data["t_churn"] > data["T"])
-            | np.isnan(data["t_churn"])
-        ):
-            raise ValueError(
-                "t_churn must respect 0 < t_churn <= T.\n",
-                "Customers that are still alive should have t_churn = T",
-            )
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -837,8 +861,48 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             "beta": Prior("HalfFlat"),
         }
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate Shifted Beta-Geometric Individual-specific data requirements."""
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "t_churn", "T"],
+            must_be_unique=["customer_id"],
+        )
+
+        if np.any(
+            (data["t_churn"] < 0)
+            | (data["t_churn"] > data["T"])
+            | np.isnan(data["t_churn"])
+        ):
+            raise ValueError(
+                "t_churn must respect 0 < t_churn <= T.\n"
+                "Customers that are still alive should have t_churn = T"
+            )
+
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Input data with customer_id, t_churn, and T columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
             alpha = self.model_config["alpha"].create_variable("alpha")

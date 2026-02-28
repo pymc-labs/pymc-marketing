@@ -1,6 +1,12 @@
 ---
+description:
 alwaysApply: true
 ---
-- Always activate conda env `pymc-marketing-dev`.
+
 - Run pre-commit everytime you create or modify a file.
 - Temporary or test scripts that are not meant to be commited should be created in the sandbox folder
+
+When running Python commands (pytest, pre-commit, python), prefer using the
+absolute path to the executable inside the active environment's bin/ directory
+rather than relying on PATH. Discover it with `which python` (or `where python`
+on Windows) inside an already-activated environment (conda, venv, pyenv, etc.).
