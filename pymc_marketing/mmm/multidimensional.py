@@ -188,6 +188,11 @@ from pymc_marketing.mmm.components.saturation import (
     saturation_from_dict,
 )
 from pymc_marketing.mmm.events import EventEffect
+from pymc_marketing.mmm.experiment import (
+    ExperimentResult,
+    ExperimentType,
+    run_experiment,
+)
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
 from pymc_marketing.mmm.incrementality import Incrementality
@@ -2869,6 +2874,182 @@ class MMM(RegressionModelBuilder):
             model=self.model,
             cpt_value=cpt_tensor,
             name_prefix=name_prefix,
+        )
+
+    def experiment(
+        self,
+        experiment_type: str | ExperimentType,
+        data: pd.DataFrame,
+        **kwargs: Any,
+    ) -> ExperimentResult:
+        """Run a CausalPy causal inference experiment.
+
+        Provides a convenient interface to run quasi-experimental analyses
+        (Interrupted Time Series, Synthetic Control, Difference-in-Differences,
+        Regression Discontinuity) using CausalPy, with results that can be
+        directly converted to lift test calibration data.
+
+        Parameters
+        ----------
+        experiment_type : str or ExperimentType
+            The type of experiment to run. Accepts string aliases:
+
+            - ``"its"``: Interrupted Time Series
+            - ``"sc"``: Synthetic Control
+            - ``"did"``: Difference-in-Differences
+            - ``"rd"``: Regression Discontinuity
+
+        data : pd.DataFrame
+            The experiment data to pass to CausalPy.
+        **kwargs
+            Additional keyword arguments passed to the CausalPy experiment
+            constructor. Common arguments include:
+
+            - ``treatment_time``: When the treatment/intervention started.
+            - ``formula``: Patsy formula for the model specification.
+            - ``model``: A CausalPy model (e.g.
+              ``causalpy.pymc_models.LinearRegression()``).
+
+        Returns
+        -------
+        ExperimentResult
+            A wrapped result with methods for summarizing, plotting,
+            and converting to lift test format via :meth:`ExperimentResult.to_lift_test`.
+
+        Raises
+        ------
+        ImportError
+            If ``causalpy`` is not installed. Install it via
+            ``pip install pymc-marketing[experiment]``.
+        ValueError
+            If ``experiment_type`` is not a valid experiment type.
+
+        See Also
+        --------
+        add_lift_test : Add an experiment result as lift test calibration.
+        add_lift_test_measurements : Add raw lift test measurements.
+        ExperimentResult : The result wrapper class.
+
+        Examples
+        --------
+        Run a Synthetic Control experiment and use it to calibrate the MMM:
+
+        .. code-block:: python
+
+            import causalpy as cp
+
+            result = mmm.experiment(
+                experiment_type="sc",
+                data=df_experiment,
+                treatment_time=70,
+                formula="actual ~ 0 + a + b + c",
+                model=cp.pymc_models.WeightedSumFitter(
+                    sample_kwargs={"random_seed": 42}
+                ),
+            )
+
+            # Visualize the experiment results
+            result.summary()
+            fig, ax = result.plot()
+
+            # Convert to lift test and add to model
+            mmm.add_lift_test(
+                experiment=result,
+                channel="tv",
+                x=1000.0,
+                delta_x=200.0,
+            )
+
+        """
+        return run_experiment(
+            experiment_type=experiment_type,
+            data=data,
+            **kwargs,
+        )
+
+    def add_lift_test(
+        self,
+        experiment: ExperimentResult,
+        channel: str,
+        x: float,
+        delta_x: float,
+        dist: type[pm.Distribution] = pm.Gamma,
+        name: str = "lift_measurements",
+        **dim_kwargs: str,
+    ) -> None:
+        """Add a CausalPy experiment result as a lift test calibration.
+
+        Convenience method that converts an :class:`ExperimentResult` into the
+        lift test DataFrame format and passes it to
+        :meth:`add_lift_test_measurements`.
+
+        Parameters
+        ----------
+        experiment : ExperimentResult
+            The experiment result from :meth:`experiment` or
+            :func:`~pymc_marketing.mmm.experiment.run_experiment`.
+        channel : str
+            The marketing channel name. Must be present in
+            ``channel_columns``.
+        x : float
+            The baseline spend level for the channel during the experiment.
+        delta_x : float
+            The change in channel spend during the experiment.
+        dist : type[pm.Distribution], optional
+            The distribution to use for the likelihood, by default
+            ``pm.Gamma``.
+        name : str, optional
+            The name of the likelihood contribution, by default
+            ``"lift_measurements"``.
+        **dim_kwargs : str
+            Dimension values for the lift test, e.g. ``geo="US"``.
+            Keys must match the model's ``dims``.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been built yet.
+        KeyError
+            If the channel or dimension values don't match the model.
+
+        See Also
+        --------
+        experiment : Run a CausalPy experiment.
+        add_lift_test_measurements : Add raw lift test measurements.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            import causalpy as cp
+
+            result = mmm.experiment(
+                experiment_type="its",
+                data=df_experiment,
+                treatment_time=pd.Timestamp("2024-01-01"),
+                formula="y ~ 1 + t",
+                model=cp.pymc_models.LinearRegression(),
+            )
+
+            mmm.add_lift_test(
+                experiment=result,
+                channel="tv",
+                x=1000.0,
+                delta_x=200.0,
+                geo="US",
+            )
+
+        """
+        df_lift_test = experiment.to_lift_test(
+            channel=channel,
+            x=x,
+            delta_x=delta_x,
+            **dim_kwargs,
+        )
+        self.add_lift_test_measurements(
+            df_lift_test=df_lift_test,
+            dist=dist,
+            name=name,
         )
 
     def create_fit_data(
