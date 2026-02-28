@@ -98,24 +98,6 @@ class CLVModel(ModelBuilder):
                 if data[col].nunique() != 1:
                     raise ValueError(f"Column {col} has non-homogeneous entries")
 
-    def _validate_data(self, data: pd.DataFrame) -> None:
-        """Validate and prepare data for model building.
-
-        This method should be overridden by child classes to specify
-        required columns and model-specific validation rules.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            The input data to validate
-
-        Raises
-        ------
-        ValueError
-            If data doesn't meet model requirements
-        """
-        pass
-
     def __repr__(self) -> str:
         """Representation of the model."""
         if not hasattr(self, "model"):
