@@ -738,9 +738,11 @@ def plot_product(
 
     ax = cast(Axes, ax)
 
-    data.plot(ax=ax)
+    for col in data.columns:
+        ax.plot(data.index, data[col], label=col)
     if plot_total_sales:
-        data.sum(axis=1).plot(label="total sales", color="black", ax=ax)
+        ax.plot(data.index, data.sum(axis=1), label="total sales", color="black")
+    ax.legend()
     ax.set_ylim(bottom=0)
     ax.set(ylabel="Sales")
     return ax
