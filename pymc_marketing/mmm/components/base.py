@@ -421,6 +421,13 @@ class Transformation:
     ) -> xr.Dataset:
         """Sample the priors for the transformation.
 
+        When parameters include constant tensors (rather than probability
+        distributions), those constants need to be explicitly registered as
+        ``pm.Deterministic`` nodes to ensure they are captured in the prior
+        output. This handles both cases where all priors are constants and
+        mixed cases where some priors are distributions and others are constant
+        tensors.
+
         Parameters
         ----------
         coords : dict, optional
@@ -437,8 +444,20 @@ class Transformation:
         coords = coords or {}
         dims = tuple(coords.keys())
         with pm.Model(coords=coords):
-            self._create_distributions(dims=dims)
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+            variables = self._create_distributions(dims=dims)
+
+            # Register any constant tensors (non-distribution priors) as
+            # pm.Deterministic nodes so they are captured in the prior output.
+            # This handles both the case where all priors are constants and
+            # mixed cases where some priors are distributions and others are
+            # constant tensors.
+            for param_name, var_name in self.variable_mapping.items():
+                prior = self.function_priors[param_name]
+                if not hasattr(prior, "create_variable"):
+                    pm.Deterministic(var_name, variables[param_name])
+
+            idata = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
+            return idata.prior
 
     def plot_curve(
         self,
