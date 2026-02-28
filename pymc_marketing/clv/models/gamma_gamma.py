@@ -324,6 +324,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             "v": Prior("HalfFlat"),
         }
 
+    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma-specific data requirements."""
         self._validate_cols(

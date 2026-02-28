@@ -192,6 +192,7 @@ class BetaGeoModel(CLVModel):
         """All covariate column names."""
         return self.purchase_covariate_cols + self.dropout_covariate_cols
 
+    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate BG/NBD-specific data requirements."""
         self._validate_cols(
