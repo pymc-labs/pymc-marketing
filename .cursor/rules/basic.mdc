@@ -1,6 +1,11 @@
 ---
+description:
 alwaysApply: true
 ---
-- Always activate conda env `pymc-marketing-dev`.
+
 - Run pre-commit everytime you create or modify a file.
 - Temporary or test scripts that are not meant to be commited should be created in the sandbox folder
+
+For Python commands in the pymc-marketing project, use absolute path
+/Users/coltallen/miniforge3/envs/pymc-marketing-dev/bin/ for executables
+(pytest, pre-commit, python). Do not rely on conda activate or PATH.
