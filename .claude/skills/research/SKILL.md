@@ -33,7 +33,7 @@ Once you test the code out of the code base using this temporal python files and
 Delete the files once, you finish your testing.
 
 ## Document base
-Your goal is create a folder under `.cursor/plans`. You must save all your discoveries under `.cursor/plans/{plan_name_folder}/research` this must be a file `.md`.
+Your goal is create a folder under `.claude/plans`. You must save all your discoveries under `.claude/plans/{plan_name_folder}/research` this must be a file `.md`.
 
 You only need to provide the research plan and a possible tested solution.
 
