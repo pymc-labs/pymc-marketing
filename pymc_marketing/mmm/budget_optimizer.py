@@ -1101,7 +1101,7 @@ class BudgetOptimizer(BaseModel):
             budget_bounds_array = np.broadcast_to(
                 [
                     np.asarray(budget_bounds[channel])
-                    for channel in self.mmm_model.channel_columns
+                    for channel in self._budget_coords[self._budget_dims[0]]
                 ],
                 (*self._budget_shape, 2),
             )
@@ -1111,9 +1111,13 @@ class BudgetOptimizer(BaseModel):
                 raise ValueError(
                     f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
                 )
-            budget_bounds_array = budget_bounds.transpose(
-                *self._budget_dims, "bound"
-            ).values
+            budget_bounds_array = (
+                budget_bounds.reindex(
+                    {d: self._budget_coords[d] for d in self._budget_dims}
+                )
+                .transpose(*self._budget_dims, "bound")
+                .values
+            )
         else:
             raise ValueError(
                 "budget_bounds must be a dictionary or an xarray.DataArray"
