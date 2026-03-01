@@ -1101,7 +1101,7 @@ class BudgetOptimizer(BaseModel):
             budget_bounds_array = np.broadcast_to(
                 [
                     np.asarray(budget_bounds[channel])
-                    for channel in self.mmm_model.channel_columns
+                    for channel in self._budget_coords[self._budget_dims[0]]
                 ],
                 (*self._budget_shape, 2),
             )
