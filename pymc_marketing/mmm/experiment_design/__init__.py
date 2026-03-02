@@ -20,6 +20,8 @@ ExperimentDesigner
     Main class for recommending experiments based on a fitted MMM.
 ExperimentRecommendation
     Dataclass representing a single recommended experiment design.
+ExperimentRecommendations
+    Sequence container returned by ``ExperimentDesigner.recommend()``.
 generate_experiment_fixture
     Utility for generating realistic InferenceData test fixtures.
 """
@@ -30,10 +32,12 @@ from pymc_marketing.mmm.experiment_design.fixture import (
 )
 from pymc_marketing.mmm.experiment_design.recommendation import (
     ExperimentRecommendation,
+    ExperimentRecommendations,
 )
 
 __all__ = [
     "ExperimentDesigner",
     "ExperimentRecommendation",
+    "ExperimentRecommendations",
     "generate_experiment_fixture",
 ]

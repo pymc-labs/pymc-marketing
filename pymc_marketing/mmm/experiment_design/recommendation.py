@@ -12,11 +12,17 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-"""ExperimentRecommendation dataclass and rationale template."""
+"""ExperimentRecommendation dataclass, container, and rationale template."""
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from html import escape
+from typing import TYPE_CHECKING, overload
+
+if TYPE_CHECKING:
+    import pandas
 
 
 @dataclass
@@ -68,6 +74,140 @@ class ExperimentRecommendation:
     net_cost: float
     score: float
     rationale: str
+
+
+class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
+    """Ordered collection of experiment recommendations.
+
+    Behaves like an immutable list of :class:`ExperimentRecommendation`
+    objects (supports iteration, indexing, slicing, and ``len``).  In
+    Jupyter notebooks the collection renders automatically as an HTML
+    table via ``_repr_html_``.
+
+    Parameters
+    ----------
+    recommendations : list[ExperimentRecommendation]
+        Pre-sorted list of recommendations (highest score first).
+    """
+
+    def __init__(self, recommendations: list[ExperimentRecommendation]) -> None:
+        self._recommendations = list(recommendations)
+
+    # -- Sequence protocol ---------------------------------------------------
+
+    @overload
+    def __getitem__(self, index: int) -> ExperimentRecommendation: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> ExperimentRecommendations: ...
+
+    def __getitem__(
+        self, index: int | slice
+    ) -> ExperimentRecommendation | ExperimentRecommendations:
+        """Return a recommendation by index, or a sub-collection by slice."""
+        if isinstance(index, slice):
+            return ExperimentRecommendations(self._recommendations[index])
+        return self._recommendations[index]
+
+    def __len__(self) -> int:
+        """Return the number of recommendations."""
+        return len(self._recommendations)
+
+    def __iter__(self) -> Iterator[ExperimentRecommendation]:
+        """Iterate over the recommendations."""
+        return iter(self._recommendations)
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality against another container or plain list."""
+        if isinstance(other, ExperimentRecommendations):
+            return self._recommendations == other._recommendations
+        if isinstance(other, list):
+            return self._recommendations == other
+        return NotImplemented
+
+    def __repr__(self) -> str:
+        """Return a concise string representation."""
+        return f"ExperimentRecommendations({len(self)} recommendations)"
+
+    # -- Jupyter rendering ---------------------------------------------------
+
+    def _repr_html_(self) -> str:
+        """Render as an HTML table in Jupyter notebooks."""
+        if not self._recommendations:
+            return "<p><em>No recommendations (all candidates filtered out).</em></p>"
+
+        header = (
+            "<tr>"
+            "<th>Rank</th>"
+            "<th>Channel</th>"
+            "<th>&Delta; Spend</th>"
+            "<th>Duration</th>"
+            "<th>E[Lift]</th>"
+            "<th>Lift 94% HDI</th>"
+            "<th>SNR</th>"
+            "<th>Assurance</th>"
+            "<th>Ramp</th>"
+            "<th>Score</th>"
+            "</tr>"
+        )
+
+        rows: list[str] = []
+        for i, rec in enumerate(self._recommendations):
+            spend_str = (
+                "go-dark"
+                if rec.spend_change_frac == -1.0
+                else f"{rec.spend_change_frac:+.0%}/wk"
+            )
+            rows.append(
+                f"<tr>"
+                f"<td>{i + 1}</td>"
+                f"<td>{escape(rec.channel)}</td>"
+                f"<td>{spend_str}</td>"
+                f"<td>{rec.duration_weeks}w</td>"
+                f"<td>{rec.expected_lift:.1f}</td>"
+                f"<td>[{rec.expected_lift_hdi[0]:.0f}, "
+                f"{rec.expected_lift_hdi[1]:.0f}]</td>"
+                f"<td>{rec.snr:.1f}</td>"
+                f"<td>{rec.assurance:.2f}</td>"
+                f"<td>{rec.adstock_ramp_fraction:.2f}</td>"
+                f"<td>{rec.score:.3f}</td>"
+                f"</tr>"
+            )
+
+        return f"<table><thead>{header}</thead><tbody>{''.join(rows)}</tbody></table>"
+
+    def to_dataframe(self) -> pandas.DataFrame:
+        """Convert to a :class:`pandas.DataFrame`.
+
+        Returns
+        -------
+        pd.DataFrame
+            One row per recommendation with formatted columns.
+        """
+        import pandas as pd
+
+        records = [
+            {
+                "Rank": i + 1,
+                "Channel": rec.channel,
+                "Spend Change": (
+                    "go-dark"
+                    if rec.spend_change_frac == -1.0
+                    else f"{rec.spend_change_frac:+.0%}/wk"
+                ),
+                "Duration": f"{rec.duration_weeks}w",
+                "E[Lift]": rec.expected_lift,
+                "Lift HDI Low": rec.expected_lift_hdi[0],
+                "Lift HDI High": rec.expected_lift_hdi[1],
+                "SNR": rec.snr,
+                "Assurance": rec.assurance,
+                "Ramp": rec.adstock_ramp_fraction,
+                "Net Cost": rec.net_cost,
+                "Score": rec.score,
+            }
+            for i, rec in enumerate(self._recommendations)
+        ]
+        return pd.DataFrame(records)
 
 
 def _format_rationale(

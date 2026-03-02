@@ -22,6 +22,7 @@ multiple spend channels, analysed via Interrupted Time Series (ITS).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 import arviz as az
@@ -33,6 +34,7 @@ from scipy.stats import norm
 
 from pymc_marketing.mmm.experiment_design.recommendation import (
     ExperimentRecommendation,
+    ExperimentRecommendations,
     _format_rationale,
 )
 
@@ -445,7 +447,7 @@ class ExperimentDesigner:
 
     def _compute_scoring_dimensions(
         self,
-        recommendations: list[ExperimentRecommendation],
+        recommendations: Sequence[ExperimentRecommendation],
     ) -> dict[str, np.ndarray]:
         """Compute raw scoring dimensions for all candidates.
 
@@ -513,7 +515,7 @@ class ExperimentDesigner:
 
     def _compute_scores(
         self,
-        recommendations: list[ExperimentRecommendation],
+        recommendations: Sequence[ExperimentRecommendation],
         score_weights: dict[str, float] | None = None,
     ) -> np.ndarray:
         """Compute weighted composite scores for all recommendations."""
@@ -549,11 +551,11 @@ class ExperimentDesigner:
         min_snr: float = 2.0,
         significance_level: float = 0.05,
         score_weights: dict[str, float] | None = None,
-    ) -> list[ExperimentRecommendation]:
+    ) -> ExperimentRecommendations:
         """Recommend experiments across all channels.
 
         Evaluates a grid of candidate designs (channel x spend change x
-        duration) and returns a ranked list of recommendations.
+        duration) and returns a ranked collection of recommendations.
 
         Parameters
         ----------
@@ -574,7 +576,7 @@ class ExperimentDesigner:
 
         Returns
         -------
-        list[ExperimentRecommendation]
+        ExperimentRecommendations
             Recommendations sorted by score (descending).
         """
         if spend_changes is None:
@@ -625,7 +627,7 @@ class ExperimentDesigner:
                     candidates.append(rec)
 
         if not candidates:
-            return []
+            return ExperimentRecommendations([])
 
         scores = self._compute_scores(candidates, score_weights)
         for i, rec in enumerate(candidates):
@@ -641,7 +643,7 @@ class ExperimentDesigner:
             )
 
         candidates.sort(key=lambda r: r.score, reverse=True)
-        return candidates
+        return ExperimentRecommendations(candidates)
 
     def _get_uncertainty_ranks(self) -> dict[str, int]:
         """Rank channels by posterior uncertainty (1 = most uncertain)."""
@@ -682,7 +684,9 @@ class ExperimentDesigner:
     # ------------------------------------------------------------------
 
     def plot_channel_diagnostics(
-        self, ax: matplotlib.axes.Axes | None = None
+        self,
+        colors: dict[str, str] | None = None,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, np.ndarray]:
         """Plot per-channel diagnostic summary.
 
@@ -690,14 +694,29 @@ class ExperimentDesigner:
         gradient at current operating point, and posterior mean adstock
         alpha for each channel.
 
+        Parameters
+        ----------
+        colors : dict[str, str] | None
+            Mapping of channel name to matplotlib color string.
+            Falls back to ``C0``, ``C1``, ... when ``None``.
+        figsize : tuple[float, float] | None
+            ``(width, height)`` for the figure. Defaults to
+            ``(10, 4)``.
+
         Returns
         -------
         tuple[Figure, ndarray of Axes]
         """
-        n_metrics = 4
-        fig, axes = plt.subplots(1, n_metrics, figsize=(4 * n_metrics, 4))
         channels = self.channel_columns
+        if colors is None:
+            colors = {ch: f"C{i}" for i, ch in enumerate(channels)}
+        if figsize is None:
+            figsize = (10, 4)
+
+        n_metrics = 4
+        fig, axes = plt.subplots(1, n_metrics, figsize=figsize)
         x_pos = np.arange(len(channels))
+        bar_colors = [colors[ch] for ch in channels]
 
         hdi_widths = []
         correlations = []
@@ -745,8 +764,8 @@ class ExperimentDesigner:
         ]
         values = [hdi_widths, correlations, gradients, alphas]
 
-        for i, (ax_i, title, vals) in enumerate(zip(axes, titles, values, strict=True)):
-            ax_i.bar(x_pos, vals, color=f"C{i}")
+        for ax_i, title, vals in zip(axes, titles, values, strict=True):
+            ax_i.bar(x_pos, vals, color=bar_colors)
             ax_i.set_xticks(x_pos)
             ax_i.set_xticklabels(channels, rotation=45, ha="right")
             ax_i.set_title(title)
@@ -756,7 +775,9 @@ class ExperimentDesigner:
 
     def plot_power_cost(
         self,
-        recommendations: list[ExperimentRecommendation],
+        recommendations: ExperimentRecommendations | Sequence[ExperimentRecommendation],
+        colors: dict[str, str] | None = None,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, plt.Axes]:
         """Scatter plot of assurance vs. absolute net cost.
 
@@ -764,16 +785,25 @@ class ExperimentDesigner:
 
         Parameters
         ----------
-        recommendations : list[ExperimentRecommendation]
+        recommendations : ExperimentRecommendations | Sequence[ExperimentRecommendation]
             Output of :meth:`recommend`.
+        colors : dict[str, str] | None
+            Mapping of channel name to matplotlib color string.
+            Falls back to ``C0``, ``C1``, ... when ``None``.
+        figsize : tuple[float, float] | None
+            ``(width, height)`` for the figure. Defaults to
+            ``(10, 4)``.
 
         Returns
         -------
         tuple[Figure, Axes]
         """
-        fig, ax = plt.subplots(figsize=(8, 5))
+        if figsize is None:
+            figsize = (10, 4)
+        fig, ax = plt.subplots(figsize=figsize)
 
-        channel_colors = {ch: f"C{i}" for i, ch in enumerate(self.channel_columns)}
+        if colors is None:
+            colors = {ch: f"C{i}" for i, ch in enumerate(self.channel_columns)}
         markers = {
             "increase": "^",
             "decrease": "v",
@@ -791,13 +821,13 @@ class ExperimentDesigner:
             ax.scatter(
                 abs(rec.net_cost),
                 rec.assurance,
-                c=channel_colors[rec.channel],
+                c=colors.get(rec.channel, "C0"),
                 marker=markers[direction],
                 s=60,
                 alpha=0.7,
             )
 
-        for ch, color in channel_colors.items():
+        for ch, color in colors.items():
             ax.scatter([], [], c=color, label=ch, s=60)
         for name, marker in markers.items():
             ax.scatter([], [], c="gray", marker=marker, label=name, s=60)
@@ -815,6 +845,8 @@ class ExperimentDesigner:
         channel: str,
         spend_changes: list[float] | None = None,
         durations: list[int] | None = None,
+        color: str | None = None,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, np.ndarray]:
         """Grid of lift posterior distributions for one channel.
 
@@ -829,6 +861,12 @@ class ExperimentDesigner:
             ``[0.2, 0.5, -0.5, -1.0]``.
         durations : list[int] | None
             Durations in weeks. Defaults to ``[4, 6, 8, 12]``.
+        color : str | None
+            Matplotlib color for this channel's histograms and HDI
+            bands.  Falls back to ``"C0"`` when ``None``.
+        figsize : tuple[float, float] | None
+            ``(width, height)`` for the figure. Defaults to
+            ``(10, 3 * n_rows)``.
 
         Returns
         -------
@@ -838,9 +876,15 @@ class ExperimentDesigner:
             spend_changes = [0.2, 0.5, -0.5, -1.0]
         if durations is None:
             durations = [4, 6, 8, 12]
+        if color is None:
+            color = "C0"
 
         n_rows, n_cols = len(spend_changes), len(durations)
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows))
+        if figsize is None:
+            figsize = (10, 3 * n_rows)
+        fig, axes = plt.subplots(
+            n_rows, n_cols, figsize=figsize, sharex=False, sharey=False
+        )
         if n_rows == 1:
             axes = axes[np.newaxis, :]
         if n_cols == 1:
@@ -855,9 +899,9 @@ class ExperimentDesigner:
                 lift = self._predict_lift(channel, delta_x, T)
                 hdi = az.hdi(lift, hdi_prob=0.94)
 
-                ax_ij.hist(lift, bins=50, density=True, alpha=0.6, color="C0")
+                ax_ij.hist(lift, bins=50, density=True, alpha=0.6, color=color)
                 ax_ij.axvline(0, color="black", linestyle="--", linewidth=0.8)
-                ax_ij.axvspan(hdi[0], hdi[1], alpha=0.15, color="C0")
+                ax_ij.axvspan(hdi[0], hdi[1], alpha=0.15, color=color)
                 ax_ij.set_title(f"Δ={frac * 100:+.0f}%, T={T}w", fontsize=9)
                 if j == 0:
                     ax_ij.set_ylabel("Density")
@@ -871,43 +915,66 @@ class ExperimentDesigner:
     def plot_saturation_curve(
         self,
         channel: str,
-        n_samples: int = 50,
+        n_samples: int = 500,
         spend_levels: list[float] | None = None,
+        ax: matplotlib.axes.Axes | None = None,
+        color: str | None = None,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, plt.Axes]:
         """Plot the saturation curve with posterior uncertainty.
+
+        Shows the posterior mean curve with a 94% HDI band.
 
         Parameters
         ----------
         channel : str
             Channel name.
         n_samples : int
-            Number of posterior draws to plot as semi-transparent lines.
+            Number of posterior draws to subsample for the HDI band.
         spend_levels : list[float] | None
             Optional fractional spend levels to mark. E.g. ``[0.2, 0.5]``
             marks +20% and +50% of current spend.
+        ax : matplotlib.axes.Axes | None
+            Pre-existing axes to draw on. If ``None`` a new figure is created.
+        color : str | None
+            Matplotlib color for this channel's curve and band.
+            Falls back to ``"C0"`` when ``None``.
+        figsize : tuple[float, float] | None
+            ``(width, height)`` when creating a new figure. Defaults to
+            ``(10, 4)``.
 
         Returns
         -------
         tuple[Figure, Axes]
         """
-        fig, ax = plt.subplots(figsize=(7, 4))
+        if color is None:
+            color = "C0"
+        if ax is None:
+            if figsize is None:
+                figsize = (10, 4)
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.get_figure()
         params = self._posterior_samples[channel]
 
         x_current = self._current_spend[channel]
         x_max = x_current * 2.5
-        x_grid = np.linspace(0, x_max, 200)
+        n_grid = 200
+        x_grid = np.linspace(0, x_max, n_grid)
 
         rng = np.random.default_rng(42)
         idx = rng.choice(self.n_draws, size=min(n_samples, self.n_draws), replace=False)
 
-        for k in idx:
-            y = self._eval_saturation(x_grid, params["lam"][k], params["beta"][k])
-            ax.plot(x_grid, y, color="C0", alpha=0.1, linewidth=0.8)
-
-        y_mean = self._eval_saturation(
-            x_grid, np.mean(params["lam"]), np.mean(params["beta"])
+        y_all = self._eval_saturation(
+            x_grid[None, :], params["lam"][idx, None], params["beta"][idx, None]
         )
-        ax.plot(x_grid, y_mean, color="C0", linewidth=2, label="Posterior mean")
+
+        y_mean = y_all.mean(axis=0)
+        y_lo = np.percentile(y_all, 3.0, axis=0)
+        y_hi = np.percentile(y_all, 97.0, axis=0)
+
+        ax.fill_between(x_grid, y_lo, y_hi, color=color, alpha=0.15)
+        ax.plot(x_grid, y_mean, color=color, linewidth=2, label="Posterior mean")
 
         ax.axvline(
             x_current,
@@ -938,8 +1005,12 @@ class ExperimentDesigner:
 
     def plot_adstock_ramp(
         self,
-        recommendations: list[ExperimentRecommendation] | None = None,
+        recommendations: ExperimentRecommendations
+        | Sequence[ExperimentRecommendation]
+        | None = None,
         max_weeks: int = 16,
+        colors: dict[str, str] | None = None,
+        figsize: tuple[float, float] | None = None,
     ) -> tuple[Figure, plt.Axes]:
         """Plot adstock ramp fraction vs. experiment duration.
 
@@ -948,19 +1019,30 @@ class ExperimentDesigner:
 
         Parameters
         ----------
-        recommendations : list[ExperimentRecommendation] | None
+        recommendations : ExperimentRecommendations | Sequence[ExperimentRecommendation] | None
             If provided, marks the durations of recommended experiments.
         max_weeks : int
             Maximum duration to plot.
+        colors : dict[str, str] | None
+            Mapping of channel name to matplotlib color string.
+            Falls back to ``C0``, ``C1``, ... when ``None``.
+        figsize : tuple[float, float] | None
+            ``(width, height)`` for the figure. Defaults to
+            ``(10, 4)``.
 
         Returns
         -------
         tuple[Figure, Axes]
         """
-        fig, ax = plt.subplots(figsize=(7, 4))
+        if colors is None:
+            colors = {ch: f"C{i}" for i, ch in enumerate(self.channel_columns)}
+        if figsize is None:
+            figsize = (10, 4)
+        fig, ax = plt.subplots(figsize=figsize)
         weeks = np.arange(1, max_weeks + 1)
 
-        for i, ch in enumerate(self.channel_columns):
+        for ch in self.channel_columns:
+            c = colors[ch]
             alpha = self._posterior_samples[ch]["alpha"]
             ramp_fracs = np.zeros((self.n_draws, max_weeks))
 
@@ -978,8 +1060,8 @@ class ExperimentDesigner:
             low = np.percentile(ramp_fracs, 5.5, axis=0)
             high = np.percentile(ramp_fracs, 94.5, axis=0)
 
-            ax.plot(weeks, mean_ramp, color=f"C{i}", label=ch)
-            ax.fill_between(weeks, low, high, color=f"C{i}", alpha=0.15)
+            ax.plot(weeks, mean_ramp, color=c, label=ch)
+            ax.fill_between(weeks, low, high, color=c, alpha=0.15)
 
         ax.set_xlabel("Experiment Duration (weeks)")
         ax.set_ylabel("Adstock Ramp Fraction")

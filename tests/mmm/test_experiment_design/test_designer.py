@@ -22,6 +22,7 @@ import pytest
 from pymc_marketing.mmm.experiment_design import (
     ExperimentDesigner,
     ExperimentRecommendation,
+    ExperimentRecommendations,
     generate_experiment_fixture,
 )
 
@@ -172,12 +173,12 @@ class TestAssurance:
 class TestRecommend:
     """Tests for the recommend method."""
 
-    def test_returns_list(self, designer):
+    def test_returns_recommendations_container(self, designer):
         recs = designer.recommend(
             spend_changes=[0.2, -1.0],
             durations=[4, 6],
         )
-        assert isinstance(recs, list)
+        assert isinstance(recs, ExperimentRecommendations)
 
     def test_all_recommendations_are_dataclass(self, designer):
         recs = designer.recommend(
@@ -262,7 +263,52 @@ class TestRecommend:
             durations=[1],
             min_snr=1000.0,
         )
-        assert recs == []
+        assert len(recs) == 0
+
+
+class TestExperimentRecommendations:
+    """Tests for the ExperimentRecommendations container."""
+
+    def test_len(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        assert len(recs) > 0
+
+    def test_indexing(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        assert isinstance(recs[0], ExperimentRecommendation)
+
+    def test_slicing_returns_container(self, designer):
+        recs = designer.recommend(spend_changes=[0.2, -1.0], durations=[4], min_snr=0.0)
+        sliced = recs[:2]
+        assert isinstance(sliced, ExperimentRecommendations)
+        assert len(sliced) <= 2
+
+    def test_iteration(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        items = list(recs)
+        assert all(isinstance(r, ExperimentRecommendation) for r in items)
+
+    def test_repr_html(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        html = recs._repr_html_()
+        assert "<table>" in html
+        assert "Channel" in html
+
+    def test_repr_html_empty(self):
+        recs = ExperimentRecommendations([])
+        html = recs._repr_html_()
+        assert "No recommendations" in html
+
+    def test_to_dataframe(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        df = recs.to_dataframe()
+        assert len(df) == len(recs)
+        assert "Channel" in df.columns
+        assert "Score" in df.columns
+
+    def test_repr(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        assert "ExperimentRecommendations" in repr(recs)
 
 
 class TestScoring:
