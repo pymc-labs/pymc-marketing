@@ -294,7 +294,7 @@ jobs:
 
       - name: Upload logs
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: claude-output-implement-${{ github.event.issue.number }}
           path: /tmp/claude_output.log
