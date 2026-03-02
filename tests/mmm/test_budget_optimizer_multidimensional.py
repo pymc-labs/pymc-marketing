@@ -92,6 +92,59 @@ def fitted_mmm(dummy_df, mock_pymc_sample):
     return mmm
 
 
+def _build_fitted_mmm_shuffled(channels, dims=("geo",)):
+    """Build and fit a real MMM with the given non-alphabetical channels."""
+    n = 10
+    data = {"date_week": pd.date_range("2023-01-01", periods=n, freq="W")}
+    if dims:
+        data["geo"] = ["G1", "G2"] * (n // 2)
+    for ch in channels:
+        data[ch] = np.linspace(0, 1, num=n)
+    df = pd.DataFrame(data)
+    y = pd.Series(np.ones(n), name="y")
+
+    mmm = MMM(
+        date_column="date_week",
+        channel_columns=channels,
+        dims=dims,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        target_column="y",
+    )
+    mmm.build_model(X=df, y=y)
+    mmm.fit(X=df, y=y, chains=2, tune=50, draws=50, progressbar=False)
+    mmm.sample_posterior_predictive(
+        X=df, extend_idata=True, combined=True, progressbar=False
+    )
+    return mmm
+
+
+@pytest.fixture(
+    scope="module",
+    params=[
+        ["Z_tv", "A_social"],
+        ["Z_tv", "M_radio", "A_social", "D_print", "B_search"],
+    ],
+    ids=["2ch_shuffled", "5ch_shuffled"],
+)
+def fitted_mmm_shuffled(request, mock_pymc_sample):
+    """Real multidimensional MMM with non-alphabetical channel names."""
+    return _build_fitted_mmm_shuffled(request.param, dims=("geo",))
+
+
+@pytest.fixture(
+    scope="module",
+    params=[
+        ["Z_tv", "A_social"],
+        ["Z_tv", "M_radio", "A_social", "D_print", "B_search"],
+    ],
+    ids=["2ch_shuffled", "5ch_shuffled"],
+)
+def fitted_mmm_shuffled_1d(request, mock_pymc_sample):
+    """Real MMM (no geo dim) with non-alphabetical channel names for dict bounds."""
+    return _build_fitted_mmm_shuffled(request.param, dims=())
+
+
 compile_kwargs = pytest.mark.parametrize(
     "compile_kwargs",
     [
@@ -1406,3 +1459,66 @@ def test_float_channel_data_optimized(simple_fitted_mmm):
         f"Float model stayed at equal split {float_alloc} — "
         f"test is inconclusive because there is no asymmetry to detect."
     )
+
+
+def test_dataarray_bounds_respect_channel_ordering(fitted_mmm_shuffled):
+    """Regression test for #2323: DataArray bounds must reindex to match
+    internal coordinate ordering regardless of user-provided channel order."""
+    mmm = fitted_mmm_shuffled
+    channels = list(mmm.channel_columns)
+    geos = ["G1", "G2"]
+
+    assert sorted(channels) != channels
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm, start_date="2023-04-01", end_date="2023-06-01"
+    )
+
+    total = 100.0
+    n_ch = len(channels)
+    bounds_dict = {ch: (0.0, total * (i + 1) / n_ch) for i, ch in enumerate(channels)}
+
+    bounds_da = xr.DataArray(
+        [[list(bounds_dict[ch]) for ch in channels] for _ in geos],
+        dims=["geo", "channel", "bound"],
+        coords={"geo": geos, "channel": channels, "bound": ["lower", "upper"]},
+    )
+
+    optimal_budgets, _result = wrapper.optimize_budget(
+        budget=total, budget_bounds=bounds_da
+    )
+
+    for ch in channels:
+        vals = optimal_budgets.sel(channel=ch).values
+        lo, hi = bounds_dict[ch]
+        assert np.all(vals >= lo - 1e-6) and np.all(vals <= hi + 1e-6), (
+            f"{ch} allocation {vals} outside bounds [{lo}, {hi}]"
+        )
+
+
+def test_dict_bounds_respect_channel_ordering(fitted_mmm_shuffled_1d):
+    """Regression test for #2323: dict bounds must apply to correct channels
+    regardless of alphabetical ordering (single-dim budget)."""
+    mmm = fitted_mmm_shuffled_1d
+    channels = list(mmm.channel_columns)
+
+    assert sorted(channels) != channels
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm, start_date="2023-04-01", end_date="2023-06-01"
+    )
+
+    total = 100.0
+    n_ch = len(channels)
+    bounds = {ch: (0.0, total * (i + 1) / n_ch) for i, ch in enumerate(channels)}
+
+    optimal_budgets, _result = wrapper.optimize_budget(
+        budget=total, budget_bounds=bounds
+    )
+
+    for ch in channels:
+        val = optimal_budgets.sel(channel=ch).item()
+        lo, hi = bounds[ch]
+        assert lo - 1e-6 <= val <= hi + 1e-6, (
+            f"{ch}={val:.4f} outside bounds [{lo}, {hi}]"
+        )
