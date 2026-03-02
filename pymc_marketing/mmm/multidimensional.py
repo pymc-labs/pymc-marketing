@@ -360,14 +360,14 @@ class MMM(RegressionModelBuilder):
     consider a Bayesian linear model of the form:
 
     .. math::
-        y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}\,f_{m}(x_{m, t},
-        x_{m, t-1}, \ldots) + \sum_{c=1}^{C}\gamma_{c}\,z_{c, t}
-        + \varepsilon_{t},
+        y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}\,f_{m}\!\bigl(
+        \{x_{m,s}\}_{s \leq t}\bigr) + \sum_{c=1}^{C}\gamma_{c}\,
+        z_{c, t} + \varepsilon_{t},
 
     where :math:`\alpha` is the intercept, :math:`f_{m}` is a media
-    transformation function that depends on the current and past values
-    of channel :math:`m` to capture adstock (carry-over) effects as well
-    as saturation, and
+    transformation function that maps the history of channel :math:`m`
+    up to time :math:`t` to a scalar contribution, capturing adstock
+    (carry-over) and saturation effects, and
     :math:`\varepsilon_{t} \sim \mathcal{N}(0, \sigma^{2})`.
 
     The model supports :math:`K \geq 0` additional panel dimensions (e.g.
