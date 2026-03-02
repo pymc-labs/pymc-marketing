@@ -31,7 +31,6 @@ import pandas as pd
 from matplotlib.figure import Figure
 from scipy.stats import norm
 
-from pymc_marketing.mmm.experiment_design.functions import logistic_saturation
 from pymc_marketing.mmm.experiment_design.recommendation import (
     ExperimentRecommendation,
     _format_rationale,
@@ -289,9 +288,20 @@ class ExperimentDesigner:
 
         return instance
 
-    def _get_saturation_fn(self):
-        """Return the numpy saturation function."""
-        return logistic_saturation
+    @staticmethod
+    def _eval_saturation(
+        x: np.ndarray | float,
+        lam: np.ndarray | float,
+        beta: np.ndarray | float,
+    ) -> np.ndarray:
+        """Evaluate the saturation response using the canonical transformer.
+
+        Wraps :func:`pymc_marketing.mmm.transformers.logistic_saturation`
+        (PyTensor) and converts the result to numpy, then scales by ``beta``.
+        """
+        from pymc_marketing.mmm.transformers import logistic_saturation
+
+        return np.asarray(beta) * logistic_saturation(x, lam).eval()
 
     def _compute_steady_state_spend(
         self,
@@ -378,16 +388,15 @@ class ExperimentDesigner:
         lam = params["lam"]
         beta = params["beta"]
         alpha = params["alpha"]
-        sat_fn = self._get_saturation_fn()
-
         x_current = self._current_spend[channel]
         x_ss = self._compute_steady_state_spend(x_current, alpha)
         ramp = self._compute_adstock_ramp(alpha, T_active)
 
         effective_spend = x_ss[:, None] + delta_x * ramp
-        baseline = sat_fn(x_ss, lam, beta)
+        baseline = self._eval_saturation(x_ss, lam, beta)
         weekly_lift = (
-            sat_fn(effective_spend, lam[:, None], beta[:, None]) - baseline[:, None]
+            self._eval_saturation(effective_spend, lam[:, None], beta[:, None])
+            - baseline[:, None]
         )
         return weekly_lift.sum(axis=1)
 
@@ -474,10 +483,9 @@ class ExperimentDesigner:
             beta_mean = float(np.mean(p["beta"]))
             x_ss = float(self._current_spend[ch])
             h = max(x_ss * 0.01, 1e-6)
-            sat_fn = self._get_saturation_fn()
             grad = (
-                sat_fn(x_ss + h, lam_mean, beta_mean)
-                - sat_fn(x_ss, lam_mean, beta_mean)
+                self._eval_saturation(x_ss + h, lam_mean, beta_mean)
+                - self._eval_saturation(x_ss, lam_mean, beta_mean)
             ) / h
             gradient[i] = float(grad)
 
@@ -696,7 +704,6 @@ class ExperimentDesigner:
         gradients = []
         alphas = []
 
-        sat_fn = self._get_saturation_fn()
         for ch in channels:
             p = self._posterior_samples[ch]
             hdi_lam = az.hdi(p["lam"], hdi_prob=0.94)
@@ -722,8 +729,8 @@ class ExperimentDesigner:
             h = max(x_ss * 0.01, 1e-6)
             grad = float(
                 (
-                    sat_fn(x_ss + h, lam_mean, beta_mean)
-                    - sat_fn(x_ss, lam_mean, beta_mean)
+                    self._eval_saturation(x_ss + h, lam_mean, beta_mean)
+                    - self._eval_saturation(x_ss, lam_mean, beta_mean)
                 )
                 / h
             )
@@ -885,7 +892,6 @@ class ExperimentDesigner:
         """
         fig, ax = plt.subplots(figsize=(7, 4))
         params = self._posterior_samples[channel]
-        sat_fn = self._get_saturation_fn()
 
         x_current = self._current_spend[channel]
         x_max = x_current * 2.5
@@ -895,10 +901,12 @@ class ExperimentDesigner:
         idx = rng.choice(self.n_draws, size=min(n_samples, self.n_draws), replace=False)
 
         for k in idx:
-            y = sat_fn(x_grid, params["lam"][k], params["beta"][k])
+            y = self._eval_saturation(x_grid, params["lam"][k], params["beta"][k])
             ax.plot(x_grid, y, color="C0", alpha=0.1, linewidth=0.8)
 
-        y_mean = sat_fn(x_grid, np.mean(params["lam"]), np.mean(params["beta"]))
+        y_mean = self._eval_saturation(
+            x_grid, np.mean(params["lam"]), np.mean(params["beta"])
+        )
         ax.plot(x_grid, y_mean, color="C0", linewidth=2, label="Posterior mean")
 
         ax.axvline(
