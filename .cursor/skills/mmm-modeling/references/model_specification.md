@@ -116,6 +116,29 @@ saturation = LogisticSaturation(
 
 The `beta` parameter controls the maximum reachable effect per channel. Setting its prior proportional to spend shares encodes the belief that channels with higher spend should have proportionally larger effects.
 
+### Alternative Saturation Functions
+
+| Class | Description | Default Priors |
+|-------|-------------|----------------|
+| `LogisticSaturation` | S-shaped logistic curve (most common) | `lam ~ Gamma(3, 1)`, `beta ~ HalfNormal(2)` |
+| `MichaelisMentenSaturation` | Enzyme kinetics-inspired curve | `alpha ~ Gamma(mu=2, sigma=1)`, `lam ~ HalfNormal(1)` |
+| `HillSaturation` | Generalized Hill function with variable steepness | `sigma ~ HalfNormal(2)`, `beta ~ HalfNormal(2)`, `lam ~ HalfNormal(1)` |
+| `TanhSaturation` | Hyperbolic tangent | `beta ~ HalfNormal(1)`, `lam ~ HalfNormal(2)` |
+| `RootSaturation` | Power-law (root) transformation | `alpha ~ Beta(1, 1)`, `beta ~ HalfNormal(2)` |
+
+```python
+from pymc_marketing.mmm import (
+    HillSaturation,
+    LogisticSaturation,
+    MichaelisMentenSaturation,
+)
+
+saturation = MichaelisMentenSaturation()
+saturation = HillSaturation()
+```
+
+All saturation functions share the same interface: pass to the `MMM` constructor via the `saturation` parameter, and customize priors via the `priors` kwarg.
+
 ## Prior Specification with Prior
 
 All priors in `model_config` and component `priors` use `pymc_extras.prior.Prior`:
@@ -132,11 +155,12 @@ Prior("HalfNormal", sigma=0.5, dims="channel")
 # Prior with multiple dims
 Prior("Beta", alpha=2, beta=5, dims=("channel", "geo"))
 
-# Hierarchical (non-centered) prior
-Prior(
-    "LogNormal",
-    mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
-    sigma=Prior("HalfNormal", sigma=0.3, dims="channel"),
+# Hierarchical (non-centered) prior -- uses LogNormalPrior from special_priors
+from pymc_marketing.special_priors import LogNormalPrior
+
+LogNormalPrior(
+    mean=Prior("Gamma", mu=1.0, sigma=1.0),
+    std=Prior("HalfNormal", sigma=1.0),
     dims=("channel", "geo"),
     centered=False,
 )
@@ -200,11 +224,12 @@ mmm = MMM(
 **Partial pooling** (recommended) -- parameters vary by geo but share hyperpriors:
 
 ```python
+from pymc_marketing.special_priors import LogNormalPrior
+
 model_config = {
-    "saturation_beta": Prior(
-        "LogNormal",
-        mu=Prior("Normal", mu=0, sigma=0.5, dims="channel"),
-        sigma=Prior("HalfNormal", sigma=0.3, dims="channel"),
+    "saturation_beta": LogNormalPrior(
+        mean=Prior("Gamma", mu=1.0, sigma=1.0),
+        std=Prior("HalfNormal", sigma=1.0),
         dims=("channel", "geo"),
         centered=False,
     ),
@@ -290,9 +315,15 @@ ax.set_title("Prior Predictive Check")
 
 ### Prior Channel Contribution Share
 
-Check that prior contributions are not concentrated on a single channel:
+Check that prior contributions are not concentrated on a single channel. **Note**: `add_original_scale_contribution_variable` must be called before `sample_prior_predictive` for `*_original_scale` variables to be available:
 
 ```python
+mmm.add_original_scale_contribution_variable(
+    var=["channel_contribution", "control_contribution",
+         "intercept_contribution", "yearly_seasonality_contribution", "y"]
+)
+mmm.sample_prior_predictive(X, y, samples=4_000, random_seed=42)
+
 prior_contrib = mmm.idata["prior_predictive"]["channel_contribution_original_scale"]
 total = prior_contrib.sum(dim=["date", "channel"])
 
@@ -308,11 +339,17 @@ If one channel dominates in the prior, widen or equalize the `saturation_beta` p
 Build the model graph without fitting to inspect the structure:
 
 ```python
-import pymc as pm
-
 mmm.build_model(X, y)
-pm.model_to_graphviz(mmm.model)
 ```
+
+### Inspecting the Model
+
+```python
+mmm.graphviz()          # DAG visualization (requires graphviz)
+mmm.table()             # summary table of all variables, dims, and expressions
+```
+
+`mmm.table()` produces a Rich `Table` showing every variable's name, distribution, shape, and dimensions -- useful for verifying the model was constructed as intended.
 
 After building, you can also call `mmm.add_lift_test_measurements(...)` before fitting to incorporate experimental calibration data. See [liftest_calibration.md](liftest_calibration.md).
 

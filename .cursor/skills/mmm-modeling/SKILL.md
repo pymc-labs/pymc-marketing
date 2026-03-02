@@ -12,6 +12,8 @@ description: >
 
 Bayesian Media Mix Modeling workflow using the PyMC-Marketing `MMM` class.
 
+> **PyMC prerequisite:** This skill assumes familiarity with PyMC's core modeling API (coords/dims, priors, MCMC diagnostics, HSGP). For foundational patterns, see the [pymc-modeling skill](https://github.com/pymc-labs/python-analytics-skills/tree/main/skills/pymc-modeling).
+
 LLMs understand Bayesian inference, MCMC, and hierarchical models in general. But getting from those concepts to a correctly specified, well-diagnosed, and actionable PyMC-Marketing MMM requires domain-specific knowledge: which `Prior` to use for saturation beta informed by spend shares, how `dims=("geo",)` activates multidimensional partial pooling, why the final model must be fit on the **full dataset** (time-slice CV is only for stability assessment), how `add_lift_test_measurements()` resolves causal identification, and how `MultiDimensionalBudgetOptimizerWrapper` translates posterior uncertainty into optimal allocations.
 
 This skill encodes those patterns. Without it, an LLM might hold out test data for the final fit (wrong -- use all data, validate with time-slice CV), use flat priors on saturation parameters (causes divergences), skip `add_original_scale_contribution_variable` (then contributions are on scaled space), or call `BudgetOptimizer` directly instead of `MultiDimensionalBudgetOptimizerWrapper` (misses geo-level allocation).
@@ -160,6 +162,47 @@ mmm.plot.sensitivity_analysis(hue_dim="channel", x_sweep_axis="relative")
 
 See [references/media_deep_dive.md](references/media_deep_dive.md) for ROAS computation, saturation/adstock curves, sensitivity analysis, and contribution share plots.
 
+## Time-Varying Parameters
+
+The `MMM` class supports GP-based time-varying intercept and time-varying media multiplier via Hilbert Space Gaussian Processes (HSGP):
+
+```python
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
+
+mmm = MMM(
+    ...,
+    time_varying_intercept=True,
+    time_varying_media=True,
+    model_config={
+        "intercept_tvp_config": HSGPKwargs(m=500, L=188, eta_lam=5.0, ls_mu=5.0, ls_sigma=10.0),
+        "media_tvp_config": HSGPKwargs(ls_mu=11.0, ls_sigma=5.0),
+    },
+)
+```
+
+Use TVP when residuals show **irregular, non-repeating** temporal variation not explained by seasonality, trend, or controls. The GP is primarily useful for in-sample decomposition; it reverts to the prior mean out of sample.
+
+See [references/time_varying_parameters.md](references/time_varying_parameters.md) for `HSGPKwargs` reference, parameterization tips, diagnostics, and code examples.
+
+## Custom Models
+
+When the `MMM` class cannot express your model structure (non-standard hierarchies, spline baselines, custom likelihoods), build a custom model by combining PyMC-Marketing components with plain PyMC:
+
+```python
+import pymc as pm
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+
+with pm.Model(coords=coords) as custom_mmm:
+    channel_data_ = pm.Data("channel_data", channel_scaled, dims=("date", "geo", "channel"))
+    adstocked = adstock.apply(channel_data_, dims=("geo", "channel"))
+    channel_contribution = saturation.apply(adstocked, dims=("geo", "channel"))
+    # ... add intercept, controls, seasonality, likelihood
+```
+
+Custom models gain full flexibility but lose built-in scaling, plotting, budget optimization, lift test integration, and save/load.
+
+See [references/custom_model.md](references/custom_model.md) for standalone component usage, hierarchical prior patterns, spline-based intercepts, custom events, and a complete geo-hierarchical example.
+
 ## Budget Optimization
 
 ```python
@@ -198,9 +241,61 @@ The lift test DataFrame requires columns: `channel`, `x`, `delta_x`, `delta_y`, 
 
 See [references/liftest_calibration.md](references/liftest_calibration.md) for data format, calibrated vs uncalibrated comparison, geo-level patterns, and sigma estimation.
 
-## Saving and Loading
+## Saving, Loading, and YAML Specification
 
 ```python
-mmm.save("mmm_model.nc")
+# Save / load fitted model
+mmm.save("mmm_model.nc", engine="h5netcdf")
 loaded_mmm = MMM.load("mmm_model.nc")
+
+# Build model from a YAML specification
+from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+
+mmm = build_mmm_from_yaml("model_spec.yaml", X=X, y=y)
+```
+
+The YAML builder (`build_mmm_from_yaml`) enables declarative model specification -- useful for reproducible experiments, `TimeSliceCrossValidator` integration (via `yaml_path`), and MLflow tracking.
+
+## Plotting Methods Quick Reference
+
+All visualization methods are accessed via the `mmm.plot` namespace:
+
+| Method | Description | Section |
+|--------|-------------|---------|
+| `prior_predictive()` | Prior predictive check | Specification |
+| `posterior_predictive(var=...)` | Posterior predictive HDI bands | Diagnostics |
+| `waterfall_components_decomposition()` | Mean component contributions (stacked waterfall) | Media Analysis |
+| `contributions_over_time(var=..., combine_dims=..., hdi_prob=...)` | Component contributions over time with HDI | Media Analysis |
+| `saturation_scatterplot(original_scale=True)` | Observed spend vs. saturated effect (marginal) | Media Analysis |
+| `saturation_curves(curve, original_scale=True)` | Smooth posterior saturation curves | Media Analysis |
+| `sensitivity_analysis(hue_dim=..., x_sweep_axis=...)` | Counterfactual response under spend scaling | Media Analysis |
+| `channel_contribution_share_hdi()` | HDI of channel contribution shares | Media Analysis |
+| `channel_parameter(param_name=...)` | Posterior of a specific channel parameter | Diagnostics |
+| `budget_allocation(samples=...)` | Optimal allocation summary (multi-panel) | Budget Optimization |
+| `allocated_contribution_by_channel_over_time(response)` | Contributions under optimal allocation | Budget Optimization |
+
+## Typical MMM Workflow
+
+```
+EDA & Data Prep
+    ↓
+Model Specification (priors, adstock, saturation, dims)
+    ↓
+Build Model (mmm.build_model)
+    ↓
+Prior Predictive Checks
+    ↓
+[Optional] Add Lift Test / Cost-Per-Target Calibration
+    ↓
+Fit on FULL Dataset (mmm.fit)
+    ↓
+Diagnostics (divergences, R-hat, ESS, trace plots)
+    ↓
+Posterior Predictive Checks
+    ↓
+Media Deep Dive (contributions, ROAS, saturation, sensitivity)
+    ↓
+[Optional] Time-Slice Cross-Validation (stability assessment)
+    ↓
+Budget Optimization
 ```

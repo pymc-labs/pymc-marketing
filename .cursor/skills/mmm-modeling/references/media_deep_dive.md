@@ -51,13 +51,24 @@ for i, channel in enumerate(channel_columns):
 
 ### Original Scale Contributions
 
-Channel contributions are stored on the scaled space by default. Use the original-scale variant for interpretable results:
+Channel contributions are stored on the scaled space by default. To get original-scale contributions, call `add_original_scale_contribution_variable` **before** `sample_posterior_predictive`:
+
+```python
+mmm.add_original_scale_contribution_variable(
+    var=["channel_contribution", "control_contribution",
+         "intercept_contribution", "yearly_seasonality_contribution", "y"]
+)
+mmm.sample_posterior_predictive(X=X, random_seed=rng)
+```
+
+This registers `pm.Deterministic` variables that multiply by the target scaler:
 
 - `channel_contribution_original_scale` -- channel media contributions
 - `control_contribution_original_scale` -- control variable contributions
 - `intercept_contribution_original_scale` -- baseline
+- `y_original_scale` -- predicted target on original scale
 
-These are available after calling `mmm.sample_posterior_predictive(X, ...)`.
+Without this call, `*_original_scale` variables will not exist in the posterior predictive.
 
 ## Waterfall Decomposition
 
@@ -139,13 +150,15 @@ ax.legend()
 
 ## Saturation Curves
 
-### Scatter Plot (Observed Data)
+There are two distinct views of saturation. Understanding the difference is critical for correct interpretation.
+
+### Saturation Scatterplot (Direct/Marginal Contribution)
 
 ```python
 mmm.plot.saturation_scatterplot(original_scale=True)
 ```
 
-Shows actual spend vs. saturated effect with posterior uncertainty.
+Shows actual spend vs. saturated effect **at each observed time point** with posterior uncertainty. Each point is one (date, channel) observation. This visualizes the **direct (marginal)** contribution: how much each unit of spend contributed at that specific spend level.
 
 ### Sampled Saturation Curves
 
@@ -161,6 +174,14 @@ Or use the convenience method:
 ```python
 sat_curve = mmm.sample_saturation_curve(max_value=1.0, num_points=100)
 ```
+
+### Sensitivity Analysis (Total/Counterfactual Contribution)
+
+`sensitivity_analysis` sweeps spend from 0 to N times the current level and shows the **total contribution** at each hypothetical spend level. This is a **counterfactual** view: "What would total contribution be if we scaled spend to X%?"
+
+The key distinction:
+- **Scatterplot**: shows point-wise marginal contributions at observed spend levels.
+- **Sensitivity analysis**: shows total (integrated) contributions under hypothetical spend scaling -- the basis for budget reallocation decisions.
 
 **Interpretation**: Steeper initial slope = higher marginal return at low spend. Flat tail = diminishing returns at high spend. If the curve hasn't flattened, the channel may benefit from increased investment.
 
@@ -225,13 +246,16 @@ mmm.plot.sensitivity_analysis(
 
 ## Channel Contribution Share
 
-Compare prior vs. posterior contribution shares to assess how much the data informed the model:
+Compare prior vs. posterior contribution shares to assess how much the data informed the model.
+
+**Prerequisite**: `add_original_scale_contribution_variable` must be called before both `sample_prior_predictive` and `sample_posterior_predictive` for `*_original_scale` variables to exist in the respective groups.
 
 ```python
 # Posterior share
 posterior_share = contrib_total / contrib_total.sum(dim="channel")
 
-# Prior share (from prior predictive)
+# Prior share (from prior predictive -- requires add_original_scale_contribution_variable
+# to have been called before sample_prior_predictive)
 prior_contrib = mmm.idata["prior_predictive"]["channel_contribution_original_scale"]
 prior_total = prior_contrib.sum(dim=sum_dims)
 prior_share = prior_total / prior_total.sum(dim="channel")

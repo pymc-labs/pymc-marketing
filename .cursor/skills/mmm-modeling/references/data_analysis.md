@@ -2,6 +2,7 @@
 
 ## Table of Contents
 - [Data Format Requirements](#data-format-requirements)
+- [Minimum Data Requirements](#minimum-data-requirements)
 - [Single-Geo Data Format](#single-geo-data-format)
 - [Multidimensional Data Format](#multidimensional-data-format)
 - [Channel Naming and Mapping](#channel-naming-and-mapping)
@@ -21,6 +22,17 @@ The MMM requires a pandas DataFrame with:
 | **Target** | Yes | Response variable (sales, conversions, etc.) |
 | **Controls** | No | Holidays, events, macro indicators |
 | **Geo/Region** | No | Required for multidimensional models |
+
+## Minimum Data Requirements
+
+| Granularity | Minimum Observations | Recommended |
+|-------------|---------------------|-------------|
+| Weekly | ~100 (~2 years) | 150+ (~3 years) |
+| Daily | ~365 (~1 year) | 730+ (~2 years) |
+
+Weekly granularity is the most common and well-tested setting. Daily data requires more observations because there is more noise per observation. With fewer than ~100 weekly observations, parameter estimates (especially saturation and adstock) become unreliable.
+
+For multidimensional models, each geo should ideally have the minimum number of observations. Geos with very few observations benefit from partial pooling (sharing information across geos via hierarchical priors).
 
 ## Single-Geo Data Format
 
@@ -131,6 +143,25 @@ for i, channel in enumerate(channel_columns):
     ax_twin.grid(None)
     ax.set(title=f"{channel} (Correlation: {correlation:.2f})")
 ```
+
+### Channel-Channel Correlation (Identification Risk)
+
+Highly correlated channels are a fundamental identification problem: the model cannot separate their individual effects from observational data alone.
+
+```python
+channel_corr = data_df[channel_columns].corr()
+
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.heatmap(channel_corr, annot=True, fmt=".2f", cmap="RdBu_r",
+            center=0, vmin=-1, vmax=1, ax=ax)
+ax.set_title("Channel Spend Correlation Matrix")
+```
+
+**Interpretation**: Correlations above ~0.7 indicate channels that regularly co-activate (e.g., TV and social campaigns run simultaneously). For such channels:
+
+- Posterior contribution shares will be wide and overlapping.
+- The model may attribute effects to the wrong channel.
+- **Lift test calibration** (see [liftest_calibration.md](liftest_calibration.md)) is essential to resolve identification.
 
 ### Multidimensional EDA (Geo-Level)
 

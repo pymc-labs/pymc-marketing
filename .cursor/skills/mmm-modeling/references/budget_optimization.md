@@ -82,12 +82,17 @@ budget_bounds = xr.DataArray(
 ### Using the Builder Helper
 
 ```python
+import numpy as np
 from pymc_marketing.mmm.budget_optimizer import optimizer_xarray_builder
 
 budget_bounds = optimizer_xarray_builder(
-    channels=channel_columns,
-    lower_bounds=[0.5, 0.3, 0.5],
-    upper_bounds=[1.5, 2.0, 1.5],
+    value=np.array([
+        [0.5 * equal_share, 1.5 * equal_share],   # tv
+        [0.3 * equal_share, 2.0 * equal_share],   # radio
+        [0.5 * equal_share, 1.5 * equal_share],   # social
+    ]),
+    channel=channel_columns,
+    bound=["lower", "upper"],
 )
 ```
 
@@ -179,14 +184,38 @@ allocation, result = optimizable_model.optimize_budget(
 
 ### Custom Budget Distribution Over Time
 
-By default, the budget is distributed equally across periods. For custom temporal patterns:
+By default, the budget is distributed equally across periods. Use `budget_distribution_over_period` for custom temporal patterns (flighting):
 
 ```python
-# Front-loaded budget (more spend early)
+import xarray as xr
+
 n_periods = 12
 time_weights = np.linspace(1.5, 0.5, n_periods)
 time_weights /= time_weights.sum()
+
+# For single-geo models: dims=("date", "channel")
+budget_distribution = xr.DataArray(
+    data=np.tile(time_weights[:, None], (1, len(channel_columns))),
+    dims=["date", "channel"],
+    coords={"channel": channel_columns},
+)
+
+allocation, result = optimizable_model.optimize_budget(
+    budget=budget_per_period,
+    budget_bounds=budget_bounds,
+    budget_distribution_over_period=budget_distribution,
+    minimize_kwargs={"method": "SLSQP", "options": {"ftol": 1e-4, "maxiter": 10_000}},
+)
+
+# Also pass to sample_response_distribution for consistency
+response = optimizable_model.sample_response_distribution(
+    allocation_strategy=allocation,
+    budget_distribution_over_period=budget_distribution,
+    include_carryover=True,
+)
 ```
+
+Values along the `date` dimension must sum to 1 for each combination of other dimensions.
 
 ### Budget Sweep
 
@@ -209,31 +238,31 @@ for budget in budget_levels:
 
 Plot the efficient frontier (budget vs. expected response) to identify the point of diminishing returns.
 
-### Custom Constraints with BudgetOptimizer
+### Custom Constraints
 
-For constraints beyond simple bounds (e.g., minimum spend ratios between channels), use `BudgetOptimizer` directly:
+For constraints beyond simple bounds (e.g., minimum spend ratios between channels), pass `Constraint` objects to `optimize_budget`:
 
 ```python
-from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-from scipy.optimize import LinearConstraint
+import pytensor.tensor as pt
+from pymc_marketing.mmm.constraints import Constraint
 
-# tv must be at least 2x radio
-constraint = LinearConstraint(
-    A=[[1, -2, 0]],  # tv - 2*radio >= 0
-    lb=0, ub=np.inf,
+# tv must be at least 2x radio: tv - 2*radio >= 0
+def tv_ge_2x_radio(budgets_sym, total_budget_sym, optimizer):
+    tv_idx = list(channel_columns).index("tv")
+    radio_idx = list(channel_columns).index("radio")
+    return budgets_sym[tv_idx] - 2 * budgets_sym[radio_idx]
+
+constraint = Constraint(
+    key="tv_ge_2x_radio",
+    constraint_type="ineq",
+    constraint_fun=tv_ge_2x_radio,
 )
 
-optimizer = BudgetOptimizer(
-    model=mmm,
+allocation, result = optimizable_model.optimize_budget(
     budget=budget_per_period,
     budget_bounds=budget_bounds,
-)
-allocation = optimizer.optimize(
-    minimize_kwargs={
-        "method": "SLSQP",
-        "constraints": constraint,
-        "options": {"ftol": 1e-4},
-    },
+    constraints=[constraint],
+    minimize_kwargs={"method": "SLSQP", "options": {"ftol": 1e-4, "maxiter": 10_000}},
 )
 ```
 

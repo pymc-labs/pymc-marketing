@@ -43,11 +43,17 @@ mmm.fit(
 
 ## Posterior Predictive Sampling
 
-After fitting, sample posterior predictions on the same data to assess in-sample fit:
+After fitting, register original-scale contribution variables and then sample posterior predictions:
 
 ```python
+mmm.add_original_scale_contribution_variable(
+    var=["channel_contribution", "control_contribution",
+         "intercept_contribution", "yearly_seasonality_contribution", "y"]
+)
 mmm.sample_posterior_predictive(X=X, random_seed=rng)
 ```
+
+`add_original_scale_contribution_variable` creates `pm.Deterministic` nodes that multiply contributions by the target scaler. Without this call, `*_original_scale` variables will not exist in `posterior_predictive`.
 
 This adds `posterior_predictive` to `mmm.idata`, which is needed for posterior predictive checks and component decomposition.
 
@@ -71,6 +77,8 @@ assert n_divergences == 0, "Model has divergences -- fix before proceeding!"
 ```
 
 ### R-hat and ESS
+
+Check convergence on the **stochastic** (sampled) parameters. Note: `"intercept"` is the raw parameter; `"intercept_contribution"` is the deterministic transformation used in decomposition -- both exist in the posterior.
 
 ```python
 import arviz as az
@@ -223,7 +231,8 @@ The `include_last_observations=True` ensures adstock carryover from the last obs
 ```python
 from pymc_marketing.metrics import crps
 
-score = crps(y_actual, forecast["posterior_predictive"]["y"])
+posterior_pred = forecast["posterior_predictive"]["y"].values
+score = crps(y_true=y_actual.to_numpy(), y_pred=posterior_pred.T)
 ```
 
 ## Common Fit Issues

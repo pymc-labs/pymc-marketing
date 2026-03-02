@@ -188,6 +188,31 @@ df_lift_test["sigma"] = base_sigma * np.sqrt(median_sales / geo_sales[df_lift_te
 
 This gives larger geos tighter uncertainty (smaller sigma) and smaller geos wider uncertainty, reflecting that larger geos provide more reliable experimental estimates.
 
+## Cost-Per-Target Calibration
+
+An alternative to lift test calibration is `add_cost_per_target_calibration`, which constrains the model's cost-per-target (CPT) estimates via `pm.Potential` penalties:
+
+```python
+import pandas as pd
+
+calibration_data = pd.DataFrame({
+    "channel": ["tv", "social"],
+    "cost_per_target": [25.0, 12.0],   # desired CPT
+    "sigma": [5.0, 3.0],               # tolerance (larger = weaker penalty)
+})
+
+mmm.build_model(X, y)
+mmm.add_cost_per_target_calibration(
+    data=X,                        # feature DataFrame with spend in original units
+    calibration_data=calibration_data,
+)
+mmm.fit(X=X, y=y, nuts_sampler="nutpie", target_accept=0.9, random_seed=rng)
+```
+
+The method adds a quadratic penalty: `penalty = -|cpt_mean - target|^2 / (2 * sigma^2)`, pulling the model's CPT toward the calibration target. This is useful when you have cost-efficiency benchmarks but not full lift test data.
+
+The `calibration_data` DataFrame requires columns: `channel`, `cost_per_target`, `sigma`, plus one column per model dimension (e.g., `geo`).
+
 ## Practical Guidelines
 
 ### Estimating `delta_y`
