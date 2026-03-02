@@ -109,6 +109,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 ::::
 
+### Experiment Design
+
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} Experiment Designer: Posterior-Aware Lift Test Design
+:img-top: ../gallery/images/mmm_lift_test.png
+:link: ../notebooks/mmm/mmm_experiment_designer.html
+:::
+::::
+
 ### Lift Test Calibration
 
 ::::{grid} 1 2 3 3

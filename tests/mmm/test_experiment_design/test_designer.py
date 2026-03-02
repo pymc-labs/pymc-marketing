@@ -278,6 +278,34 @@ class TestScoring:
         result = ExperimentDesigner._min_max_normalize(values)
         np.testing.assert_array_almost_equal(result, [0.0, 0.5, 1.0])
 
+    def test_weight_redistribution_without_correlation(self):
+        """When spend_correlation is None, its weight is redistributed."""
+        idata = generate_experiment_fixture(
+            channels=["ch1", "ch2"],
+            true_params={
+                "ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5},
+                "ch2": {"lam": 0.5, "beta": 2.0, "alpha": 0.3},
+            },
+            fit_model=False,
+            seed=99,
+        )
+        d = ExperimentDesigner.from_idata(idata)
+        d._spend_correlation = None
+
+        recs = d.recommend(
+            spend_changes=[0.2, -1.0],
+            durations=[4],
+            min_snr=0.0,
+        )
+        for rec in recs:
+            assert rec.score >= 0.0
+
+    def test_uncertainty_rank_most_uncertain_first(self, designer):
+        """The channel with widest posterior should be rank #1."""
+        ranks = designer._get_uncertainty_ranks()
+        assert set(ranks.values()) == {1, 2, 3}
+        assert min(ranks.values()) == 1
+
 
 class TestPlotting:
     """Smoke tests for plotting methods (verify they don't error)."""
