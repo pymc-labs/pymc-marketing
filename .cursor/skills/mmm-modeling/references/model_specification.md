@@ -121,16 +121,23 @@ The `beta` parameter controls the maximum reachable effect per channel. Setting 
 | Class | Description | Default Priors |
 |-------|-------------|----------------|
 | `LogisticSaturation` | S-shaped logistic curve (most common) | `lam ~ Gamma(3, 1)`, `beta ~ HalfNormal(2)` |
+| `InverseScaledLogisticSaturation` | Inverse-scaled logistic | `lam ~ Gamma(0.5, 1)`, `beta ~ HalfNormal(2)` |
 | `MichaelisMentenSaturation` | Enzyme kinetics-inspired curve | `alpha ~ Gamma(mu=2, sigma=1)`, `lam ~ HalfNormal(1)` |
-| `HillSaturation` | Generalized Hill function with variable steepness | `sigma ~ HalfNormal(2)`, `beta ~ HalfNormal(2)`, `lam ~ HalfNormal(1)` |
-| `TanhSaturation` | Hyperbolic tangent | `beta ~ HalfNormal(1)`, `lam ~ HalfNormal(2)` |
-| `RootSaturation` | Power-law (root) transformation | `alpha ~ Beta(1, 1)`, `beta ~ HalfNormal(2)` |
+| `HillSaturation` | Generalized Hill function | `slope ~ HalfNormal(1.5)`, `kappa ~ HalfNormal(1.5)`, `beta ~ HalfNormal(1.5)` |
+| `HillSaturationSigmoid` | Sigmoid variant of Hill | `sigma ~ HalfNormal(1.5)`, `beta ~ HalfNormal(1.5)`, `lam ~ HalfNormal(1.5)` |
+| `TanhSaturation` | Hyperbolic tangent | `b ~ HalfNormal(1)`, `c ~ HalfNormal(1)` |
+| `TanhSaturationBaselined` | Baselined tanh with offset | `x0 ~ HalfNormal(1)`, `gain ~ HalfNormal(1)`, `r ~ HalfNormal(1)`, `beta ~ HalfNormal(1)` |
+| `RootSaturation` | Power-law (root) transformation | `alpha ~ Beta(1, 2)`, `beta ~ Gamma(mu=1, sigma=1)` |
+| `NoSaturation` | Identity (no saturation, scaling only) | `beta ~ HalfNormal(1)` |
 
 ```python
 from pymc_marketing.mmm import (
     HillSaturation,
+    HillSaturationSigmoid,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
+    TanhSaturation,
 )
 
 saturation = MichaelisMentenSaturation()
@@ -189,18 +196,18 @@ model_config = {
     # Fourier seasonality coefficients
     "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
 
-    # Likelihood
+    # Likelihood (default is Normal; TruncatedNormal is a common custom choice for non-negative targets)
     "likelihood": Prior("TruncatedNormal", lower=0, sigma=Prior("HalfNormal", sigma=1)),
 }
 ```
 
-| Config Key | Description | Typical Prior |
-|------------|-------------|---------------|
-| `intercept` | Baseline response | `Normal(mu=0.2, sigma=0.05)` |
-| `saturation_beta` | Per-channel media effect | `HalfNormal(sigma=spend_shares)` |
-| `gamma_control` | Control coefficients | `Normal(0, 1)` |
-| `gamma_fourier` | Seasonality coefficients | `Laplace(0, 1)` |
-| `likelihood` | Observation noise | `TruncatedNormal(lower=0, sigma=HalfNormal(1))` |
+| Config Key | Description | Default | Typical Custom Prior |
+|------------|-------------|---------|----------------------|
+| `intercept` | Baseline response | `Normal(mu=0, sigma=2, dims=self.dims)` | `Normal(mu=0.2, sigma=0.05)` |
+| `saturation_beta` | Per-channel media effect | (from saturation class) | `HalfNormal(sigma=spend_shares, dims="channel")` |
+| `gamma_control` | Control coefficients | `Normal(mu=0, sigma=2, dims=(*dims, "control"))` | `Normal(0, 1, dims="control")` |
+| `gamma_fourier` | Seasonality coefficients | `Laplace(mu=0, b=1, dims=(*dims, "fourier_mode"))` | `Laplace(0, 1)` |
+| `likelihood` | Observation noise | `Normal(sigma=HalfNormal(sigma=2))` | `TruncatedNormal(lower=0, sigma=HalfNormal(1))` |
 
 ## Multidimensional / Hierarchical Models
 

@@ -143,10 +143,9 @@ mmm.plot.contributions_over_time(
     combine_dims=True, hdi_prob=0.94,
 )
 
-# ROAS
-channel_contrib = mmm.idata["posterior"]["channel_contribution_original_scale"]
-roas_samples = channel_contrib.sum(dim="date") / spend_sum
-az.plot_forest(roas_samples, combined=True)
+# Incremental ROAS (preferred -- accounts for adstock carryover)
+roas = mmm.incrementality.contribution_over_spend(frequency="all_time")
+az.plot_forest(roas, combined=True)
 
 # Saturation curves
 mmm.plot.saturation_scatterplot(original_scale=True)
@@ -160,7 +159,7 @@ mmm.sensitivity.run_sweep(
 mmm.plot.sensitivity_analysis(hue_dim="channel", x_sweep_axis="relative")
 ```
 
-See [references/media_deep_dive.md](references/media_deep_dive.md) for ROAS computation, saturation/adstock curves, sensitivity analysis, and contribution share plots.
+See [references/media_deep_dive.md](references/media_deep_dive.md) for ROAS computation, incremental analysis, saturation/adstock curves, sensitivity analysis, and contribution share plots.
 
 ## Time-Varying Parameters
 
@@ -256,23 +255,71 @@ mmm = build_mmm_from_yaml("model_spec.yaml", X=X, y=y)
 
 The YAML builder (`build_mmm_from_yaml`) enables declarative model specification -- useful for reproducible experiments, `TimeSliceCrossValidator` integration (via `yaml_path`), and MLflow tracking.
 
+## Incremental Analysis and Summary
+
+### `mmm.incrementality`
+
+Counterfactual analysis with proper adstock carryover handling. Preferred approach for ROAS/CAC computation:
+
+```python
+roas = mmm.incrementality.contribution_over_spend(frequency="quarterly")
+cac = mmm.incrementality.spend_over_contribution(frequency="quarterly")
+marginal_roas = mmm.incrementality.marginal_contribution_over_spend(frequency="all_time")
+```
+
+See [references/media_deep_dive.md](references/media_deep_dive.md#incremental-analysis-mmmincementality) for details.
+
+### `mmm.summary`
+
+DataFrame generation for key metrics:
+
+```python
+mmm.summary.posterior_predictive()       # mean, median, HDI, observed
+mmm.summary.contributions()              # per-channel/control/seasonality contributions
+mmm.summary.roas()                       # ROAS with HDI
+mmm.summary.channel_spend()              # raw spend per channel/date
+mmm.summary.saturation_curves()          # saturation response curves
+mmm.summary.adstock_curves()             # adstock decay curves
+mmm.summary.total_contribution()         # summed contributions by component type
+mmm.summary.change_over_time()           # percentage change between periods
+```
+
+### `mmm.data`
+
+Validated access to `idata` with convenience methods:
+
+```python
+mmm.data.get_target()                    # observed target values
+mmm.data.get_contributions(original_scale=True)
+mmm.data.filter_dates("2024-01-01", "2024-12-31")
+```
+
 ## Plotting Methods Quick Reference
 
-All visualization methods are accessed via the `mmm.plot` namespace:
+All visualization methods are accessed via the `mmm.plot` namespace. See [references/plot.md](references/plot.md) for the complete API with exact signatures.
 
-| Method | Description | Section |
-|--------|-------------|---------|
-| `prior_predictive()` | Prior predictive check | Specification |
-| `posterior_predictive(var=...)` | Posterior predictive HDI bands | Diagnostics |
-| `waterfall_components_decomposition()` | Mean component contributions (stacked waterfall) | Media Analysis |
-| `contributions_over_time(var=..., combine_dims=..., hdi_prob=...)` | Component contributions over time with HDI | Media Analysis |
-| `saturation_scatterplot(original_scale=True)` | Observed spend vs. saturated effect (marginal) | Media Analysis |
-| `saturation_curves(curve, original_scale=True)` | Smooth posterior saturation curves | Media Analysis |
-| `sensitivity_analysis(hue_dim=..., x_sweep_axis=...)` | Counterfactual response under spend scaling | Media Analysis |
-| `channel_contribution_share_hdi()` | HDI of channel contribution shares | Media Analysis |
-| `channel_parameter(param_name=...)` | Posterior of a specific channel parameter | Diagnostics |
-| `budget_allocation(samples=...)` | Optimal allocation summary (multi-panel) | Budget Optimization |
-| `allocated_contribution_by_channel_over_time(response)` | Contributions under optimal allocation | Budget Optimization |
+| Method | Description |
+|--------|-------------|
+| `prior_predictive(var=..., hdi_prob=0.85)` | Prior predictive HDI bands |
+| `posterior_predictive(var=..., hdi_prob=0.85)` | Posterior predictive HDI bands |
+| `residuals_over_time(hdi_prob=...)` | Residuals with HDI bands |
+| `residuals_posterior_distribution(aggregation=...)` | Residual distribution |
+| `contributions_over_time(var=..., combine_dims=..., hdi_prob=...)` | Contributions over time with HDI |
+| `waterfall_components_decomposition(split_by=...)` | Mean component decomposition (waterfall) |
+| `channel_contribution_share_hdi(hdi_prob=0.94)` | Channel contribution shares (forest plot) |
+| `posterior_distribution(var=..., plot_dim=...)` | Violin plots of a posterior variable |
+| `channel_parameter(param_name=...)` | Posterior of a specific channel parameter |
+| `prior_vs_posterior(var=..., plot_dim=...)` | Prior vs posterior KDE comparison |
+| `saturation_scatterplot(original_scale=...)` | Observed spend vs. saturated effect |
+| `saturation_curves(curve, original_scale=...)` | Smooth posterior saturation curves |
+| `sensitivity_analysis(hue_dim=..., x_sweep_axis=...)` | Counterfactual response under spend scaling |
+| `uplift_curve(hue_dim=...)` | Precomputed uplift curves |
+| `marginal_curve(hue_dim=...)` | Precomputed marginal effects |
+| `budget_allocation(samples=...)` | Optimal allocation summary |
+| `allocated_contribution_by_channel_over_time(samples=...)` | Contributions under optimal allocation |
+| `cv_predictions(results)` | Posterior predictive across CV folds |
+| `param_stability(results, parameter=...)` | Parameter stability across CV folds |
+| `cv_crps(results)` | CRPS scores across CV folds |
 
 ## Typical MMM Workflow
 

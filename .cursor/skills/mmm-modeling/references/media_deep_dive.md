@@ -5,6 +5,7 @@
 - [Waterfall Decomposition](#waterfall-decomposition)
 - [ROAS Computation](#roas-computation)
 - [Contribution Share vs ROAS](#contribution-share-vs-roas)
+- [Incremental Analysis](#incremental-analysis-mmmincementality)
 - [Saturation Curves](#saturation-curves)
 - [Adstock Curves](#adstock-curves)
 - [Sensitivity Analysis](#sensitivity-analysis)
@@ -148,6 +149,64 @@ ax.legend()
 
 **Interpretation**: Channels in the upper-left (low share, high ROAS) may be under-invested. Channels in the lower-right (high share, low ROAS) may be over-invested.
 
+## Incremental Analysis (`mmm.incrementality`)
+
+The `Incrementality` class provides counterfactual analysis that correctly accounts for adstock carryover effects. This is the preferred approach for computing ROAS and CAC, as it handles temporal attribution properly: spend at time *t* affects outcomes at *t, t+1, ..., t+l_max*.
+
+Access via the `mmm.incrementality` property:
+
+```python
+roas = mmm.incrementality.contribution_over_spend(
+    frequency="quarterly",
+    start_date="2024-01-01",
+    end_date="2024-12-31",
+)
+```
+
+### Available Methods
+
+| Method | Description | Counterfactual |
+|--------|-------------|----------------|
+| `compute_incremental_contribution(frequency, ...)` | Raw incremental contribution per channel | Zero-out (default) or custom factor |
+| `contribution_over_spend(frequency, ...)` | Contribution / spend (ROAS when target is revenue) | Zero-out |
+| `spend_over_contribution(frequency, ...)` | Spend / contribution (CAC when target is acquisitions) | Zero-out |
+| `marginal_contribution_over_spend(frequency, ..., spend_increase_pct=0.01)` | Marginal efficiency at current spend level | Small perturbation (+1% default) |
+
+### Core Method Signature
+
+```python
+mmm.incrementality.compute_incremental_contribution(
+    frequency: str,                         # "original", "weekly", "monthly", "quarterly", "yearly", "all_time"
+    start_date: str | None = None,          # evaluation window start
+    end_date: str | None = None,            # evaluation window end
+    include_carryover: bool = True,         # account for adstock carry-in and carry-out
+    num_samples: int | None = None,         # subsample posterior draws (None = all)
+    random_state: RandomState | None = None,
+    counterfactual_spend_factor: float = 0.0,   # 0.0 = zero-out, 0.5 = halve spend, etc.
+) -> xr.DataArray
+```
+
+### Total vs Marginal ROAS
+
+```python
+total_roas = mmm.incrementality.contribution_over_spend(
+    frequency="all_time",
+)
+
+marginal_roas = mmm.incrementality.marginal_contribution_over_spend(
+    frequency="all_time",
+    spend_increase_pct=0.01,
+)
+```
+
+**Total ROAS** (zero-out counterfactual) answers: "What is the overall return per dollar for this channel?" A heavily invested channel can have a high total ROAS.
+
+**Marginal ROAS** (small perturbation) answers: "What is the return on the *next* dollar?" This captures diminishing returns -- a channel at saturation will have a low marginal ROAS even if its total ROAS is high. This is the metric that directly informs budget reallocation.
+
+### Element-Wise vs Counterfactual ROAS
+
+The [ROAS section above](#roas-computation) computes ROAS element-wise as `contribution / spend`. This is a quick approximation but does not account for adstock carryover. The `mmm.incrementality` approach is more rigorous: it evaluates the model under actual vs. counterfactual spend and properly attributes carryover effects.
+
 ## Saturation Curves
 
 There are two distinct views of saturation. Understanding the difference is critical for correct interpretation.
@@ -227,7 +286,7 @@ mmm.plot.sensitivity_analysis(
 
 ### Multidimensional Sensitivity
 
-For geo-level models, sensitivity can be run per geo or aggregated:
+For geo-level models, the sensitivity plot automatically creates subplots for each geo when the sweep data has a `geo` dimension -- no explicit faceting parameter is needed. Use `aggregation` to group geos before plotting:
 
 ```python
 mmm.sensitivity.run_sweep(
@@ -239,10 +298,17 @@ mmm.sensitivity.run_sweep(
 
 mmm.plot.sensitivity_analysis(
     hue_dim="channel",
-    col_dim="geo",       # facet by geo
+    x_sweep_axis="relative",
+)
+
+mmm.plot.sensitivity_analysis(
+    hue_dim="channel",
+    aggregation={"geo": ("US", "UK")},
     x_sweep_axis="relative",
 )
 ```
+
+See [plot.md](plot.md) for the full `sensitivity_analysis` signature and related methods (`uplift_curve`, `marginal_curve`).
 
 ## Channel Contribution Share
 

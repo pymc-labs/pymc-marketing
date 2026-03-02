@@ -373,7 +373,7 @@ asymmetric = AsymmetricGaussianBasis(
 | `save()` / `load()` | Yes | Use `arviz.to_netcdf(idata)` |
 | `TimeSliceCrossValidator` | Yes | Manual loop |
 | Arbitrary hierarchical structure | Limited to supported dims | Full flexibility |
-| Custom likelihood | Any `Prior` via `model_config["likelihood"]` (default: `TruncatedNormal`) | Any PyMC distribution |
+| Custom likelihood | Any `Prior` via `model_config["likelihood"]` (default: `Normal`) | Any PyMC distribution |
 | Custom intercept (splines, changepoints, etc.) | Not built-in (HSGP TVP only) | Full control |
 | Sum-to-zero constraints | Not built-in | `pm.ZeroSumNormal` |
 | Multi-equation / linked models | Not supported | Any structure expressible in PyMC |
