@@ -8,6 +8,7 @@
   :toctree: generated/
 
   bass
+  causal_utils
   clv
   customer_choice
   data
@@ -19,8 +20,10 @@
   model_builder
   model_config
   model_graph
+  paths
   plot
   prior
+  pytensor_utils
   special_priors
   utils
 ```

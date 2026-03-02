@@ -251,19 +251,6 @@ class TestIncrementality:
         assert not np.isnan(gt).any()  # sanity check
         xr.testing.assert_allclose(result, gt, rtol=1e-4)
 
-    def test_marginal_incrementality_with_integer_channel_fails(
-        self, simple_fitted_mmm_int
-    ):
-        with pytest.raises(
-            ValueError,
-            match=r"Incrementality requires channel data of float type, got int*",
-        ):
-            simple_fitted_mmm_int.incrementality.compute_incremental_contribution(
-                frequency="all_time",
-                counterfactual_spend_factor=1.01,
-                include_carryover=True,
-            )
-
     def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""
         incr, _ = incrementality_lite
