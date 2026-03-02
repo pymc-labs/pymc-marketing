@@ -265,4 +265,4 @@ def _format_rationale(
         f"net cost: {rec.net_cost:.0f} (model-scale units)."
     )
 
-    return f"{sentence1} {sentence2} {sentence3}"
+    return f"{sentence1}\n{sentence2}\n{sentence3}"
