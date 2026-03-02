@@ -164,9 +164,9 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
                 f"<td>{escape(rec.channel)}</td>"
                 f"<td>{spend_str}</td>"
                 f"<td>{rec.duration_weeks}w</td>"
-                f"<td>{rec.expected_lift:.1f}</td>"
-                f"<td>[{rec.expected_lift_hdi[0]:.0f}, "
-                f"{rec.expected_lift_hdi[1]:.0f}]</td>"
+                f"<td>{rec.expected_lift:.2f}</td>"
+                f"<td>[{rec.expected_lift_hdi[0]:.2f}, "
+                f"{rec.expected_lift_hdi[1]:.2f}]</td>"
                 f"<td>{rec.snr:.1f}</td>"
                 f"<td>{rec.assurance:.2f}</td>"
                 f"<td>{rec.adstock_ramp_fraction:.2f}</td>"
@@ -254,15 +254,15 @@ def _format_rationale(
 
     sentence2 = (
         f"A {direction} change for {rec.duration_weeks} weeks produces "
-        f"an expected total lift of {rec.expected_lift:.0f} "
-        f"(94% HDI: [{rec.expected_lift_hdi[0]:.0f}, "
-        f"{rec.expected_lift_hdi[1]:.0f}]) "
+        f"an expected total lift of {rec.expected_lift:.2f} "
+        f"(94% HDI: [{rec.expected_lift_hdi[0]:.2f}, "
+        f"{rec.expected_lift_hdi[1]:.2f}]) "
         f"with assurance {rec.assurance:.2f}."
     )
 
     sentence3 = (
         f"Adstock ramp fraction {rec.adstock_ramp_fraction:.2f} — "
-        f"net cost: {rec.net_cost:.0f} (model-scale units)."
+        f"net cost: {rec.net_cost:.2f} (model-scale units)."
     )
 
     return f"{sentence1}\n{sentence2}\n{sentence3}"
