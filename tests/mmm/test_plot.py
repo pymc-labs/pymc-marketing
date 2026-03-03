@@ -5101,3 +5101,33 @@ class TestAllocatedContributionByChannelOverTime:
             ValueError, match=r"InferenceData must contain 'posterior_predictive'"
         ):
             mock_suite_basic.allocated_contribution_by_channel_over_time(samples=idata)
+
+
+class TestSaturationCurvesIntegration:
+    """Integration tests: sample_saturation_curve → plot.saturation_curves."""
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_sample_then_plot_saturation_curves(self, fitted_mmm, request):
+        mmm = request.getfixturevalue(fitted_mmm)
+        curves = mmm.sample_saturation_curve(num_samples=10)
+
+        fig, axes = mmm.plot.saturation_curves(curves, n_samples=5)
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        plt.close(fig)
+
+    @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
+    def test_sample_then_plot_saturation_curves_original_scale(
+        self, fitted_mmm, request
+    ):
+        mmm = request.getfixturevalue(fitted_mmm)
+        curves = mmm.sample_saturation_curve(num_samples=10, original_scale=True)
+
+        fig, axes = mmm.plot.saturation_curves(curves, original_scale=True, n_samples=5)
+
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(ax, Axes) for ax in axes.flat)
+        plt.close(fig)
