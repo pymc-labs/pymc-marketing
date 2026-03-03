@@ -27,7 +27,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
-:img-top: ../gallery/images/mmm_example.png
+:img-top: ../gallery/images/mmm_gam_options.png
 :link: ../notebooks/mmm/mmm_gam_options.html
 :::
 
@@ -57,7 +57,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Cost-per-Unit: Model on Impressions, Report in Dollars
-:img-top: ../gallery/images/mmm_example.png
+:img-top: ../gallery/images/mmm_cost_per_unit.png
 :link: ../notebooks/mmm/mmm_cost_per_unit.html
 :::
 
@@ -109,7 +109,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Multi-Objective Optimization
-:img-top: ../gallery/images/mmm_allocation_assessment.png
+:img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
 ::::
@@ -125,7 +125,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} MMM Calibration with Geo-Level Lift Tests
-:img-top: ../gallery/images/mmm_lift_test.png
+:img-top: ../gallery/images/mmm_geolift_calibration.png
 :link: ../notebooks/mmm/mmm_geolift_calibration.html
 :::
 
