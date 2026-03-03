@@ -28,6 +28,7 @@ with warnings.catch_warnings():
     warnings.simplefilter("ignore", FutureWarning)
     from pymc_marketing.mmm.multidimensional import MMM
 
+from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm.plot import MMMPlotSuite
 
 
@@ -5101,6 +5102,200 @@ class TestAllocatedContributionByChannelOverTime:
             ValueError, match=r"InferenceData must contain 'posterior_predictive'"
         ):
             mock_suite_basic.allocated_contribution_by_channel_over_time(samples=idata)
+
+
+# ============================================================================
+# Cost-per-unit plot tests
+# ============================================================================
+
+_CPU_SEED = sum(map(ord, "cost_per_unit_tests"))
+_cpu_rng = np.random.default_rng(seed=_CPU_SEED)
+
+
+@pytest.fixture
+def cpu_dates():
+    return pd.date_range("2024-01-01", periods=4, freq="W-MON")
+
+
+@pytest.fixture
+def cpu_channels():
+    return ["TV", "Radio"]
+
+
+@pytest.fixture
+def cpu_simple_idata(cpu_dates, cpu_channels):
+    """InferenceData without custom dims."""
+    rng = np.random.default_rng(seed=_CPU_SEED)
+    n_dates = len(cpu_dates)
+    n_channels = len(cpu_channels)
+    contrib = rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_channels))
+    contrib_coords = {
+        "chain": [0, 1],
+        "draw": np.arange(50),
+        "date": cpu_dates,
+        "channel": cpu_channels,
+    }
+    return az.InferenceData(
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    rng.uniform(100, 1000, size=(n_dates, n_channels)),
+                    dims=("date", "channel"),
+                    coords={"date": cpu_dates, "channel": cpu_channels},
+                ),
+                "target_data": xr.DataArray(
+                    rng.uniform(500, 2000, size=(n_dates,)),
+                    dims=("date",),
+                    coords={"date": cpu_dates},
+                ),
+                "channel_scale": xr.DataArray(
+                    [500.0, 300.0],
+                    dims=("channel",),
+                    coords={"channel": cpu_channels},
+                ),
+                "target_scale": xr.DataArray(1000.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    contrib,
+                    dims=("chain", "draw", "date", "channel"),
+                    coords=contrib_coords,
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    contrib * 1000.0,
+                    dims=("chain", "draw", "date", "channel"),
+                    coords=contrib_coords,
+                ),
+            }
+        ),
+    )
+
+
+@pytest.fixture
+def cpu_simple_idata_with_spend(cpu_simple_idata, cpu_dates, cpu_channels):
+    """cpu_simple_idata with channel_spend added (constant cpu: TV=2, Radio=3)."""
+    cpu = xr.DataArray(
+        [[2.0, 3.0]] * len(cpu_dates),
+        dims=("date", "channel"),
+        coords={"date": cpu_dates, "channel": cpu_channels},
+    )
+    channel_data = cpu_simple_idata.constant_data.channel_data
+    cpu_simple_idata.constant_data["channel_spend"] = channel_data * cpu
+    return cpu_simple_idata
+
+
+class TestMMMPlotSuiteConstructor:
+    def test_with_raw_idata(self, cpu_simple_idata):
+        suite = MMMPlotSuite(idata=cpu_simple_idata)
+        assert suite.idata is cpu_simple_idata
+        assert isinstance(suite.data, MMMIDataWrapper)
+
+    def test_with_wrapper(self, cpu_simple_idata):
+        wrapper = MMMIDataWrapper(cpu_simple_idata)
+        suite = MMMPlotSuite(data=wrapper)
+        assert suite.data is wrapper
+        assert suite.idata is cpu_simple_idata
+
+    def test_both_raises(self, cpu_simple_idata):
+        wrapper = MMMIDataWrapper(cpu_simple_idata)
+        with pytest.raises(ValueError, match="Provide either"):
+            MMMPlotSuite(idata=cpu_simple_idata, data=wrapper)
+
+    def test_neither_raises(self):
+        with pytest.raises(ValueError, match="Provide either"):
+            MMMPlotSuite()
+
+
+_CPU_XLABEL_CASES = [
+    pytest.param("cpu_simple_idata_with_spend", True, "Spend", id="spend+cpu"),
+    pytest.param(
+        "cpu_simple_idata_with_spend", False, "Channel Data (X)", id="spend-no_cpu"
+    ),
+    pytest.param("cpu_simple_idata", True, "Channel Data (X)", id="no_spend+cpu"),
+]
+
+
+class TestSaturationScatterplotCostPerUnit:
+    @pytest.mark.parametrize(
+        "idata_fixture, apply_cpu, expected_label", _CPU_XLABEL_CASES
+    )
+    def test_xlabel(self, idata_fixture, apply_cpu, expected_label, request):
+        idata = request.getfixturevalue(idata_fixture)
+        wrapper = MMMIDataWrapper(idata)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_scatterplot(apply_cost_per_unit=apply_cpu)
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == expected_label
+
+
+class TestSaturationCurvesCostPerUnit:
+    @pytest.fixture
+    def curve_data(self, cpu_channels):
+        """Minimal curve DataArray for saturation_curves()."""
+        rng = np.random.default_rng(seed=_CPU_SEED + 1)
+        x = np.linspace(0, 1, 50)
+        return xr.DataArray(
+            rng.uniform(0, 1, size=(2, 10, len(cpu_channels), 50)),
+            dims=("chain", "draw", "channel", "x"),
+            coords={
+                "chain": [0, 1],
+                "draw": np.arange(10),
+                "channel": cpu_channels,
+                "x": x,
+            },
+        )
+
+    @pytest.mark.parametrize(
+        "idata_fixture, apply_cpu, expected_label", _CPU_XLABEL_CASES
+    )
+    def test_xlabel(
+        self, idata_fixture, apply_cpu, expected_label, curve_data, request
+    ):
+        idata = request.getfixturevalue(idata_fixture)
+        wrapper = MMMIDataWrapper(idata)
+        suite = MMMPlotSuite(data=wrapper)
+        fig, axes = suite.saturation_curves(
+            curve=curve_data,
+            original_scale=True,
+            n_samples=2,
+            apply_cost_per_unit=apply_cpu,
+        )
+        plt.close(fig)
+        assert axes.flat[0].get_xlabel() == expected_label
+
+
+class TestSensitivityAnalysisCostPerUnit:
+    @pytest.mark.parametrize(
+        "idata_fixture, apply_cpu",
+        [
+            pytest.param("cpu_simple_idata_with_spend", True, id="spend+cpu"),
+            pytest.param("cpu_simple_idata", True, id="no_spend+cpu"),
+            pytest.param("cpu_simple_idata_with_spend", False, id="spend-no_cpu"),
+        ],
+    )
+    def test_absolute_sweep(self, idata_fixture, apply_cpu, cpu_channels, request):
+        rng = np.random.default_rng(seed=_CPU_SEED + 2)
+        idata = request.getfixturevalue(idata_fixture)
+        sweep = np.linspace(0.5, 2.0, 5)
+        sa = xr.DataArray(
+            rng.normal(size=(20, len(cpu_channels), len(sweep))),
+            dims=("sample", "channel", "sweep"),
+            coords={"channel": cpu_channels, "sweep": sweep},
+        )
+        idata.sensitivity_analysis = xr.Dataset({"x": sa})
+
+        wrapper = MMMIDataWrapper(idata)
+        suite = MMMPlotSuite(data=wrapper)
+        result = suite.sensitivity_analysis(
+            hue_dim="channel",
+            x_sweep_axis="absolute",
+            apply_cost_per_unit=apply_cpu,
+        )
+        fig = result[0] if isinstance(result, tuple) else result.figure
+        plt.close(fig)
+        assert fig is not None
 
 
 class TestSaturationCurvesIntegration:
