@@ -3,6 +3,7 @@
 ## Table of Contents
 - [Why Calibrate](#why-calibrate)
 - [Lift Test Data Format](#lift-test-data-format)
+- [Time-Varying Media and Date Alignment](#time-varying-media-and-date-alignment)
 - [Adding Lift Tests to the Model](#adding-lift-tests-to-the-model)
 - [Calibrated vs Uncalibrated Comparison](#calibrated-vs-uncalibrated-comparison)
 - [How It Works Internally](#how-it-works-internally)
@@ -57,6 +58,34 @@ df_lift_test = pd.DataFrame({
     "sigma": [3.0, 4.0, 2.0],
 })
 ```
+
+## Time-Varying Media and Date Alignment
+
+When `time_varying_media=True`, lift test rows should include `date` in addition to the standard columns (`channel`, `x`, `delta_x`, `delta_y`, `sigma`).
+
+Why this matters:
+
+- With static media effects, the predicted lift is `sat(x + delta_x) - sat(x)`.
+- With time-varying media, the predicted lift is scaled by a time-specific multiplier:
+  `media_temporal_latent_multiplier[t] * (sat(x + delta_x) - sat(x))`.
+- The same `x` and `delta_x` can imply different expected `delta_y` at different dates, so calibration rows must be tied to the correct time coordinate.
+
+Use this pattern:
+
+```python
+df_lift_test = pd.DataFrame({
+    "channel": ["tv"],
+    "date": [pd.Timestamp("2024-06-03")],  # required for time-varying media
+    "x": [500.0],
+    "delta_x": [100.0],
+    "delta_y": [20.0],
+    "sigma": [3.0],
+})
+```
+
+For multidimensional models, include one column per dimension as well (for example `geo`).
+
+Legacy note: older MMM behavior may auto-fill missing `date` with the first model date for `time_varying_media=True`. Avoid relying on this fallback; pass explicit experiment dates.
 
 ## Adding Lift Tests to the Model
 
@@ -241,6 +270,7 @@ The `calibration_data` DataFrame requires columns: `channel`, `cost_per_target`,
 | New channel with no history | Even a single lift test provides a strong anchor |
 | Model posteriors very wide | Lift tests narrow uncertainty by adding information |
 | Prior and posterior nearly identical | Data is not informative; lift tests break the tie |
+| Time-varying media models | Include `date` so lift constraints align to the right latent multiplier |
 
 ### When Not to Use Lift Tests
 
