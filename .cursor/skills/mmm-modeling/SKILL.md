@@ -237,6 +237,7 @@ mmm.fit(X=X, y=y, nuts_sampler="nutpie", ...)
 ```
 
 The lift test DataFrame requires columns: `channel`, `x`, `delta_x`, `delta_y`, `sigma` (plus `geo` for geo-level).
+When `time_varying_media=True`, include `date` so each lift measurement maps to the correct `media_temporal_latent_multiplier` time coordinate.
 
 See [references/liftest_calibration.md](references/liftest_calibration.md) for data format, calibrated vs uncalibrated comparison, geo-level patterns, and sigma estimation.
 
