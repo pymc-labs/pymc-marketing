@@ -683,7 +683,7 @@ class BudgetOptimizer(BaseModel):
 
     compile_kwargs: dict | None = Field(
         default=None,
-        description="Keyword arguments for the model compilation. Specially usefull to pass compilation mode",
+        description="Keyword arguments for the model compilation. Especially useful to pass compilation mode",
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -775,6 +775,7 @@ class BudgetOptimizer(BaseModel):
             cost_per_unit=self.cost_per_unit,
             num_periods=self.num_periods,
             budget_dims=self._budget_dims,
+            budget_coords=self._budget_coords,
         )
 
         # 6. Replace channel_data with budgets in the PyMC model
@@ -884,11 +885,12 @@ class BudgetOptimizer(BaseModel):
         # Store only the masked tensor
         return pt.constant(time_factors_masked, name="budget_distribution_over_period")
 
+    @staticmethod
     def _validate_and_process_cost_per_unit(
-        self,
         cost_per_unit: DataArray | None,
         num_periods: int,
         budget_dims: list[str],
+        budget_coords: dict[str, list] | None = None,
     ) -> pt.TensorConstant | None:
         """Validate and convert cost_per_unit to a PyTensor constant.
 
@@ -900,6 +902,9 @@ class BudgetOptimizer(BaseModel):
             Number of optimization periods.
         budget_dims : list[str]
             Budget dimension names (excluding 'date').
+        budget_coords : dict[str, list] or None
+            Model coordinate order for each budget dimension, used to reindex
+            the cost_per_unit DataArray before extracting values.
 
         Returns
         -------
@@ -918,8 +923,8 @@ class BudgetOptimizer(BaseModel):
         expected_dims = ("date", *budget_dims)
         if set(cost_per_unit.dims) != set(expected_dims):
             raise ValueError(
-                f"cost_per_unit must have dims {expected_dims}, "
-                f"but got {cost_per_unit.dims}"
+                f"cost_per_unit must have exactly the dims {set(expected_dims)}, "
+                f"but got {set(cost_per_unit.dims)}"
             )
 
         if len(cost_per_unit.coords["date"]) != num_periods:
@@ -928,9 +933,14 @@ class BudgetOptimizer(BaseModel):
                 f"but got {len(cost_per_unit.coords['date'])}"
             )
 
-        if (cost_per_unit <= 0).any():
-            raise ValueError("cost_per_unit values must be positive.")
+        if cost_per_unit.isnull().any() or (cost_per_unit <= 0).any():
+            raise ValueError(
+                "cost_per_unit values must be positive "
+                "(no NaN, zero, or negative values)."
+            )
 
+        if budget_coords is not None:
+            cost_per_unit = cost_per_unit.reindex(budget_coords)
         values = cost_per_unit.transpose(*expected_dims).values
         return pt.constant(values, name="cost_per_unit")
 
@@ -1025,19 +1035,12 @@ class BudgetOptimizer(BaseModel):
         # Convert from monetary units to original units using date-specific rates.
         # Applied AFTER time distribution so each period uses its own cost rate.
         if self._cost_per_unit_tensor is not None:
-            if date_dim_idx != 0:
-                raise ValueError(
-                    "cost_per_unit conversion assumes date is the first dimension "
-                    f"in channel_data_dims, but date_dim_idx={date_dim_idx}. "
-                    "If channel_data_dims ordering has changed, update "
-                    "_cost_per_unit_tensor transpose accordingly."
-                )
             repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
 
         repeated_budgets.name = "repeated_budgets"
 
         # Pad the repeated budgets with zeros to account for carry-over effects
-        # We set the repeated budgehts in a zero-filled tensor to achieve this
+        # We set the repeated budgets in a zero-filled tensor to achieve this
         repeated_budgets_with_carry_over_shape = list(tuple(budgets.shape))
         repeated_budgets_with_carry_over_shape.insert(
             date_dim_idx, num_periods + max_lag
@@ -1219,7 +1222,7 @@ class BudgetOptimizer(BaseModel):
             budget_bounds_array = np.broadcast_to(
                 [
                     np.asarray(budget_bounds[channel])
-                    for channel in self.mmm_model.channel_columns
+                    for channel in self._budget_coords[self._budget_dims[0]]
                 ],
                 (*self._budget_shape, 2),
             )
@@ -1229,9 +1232,13 @@ class BudgetOptimizer(BaseModel):
                 raise ValueError(
                     f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
                 )
-            budget_bounds_array = budget_bounds.transpose(
-                *self._budget_dims, "bound"
-            ).values
+            budget_bounds_array = (
+                budget_bounds.reindex(
+                    {d: self._budget_coords[d] for d in self._budget_dims}
+                )
+                .transpose(*self._budget_dims, "bound")
+                .values
+            )
         else:
             raise ValueError(
                 "budget_bounds must be a dictionary or an xarray.DataArray"

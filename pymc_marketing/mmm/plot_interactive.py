@@ -852,8 +852,9 @@ class MMMPlotlyFactory:
             Time aggregation (default: "all_time"). Options: "original", "weekly",
             "monthly", "quarterly", "yearly", "all_time".
         method : {"incremental", "elementwise"}, default "elementwise"
-            ROAS computation method. "incremental" uses counterfactual
-            analysis with carryover; "elementwise" uses simple contribution/spend
+            ROAS computation method. ``"incremental"`` uses counterfactual
+            analysis accounting for adstock carryover as defined in [1]_
+            (Formula 10); ``"elementwise"`` uses simple contribution/spend
             division.
         include_carryover : bool, default True
             Include adstock carryover effects. Only used when method="incremental".
@@ -894,6 +895,13 @@ class MMMPlotlyFactory:
         -------
         go.Figure
             Interactive Plotly figure
+
+        References
+        ----------
+        .. [1] Jin, Y., Wang, Y., Sun, Y., Chan, D., & Koehler, J. (2017).
+           Bayesian Methods for Media Mix Modeling with Carryover and Shape
+           Effects. Google Inc.
+           https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/
 
         Examples
         --------
