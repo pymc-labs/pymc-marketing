@@ -775,6 +775,7 @@ class BudgetOptimizer(BaseModel):
             cost_per_unit=self.cost_per_unit,
             num_periods=self.num_periods,
             budget_dims=self._budget_dims,
+            budget_coords=self._budget_coords,
         )
 
         # 6. Replace channel_data with budgets in the PyMC model
@@ -889,6 +890,7 @@ class BudgetOptimizer(BaseModel):
         cost_per_unit: DataArray | None,
         num_periods: int,
         budget_dims: list[str],
+        budget_coords: dict[str, list] | None = None,
     ) -> pt.TensorConstant | None:
         """Validate and convert cost_per_unit to a PyTensor constant.
 
@@ -900,6 +902,9 @@ class BudgetOptimizer(BaseModel):
             Number of optimization periods.
         budget_dims : list[str]
             Budget dimension names (excluding 'date').
+        budget_coords : dict[str, list] or None
+            Model coordinate order for each budget dimension, used to reindex
+            the cost_per_unit DataArray before extracting values.
 
         Returns
         -------
@@ -934,6 +939,8 @@ class BudgetOptimizer(BaseModel):
                 "(no NaN, zero, or negative values)."
             )
 
+        if budget_coords is not None:
+            cost_per_unit = cost_per_unit.reindex(budget_coords)
         values = cost_per_unit.transpose(*expected_dims).values
         return pt.constant(values, name="cost_per_unit")
 
