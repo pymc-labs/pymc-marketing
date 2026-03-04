@@ -741,8 +741,9 @@ class MMM(RegressionModelBuilder):
                 f"Saturation effect dims {self.saturation.combined_dims} must contain {allowed_dims}"
             )
 
-    @staticmethod
+    @classmethod
     def _parse_cost_per_unit_df(
+        cls,
         df: pd.DataFrame,
         channels: list[str],
         dates: pd.DatetimeIndex | np.ndarray,
@@ -3391,7 +3392,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
     ) -> xr.DataArray:
         """Parse a cost_per_unit DataFrame for the optimization window.
 
-        Delegates to ``MMM._parse_cost_per_unit_df()`` with coordinates
+        Delegates to the model class's ``_parse_cost_per_unit_df()`` with coordinates
         appropriate for the optimization window rather than training data.
 
         Parameters

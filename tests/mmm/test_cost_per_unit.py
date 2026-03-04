@@ -149,7 +149,7 @@ def multidim_idata(dates, channels, countries):
 
 
 class TestParseCostPerUnitDf:
-    """Tests for the static _parse_cost_per_unit_df method."""
+    """Tests for the _parse_cost_per_unit_df classmethod."""
 
     def test_parse_single_channel_no_custom_dims(self, dates, channels):
         df = pd.DataFrame({"date": dates, "TV": [0.01, 0.02, 0.015, 0.012]})
@@ -385,7 +385,7 @@ class TestBudgetOptimizerCostPerUnitValidation:
             dims=("date", "channel"),
             coords={"date": range(4), "channel": ["TV", "Radio"]},
         )
-        with pytest.raises(ValueError, match="must have dims"):
+        with pytest.raises(ValueError, match="must have exactly the dims"):
             BudgetOptimizer._validate_and_process_cost_per_unit(
                 cost_per_unit=cpu,
                 num_periods=4,
