@@ -1792,6 +1792,9 @@ class MMM(RegressionModelBuilder):
             cpu_array = self._build_cost_per_unit_array(self._cost_per_unit_input)
             channel_data = self.idata.constant_data.channel_data  # type: ignore[union-attr]
             self.idata.constant_data["channel_spend"] = channel_data * cpu_array  # type: ignore[union-attr]
+            self.idata.attrs["cost_per_unit"] = self._cost_per_unit_input.to_json(
+                orient="split", date_format="iso"
+            )
         return idata
 
     def build_model(  # type: ignore[override]
