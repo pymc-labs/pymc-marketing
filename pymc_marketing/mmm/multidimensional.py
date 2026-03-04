@@ -3535,6 +3535,14 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                     f"got {type(cost_per_unit)}"
                 )
 
+        if cost_per_unit is None and self.data.cost_per_unit is not None:
+            warnings.warn(
+                "Model has cost_per_unit set (channel_spend in constant_data), "
+                "but cost_per_unit was not passed to optimize_budget. ",
+                UserWarning,
+                stacklevel=2,
+            )
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
