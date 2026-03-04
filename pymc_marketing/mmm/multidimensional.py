@@ -813,11 +813,10 @@ class MMM(RegressionModelBuilder):
             )
 
         numeric_values = df[value_cols]
-        if (numeric_values <= 0).any().any():
+        if numeric_values.isnull().any().any() or (numeric_values <= 0).any().any():
             raise ValueError(
-                "cost_per_unit values must be positive (> 0). "
-                "Zero or negative values would cause division-by-zero "
-                "or negative spend in downstream calculations."
+                "cost_per_unit values must be positive "
+                "(no NaN, zero, or negative values)."
             )
 
         df_indexed = df.set_index(dim_cols)
