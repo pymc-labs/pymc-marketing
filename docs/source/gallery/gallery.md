@@ -56,7 +56,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/plot_interactive.html
 :::
 
-:::{grid-item-card} Cost-per-Unit: Model on Impressions, Report in Dollars
+:::{grid-item-card} Cost-per-Unit: Model What Drives Revenue, Report What You Spend
 :img-top: ../gallery/images/mmm_cost_per_unit.png
 :link: ../notebooks/mmm/mmm_cost_per_unit.html
 :::
