@@ -1353,6 +1353,7 @@ class MMMPlotlyFactory:
         auto_facet: bool = True,
         single_dim_facet: Literal["col", "row"] = "col",
         original_scale: bool = True,
+        apply_cost_per_unit: bool = True,
         **plotly_kwargs,
     ) -> go.Figure:
         """Plot saturation curves by channel.
@@ -1390,6 +1391,11 @@ class MMMPlotlyFactory:
             Whether to plot x-axis in original scale. If True (default), the x-axis
             values are multiplied by the channel scale factor to show spend in
             original units (e.g., dollars). If False, x-axis shows scaled values.
+        apply_cost_per_unit : bool, default True
+            Whether to apply cost-per-unit scaling to the x-axis. If True (default)
+            and cost-per-unit data exists, the x-axis shows spend values. If False,
+            the x-axis shows raw channel data even when cost-per-unit data exists.
+            Only relevant when original_scale=True.
         **plotly_kwargs
             Additional Plotly Express arguments including:
             - title: Figure title (default: "Saturation Curves")
@@ -1432,8 +1438,11 @@ class MMMPlotlyFactory:
         # Convert x-axis to original scale if requested
         if original_scale:
             channel_scale = self.summary.data.get_channel_scale()
-            avg_cpu = self.summary.data.get_avg_cost_per_unit()
-            spend_scale = channel_scale * avg_cpu
+            if apply_cost_per_unit:
+                avg_cpu = self.summary.data.get_avg_cost_per_unit()
+                spend_scale = channel_scale * avg_cpu
+            else:
+                spend_scale = channel_scale
             scale_df = spend_scale.to_dataframe(name="channel_scale").reset_index()
             nw_scale = nw.from_native(scale_df)
 
@@ -1449,7 +1458,11 @@ class MMMPlotlyFactory:
             nw_df = nw_df.with_columns(x=nw.col("x") * nw.col("channel_scale"))
             nw_df = nw_df.drop("channel_scale")
 
-            xaxis_title = "Spend"
+            xaxis_title = (
+                "Spend"
+                if (apply_cost_per_unit and self.summary.data.cost_per_unit is not None)
+                else "Channel Data (X)"
+            )
         else:
             xaxis_title = "Spend (scaled)"
 
