@@ -214,6 +214,21 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 
 
+def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
+    """Deserialize a cost_per_unit JSON string, normalizing tz-aware dates.
+
+    ``pd.read_json(orient="split")`` may parse ISO dates as tz-aware (UTC).
+    Since the model internally uses tz-naive dates, we strip timezone info
+    to ensure consistent reindexing after a save/load round-trip.
+    """
+    df = pd.read_json(io.StringIO(json_str), orient="split")
+    if "date" in df.columns:
+        dt_accessor = df["date"].dt
+        if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
+            df["date"] = dt_accessor.tz_localize(None)
+    return df
+
+
 @singledispatch
 def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
     """Serialize a MuEffect to JSON-compatible dict.
@@ -984,9 +999,20 @@ class MMM(RegressionModelBuilder):
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         if self._cost_per_unit_input is not None:
-            attrs["cost_per_unit"] = self._cost_per_unit_input.to_json(
-                orient="split", date_format="iso"
-            )
+            cpu_df = self._cost_per_unit_input
+            if (
+                "date" in cpu_df.columns
+                and hasattr(cpu_df["date"].dt, "tz")
+                and cpu_df["date"].dt.tz is not None
+            ):
+                warnings.warn(
+                    "cost_per_unit contains timezone-aware dates. Timezone info "
+                    "will be stripped during serialization. Use tz-naive dates "
+                    "for a consistent save/load round-trip.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            attrs["cost_per_unit"] = cpu_df.to_json(orient="split", date_format="iso")
         else:
             attrs["cost_per_unit"] = json.dumps(None)
 
@@ -1055,7 +1081,7 @@ class MMM(RegressionModelBuilder):
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
             "cost_per_unit": (
-                pd.read_json(io.StringIO(attrs["cost_per_unit"]), orient="split")
+                _deserialize_cost_per_unit(attrs["cost_per_unit"])
                 if attrs.get("cost_per_unit") and attrs["cost_per_unit"] != "null"
                 else None
             ),
