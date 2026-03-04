@@ -721,15 +721,6 @@ class MMM(RegressionModelBuilder):
         if self.sampler_config != other.sampler_config:
             return False
 
-        # cost_per_unit
-        if (self._cost_per_unit_input is None) != (other._cost_per_unit_input is None):
-            return False
-        if (
-            self._cost_per_unit_input is not None
-            and not self._cost_per_unit_input.equals(other._cost_per_unit_input)
-        ):
-            return False
-
         # Final validation: model IDs must match
         # This is a content-based hash that validates the entire config
         if self.id != other.id:
@@ -865,7 +856,7 @@ class MMM(RegressionModelBuilder):
     def _build_cost_per_unit_array(self, df: pd.DataFrame) -> xr.DataArray:
         """Parse cost_per_unit DataFrame using coordinates from the fitted model."""
         custom_dims = tuple(self.data.custom_dims)
-        return MMM._parse_cost_per_unit_df(
+        return self._parse_cost_per_unit_df(
             df=df,
             channels=self.data.channels,
             dates=self.data.dates,
@@ -3276,6 +3267,12 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self.idata, "constant_data"):
             raise ValueError("InferenceData missing constant_data group")
 
+        if "channel_data" not in self.idata.constant_data:
+            raise ValueError(
+                "InferenceData constant_data is missing 'channel_data'. "
+                "Cannot compute channel_spend without channel_data."
+            )
+
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
         channel_data = self.idata.constant_data.channel_data
         self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
@@ -3410,7 +3407,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         """
         channels = self.model_class.channel_columns
         custom_dims = tuple(self.model_class.dims)
-        dates = sorted(df["date"].unique())
+        dates = pd.DatetimeIndex(df["date"].unique()).sort_values()
 
         custom_dim_coords = None
         if custom_dims:
@@ -3420,7 +3417,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 for dim in custom_dims
             }
 
-        return MMM._parse_cost_per_unit_df(
+        return self.model_class._parse_cost_per_unit_df(
             df=df,
             channels=channels,
             dates=dates,

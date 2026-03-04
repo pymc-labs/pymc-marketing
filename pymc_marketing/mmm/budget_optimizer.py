@@ -683,7 +683,7 @@ class BudgetOptimizer(BaseModel):
 
     compile_kwargs: dict | None = Field(
         default=None,
-        description="Keyword arguments for the model compilation. Specially usefull to pass compilation mode",
+        description="Keyword arguments for the model compilation. Especially useful to pass compilation mode",
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -884,8 +884,8 @@ class BudgetOptimizer(BaseModel):
         # Store only the masked tensor
         return pt.constant(time_factors_masked, name="budget_distribution_over_period")
 
+    @staticmethod
     def _validate_and_process_cost_per_unit(
-        self,
         cost_per_unit: DataArray | None,
         num_periods: int,
         budget_dims: list[str],
@@ -918,8 +918,8 @@ class BudgetOptimizer(BaseModel):
         expected_dims = ("date", *budget_dims)
         if set(cost_per_unit.dims) != set(expected_dims):
             raise ValueError(
-                f"cost_per_unit must have dims {expected_dims}, "
-                f"but got {cost_per_unit.dims}"
+                f"cost_per_unit must have exactly the dims {set(expected_dims)}, "
+                f"but got {set(cost_per_unit.dims)}"
             )
 
         if len(cost_per_unit.coords["date"]) != num_periods:
@@ -928,8 +928,11 @@ class BudgetOptimizer(BaseModel):
                 f"but got {len(cost_per_unit.coords['date'])}"
             )
 
-        if (cost_per_unit <= 0).any():
-            raise ValueError("cost_per_unit values must be positive.")
+        if cost_per_unit.isnull().any() or (cost_per_unit <= 0).any():
+            raise ValueError(
+                "cost_per_unit values must be positive "
+                "(no NaN, zero, or negative values)."
+            )
 
         values = cost_per_unit.transpose(*expected_dims).values
         return pt.constant(values, name="cost_per_unit")
@@ -1025,19 +1028,12 @@ class BudgetOptimizer(BaseModel):
         # Convert from monetary units to original units using date-specific rates.
         # Applied AFTER time distribution so each period uses its own cost rate.
         if self._cost_per_unit_tensor is not None:
-            if date_dim_idx != 0:
-                raise ValueError(
-                    "cost_per_unit conversion assumes date is the first dimension "
-                    f"in channel_data_dims, but date_dim_idx={date_dim_idx}. "
-                    "If channel_data_dims ordering has changed, update "
-                    "_cost_per_unit_tensor transpose accordingly."
-                )
             repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
 
         repeated_budgets.name = "repeated_budgets"
 
         # Pad the repeated budgets with zeros to account for carry-over effects
-        # We set the repeated budgehts in a zero-filled tensor to achieve this
+        # We set the repeated budgets in a zero-filled tensor to achieve this
         repeated_budgets_with_carry_over_shape = list(tuple(budgets.shape))
         repeated_budgets_with_carry_over_shape.insert(
             date_dim_idx, num_periods + max_lag
