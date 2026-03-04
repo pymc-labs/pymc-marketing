@@ -3522,14 +3522,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
         cost_per_unit_da = None
-        if cost_per_unit is None and self.data.cost_per_unit is not None:
-            warnings.warn(
-                "Model has cost_per_unit set (channel_spend in constant_data), "
-                "but cost_per_unit was not passed to optimize_budget. ",
-                UserWarning,
-                stacklevel=2,
-            )
-        else:
+        if cost_per_unit is not None:
             if isinstance(cost_per_unit, pd.DataFrame):
                 cost_per_unit_da = self._parse_cost_per_unit_for_optimizer(
                     cost_per_unit
