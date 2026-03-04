@@ -632,6 +632,11 @@ class MMM(RegressionModelBuilder):
         bool
             True if all configuration attributes are equal, False otherwise.
 
+        Notes
+        -----
+        cost_per_unit is intentionally excluded: it is a unit-conversion
+        factor (metadata), not a structural model parameter.
+
         """
         if not isinstance(other, MMM):
             return False
