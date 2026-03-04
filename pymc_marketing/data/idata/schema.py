@@ -295,6 +295,18 @@ class MMMIdataSchema(BaseModel):
             ),
         }
 
+        constant_data_vars["channel_spend"] = VariableSchema(
+            name="channel_spend",
+            dims=("date", *custom_dims, "channel"),
+            dtype=("float64", "float32", "int64", "int32"),
+            description=(
+                "Channel spend in monetary units. Precomputed as "
+                "channel_data * cost_per_unit when cost_per_unit is provided; "
+                "otherwise absent (falls back to channel_data)."
+            ),
+            required=False,
+        )
+
         if has_controls:
             constant_data_vars["control_data_"] = VariableSchema(
                 name="control_data_",
