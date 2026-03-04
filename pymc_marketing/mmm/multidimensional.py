@@ -368,12 +368,55 @@ _register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
-    """Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
+    r"""Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
 
-    This class implements the core functionality of a Marketing Mix Model (MMM), allowing for the
-    specification of various marketing channels, adstock transformations, saturation effects,
-    and time-varying parameters. It provides methods for fitting the model to data, making
-    predictions, and visualizing the results.
+    Given a target variable :math:`y_{t}` (e.g. sales or conversions), media
+    variables :math:`x_{m, t}` (e.g. impressions, clicks, or costs), and a set
+    of control covariates :math:`z_{c, t}` (e.g. holidays, pricing), we
+    consider a Bayesian linear model of the form:
+
+    .. math::
+        y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}\,f_{m}\!\bigl(
+        \{x_{m,s}\}_{s \leq t}\bigr) + \sum_{c=1}^{C}\gamma_{c}\,
+        z_{c, t} + \varepsilon_{t},
+
+    where :math:`\alpha` is the intercept, :math:`f_{m}` is a media
+    transformation function that maps the history of channel :math:`m`
+    up to time :math:`t` to a scalar contribution, capturing adstock
+    (carry-over) and saturation effects, and
+    :math:`\varepsilon_{t} \sim \mathcal{N}(0, \sigma^{2})`.
+
+    The model supports :math:`K \geq 0` additional panel dimensions (e.g.
+    geography, brand) specified via the ``dims`` parameter.  When
+    :math:`K > 0`, every variable — the target, media inputs, controls — and
+    all parameters (:math:`\alpha`, :math:`\beta_{m}`, :math:`\gamma_{c}`,
+    :math:`\sigma`, and the parameters of :math:`f_{m}`) are implicitly
+    indexed over the Cartesian product of those dimensions.  For example, with
+    ``dims=("geo",)`` each parameter is geo-specific —
+    :math:`y_{t,g}`, :math:`\alpha_{g}`, :math:`\beta_{m,g}`, etc. — but
+    they share hierarchical priors so that information is partially pooled
+    across geographies.  When ``dims=("geo", "brand")``, every quantity is
+    indexed by :math:`(t, g, b)`.  The equation above is written for a
+    single slice of these dimensions; the full model is their product over
+    all dimension combinations.
+
+    Notes
+    -----
+    1. Before fitting, the target variable and media channels are scaled
+       (by default using max-absolute scaling).  Control variables are **not**
+       scaled automatically — apply your own preprocessing if needed.
+
+    2. Yearly seasonality can be added as Fourier modes via the
+       ``yearly_seasonality`` parameter.
+
+    3. The model can be calibrated with:
+
+       * Custom priors for any parameter via ``model_config``.
+       * Lift-test measurements added through
+         :meth:`add_lift_test_measurements`.
+
+
+    For details on a vanilla implementation in PyMC see [2]_.
 
     Attributes
     ----------
@@ -382,33 +425,44 @@ class MMM(RegressionModelBuilder):
     channel_columns : list[str]
         A list of column names representing the marketing channels.
     target_column : str, optional
-        The name of the column representing the target variable in the dataset. Defaults to `y`.
+        The name of the column representing the target variable in the
+        dataset.  Defaults to ``"y"``.
     adstock : AdstockTransformation
         The adstock transformation to apply to the channel data.
     saturation : SaturationTransformation
         The saturation transformation to apply to the channel data.
-    time_varying_intercept : bool
-        Whether to use a time-varying intercept in the model.
-    time_varying_media : bool
-        Whether to use time-varying effects for media channels.
-    dims : tuple | None
-        Additional batch-dimensions for the model.
-        One categorical-like column with the name of each batch dimension should be present in the dataset.
-        This is used to identify which batch-dimension(s) are associated with each row of data.
-        Data must be rectangular these batch dimensions (i.e., same dates and length for each combination)
-    scaling : Scaling | dict | None
-        Scaling methods to be used for the target variable and the marketing channels.
-        Defaults to max scaling for both.
-    model_config : dict | None
-        Configuration settings for the model.
-    sampler_config : dict | None
+    time_varying_intercept : bool or HSGPBase
+        Whether to use a time-varying intercept in the model, or an
+        ``HSGPBase`` instance specifying dims and priors.
+    time_varying_media : bool or HSGPBase
+        Whether to use time-varying effects for media channels, or an
+        ``HSGPBase`` instance specifying dims and priors.
+    dims : tuple[str, ...] or None
+        Additional panel dimensions for the model (e.g. ``("geo",)``).
+        One categorical column per dimension must be present in the dataset.
+        Data must be rectangular across these dimensions (i.e. the same
+        dates for every combination).
+    scaling : Scaling or dict or None
+        Scaling methods for the target variable and the marketing channels.
+        Defaults to max-absolute scaling for both.
+    model_config : dict or None
+        Configuration settings for the model priors and likelihood.
+    sampler_config : dict or None
         Configuration settings for the sampler.
-    control_columns : list[str] | None
-        A list of control variables to include in the model.
-    yearly_seasonality : int | None
-        The number of yearly seasonalities to include in the model.
+    control_columns : list[str] or None
+        Column names of control covariates to include in the model.
+    yearly_seasonality : int or None
+        Number of Fourier modes for yearly seasonality.
     adstock_first : bool
-        Whether to apply adstock transformations before saturation.
+        Whether to apply adstock before saturation (default ``True``).
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
+       with carryover and shape effects." (2017).
+    .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock,
+       Saturation & Diminishing Returns"
+       <https://juanitorduz.github.io/pymc_mmm/>`_.
     """
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
