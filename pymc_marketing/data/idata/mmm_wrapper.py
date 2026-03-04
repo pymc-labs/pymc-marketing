@@ -123,6 +123,65 @@ class MMMIDataWrapper:
 
         return cls(idata, schema=schema, validate_on_init=False)
 
+    def compare_coords(
+        self,
+        mmm: MMM,
+        variable: str = "channel_data",
+    ) -> tuple[dict[str, set[str]], dict[str, set[str]]]:
+        """Find coordinate mismatches between idata and the model.
+
+        Compares the coordinate values for each custom dimension (i.e. not
+        ``"date"``) of the specified variable between this wrapper's idata
+        and the fitted PyMC model.
+
+        Parameters
+        ----------
+        mmm : MMM
+            Fitted MMM model instance whose ``model`` attribute contains the
+            PyMC model with coordinate metadata.
+        variable : str, default ``"channel_data"``
+            Name of the model variable whose dimensions are checked.
+
+        Returns
+        -------
+        tuple of (dict[str, set[str]], dict[str, set[str]])
+            ``(in_model_not_idata, in_idata_not_model)`` where:
+
+            - ``in_model_not_idata``: mapping from dimension name to the
+              set of coordinate values present in the model but absent from
+              the idata.  When a dimension is entirely missing from the
+              idata (e.g. dropped by a scalar ``filter_dims`` call), *all*
+              of the model's coordinates for that dimension are included.
+            - ``in_idata_not_model``: mapping from dimension name to the
+              set of coordinate values present in the idata but absent from
+              the model (e.g. new labels introduced by ``aggregate_dims``).
+
+            Only dimensions with at least one mismatched coordinate are
+            included in each dict; empty dicts mean full compatibility.
+        """
+        pymc_model = mmm.model
+        variable_dims = pymc_model.named_vars_to_dims.get(variable, ())
+        idata_var = self.get_channel_spend()
+
+        in_model_not_idata: dict[str, set[str]] = {}
+        in_idata_not_model: dict[str, set[str]] = {}
+        for dim_name in variable_dims:
+            if dim_name == "date":
+                continue
+            model_coords = {str(v) for v in pymc_model.coords[dim_name]}
+            if dim_name not in idata_var.dims:
+                in_model_not_idata[dim_name] = model_coords
+                continue
+            idata_coords = {str(v) for v in idata_var.coords[dim_name].values}
+            missing = model_coords - idata_coords
+            if missing:
+                in_model_not_idata[dim_name] = missing
+            extra = idata_coords - model_coords
+            if extra:
+                in_idata_not_model[dim_name] = extra
+
+        return in_model_not_idata, in_idata_not_model
+
     # ==================== Scale Accessor Methods ====================
 
     def get_channel_scale(self) -> xr.DataArray:
@@ -379,10 +438,14 @@ class MMMIDataWrapper:
 
         return xr.Dataset(contributions)
 
-    def get_roas(self, original_scale: bool = True) -> xr.DataArray:
-        """Compute ROAS (Return on Ad Spend) for each channel.
+    def get_elementwise_roas(self, original_scale: bool = True) -> xr.DataArray:
+        """Compute element-wise ROAS (Return on Ad Spend) for each channel.
 
-        ROAS = contribution / spend for each channel.
+        ROAS = contribution / spend for each channel at each time point.
+        Does NOT account for adstock carryover effects. For true incremental
+        ROAS, use :meth:`pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`
+        or :meth:`pymc_marketing.mmm.summary.MMMSummaryFactory.roas` with
+        ``method="incremental"``.
 
         Parameters
         ----------
@@ -397,7 +460,7 @@ class MMMIDataWrapper:
 
         Examples
         --------
-        >>> roas = mmm.data.get_roas()
+        >>> roas = mmm.data.get_elementwise_roas()
         >>> roas_mean = roas.mean(dim=["chain", "draw"])
         """
         contributions = self.get_channel_contributions(original_scale=original_scale)

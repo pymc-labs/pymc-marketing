@@ -298,6 +298,63 @@ class TestRoasAndContributions:
         # Verify figure is returned
         assert isinstance(fig, go.Figure), f"Expected go.Figure, got {type(fig)}"
 
+    def test_roas_passes_incrementality_args_to_summary(self):
+        """Test that roas() passes include_carryover, num_samples, random_state to summary.roas()."""
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [2.0, 3.0],
+                "median": [2.0, 3.0],
+                "abs_error_94_lower": [1.8, 2.8],
+                "abs_error_94_upper": [2.2, 3.2],
+            }
+        )
+        mock_summary = _create_simple_mock_summary(df=df, method_name="roas")
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        factory.roas(
+            method="incremental",
+            include_carryover=False,
+            num_samples=100,
+            random_state=42,
+        )
+
+        mock_summary.roas.assert_called_once()
+        call_kwargs = mock_summary.roas.call_args.kwargs
+        assert call_kwargs["method"] == "incremental"
+        assert call_kwargs["include_carryover"] is False
+        assert call_kwargs["num_samples"] == 100
+        assert call_kwargs["random_state"] == 42
+
+    @pytest.mark.parametrize("method", ["incremental", "elementwise"])
+    def test_roas_method_param_produces_figure(self, method):
+        """Test that roas() with method param produces a valid figure."""
+        df = pd.DataFrame(
+            {
+                "channel": ["TV", "Radio"],
+                "mean": [2.0, 3.0],
+                "median": [2.0, 3.0],
+                "abs_error_94_lower": [1.8, 2.8],
+                "abs_error_94_upper": [2.2, 3.2],
+            }
+        )
+        mock_summary = _create_simple_mock_summary(df=df, method_name="roas")
+        factory = MMMPlotlyFactory(summary=mock_summary)
+
+        fig = factory.roas(method=method)
+
+        assert isinstance(fig, go.Figure)
+        mock_summary.roas.assert_called_once_with(
+            hdi_probs=[0.94],
+            frequency="all_time",
+            method=method,
+            include_carryover=True,
+            num_samples=None,
+            random_state=None,
+            start_date=None,
+            end_date=None,
+        )
+
 
 class TestMMMPlotlyFactoryAutoFaceting:
     """Tests for automatic faceting based on custom dimensions."""

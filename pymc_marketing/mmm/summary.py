@@ -43,6 +43,7 @@ from pymc.util import RandomState
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.mmm.incrementality import Incrementality
 
 # Type aliases
 OutputFormat = Literal["pandas", "polars"]
@@ -482,6 +483,12 @@ class MMMSummaryFactory:
         self,
         hdi_probs: Sequence[float] | None = None,
         frequency: Frequency | None = None,
+        method: Literal["incremental", "elementwise"] = "elementwise",
+        include_carryover: bool = True,
+        num_samples: int | None = None,
+        random_state: RandomState | None = None,
+        start_date: str | pd.Timestamp | None = None,
+        end_date: str | pd.Timestamp | None = None,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
         """Create ROAS (Return on Ad Spend) summary DataFrame.
@@ -495,6 +502,45 @@ class MMMSummaryFactory:
             HDI probability levels (default: uses factory default)
         frequency : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}, optional
             Time aggregation period (default: None, no aggregation)
+        method : {"incremental", "elementwise"}, default "elementwise"
+            Method for computing ROAS:
+
+            - **incremental** (recommended): Uses counterfactual analysis
+              accounting for adstock carryover effects. Computes the true
+              incremental return on ad spend as defined in [1]_ (Formula 10).
+              Requires model to be provided (e.g. via ``mmm.summary``).
+
+            - **elementwise**: Simple element-wise division of contributions
+              by spend. Does NOT account for carryover effects. Useful for
+              daily efficiency tracking but not true incrementality.
+              Works with data-only factory.
+        include_carryover : bool, default True
+            Include adstock carryover effects. Only used when
+            ``method="incremental"``.
+        num_samples : int or None, optional
+            Number of posterior samples to use. If None, all samples are used.
+            Only used when ``method="incremental"``.
+        random_state : int, np.random.Generator, np.random.RandomState, or None, optional
+            Random state for reproducible subsampling. Only used when
+            ``method="incremental"`` and ``num_samples`` is not None.
+        start_date : str or pd.Timestamp, optional
+            Start date for the evaluation window.  For
+            ``method="incremental"`` this is passed to
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+            Spend *before* this date still influences ROAS through adstock
+            carryover effects (the counterfactual analysis automatically
+            includes the necessary carry-in context).
+            For ``method="elementwise"`` the ROAS result is filtered to
+            dates on or after this value.
+        end_date : str or pd.Timestamp, optional
+            End date for the evaluation window.  For
+            ``method="incremental"`` this is passed to
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+            Spend *during* the window continues to generate returns *after*
+            this date through adstock carryover; those trailing effects are
+            included in the ROAS calculation.
+            For ``method="elementwise"`` the ROAS result is filtered to
+            dates on or before this value.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
 
@@ -510,20 +556,67 @@ class MMMSummaryFactory:
             - abs_error_{prob}_lower: HDI lower bound for each prob
             - abs_error_{prob}_upper: HDI upper bound for each prob
 
+        References
+        ----------
+        .. [1] Jin, Y., Wang, Y., Sun, Y., Chan, D., & Koehler, J. (2017).
+           Bayesian Methods for Media Mix Modeling with Carryover and Shape
+           Effects. Google Inc.
+           https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/
+
         Examples
         --------
         >>> df = mmm.summary.roas()
         >>> df = mmm.summary.roas(frequency="monthly")
-        >>> df = mmm.summary.roas(hdi_probs=[0.80, 0.94])
+        >>> df = mmm.summary.roas(method="incremental", include_carryover=True)
+        >>> df = factory.roas(method="elementwise")
+        >>> df = mmm.summary.roas(
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-06-30",
+        ...     frequency="quarterly",
+        ... )
 
         """
-        # Resolve all defaults in one call
+        if method == "elementwise":
+            incremental_only_params = {
+                "include_carryover": include_carryover != True,  # noqa: E712
+                "num_samples": num_samples is not None,
+                "random_state": random_state is not None,
+            }
+            for name, was_set in incremental_only_params.items():
+                if was_set:
+                    raise ValueError(
+                        f"parameter {name} is only supported with method='incremental', "
+                        f"either remove it or use method='incremental'."
+                    )
+
         data, hdi_probs, output_format = self._prepare_data_and_hdi(
-            hdi_probs, frequency, output_format
+            hdi_probs,
+            frequency=None,
+            output_format=output_format,
         )
 
-        # Compute ROAS using data wrapper method
-        roas = data.get_roas(original_scale=True)
+        if method == "incremental":
+            self._require_model("roas with method='incremental'")
+            if self.model is None:
+                raise RuntimeError("Model should not be None after _require_model")
+            incr = Incrementality(model=self.model, data=data)
+            roas = incr.contribution_over_spend(
+                frequency=frequency or "original",
+                start_date=start_date,
+                end_date=end_date,
+                include_carryover=include_carryover,
+                num_samples=num_samples,
+                random_state=random_state,
+            )
+        elif method == "elementwise":
+            data = data.filter_dates(start_date=start_date, end_date=end_date)
+            if frequency is not None and frequency != "original":
+                data = data.aggregate_time(frequency)
+            roas = data.get_elementwise_roas(original_scale=True)
+        else:
+            raise ValueError(
+                f"method must be 'incremental' or 'elementwise', got {method!r}"
+            )
 
         # Compute summary stats with HDI
         df = self._compute_summary_stats_with_hdi(roas, hdi_probs)
