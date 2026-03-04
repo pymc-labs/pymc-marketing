@@ -3577,7 +3577,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             unique_dates = safe_to_datetime(
                 data_xr_stacked.coords["date"].values, "date"
             )
-            unique_dates_sorted = sorted(unique_dates.unique())
+            unique_dates_sorted = pd.DatetimeIndex(unique_dates.unique()).sort_values()
 
             # Map integer indices to actual dates
             date_mapping = {i: date for i, date in enumerate(unique_dates_sorted)}
