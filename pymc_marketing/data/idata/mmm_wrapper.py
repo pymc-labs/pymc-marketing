@@ -284,19 +284,60 @@ class MMMIDataWrapper:
             return data / target_scale
 
     def get_channel_spend(self) -> xr.DataArray:
-        """Get channel spend data with consistent access pattern.
+        """Get channel spend data in monetary units.
 
-        Returns raw channel spend data (not MCMC samples).
+        If ``channel_spend`` exists in ``constant_data`` (set via
+        ``cost_per_unit``), returns it directly.  Otherwise falls back to
+        ``channel_data`` (backward compatible — assumed already in spend
+        units).
 
         Returns
         -------
         xr.DataArray
-            Channel spend values with dims (date, channel)
+            Channel spend values with dims (date, channel) or
+            (date, *custom_dims, channel).
 
         Raises
         ------
         ValueError
-            If channel_data not found in constant_data
+            If neither channel_spend nor channel_data found in constant_data.
+        """
+        if (
+            hasattr(self.idata, "constant_data")
+            and "channel_spend" in self.idata.constant_data
+        ):
+            return self.idata.constant_data.channel_spend
+
+        if not (
+            hasattr(self.idata, "constant_data")
+            and "channel_data" in self.idata.constant_data
+        ):
+            raise ValueError(
+                "Channel data not found in constant_data. "
+                "Expected 'channel_data' or 'channel_spend' variable "
+                "in idata.constant_data."
+            )
+
+        return self.idata.constant_data.channel_data
+
+    def get_channel_data(self) -> xr.DataArray:
+        """Get raw channel data in original units (not spend-converted).
+
+        Always returns ``channel_data`` from ``constant_data``, regardless
+        of whether ``cost_per_unit`` / ``channel_spend`` has been set.
+        Use this when you need data in the units the model was trained on
+        (e.g., impressions, clicks) rather than monetary units.
+
+        Returns
+        -------
+        xr.DataArray
+            Raw channel data with dims (date, channel) or
+            (date, *custom_dims, channel).
+
+        Raises
+        ------
+        ValueError
+            If channel_data not found in constant_data.
         """
         if not (
             hasattr(self.idata, "constant_data")
@@ -306,8 +347,31 @@ class MMMIDataWrapper:
                 "Channel data not found in constant_data. "
                 "Expected 'channel_data' variable in idata.constant_data."
             )
-
         return self.idata.constant_data.channel_data
+
+    @property
+    def cost_per_unit(self) -> xr.DataArray | None:
+        """Cost per unit conversion factors, computed from stored data.
+
+        Derived on-the-fly as ``channel_spend / channel_data``.
+        Returns None if ``channel_spend`` is not present in
+        ``idata.constant_data``.
+
+        Returns
+        -------
+        xr.DataArray or None
+            Cost per unit values with dims ("date", *custom_dims, "channel").
+            Returns None if cost_per_unit has not been set.
+        """
+        if not (
+            hasattr(self.idata, "constant_data")
+            and "channel_spend" in self.idata.constant_data
+        ):
+            return None
+
+        channel_spend = self.idata.constant_data.channel_spend
+        channel_data = self.idata.constant_data.channel_data
+        return xr.where(channel_data == 0, np.nan, channel_spend / channel_data)
 
     # ==================== Contribution Access ====================
 
