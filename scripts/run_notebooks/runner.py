@@ -139,7 +139,7 @@ def inject_pymc_sample_mock_code(cells: list) -> None:
     )
 
 
-def mock_run(notebook_path: Path) -> None:
+def mock_run(notebook_path: Path, kernel_name: str = KERNEL_NAME) -> None:
     nb = load_notebook_node(str(notebook_path))
     inject_pymc_sample_mock_code(nb.cells)
     with NamedTemporaryFile(suffix=".ipynb") as f:
@@ -149,27 +149,29 @@ def mock_run(notebook_path: Path) -> None:
             input_path=f.name,
             output_path=None,
             progress_bar=dict(desc=desc),
-            kernel_name=KERNEL_NAME,
+            kernel_name=kernel_name,
             cwd=notebook_path.parent,
         )
 
 
-def actual_run(notebook_path: Path) -> None:
+def actual_run(notebook_path: Path, kernel_name: str = KERNEL_NAME) -> None:
     papermill.execute_notebook(
         input_path=notebook_path,
         output_path=None,
-        kernel_name=KERNEL_NAME,
+        kernel_name=kernel_name,
         progress_bar={"desc": f"Running {notebook_path.name}"},
         cwd=notebook_path.parent,
     )
 
 
-def run_notebook(notebook_path: Path, mock: bool = True) -> None:
+def run_notebook(
+    notebook_path: Path, mock: bool = True, kernel_name: str = KERNEL_NAME
+) -> None:
     logging.info(f"Running notebook: {notebook_path.name}")
     run = mock_run if mock else actual_run
 
     try:
-        run(notebook_path)
+        run(notebook_path, kernel_name=kernel_name)
     except Exception as e:
         logging.error(f"Error running notebook: {notebook_path.name}")
         raise e
@@ -178,11 +180,16 @@ def run_notebook(notebook_path: Path, mock: bool = True) -> None:
 class RunParams(TypedDict):
     notebook_path: Path
     mock: bool
+    kernel_name: str
 
 
-def run_parameters(notebook_paths: list[Path]) -> list[RunParams]:
+def run_parameters(
+    notebook_paths: list[Path], kernel_name: str = KERNEL_NAME
+) -> list[RunParams]:
     def to_mock(notebook_path: Path) -> RunParams:
-        return RunParams(notebook_path=notebook_path, mock=True)
+        return RunParams(
+            notebook_path=notebook_path, mock=True, kernel_name=kernel_name
+        )
 
     return [to_mock(notebook_path) for notebook_path in notebook_paths]
 
@@ -212,6 +219,12 @@ def parse_args():
         type=int,
         default=None,
         help="Index of the notebook to end at (exclusive).",
+    )
+    parser.add_argument(
+        "--kernel",
+        type=str,
+        default=KERNEL_NAME,
+        help=f"Jupyter kernel name to use (default: {KERNEL_NAME}).",
     )
     parser.add_argument(
         "--parallel/no-parallel",
@@ -261,13 +274,13 @@ if __name__ == "__main__":
     def parallel_run():
         return Parallel(n_jobs=-1)(
             delayed(run_notebook)(**run_params)
-            for run_params in run_parameters(notebooks_to_run)
+            for run_params in run_parameters(notebooks_to_run, kernel_name=args.kernel)
         )
 
     def sequential_run():
         return [
             run_notebook(**run_params)
-            for run_params in run_parameters(notebooks_to_run)
+            for run_params in run_parameters(notebooks_to_run, kernel_name=args.kernel)
         ]
 
     run = parallel_run if args.parallel else sequential_run
