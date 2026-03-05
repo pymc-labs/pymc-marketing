@@ -434,7 +434,7 @@ def _plot_across_coord(
 def plot_hdi(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    hdi_prob: float | None = None,
+    hdi_prob: Sequence[float | None] | float | None = None,
     hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
@@ -453,10 +453,17 @@ def plot_hdi(
     non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
-    n : int, optional
-        Number of samples to plot
-    rng : np.random.Generator, optional
-        Random number generator
+    hdi_prob : float | list[float], optional
+        HDI probabilities. Defaults to None which uses arviz default for
+        stats.ci_prob which is 94%
+    hdi_kwargs : dict, optional
+        Kwargs for the arviz.hdi function
+    same_axes : bool
+        All of the plots in the same axis
+    colors : Iterable[str], optional
+        Colors for the plots
+    legend : bool, optional
+        If to include a legend. Defaults to True if same_axes
     axes : npt.NDArray[plt.Axes], optional
         Axes to plot on
     subplot_kwargs : dict, optional
@@ -470,34 +477,44 @@ def plot_hdi(
         Figure and the axes
 
     """
+    if isinstance(hdi_prob, list) and not hdi_prob:
+        hdi_prob = [None]
+    elif isinstance(hdi_prob, (float, int)) or hdi_prob is None:
+        hdi_prob = [hdi_prob]
+
     hdi_kwargs = hdi_kwargs or {}
-    hdi_kwargs = {**dict(hdi_prob=hdi_prob), **hdi_kwargs}
-    get_plot_data = _create_get_hdi_plot_data(hdi_kwargs)
-    make_selection = _make_hdi_selection
-    plot_selection = _plot_hdi_selection
 
-    if isinstance(non_grid_names, str):
-        non_grid_names = {non_grid_names}
+    for ihdi_prob in hdi_prob:
+        current_hdi_kwargs = {**hdi_kwargs, **dict(hdi_prob=ihdi_prob)}
 
-    plot_kwargs = plot_kwargs or {}
-    plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
+        get_plot_data = _create_get_hdi_plot_data(current_hdi_kwargs)
+        make_selection = _make_hdi_selection
+        plot_selection = _plot_hdi_selection
 
-    return _plot_across_coord(
-        curve=curve,
-        non_grid_names=non_grid_names,
-        get_plot_data=get_plot_data,
-        make_selection=make_selection,
-        plot_selection=plot_selection,
-        subplot_kwargs=subplot_kwargs,
-        same_axes=same_axes,
-        axes=axes,
-        colors=colors,
-        legend=legend,
-        plot_kwargs=plot_kwargs,
-        patch=True,
-        line=False,
-        sel_to_string=sel_to_string,
-    )
+        if isinstance(non_grid_names, str):
+            non_grid_names = {non_grid_names}
+
+        plot_kwargs = plot_kwargs or {}
+        plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
+
+        fig, axes = _plot_across_coord(
+            curve=curve,
+            non_grid_names=non_grid_names,
+            get_plot_data=get_plot_data,
+            make_selection=make_selection,
+            plot_selection=plot_selection,
+            subplot_kwargs=subplot_kwargs,
+            same_axes=same_axes,
+            axes=axes,
+            colors=colors,
+            legend=legend,
+            plot_kwargs=plot_kwargs,
+            patch=True,
+            line=False,
+            sel_to_string=sel_to_string,
+        )
+
+    return fig, cast(npt.NDArray[Axes], axes)
 
 
 def plot_samples(
@@ -605,7 +622,7 @@ def plot_curve(
         The names to exclude from the grid. HDI and samples both
         have defaults of hdi and chain, draw, respectively
     n_samples : int, optional
-        Number of samples
+        Number of samples to plot
     hdi_probs : float | list[float], optional
         HDI probabilities. Defaults to None which uses arviz default for
         stats.ci_prob which is 94%
@@ -721,42 +738,48 @@ def plot_curve(
         hdi_probs = [hdi_probs]  # type: ignore
 
     hdi_kwargs = hdi_kwargs or {}
-    sample_kwargs = sample_kwargs or {}
-
-    sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
-
-    if "subplot_kwargs" not in sample_kwargs:
-        sample_kwargs["subplot_kwargs"] = subplot_kwargs
-
-    if "axes" not in sample_kwargs:
-        sample_kwargs["axes"] = axes
 
     if same_axes:
-        sample_kwargs["same_axes"] = True
-        sample_kwargs["legend"] = False
         hdi_kwargs["same_axes"] = True
         hdi_kwargs["legend"] = legend if isinstance(legend, bool) else True
 
     if colors is not None:
-        sample_kwargs["colors"] = colors
         hdi_kwargs["colors"] = colors
 
     if sel_to_string is not None:
-        sample_kwargs["sel_to_string"] = sel_to_string
         hdi_kwargs["sel_to_string"] = sel_to_string
 
-    fig, axes = plot_samples(
+    if n_samples > 0:
+        sample_kwargs = sample_kwargs or {}
+
+        sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
+        if "subplot_kwargs" not in sample_kwargs:
+            sample_kwargs["subplot_kwargs"] = subplot_kwargs
+
+        if "axes" not in sample_kwargs:
+            sample_kwargs["axes"] = axes
+
+        if same_axes:
+            sample_kwargs["same_axes"] = True
+            sample_kwargs["legend"] = False
+        if colors is not None:
+            sample_kwargs["colors"] = colors
+
+        if sel_to_string is not None:
+            sample_kwargs["sel_to_string"] = sel_to_string
+
+        fig, axes = plot_samples(curve, non_grid_names=non_grid_names, **sample_kwargs)
+
+    elif n_samples == 0:
+        if "subplot_kwargs" not in hdi_kwargs:
+            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
+
+    fig, axes = plot_hdi(
         curve,
+        hdi_prob=hdi_probs,
         non_grid_names=non_grid_names,
-        **sample_kwargs,
+        axes=axes,
+        **hdi_kwargs,
     )
-    for hdi_prob in hdi_probs:
-        fig, axes = plot_hdi(
-            curve,
-            hdi_prob=hdi_prob,
-            non_grid_names=non_grid_names,
-            axes=axes,
-            **hdi_kwargs,
-        )
 
     return fig, axes
