@@ -229,8 +229,7 @@ class MMMPlotSuite:
             self.idata = idata
             self.data = MMMIDataWrapper(idata)
         else:
-            self.idata = cast(az.InferenceData, idata)
-            self.data = cast(MMMIDataWrapper, data)
+            raise ValueError("Provide either 'idata' or 'data'.")
 
     def _init_subplots(
         self,
