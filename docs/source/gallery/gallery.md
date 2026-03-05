@@ -62,7 +62,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 ::::
 
-### Custom models
+### Custom Models
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -79,6 +79,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
 :img-top: ../gallery/images/mmm_example.png
 :link: ../notebooks/mmm/mmm_gam_options.html
+:::
+
+:::{grid-item-card} Custom MMM with ROAS Parameterization
+:img-top: ../gallery/images/mmm_roas_parametrization.png
+:link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
 ::::
 
