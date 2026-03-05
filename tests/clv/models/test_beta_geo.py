@@ -189,6 +189,82 @@ class TestBetaGeoModel:
                 data=data,
             )
 
+    def test_check_inputs_frequency_negative(self):
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": [1],
+                "frequency": [-1],
+                "recency": [0],
+                "T": [10],
+            }
+        )
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="Frequency must be >= 0"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_recency_negative(self):
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": [1],
+                "frequency": [0],
+                "recency": [-1],
+                "T": [10],
+            }
+        )
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="Recency must be >= 0"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_T_negative(self):
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": [1],
+                "frequency": [0],
+                "recency": [0],
+                "T": [-1],
+            }
+        )
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="T must be >= 0"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_recency_greater_than_T(self):
+        data_invalid = pd.DataFrame(
+            {
+                "customer_id": [1],
+                "frequency": [0],
+                "recency": [11],
+                "T": [10],
+            }
+        )
+        # Update match to your new centralized string
+        with pytest.raises(ValueError, match="Recency cannot be greater than T"):
+            BetaGeoModel(data=data_invalid)
+
+    def test_check_inputs_valid_data_passes(self):
+        """Valid data should pass _check_inputs and allow model construction."""
+        data_valid = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1, 2]),
+                "frequency": np.asarray([0, 3]),
+                "recency": np.asarray([0, 5]),
+                "T": np.asarray([10, 10]),
+            }
+        )
+        model = BetaGeoModel(data=data_valid)
+        assert model.data is not None
+        # Edge case: recency == T is valid
+        data_edge = pd.DataFrame(
+            {
+                "customer_id": np.asarray([1]),
+                "frequency": np.asarray([1]),
+                "recency": np.asarray([10]),
+                "T": np.asarray([10]),
+            }
+        )
+        model_edge = BetaGeoModel(data=data_edge)
+        assert model_edge.data is not None
+
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
         [

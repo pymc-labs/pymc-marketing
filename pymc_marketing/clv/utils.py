@@ -62,7 +62,8 @@ def customer_lifetime_value(
     Parameters
     ----------
     transaction_model : ~CLVModel
-        Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+        Predictive model for future transactions. `BetaGeoModel`,
+        `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
