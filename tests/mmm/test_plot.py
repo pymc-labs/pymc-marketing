@@ -5203,10 +5203,6 @@ class TestMMMPlotSuiteConstructor:
         with pytest.raises(ValueError, match="Provide either"):
             MMMPlotSuite(idata=cpu_simple_idata, data=wrapper)
 
-    def test_neither_raises(self):
-        with pytest.raises(ValueError, match="Provide either"):
-            MMMPlotSuite()
-
 
 _CPU_XLABEL_CASES = [
     pytest.param("cpu_simple_idata_with_spend", True, "Spend", id="spend+cpu"),

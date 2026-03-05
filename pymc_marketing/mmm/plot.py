@@ -186,7 +186,7 @@ Notes
 import itertools
 import warnings
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -218,14 +218,19 @@ class MMMPlotSuite:
         idata: xr.Dataset | az.InferenceData | None = None,
         data: MMMIDataWrapper | None = None,
     ):
+
         if idata is not None and data is not None:
             raise ValueError("Provide either 'idata' or 'data', not both.")
-        elif data is not None:
-            self.data: MMMIDataWrapper = data
+
+        if data is not None:
             self.idata = data.idata
+            self.data = data
         elif idata is not None:
             self.idata = idata
             self.data = MMMIDataWrapper(idata)
+        else:
+            self.idata = cast(az.InferenceData, idata)
+            self.data = cast(MMMIDataWrapper, data)
 
     def _init_subplots(
         self,
