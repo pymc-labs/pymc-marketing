@@ -220,12 +220,10 @@ class MMMPlotSuite:
     ):
         if idata is not None and data is not None:
             raise ValueError("Provide either 'idata' or 'data', not both.")
-        if idata is None and data is None:
-            raise ValueError("Provide either 'idata' or 'data'.")
-        if data is not None:
+        elif data is not None:
             self.data: MMMIDataWrapper = data
             self.idata = data.idata
-        else:
+        elif idata is not None:
             self.idata = idata
             self.data = MMMIDataWrapper(idata)
 
