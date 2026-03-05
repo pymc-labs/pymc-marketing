@@ -38,6 +38,11 @@ from pymc_marketing.mmm.components.saturation import (
     TanhSaturationBaselined,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.experiment_design import (
+    ExperimentDesigner,
+    ExperimentRecommendation,
+    ExperimentRecommendations,
+)
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
     HSGP,
@@ -79,6 +84,9 @@ __all__ = [
     "BinomialAdstock",
     "CovFunc",
     "DelayedAdstock",
+    "ExperimentDesigner",
+    "ExperimentRecommendation",
+    "ExperimentRecommendations",
     "FancyLinearRegression",
     "GeometricAdstock",
     "HSGPPeriodic",
