@@ -159,7 +159,7 @@ def multidim_idata(dates, channels, countries):
 
 
 class TestParseCostPerUnitDf:
-    """Tests for the static _parse_cost_per_unit_df method."""
+    """Tests for the _parse_cost_per_unit_df classmethod."""
 
     def test_parse_single_channel_no_custom_dims(self, dates, channels):
         df = pd.DataFrame({"date": dates, "TV": [0.01, 0.02, 0.015, 0.012]})
@@ -383,46 +383,33 @@ class TestWrapperCostPerUnit:
 class TestBudgetOptimizerCostPerUnitValidation:
     """Tests for _validate_and_process_cost_per_unit on BudgetOptimizer."""
 
-    @pytest.fixture
-    def optimizer_instance(self):
-        """Bare BudgetOptimizer instance just for calling the validation method."""
-
-        class Stub:
-            pass
-
-        stub = Stub()
-        stub._validate_and_process_cost_per_unit = (
-            BudgetOptimizer._validate_and_process_cost_per_unit.__get__(stub)
-        )
-        return stub
-
-    def test_none_returns_none(self, optimizer_instance):
-        result = optimizer_instance._validate_and_process_cost_per_unit(
+    def test_none_returns_none(self):
+        result = BudgetOptimizer._validate_and_process_cost_per_unit(
             cost_per_unit=None, num_periods=4, budget_dims=["channel"]
         )
         assert result is None
 
-    def test_wrong_dims_raises(self, optimizer_instance):
+    def test_wrong_dims_raises(self):
         cpu = xr.DataArray(
             np.ones((4, 2)),
             dims=("date", "channel"),
             coords={"date": range(4), "channel": ["TV", "Radio"]},
         )
-        with pytest.raises(ValueError, match="must have dims"):
-            optimizer_instance._validate_and_process_cost_per_unit(
+        with pytest.raises(ValueError, match="must have exactly the dims"):
+            BudgetOptimizer._validate_and_process_cost_per_unit(
                 cost_per_unit=cpu,
                 num_periods=4,
                 budget_dims=["channel", "geo"],
             )
 
-    def test_wrong_date_length_raises(self, optimizer_instance):
+    def test_wrong_date_length_raises(self):
         cpu = xr.DataArray(
             np.ones((3, 2)),
             dims=("date", "channel"),
             coords={"date": range(3), "channel": ["TV", "Radio"]},
         )
         with pytest.raises(ValueError, match="date dimension must have length"):
-            optimizer_instance._validate_and_process_cost_per_unit(
+            BudgetOptimizer._validate_and_process_cost_per_unit(
                 cost_per_unit=cpu,
                 num_periods=5,
                 budget_dims=["channel"],
@@ -435,14 +422,27 @@ class TestBudgetOptimizerCostPerUnitValidation:
             pytest.param([[0.0, 0.05], [0.01, 0.05]], id="zero"),
         ],
     )
-    def test_non_positive_values_raises(self, optimizer_instance, values):
+    def test_non_positive_values_raises(self, values):
         cpu = xr.DataArray(
             np.array(values),
             dims=("date", "channel"),
             coords={"date": range(2), "channel": ["TV", "Radio"]},
         )
         with pytest.raises(ValueError, match="must be positive"):
-            optimizer_instance._validate_and_process_cost_per_unit(
+            BudgetOptimizer._validate_and_process_cost_per_unit(
+                cost_per_unit=cpu,
+                num_periods=2,
+                budget_dims=["channel"],
+            )
+
+    def test_nan_values_raises(self):
+        cpu = xr.DataArray(
+            np.array([[0.01, np.nan], [0.01, 0.05]]),
+            dims=("date", "channel"),
+            coords={"date": range(2), "channel": ["TV", "Radio"]},
+        )
+        with pytest.raises(ValueError, match="must be positive"):
+            BudgetOptimizer._validate_and_process_cost_per_unit(
                 cost_per_unit=cpu,
                 num_periods=2,
                 budget_dims=["channel"],
@@ -508,6 +508,67 @@ class TestSetCostPerUnit:
         )
         with pytest.raises(RuntimeError, match="must be fitted"):
             mmm.set_cost_per_unit(cpu_df)
+
+    def test_fit_injects_channel_spend(self, simple_mmm_data):
+        """Constructing MMM with cost_per_unit and fitting injects channel_spend."""
+        from unittest.mock import patch
+
+        from tests.mmm.conftest import mock_fit
+
+        X = simple_mmm_data["X"]
+        y = simple_mmm_data["y"]
+        dates = X["date"]
+        channels = ["channel_1", "channel_2", "channel_3"]
+
+        cpu_df = pd.DataFrame(
+            {
+                "date": dates,
+                "channel_1": [0.05] * len(dates),
+                "channel_2": [0.10] * len(dates),
+            }
+        )
+
+        mmm = MMM(
+            channel_columns=channels,
+            date_column="date",
+            target_column="target",
+            control_columns=None,
+            adstock=GeometricAdstock(l_max=10),
+            saturation=LogisticSaturation(),
+            cost_per_unit=cpu_df,
+        )
+
+        assert mmm._cost_per_unit_input is not None
+
+        def patched_super_fit(self_inner, X, y, **kwargs):
+            mock_fit(self_inner, X, y)
+            return self_inner.idata
+
+        with patch(
+            "pymc_marketing.model_builder.RegressionModelBuilder.fit",
+            patched_super_fit,
+        ):
+            mmm.fit(X, y)
+
+        assert "channel_spend" in mmm.idata.constant_data
+        channel_data = mmm.idata.constant_data.channel_data
+        channel_spend = mmm.idata.constant_data.channel_spend
+        cpu_array = mmm._build_cost_per_unit_array(cpu_df)
+        expected_spend = channel_data * cpu_array
+        xr.testing.assert_allclose(channel_spend, expected_spend)
+
+        np.testing.assert_allclose(
+            (channel_spend / channel_data).sel(channel="channel_1").values,
+            0.05,
+        )
+        np.testing.assert_allclose(
+            (channel_spend / channel_data).sel(channel="channel_2").values,
+            0.10,
+        )
+        np.testing.assert_allclose(
+            (channel_spend / channel_data).sel(channel="channel_3").values,
+            1.0,
+        )
 
 
 class TestBudgetOptimizerCostPerUnitIntegration:
