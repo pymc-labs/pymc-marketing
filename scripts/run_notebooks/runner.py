@@ -14,6 +14,24 @@ Run all the notebooks in docs/mmm and docs/clv:
 python scripts/run_notebooks/runner.py --notebooks mmm clv
 ```
 
+Run a single notebook by relative path within the notebooks directory:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm/mmm_example.ipynb
+```
+
+Run a single notebook by full path from the repo root:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks docs/source/notebooks/mmm/mmm_example.ipynb
+```
+
+Mix directories and individual notebooks:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm clv/clv_quickstart.ipynb
+```
+
 Run all notebooks except those in docs/mmm and docs/clv:
 
 ```terminal
@@ -25,7 +43,6 @@ Run notebooks from index 2 to 5 (3rd to 5th notebook) in notebooks/mmm directory
 ```terminal
 python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
 ```
-
 """
 
 # Monkey-patch nbclient to handle display_id=None for widget updates.
@@ -212,8 +229,12 @@ def expand_directories(notebooks):
         if path.is_dir():
             logging.info(f"Expanding directory: {path}")
             expanded.extend(path.glob("*.ipynb"))
-        else:
+        elif path.is_file():
+            expanded.append(path)
+        elif notebook.is_file():
             expanded.append(notebook)
+        else:
+            logging.warning(f"Notebook not found: {notebook}")
     return expanded
 
 
