@@ -74,6 +74,8 @@ for saturation parameter of logistic saturation.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
@@ -161,6 +163,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         num_points: int = Field(
             100, gt=0, description="Number of points between 0 and max_value."
         ),
+        **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -172,6 +175,8 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             Maximum value of the curve, by default 1.0.
         num_points : int, optional
             Number of points between 0 and max_value, by default 100.
+        sample_prior_predictive_kwargs : Any
+            Pass kwargs to pm.sample_prior_predictive
 
         Returns
         -------
@@ -190,6 +195,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
             parameters=parameters,
             x=x,
             coords=coords,
+            **sample_prior_predictive_kwargs,
         )
 
 

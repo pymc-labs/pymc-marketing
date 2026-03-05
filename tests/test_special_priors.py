@@ -485,3 +485,167 @@ def test_masked_prior_create_likelihood_active_branch_suffix_and_broadcast(
         # Active positions are finite and not all zeros (given our observed has non-zeros)
         assert np.all(np.isfinite(eval_y[mask_vals]))
         assert np.any(eval_y[mask_vals] != 0.0)
+
+
+def test_special_prior_serialization_round_trip():
+    """Test that SpecialPrior subclasses can be serialized and deserialized."""
+    from pymc_extras.deserialize import deserialize
+
+    # Test LogNormalPrior
+    lognormal = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    lognormal_dict = lognormal.to_dict()
+    lognormal_deserialized = deserialize(lognormal_dict)
+    assert lognormal == lognormal_deserialized
+    assert lognormal_deserialized.to_dict() == lognormal_dict
+
+    # Test LaplacePrior
+    laplace = LaplacePrior(mu=0.5, b=1.5, dims=("geo",))
+    laplace_dict = laplace.to_dict()
+    laplace_deserialized = deserialize(laplace_dict)
+    assert laplace == laplace_deserialized
+    assert laplace_deserialized.to_dict() == laplace_dict
+
+
+def test_special_prior_equality():
+    """Test that SpecialPrior __eq__ method works correctly."""
+    # Same parameters
+    prior1 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    prior2 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    assert prior1 == prior2
+
+    # Different parameters
+    prior3 = LogNormalPrior(mu=1.0, sigma=3.0, dims=("channel",))
+    assert prior1 != prior3
+
+    # Different dims
+    prior4 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("geo",))
+    assert prior1 != prior4
+
+    # Different centered
+    prior5 = LogNormalPrior(mu=1.0, sigma=2.0, centered=False, dims=("channel",))
+    assert prior1 != prior5
+
+    # Different class
+    laplace = LaplacePrior(mu=1.0, b=2.0, dims=("channel",))
+    assert prior1 != laplace
+
+    # Numpy arrays
+    prior_array1 = LogNormalPrior(
+        mu=np.array([1.0, 2.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+    prior_array2 = LogNormalPrior(
+        mu=np.array([1.0, 2.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+    assert prior_array1 == prior_array2
+
+    # Different numpy arrays
+    prior_array3 = LogNormalPrior(
+        mu=np.array([1.0, 3.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+    assert prior_array1 != prior_array3
+
+
+def test_special_prior_hashable():
+    """Test that SpecialPrior instances are hashable and can be used in sets/dicts."""
+    # Test basic hashability
+    prior1 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    prior2 = LogNormalPrior(mu=1.0, sigma=2.0, dims=("channel",))
+    prior3 = LogNormalPrior(mu=1.0, sigma=3.0, dims=("channel",))
+
+    # Equal objects should have the same hash
+    assert hash(prior1) == hash(prior2)
+
+    # Different objects typically have different hashes (not guaranteed, but expected)
+    # We just verify they're hashable
+    hash(prior3)
+
+    # Test usage in set
+    prior_set = {prior1, prior2, prior3}
+    assert len(prior_set) == 2  # prior1 and prior2 are equal, so only 2 unique
+
+    # Test usage as dict key
+    prior_dict = {prior1: "value1", prior3: "value3"}
+    assert len(prior_dict) == 2
+    assert prior_dict[prior2] == "value1"  # prior2 equals prior1
+
+    # Test with numpy arrays
+    prior_array1 = LogNormalPrior(
+        mu=np.array([1.0, 2.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+    prior_array2 = LogNormalPrior(
+        mu=np.array([1.0, 2.0]), sigma=np.array([0.5, 0.5]), dims=("channel",)
+    )
+
+    # Equal arrays should have same hash
+    assert hash(prior_array1) == hash(prior_array2)
+
+    # Can be used in sets
+    array_set = {prior_array1, prior_array2}
+    assert len(array_set) == 1  # They're equal
+
+    # Test LaplacePrior
+    laplace1 = LaplacePrior(mu=0.5, b=1.5, dims=("geo",))
+    laplace2 = LaplacePrior(mu=0.5, b=1.5, dims=("geo",))
+    assert hash(laplace1) == hash(laplace2)
+
+    # Can mix different SpecialPrior types in a set
+    mixed_set = {prior1, laplace1}
+    assert len(mixed_set) == 2
+
+
+def test_mmm_with_special_prior_save_load_round_trip(tmp_path, mock_pymc_sample):
+    """Test that MMM with SpecialPrior in saturation can be saved and loaded with check=True."""
+    # Create minimal data
+    rng = np.random.default_rng(42)
+    n = 20
+    dates = pd.date_range("2024-01-01", periods=n, freq="W-MON")
+
+    X = pd.DataFrame(
+        {
+            "date": dates,
+            "channel_1": rng.integers(10, 100, n),
+            "channel_2": rng.integers(10, 100, n),
+        }
+    )
+    y = pd.Series(rng.normal(100, 10, n), name="y")
+
+    # Create MMM with LogisticSaturation using SpecialPrior
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(
+            priors={
+                "lam": LogNormalPrior(mu=1.0, sigma=1.0, dims=("channel",)),
+                "beta": LogNormalPrior(mu=2.0, sigma=0.5, dims=("channel",)),
+            }
+        ),
+    )
+
+    # Fit the model
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    # Get the original ID
+    original_id = mmm.id
+
+    # Save the model
+    save_path = tmp_path / "mmm_with_special_prior.nc"
+    mmm.save(str(save_path))
+
+    # Load the model with check=True (should work!)
+    mmm_loaded = MMM.load(str(save_path), check=True)
+
+    # Verify IDs match
+    assert mmm_loaded.id == original_id
+
+    # Verify models are equal
+    assert mmm == mmm_loaded
+
+    # Verify saturation priors are SpecialPrior instances
+    assert isinstance(mmm_loaded.saturation.priors["lam"], LogNormalPrior)
+    assert isinstance(mmm_loaded.saturation.priors["beta"], LogNormalPrior)
+
+    # Verify prior parameters match
+    assert mmm_loaded.saturation.priors["lam"] == mmm.saturation.priors["lam"]
+    assert mmm_loaded.saturation.priors["beta"] == mmm.saturation.priors["beta"]

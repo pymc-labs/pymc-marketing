@@ -19,7 +19,7 @@ import pytensor.tensor as pt
 import pytest
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.mmm.hsgp import SoftPlusHSGP
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import (
     create_hsgp_from_config,
     create_time_varying_gp_multiplier,
@@ -37,8 +37,10 @@ def coords():
     }
 
 
-@pytest.fixture
-def model_config() -> dict[str, HSGPKwargs]:
+@pytest.fixture(
+    params=[None, CovFunc.Matern52], ids=["cov_func_none", "cov_func_matern52"]
+)
+def model_config(request) -> dict[str, HSGPKwargs]:
     return {
         "intercept_tvp_config": HSGPKwargs(
             m=200,
@@ -46,11 +48,12 @@ def model_config() -> dict[str, HSGPKwargs]:
             eta_lam=1,
             ls_mu=5,
             ls_sigma=5,
+            cov_func=request.param,
         )
     }
 
 
-def test_time_varying_prior(coords):
+def test_time_varying_prior(coords, mock_pymc_sample):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         hsgp_kwargs = HSGPKwargs(m=3, L=10, eta_lam=1, ls_sigma=5)
@@ -75,10 +78,8 @@ def test_time_varying_prior(coords):
 
         # Test that model can compile and sample
         pm.Normal("obs", mu=f, sigma=1, observed=np.random.randn(5))
-        try:
-            pm.sample(50, tune=50, chains=1)
-        except pm.SamplingError:
-            pytest.fail("Time varying parameter didn't sample")
+        idata = pm.sample(50, tune=50, chains=1)
+        assert idata is not None
 
 
 def test_calling_without_default_args(coords):
@@ -98,7 +99,7 @@ def test_calling_without_default_args(coords):
         assert "test_raw_hsgp_coefs" in model.named_vars
 
 
-def test_multidimensional(coords):
+def test_multidimensional(coords, mock_pymc_sample):
     with pm.Model(coords=coords) as model:
         X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         m = 7
@@ -122,10 +123,8 @@ def test_multidimensional(coords):
             observed=np.random.randn(5, 3),
             dims=("date", "channel"),
         )
-        try:
-            pm.sample(50, tune=50, chains=1)
-        except pm.SamplingError:
-            pytest.fail("Time varying parameter didn't sample")
+        idata = pm.sample(50, tune=50, chains=1)
+        assert idata is not None
 
 
 def test_calling_without_model():

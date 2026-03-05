@@ -182,14 +182,23 @@ class BaseMMM(BaseValidateMMM):
             Scaling configuration for the model. If None, defaults to max scaling for both target and channels.
             Can be a Scaling object or a dict that will be converted to a Scaling object.
         """
+        warnings.warn(
+            """
+            The MMM class is deprecated and will be removed in a future version (in version 0.20.0).
+            Please use the multidimensional MMM class instead.
+            That is, `from pymc_marketing.mmm.multidimensional import MMM`.
+            All our documentation has been updated to reflect this change.
+            Refer to the migration guide for more details: https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_migration_guide.html
+            """,
+            FutureWarning,
+            stacklevel=2,
+        )
+
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
         self.validate_data = validate_data
-
-        self.adstock = adstock
-        self.saturation = saturation
         self.adstock_first = adstock_first
 
         # Initialize scaling configuration similar to multidimensional MMM
@@ -214,9 +223,18 @@ class BaseMMM(BaseValidateMMM):
             hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
+        self.adstock, self.saturation = adstock, saturation
+        del adstock, saturation
         if model_config is not None:
-            self.adstock.update_priors({**self.default_model_config, **model_config})
-            self.saturation.update_priors({**self.default_model_config, **model_config})
+            # self.default_model_config accesses self.adstock and self.saturation
+            self.adstock = self.adstock.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+            self.saturation = self.saturation.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+        self.adstock = self.adstock.with_default_prior_dims(("channel",))
+        self.saturation = self.saturation.with_default_prior_dims(("channel",))
 
         super().__init__(
             date_column=date_column,
@@ -917,8 +935,10 @@ class BaseMMM(BaseValidateMMM):
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
-            "intercept": Prior("Normal", mu=0, sigma=2),
-            "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
+            "intercept": Prior("Normal", mu=0, sigma=2, dims=()),
+            "likelihood": Prior(
+                "Normal", sigma=Prior("HalfNormal", sigma=2, dims=()), dims=("date",)
+            ),
             "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
             "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
         }
@@ -941,11 +961,6 @@ class BaseMMM(BaseValidateMMM):
                 ls_sigma=10,
                 cov_func=None,
             )
-
-        for media_transform in [self.adstock, self.saturation]:
-            for dist in media_transform.function_priors.values():
-                if dist.dims != ("channel",):
-                    dist.dims = "channel"
 
         return {
             **base_config,

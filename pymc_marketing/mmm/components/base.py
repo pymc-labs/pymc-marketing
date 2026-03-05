@@ -281,6 +281,20 @@ class Transformation:
 
         self.function_priors.update(new_priors)
 
+    def with_updated_priors(self, priors: dict[str, Prior]) -> "Transformation":
+        """Return a copy with updated priors."""
+        new = deepcopy(self)
+        new.update_priors(priors)
+        return new
+
+    def with_default_prior_dims(self, dims: tuple[str]) -> "Transformation":
+        """Return a copy with default prior dims (dims=None) set to `dims` instead."""
+        new = deepcopy(self)
+        for prior in new.function_priors.values():
+            if isinstance(prior, VariableFactory) and prior.dims is None:
+                prior.dims = dims
+        return new
+
     @property
     def model_config(self) -> dict[str, Any]:
         """Mapping from variable name to prior for the model."""
@@ -498,6 +512,7 @@ class Transformation:
         parameters: xr.Dataset,
         x: pt.TensorLike,
         coords: dict[str, Any],
+        **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         output_core_dims = self._infer_output_core_dims()
 
@@ -531,6 +546,7 @@ class Transformation:
             return pm.sample_posterior_predictive(
                 parameters,
                 var_names=[var_name],
+                **sample_prior_predictive_kwargs,
             ).posterior_predictive[var_name]
 
     def plot_curve_samples(

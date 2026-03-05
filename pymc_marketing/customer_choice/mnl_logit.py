@@ -14,6 +14,8 @@
 """Multinomial Logit for Product Preference Analysis."""
 
 import json
+import warnings
+from collections.abc import Sequence
 from typing import Self
 
 import arviz as az
@@ -23,15 +25,18 @@ import pandas as pd
 import patsy
 import pymc as pm
 import pytensor.tensor as pt
+import xarray as xr
+from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
-from pymc_marketing.model_builder import RegressionModelBuilder
+from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.version import __version__
 
 HDI_ALPHA = 0.5
 
 
-class MNLogit(RegressionModelBuilder):
+class MNLogit(ModelBuilder):
     """
     Multinomial Logit class.
 
@@ -93,7 +98,7 @@ class MNLogit(RegressionModelBuilder):
     """
 
     _model_type = "Multinomial Logit Model"
-    version = "0.1.0"
+    version = "0.2.0"
 
     def __init__(
         self,
@@ -163,7 +168,9 @@ class MNLogit(RegressionModelBuilder):
 
         return result
 
-    def parse_formula(self, df, formula, depvar):
+    def parse_formula(
+        self, df: pd.DataFrame, formula: str, depvar: str
+    ) -> tuple[str, str, str]:
         """Parse the three-part structure of a formula specification.
 
         Splits the formula into target, alternative-specific covariates, and
@@ -200,7 +207,9 @@ class MNLogit(RegressionModelBuilder):
 
         return target, alt_covariates, fixed_covariates
 
-    def prepare_X_matrix(self, df, utility_formulas, depvar):
+    def prepare_X_matrix(
+        self, df: pd.DataFrame, utility_formulas: list[str], depvar: str
+    ) -> tuple[np.ndarray, np.ndarray | None, list[str], np.ndarray]:
         """Prepare the X matrix for the utility equations.
 
         The X matrix is a tensor with dimensions:
@@ -240,7 +249,7 @@ class MNLogit(RegressionModelBuilder):
             F = "0 + " + F
             F = np.asarray(patsy.dmatrix(F, df))
         else:
-            F = []
+            F = None
 
         X = np.stack(alt_covariates, axis=1).T
         if X.shape != (n_obs, n_alts, n_covariates):
@@ -262,7 +271,12 @@ class MNLogit(RegressionModelBuilder):
         return y
 
     @staticmethod
-    def _prepare_coords(df, alternatives, covariates, f_covariates):
+    def _prepare_coords(
+        df: pd.DataFrame,
+        alternatives: list[str],
+        covariates: list[str],
+        f_covariates: np.ndarray,
+    ) -> dict[str, Sequence[str] | Sequence[int]]:
         """Prepare coordinates for PyMC model."""
         if isinstance(f_covariates, np.ndarray) & (f_covariates.size > 0):
             f_cov = [s.strip() for s in f_covariates[0].split("+")]
@@ -277,137 +291,400 @@ class MNLogit(RegressionModelBuilder):
         }
         return coords
 
-    def preprocess_model_data(self, choice_df, utility_equations):
+    def preprocess_model_data(
+        self, choice_df: pd.DataFrame, utility_equations: list[str]
+    ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """Pre-process the model initiation inputs into a format that can be used by the PyMC model."""
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(
             choice_df, utility_equations, self.depvar
         )
-        self.X, self.F, self.alternatives, self.fixed_covar = (
-            X,
-            F,
-            alternatives,
-            fixed_covar,
-        )
+        self.X = X
+        self.F: np.ndarray | None = F
+        self.alternatives = alternatives
+        self.fixed_covar = fixed_covar
         y = self._prepare_y_outcome(choice_df, self.alternatives, self.depvar)
         self.y = y
 
         # note: type hints for coords required for mypy to not get confused
-        self.coords: dict[str, list[str]] = self._prepare_coords(
+        self.coords: dict[str, Sequence[str] | Sequence[int]] = self._prepare_coords(
             choice_df, self.alternatives, self.covariates, self.fixed_covar
         )
 
         return X, F, y
 
-    def build_model(self, X, y, **kwargs):
-        """Do not use, required by parent class. Prefer make_model()."""
-        return super().build_model(X, y, **kwargs)
-
-    def make_model(self, X, F, y) -> None:
-        """Build Model."""
-        with pm.Model(coords=self.coords) as model:
-            # Intercept Parameters
-            alphas = self.model_config["alphas_"].create_variable(name="alphas_")
-            # Covariate Weight Parameters
-            betas = self.model_config["betas"].create_variable("betas")
-
-            # Instantiate covariate data for each Utility function
-            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
-            # Instantiate outcome data
-            observed = pm.Data("y", y, dims="obs")
-            if self.F is not None:
-                betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
-                    name="betas_fixed_"
-                )
-                betas_fixed = pm.Deterministic(
-                    "betas_fixed",
-                    pt.set_subtensor(betas_fixed_[-1, :], 0),
-                    dims=("alts", "fixed_covariates"),
-                )
-                F_data = pm.Data("F", F)
-                F = pm.Deterministic(
-                    "F_interaction", pm.math.dot(F_data, betas_fixed.T)
-                )
-            else:
-                F = pt.zeros(observed.shape[0])
-
-            # Compute utility as a dot product
-            U = pm.math.dot(X_data, betas)  # (N, alts)
-            # Zero out reference alternative intercept
-            alphas = pm.Deterministic(
-                "alphas", pt.set_subtensor(alphas[-1], 0), dims="alts"
-            )
-            U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
-            ## Apply Softmax Transform
-            p_ = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
-
-            # likelihood
-            _ = pm.Categorical("likelihood", p=p_, observed=observed, dims="obs")
-
-        return model
-
-    def _data_setter(
-        self,
-        X: np.ndarray | pd.DataFrame,
-        y: np.ndarray | pd.Series | None = None,
-    ) -> None:
-        """Set the data.
-
-        Required from the parent class
-
+    def build_model(self, **kwargs) -> None:
         """
+        Build model using stored choice_df and utility_equations.
 
-    def create_idata_attrs(self) -> dict[str, str]:
-        """Create the attributes for the InferenceData object.
+        This is the abstract method from ModelBuilder. For discrete choice,
+        we don't pass data as arguments - we use the stored data from __init__.
+        """
+        X, F, y = self.preprocess_model_data(self.choice_df, self.utility_equations)
+        self.model = self.make_model(X, F, y)
+
+    def make_intercepts(self) -> pt.TensorVariable:
+        """Create alternative-specific intercepts with reference alternative set to zero.
 
         Returns
         -------
-        dict[str, str]
-            The attributes for the InferenceData object.
-
+        alphas : TensorVariable
+            Alternative-specific intercepts with last alternative = 0
         """
+        alphas_ = self.model_config["alphas_"].create_variable(name="alphas_")
+        alphas = pm.Deterministic(
+            "alphas", pt.set_subtensor(alphas_[-1], 0), dims="alts"
+        )
+        return alphas
+
+    def make_alt_coefs(self) -> pt.TensorVariable:
+        """Create coefficients for alternative-specific covariates.
+
+        Returns
+        -------
+        betas : TensorVariable
+            Coefficients for alternative-specific covariates
+        """
+        betas = self.model_config["betas"].create_variable("betas")
+        return betas
+
+    def make_fixed_coefs(
+        self, X_fixed: np.ndarray | None, n_obs: int, n_alts: int
+    ) -> pt.TensorVariable:
+        """Create alternative-varying coefficients for fixed (non-varying) covariates.
+
+        Parameters
+        ----------
+        X_fixed : np.ndarray or None
+            Fixed covariates matrix of shape (n_obs, n_fixed_covariates)
+        n_obs : int
+            Number of observations
+        n_alts : int
+            Number of alternatives
+
+        Returns
+        -------
+        F : TensorVariable
+            Contribution to utility from fixed covariates, shape (n_obs, n_alts)
+        """
+        if X_fixed is None or len(X_fixed) == 0:
+            F = pt.zeros((n_obs, n_alts))
+        else:
+            X_fixed_data = pm.Data("F", X_fixed)
+            betas_fixed_ = self.model_config["betas_fixed_"].create_variable(
+                name="betas_fixed_"
+            )
+            betas_fixed = pm.Deterministic(
+                "betas_fixed",
+                pt.set_subtensor(betas_fixed_[-1, :], 0),
+                dims=("alts", "fixed_covariates"),
+            )
+            F = pm.Deterministic(
+                "F_interaction", pm.math.dot(X_fixed_data, betas_fixed.T)
+            )
+        return F
+
+    def make_utility(
+        self,
+        X_data: pt.TensorVariable,
+        alphas: pt.TensorVariable,
+        betas: pt.TensorVariable,
+        F: pt.TensorVariable,
+    ) -> pt.TensorVariable:
+        """Compute systematic utility for each alternative.
+
+        Parameters
+        ----------
+        X_data : TensorVariable
+            Alternative-specific covariates, shape (n_obs, n_alts, n_covariates)
+        alphas : TensorVariable
+            Alternative-specific intercepts
+        betas : TensorVariable
+            Coefficients for alternative-specific covariates
+        F : TensorVariable
+            Contribution from fixed covariates
+
+        Returns
+        -------
+        U : TensorVariable
+            Systematic utility, shape (n_obs, n_alts)
+        """
+        U = pm.math.dot(X_data, betas)  # (n_obs, n_alts)
+        U = pm.Deterministic("U", F + U + alphas, dims=("obs", "alts"))
+        return U
+
+    def make_choice_prob(self, U: pt.TensorVariable) -> pt.TensorVariable:
+        """Compute choice probabilities via softmax transformation.
+
+        Parameters
+        ----------
+        U : TensorVariable
+            Systematic utility, shape (n_obs, n_alts)
+
+        Returns
+        -------
+        p : TensorVariable
+            Choice probabilities, shape (n_obs, n_alts)
+        """
+        p = pm.Deterministic("p", pm.math.softmax(U, axis=1), dims=("obs", "alts"))
+        return p
+
+    def make_model(
+        self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray
+    ) -> pm.Model:
+        """Build Model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Alternative-specific covariates, shape (n_obs, n_alts, n_covariates)
+        F : np.ndarray or None
+            Fixed covariates, shape (n_obs, n_fixed_covariates)
+        y : np.ndarray
+            Observed choices, shape (n_obs,)
+
+        Returns
+        -------
+        model : pm.Model
+            PyMC model
+        """
+        n_obs, n_alts = X.shape[0], X.shape[1]
+
+        with pm.Model(coords=self.coords) as model:
+            # Create parameters
+            alphas = self.make_intercepts()
+            betas = self.make_alt_coefs()
+
+            # Instantiate data
+            X_data = pm.Data("X", X, dims=("obs", "alts", "alt_covariates"))
+            observed = pm.Data("y", y, dims="obs")
+
+            # Handle fixed covariates
+            F_contrib = self.make_fixed_coefs(F, n_obs, n_alts)
+
+            # Compute utility and probabilities
+            U = self.make_utility(X_data, alphas, betas, F_contrib)
+            p = self.make_choice_prob(U)
+
+            # Likelihood
+            _ = pm.Categorical("likelihood", p=p, observed=observed, dims="obs")
+
+        return model
+
+    def create_idata_attrs(self) -> dict[str, str]:
+        """Create attributes for InferenceData."""
         attrs = super().create_idata_attrs()
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
         attrs["choice_df"] = json.dumps("Placeholder for DF")
         attrs["utility_equations"] = json.dumps(self.utility_equations)
-
         return attrs
 
-    def sample_prior_predictive(self, extend_idata, **kwargs):
-        """Sample Prior Predictive Distribution."""
-        with self.model:  # sample with new input data
-            prior_pred: az.InferenceData = pm.sample_prior_predictive(500, **kwargs)
+    def sample_prior_predictive(
+        self,
+        choice_df: pd.DataFrame | None = None,
+        utility_equations: list[str] | None = None,
+        samples: int = 500,
+        extend_idata: bool = True,
+        **kwargs,
+    ) -> az.InferenceData:
+        """
+        Sample from prior predictive distribution.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame, optional
+            New choice data. If None, uses data from initialization.
+        utility_equations : list[str], optional
+            New utility equations. If None, uses from initialization.
+        samples : int, optional
+            Number of prior samples
+        extend_idata : bool, optional
+            Whether to add to self.idata
+        **kwargs
+            Additional arguments for pm.sample_prior_predictive
+
+        Returns
+        -------
+        az.InferenceData
+            Prior predictive samples
+        """
+        if choice_df is not None:
+            self.choice_df = choice_df
+        if utility_equations is not None:
+            self.utility_equations = utility_equations
+
+        if not hasattr(self, "model"):
+            self.build_model()
+
+        with self.model:
+            prior_pred = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred)
+                self.idata.extend(prior_pred, join="right")
             else:
                 self.idata = prior_pred
 
-    def fit(self, extend_idata, **kwargs):
-        """Fit Nested Logit Model."""
-        if extend_idata:
-            with self.model:
-                self.idata.extend(pm.sample(**kwargs))
-        else:
-            with self.model:
-                self.idata = pm.sample(**kwargs)
+        return prior_pred
 
-    def sample_posterior_predictive(self, extend_idata, **kwargs):
-        """Sample Posterior Predictive Distribution."""
-        if extend_idata:
-            with self.model:
-                self.idata.extend(
-                    pm.sample_posterior_predictive(
-                        self.idata, var_names=["likelihood", "p"], **kwargs
-                    )
-                )
+    def _create_fit_data(self) -> xr.Dataset:
+        """
+        Create xarray Dataset for storing choice_df in InferenceData.
+
+        This allows the model to be reconstructed when loading from file.
+
+        Returns
+        -------
+        xr.Dataset
+            Choice data as xarray Dataset with 'obs' dimension
+        """
+        df_xr = self.choice_df.to_xarray()
+        df_xr = df_xr.rename({"index": "obs"})
+        return df_xr
+
+    def fit(
+        self,
+        choice_df: pd.DataFrame | None = None,
+        utility_equations: list[str] | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        **kwargs,
+    ) -> az.InferenceData:
+        """
+        Fit the discrete choice model.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame, optional
+            New choice data. If None, uses data from initialization.
+        utility_equations : list[str], optional
+            New utility equations. If None, uses equations from initialization.
+        progressbar : bool, optional
+            Show progress bar during sampling
+        random_seed : RandomState, optional
+            Random seed for reproducibility
+        **kwargs
+            Additional arguments passed to pm.sample()
+
+        Returns
+        -------
+        az.InferenceData
+            Fitted model with posterior samples
+        """
+        # Allow updating data at fit time
+        if choice_df is not None:
+            self.choice_df = choice_df
+        if utility_equations is not None:
+            self.utility_equations = utility_equations
+
+        # Build model if not already built
+        if not hasattr(self, "model"):
+            self.build_model()
+
+        # Configure sampler
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            progressbar,
+            random_seed,
+            **kwargs,
+        )
+
+        # Sample
+        with self.model:
+            idata = pm.sample(**sampler_kwargs)
+
+        # Store and extend results
+        if self.idata:
+            self.idata = self.idata.copy()
+            self.idata.extend(idata, join="right")
         else:
+            self.idata = idata
+
+        # Add version metadata
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+
+        # Add fit_data group
+        if "fit_data" in self.idata:
+            del self.idata.fit_data
+
+        fit_data = self._create_fit_data()
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=UserWarning,
+                message="The group fit_data is not defined in the InferenceData scheme",
+            )
+            self.idata.add_groups(fit_data=fit_data)
+
+        # Set attributes for save/load
+        self.set_idata_attrs(self.idata)
+
+        return self.idata
+
+    def build_from_idata(self, idata: az.InferenceData) -> None:
+        """
+        Build model from loaded InferenceData.
+
+        This is called by load() after the model is initialized.
+
+        Parameters
+        ----------
+        idata : az.InferenceData
+            Loaded inference data
+        """
+        self.choice_df = idata["fit_data"].to_dataframe()
+        if not hasattr(self, "model"):
+            self.build_model()
+
+    def sample_posterior_predictive(
+        self,
+        choice_df: pd.DataFrame | None = None,
+        extend_idata: bool = True,
+        **kwargs,
+    ) -> az.InferenceData:
+        """
+        Sample from posterior predictive distribution.
+
+        Parameters
+        ----------
+        choice_df : pd.DataFrame, optional
+            New choice data for prediction. If None, uses training data.
+        extend_idata : bool, optional
+            Whether to add to self.idata
+        **kwargs
+            Additional arguments for pm.sample_posterior_predictive
+
+        Returns
+        -------
+        az.InferenceData
+            Posterior predictive samples
+        """
+        if choice_df is not None:
+            # Update data in existing model
+            new_X, new_F, new_y = self.preprocess_model_data(
+                choice_df, self.utility_equations
+            )
             with self.model:
-                self.post_pred = pm.sample_posterior_predictive(
-                    self.idata, var_names=["likelihood", "p"], **kwargs
-                )
+                data_dict = {"X": new_X, "y": new_y}
+                if new_F is not None and len(new_F) > 0:
+                    data_dict["F"] = new_F
+                pm.set_data(data_dict)
+
+        if self.idata is None:
+            raise RuntimeError("self.idata must be initialized before extending")
+        with self.model:
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, var_names=["likelihood", "p"], **kwargs
+            )
+
+        if extend_idata:
+            self.idata.extend(post_pred, join="right")
+
+        return post_pred
 
     def sample(
         self,
@@ -456,7 +733,9 @@ class MNLogit(RegressionModelBuilder):
         )
         return self
 
-    def apply_intervention(self, new_choice_df, new_utility_equations=None):
+    def apply_intervention(
+        self, new_choice_df, new_utility_equations=None
+    ) -> az.InferenceData:
         """Apply one of two types of intervention.
 
         The first type of intervention assumes we have a fitted model and
@@ -510,7 +789,7 @@ class MNLogit(RegressionModelBuilder):
         return idata_new_policy
 
     @staticmethod
-    def calculate_share_change(idata, new_idata):
+    def calculate_share_change(idata, new_idata) -> pd.DataFrame:
         """Calculate difference in market share due to market intervention."""
         expected = idata["posterior_predictive"].mean(dim=("chain", "draw", "obs"))["p"]
         expected_new = new_idata["posterior_predictive"].mean(
@@ -533,7 +812,9 @@ class MNLogit(RegressionModelBuilder):
         return shares_df
 
     @staticmethod
-    def plot_change(change_df, title="Change due to Intervention", figsize=(8, 4)):
+    def plot_change(
+        change_df, title="Change due to Intervention", figsize=(8, 4)
+    ) -> plt.Figure:
         """Plot change induced by a market intervention."""
         fig, ax = plt.subplots(figsize=figsize)
         ax.axvline(x=0, color="black", linestyle="--", linewidth=1)
