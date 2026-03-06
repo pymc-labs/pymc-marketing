@@ -1373,10 +1373,21 @@ class CustomModelWrapper(BaseModel):
         )
 
     def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
-        coords = {"date": np.arange(num_periods), "channel": self.channel_columns}
+        original_dims = self.base_model.named_vars_to_dims["channel_data"]
+
+        coords: dict[str, list | np.ndarray] = {}
+        shape: list[int] = []
+        for dim in original_dims:
+            if dim == "date":
+                coords[dim] = np.arange(num_periods)
+                shape.append(num_periods)
+            else:
+                coords[dim] = list(self.base_model.coords[dim])
+                shape.append(len(coords[dim]))
+
         model_clone = clone_model(self.base_model)
         pm.set_data(
-            {"channel_data": np.zeros((num_periods, len(self.channel_columns)))},
+            {"channel_data": np.zeros(shape)},
             model=model_clone,
             coords=coords,
         )

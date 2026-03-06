@@ -968,3 +968,68 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
+
+
+def test_custom_model_wrapper_with_extra_dims(mock_pymc_sample):
+    """CustomModelWrapper handles 3D channel_data with dims (date, geo, channel)."""
+    rng = np.random.default_rng(42)
+    num_obs = 10
+    channels = ["C1", "C2"]
+    geos = ["geo_a", "geo_b"]
+    X = rng.uniform(0.0, 1.0, size=(num_obs, len(geos), len(channels)))
+    true_beta = np.array([0.6, 0.3])
+    y = np.einsum("tgc,c->tg", X, true_beta) + rng.normal(
+        0, 0.05, size=(num_obs, len(geos))
+    )
+
+    coords = {
+        "date": np.arange(num_obs),
+        "geo": geos,
+        "channel": channels,
+    }
+    with pm.Model(coords=coords) as train_model:
+        cd = pm.Data("channel_data", X, dims=("date", "geo", "channel"))
+        beta = pm.Normal("beta", 0.0, 1.0, dims="channel")
+        mu = (cd * beta).sum(axis=-1)
+        pm.Deterministic("total_contribution", mu.sum(), dims=())
+        pm.Deterministic(
+            "channel_contribution",
+            cd * beta,
+            dims=("date", "geo", "channel"),
+        )
+        sigma = pm.HalfNormal("sigma", 0.2)
+        pm.Normal("y", mu=mu, sigma=sigma, observed=y, dims=("date", "geo"))
+
+        idata = pm.sample(50, tune=50, chains=1, progressbar=False, random_seed=1)
+
+    wrapper = CustomModelWrapper(
+        base_model=train_model,
+        idata=idata,
+        channels=channels,
+    )
+
+    opt_model = wrapper._set_predictors_for_optimization(num_periods=4)
+    assert tuple(opt_model.named_vars_to_dims["channel_data"]) == (
+        "date",
+        "geo",
+        "channel",
+    )
+    assert list(opt_model.coords["geo"]) == geos
+    assert list(opt_model.coords["channel"]) == channels
+    assert len(opt_model.coords["date"]) == 4
+
+    optimizer = BudgetOptimizer(model=wrapper, num_periods=4)
+
+    bounds = xr.DataArray(
+        data=[[(0.0, 50.0)] * len(channels)] * len(geos),
+        coords={"geo": geos, "channel": channels},
+        dims=["geo", "channel"],
+    )
+    optimal_budgets, result = optimizer.allocate_budget(
+        total_budget=100.0, budget_bounds=bounds
+    )
+
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert set(optimal_budgets.dims) == {"geo", "channel"}
+    assert result.success
+    assert np.isclose(optimal_budgets.sum().item(), 100.0)
