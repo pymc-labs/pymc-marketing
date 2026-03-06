@@ -1,0 +1,603 @@
+# Serialization Overhaul Design
+
+**Date:** 2026-03-05
+**Status:** Approved
+**Scope:** Multidimensional MMM serialization — unify patterns, fix all known issues, future-proof for custom components
+
+---
+
+## Table of Contents
+
+- [Problem Statement](#problem-statement)
+  - [Known Failures](#known-failures)
+  - [Current Serialization Patterns](#current-serialization-patterns-4-inconsistent)
+- [Design Decisions](#design-decisions)
+- [Scope Boundaries](#scope-boundaries)
+- [Solution Overview](#solution-overview)
+- [Architecture](#architecture)
+  - [1. Core Serialization Infrastructure](#1-core-serialization-infrastructure)
+  - [2. DeferredFactory — Solving the PyTensor Problem](#2-deferredfactory--solving-the-pytensor-problem)
+  - [3. EventAdditiveEffect & Supplementary Data Storage](#3-eventadditiveeffect--supplementary-data-storage)
+  - [4. Registry Consolidation & MMM Save/Load](#4-registry-consolidation--mmm-saveload)
+  - [5. Migration Tool](#5-migration-tool)
+- [End State Summary](#end-state-summary)
+  - [One Registry](#one-registry)
+  - [One Serialization Contract](#one-serialization-contract)
+  - [How Each Class Category Serializes](#how-each-class-category-serializes)
+  - [What Gets Removed](#what-gets-removed)
+  - [What Stays Unchanged](#what-stays-unchanged)
+  - [What Gets Added](#what-gets-added)
+- [File Layout](#file-layout)
+- [Error Handling](#error-handling)
+- [Testing Strategy](#testing-strategy)
+
+---
+
+## Problem Statement
+
+PyMC-Marketing cannot reliably save and load models that use HSGP-based time-varying
+parameters or certain MuEffect-based additive effects. Beyond these known failures,
+the codebase uses at least four different serialization patterns with no unified
+contract, making it difficult for users to create custom serializable components.
+
+### Known Failures
+
+| Component | Root Cause |
+|---|---|
+| **HSGP** (SoftPlusHSGP, HSGPPeriodic) | `Prior` objects store PyTensor symbolic expressions (`lam=-pt.log(mass)/upper`) that cannot be JSON-serialized |
+| **EventAdditiveEffect** | Deserialization intentionally raises `ValueError` — the original `df_events` DataFrame is not stored in the NetCDF file |
+| **LinearTrendEffect** | `linear_trend_first_date` is a runtime-only attribute, not a Pydantic field; fragile across save/load |
+| **Custom MuEffects** | No registry entry in `_MUEFFECT_DESERIALIZERS`; `Transformation` base is not Pydantic-compatible |
+| **HSGPKwargs.cov_func** | Can hold a live `pm.gp.cov.Covariance` PyMC object (not JSON-serializable) |
+| **Silent failures** | `build_from_idata()` catches all MuEffect deserialization errors with a broad `except Exception` and only warns — model loads but with missing effects |
+
+### Current Serialization Patterns (4+, inconsistent)
+
+1. **`to_dict()`/`from_dict()` + `register_deserialization`** — adstock, saturation, HSGP, fourier, events/Basis
+2. **Pydantic `model_dump()`/`model_validate()`** — HSGPKwargs, Scaling, LinearTrend, MuEffect subclasses
+3. **`singledispatch` serializers** — per-type handlers for MuEffects in `multidimensional.py`
+4. **Manual JSON encoding** — `create_idata_attrs()` / `attrs_to_init_kwargs()` on MMM
+
+## Design Decisions
+
+- **Backward compatibility:** Can break old `.nc` format; provide a migration tool to convert old files
+- **PyTensor expressions:** Store a "recipe" (factory function + scalar args) instead of the live tensor result
+- **External data (df_events):** Store inside InferenceData to make `.nc` files self-contained
+- **Unified pattern:** Hybrid — Pydantic for BaseModel classes, `Serializable` protocol for non-Pydantic classes (e.g., `Transformation`)
+- **pymc_extras dependency:** No changes required to `pymc_extras`; new infrastructure lives entirely in pymc-marketing
+
+## Scope Boundaries
+
+This overhaul targets **Multidimensional MMM serialization only**. The legacy
+`MMMModelBuilder` (being deprecated) is not addressed. CLV models, Customer
+Choice models (MNLogit, NestedLogit, MixedLogit), and MVITS are **out of scope**
+and must continue to work unchanged.
+
+**Why non-MMM models are excluded:**
+
+- CLV and Customer Choice models use a much simpler serialization path — their
+  only serialized objects are `Prior` instances in `model_config`. They have no
+  HSGP, MuEffects, adstock, saturation, or other complex component trees.
+- They have **no known serialization failures**.
+- They do not use any of the four inconsistent patterns this plan targets
+  (no `singledispatch`, no `_MUEFFECT_DESERIALIZERS`, no `RegistrationMeta`,
+  no per-family lookup dicts).
+- Migrating them adds risk and scope with no user-facing benefit.
+
+**Shared infrastructure constraints:**
+
+- `parse_model_config()` (in `model_config.py`) calls `pymc_extras.deserialize()`
+  to reconstruct `Prior` objects from dicts. This flow is used by **all** model
+  families and must remain untouched.
+- The 5 `register_deserialization` calls in `prior.py` (1 call) and
+  `special_priors.py` (4 calls) feed the `pymc_extras` global deserializer
+  registry. These calls are **retained** — removing them would break Prior
+  deserialization for CLV, Customer Choice, and MMM alike.
+- Changes to `_serializable_model_config` and `registry.serialize()` are scoped
+  to the **MMM subclass override** in `multidimensional.py`, not the
+  `ModelBuilder` base class.
+
+**MVITS note:** MVITS imports `MuEffect` but does not currently serialize
+MuEffects (its `mu_effects` defaults to an empty list and is not stored in
+idata attrs). If MVITS ever starts serializing MuEffects, it should adopt
+the new `TypeRegistry` system at that time.
+
+## Solution Overview
+
+The proposed solution replaces the four inconsistent serialization patterns with a unified system built on three pillars:
+
+**1. One registry, one contract.** A `TypeRegistry` singleton (in a new `pymc_marketing/serialization.py` module) replaces all scattered registries, lookup dicts, and `singledispatch` handlers. Every serializable object produces a JSON dict with a `__type__` key containing its fully-qualified class path. The registry dispatches deserialization from that key alone — no more `"class"`, `"hsgp_class"`, `"lookup_name"`, or key-set heuristics. Classes opt in via a `@registry.register` decorator or by inheriting `PydanticSerializableMixin` (which auto-registers subclasses). User-defined types follow the same single mechanism.
+
+**2. Deferred factories for non-serializable state.** PyTensor symbolic expressions and live PyMC objects (e.g., HSGP priors, covariance functions) cannot be JSON-encoded. Instead of attempting to serialize them, we store a `DeferredFactory` — a lightweight Pydantic model holding a factory function path and its scalar arguments. The actual object is re-created at `build_model()` time, so non-serializable state is never persisted.
+
+**3. Self-contained model files.** Auxiliary DataFrames that certain components depend on (e.g., `df_events` in `EventAdditiveEffect`) are stored as named groups inside the InferenceData `.nc` file. This makes saved models fully portable — no external files required to reload.
+
+A **migration tool** (`pymc_marketing/migrate.py`) handles backward compatibility by rewriting old-format `.nc` attrs into the new `__type__`-based schema, invoked automatically on load with a deprecation warning.
+
+## Architecture
+
+### 1. Core Serialization Infrastructure
+
+New module: `pymc_marketing/serialization.py`
+
+#### `Serializable` Protocol
+
+```python
+from typing import Protocol, runtime_checkable, Any, Self
+
+@runtime_checkable
+class Serializable(Protocol):
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-safe dict representation including a __type__ key."""
+        ...
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Reconstruct the object from a dict."""
+        ...
+```
+
+Structural typing — existing classes with `to_dict()`/`from_dict()` (HSGP, Fourier,
+EventEffect, MediaTransformation, SpecialPrior) satisfy it automatically.
+Transformation subclasses (adstock, saturation, basis) currently lack `from_dict()` —
+their deserialization logic is migrated from standalone functions into classmethods.
+No inheritance changes needed.
+
+#### `PydanticSerializableMixin`
+
+Auto-implements `Serializable` for Pydantic BaseModel classes. Has three roles:
+
+1. **`to_dict()` / `from_dict()`** — default serialization via `model_dump(mode="json")` / `model_validate()`.
+2. **`__init_subclass__()`** — auto-registers every concrete subclass in `TypeRegistry` at class-definition time (no decorator needed). This is a standard Python hook, not a metaclass, so it is compatible with the existing `ABC` + Pydantic `ModelMetaclass` MRO.
+3. **Structural `Serializable` compliance** — any class that inherits the mixin satisfies the `Serializable` protocol without additional code (unless it needs custom overrides, e.g. `FourierEffect`, `EventAdditiveEffect`).
+
+```python
+class PydanticSerializableMixin:
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        type_key = f"{cls.__module__}.{cls.__qualname__}"
+        registry.register(type_key, cls)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+            **self.model_dump(mode="json"),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        data = {k: v for k, v in data.items() if k != "__type__"}
+        return cls.model_validate(data)
+```
+
+> **Note:** Both `__init_subclass__` and `to_dict` use `__qualname__` (not
+> `__name__`) so that the registration key and the serialized `__type__` value
+> always match — even for nested classes where `__qualname__` is `Outer.Inner`
+> but `__name__` is just `Inner`.
+
+#### `TypeRegistry`
+
+Centralized registry replacing scattered `register_deserialization` calls:
+
+```python
+class TypeRegistry:
+    def register(self, cls_or_key: type | str | None = None,
+                 cls: type | None = None, *,
+                 serializer: Callable | None = None,
+                 deserializer: Callable | None = None):
+        """Register a class. Usable as bare decorator or direct call.
+
+        Decorator form (type_key auto-derived as f"{cls.__module__}.{cls.__qualname__}"):
+            @registry.register
+            class MyClass: ...
+
+        Direct call (explicit type_key, for custom deserializers):
+            registry.register("mod.MyClass", MyClass, deserializer=fn)
+        """
+        ...
+
+    def serialize(self, obj: Serializable) -> dict[str, Any]: ...
+
+    def deserialize(self, data: dict[str, Any],
+                    context: DeserializationContext | None = None) -> Any: ...
+
+registry = TypeRegistry()  # module-level singleton
+```
+
+**Type dispatch:** The `__type__` field in every serialized dict uses fully-qualified
+module paths (`"pymc_marketing.mmm.hsgp.HSGP"`) to avoid name collisions.
+All types must be registered with the `TypeRegistry` before deserialization —
+the registry does **not** dynamically import from `__type__` paths (unlike pickle,
+this avoids arbitrary code execution from `.nc` files). Backward compatibility with
+old serialization formats (e.g., `"lookup_name"`, `"class"`, `"hsgp_class"` keys) is
+handled **exclusively** by the migration tool (`migrate.py`) — the `TypeRegistry`
+itself only understands `__type__` keys. This keeps the registry simple and the
+migration path explicit.
+
+**How built-in types get registered:** Types that gain
+`PydanticSerializableMixin` (MuEffects, Scaling, LinearTrend, etc.) are
+auto-registered in `TypeRegistry` via the mixin. All other MMM-specific
+built-in types (adstock, saturation, HSGP, HSGPKwargs, fourier,
+MediaTransformation, etc.) have their `to_dict()` updated to include
+`__type__` and are registered with `@registry.register`. The 11
+MMM-specific `register_deserialization()` calls are removed.
+
+**Prior/SpecialPrior registrations are retained:** The 5
+`register_deserialization()` calls in `prior.py` (1) and
+`special_priors.py` (4) feed the `pymc_extras` global deserializer
+registry. They are **kept as-is** because `parse_model_config()` — used
+by all model families (CLV, Customer Choice, MVITS, and MMM) — calls
+`pymc_extras.deserialize()` to reconstruct `Prior` objects from dicts.
+These types are additionally registered in the `TypeRegistry` via
+`@registry.register` so that MMM's new serialization path can also
+deserialize them. This dual registration is intentional and safe — the
+two registries serve different call sites.
+
+**How user-defined types get registered:** Custom types must use the
+`@registry.register` decorator. This is one line per class. If a user creates
+a `MyCustomEffect(MuEffect)`, saves a model, then later `load()`s it, the
+module defining `MyCustomEffect` must be imported (and thus registered) before
+calling `load()`.
+
+**Deserialization dispatch (three-tier):**
+
+1. If `data` contains `"__deferred__": True`, return `DeferredFactory.from_dict(data)`
+   immediately — **without** resolving the factory. The caller (e.g., HSGP's
+   `create_variable()`) is responsible for calling `.resolve()` later at
+   `build_model()` time. This keeps `DeferredFactory` out of the `TypeRegistry`
+   mapping and avoids premature creation of non-serializable objects.
+2. If a custom `deserializer(data, context)` was registered for the type, call it.
+   This is the only path that receives `DeserializationContext` — e.g.,
+   `EventAdditiveEffect` registers a deserializer that reads supplementary data
+   from `context.idata`.
+3. Otherwise, resolve `__type__` to a class and call `cls.from_dict(data)`.
+   Context is **not** passed — this keeps the `Serializable` protocol simple and
+   avoids `TypeError` on classes with `from_dict(cls, data)` signatures.
+
+```python
+def deserialize(self, data: dict[str, Any],
+                context: DeserializationContext | None = None) -> Any:
+    # Tier 1: deferred factories — return unresolved
+    if data.get("__deferred__"):
+        return DeferredFactory.from_dict(data)
+
+    # Tier 2: custom deserializer (receives context)
+    type_key = data["__type__"]
+    entry = self._registry[type_key]
+    if entry.deserializer is not None:
+        return entry.deserializer(data, context)
+
+    # Tier 3: standard from_dict (no context)
+    return entry.cls.from_dict(data)
+```
+
+**Auto-registration:** Classes using `@registry.register` decorator or inheriting from
+`PydanticSerializableMixin` are auto-registered. The mixin uses `__init_subclass__()`
+to register each concrete subclass in `TypeRegistry` at class-definition time, which
+is compatible with the existing `ABC` + Pydantic `ModelMetaclass` MRO (no additional
+metaclass needed). No manual `register_deserialization` calls needed for new code.
+
+#### `DeserializationContext`
+
+Passes runtime state (like InferenceData) to deserializers that need supplementary data:
+
+```python
+@dataclass
+class DeserializationContext:
+    idata: az.InferenceData | None = None
+```
+
+### 2. DeferredFactory — Solving the PyTensor Problem
+
+Instead of storing the result of `create_eta_prior(upper=5.0, mass=0.95)` (a `Prior`
+with tensor params), store the recipe:
+
+```python
+class DeferredFactory(BaseModel):
+    """Serializable recipe for creating objects with non-serializable state."""
+
+    factory: str            # "pymc_marketing.mmm.hsgp.create_eta_prior"
+    kwargs: dict[str, Any]  # {"upper": 5.0, "mass": 0.95}
+
+    def resolve(self) -> Any:
+        """Import the factory function and call it with kwargs."""
+        fn = import_from_dotted_path(self.factory)
+        return fn(**self.kwargs)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"__deferred__": True, "factory": self.factory, "kwargs": self.kwargs}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DeferredFactory":
+        return cls(factory=data["factory"], kwargs=data["kwargs"])
+```
+
+**Integration with HSGP:**
+
+- `HSGP.eta` and `HSGP.ls` fields accept `Prior | DeferredFactory | float`
+- `SoftPlusHSGP.parameterize_from_data()` stores `DeferredFactory` instead of the live Prior
+- During `build_model()`, a resolution step calls `deferred.resolve()` to produce
+  the actual Prior with tensor expressions — right when needed, never stored persistently
+- `HSGPKwargs.cov_func` uses the same pattern for custom covariance objects
+
+**Security:** `resolve()` dynamically imports and calls arbitrary dotted paths from data stored in .nc files. This create a security concern similar to pickle.load(). I believe we should document and leave it at that.
+
+**Pydantic integration:** `DeferredFactory` is itself a Pydantic BaseModel, so it
+participates in `model_dump(mode="json")`/`model_validate()` naturally. Fields typed as
+`Prior | DeferredFactory | float` use a `BeforeValidator` to discriminate:
+
+```python
+from pydantic import BeforeValidator
+from typing import Annotated
+
+def _maybe_deferred(v: Any) -> Any:
+    """If v is a dict with __deferred__, wrap it as DeferredFactory."""
+    if isinstance(v, dict) and v.get("__deferred__"):
+        return DeferredFactory.from_dict(v)
+    return v
+
+PriorOrDeferred = Annotated[
+    Prior | DeferredFactory | float,
+    BeforeValidator(_maybe_deferred),
+]
+```
+
+HSGP fields use this annotated type so that `model_validate()` correctly
+reconstructs `DeferredFactory` instances from serialized dicts without
+confusing them with `Prior` dicts. Resolution to the actual `Prior` (with
+tensor expressions) happens later, when the owning class calls
+`deferred.resolve()` inside its model-building method (e.g.,
+`HSGP.create_variable()`).
+
+### 3. EventAdditiveEffect & Supplementary Data Storage
+
+#### Supplementary Data in InferenceData
+
+ArviZ supports arbitrary named groups. We store auxiliary DataFrames under a
+`supplementary_data` convention:
+
+```python
+# During save:
+idata.supplementary_data = xr.Dataset.from_dataframe(
+    effect.df_events.set_index("name")
+)
+```
+
+**Serialized dict for EventAdditiveEffect:**
+
+```python
+{
+    "__type__": "pymc_marketing.mmm.additive_effect.EventAdditiveEffect",
+    "prefix": "events",
+    "reference_date": "2024-01-01",
+    "date_dim_name": "date",
+    "effect": {... EventEffect.to_dict() ...},       # already works today
+    "df_events_group": "supplementary_data/events"    # pointer into idata
+}
+```
+
+On load, `EventAdditiveEffect` registers a custom deserializer with the `TypeRegistry`
+that receives `(data, context)`. It uses `context.idata` to read the DataFrame from
+the InferenceData group and reconstruct the full object:
+
+```python
+def _deserialize_event_additive_effect(
+    data: dict[str, Any], context: DeserializationContext
+) -> EventAdditiveEffect:
+    group_name = data["df_events_group"]
+    df_events = context.idata[group_name].to_dataframe().reset_index()
+    effect = EventEffect.from_dict(data["effect"])
+    return EventAdditiveEffect(
+        df_events=df_events, effect=effect,
+        prefix=data["prefix"], reference_date=data["reference_date"],
+        date_dim_name=data["date_dim_name"],
+    )
+
+registry.register(
+    "pymc_marketing.mmm.additive_effect.EventAdditiveEffect",
+    EventAdditiveEffect,
+    deserializer=_deserialize_event_additive_effect,
+)
+```
+
+**Naming convention:** Each MuEffect stores supplementary data under
+`supplementary_data/{prefix}` to avoid collisions.
+
+#### LinearTrendEffect Fix
+
+Make `linear_trend_first_date` a proper optional Pydantic field:
+
+```python
+class LinearTrendEffect(MuEffect):
+    linear_trend_first_date: pd.Timestamp | None = Field(default=None, exclude=True)
+```
+
+This is cleaner than the current `model_config = {"extra": "allow"}` approach while
+remaining functionally equivalent (re-populated in `create_data()` during `build_model()`).
+
+### 4. Registry Consolidation & MMM Save/Load
+
+#### Save Side (`create_idata_attrs`)
+
+1. Each component object (adstock, saturation, HSGP, scaling, mu_effects, etc.) serialized via `registry.serialize(obj)` — one call, consistent output. The MMM subclass's `_serializable_model_config` property in `multidimensional.py` (which currently uses duck-typing with `hasattr(value, "to_dict")` / `hasattr(value, "model_dump")`) is updated to use `registry.serialize()` for consistency. The base `ModelBuilder._json_default` and `ModelBuilder.create_idata_attrs` are **not modified** — CLV, Customer Choice, and MVITS continue to use the existing duck-typing path. Plain JSON-safe scalars (`date_column`, `adstock_first`, `channel_columns`, `dims`, …) remain as direct `json.dumps()` / string assignment.
+2. Supplementary data written to idata groups
+3. `__serialization_version__` attr added to idata for migration support
+
+#### Load Side (`attrs_to_init_kwargs` + `build_from_idata`)
+
+1. Check `__serialization_version__` — if old format, run migration
+2. Each component deserialized via `registry.deserialize(data, context=ctx)`
+3. Supplementary data read from idata groups via `DeserializationContext`
+4. MuEffect deserialization raises explicit `SerializationError` instead of silently dropping
+
+#### Custom User Types
+
+Users register custom types via decorator:
+
+```python
+from pymc_marketing.serialization import registry
+
+@registry.register
+class MyCustomEffect(MuEffect):
+    my_param: float
+    # to_dict/from_dict auto-provided by PydanticSerializableMixin on MuEffect
+
+@registry.register
+class MyTransform(Transformation):
+    def to_dict(self) -> dict: ...
+    @classmethod
+    def from_dict(cls, data: dict) -> "MyTransform": ...
+```
+
+### 5. Migration Tool
+
+`migrate_idata(idata) -> InferenceData` function that:
+
+1. Reads `__serialization_version__` attr (absent = v0, the old format)
+2. Applies sequential migration steps: v0 -> v1 -> ... -> current
+3. Each step rewrites attrs (adding `__type__` keys, renaming `"hsgp_class"`,
+   converting MuEffect `"class"` keys to fully-qualified `"__type__"`)
+4. Runnable standalone: `python -m pymc_marketing.migrate model.nc`
+5. Called automatically by `load()` on old versions with a deprecation warning
+
+## End State Summary
+
+### One Registry
+
+For MMM serialization, exactly **one** active registry: the `TypeRegistry`
+singleton in `pymc_marketing/serialization.py`. Of the 16 existing
+`register_deserialization()` calls, the **11 MMM-specific calls** (adstock,
+saturation, HSGP, HSGPKwargs, fourier ×3, events ×2, media_transformation ×2)
+are replaced with `@registry.register` decorators. Every MMM component class's
+`to_dict()` is updated to include `__type__`.
+
+The **5 Prior/SpecialPrior calls** in `prior.py` (1) and `special_priors.py` (4)
+are **retained** — they feed the `pymc_extras` global deserializer registry that
+`parse_model_config()` depends on for all model families (CLV, Customer Choice,
+MVITS, and MMM). These types are additionally registered in `TypeRegistry` so
+that MMM's new serialization path can also resolve them.
+
+
+### One Serialization Contract
+
+Every serializable object produces and consumes a JSON dict with a `__type__` key
+(fully-qualified class path). The `TypeRegistry` uses `__type__` to dispatch
+deserialization — no more `"class"`, `"hsgp_class"`, `"lookup_name"`, key-set
+heuristics, or per-family lookup dicts.
+
+### How Each Class Category Serializes
+
+| Category | Classes (examples) | Serialization mechanism | Registration |
+|---|---|---|---|
+| **Transformation subclasses** (non-Pydantic) | `GeometricAdstock`, `LogisticSaturation`, `GaussianBasis` (~18 classes: 6 adstock, 9 saturation, 3 basis) | `to_dict()` already exists. `from_dict()` classmethod **added** by migrating logic from the standalone `adstock_from_dict()`/`saturation_from_dict()`/`basis_from_dict()` functions into classmethods on `AdstockTransformation`/`SaturationTransformation`/`Basis` respectively (concrete subclasses inherit them). `to_dict()` updated to emit `__type__` instead of `lookup_name`. `RegistrationMeta` metaclass removed; classes use plain inheritance. | Registered with `@registry.register`. |
+| **Composite transformations** | `MediaTransformation`, `MediaConfig`, `MediaConfigList` (3 classes) | Existing `to_dict()`/`from_dict()`. `to_dict()` updated to emit `__type__`. | Registered with `@registry.register`. |
+| **Pydantic BaseModel with custom `to_dict()`** | `HSGP`, `HSGPPeriodic`, `SoftPlusHSGP`, `FourierBase`/`YearlyFourier`/etc., `EventEffect`, `HSGPKwargs` (~9 classes) | Keep existing `to_dict()`/`from_dict()` (they handle nested `Prior` objects). `to_dict()` updated to include `__type__`. `HSGPKwargs` gets a custom `to_dict()`/`from_dict()` that handles `cov_func` via `DeferredFactory` serialization (the mixin's `model_dump` cannot serialize a live `pm.gp.cov.Covariance`). The `hsgp_class` key currently injected externally in `create_idata_attrs()` is replaced by `__type__` emitted from within `HSGPBase.to_dict()` itself (the external injection in `multidimensional.py` is removed). | Registered with `@registry.register`. |
+| **Pure Pydantic BaseModel** | `LinearTrend`, `Scaling`, `VariableScaling` (3 classes) | Gain `PydanticSerializableMixin` → auto-provided `to_dict()`/`from_dict()` via `model_dump(mode="json")`/`model_validate()`. | Auto-registered by mixin. |
+| **MuEffect subclasses** (Pydantic + ABC) | `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect` (3 classes) | `MuEffect` base gains `PydanticSerializableMixin` → provides default `to_dict()`/`from_dict()` as fallback (`LinearTrendEffect` uses the default). `FourierEffect` **overrides** `to_dict()`/`from_dict()` to delegate to `FourierBase.to_dict()`/`from_dict()` for subclass dispatch (the mixin's `model_dump` cannot preserve the `FourierBase` subclass discriminator). `EventAdditiveEffect` **overrides** `to_dict()` to store `df_events` as a supplementary-data group pointer and serialize `effect` via `EventEffect.to_dict()` (the mixin's `model_dump` cannot serialize `InstanceOf[pd.DataFrame]`). Replaces the `singledispatch` serializers entirely. | Auto-registered by mixin. `EventAdditiveEffect` additionally registers a custom deserializer for supplementary data. |
+| **SpecialPrior hierarchy** (non-Pydantic) | `LogNormalPrior`, `LaplacePrior`, `MaskedPrior` (3 classes) | Existing `to_dict()`/`from_dict()`. `to_dict()` updated to include `__type__`. | Registered with `@registry.register`. |
+| **Non-serializable state** | `HSGP.eta`/`ls` (Prior with tensors), `HSGPKwargs.cov_func` | Wrapped in `DeferredFactory` — stores factory function path + scalar args instead of live objects. Resolved lazily at `build_model()` time inside each class's model-building method (e.g., `HSGP.create_variable()`). | `DeferredFactory` is a Pydantic BaseModel; detected by `__deferred__` flag in `TypeRegistry.deserialize()` (tier 1) and via `BeforeValidator` in Pydantic fields. Not registered in `TypeRegistry` as a named type. |
+| **User-defined custom types** | `MyCustomEffect(MuEffect)`, `MyTransform(Transformation)` | Implement `to_dict()`/`from_dict()` (manually or inherited from mixin). | Must use `@registry.register` decorator. Module must be imported before `load()`. |
+
+### What Gets Removed
+
+- `singledispatch` `_serialize_mu_effect` and all its registered handlers
+- `_MUEFFECT_DESERIALIZERS` dict and `_deserialize_mu_effect` function
+- `_register_mu_effect_handlers()` in `multidimensional.py`
+- The broad `except Exception` + warning fallback in `build_from_idata()`
+- `pymc_marketing/deserialize.py`
+- Per-type lookup dicts (`ADSTOCK_TRANSFORMATIONS`, `SATURATION_TRANSFORMATIONS`, `BASIS_TRANSFORMATIONS`)
+- `create_registration_meta()` and `RegistrationMeta` metaclass in `base.py`
+- `lookup_name` attribute on `Transformation` subclasses (replaced by `__type__`)
+- `adstock_from_dict()`, `saturation_from_dict()`, `basis_from_dict()` standalone deserializers
+- 11 MMM-specific `register_deserialization()` calls (adstock, saturation, HSGP, HSGPKwargs, fourier ×3, events ×2, media_transformation ×2)
+
+### What Stays Unchanged
+
+- **`prior.py`**: the 1 `register_deserialization()` call for `Prior` is retained (feeds `pymc_extras` global registry used by `parse_model_config` across all model families)
+- **`special_priors.py`**: the 4 `register_deserialization()` calls for `LogNormalPrior`, `LaplacePrior`, `MaskedPrior`, `SpecialPrior` are retained (same reason)
+- **`model_builder.py`**: `ModelBuilder.create_idata_attrs()`, `_json_default`, `attrs_to_init_kwargs()`, and `_model_config_formatting()` are not modified — CLV, Customer Choice, and MVITS models continue to use the existing serialization path
+- **`model_config.py`**: `parse_model_config()` continues to use `pymc_extras.deserialize()` — no changes
+- **CLV, Customer Choice, MVITS models**: no serialization changes at all
+
+### What Gets Added
+
+- `pymc_marketing/serialization.py` — `Serializable`, `PydanticSerializableMixin`, `TypeRegistry`, `DeferredFactory`, `DeserializationContext`, `SerializationError`
+- `pymc_marketing/migrate.py` — version-aware migration for old `.nc` files
+- `supplementary_data` groups in InferenceData for auxiliary DataFrames
+- `__serialization_version__` attr in saved InferenceData files
+
+## File Layout
+
+```
+pymc_marketing/
+  serialization.py          # NEW: Serializable, PydanticSerializableMixin,
+                             #      TypeRegistry, DeferredFactory,
+                             #      DeserializationContext, SerializationError
+  migrate.py                # NEW: migrate_idata(), version migration steps,
+                             #      CLI entry point
+  model_builder.py           # MODIFIED: ModelIO uses registry
+  deserialize.py             # REMOVED
+  special_priors.py          # MODIFIED: 4 register_deserialization calls replaced
+                             #           with @registry.register on LogNormalPrior,
+                             #           LaplacePrior, MaskedPrior, SpecialPrior
+  prior.py                   # MODIFIED: register_deserialization call replaced
+                             #           with @registry.register
+  mmm/
+    multidimensional.py      # MODIFIED: create_idata_attrs/attrs_to_init_kwargs
+                             #           simplified, singledispatch removed,
+                             #           _serializable_model_config updated to
+                             #           use registry.serialize()
+    additive_effect.py       # MODIFIED: MuEffect gains PydanticSerializableMixin,
+                             #           LinearTrendEffect field fix,
+                             #           EventAdditiveEffect full serialization
+    scaling.py               # MODIFIED: Scaling, VariableScaling gain
+                             #           PydanticSerializableMixin
+    linear_trend.py          # MODIFIED: LinearTrend gains
+                             #           PydanticSerializableMixin
+    hsgp.py                  # MODIFIED: uses DeferredFactory for ls/eta,
+                             #           to_dict/from_dict updated
+    hsgp_kwargs.py           # MODIFIED: HSGPKwargs gains custom to_dict()
+                             #           /from_dict(), cov_func uses
+                             #           DeferredFactory
+    events.py                # MODIFIED: supplementary data storage,
+                             #           BASIS_TRANSFORMATIONS and
+                             #           basis_from_dict removed
+    fourier.py               # MODIFIED: uses __type__ key
+    media_transformation.py  # MODIFIED: register_deserialization calls replaced
+                             #           with @registry.register on
+                             #           MediaTransformation and MediaConfigList
+    components/
+      base.py                # MODIFIED: RegistrationMeta, create_registration_meta,
+                             #           lookup_name removed; to_dict emits __type__
+      adstock.py             # MODIFIED: uses __type__ key, ADSTOCK_TRANSFORMATIONS
+                             #           and adstock_from_dict removed
+      saturation.py          # MODIFIED: uses __type__ key, SATURATION_TRANSFORMATIONS
+                             #           and saturation_from_dict removed
+```
+
+## Error Handling
+
+Replace silent `except Exception` + warning with explicit failures:
+
+```python
+# Before:
+try:
+    effect = _deserialize_mu_effect(effect_data)
+except Exception as e:
+    warnings.warn(f"Could not deserialize mu_effect: {e}")
+
+# After:
+effect = registry.deserialize(effect_data, context=ctx)
+# Raises SerializationError with actionable message
+```
+
+
+## Testing Strategy
+
+- **Unit tests** for `TypeRegistry`, `DeferredFactory`, `PydanticSerializableMixin`
+- **Round-trip tests** for every serializable component: serialize → deserialize → compare
+- **HSGP round-trip**: save model with `SoftPlusHSGP.parameterize_from_data()`, load, verify predictions match
+- **EventAdditiveEffect round-trip**: save model with events, load, verify `df_events` intact
+- **Migration tests**: load v0 `.nc` file, verify auto-migration produces working model
+- **Custom type tests**: register a user-defined MuEffect, save/load, verify round-trip
+- **Error tests**: verify `SerializationError` raised with actionable messages for known failure modes
