@@ -30,7 +30,6 @@ from pymc_marketing.mmm.multidimensional import (
 )
 
 SEED = sum(map(ord, "cost_per_unit_tests"))
-rng = np.random.default_rng(seed=SEED)
 
 
 @pytest.fixture
@@ -51,6 +50,7 @@ def countries():
 @pytest.fixture
 def simple_idata(dates, channels):
     """InferenceData without custom dims."""
+    rng = np.random.default_rng(SEED)
     n_dates = len(dates)
     n_channels = len(channels)
     contrib = rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_channels))
@@ -101,6 +101,7 @@ def simple_idata(dates, channels):
 @pytest.fixture
 def multidim_idata(dates, channels, countries):
     """InferenceData with custom dims (country)."""
+    rng = np.random.default_rng(SEED + 1)
     n_dates = len(dates)
     n_channels = len(channels)
     n_countries = len(countries)
@@ -300,6 +301,7 @@ class TestWrapperCostPerUnit:
         assert wrapper.cost_per_unit is None
 
     def test_cost_per_unit_property_returns_data(self, simple_idata, dates, channels):
+        rng = np.random.default_rng(SEED + 2)
         cpu = xr.DataArray(
             rng.uniform(0.01, 0.1, size=(len(dates), len(channels))),
             dims=("date", "channel"),
@@ -837,6 +839,7 @@ def simple_idata_with_spend(simple_idata, dates, channels):
 @pytest.fixture
 def multidim_idata_with_spend(multidim_idata, dates, channels, countries):
     """multidim_idata with channel_spend added."""
+    rng = np.random.default_rng(SEED + 3)
     n_dates = len(dates)
     n_countries = len(countries)
     n_channels = len(channels)
