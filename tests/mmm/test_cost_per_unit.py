@@ -886,6 +886,46 @@ class TestGetAvgCostPerUnit:
         assert "channel" in result.dims
         assert "date" not in result.dims
 
+    def test_zero_channel_data_returns_nan(self, dates, channels):
+        """When a channel has all-zero data, avg CPU should be NaN for that channel."""
+        rng = np.random.default_rng(SEED + 10)
+        n_dates = len(dates)
+        n_channels = len(channels)
+
+        channel_data_vals = rng.uniform(100, 1000, size=(n_dates, n_channels))
+        channel_data_vals[:, 0] = 0.0  # zero out first channel (TV)
+
+        channel_data = xr.DataArray(
+            channel_data_vals,
+            dims=("date", "channel"),
+            coords={"date": dates, "channel": channels},
+        )
+        channel_spend = xr.DataArray(
+            rng.uniform(50, 500, size=(n_dates, n_channels)),
+            dims=("date", "channel"),
+            coords={"date": dates, "channel": channels},
+        )
+        idata = az.InferenceData(
+            constant_data=xr.Dataset(
+                {
+                    "channel_data": channel_data,
+                    "channel_spend": channel_spend,
+                    "channel_scale": xr.DataArray(
+                        [500.0, 300.0],
+                        dims=("channel",),
+                        coords={"channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(1000.0),
+                }
+            ),
+        )
+
+        wrapper = MMMIDataWrapper(idata)
+        result = wrapper.get_avg_cost_per_unit()
+
+        assert np.isnan(result.sel(channel=channels[0]).values)
+        assert not np.isnan(result.sel(channel=channels[1]).values)
+
 
 class TestSummaryColumnName:
     def test_channel_spend_col_name_with_cpu(self, simple_idata_with_spend):
