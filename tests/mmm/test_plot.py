@@ -5109,7 +5109,6 @@ class TestAllocatedContributionByChannelOverTime:
 # ============================================================================
 
 _CPU_SEED = sum(map(ord, "cost_per_unit_tests"))
-_cpu_rng = np.random.default_rng(seed=_CPU_SEED)
 
 
 @pytest.fixture
