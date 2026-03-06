@@ -376,13 +376,13 @@ class MMMIdataSchema(BaseModel):
             )
 
         groups["posterior"] = InferenceDataGroupSchema(
-            name="posterior", required=True, variables=posterior_vars
+            name="posterior", required=False, variables=posterior_vars
         )
 
         # Fit data group (dynamic variables, just check it exists)
         groups["fit_data"] = InferenceDataGroupSchema(
             name="fit_data",
-            required=True,
+            required=False,
             variables={},  # Dynamic based on input columns
         )
 
