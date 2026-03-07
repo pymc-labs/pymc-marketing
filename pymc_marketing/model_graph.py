@@ -14,15 +14,50 @@
 """Functions to manipulate PyMC models as graphs."""
 
 import pymc as pm
+import pymc.dims as pmd
 from pymc.model.fgraph import (
     extract_dims,
     fgraph_from_model,
     model_free_rv,
     model_from_fgraph,
 )
-from pymc.pytensorf import toposort_replace
-from pytensor.graph import rewrite_graph
+from pytensor import config
+from pytensor.graph import FunctionGraph, Variable, ancestors
+from pytensor.tensor import TensorVariable
 from pytensor.tensor.basic import infer_shape_db
+from pytensor.tensor.rewriting.shape import ShapeFeature
+from pytensor.xtensor.type import XTensorVariable
+
+
+def get_symbolic_rv_shape(
+    rv: Variable, raise_if_rv_in_graph: bool = True
+) -> tuple[TensorVariable]:
+    """Get the symbolic shape of the random variables in the graph.
+
+    Parameters
+    ----------
+    rv : Variable
+        The random variable to get the shape of.
+    raise_if_rv_in_graph : bool, optional
+        Whether to raise an error if the random variable is still in the graph.
+
+    Returns
+    -------
+    tuple[TensorVariable]
+        The shape of the random variables.
+    """
+    # TODO: Remove this when utility is available in pymc.pytensorf
+    shape_fg = FunctionGraph(
+        outputs=list(rv.shape), features=[ShapeFeature()], clone=True
+    )
+    with config.change_flags(optdb__max_use_ratio=10, cxx=""):
+        infer_shape_db.default_query.rewrite(shape_fg)
+    rv_shape = tuple(shape_fg.outputs)
+
+    if raise_if_rv_in_graph and rv in (ancestors(rv_shape)):
+        raise ValueError("rv_shape still depends the original rv")
+
+    return rv_shape
 
 
 def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
@@ -94,25 +129,32 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
     for variable in model_variables:
         model_var = memo[variable]
         dims = extract_dims(model_var)
-
-        new_rv = pm.Flat.dist(shape=model_var.shape)
+        underlying_var = model_var.owner.inputs[0]
+        underlying_shape = get_symbolic_rv_shape(underlying_var)
+        if isinstance(underlying_var, XTensorVariable):
+            new_rv = pmd.Flat.dist(
+                dim_lengths=dict(
+                    zip(underlying_var.dims, underlying_shape, strict=True)
+                )
+            )
+        else:
+            new_rv = pm.Flat.dist(shape=underlying_shape)
         new_rv.name = model_var.name
 
-        replacements[model_var] = model_free_rv(
+        new_free_rv = model_free_rv(
             new_rv,
             new_rv.type(name=model_var.name),
             None,
             *dims,
         )
 
-    toposort_replace(fg, replacements=tuple(replacements.items()))
-    fg = rewrite_graph(
-        fg,
-        include=("ShapeOpt",),
-        custom_rewrite=infer_shape_db.default_query,
-        clone=False,
+        replacements[model_var] = new_free_rv
+
+    fg.replace_all(
+        replacements.items(),
+        reason="deterministics_to_flat",
+        import_missing=True,
     )
 
     new_model = model_from_fgraph(fg, mutate_fgraph=True)
-
     return new_model
