@@ -5109,7 +5109,6 @@ class TestAllocatedContributionByChannelOverTime:
 # ============================================================================
 
 _CPU_SEED = sum(map(ord, "cost_per_unit_tests"))
-_cpu_rng = np.random.default_rng(seed=_CPU_SEED)
 
 
 @pytest.fixture
@@ -5292,3 +5291,45 @@ class TestSensitivityAnalysisCostPerUnit:
         fig = result[0] if isinstance(result, tuple) else result.figure
         plt.close(fig)
         assert fig is not None
+
+    def test_absolute_sweep_xaxis_differs_with_cpu(
+        self, cpu_simple_idata_with_spend, cpu_channels
+    ):
+        """x-axis ranges must differ between apply_cost_per_unit True vs False."""
+        rng = np.random.default_rng(seed=_CPU_SEED + 3)
+        sweep = np.linspace(0.5, 2.0, 5)
+        sa = xr.DataArray(
+            rng.normal(size=(20, len(cpu_channels), len(sweep))),
+            dims=("sample", "channel", "sweep"),
+            coords={"channel": cpu_channels, "sweep": sweep},
+        )
+        cpu_simple_idata_with_spend.sensitivity_analysis = xr.Dataset({"x": sa})
+
+        wrapper = MMMIDataWrapper(cpu_simple_idata_with_spend)
+        suite = MMMPlotSuite(data=wrapper)
+
+        result_cpu = suite.sensitivity_analysis(
+            hue_dim="channel",
+            x_sweep_axis="absolute",
+            apply_cost_per_unit=True,
+        )
+        fig_cpu = result_cpu[0] if isinstance(result_cpu, tuple) else result_cpu.figure
+        axes_cpu = fig_cpu.get_axes()
+        xlim_cpu = axes_cpu[0].get_xlim()
+
+        result_no = suite.sensitivity_analysis(
+            hue_dim="channel",
+            x_sweep_axis="absolute",
+            apply_cost_per_unit=False,
+        )
+        fig_no = result_no[0] if isinstance(result_no, tuple) else result_no.figure
+        axes_no = fig_no.get_axes()
+        xlim_no = axes_no[0].get_xlim()
+
+        plt.close(fig_cpu)
+        plt.close(fig_no)
+
+        assert xlim_cpu != xlim_no, (
+            "x-axis ranges should differ when apply_cost_per_unit changes "
+            f"(cpu={xlim_cpu}, no_cpu={xlim_no})"
+        )

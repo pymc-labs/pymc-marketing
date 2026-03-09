@@ -1147,8 +1147,8 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         self._validate_idata_exists()
         data = self.data
-        if data.schema is not None:
-            data.validate_or_raise()
+        # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
+        # However the schema is not very flexiable and the plot suite is (too) flexiable.
         return MMMPlotSuite(data=data)
 
     @property

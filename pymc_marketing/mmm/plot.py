@@ -232,6 +232,22 @@ class MMMPlotSuite:
             self.idata = cast(az.InferenceData, idata)
             self.data = cast(MMMIDataWrapper, data)
 
+    def _spend_or_data_label(self, apply_cost_per_unit: bool) -> str:
+        """Return the appropriate x-axis label based on cost-per-unit availability."""
+        if apply_cost_per_unit and self.data.cost_per_unit is not None:
+            return "Spend"
+        return "Channel Data (X)"
+
+    def _select_channel_x_for_indexers(
+        self,
+        apply_cost_per_unit: bool,
+        **indexers,
+    ) -> xr.DataArray:
+        """Return spend or raw channel data sliced by the given indexers."""
+        if apply_cost_per_unit:
+            return self.data.get_channel_spend().sel(**indexers)
+        return self.data.get_channel_data().sel(**indexers)
+
     def _init_subplots(
         self,
         n_subplots: int,
@@ -1955,9 +1971,24 @@ class MMMPlotSuite:
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot the saturation curves for each channel.
 
-        Creates a grid of subplots for each combination of channel and non-(date/channel) dimensions.
-        Optionally, subset by dims (single values or lists).
-        Each channel will have a consistent color across all subplots.
+        Creates a grid of subplots for each combination of channel and
+        non-(date/channel) dimensions. Optionally, subset by dims (single
+        values or lists). Each channel will have a consistent color across
+        all subplots.
+
+        Parameters
+        ----------
+        original_scale : bool, default=False
+            If True, plot ``channel_contribution_original_scale``
+            instead of ``channel_contribution``.
+        dims : dict[str, str | int | list], optional
+            Dimension filters. Example: ``{"country": ["US", "UK"]}``.
+        apply_cost_per_unit : bool, default=True
+            If True and cost-per-unit data is available, the x-axis shows
+            spend (channel_data * cost_per_unit). If False, shows raw
+            channel data.
+        **kwargs
+            Additional keyword arguments forwarded to the scatter plot.
         """
         if not hasattr(self.idata, "constant_data"):
             raise ValueError(
@@ -2061,10 +2092,9 @@ class MMMPlotSuite:
                         indexers[k] = v
             indexers["channel"] = channel
 
-            if apply_cost_per_unit:
-                x_data = self.data.get_channel_spend().sel(**indexers)
-            else:
-                x_data = self.data.get_channel_data().sel(**indexers)
+            x_data = self._select_channel_x_for_indexers(
+                apply_cost_per_unit, **indexers
+            )
             y_data = self.idata.posterior[channel_contribution].sel(**indexers)
             y_data = y_data.mean(dim=[d for d in y_data.dims if d in ("chain", "draw")])
             x_data = x_data.broadcast_like(y_data)
@@ -2089,12 +2119,7 @@ class MMMPlotSuite:
                 fallback_title="Channel Saturation Curve",
             )
             ax.set_title(title)
-            xlabel = (
-                "Spend"
-                if (apply_cost_per_unit and self.data.cost_per_unit is not None)
-                else "Channel Data (X)"
-            )
-            ax.set_xlabel(xlabel)
+            ax.set_xlabel(self._spend_or_data_label(apply_cost_per_unit))
             ax.set_ylabel("Channel Contributions (Y)")
             ax.legend(loc="best")
 
@@ -2150,6 +2175,10 @@ class MMMPlotSuite:
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"country": ["US", "UK"], "region": "X"}.
             If provided, only the selected slice(s) will be plotted.
+        apply_cost_per_unit : bool, default=True
+            If True and cost-per-unit data is available, the x-axis shows
+            spend (channel_data * cost_per_unit). If False, shows raw
+            channel data.
         **plot_kwargs
             Any other kwargs forwarded to `plot_curve`
             (for instance `same_axes=True`, `legend=True`, etc.).
@@ -2325,10 +2354,9 @@ class MMMPlotSuite:
                         legend=False,
                         **plot_kwargs,
                     )
-            if apply_cost_per_unit:
-                x_data = self.data.get_channel_spend().sel(**indexers)
-            else:
-                x_data = self.data.get_channel_data().sel(**indexers)
+            x_data = self._select_channel_x_for_indexers(
+                apply_cost_per_unit, **indexers
+            )
             y = (
                 self.idata.posterior[contrib_var]
                 .sel(**indexers)
@@ -2360,12 +2388,7 @@ class MMMPlotSuite:
                 fallback_title="Channel Saturation Curves",
             )
             ax.set_title(title)
-            xlabel = (
-                "Spend"
-                if (apply_cost_per_unit and self.data.cost_per_unit is not None)
-                else "Channel Data (X)"
-            )
-            ax.set_xlabel(xlabel)
+            ax.set_xlabel(self._spend_or_data_label(apply_cost_per_unit))
             ax.set_ylabel("Channel Contribution (Y)")
         for ax_idx in range(subplot_idx, len(axes_flat)):
             axes_flat[ax_idx].set_visible(False)
