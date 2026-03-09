@@ -2153,7 +2153,8 @@ class MMMPlotSuite:
         Parameters
         ----------
         curve : xr.DataArray
-            Posterior‑predictive curves (e.g. dims `("chain","draw","x","channel","geo")`).
+            Posterior‑predictive curves with dims `("chain","draw","x","channel",…)`
+            or `("sample","x","channel",…)`.
         original_scale : bool, default=False
             Plot `channel_contribution_original_scale` if True, else `channel_contribution`.
         n_samples : int, default=10
@@ -2222,6 +2223,14 @@ class MMMPlotSuite:
         )
         curve_data = curve_data.rename("saturation_curve")
 
+        if "sample" in curve_data.dims and "chain" not in curve_data.dims:
+            curve_data = curve_data.drop_vars(
+                [c for c in ("chain", "draw") if c in curve_data.coords]
+            )
+            curve_data = curve_data.expand_dims(chain=[0]).rename({"sample": "draw"})
+            other_dims = [d for d in curve_data.dims if d not in ("chain", "draw")]
+            curve_data = curve_data.transpose("chain", "draw", *other_dims)
+
         # — 1. figure out grid shape based on scatter data dimensions / identify dims and combos
         cdims = self.idata.constant_data.channel_data.dims
         all_dims = list(cdims)
@@ -2242,7 +2251,7 @@ class MMMPlotSuite:
             additional_combinations = list(itertools.product(*additional_coords))
         else:
             additional_combinations = [()]
-        channels = self.idata.constant_data.coords["channel"].values
+        channels = self.data.channels
         n_channels = len(channels)
         n_addl = len(additional_combinations)
         n_dims = len(dims_combos)
