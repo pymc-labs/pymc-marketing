@@ -58,6 +58,7 @@ jobs:
         uv venv --python 3.12
         uv pip install --upgrade pip
         uv pip install -e ".[docs,test,dag]"
+        uv pip list
 
     - name: Run notebooks
       run: uv run scripts/run_notebooks/runner.py ${{ matrix.split }}

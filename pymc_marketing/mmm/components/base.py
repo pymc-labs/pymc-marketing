@@ -512,6 +512,7 @@ class Transformation:
         parameters: xr.Dataset,
         x: pt.TensorLike,
         coords: dict[str, Any],
+        **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         output_core_dims = self._infer_output_core_dims()
 
@@ -545,6 +546,7 @@ class Transformation:
             return pm.sample_posterior_predictive(
                 parameters,
                 var_names=[var_name],
+                **sample_prior_predictive_kwargs,
             ).posterior_predictive[var_name]
 
     def plot_curve_samples(
