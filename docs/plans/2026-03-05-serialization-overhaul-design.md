@@ -30,6 +30,7 @@
 - [File Layout](#file-layout)
 - [Error Handling](#error-handling)
 - [Testing Strategy](#testing-strategy)
+- [Tickets Resolved by This Design](#tickets-resolved-by-this-design)
 
 ---
 
@@ -42,14 +43,16 @@ contract, making it difficult for users to create custom serializable components
 
 ### Known Failures
 
-| Component | Root Cause |
-|---|---|
-| **HSGP** (SoftPlusHSGP, HSGPPeriodic) | `Prior` objects store PyTensor symbolic expressions (`lam=-pt.log(mass)/upper`) that cannot be JSON-serialized |
-| **EventAdditiveEffect** | Deserialization intentionally raises `ValueError` — the original `df_events` DataFrame is not stored in the NetCDF file |
-| **LinearTrendEffect** | `linear_trend_first_date` is a runtime-only attribute, not a Pydantic field; fragile across save/load |
-| **Custom MuEffects** | No registry entry in `_MUEFFECT_DESERIALIZERS`; `Transformation` base is not Pydantic-compatible |
-| **HSGPKwargs.cov_func** | Can hold a live `pm.gp.cov.Covariance` PyMC object (not JSON-serializable) |
-| **Silent failures** | `build_from_idata()` catches all MuEffect deserialization errors with a broad `except Exception` and only warns — model loads but with missing effects |
+| Component | Root Cause | When It Affects Users | References |
+|---|---|---|---|
+| **Silent failures** | `build_from_idata()` catches all MuEffect deserialization errors with a broad `except Exception` and only warns — model loads but with missing effects. Effects silently dropped with no recovery path. | When loading any model where a MuEffect fails to deserialize. The model appears to load successfully, but effects are silently missing — predictions and contributions will be wrong with no error to alert the user. | [catch-all](../../pymc_marketing/mmm/multidimensional.py#L3301), [test](../../tests/mmm/test_serialization_issues.py#L207), [#1921](https://github.com/pymc-labs/pymc-marketing/issues/1921) |
+| **EventAdditiveEffect** | Deserialization intentionally raises `ValueError` — both `df_events` DataFrame **and** the `effect` field (`EventEffect` config with adstock/basis) are excluded from serialization. Only `event_names` (a list of strings) is preserved. | When saving and loading any model that uses event-based additive effects. The model cannot be loaded — deserialization always raises. | [exclusion](../../pymc_marketing/mmm/multidimensional.py#L344), [deser raises](../../pymc_marketing/mmm/multidimensional.py#L349), [test](../../tests/mmm/test_serialization_issues.py#L188), [#1921](https://github.com/pymc-labs/pymc-marketing/issues/1921) |
+| **Custom MuEffects** | `_MUEFFECT_DESERIALIZERS` has only 3 hardcoded entries (`FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`); no public API for user registration. Serialization works (singledispatch fallback uses `model_dump`), but deserialization raises `ValueError("Unknown MuEffect class")`. The `Transformation` base class (adstock/saturation/basis) is a separate issue — it is not Pydantic-based and uses a different metaclass-based registration system. | When a user creates a custom `MuEffect` subclass, saves the model, and later tries to load it. Saving succeeds, but loading always fails with "Unknown MuEffect class". | [registry](../../pymc_marketing/mmm/multidimensional.py#L266), [test](../../tests/mmm/test_serialization_issues.py#L254), [#1921](https://github.com/pymc-labs/pymc-marketing/issues/1921) |
+| **Default `_serialize_mu_effect` with Prior fields** | The singledispatch fallback calls `model_dump(mode="json")`, which fails for any `MuEffect` subclass containing `Prior` or `InstanceOf[...]` fields. Affects custom MuEffects that embed Priors. Built-in types avoid this via custom singledispatch handlers. | When saving a model that contains a custom `MuEffect` subclass with `Prior` or `InstanceOf` fields. The save itself fails with `PydanticSerializationError`. | [fallback](../../pymc_marketing/mmm/multidimensional.py#L233), [test](../../tests/mmm/test_serialization_issues.py#L361) |
+| **HSGP/HSGPPeriodic/SoftPlusHSGP `dims` tuple→list** | JSON has no tuple type: `("time",)` → JSON array → `["time"]`. `from_dict()` and `_dim_is_at_least_one` validator only handle `str→tuple`, not `list→tuple`. Affects all three HSGP classes. `LinearTrend.dims` and `VariableScaling.dims` are unaffected — Pydantic's strict `str \| tuple[str, ...]` annotation coerces list→tuple automatically during `model_validate()`. | When saving and loading any model that includes HSGP, HSGPPeriodic, or SoftPlusHSGP components. The loaded model fails to reconstruct these components due to the type mismatch. | [validator](../../pymc_marketing/mmm/hsgp.py#L324), [test](../../tests/mmm/test_serialization_issues.py#L92), [#2087](https://github.com/pymc-labs/pymc-marketing/issues/2087) |
+| **HSGPKwargs.cov_func** | Can hold a live `pm.gp.cov.Covariance` PyMC object (`InstanceOf[pm.gp.cov.Covariance]`). `model_dump(mode="json")` raises `PydanticSerializationError`. Only triggers when users explicitly pass a covariance object (default is `None`). | When saving a model where the user explicitly passed a custom `cov_func` to `HSGPKwargs`. Models using the default `cov_func=None` are unaffected. | [field](../../pymc_marketing/hsgp_kwargs.py#L81), [test](../../tests/mmm/test_serialization_issues.py#L161), [#2087](https://github.com/pymc-labs/pymc-marketing/issues/2087) |
+| **LinearTrendEffect** | Two issues: (1) `linear_trend_first_date` is a runtime-only attribute set via `model_config={"extra": "allow"}` + `__init__`, not a Pydantic field — re-derived in `create_data()` during normal load flow but fragile. (2) `model_dump(mode="json")` fails with `PydanticSerializationError` because `LinearTrend` contains `Prior` fields that Pydantic can't JSON-serialize. The custom `_serialize_mu_effect` handler avoids this by serializing `trend` separately. | When serializing a `LinearTrendEffect` through the generic `model_dump` path (e.g., custom code calling `model_dump(mode="json")` directly). The built-in save/load flow works around this via a custom singledispatch handler, so standard save/load is unaffected. | [runtime attr](../../pymc_marketing/mmm/additive_effect.py#L461), [test](../../tests/mmm/test_serialization_issues.py#L283) |
+| **HSGP Prior equality** (SoftPlusHSGP, HSGPPeriodic) | `Prior` objects store PyTensor symbolic expressions (`lam=-pt.log(mass)/upper`). `Prior.to_dict()` handles this correctly via `.eval()`, but after roundtrip the parameter type changes from `TensorVariable` to `float`, breaking `Prior.__eq__` (TypeError on cross-type comparison). Dict-level roundtrip works. | When comparing a loaded model's HSGP priors against original objects (e.g., asserting config equality after save/load). Does not affect model fitting or predictions — only equality checks break. | [source](../../pymc_marketing/mmm/hsgp.py#L204), [test](../../tests/mmm/test_serialization_issues.py#L63), [#2087](https://github.com/pymc-labs/pymc-marketing/issues/2087) |
 
 ### Current Serialization Patterns (4+, inconsistent)
 
@@ -419,6 +422,8 @@ remaining functionally equivalent (re-populated in `create_data()` during `build
 
 #### Save Side (`create_idata_attrs`)
 
+Related: [#880](https://github.com/pymc-labs/pymc-marketing/issues/880) — remove unnecessary attrs serialization
+
 1. Each component object (adstock, saturation, HSGP, scaling, mu_effects, etc.) serialized via `registry.serialize(obj)` — one call, consistent output. The MMM subclass's `_serializable_model_config` property in `multidimensional.py` (which currently uses duck-typing with `hasattr(value, "to_dict")` / `hasattr(value, "model_dump")`) is updated to use `registry.serialize()` for consistency. The base `ModelBuilder._json_default` and `ModelBuilder.create_idata_attrs` are **not modified** — CLV, Customer Choice, and MVITS continue to use the existing duck-typing path. Plain JSON-safe scalars (`date_column`, `adstock_first`, `channel_columns`, `dims`, …) remain as direct `json.dumps()` / string assignment.
 2. Supplementary data written to idata groups
 3. `__serialization_version__` attr added to idata for migration support
@@ -592,7 +597,27 @@ effect = registry.deserialize(effect_data, context=ctx)
 ```
 
 
+## How the Proposed Design Solves Each Known Issue
+
+1. **Silent failures** — The broad `except Exception` catch-all in `build_from_idata()` is removed. All MuEffect deserialization goes through `registry.deserialize()`, which raises an explicit `SerializationError` with an actionable message. No effects are silently dropped; if deserialization fails, the user knows immediately.
+
+2. **EventAdditiveEffect** — The `df_events` DataFrame and the `effect` field are no longer excluded from serialization. `df_events` is stored as a named group (`supplementary_data/events`) inside the InferenceData `.nc` file, and `effect` is serialized via `EventEffect.to_dict()`. A custom deserializer registered with the `TypeRegistry` reads the DataFrame back from `DeserializationContext.idata` on load, fully reconstructing the object.
+
+3. **Custom MuEffects** — The hardcoded `_MUEFFECT_DESERIALIZERS` dict is replaced by the open `TypeRegistry`. `MuEffect` gains `PydanticSerializableMixin`, which auto-registers every subclass (including user-defined ones) at class-definition time. Users can also use `@registry.register` explicitly. Any registered type can be deserialized — no more "Unknown MuEffect class".
+
+4. **Default `_serialize_mu_effect` with Prior fields** — The `singledispatch` fallback that calls `model_dump(mode="json")` is removed entirely. All MuEffects serialize through `to_dict()` (provided by `PydanticSerializableMixin` or overridden per class), which handles `Prior` and `InstanceOf` fields correctly. No more `PydanticSerializationError` on save.
+
+5. **HSGP/HSGPPeriodic/SoftPlusHSGP `dims` tuple→list** — HSGP classes' `from_dict()` methods are updated to normalize `list→tuple` during deserialization. Since `to_dict()` and `from_dict()` are kept (with `__type__` added), the fix is localized to the `from_dict()` input normalization. The JSON array→list roundtrip is handled explicitly.
+
+6. **HSGPKwargs.cov_func** — `HSGPKwargs` gains a custom `to_dict()`/`from_dict()` that wraps `cov_func` in a `DeferredFactory` (storing the factory function path + scalar args) instead of attempting to serialize the live `pm.gp.cov.Covariance` object. The actual covariance object is re-created lazily at `build_model()` time via `deferred.resolve()`.
+
+7. **LinearTrendEffect** — `linear_trend_first_date` becomes a proper optional Pydantic field (`pd.Timestamp | None = Field(default=None, exclude=True)`) instead of a fragile `model_config={"extra": "allow"}` runtime attribute. `LinearTrendEffect` inherits the mixin's default `to_dict()`/`from_dict()`, which delegates to `model_dump(mode="json")`/`model_validate()` — but `LinearTrend`'s `Prior` fields are now handled correctly because `LinearTrend` also gains `PydanticSerializableMixin` with proper `to_dict()` support.
+
+8. **HSGP Prior equality** — HSGP priors that contain PyTensor symbolic expressions (e.g., `lam=-pt.log(mass)/upper`) are replaced by `DeferredFactory` instances that store the factory function and scalar args. After a save/load roundtrip, `deferred.resolve()` re-creates an identical `Prior` with fresh tensor expressions, so the equality problem disappears — there are no stale tensor-vs-float type mismatches to compare.
+
 ## Testing Strategy
+
+Related: [#988](https://github.com/pymc-labs/pymc-marketing/issues/988) — increase `media_transformation` module coverage for `to_dict`/`from_dict`/equality
 
 - **Unit tests** for `TypeRegistry`, `DeferredFactory`, `PydanticSerializableMixin`
 - **Round-trip tests** for every serializable component: serialize → deserialize → compare
@@ -601,3 +626,16 @@ effect = registry.deserialize(effect_data, context=ctx)
 - **Migration tests**: load v0 `.nc` file, verify auto-migration produces working model
 - **Custom type tests**: register a user-defined MuEffect, save/load, verify round-trip
 - **Error tests**: verify `SerializationError` raised with actionable messages for known failure modes
+
+## Tickets Resolved by This Design
+
+The following open tickets will be resolved when this design is fully implemented:
+
+| Ticket | Title | How It's Resolved |
+|---|---|---|
+| [#2379](https://github.com/pymc-labs/pymc-marketing/issues/2379) | Update the serialization process | Parent tracking issue — the unified `TypeRegistry`, `Serializable` protocol, and `DeferredFactory` replace the 4 inconsistent patterns and fix all 8 known failures listed there. |
+| [#1921](https://github.com/pymc-labs/pymc-marketing/issues/1921) | Lack of `idata.attrs` serialization for MuEffects | `MuEffect` gains `PydanticSerializableMixin` → all MuEffects (including `EventAdditiveEffect`) are fully serialized to `idata.attrs` via `registry.serialize()`. The broad `except Exception` catch-all is removed. |
+| [#2087](https://github.com/pymc-labs/pymc-marketing/issues/2087) | Build out HSGP serialization | HSGP classes get `@registry.register`, `__type__`-based `to_dict()`/`from_dict()`, `DeferredFactory` for tensor priors, and `list→tuple` normalization in `from_dict()`. The external `hsgp_class` key injection is removed. |
+| [#880](https://github.com/pymc-labs/pymc-marketing/issues/880) | Remove unnecessary attrs serialization | The MMM subclass's `_serializable_model_config` and `create_idata_attrs` are simplified — all components go through `registry.serialize()` producing clean JSON dicts, eliminating ad-hoc `json.dumps`/`json.loads` workarounds for NetCDF attribute limitations. |
+| [#988](https://github.com/pymc-labs/pymc-marketing/issues/988) | Increase `media_transformation` module coverage | Round-trip tests for every serializable component (including `MediaTransformation`, `MediaConfig`, `MediaConfigList`) cover `to_dict`, `from_dict`, and equality. |
+| [#1664](https://github.com/pymc-labs/pymc-marketing/issues/1664) | Show off the `to_dict` and `from_dict` structure for our classes | The unified `__type__`-based contract and `@registry.register` decorator provide a single, documentable pattern. Follow-up documentation can reference the new `Serializable` protocol and `TypeRegistry` API. |
