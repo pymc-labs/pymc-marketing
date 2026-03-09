@@ -66,6 +66,7 @@ def _create_saturation_mock_summary(
 
     channel_scale = xr.DataArray(np.ones(shape), dims=dims, coords=coords)
     mock_summary.data.get_channel_scale.return_value = channel_scale
+    mock_summary.data.get_avg_cost_per_unit.return_value = xr.ones_like(channel_scale)
     return mock_summary
 
 
@@ -761,6 +762,9 @@ class TestSaturationCurvesOriginalScale:
         mock_summary.saturation_curves.return_value = df
         mock_summary.data = Mock(custom_dims=["geo"])
         mock_summary.data.get_channel_scale.return_value = channel_scale
+        mock_summary.data.get_avg_cost_per_unit.return_value = xr.ones_like(
+            channel_scale
+        )
 
         factory = MMMPlotlyFactory(summary=mock_summary)
 

@@ -30,7 +30,6 @@ from pymc_marketing.mmm.multidimensional import (
 )
 
 SEED = sum(map(ord, "cost_per_unit_tests"))
-rng = np.random.default_rng(seed=SEED)
 
 
 @pytest.fixture
@@ -51,8 +50,16 @@ def countries():
 @pytest.fixture
 def simple_idata(dates, channels):
     """InferenceData without custom dims."""
+    rng = np.random.default_rng(SEED)
     n_dates = len(dates)
     n_channels = len(channels)
+    contrib = rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_channels))
+    contrib_coords = {
+        "chain": [0, 1],
+        "draw": np.arange(50),
+        "date": dates,
+        "channel": channels,
+    }
     return az.InferenceData(
         constant_data=xr.Dataset(
             {
@@ -77,14 +84,14 @@ def simple_idata(dates, channels):
         posterior=xr.Dataset(
             {
                 "channel_contribution": xr.DataArray(
-                    rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_channels)),
+                    contrib,
                     dims=("chain", "draw", "date", "channel"),
-                    coords={
-                        "chain": [0, 1],
-                        "draw": np.arange(50),
-                        "date": dates,
-                        "channel": channels,
-                    },
+                    coords=contrib_coords,
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    contrib * 1000.0,
+                    dims=("chain", "draw", "date", "channel"),
+                    coords=contrib_coords,
                 ),
             }
         ),
@@ -94,9 +101,18 @@ def simple_idata(dates, channels):
 @pytest.fixture
 def multidim_idata(dates, channels, countries):
     """InferenceData with custom dims (country)."""
+    rng = np.random.default_rng(SEED + 1)
     n_dates = len(dates)
     n_channels = len(channels)
     n_countries = len(countries)
+    contrib = rng.normal(0.5, 0.1, size=(2, 50, n_dates, n_countries, n_channels))
+    contrib_coords = {
+        "chain": [0, 1],
+        "draw": np.arange(50),
+        "date": dates,
+        "country": countries,
+        "channel": channels,
+    }
     return az.InferenceData(
         constant_data=xr.Dataset(
             {
@@ -129,19 +145,14 @@ def multidim_idata(dates, channels, countries):
         posterior=xr.Dataset(
             {
                 "channel_contribution": xr.DataArray(
-                    rng.normal(
-                        0.5,
-                        0.1,
-                        size=(2, 50, n_dates, n_countries, n_channels),
-                    ),
+                    contrib,
                     dims=("chain", "draw", "date", "country", "channel"),
-                    coords={
-                        "chain": [0, 1],
-                        "draw": np.arange(50),
-                        "date": dates,
-                        "country": countries,
-                        "channel": channels,
-                    },
+                    coords=contrib_coords,
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    contrib * 1000.0,
+                    dims=("chain", "draw", "date", "country", "channel"),
+                    coords=contrib_coords,
                 ),
             }
         ),
@@ -290,6 +301,7 @@ class TestWrapperCostPerUnit:
         assert wrapper.cost_per_unit is None
 
     def test_cost_per_unit_property_returns_data(self, simple_idata, dates, channels):
+        rng = np.random.default_rng(SEED + 2)
         cpu = xr.DataArray(
             rng.uniform(0.01, 0.1, size=(len(dates), len(channels))),
             dims=("date", "channel"),
@@ -809,3 +821,125 @@ class TestIncrementalityCostPerUnit:
             roas_no_cpu.values,
             rtol=1e-5,
         )
+
+
+@pytest.fixture
+def simple_idata_with_spend(simple_idata, dates, channels):
+    """simple_idata with channel_spend added (constant cpu: TV=2, Radio=3)."""
+    cpu = xr.DataArray(
+        [[2.0, 3.0]] * len(dates),
+        dims=("date", "channel"),
+        coords={"date": dates, "channel": channels},
+    )
+    channel_data = simple_idata.constant_data.channel_data
+    simple_idata.constant_data["channel_spend"] = channel_data * cpu
+    return simple_idata
+
+
+@pytest.fixture
+def multidim_idata_with_spend(multidim_idata, dates, channels, countries):
+    """multidim_idata with channel_spend added."""
+    rng = np.random.default_rng(SEED + 3)
+    n_dates = len(dates)
+    n_countries = len(countries)
+    n_channels = len(channels)
+    cpu = xr.DataArray(
+        rng.uniform(1.5, 4.0, size=(n_dates, n_countries, n_channels)),
+        dims=("date", "country", "channel"),
+        coords={"date": dates, "country": countries, "channel": channels},
+    )
+    channel_data = multidim_idata.constant_data.channel_data
+    multidim_idata.constant_data["channel_spend"] = channel_data * cpu
+    return multidim_idata
+
+
+class TestGetAvgCostPerUnit:
+    def test_no_spend_returns_ones(self, simple_idata):
+        wrapper = MMMIDataWrapper(simple_idata)
+        result = wrapper.get_avg_cost_per_unit()
+        expected = xr.ones_like(wrapper.get_channel_scale())
+        xr.testing.assert_equal(result, expected)
+
+    def test_with_spend_returns_weighted_average(self, simple_idata_with_spend):
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        result = wrapper.get_avg_cost_per_unit()
+
+        total_spend = wrapper.get_channel_spend().sum(dim="date")
+        total_data = wrapper.get_channel_data().sum(dim="date")
+        expected = total_spend / total_data
+        assert not np.isnan(expected).any()
+        assert not np.isinf(expected).any()
+        assert not expected.isnull().any()
+        xr.testing.assert_allclose(result, expected)
+
+    def test_with_spend_correct_values(self, simple_idata_with_spend):
+        """Verify avg cpu = 2.0 for TV, 3.0 for Radio (constant cpu)."""
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        result = wrapper.get_avg_cost_per_unit()
+        np.testing.assert_allclose(result.sel(channel="TV").values, 2.0, rtol=1e-10)
+        np.testing.assert_allclose(result.sel(channel="Radio").values, 3.0, rtol=1e-10)
+
+    def test_multidim_with_spend(self, multidim_idata_with_spend):
+        wrapper = MMMIDataWrapper(multidim_idata_with_spend)
+        result = wrapper.get_avg_cost_per_unit()
+        assert "country" in result.dims
+        assert "channel" in result.dims
+        assert "date" not in result.dims
+
+    def test_zero_channel_data_returns_nan(self, dates, channels):
+        """When a channel has all-zero data, avg CPU should be NaN for that channel."""
+        rng = np.random.default_rng(SEED + 10)
+        n_dates = len(dates)
+        n_channels = len(channels)
+
+        channel_data_vals = rng.uniform(100, 1000, size=(n_dates, n_channels))
+        channel_data_vals[:, 0] = 0.0  # zero out first channel (TV)
+
+        channel_data = xr.DataArray(
+            channel_data_vals,
+            dims=("date", "channel"),
+            coords={"date": dates, "channel": channels},
+        )
+        channel_spend = xr.DataArray(
+            rng.uniform(50, 500, size=(n_dates, n_channels)),
+            dims=("date", "channel"),
+            coords={"date": dates, "channel": channels},
+        )
+        idata = az.InferenceData(
+            constant_data=xr.Dataset(
+                {
+                    "channel_data": channel_data,
+                    "channel_spend": channel_spend,
+                    "channel_scale": xr.DataArray(
+                        [500.0, 300.0],
+                        dims=("channel",),
+                        coords={"channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(1000.0),
+                }
+            ),
+        )
+
+        wrapper = MMMIDataWrapper(idata)
+        result = wrapper.get_avg_cost_per_unit()
+
+        assert np.isnan(result.sel(channel=channels[0]).values)
+        assert not np.isnan(result.sel(channel=channels[1]).values)
+
+
+class TestSummaryColumnName:
+    def test_channel_spend_col_name_with_cpu(self, simple_idata_with_spend):
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        wrapper = MMMIDataWrapper(simple_idata_with_spend)
+        factory = MMMSummaryFactory(wrapper)
+        df = factory.channel_spend()
+        assert "channel_spend" in df.columns
+
+    def test_channel_spend_col_name_without_cpu(self, simple_idata):
+        from pymc_marketing.mmm.summary import MMMSummaryFactory
+
+        wrapper = MMMIDataWrapper(simple_idata)
+        factory = MMMSummaryFactory(wrapper)
+        df = factory.channel_spend()
+        assert "channel_data" in df.columns
