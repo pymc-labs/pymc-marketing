@@ -1,0 +1,29 @@
+task_id: mmm_roas_confounding_calibration
+task_type: mmm_roas_confounding
+dataset_path: data/mmm_roas_data.csv
+date_column: date
+target_column: y
+channel_columns:
+  - x1
+  - x2
+cv:
+  n_init: 120
+  forecast_horizon: 8
+  step_size: 4
+  n_folds: 5
+sampler:
+  nuts_sampler: nutpie
+  chains: 14
+  cores: 14
+  draws: 500
+ground_truth:
+  parameters:
+    beta_x1_adstock_saturated: 0.0
+    beta_x2_adstock_saturated: 0.0
+  roas:
+    x1: 0.0
+    x2: 0.0
+notes: >
+  Task focuses on unobserved confounding and calibration-aware inference as shown in
+  docs/source/notebooks/mmm/mmm_roas.ipynb. True parameter and ROAS references must be
+  derived from the notebook data-generating equations and set explicitly before production runs.

@@ -1,0 +1,21 @@
+task_id: mmm_case_study_1d
+task_type: mmm_1d
+dataset_path: https://raw.githubusercontent.com/sibylhe/mmm_stan/main/data.csv
+date_column: date_week
+target_column: y
+channel_columns:
+  - x1
+  - x2
+cv:
+  n_init: 120
+  forecast_horizon: 8
+  step_size: 4
+  n_folds: 5
+sampler:
+  nuts_sampler: nutpie
+  chains: 14
+  cores: 14
+  draws: 500
+notes: >
+  Dataset follows the 1D case-study workflow used in docs/source/notebooks/mmm/mmm_case_study.ipynb.
+  This task emphasizes convergence, out-of-sample CRPS, and parameter stability under time-slice CV.

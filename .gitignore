@@ -158,3 +158,6 @@ sandbox/
 
 .cursor/plans
 automatic_translation.py
+
+# Benchmark results
+benchmark/results/*
