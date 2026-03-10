@@ -65,6 +65,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_migration_guide.png
 :link: ../notebooks/mmm/mmm_migration_guide.html
 :::
+
+:::{grid-item-card} MMM Dims Migration Guide
+:img-top: ../gallery/images/mmm_dims_migration_guide.png
+:link: ../notebooks/mmm/mmm_dims_migration_guide.html
+:::
 ::::
 
 ### Custom models
