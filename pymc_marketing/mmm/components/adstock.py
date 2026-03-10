@@ -55,6 +55,8 @@ Plot the default priors for an adstock transformation:
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 import pytensor.tensor as pt
 import xarray as xr
@@ -143,6 +145,7 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
         self,
         parameters: xr.Dataset,
         amount: float = 1.0,
+        **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         """Sample the adstock transformation given parameters.
 
@@ -152,6 +155,8 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
             Dataset with parameter values.
         amount : float, optional
             Amount to apply the adstock transformation to, by default 1.0.
+        sample_prior_predictive_kwargs : Any
+            Pass kwargs to pm.sample_prior_predictive
 
         Returns
         -------
@@ -171,6 +176,7 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
             parameters=parameters,
             x=x,
             coords=coords,
+            **sample_prior_predictive_kwargs,
         )
 
 

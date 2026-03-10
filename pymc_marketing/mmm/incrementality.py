@@ -415,7 +415,7 @@ class Incrementality:
         evaluator = function(func_inputs, batched_graph)
 
         # Evaluate baseline on full dataset (once)
-        baseline_array = self.data.get_channel_spend().values
+        baseline_array = self.data.get_channel_data().values
         baseline_eval_args: list[np.ndarray] = [
             baseline_array[np.newaxis].astype(data_dtype)
         ]

@@ -26,11 +26,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_example.html
 :::
 
-:::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
-:img-top: ../gallery/images/mmm_example.png
-:link: ../notebooks/mmm/mmm_gam_options.html
-:::
-
 :::{grid-item-card} MMM Multidimensional Example Notebook (e.g. Geo-MMM)
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
@@ -56,6 +51,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/plot_interactive.html
 :::
 
+:::{grid-item-card} Cost-per-Unit: Model What Drives Revenue, Report What You Spend
+:img-top: ../gallery/images/mmm_cost_per_unit.png
+:link: ../notebooks/mmm/mmm_cost_per_unit.html
+:::
+
+:::{grid-item-card} Parameter Recovery
+:img-top: ../gallery/images/mmm_data_generator.png
+:link: ../notebooks/mmm/mmm_data_generator.html
+:::
+
 :::{grid-item-card} MMM API Migration Guide
 :img-top: ../gallery/images/mmm_migration_guide.png
 :link: ../notebooks/mmm/mmm_migration_guide.html
@@ -74,6 +79,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Custom Geo-Hierarchical MMM with Splines
 :img-top: ../gallery/images/mmm_custom_splines.png
 :link: ../notebooks/mmm/mmm_custom_splines.html
+:::
+
+:::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
+:img-top: ../gallery/images/mmm_example.png
+:link: ../notebooks/mmm/mmm_gam_options.html
 :::
 ::::
 
@@ -104,7 +114,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Multi-Objective Optimization
-:img-top: ../gallery/images/mmm_allocation_assessment.png
+:img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
 ::::
@@ -120,7 +130,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} MMM Calibration with Geo-Level Lift Tests
-:img-top: ../gallery/images/mmm_lift_test.png
+:img-top: ../gallery/images/mmm_geolift_calibration.png
 :link: ../notebooks/mmm/mmm_geolift_calibration.html
 :::
 
