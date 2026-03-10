@@ -452,6 +452,22 @@ class TestShiftedBetaGeoModel:
                 model = ShiftedBetaGeoModel(data=data)
             model.build_model()
 
+    def test_cohorts_raises_attribute_error_when_data_unspecified(self):
+        """Test that accessing cohorts raises AttributeError when data is unspecified."""
+        model = ShiftedBetaGeoModel()
+        with pytest.raises(
+            AttributeError, match=r"cohorts not available. Call build_model"
+        ):
+            _ = model.cohorts
+
+    def test_cohort_idx_raises_attribute_error_when_data_unspecified(self):
+        """Test that accessing cohort_idx raises AttributeError when data is unspecified."""
+        model = ShiftedBetaGeoModel()
+        with pytest.raises(
+            AttributeError, match=r"cohort_idx not available. Call build_model"
+        ):
+            _ = model.cohort_idx
+
     def test_model_repr(self, custom_model_config):
         default_repr = (
             "ShiftedBeta-Geometric"

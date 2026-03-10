@@ -20,6 +20,14 @@ import pytest
 from arviz import InferenceData, from_dict
 from pymc_extras.prior import Prior
 
+from pymc_marketing.clv.models import (
+    BetaGeoBetaBinomModel,
+    BetaGeoModel,
+    GammaGammaModel,
+    ModifiedBetaGeoModel,
+    ParetoNBDModel,
+    ShiftedBetaGeoModel,
+)
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.model_builder import DifferentModelError
 from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
@@ -308,3 +316,21 @@ class TestCLVModel:
 
         with pytest.raises(ValueError, match=expected_error_msg):
             CLVModel._validate_cols(data=data, required_cols=required)
+
+
+@pytest.mark.parametrize(
+    "model_cls",
+    [
+        BetaGeoModel,
+        ParetoNBDModel,
+        ModifiedBetaGeoModel,
+        BetaGeoBetaBinomModel,
+        ShiftedBetaGeoModel,
+        GammaGammaModel,
+    ],
+)
+def test_build_model_without_data_raises_value_error(model_cls):
+    """Test that build_model() without data raises ValueError when data is unspecified."""
+    model = model_cls()
+    with pytest.raises(ValueError, match="requires data parameter"):
+        model.build_model()
