@@ -67,10 +67,10 @@ def df(target_column) -> pd.DataFrame:
     dates = pd.date_range("2025-01-01", periods=3, freq="W-MON").rename("date")
     df = pd.DataFrame(
         {
-            ("A", "C1"): [1, 2, 3],
-            ("B", "C1"): [4, 5, 6],
-            ("A", "C2"): [7, 8, 9],
-            ("B", "C2"): [10, 11, 12],
+            ("A", "C1"): [1, 2, 3.0],
+            ("B", "C1"): [4, 5, 6.0],
+            ("A", "C2"): [7, 8, 9.0],
+            ("B", "C2"): [10, 11, 12.0],
         },
         index=dates,
     )
@@ -3015,6 +3015,31 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
         len(X_new[mmm.date_column].unique()),
         len(mmm.xarray_dataset.coords["country"]),
     )
+
+
+def test_integer_channel_data_is_cast_to_float(multi_dim_data):
+    """Integer channel data is cast to float at construction time (GH #2340)."""
+    X, y = multi_dim_data
+
+    # Verify the fixture actually produces integer channel columns
+    assert X["channel_1"].dtype.kind == "i", "Fixture should produce int channel data"
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # xarray dataset should have float channel data
+    assert np.issubdtype(mmm.xarray_dataset["_channel"].dtype, np.floating)
+
+    # The PyTensor pm.Data node should also be float
+    channel_data_var = mmm.model["channel_data"]
+    assert np.issubdtype(np.dtype(channel_data_var.type.dtype), np.floating)
 
 
 def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):

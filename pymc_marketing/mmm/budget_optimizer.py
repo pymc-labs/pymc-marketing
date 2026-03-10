@@ -91,6 +91,34 @@ Quickstart (multi‑dimensional MMM)
     )
     # `optimal` is an xr.DataArray with dims (channel, geo)
 
+Using cost_per_unit (non-monetary channels)
+-------------------------------------------
+
+When channels are measured in non-monetary units (impressions, clicks, GRPs),
+pass ``cost_per_unit`` so the optimizer converts dollar budgets into the
+model's native units internally.  All user-facing inputs and outputs remain
+in monetary units.
+
+.. code-block:: python
+
+    # cost_per_unit DataFrame (xr.DataArray) for the optimisation window.
+    # Rows = dates in the future window; columns = channels with $/unit rates.
+    # Channels absent from the DataFrame default to 1.0 (already in spend units).
+    cpu_df = pd.DataFrame(
+        {
+            "date": pd.date_range("2025-03-03", periods=8, freq="W-MON"),
+            "C1": [0.05] * 8,  # $0.05 per impression
+            "C2": [1.20] * 8,  # $1.20 per click
+        }
+    )
+
+    optimal, res = wrapper.optimize_budget(
+        budget=100.0,
+        cost_per_unit=cpu_df,
+    )
+    # `optimal` budgets are in dollars.  The optimizer divided by
+    # cost_per_unit internally before feeding into the model.
+
 Use a custom pymc model with any dimensionality
 ----------------------------------------------
 
@@ -642,9 +670,20 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    cost_per_unit: DataArray | None = Field(
+        default=None,
+        description=(
+            "Cost per unit conversion factors for converting budgets from "
+            "monetary units (dollars) to original units (impressions, clicks). "
+            "Must have dims (date, *budget_dims) where date has length "
+            "num_periods. If None, budgets are assumed to already be in "
+            "the model's native units (no conversion applied)."
+        ),
+    )
+
     compile_kwargs: dict | None = Field(
         default=None,
-        description="Keyword arguments for the model compilation. Specially usefull to pass compilation mode",
+        description="Keyword arguments for the model compilation. Especially useful to pass compilation mode",
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -729,6 +768,14 @@ class BudgetOptimizer(BaseModel):
                 budget_dims=self._budget_dims,
                 budgets_to_optimize=self.budgets_to_optimize,
             )
+        )
+
+        # 5b. Validate and process cost_per_unit
+        self._cost_per_unit_tensor = self._validate_and_process_cost_per_unit(
+            cost_per_unit=self.cost_per_unit,
+            num_periods=self.num_periods,
+            budget_dims=self._budget_dims,
+            budget_coords=self._budget_coords,
         )
 
         # 6. Replace channel_data with budgets in the PyMC model
@@ -838,6 +885,65 @@ class BudgetOptimizer(BaseModel):
         # Store only the masked tensor
         return pt.constant(time_factors_masked, name="budget_distribution_over_period")
 
+    @staticmethod
+    def _validate_and_process_cost_per_unit(
+        cost_per_unit: DataArray | None,
+        num_periods: int,
+        budget_dims: list[str],
+        budget_coords: dict[str, list] | None = None,
+    ) -> pt.TensorConstant | None:
+        """Validate and convert cost_per_unit to a PyTensor constant.
+
+        Parameters
+        ----------
+        cost_per_unit : DataArray or None
+            Cost per unit with dims (date, *budget_dims).
+        num_periods : int
+            Number of optimization periods.
+        budget_dims : list[str]
+            Budget dimension names (excluding 'date').
+        budget_coords : dict[str, list] or None
+            Model coordinate order for each budget dimension, used to reindex
+            the cost_per_unit DataArray before extracting values.
+
+        Returns
+        -------
+        pt.TensorConstant or None
+            Constant tensor with shape (num_periods, *budget_shape), or
+            None if no cost_per_unit provided.
+
+        Raises
+        ------
+        ValueError
+            If dimensions or date length don't match expectations.
+        """
+        if cost_per_unit is None:
+            return None
+
+        expected_dims = ("date", *budget_dims)
+        if set(cost_per_unit.dims) != set(expected_dims):
+            raise ValueError(
+                f"cost_per_unit must have exactly the dims {set(expected_dims)}, "
+                f"but got {set(cost_per_unit.dims)}"
+            )
+
+        if len(cost_per_unit.coords["date"]) != num_periods:
+            raise ValueError(
+                f"cost_per_unit date dimension must have length {num_periods}, "
+                f"but got {len(cost_per_unit.coords['date'])}"
+            )
+
+        if cost_per_unit.isnull().any() or (cost_per_unit <= 0).any():
+            raise ValueError(
+                "cost_per_unit values must be positive "
+                "(no NaN, zero, or negative values)."
+            )
+
+        if budget_coords is not None:
+            cost_per_unit = cost_per_unit.reindex(budget_coords)
+        values = cost_per_unit.transpose(*expected_dims).values
+        return pt.constant(values, name="cost_per_unit")
+
     def _apply_budget_distribution_over_period(
         self,
         budgets: pt.TensorVariable,
@@ -900,12 +1006,17 @@ class BudgetOptimizer(BaseModel):
         channel_data_dims = model.named_vars_to_dims["channel_data"]
         date_dim_idx = list(channel_data_dims).index("date")
         channel_scales = self.mmm_model._channel_scales
+        channel_data_dtype = model["channel_data"].dtype
+        if np.dtype(channel_data_dtype).kind != "f":
+            raise ValueError(
+                f"Optimization requires channel data of float type, got {channel_data_dtype}"
+            )
 
         # Scale budgets by channel_scales
         budgets = self._budgets
         budgets /= channel_scales
 
-        # Repeat budgets over num_periods
+        # Repeat budgets over num_periods (still in monetary units)
         repeated_budgets_shape = list(tuple(budgets.shape))
         repeated_budgets_shape.insert(date_dim_idx, num_periods)
 
@@ -921,10 +1032,15 @@ class BudgetOptimizer(BaseModel):
                 shape=repeated_budgets_shape,
             )
 
+        # Convert from monetary units to original units using date-specific rates.
+        # Applied AFTER time distribution so each period uses its own cost rate.
+        if self._cost_per_unit_tensor is not None:
+            repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
+
         repeated_budgets.name = "repeated_budgets"
 
         # Pad the repeated budgets with zeros to account for carry-over effects
-        # We set the repeated budgehts in a zero-filled tensor to achieve this
+        # We set the repeated budgets in a zero-filled tensor to achieve this
         repeated_budgets_with_carry_over_shape = list(tuple(budgets.shape))
         repeated_budgets_with_carry_over_shape.insert(
             date_dim_idx, num_periods + max_lag
@@ -935,7 +1051,7 @@ class BudgetOptimizer(BaseModel):
 
         repeated_budgets_with_carry_over = pt.zeros(
             repeated_budgets_with_carry_over_shape,
-            dtype=channel_data_dtype,  # Use the same dtype as channel_data
+            dtype=channel_data_dtype,
         )
         set_idxs = (*((slice(None),) * date_dim_idx), slice(None, num_periods))
         repeated_budgets_with_carry_over = repeated_budgets_with_carry_over[
@@ -1062,6 +1178,16 @@ class BudgetOptimizer(BaseModel):
         ------
         MinimizeException
             If the optimization fails for any reason, the exception message will contain the details.
+
+        Notes
+        -----
+        **Units and cost_per_unit**:
+
+        - All budget inputs (total_budget, budget_bounds) are in monetary units.
+        - If cost_per_unit is provided, the optimizer converts internally:
+          ``budget_in_original_units[t] = budget_in_dollars[t] / cost_per_unit[t]``
+        - Each time period uses its own cost_per_unit value (no averaging).
+        - Output optimal_budgets are in monetary units for user convenience.
         """
         # set total budget
         self._total_budget.set_value(np.asarray(total_budget, dtype="float64"))
@@ -1096,7 +1222,7 @@ class BudgetOptimizer(BaseModel):
             budget_bounds_array = np.broadcast_to(
                 [
                     np.asarray(budget_bounds[channel])
-                    for channel in self.mmm_model.channel_columns
+                    for channel in self._budget_coords[self._budget_dims[0]]
                 ],
                 (*self._budget_shape, 2),
             )
@@ -1106,9 +1232,13 @@ class BudgetOptimizer(BaseModel):
                 raise ValueError(
                     f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
                 )
-            budget_bounds_array = budget_bounds.transpose(
-                *self._budget_dims, "bound"
-            ).values
+            budget_bounds_array = (
+                budget_bounds.reindex(
+                    {d: self._budget_coords[d] for d in self._budget_dims}
+                )
+                .transpose(*self._budget_dims, "bound")
+                .values
+            )
         else:
             raise ValueError(
                 "budget_bounds must be a dictionary or an xarray.DataArray"

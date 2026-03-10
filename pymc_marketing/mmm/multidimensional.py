@@ -147,6 +147,7 @@ Notes
 
 from __future__ import annotations
 
+import io
 import json
 import warnings
 from collections.abc import Callable, Sequence
@@ -169,7 +170,7 @@ from pymc_extras.prior import Prior, create_dim_handler
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
-from pymc_marketing.data.idata.schema import MMMIdataSchema
+from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
@@ -190,6 +191,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
+from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
@@ -210,6 +212,21 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+
+
+def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
+    """Deserialize a cost_per_unit JSON string, normalizing tz-aware dates.
+
+    ``pd.read_json(orient="split")`` may parse ISO dates as tz-aware (UTC).
+    Since the model internally uses tz-naive dates, we strip timezone info
+    to ensure consistent reindexing after a save/load round-trip.
+    """
+    df = pd.read_json(io.StringIO(json_str), orient="split")
+    if "date" in df.columns:
+        dt_accessor = df["date"].dt
+        if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
+            df["date"] = dt_accessor.tz_localize(None)
+    return df
 
 
 @singledispatch
@@ -351,12 +368,55 @@ _register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
-    """Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
+    r"""Marketing Mix Model class for estimating the impact of marketing channels on a target variable.
 
-    This class implements the core functionality of a Marketing Mix Model (MMM), allowing for the
-    specification of various marketing channels, adstock transformations, saturation effects,
-    and time-varying parameters. It provides methods for fitting the model to data, making
-    predictions, and visualizing the results.
+    Given a target variable :math:`y_{t}` (e.g. sales or conversions), media
+    variables :math:`x_{m, t}` (e.g. impressions, clicks, or costs), and a set
+    of control covariates :math:`z_{c, t}` (e.g. holidays, pricing), we
+    consider a Bayesian linear model of the form:
+
+    .. math::
+        y_{t} = \alpha + \sum_{m=1}^{M}\beta_{m}\,f_{m}\!\bigl(
+        \{x_{m,s}\}_{s \leq t}\bigr) + \sum_{c=1}^{C}\gamma_{c}\,
+        z_{c, t} + \varepsilon_{t},
+
+    where :math:`\alpha` is the intercept, :math:`f_{m}` is a media
+    transformation function that maps the history of channel :math:`m`
+    up to time :math:`t` to a scalar contribution, capturing adstock
+    (carry-over) and saturation effects, and
+    :math:`\varepsilon_{t} \sim \mathcal{N}(0, \sigma^{2})`.
+
+    The model supports :math:`K \geq 0` additional panel dimensions (e.g.
+    geography, brand) specified via the ``dims`` parameter.  When
+    :math:`K > 0`, every variable — the target, media inputs, controls — and
+    all parameters (:math:`\alpha`, :math:`\beta_{m}`, :math:`\gamma_{c}`,
+    :math:`\sigma`, and the parameters of :math:`f_{m}`) are implicitly
+    indexed over the Cartesian product of those dimensions.  For example, with
+    ``dims=("geo",)`` each parameter is geo-specific —
+    :math:`y_{t,g}`, :math:`\alpha_{g}`, :math:`\beta_{m,g}`, etc. — but
+    they share hierarchical priors so that information is partially pooled
+    across geographies.  When ``dims=("geo", "brand")``, every quantity is
+    indexed by :math:`(t, g, b)`.  The equation above is written for a
+    single slice of these dimensions; the full model is their product over
+    all dimension combinations.
+
+    Notes
+    -----
+    1. Before fitting, the target variable and media channels are scaled
+       (by default using max-absolute scaling).  Control variables are **not**
+       scaled automatically — apply your own preprocessing if needed.
+
+    2. Yearly seasonality can be added as Fourier modes via the
+       ``yearly_seasonality`` parameter.
+
+    3. The model can be calibrated with:
+
+       * Custom priors for any parameter via ``model_config``.
+       * Lift-test measurements added through
+         :meth:`add_lift_test_measurements`.
+
+
+    For details on a vanilla implementation in PyMC see [2]_.
 
     Attributes
     ----------
@@ -365,33 +425,44 @@ class MMM(RegressionModelBuilder):
     channel_columns : list[str]
         A list of column names representing the marketing channels.
     target_column : str, optional
-        The name of the column representing the target variable in the dataset. Defaults to `y`.
+        The name of the column representing the target variable in the
+        dataset.  Defaults to ``"y"``.
     adstock : AdstockTransformation
         The adstock transformation to apply to the channel data.
     saturation : SaturationTransformation
         The saturation transformation to apply to the channel data.
-    time_varying_intercept : bool
-        Whether to use a time-varying intercept in the model.
-    time_varying_media : bool
-        Whether to use time-varying effects for media channels.
-    dims : tuple | None
-        Additional batch-dimensions for the model.
-        One categorical-like column with the name of each batch dimension should be present in the dataset.
-        This is used to identify which batch-dimension(s) are associated with each row of data.
-        Data must be rectangular these batch dimensions (i.e., same dates and length for each combination)
-    scaling : Scaling | dict | None
-        Scaling methods to be used for the target variable and the marketing channels.
-        Defaults to max scaling for both.
-    model_config : dict | None
-        Configuration settings for the model.
-    sampler_config : dict | None
+    time_varying_intercept : bool or HSGPBase
+        Whether to use a time-varying intercept in the model, or an
+        ``HSGPBase`` instance specifying dims and priors.
+    time_varying_media : bool or HSGPBase
+        Whether to use time-varying effects for media channels, or an
+        ``HSGPBase`` instance specifying dims and priors.
+    dims : tuple[str, ...] or None
+        Additional panel dimensions for the model (e.g. ``("geo",)``).
+        One categorical column per dimension must be present in the dataset.
+        Data must be rectangular across these dimensions (i.e. the same
+        dates for every combination).
+    scaling : Scaling or dict or None
+        Scaling methods for the target variable and the marketing channels.
+        Defaults to max-absolute scaling for both.
+    model_config : dict or None
+        Configuration settings for the model priors and likelihood.
+    sampler_config : dict or None
         Configuration settings for the sampler.
-    control_columns : list[str] | None
-        A list of control variables to include in the model.
-    yearly_seasonality : int | None
-        The number of yearly seasonalities to include in the model.
+    control_columns : list[str] or None
+        Column names of control covariates to include in the model.
+    yearly_seasonality : int or None
+        Number of Fourier modes for yearly seasonality.
     adstock_first : bool
-        Whether to apply adstock transformations before saturation.
+        Whether to apply adstock before saturation (default ``True``).
+
+    References
+    ----------
+    .. [1] Jin, Yuxue, et al. "Bayesian methods for media mix modeling
+       with carryover and shape effects." (2017).
+    .. [2] Orduz, J. `"Media Effect Estimation with PyMC: Adstock,
+       Saturation & Diminishing Returns"
+       <https://juanitorduz.github.io/pymc_mmm/>`_.
     """
 
     _model_type: str = "MMMM (Multi-Dimensional Marketing Mix Model)"
@@ -473,6 +544,16 @@ class MMM(RegressionModelBuilder):
         outcome_node: str | None = Field(
             None, description="Name of the outcome variable."
         ),
+        cost_per_unit: InstanceOf[pd.DataFrame] | None = Field(
+            default=None,
+            description=(
+                "Cost per unit conversion factors for non-spend channels. "
+                "Wide-format DataFrame where rows are (date, *custom_dims) "
+                "combinations and columns are channel names containing cost "
+                "values. Not all model channels need to appear; missing "
+                "channels default to 1.0 (already in spend units)."
+            ),
+        ),
     ) -> None:
         """Define the constructor method."""
         # Your existing initialization logic
@@ -480,9 +561,6 @@ class MMM(RegressionModelBuilder):
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
         self.date_column = date_column
-
-        self.adstock = adstock
-        self.saturation = saturation
         self.adstock_first = adstock_first
 
         dims = dims if dims is not None else ()
@@ -526,9 +604,20 @@ class MMM(RegressionModelBuilder):
             hsgp_kwargs_fields=["intercept_tvp_config", "media_tvp_config"],
         )
 
+        self.adstock, self.saturation = adstock, saturation
+        del adstock, saturation
         if model_config is not None:
-            self.adstock.update_priors({**self.default_model_config, **model_config})
-            self.saturation.update_priors({**self.default_model_config, **model_config})
+            # self.default_model_config accesses self.adstock and self.saturation
+            self.adstock = self.adstock.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+            self.saturation = self.saturation.with_updated_priors(
+                {**self.default_model_config, **model_config}
+            )
+        self.adstock = self.adstock.with_default_prior_dims((*self.dims, "channel"))
+        self.saturation = self.saturation.with_default_prior_dims(
+            (*self.dims, "channel")
+        )
 
         self._check_compatible_media_dims()
 
@@ -575,6 +664,8 @@ class MMM(RegressionModelBuilder):
                     )
                     self.yearly_seasonality = None
 
+        self._cost_per_unit_input = cost_per_unit
+
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
         if self.yearly_seasonality is not None:
@@ -609,6 +700,11 @@ class MMM(RegressionModelBuilder):
         -------
         bool
             True if all configuration attributes are equal, False otherwise.
+
+        Notes
+        -----
+        cost_per_unit is intentionally excluded: it is a unit-conversion
+        factor (metadata), not a structural model parameter.
 
         """
         if not isinstance(other, MMM):
@@ -719,6 +815,134 @@ class MMM(RegressionModelBuilder):
                 f"Saturation effect dims {self.saturation.combined_dims} must contain {allowed_dims}"
             )
 
+    @classmethod
+    def _parse_cost_per_unit_df(
+        cls,
+        df: pd.DataFrame,
+        channels: list[str],
+        dates: pd.DatetimeIndex | np.ndarray,
+        custom_dims: tuple[str, ...] = (),
+        custom_dim_coords: dict[str, np.ndarray] | None = None,
+    ) -> xr.DataArray:
+        """Convert a cost_per_unit DataFrame to an xr.DataArray.
+
+        The DataFrame is wide-format: rows are ``(date, *custom_dims)``
+        combinations, and columns include channel names with cost values.
+        Channels not present in the DataFrame default to 1.0 (assumed
+        already in spend units).
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Wide-format DataFrame.  Must contain a ``"date"`` column and
+            one column per custom dimension.  Remaining columns are
+            interpreted as channel names.
+        channels : list of str
+            All channel names the model knows about.
+        dates : pd.DatetimeIndex or np.ndarray
+            Expected date coordinates.
+        custom_dims : tuple of str, optional
+            Names of custom dimensions (e.g. ``("geo",)``).
+        custom_dim_coords : dict[str, np.ndarray] or None, optional
+            Coordinate values for each custom dimension.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``("date", "channel")`` when no custom dims, or
+            ``("date", *custom_dims, "channel")`` otherwise.
+            Matches ``channel_data``'s dim convention (channel last).
+            Missing channels are filled with 1.0.
+
+        Raises
+        ------
+        ValueError
+            If ``"date"`` column is missing, if custom dim columns are
+            missing, if unknown channel columns are present, if no channel
+            columns are present, if any values are non-positive, or if
+            ``reindex`` against the model's coordinates produces NaN values.
+        """
+        if "date" not in df.columns:
+            raise ValueError("cost_per_unit DataFrame must contain a 'date' column.")
+
+        dim_cols = ["date", *custom_dims]
+        missing_dims = set(dim_cols) - set(df.columns)
+        if missing_dims:
+            raise ValueError(
+                f"cost_per_unit DataFrame missing dim columns: {missing_dims}"
+            )
+
+        value_cols = [c for c in df.columns if c not in dim_cols]
+        unknown_channels = set(value_cols) - set(channels)
+        if unknown_channels:
+            raise ValueError(
+                f"cost_per_unit DataFrame contains unknown channels: "
+                f"{unknown_channels}. Model channels are: {channels}"
+            )
+
+        if not value_cols:
+            raise ValueError(
+                "cost_per_unit DataFrame has no channel columns. "
+                f"Expected at least one of: {channels}"
+            )
+
+        numeric_values = df[value_cols]
+        if numeric_values.isnull().any().any() or (numeric_values <= 0).any().any():
+            raise ValueError(
+                "cost_per_unit values must be positive "
+                "(no NaN, zero, or negative values)."
+            )
+
+        df_indexed = df.set_index(dim_cols)
+        ds = df_indexed.to_xarray()
+
+        dim_order = ["date", *custom_dims]
+        coord_dict: dict[str, Any] = {"date": dates}
+        if custom_dim_coords:
+            coord_dict.update(custom_dim_coords)
+
+        full_shape = tuple(len(coord_dict[d]) for d in dim_order)
+        channel_arrays = []
+        for ch in channels:
+            if ch in ds:
+                reindexed = ds[ch].reindex(coord_dict)
+                if reindexed.isnull().any():
+                    nan_positions = reindexed.where(reindexed.isnull(), drop=True)
+                    raise ValueError(
+                        f"cost_per_unit reindex produced NaN values for channel "
+                        f"'{ch}'. This typically means the DataFrame's date (or "
+                        f"custom dim) values don't exactly match the model's "
+                        f"coordinates (e.g. timezone mismatch, missing dates, or "
+                        f"subset of dates). NaN positions:\n{nan_positions.coords}"
+                    )
+                channel_arrays.append(reindexed.values)
+            else:
+                channel_arrays.append(np.ones(full_shape))
+
+        result = xr.DataArray(
+            np.stack(channel_arrays, axis=len(dim_order)),
+            dims=(*dim_order, "channel"),
+            coords={**coord_dict, "channel": channels},
+        )
+
+        return result.transpose("date", *custom_dims, "channel")
+
+    def _build_cost_per_unit_array(self, df: pd.DataFrame) -> xr.DataArray:
+        """Parse cost_per_unit DataFrame using coordinates from the fitted model."""
+        custom_dims = tuple(self.data.custom_dims)
+        return self._parse_cost_per_unit_df(
+            df=df,
+            channels=self.data.channels,
+            dates=self.data.dates,
+            custom_dims=custom_dims,
+            custom_dim_coords={
+                dim: self.data.idata.constant_data.coords[dim].values
+                for dim in custom_dims
+            }
+            if custom_dims
+            else None,
+        )
+
     @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
@@ -828,6 +1052,24 @@ class MMM(RegressionModelBuilder):
         mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
+        if self._cost_per_unit_input is not None:
+            cpu_df = self._cost_per_unit_input
+            if (
+                "date" in cpu_df.columns
+                and hasattr(cpu_df["date"].dt, "tz")
+                and cpu_df["date"].dt.tz is not None
+            ):
+                warnings.warn(
+                    "cost_per_unit contains timezone-aware dates. Timezone info "
+                    "will be stripped during serialization. Use tz-naive dates "
+                    "for a consistent save/load round-trip.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            attrs["cost_per_unit"] = cpu_df.to_json(orient="split", date_format="iso")
+        else:
+            attrs["cost_per_unit"] = json.dumps(None)
+
         return attrs
 
     @classmethod
@@ -892,6 +1134,11 @@ class MMM(RegressionModelBuilder):
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
+            "cost_per_unit": (
+                _deserialize_cost_per_unit(attrs["cost_per_unit"])
+                if attrs.get("cost_per_unit") and attrs["cost_per_unit"] != "null"
+                else None
+            ),
         }
 
     @property
@@ -899,7 +1146,10 @@ class MMM(RegressionModelBuilder):
         """Use the MMMPlotSuite to plot the results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        data = self.data
+        # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
+        # However the schema is not very flexiable and the plot suite is (too) flexiable.
+        return MMMPlotSuite(data=data)
 
     @property
     def plot_interactive(self):  # type: ignore[no-any-return]
@@ -992,17 +1242,7 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        schema = MMMIdataSchema.from_model_config(
-            custom_dims=self.dims if hasattr(self, "dims") and self.dims else (),
-            has_controls=bool(self.control_columns),
-            has_seasonality=bool(self.yearly_seasonality),
-            time_varying=(
-                getattr(self, "time_varying_intercept", False)
-                or getattr(self, "time_varying_media", False)
-            ),
-        )
-
-        return MMMIDataWrapper(self.idata, schema=schema, validate_on_init=False)
+        return MMMIDataWrapper.from_mmm(self)
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
@@ -1069,7 +1309,7 @@ class MMM(RegressionModelBuilder):
             "likelihood": Prior(
                 "Normal",
                 sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
-                dims=self.dims,
+                dims=("date", *self.dims),
             ),
             "gamma_control": Prior(
                 "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
@@ -1418,6 +1658,8 @@ class MMM(RegressionModelBuilder):
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
 
+        self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
+
         self.model_coords = {
             dim: self.xarray_dataset.coords[dim].values
             for dim in self.xarray_dataset.coords.dims
@@ -1562,7 +1804,7 @@ class MMM(RegressionModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                var_dims = self.model.named_vars_to_dims[v]
+                var_dims = self.model.named_vars_to_dims.get(v, ())
                 mmm_dims_order = ("date", *self.dims)
 
                 if v == "channel_contribution":
@@ -1594,6 +1836,44 @@ class MMM(RegressionModelBuilder):
                     ),
                     dims=deterministic_dims,
                 )
+
+    def fit(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        **kwargs: Any,
+    ) -> az.InferenceData:
+        """Fit the model and inject cost_per_unit metadata if provided.
+
+        Delegates to the parent ``fit()`` and then injects the parsed
+        ``cost_per_unit`` DataArray into ``idata.constant_data``.
+
+        Parameters
+        ----------
+        X : pd.DataFrame or xr.Dataset or xr.DataArray
+            Training input samples.
+        y : pd.Series or xr.DataArray or np.ndarray or None
+            Target values.
+        progressbar : bool, optional
+            Whether to show the progress bar.
+        random_seed : RandomState, optional
+            Random seed for reproducibility.
+        **kwargs : Any
+            Additional keyword arguments passed to the sampler.
+
+        Returns
+        -------
+        az.InferenceData
+            Inference data of the fitted model.
+        """
+        idata = super().fit(
+            X, y, progressbar=progressbar, random_seed=random_seed, **kwargs
+        )
+        if self._cost_per_unit_input is not None:
+            self.set_cost_per_unit(self._cost_per_unit_input)
+        return idata
 
     def build_model(  # type: ignore[override]
         self,
@@ -1937,53 +2217,6 @@ class MMM(RegressionModelBuilder):
                 f"Overlapping dates found: {overlapping_dates_str}. "
                 f"Either set include_last_observations=False or use input dates that don't overlap with training data."
             )
-
-    def _subsample_posterior(
-        self,
-        parameters: xr.Dataset,
-        num_samples: int | None = None,
-        random_state: RandomState | None = None,
-    ) -> xr.Dataset:
-        """Subsample posterior parameters if needed.
-
-        Parameters
-        ----------
-        parameters : xr.Dataset
-            Dataset with parameter values (posterior samples).
-        num_samples : int or None, optional
-            Number of posterior samples to use. If None, all samples are used.
-            If less than total available samples, random subsampling is performed.
-        random_state : np.random.Generator, int, or None, optional
-            Random state for reproducible subsampling.
-
-        Returns
-        -------
-        xr.Dataset
-            Subsampled parameters (or original if no subsampling needed).
-        """
-        if num_samples is None:
-            return parameters
-
-        n_chains = parameters.sizes["chain"]
-        n_draws = parameters.sizes["draw"]
-        total_samples = n_chains * n_draws
-
-        if num_samples >= total_samples:
-            return parameters
-
-        rng = np.random.default_rng(random_state)
-        flat_indices = rng.choice(total_samples, size=num_samples, replace=False)
-
-        stacked = parameters.stack(sample=("chain", "draw"))
-        selected = stacked.isel(sample=flat_indices)
-        # Drop chain, draw, and sample to avoid MultiIndex deprecation warning
-        params = (
-            selected.drop_vars(["chain", "draw", "sample"])
-            .rename({"sample": "draw"})
-            .expand_dims("chain")
-        )
-
-        return params
 
     def _posterior_predictive_data_transformation(
         self,
@@ -2347,10 +2580,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2484,10 +2715,8 @@ class MMM(RegressionModelBuilder):
             )
 
         # Subsample posterior if needed
-        parameters = self._subsample_posterior(
-            parameters=idata.posterior,
-            num_samples=num_samples,
-            random_state=random_state,
+        parameters = subsample_draws(
+            idata.posterior, num_samples=num_samples, random_state=random_state
         )
 
         # Sample curve using transformation's method
@@ -2528,6 +2757,33 @@ class MMM(RegressionModelBuilder):
         return SensitivityAnalysis(
             pymc_model=self.model, idata=self.idata, dims=self.dims
         )
+
+    @property
+    def incrementality(self) -> Incrementality:
+        """Access incrementality and counterfactual analysis functionality.
+
+        Returns an Incrementality instance for computing incremental contributions,
+        ROAS, and CAC using counterfactual analysis with proper adstock carryover
+        handling.
+
+        Returns
+        -------
+        Incrementality
+            An instance configured with this MMM model for computing
+            incremental contributions, ROAS, and CAC.
+
+        Examples
+        --------
+        Compute incremental contributions:
+
+        >>> incremental = mmm.incrementality.compute_incremental_contribution(
+        ...     start_date="2024-01-01",
+        ...     end_date="2024-03-31",
+        ...     frequency="weekly",
+        ... )
+        """
+        self._validate_idata_exists()
+        return Incrementality(model=self, idata=self.idata)
 
     def _make_channel_transform(
         self, df_lift_test: pd.DataFrame
@@ -3062,6 +3318,55 @@ class MMM(RegressionModelBuilder):
 
         self.build_model(X, y)  # type: ignore
 
+    def set_cost_per_unit(
+        self,
+        cost_per_unit: pd.DataFrame,
+    ) -> None:
+        """Set or update cost_per_unit metadata for the fitted model.
+
+        Allows post-hoc specification of conversion factors after model
+        fitting.  Computes ``channel_spend = channel_data * cost_per_unit``
+        and stores it in ``idata.constant_data``.  This precomputed spend
+        is used by ``get_channel_spend()`` for ROAS calculations.
+
+        Parameters
+        ----------
+        cost_per_unit : pd.DataFrame
+            Wide-format DataFrame.  Rows are ``(date, *custom_dims)``
+            combinations; columns are channel names with cost values.
+            Not all model channels need to appear; missing channels
+            default to 1.0 (assumed already in spend units).
+
+        Raises
+        ------
+        RuntimeError
+            If model has not been fitted yet (no idata available).
+        ValueError
+            If date/dim values don't match the fitted data.
+        """
+        if not hasattr(self, "idata") or self.idata is None:
+            raise RuntimeError(
+                "Model must be fitted before setting cost_per_unit. "
+                "Call mmm.fit() first."
+            )
+
+        if not hasattr(self.idata, "constant_data"):
+            raise ValueError("InferenceData missing constant_data group")
+
+        if "channel_data" not in self.idata.constant_data:
+            raise ValueError(
+                "InferenceData constant_data is missing 'channel_data'. "
+                "Cannot compute channel_spend without channel_data."
+            )
+
+        cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
+        channel_data = self.idata.constant_data.channel_data
+        self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
+        self._cost_per_unit_input = cost_per_unit
+        self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
+            orient="split", date_format="iso"
+        )
+
 
 def create_sample_kwargs(
     sampler_config: dict[str, Any] | None,
@@ -3166,6 +3471,46 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         return pymc_model
 
+    def _parse_cost_per_unit_for_optimizer(
+        self,
+        df: pd.DataFrame,
+    ) -> xr.DataArray:
+        """Parse a cost_per_unit DataFrame for the optimization window.
+
+        Delegates to the model class's ``_parse_cost_per_unit_df()`` with coordinates
+        appropriate for the optimization window rather than training data.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Wide-format DataFrame with ``"date"`` column and channel columns.
+
+        Returns
+        -------
+        xr.DataArray
+            Dims ``("date", *custom_dims, "channel")`` with ``date`` length
+            ``num_periods``.
+        """
+        channels = self.model_class.channel_columns
+        custom_dims = tuple(self.model_class.dims)
+        dates = pd.DatetimeIndex(df["date"].unique()).sort_values()
+
+        custom_dim_coords = None
+        if custom_dims:
+            idata = self.model_class.idata
+            custom_dim_coords = {
+                dim: idata.constant_data.coords[dim].values  # type: ignore[union-attr]
+                for dim in custom_dims
+            }
+
+        return self.model_class._parse_cost_per_unit_df(
+            df=df,
+            channels=channels,
+            dates=dates,
+            custom_dims=custom_dims,
+            custom_dim_coords=custom_dim_coords,
+        )
+
     def optimize_budget(
         self,
         budget: float | int,
@@ -3176,6 +3521,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
+        cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
         **minimize_kwargs,
     ) -> (
@@ -3204,6 +3550,21 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
             where date dimension has length num_periods. Values along date dimension should sum to 1 for
             each combination of other dimensions. If None, budget is distributed evenly across periods.
+        cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
+            Cost per unit conversion factors for the **optimization period**.
+            Converts budgets from monetary units (e.g., dollars) to the
+            model's native channel units (e.g., impressions).
+
+            - pd.DataFrame: Wide-format with a ``"date"`` column matching the
+              optimization window dates, plus one column per channel.
+              Missing channels default to 1.0 (no conversion).
+            - xr.DataArray: Must have dims ``("date", *budget_dims)`` where
+              ``date`` has length ``num_periods``.
+
+            If None, no conversion is applied (budgets are assumed to be in
+            the model's native units).
+
+            **This is independent of the historical cost_per_unit.**
         callback : bool
             Whether to return callback information tracking optimization progress.
         **minimize_kwargs
@@ -3217,6 +3578,28 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
+        cost_per_unit_da = None
+        if cost_per_unit is not None:
+            if isinstance(cost_per_unit, pd.DataFrame):
+                cost_per_unit_da = self._parse_cost_per_unit_for_optimizer(
+                    cost_per_unit
+                )
+            elif isinstance(cost_per_unit, xr.DataArray):
+                cost_per_unit_da = cost_per_unit
+            else:
+                raise TypeError(
+                    "cost_per_unit must be a pd.DataFrame or xr.DataArray, "
+                    f"got {type(cost_per_unit)}"
+                )
+
+        if cost_per_unit is None and self.data.cost_per_unit is not None:
+            warnings.warn(
+                "Model has cost_per_unit set (channel_spend in constant_data), "
+                "but cost_per_unit was not passed to optimize_budget. ",
+                UserWarning,
+                stacklevel=2,
+            )
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
@@ -3225,7 +3608,8 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             default_constraints=default_constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
-            model=self,  # Pass the wrapper instance itself to the BudgetOptimizer
+            cost_per_unit=cost_per_unit_da,
+            model=self,
             compile_kwargs=self.compile_kwargs,
         )
 
@@ -3286,7 +3670,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             unique_dates = safe_to_datetime(
                 data_xr_stacked.coords["date"].values, "date"
             )
-            unique_dates_sorted = sorted(unique_dates.unique())
+            unique_dates_sorted = pd.DatetimeIndex(unique_dates.unique()).sort_values()
 
             # Map integer indices to actual dates
             date_mapping = {i: date for i, date in enumerate(unique_dates_sorted)}

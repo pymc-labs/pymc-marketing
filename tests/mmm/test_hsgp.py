@@ -444,7 +444,7 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
 
 def test_hsgp_with_unknown_transform_errors() -> None:
     X = np.arange(10)
-    match = r"Neither pytensor.tensor nor pymc.math"
+    match = r"not present in pytensor.tensor or pymc.math"
     with pytest.raises(UnknownTransformError, match=match):
         HSGP.parameterize_from_data(X, dims="time", transform="unknown")
 

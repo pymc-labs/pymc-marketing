@@ -16,7 +16,7 @@ import pandas as pd
 import pytest
 
 from pymc_marketing.mmm.linear_regression import FancyLinearRegression
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.multidimensional import MMM
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -53,7 +53,7 @@ def toy_X(generate_data) -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def toy_y(toy_X: pd.DataFrame) -> pd.Series:
-    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
+    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]), name="y")
 
 
 @pytest.fixture(scope="module")
@@ -78,20 +78,15 @@ def test_fancy_linear_regression(
 
     assert set(linear_regression.fit_result.variables) == {
         "chain",
-        "draw",
-        "date",
         "channel",
         "channel_contribution",
-        "channel_contribution_original_scale",
         "control",
         "control_contribution",
-        "control_contribution_original_scale",
-        "intercept",
-        "mu",
+        "date",
+        "draw",
         "gamma_control",
+        "intercept_contribution",
         "saturation_beta",
-        "total_contribution",
-        "total_contribution_original_scale",
-        "y_original_scale",
+        "total_media_contribution_original_scale",
         "y_sigma",
     }

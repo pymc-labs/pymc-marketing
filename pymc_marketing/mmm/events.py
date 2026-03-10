@@ -92,7 +92,7 @@ This module provides event transformations for use in Marketing Mix Models.
 
 """
 
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -135,6 +135,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
             gt=0,
             description="Number of days before and after the basis.",
         ),
+        **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -145,6 +146,8 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
         days : int
             Number of days around basis. Default is 14 days or two weeks before and
             after the basis for a total of 28 days.
+        sample_prior_predictive_kwargs : Any
+            Pass kwargs to pm.sample_prior_predictive
 
         Returns
         -------
@@ -161,6 +164,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
             parameters=parameters,
             x=x,
             coords=coords,
+            **sample_prior_predictive_kwargs,
         )
 
 
@@ -209,7 +213,7 @@ class EventEffect(BaseModel):
         if not set(self.basis.combined_dims).issubset(set(self.dims)):
             raise ValueError("The dims must contain all dimensions of the basis.")
 
-        if not set(self.effect_size.dims).issubset(set(self.dims)):
+        if not set(self.effect_size.dims or {}).issubset(set(self.dims)):
             raise ValueError("The dims must contain all dimensions of the effect size.")
 
         return self

@@ -6,7 +6,7 @@ channels:
 dependencies:
   # Base dependencies
   - python=3.12
-  - arviz>=0.13.0
+  - arviz>=0.13.0,<1.0.0
   - matplotlib>=3.5.1
   - narwhals
   - numpy>=1.17
