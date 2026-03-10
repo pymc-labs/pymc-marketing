@@ -71,6 +71,32 @@ def build_parser() -> argparse.ArgumentParser:
         default=900,
         help="Timeout in seconds per agent run when backend=agent-cli.",
     )
+    parser.add_argument(
+        "--baseline-working-dir",
+        type=str,
+        default=None,
+        help="Optional working directory override for baseline mode.",
+    )
+    parser.add_argument(
+        "--skilled-working-dir",
+        type=str,
+        default=None,
+        help="Optional working directory override for skilled mode.",
+    )
+    parser.add_argument(
+        "--enable-baseline-path-isolation",
+        action="store_true",
+        help="Enable runtime path isolation for baseline runs.",
+    )
+    parser.add_argument(
+        "--baseline-denied-path",
+        action="append",
+        default=[],
+        help=(
+            "Path to deny for baseline runs when isolation is enabled. "
+            "Repeat flag to deny multiple paths."
+        ),
+    )
     return parser
 
 
@@ -85,6 +111,10 @@ def main() -> None:
             max_turns=args.agent_max_turns,
             timeout_sec=args.agent_timeout_sec,
             working_directory=".",
+            baseline_working_directory=args.baseline_working_dir,
+            skilled_working_directory=args.skilled_working_dir,
+            enable_baseline_path_isolation=args.enable_baseline_path_isolation,
+            baseline_denied_paths=list(args.baseline_denied_path),
         )
         agent_interface = ClaudeCliExecutionInterface(config=agent_config)
         backend = AgentInterfaceBackend(agent_interface=agent_interface)

@@ -21,6 +21,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic import ValidationError as PydanticValidationError
 
@@ -28,6 +29,10 @@ from benchmark.agent_interface import (
     AgentBackendPayload,
     AgentModeProfile,
     parse_json_payload_from_stdout,
+)
+from benchmark.ground_truth import (
+    compute_true_parameters_from_roas_dataset,
+    compute_true_roas_from_roas_dataset,
 )
 from benchmark.runner import BenchmarkMode, BenchmarkResult
 from benchmark.schemas import BenchmarkTaskSpec
@@ -75,10 +80,13 @@ class BaselineVsSkilledBackend(BaseModel):
             metrics=payload.get("metrics", {}),
             sample_stats_diverging=payload.get("sample_stats_diverging", []),
             fold_metrics=payload.get("fold_metrics", []),
+            cv_fold_crps=payload.get("cv_fold_crps", []),
             parameter_estimates=payload.get("parameter_estimates", {}),
             roas_estimates=payload.get("roas_estimates", {}),
             cv_parameter_estimates=payload.get("cv_parameter_estimates", []),
             cv_fold_diagnostics=payload.get("cv_fold_diagnostics", []),
+            cv_posterior_artifacts=payload.get("cv_posterior_artifacts", []),
+            cv_fold_posteriors=payload.get("cv_fold_posteriors", []),
             fit_diagnostics=payload.get("fit_diagnostics", {}),
             model=payload.get("model"),
         )
@@ -91,6 +99,30 @@ class DummyDeterministicBackend(BaseModel):
     """Deterministic placeholder backend for local harness validation."""
 
     model_config = ConfigDict(extra="forbid")
+
+    def _build_fold_posterior_dataset(
+        self,
+        fold_idx: int,
+        mode: BenchmarkMode,
+        rng: np.random.Generator,
+        channels: list[str],
+    ) -> xr.Dataset:
+        """Create synthetic posterior samples for HDI stability plots."""
+        chain = np.arange(2)
+        draw = np.arange(150)
+        channel = np.asarray(channels, dtype=object)
+        mode_shift = 0.01 if mode == "skilled" else 0.0
+        center_alpha = 0.18 + 0.01 * fold_idx + mode_shift
+        center_beta = 0.35 + 0.01 * fold_idx + mode_shift
+        alpha = rng.normal(loc=center_alpha, scale=0.015, size=(2, 150, len(channel)))
+        beta = rng.normal(loc=center_beta, scale=0.02, size=(2, 150, len(channel)))
+        return xr.Dataset(
+            data_vars={
+                "adstock_alpha": (("chain", "draw", "channel"), alpha),
+                "saturation_beta": (("chain", "draw", "channel"), beta),
+            },
+            coords={"chain": chain, "draw": draw, "channel": channel},
+        )
 
     def _load_dataset_for_cv(self, task: BenchmarkTaskSpec) -> pd.DataFrame:
         """Load task dataset and ensure a valid date column for CV splitting."""
@@ -124,6 +156,53 @@ class DummyDeterministicBackend(BaseModel):
         frame[task.date_column] = pd.to_datetime(frame[task.date_column])
         return frame
 
+    def _build_roas_task_outputs(
+        self,
+        task: BenchmarkTaskSpec,
+        mode: BenchmarkMode,
+        rng: np.random.Generator,
+        frame: pd.DataFrame,
+    ) -> tuple[dict[str, float], dict[str, float], float]:
+        """Build task-3 specific outputs with explicit calibration gap."""
+        if mode == "skilled":
+            # Skilled mode emulates calibrated behavior from the ROAS notebook.
+            roas_estimates = compute_true_roas_from_roas_dataset(
+                dataset_path=task.dataset_path,
+                channel_columns=task.channel_columns,
+            )
+            parameter_estimates = compute_true_parameters_from_roas_dataset(
+                dataset_path=task.dataset_path,
+                channel_columns=task.channel_columns,
+            )
+            roas_estimates = {
+                key: float(value + 0.02 * rng.normal())
+                for key, value in roas_estimates.items()
+            }
+            parameter_estimates = {
+                key: float(value + 0.02 * rng.normal())
+                for key, value in parameter_estimates.items()
+            }
+            calibration_flag = 1.0
+            return roas_estimates, parameter_estimates, calibration_flag
+
+        # Baseline mode emulates naive (uncalibrated) ROAS from observed outcome.
+        roas_estimates: dict[str, float] = {}
+        for channel in task.channel_columns:
+            spend_sum = float(frame[channel].sum()) if channel in frame.columns else 0.0
+            if spend_sum <= 0:
+                roas_estimates[channel] = float("nan")
+            else:
+                roas_estimates[channel] = float(
+                    frame[task.target_column].sum() / spend_sum
+                )
+
+        parameter_estimates = {
+            f"beta_{channel}_adstock_saturated": float(0.5 + 0.2 * rng.random())
+            for channel in task.channel_columns
+        }
+        calibration_flag = 0.0
+        return roas_estimates, parameter_estimates, calibration_flag
+
     def run(
         self, task: BenchmarkTaskSpec, mode: BenchmarkMode, seed: int
     ) -> BenchmarkResult:
@@ -147,13 +226,28 @@ class DummyDeterministicBackend(BaseModel):
         splits = list(cv.split(frame, target))
         selected_splits = splits[: task.cv.n_folds]
         fold_metrics = []
+        cv_fold_crps = []
         cv_parameter_estimates = []
+        cv_fold_posteriors: list[xr.Dataset] = []
         for fold_idx, (train_idx, test_idx) in enumerate(selected_splits):
             fold_scale = len(test_idx) / max(len(train_idx), 1)
+            crps_train = float(
+                base_crps * 0.9 + 0.005 * fold_scale + 0.005 * rng.random()
+            )
+            crps_test = float(base_crps + 0.01 * fold_scale + 0.01 * rng.random())
             fold_metrics.append(
                 {
                     "fold_idx": fold_idx,
-                    "crps": float(base_crps + 0.01 * fold_scale + 0.01 * rng.random()),
+                    "crps": crps_test,
+                    "crps_train": crps_train,
+                    "crps_test": crps_test,
+                }
+            )
+            cv_fold_crps.append(
+                {
+                    "fold_idx": fold_idx,
+                    "crps_train": crps_train,
+                    "crps_test": crps_test,
                 }
             )
             cv_parameter_estimates.append(
@@ -165,6 +259,37 @@ class DummyDeterministicBackend(BaseModel):
                     },
                 }
             )
+            cv_fold_posteriors.append(
+                self._build_fold_posterior_dataset(
+                    fold_idx=fold_idx,
+                    mode=mode,
+                    rng=rng,
+                    channels=task.channel_columns,
+                )
+            )
+        roas_estimates = {
+            "x1": float(1.1 + 0.05 * rng.random()),
+            "x2": float(0.9 + 0.05 * rng.random()),
+        }
+        parameter_estimates: dict[str, float] = {
+            "x1": float(0.20 + 0.01 * rng.random()),
+            "x2": float(0.30 + 0.01 * rng.random()),
+            "beta_x1_adstock_saturated": float(2.0 + 0.1 * rng.random()),
+            "beta_x2_adstock_saturated": float(3.0 + 0.1 * rng.random()),
+        }
+        calibration_applied = 0.0
+        if task.task_type == "mmm_roas_confounding":
+            (
+                roas_estimates,
+                parameter_estimates,
+                calibration_applied,
+            ) = self._build_roas_task_outputs(
+                task=task,
+                mode=mode,
+                rng=rng,
+                frame=frame,
+            )
+
         return BenchmarkResult(
             task_id=task.task_id,
             mode=mode,
@@ -174,27 +299,23 @@ class DummyDeterministicBackend(BaseModel):
             metrics={
                 "crps_oos": float(np.mean([m["crps"] for m in fold_metrics])),
                 "parameter_stability": float(0.05 + 0.02 * rng.random()),
+                "calibration_applied": calibration_applied,
             },
             sample_stats_diverging=[0] * (task.sampler.chains * task.sampler.draws),
             fold_metrics=fold_metrics,
-            parameter_estimates={
-                "x1": float(0.20 + 0.01 * rng.random()),
-                "x2": float(0.30 + 0.01 * rng.random()),
-                "beta_x1_adstock_saturated": float(2.0 + 0.1 * rng.random()),
-                "beta_x2_adstock_saturated": float(3.0 + 0.1 * rng.random()),
-            },
-            roas_estimates={
-                "x1": float(1.1 + 0.05 * rng.random()),
-                "x2": float(0.9 + 0.05 * rng.random()),
-            },
+            cv_fold_crps=cv_fold_crps,
+            parameter_estimates=parameter_estimates,
+            roas_estimates=roas_estimates,
             cv_parameter_estimates=cv_parameter_estimates,
             cv_fold_diagnostics=[
                 {"fold_idx": fold_idx, "divergence_count": 0}
                 for fold_idx in range(len(fold_metrics))
             ],
+            cv_fold_posteriors=cv_fold_posteriors,
             fit_diagnostics={
                 "mean_runtime_proxy": float(5.0 + rng.random()),
                 "stability_proxy": float(0.1 + 0.01 * rng.random()),
+                "calibration_applied": calibration_applied,
             },
             model=None,
         )
@@ -277,6 +398,16 @@ class AgentInterfaceBackend(BaseModel):
                 payload_validation_errors=error.errors(),
             )
 
+        interface_config = getattr(self.agent_interface, "config", None)
+        isolation_enabled = bool(
+            getattr(interface_config, "enable_baseline_path_isolation", False)
+        )
+        fit_diagnostics = dict(validated_payload.fit_diagnostics)
+        fit_diagnostics["baseline_isolation_enabled"] = float(isolation_enabled)
+        fit_diagnostics["mode_isolated"] = float(
+            mode == "baseline" and isolation_enabled
+        )
+
         return BenchmarkResult(
             task_id=task.task_id,
             mode=mode,
@@ -289,6 +420,10 @@ class AgentInterfaceBackend(BaseModel):
                 item.model_dump(mode="python")
                 for item in validated_payload.fold_metrics
             ],
+            cv_fold_crps=[
+                item.model_dump(mode="python")
+                for item in validated_payload.cv_fold_crps
+            ],
             parameter_estimates=validated_payload.parameter_estimates,
             roas_estimates=validated_payload.roas_estimates,
             cv_parameter_estimates=[
@@ -299,6 +434,10 @@ class AgentInterfaceBackend(BaseModel):
                 item.model_dump(mode="python")
                 for item in validated_payload.cv_fold_diagnostics
             ],
-            fit_diagnostics=validated_payload.fit_diagnostics,
+            cv_posterior_artifacts=[
+                item.model_dump(mode="python")
+                for item in validated_payload.cv_posterior_artifacts
+            ],
+            fit_diagnostics=fit_diagnostics,
             model=validated_payload.model,
         )

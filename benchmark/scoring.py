@@ -180,6 +180,116 @@ def aggregate_cv_crps(fold_metrics: list[dict[str, float]]) -> dict[str, float]:
     }
 
 
+def aggregate_cv_train_test_crps(
+    fold_metrics: list[dict[str, Any]],
+) -> dict[str, float]:
+    """Aggregate train/test CRPS across folds when available."""
+    train_values = [
+        float(item["crps_train"])
+        for item in fold_metrics
+        if item.get("crps_train") is not None
+    ]
+    test_values = [
+        float(item["crps_test"])
+        for item in fold_metrics
+        if item.get("crps_test") is not None
+    ]
+    return {
+        "train_crps_mean": float(np.mean(train_values))
+        if train_values
+        else float("nan"),
+        "train_crps_std": float(np.std(train_values)) if train_values else float("nan"),
+        "test_crps_mean": float(np.mean(test_values)) if test_values else float("nan"),
+        "test_crps_std": float(np.std(test_values)) if test_values else float("nan"),
+        "n_train_folds": float(len(train_values)),
+        "n_test_folds": float(len(test_values)),
+    }
+
+
+def compute_generalization_gap(fold_metrics: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute train-test CRPS generalization gap diagnostics."""
+    gaps: list[float] = []
+    for item in fold_metrics:
+        train = item.get("crps_train")
+        test = item.get("crps_test")
+        if train is None or test is None:
+            continue
+        gaps.append(float(test) - float(train))
+    if not gaps:
+        return {
+            "gap_mean": float("nan"),
+            "gap_std": float("nan"),
+            "gap_max": float("nan"),
+            "gap_min": float("nan"),
+            "n_folds": 0,
+            "by_fold": [],
+        }
+    arr = np.asarray(gaps, dtype=np.float64)
+    return {
+        "gap_mean": float(np.mean(arr)),
+        "gap_std": float(np.std(arr)),
+        "gap_max": float(np.max(arr)),
+        "gap_min": float(np.min(arr)),
+        "n_folds": len(gaps),
+        "by_fold": gaps,
+    }
+
+
+def summarize_cv_fold_diagnostics(
+    cv_fold_diagnostics: list[dict[str, Any]],
+) -> dict[str, float]:
+    """Summarize fold-level convergence diagnostics."""
+    if not cv_fold_diagnostics:
+        return {
+            "divergence_mean": float("nan"),
+            "divergence_max": float("nan"),
+            "rhat_max": float("nan"),
+            "ess_bulk_min": float("nan"),
+            "bfmi_min": float("nan"),
+        }
+
+    divergence = [
+        float(item["divergence_count"])
+        for item in cv_fold_diagnostics
+        if item.get("divergence_count") is not None
+    ]
+    rhat = [
+        float(item["rhat_max"])
+        for item in cv_fold_diagnostics
+        if item.get("rhat_max") is not None
+    ]
+    ess_bulk = [
+        float(item["ess_bulk_min"])
+        for item in cv_fold_diagnostics
+        if item.get("ess_bulk_min") is not None
+    ]
+    bfmi = [
+        float(item["bfmi_min"])
+        for item in cv_fold_diagnostics
+        if item.get("bfmi_min") is not None
+    ]
+
+    return {
+        "divergence_mean": float(np.mean(divergence)) if divergence else float("nan"),
+        "divergence_max": float(np.max(divergence)) if divergence else float("nan"),
+        "rhat_max": float(np.max(rhat)) if rhat else float("nan"),
+        "ess_bulk_min": float(np.min(ess_bulk)) if ess_bulk else float("nan"),
+        "bfmi_min": float(np.min(bfmi)) if bfmi else float("nan"),
+    }
+
+
+def runtime_efficiency_metrics(runtime_sec: float, n_folds: int) -> dict[str, float]:
+    """Compute runtime efficiency summaries for comparison dashboards."""
+    folds = max(int(n_folds), 1)
+    return {
+        "runtime_sec": float(runtime_sec),
+        "runtime_per_fold_sec": float(runtime_sec / folds),
+        "folds_per_second": float(folds / runtime_sec)
+        if runtime_sec > 0
+        else float("nan"),
+    }
+
+
 def compute_cv_parameter_stability(
     cv_parameter_estimates: list[dict[str, Any]],
 ) -> dict[str, Any]:

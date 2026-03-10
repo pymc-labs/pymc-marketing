@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -44,6 +45,10 @@ class AgentExecutionConfig(BaseModel):
     max_turns: int = Field(default=10, gt=0)
     timeout_sec: int = Field(default=900, gt=0)
     working_directory: str = Field(default=".")
+    baseline_working_directory: str | None = Field(default=None)
+    skilled_working_directory: str | None = Field(default=None)
+    enable_baseline_path_isolation: bool = Field(default=False)
+    baseline_denied_paths: list[str] = Field(default_factory=list)
     skip_permissions: bool = Field(default=True)
 
 
@@ -65,6 +70,16 @@ class FoldMetric(BaseModel):
 
     fold_idx: int = Field(..., ge=0)
     crps: float = Field(...)
+
+
+class FoldCRPSMetric(BaseModel):
+    """Fold-level train/test CRPS payload used for richer diagnostics."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fold_idx: int = Field(..., ge=0)
+    crps_train: float | None = Field(default=None)
+    crps_test: float | None = Field(default=None)
 
 
 class CVParameterEstimateFold(BaseModel):
@@ -90,6 +105,16 @@ class CVFoldDiagnostic(BaseModel):
     max_treedepth_hits: int | None = Field(default=None, ge=0)
 
 
+class CVPosteriorArtifactReference(BaseModel):
+    """Optional pointer to fold-level posterior artifact."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fold_idx: int = Field(..., ge=0)
+    path: str = Field(...)
+    variables: list[str] = Field(default_factory=list)
+
+
 class AgentBackendPayload(BaseModel):
     """Strict payload schema expected from agent outputs."""
 
@@ -99,10 +124,14 @@ class AgentBackendPayload(BaseModel):
     metrics: dict[str, float] = Field(default_factory=dict)
     sample_stats_diverging: list[int] = Field(default_factory=list)
     fold_metrics: list[FoldMetric] = Field(default_factory=list)
+    cv_fold_crps: list[FoldCRPSMetric] = Field(default_factory=list)
     parameter_estimates: dict[str, Any] = Field(default_factory=dict)
     roas_estimates: dict[str, float] = Field(default_factory=dict)
     cv_parameter_estimates: list[CVParameterEstimateFold] = Field(default_factory=list)
     cv_fold_diagnostics: list[CVFoldDiagnostic] = Field(default_factory=list)
+    cv_posterior_artifacts: list[CVPosteriorArtifactReference] = Field(
+        default_factory=list
+    )
     fit_diagnostics: dict[str, float] = Field(default_factory=dict)
     model: Any | None = Field(default=None)
 
@@ -145,10 +174,12 @@ Return ONLY a JSON object with keys:
 - metrics
 - sample_stats_diverging
 - fold_metrics
+- cv_fold_crps (optional)
 - parameter_estimates
 - roas_estimates
 - cv_parameter_estimates (optional)
 - cv_fold_diagnostics (optional)
+- cv_posterior_artifacts (optional)
 - fit_diagnostics (optional)
 
 If execution fails, still return JSON with status='failure' and empty metric payloads.
@@ -162,6 +193,43 @@ class ClaudeCliExecutionInterface(BaseModel):
 
     config: AgentExecutionConfig = Field(...)
 
+    def _resolve_working_directory(self, profile: AgentModeProfile) -> Path:
+        if (
+            profile.name == "baseline"
+            and self.config.baseline_working_directory is not None
+        ):
+            return Path(self.config.baseline_working_directory)
+        if (
+            profile.name == "skilled"
+            and self.config.skilled_working_directory is not None
+        ):
+            return Path(self.config.skilled_working_directory)
+        return Path(self.config.working_directory)
+
+    def _resolve_denied_paths(self, cwd: Path) -> list[str]:
+        raw_paths = self.config.baseline_denied_paths or [
+            str(cwd / ".cursor" / "skills")
+        ]
+        denied_paths: list[str] = []
+        for path in raw_paths:
+            candidate = Path(path).expanduser()
+            if not candidate.is_absolute():
+                candidate = (cwd / candidate).resolve()
+            else:
+                candidate = candidate.resolve()
+            denied_paths.append(str(candidate))
+        return denied_paths
+
+    def _build_sandbox_profile(self, denied_paths: list[str]) -> str:
+        profile_lines = [
+            "(version 1)",
+            "(allow default)",
+        ]
+        for denied_path in denied_paths:
+            escaped_path = denied_path.replace("\\", "\\\\").replace('"', '\\"')
+            profile_lines.append(f'(deny file-read* (subpath "{escaped_path}"))')
+        return "\n".join(profile_lines)
+
     def run_task(
         self,
         task: BenchmarkTaskSpec,
@@ -174,11 +242,29 @@ class ClaudeCliExecutionInterface(BaseModel):
         if self.config.skip_permissions:
             command.append("--dangerously-skip-permissions")
         command.append(prompt)
+        cwd = self._resolve_working_directory(profile)
+
+        is_baseline = profile.name == "baseline"
+        if is_baseline and self.config.enable_baseline_path_isolation:
+            sandbox_exec = shutil.which("sandbox-exec")
+            if sandbox_exec is None:
+                return AgentExecutionResult(
+                    stdout="",
+                    stderr=(
+                        "Baseline isolation requested but `sandbox-exec` is not available "
+                        "on this machine."
+                    ),
+                    exit_code=1,
+                    runtime_sec=0.0,
+                )
+            denied_paths = self._resolve_denied_paths(cwd=cwd)
+            sandbox_profile = self._build_sandbox_profile(denied_paths=denied_paths)
+            command = [sandbox_exec, "-p", sandbox_profile, *command]
 
         start = time.monotonic()
         completed = subprocess.run(  # noqa: S603
             command,
-            cwd=Path(self.config.working_directory),
+            cwd=cwd,
             capture_output=True,
             text=True,
             timeout=self.config.timeout_sec,

@@ -17,13 +17,17 @@ import xarray as xr
 
 from benchmark.scoring import (
     aggregate_cv_crps,
+    aggregate_cv_train_test_crps,
     compute_cv_parameter_stability,
+    compute_generalization_gap,
     compute_parameter_recovery_details,
     compute_parameter_recovery_mae,
     compute_roas_recovery_details,
     compute_roas_recovery_mae,
     convergence_from_sample_stats,
     paired_delta,
+    runtime_efficiency_metrics,
+    summarize_cv_fold_diagnostics,
 )
 
 
@@ -99,3 +103,55 @@ def test_cv_parameter_stability() -> None:
     )
     assert stability["parameter_count"] == 2
     assert stability["param_std_mean"] > 0
+
+
+def test_aggregate_cv_train_test_crps() -> None:
+    summary = aggregate_cv_train_test_crps(
+        [
+            {"fold_idx": 0, "crps_train": 0.10, "crps_test": 0.15},
+            {"fold_idx": 1, "crps_train": 0.11, "crps_test": 0.16},
+        ]
+    )
+    assert summary["train_crps_mean"] == pytest.approx(0.105)
+    assert summary["test_crps_mean"] == pytest.approx(0.155)
+
+
+def test_compute_generalization_gap() -> None:
+    gap = compute_generalization_gap(
+        [
+            {"fold_idx": 0, "crps_train": 0.10, "crps_test": 0.15},
+            {"fold_idx": 1, "crps_train": 0.12, "crps_test": 0.18},
+        ]
+    )
+    assert gap["gap_mean"] == pytest.approx(0.055)
+    assert gap["n_folds"] == 2
+
+
+def test_summarize_cv_fold_diagnostics() -> None:
+    summary = summarize_cv_fold_diagnostics(
+        [
+            {
+                "fold_idx": 0,
+                "divergence_count": 0,
+                "rhat_max": 1.01,
+                "ess_bulk_min": 120.0,
+                "bfmi_min": 0.55,
+            },
+            {
+                "fold_idx": 1,
+                "divergence_count": 1,
+                "rhat_max": 1.03,
+                "ess_bulk_min": 80.0,
+                "bfmi_min": 0.50,
+            },
+        ]
+    )
+    assert summary["divergence_max"] == pytest.approx(1.0)
+    assert summary["rhat_max"] == pytest.approx(1.03)
+    assert summary["ess_bulk_min"] == pytest.approx(80.0)
+
+
+def test_runtime_efficiency_metrics() -> None:
+    metrics = runtime_efficiency_metrics(runtime_sec=10.0, n_folds=5)
+    assert metrics["runtime_per_fold_sec"] == pytest.approx(2.0)
+    assert metrics["folds_per_second"] == pytest.approx(0.5)

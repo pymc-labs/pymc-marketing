@@ -13,6 +13,9 @@
 #   limitations under the License.
 from pathlib import Path
 
+import numpy as np
+import xarray as xr
+
 from benchmark.runner import BenchmarkResult, BenchmarkRunner
 from benchmark.schemas import load_task_spec
 
@@ -24,6 +27,15 @@ class _FakeModel:
 
 class _FakeBackend:
     def run(self, task, mode, seed):
+        posterior = xr.Dataset(
+            data_vars={
+                "adstock_alpha": (
+                    ("chain", "draw", "channel"),
+                    np.ones((1, 5, 1), dtype=np.float64) * 0.2,
+                )
+            },
+            coords={"chain": [0], "draw": [0, 1, 2, 3, 4], "channel": ["x1"]},
+        )
         return BenchmarkResult(
             task_id=task.task_id,
             mode=mode,
@@ -32,12 +44,16 @@ class _FakeBackend:
             runtime_sec=1.0,
             metrics={"crps_oos": 0.2},
             sample_stats_diverging=[0, 0],
-            fold_metrics=[{"fold_idx": i, "crps": 0.2} for i in range(5)],
+            fold_metrics=[
+                {"fold_idx": i, "crps": 0.2, "crps_train": 0.18, "crps_test": 0.2}
+                for i in range(5)
+            ],
             parameter_estimates={},
             roas_estimates={},
             cv_parameter_estimates=[
                 {"fold_idx": i, "parameter_estimates": {"x1": 0.2}} for i in range(5)
             ],
+            cv_fold_posteriors=[posterior for _ in range(5)],
             fit_diagnostics={"rhat_max": 1.01},
             model=_FakeModel(),
         )
@@ -63,3 +79,5 @@ def test_runner_persists_model_artifacts(tmp_path: Path) -> None:
     assert saved[0].read_text(encoding="utf-8") == "saved"
     assert list(tmp_path.glob("artifacts/**/cv_parameter_stability.json"))
     assert list(tmp_path.glob("artifacts/**/fit_difference_context.json"))
+    assert list(tmp_path.glob("artifacts/**/cv_posterior_manifest.json"))
+    assert list(tmp_path.glob("artifacts/**/cv_folds/fold_0.nc"))

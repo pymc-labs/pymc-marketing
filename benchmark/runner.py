@@ -27,11 +27,15 @@ from benchmark.ground_truth import resolve_task_ground_truth
 from benchmark.schemas import BenchmarkTaskSpec
 from benchmark.scoring import (
     aggregate_cv_crps,
+    aggregate_cv_train_test_crps,
     compute_cv_parameter_stability,
+    compute_generalization_gap,
     compute_parameter_recovery_details,
     compute_roas_recovery_details,
     convergence_from_sample_stats,
     paired_delta,
+    runtime_efficiency_metrics,
+    summarize_cv_fold_diagnostics,
 )
 
 BenchmarkMode = Literal["baseline", "skilled"]
@@ -50,10 +54,13 @@ class BenchmarkResult(BaseModel):
     metrics: dict[str, float] = Field(default_factory=dict)
     sample_stats_diverging: list[int] = Field(default_factory=list)
     fold_metrics: list[dict[str, float]] = Field(default_factory=list)
+    cv_fold_crps: list[dict[str, float]] = Field(default_factory=list)
     parameter_estimates: dict[str, Any] = Field(default_factory=dict)
     roas_estimates: dict[str, float] = Field(default_factory=dict)
     cv_parameter_estimates: list[dict[str, Any]] = Field(default_factory=list)
     cv_fold_diagnostics: list[dict[str, Any]] = Field(default_factory=list)
+    cv_posterior_artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    cv_fold_posteriors: list[Any] = Field(default_factory=list)
     fit_diagnostics: dict[str, float] = Field(default_factory=dict)
     payload_validation_errors: list[dict[str, Any]] = Field(default_factory=list)
     model: Any | None = Field(default=None)
@@ -148,6 +155,7 @@ class BenchmarkRunner(BaseModel):
                 convergence["divergence_count"]
             ),
         }
+        diagnostic_artifacts: dict[str, Any] = {}
         if raw.fold_metrics:
             cv_summary = aggregate_cv_crps(raw.fold_metrics)
             if pd.isna(record["metric_crps_oos"]):
@@ -155,6 +163,16 @@ class BenchmarkRunner(BaseModel):
             record["metric_crps_cv_mean"] = cv_summary["crps_mean"]
             record["metric_crps_cv_std"] = cv_summary["crps_std"]
             record["metric_cv_n_folds"] = cv_summary["n_folds"]
+            train_test_crps = aggregate_cv_train_test_crps(raw.fold_metrics)
+            record["metric_crps_train_cv_mean"] = train_test_crps["train_crps_mean"]
+            record["metric_crps_train_cv_std"] = train_test_crps["train_crps_std"]
+            record["metric_crps_test_cv_mean"] = train_test_crps["test_crps_mean"]
+            record["metric_crps_test_cv_std"] = train_test_crps["test_crps_std"]
+            gap = compute_generalization_gap(raw.fold_metrics)
+            record["metric_generalization_gap_mean"] = gap["gap_mean"]
+            record["metric_generalization_gap_std"] = gap["gap_std"]
+            record["metric_generalization_gap_max"] = gap["gap_max"]
+            diagnostic_artifacts["cv_generalization_gap"] = gap
         record["pass_no_divergence"] = bool(record["convergence_divergence_count"] == 0)
         record["pass_cv_fold_count"] = bool(
             record["fold_count_observed"] >= task.cv.n_folds
@@ -163,8 +181,6 @@ class BenchmarkRunner(BaseModel):
         for metric_name, metric_value in raw.metrics.items():
             record[f"metric_{metric_name}"] = float(metric_value)
 
-        diagnostic_artifacts: dict[str, Any] = {}
-
         cv_param_stability = compute_cv_parameter_stability(raw.cv_parameter_estimates)
         record["metric_cv_param_std_mean"] = cv_param_stability["param_std_mean"]
         record["metric_cv_param_iqr_mean"] = cv_param_stability["param_iqr_mean"]
@@ -172,6 +188,21 @@ class BenchmarkRunner(BaseModel):
         record["metric_cv_param_range_mean"] = cv_param_stability["param_range_mean"]
         record["metric_cv_param_count"] = float(cv_param_stability["parameter_count"])
         diagnostic_artifacts["cv_parameter_stability"] = cv_param_stability
+        cv_diag_summary = summarize_cv_fold_diagnostics(raw.cv_fold_diagnostics)
+        record["metric_cv_divergence_mean"] = cv_diag_summary["divergence_mean"]
+        record["metric_cv_divergence_max"] = cv_diag_summary["divergence_max"]
+        record["metric_cv_rhat_max"] = cv_diag_summary["rhat_max"]
+        record["metric_cv_ess_bulk_min"] = cv_diag_summary["ess_bulk_min"]
+        record["metric_cv_bfmi_min"] = cv_diag_summary["bfmi_min"]
+        diagnostic_artifacts["cv_fold_diagnostics_summary"] = cv_diag_summary
+
+        runtime_metrics = runtime_efficiency_metrics(
+            runtime_sec=raw.runtime_sec, n_folds=len(raw.fold_metrics)
+        )
+        record["metric_runtime_sec"] = runtime_metrics["runtime_sec"]
+        record["metric_runtime_per_fold_sec"] = runtime_metrics["runtime_per_fold_sec"]
+        record["metric_folds_per_second"] = runtime_metrics["folds_per_second"]
+        diagnostic_artifacts["runtime_efficiency"] = runtime_metrics
 
         if task.ground_truth is not None:
             truth_parameters, truth_roas = resolve_task_ground_truth(task)
@@ -233,7 +264,9 @@ class BenchmarkRunner(BaseModel):
             "convergence": convergence,
             "metrics": raw.metrics,
             "cv_fold_count": len(raw.fold_metrics),
+            "cv_fold_crps": raw.cv_fold_crps,
             "cv_fold_diagnostics": raw.cv_fold_diagnostics,
+            "cv_posterior_artifacts": raw.cv_posterior_artifacts,
             "fit_diagnostics": raw.fit_diagnostics,
             "payload_validation_error_count": len(raw.payload_validation_errors),
         }
@@ -258,6 +291,44 @@ class BenchmarkRunner(BaseModel):
             json.dumps(raw.fold_metrics, indent=2, sort_keys=True),
             encoding="utf-8",
         )
+        if raw.cv_fold_crps:
+            fold_crps_path = artifact_dir / "cv_fold_crps.json"
+            fold_crps_path.write_text(
+                json.dumps(raw.cv_fold_crps, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+
+        manifest_entries: list[dict[str, Any]] = []
+        cv_folds_dir = artifact_dir / "cv_folds"
+        if raw.cv_fold_posteriors:
+            cv_folds_dir.mkdir(parents=True, exist_ok=True)
+            for idx, posterior in enumerate(raw.cv_fold_posteriors):
+                if not isinstance(posterior, xr.Dataset):
+                    continue
+                posterior_path = cv_folds_dir / f"fold_{idx}.nc"
+                posterior.to_netcdf(posterior_path)
+                manifest_entries.append(
+                    {
+                        "fold_idx": idx,
+                        "path": str(posterior_path),
+                        "variables": list(posterior.data_vars.keys()),
+                        "dims": {
+                            key: int(value) for key, value in posterior.sizes.items()
+                        },
+                    }
+                )
+
+        for payload in raw.cv_posterior_artifacts:
+            if isinstance(payload, dict):
+                manifest_entries.append(payload)
+
+        if manifest_entries:
+            manifest_path = artifact_dir / "cv_posterior_manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest_entries, indent=2, sort_keys=True),
+                encoding="utf-8",
+            )
+            run_record["cv_posterior_manifest_path"] = str(manifest_path)
 
         for artifact_name, payload in diagnostic_artifacts.items():
             artifact_path = artifact_dir / f"{artifact_name}.json"

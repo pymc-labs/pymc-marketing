@@ -75,7 +75,8 @@ These settings are encoded in each task spec and written into run records.
 - `benchmark/scoring.py`
   - Convergence diagnostics (divergence count).
   - Parameter/ROAS recovery diagnostics (MAE, RMSE, median AE, max AE, key coverage).
-  - CV CRPS aggregation and CV parameter stability statistics.
+  - CV CRPS aggregation (including train/test CRPS trajectories) and CV parameter stability statistics.
+  - Generalization-gap, convergence-summary, and runtime-efficiency diagnostics for deeper Task 1 analysis.
   - Paired deltas for all `metric_*` fields.
 
 - `benchmark/ground_truth.py`
@@ -115,6 +116,10 @@ Each run records:
   - `metric_crps_cv_mean`
   - `metric_crps_cv_std`
   - `metric_cv_n_folds`
+- Rich fold diagnostics additionally include:
+  - `metric_crps_train_cv_mean`, `metric_crps_test_cv_mean`
+  - `metric_generalization_gap_mean` (`test - train`)
+  - fold convergence summaries (`metric_cv_rhat_max`, `metric_cv_divergence_max`, etc.)
 
 ### 4) Task-specific scoring
 
@@ -166,6 +171,9 @@ Outputs are written under the selected output directory (default `benchmark/resu
 - `artifacts/<task>/<mode>/seed_<seed>/`
   - `model.nc` (when `model.save()` available)
   - `fold_metrics.json`
+  - `cv_fold_crps.json`
+  - `cv_posterior_manifest.json`
+  - `cv_folds/fold_<k>.nc` (fold-level posterior artifacts for HDI plots)
   - `parameter_recovery_details.json`
   - `roas_recovery_details.json`
   - `cv_parameter_stability.json`
@@ -202,6 +210,27 @@ python -m benchmark.cli \
   --seeds 42
 ```
 
+To enforce hard baseline isolation (baseline cannot read `.cursor/skills` at runtime):
+
+```bash
+python -m benchmark.cli \
+  --backend agent-cli \
+  --agent-command claude \
+  --agent-max-turns 10 \
+  --agent-timeout-sec 900 \
+  --enable-baseline-path-isolation \
+  --baseline-denied-path .cursor/skills \
+  --tasks-dir benchmark/tasks \
+  --output-dir benchmark/results/latest \
+  --seeds 42
+```
+
+Optional mode-specific workspace control:
+
+- `--baseline-working-dir <path>`
+- `--skilled-working-dir <path>`
+- `--baseline-denied-path <path>` (repeatable)
+
 ### Step 3: inspect outputs
 
 ```bash
@@ -224,6 +253,9 @@ Open `benchmark/report.ipynb` and execute cells to generate:
 - CRPS by task and mode
 - Parameter recovery comparisons for Tasks 2/3
 - CV parameter stability comparisons
+- Posterior HDI stability plots from persisted fold posteriors
+- Fold train/test CRPS trajectories by task/mode
+- Task 1 deep-dive panels (generalization gap, convergence, runtime/efficiency)
 - Fit-difference decomposition and metric-driven explanations
 - Aggregate summary tables
 
@@ -243,6 +275,12 @@ When using `AgentInterfaceBackend`, each agent run must return JSON with:
 - `model` (optional fitted MMM object exposing `.save(...)`)
 
 The CLI backend currently parses either plain JSON stdout or fenced ` ```json ... ``` ` output.
+
+Isolation semantics for `agent-cli` backend:
+
+- Without `--enable-baseline-path-isolation`, baseline vs skilled separation is prompt-policy based.
+- With `--enable-baseline-path-isolation`, baseline runs are launched with filesystem deny rules for configured `--baseline-denied-path` entries (defaults to `.cursor/skills` relative to baseline working directory when not provided).
+- Skilled runs are launched without deny rules.
 
 The parsed JSON is then validated against a strict Pydantic schema (`AgentBackendPayload`):
 

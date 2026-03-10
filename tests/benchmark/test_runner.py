@@ -13,7 +13,9 @@
 #   limitations under the License.
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+import xarray as xr
 
 from benchmark.runner import BenchmarkResult, BenchmarkRunner
 from benchmark.schemas import load_task_spec
@@ -29,6 +31,15 @@ class _FakeModel:
 
 class _FakeBackend:
     def run(self, task, mode, seed):
+        posterior = xr.Dataset(
+            data_vars={
+                "adstock_alpha": (
+                    ("chain", "draw", "channel"),
+                    np.ones((1, 5, 1), dtype=np.float64) * 0.2,
+                )
+            },
+            coords={"chain": [0], "draw": [0, 1, 2, 3, 4], "channel": ["x1"]},
+        )
         return BenchmarkResult(
             task_id=task.task_id,
             mode=mode,
@@ -37,13 +48,32 @@ class _FakeBackend:
             runtime_sec=1.0,
             metrics={"crps_oos": 0.1 if mode == "skilled" else 0.2, "pass_flag": 1.0},
             sample_stats_diverging=[0, 0, 0, 0],
-            fold_metrics=[{"fold_idx": i, "crps": 0.1 + i * 0.01} for i in range(5)],
+            fold_metrics=[
+                {
+                    "fold_idx": i,
+                    "crps": 0.1 + i * 0.01,
+                    "crps_train": 0.08 + i * 0.01,
+                    "crps_test": 0.1 + i * 0.01,
+                }
+                for i in range(5)
+            ],
             parameter_estimates={"x1": 0.2},
             roas_estimates={"x1": 1.1},
             cv_parameter_estimates=[
                 {"fold_idx": i, "parameter_estimates": {"x1": 0.2 + i * 0.01}}
                 for i in range(5)
             ],
+            cv_fold_diagnostics=[
+                {
+                    "fold_idx": i,
+                    "divergence_count": 0,
+                    "rhat_max": 1.01,
+                    "ess_bulk_min": 100.0,
+                    "bfmi_min": 0.6,
+                }
+                for i in range(5)
+            ],
+            cv_fold_posteriors=[posterior for _ in range(5)],
             fit_diagnostics={"rhat_max": 1.01},
             model=_FakeModel(marker=f"{task.task_id}-{mode}-{seed}"),
         )
@@ -78,3 +108,5 @@ def test_runner_exports_csv_and_jsonl(tmp_path: Path) -> None:
     run_df = pd.read_csv(tmp_path / "run_results.csv")
     assert "metric_parameter_recovery_mae" not in run_df.columns
     assert "metric_cv_param_std_mean" in run_df.columns
+    assert "metric_generalization_gap_mean" in run_df.columns
+    assert "metric_runtime_per_fold_sec" in run_df.columns

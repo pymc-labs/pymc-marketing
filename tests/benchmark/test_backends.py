@@ -59,9 +59,11 @@ def test_agent_interface_backend_uses_mode_profiles() -> None:
         output=(
             '{"status":"success","metrics":{"crps_oos":0.11},'
             '"sample_stats_diverging":[0,0],"fold_metrics":[{"fold_idx":0,"crps":0.11}],'
+            '"cv_fold_crps":[{"fold_idx":0,"crps_train":0.10,"crps_test":0.11}],'
             '"parameter_estimates":{"x1":0.2},"roas_estimates":{"x1":1.1},'
             '"cv_parameter_estimates":[{"fold_idx":0,"parameter_estimates":{"x1":0.2}}],'
             '"cv_fold_diagnostics":[{"fold_idx":0,"divergence_count":0}],'
+            '"cv_posterior_artifacts":[{"fold_idx":0,"path":"dummy.nc","variables":["adstock_alpha"]}],'
             '"fit_diagnostics":{"rhat_max":1.01}}'
         )
     )
@@ -77,6 +79,7 @@ def test_agent_interface_backend_uses_mode_profiles() -> None:
     assert result.status == "success"
     assert result.metrics["crps_oos"] == 0.11
     assert result.cv_parameter_estimates
+    assert result.cv_fold_crps
 
 
 def test_agent_interface_backend_returns_structured_validation_errors() -> None:
