@@ -13,9 +13,9 @@ cv:
   n_folds: 5
 sampler:
   nuts_sampler: nutpie
-  chains: 14
-  cores: 14
-  draws: 500
+  chains: 4
+  cores: 4
+  draws: 1_000
 notes: >
   Dataset follows the 1D case-study workflow used in docs/source/notebooks/mmm/mmm_case_study.ipynb.
   This task emphasizes convergence, out-of-sample CRPS, and parameter stability under time-slice CV.

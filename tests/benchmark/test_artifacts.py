@@ -54,6 +54,10 @@ class _FakeBackend:
                 {"fold_idx": i, "parameter_estimates": {"x1": 0.2}} for i in range(5)
             ],
             cv_fold_posteriors=[posterior for _ in range(5)],
+            agent_events=[
+                {"type": "system", "subtype": "init"},
+                {"type": "result", "subtype": "success", "result": "{}"},
+            ],
             fit_diagnostics={"rhat_max": 1.01},
             model=_FakeModel(),
         )
@@ -81,3 +85,4 @@ def test_runner_persists_model_artifacts(tmp_path: Path) -> None:
     assert list(tmp_path.glob("artifacts/**/fit_difference_context.json"))
     assert list(tmp_path.glob("artifacts/**/cv_posterior_manifest.json"))
     assert list(tmp_path.glob("artifacts/**/cv_folds/fold_0.nc"))
+    assert list(tmp_path.glob("artifacts/**/agent_events.jsonl"))

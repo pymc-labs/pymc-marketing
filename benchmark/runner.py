@@ -16,8 +16,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import pandas as pd
 import xarray as xr
@@ -39,6 +41,7 @@ from benchmark.scoring import (
 )
 
 BenchmarkMode = Literal["baseline", "skilled"]
+logger = logging.getLogger("benchmark.runner")
 
 
 class BenchmarkResult(BaseModel):
@@ -61,6 +64,7 @@ class BenchmarkResult(BaseModel):
     cv_fold_diagnostics: list[dict[str, Any]] = Field(default_factory=list)
     cv_posterior_artifacts: list[dict[str, Any]] = Field(default_factory=list)
     cv_fold_posteriors: list[Any] = Field(default_factory=list)
+    agent_events: list[dict[str, Any]] = Field(default_factory=list)
     fit_diagnostics: dict[str, float] = Field(default_factory=dict)
     payload_validation_errors: list[dict[str, Any]] = Field(default_factory=list)
     model: Any | None = Field(default=None)
@@ -104,6 +108,13 @@ class BenchmarkRunner(BaseModel):
         for task in tasks:
             for seed in seeds:
                 for mode in modes:
+                    self._log_dataset_status(task=task, mode=mode, seed=seed)
+                    logger.info(
+                        "runner_run_start task_id=%s mode=%s seed=%s",
+                        task.task_id,
+                        mode,
+                        seed,
+                    )
                     raw: BenchmarkResult = self.backend.run(
                         task=task, mode=mode, seed=seed
                     )
@@ -117,10 +128,62 @@ class BenchmarkRunner(BaseModel):
                         run_record=run_record,
                         diagnostic_artifacts=diagnostic_artifacts,
                     )
+                    logger.info(
+                        "runner_run_complete task_id=%s mode=%s seed=%s status=%s runtime_sec=%.3f",
+                        task.task_id,
+                        mode,
+                        seed,
+                        run_record["status"],
+                        run_record["runtime_sec"],
+                    )
 
         paired_records = self._build_paired_records(run_records=run_records)
         self._export(run_records=run_records, paired_records=paired_records)
+        success_count = sum(1 for row in run_records if row.get("status") == "success")
+        failure_count = sum(1 for row in run_records if row.get("status") == "failure")
+        timeout_count = sum(1 for row in run_records if row.get("status") == "timeout")
+        logger.info(
+            "runner_all_complete run_count=%s success=%s failure=%s timeout=%s",
+            len(run_records),
+            success_count,
+            failure_count,
+            timeout_count,
+        )
         return BenchmarkOutput(run_records=run_records, paired_records=paired_records)
+
+    def _log_dataset_status(
+        self,
+        task: BenchmarkTaskSpec,
+        mode: BenchmarkMode,
+        seed: int,
+    ) -> None:
+        parsed = urlparse(task.dataset_path)
+        if parsed.scheme in {"http", "https"}:
+            logger.info(
+                "dataset_check task_id=%s mode=%s seed=%s dataset=%s status=remote_dataset",
+                task.task_id,
+                mode,
+                seed,
+                task.dataset_path,
+            )
+            return
+        dataset_path = Path(task.dataset_path).expanduser()
+        if dataset_path.exists() and dataset_path.is_file():
+            logger.info(
+                "dataset_check task_id=%s mode=%s seed=%s dataset=%s status=ok",
+                task.task_id,
+                mode,
+                seed,
+                dataset_path,
+            )
+            return
+        logger.warning(
+            "dataset_check task_id=%s mode=%s seed=%s dataset=%s status=missing",
+            task.task_id,
+            mode,
+            seed,
+            dataset_path,
+        )
 
     def _build_run_record(
         self,
@@ -282,6 +345,13 @@ class BenchmarkRunner(BaseModel):
     ) -> None:
         artifact_dir = self.artifact_root / task.task_id / raw.mode / f"seed_{raw.seed}"
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(
+            "artifact_dir_ready task_id=%s mode=%s seed=%s path=%s",
+            task.task_id,
+            raw.mode,
+            raw.seed,
+            artifact_dir,
+        )
 
         run_record["artifacts_path"] = str(artifact_dir)
 
@@ -297,6 +367,13 @@ class BenchmarkRunner(BaseModel):
                 json.dumps(raw.cv_fold_crps, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
+        if raw.agent_events:
+            events_path = artifact_dir / "agent_events.jsonl"
+            events_blob = "\n".join(
+                json.dumps(event, sort_keys=True) for event in raw.agent_events
+            )
+            events_path.write_text(f"{events_blob}\n", encoding="utf-8")
+            run_record["agent_events_path"] = str(events_path)
 
         manifest_entries: list[dict[str, Any]] = []
         cv_folds_dir = artifact_dir / "cv_folds"
@@ -393,6 +470,14 @@ class BenchmarkRunner(BaseModel):
 
         benchmark_summary = self._summarize_benchmark(task_summary)
         benchmark_summary.to_csv(self.output_dir / "benchmark_summary.csv", index=False)
+        logger.info(
+            "exports_written output_dir=%s run_results=%s paired_deltas=%s task_summary=%s benchmark_summary=%s",
+            self.output_dir,
+            self.output_dir / "run_results.csv",
+            self.output_dir / "paired_deltas.csv",
+            self.output_dir / "task_summary.csv",
+            self.output_dir / "benchmark_summary.csv",
+        )
 
     def _summarize_by_task(self, run_df: pd.DataFrame) -> pd.DataFrame:
         metric_cols = [col for col in run_df.columns if col.startswith("metric_")]

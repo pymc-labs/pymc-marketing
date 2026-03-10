@@ -16,6 +16,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import select
 import shutil
 import subprocess
 import time
@@ -25,6 +27,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from benchmark.schemas import BenchmarkTaskSpec
+
+logger = logging.getLogger("benchmark.agent_interface")
 
 
 class AgentModeProfile(BaseModel):
@@ -41,7 +45,7 @@ class AgentExecutionConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    command: str = Field(default="claude")
+    command: str = Field(default="cursor-agent")
     max_turns: int = Field(default=10, gt=0)
     timeout_sec: int = Field(default=900, gt=0)
     working_directory: str = Field(default=".")
@@ -50,6 +54,8 @@ class AgentExecutionConfig(BaseModel):
     enable_baseline_path_isolation: bool = Field(default=False)
     baseline_denied_paths: list[str] = Field(default_factory=list)
     skip_permissions: bool = Field(default=True)
+    debug_stream: bool = Field(default=False)
+    debug_stream_partial_output: bool = Field(default=True)
 
 
 class AgentExecutionResult(BaseModel):
@@ -61,6 +67,7 @@ class AgentExecutionResult(BaseModel):
     stderr: str = Field(...)
     exit_code: int = Field(...)
     runtime_sec: float = Field(..., ge=0.0)
+    stream_events: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class FoldMetric(BaseModel):
@@ -186,12 +193,153 @@ If execution fails, still return JSON with status='failure' and empty metric pay
 """.strip()
 
 
-class ClaudeCliExecutionInterface(BaseModel):
-    """Executes tasks via a Claude-compatible CLI binary."""
+class CursorAgentExecutionInterface(BaseModel):
+    """Executes tasks via a Cursor-compatible CLI binary."""
 
     model_config = ConfigDict(extra="forbid")
 
     config: AgentExecutionConfig = Field(...)
+
+    def _build_command(self, prompt: str) -> list[str]:
+        command = [
+            self.config.command,
+            "--print",
+            "--output-format",
+            "stream-json" if self.config.debug_stream else "json",
+        ]
+        if self.config.debug_stream and self.config.debug_stream_partial_output:
+            command.append("--stream-partial-output")
+        if self.config.skip_permissions:
+            command.append("--force")
+        command.append(prompt)
+        return command
+
+    def _run_task_streaming(
+        self,
+        command: list[str],
+        cwd: Path,
+        task: BenchmarkTaskSpec,
+        seed: int,
+        profile: AgentModeProfile,
+    ) -> AgentExecutionResult:
+        """Run agent command in stream-json mode and log incremental events."""
+        start = time.monotonic()
+        process = subprocess.Popen(  # noqa: S603
+            command,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        stream_events: list[dict[str, Any]] = []
+        stdout_lines: list[str] = []
+        result_payload_text: str | None = None
+        event_count = 0
+        timed_out = False
+
+        if process.stdout is None:
+            return AgentExecutionResult(
+                stdout="",
+                stderr="Agent streaming stdout pipe is unavailable.",
+                exit_code=1,
+                runtime_sec=0.0,
+            )
+        while True:
+            elapsed = time.monotonic() - start
+            if elapsed >= self.config.timeout_sec:
+                timed_out = True
+                process.kill()
+                break
+
+            ready, _, _ = select.select([process.stdout], [], [], 0.5)
+            if ready:
+                line = process.stdout.readline()
+                if line == "":
+                    if process.poll() is not None:
+                        break
+                    continue
+                stdout_lines.append(line)
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    event = json.loads(stripped)
+                except json.JSONDecodeError:
+                    logger.debug(
+                        "agent_stream_non_json task_id=%s mode=%s seed=%s line=%s",
+                        task.task_id,
+                        profile.name,
+                        seed,
+                        stripped[:200],
+                    )
+                    continue
+
+                if not isinstance(event, dict):
+                    continue
+                stream_events.append(event)
+                event_count += 1
+                event_type = str(event.get("type", "unknown"))
+                if event_count == 1 or event_count % 25 == 0 or event_type == "result":
+                    logger.info(
+                        "agent_stream_event task_id=%s mode=%s seed=%s event_count=%s event_type=%s",
+                        task.task_id,
+                        profile.name,
+                        seed,
+                        event_count,
+                        event_type,
+                    )
+                if (
+                    event_type == "result"
+                    and event.get("subtype") == "success"
+                    and isinstance(event.get("result"), str)
+                ):
+                    result_payload_text = event["result"]
+            elif process.poll() is not None:
+                break
+
+        elapsed = time.monotonic() - start
+        stdout_text = "".join(stdout_lines)
+        if timed_out:
+            logger.warning(
+                "agent_process_timeout task_id=%s mode=%s seed=%s runtime_sec=%.3f timeout_sec=%s",
+                task.task_id,
+                profile.name,
+                seed,
+                elapsed,
+                self.config.timeout_sec,
+            )
+            return AgentExecutionResult(
+                stdout=stdout_text,
+                stderr=f"Agent execution timed out after {self.config.timeout_sec} seconds.",
+                exit_code=124,
+                runtime_sec=elapsed,
+                stream_events=stream_events,
+            )
+
+        exit_code = process.wait()
+        payload_stdout = (
+            result_payload_text if result_payload_text is not None else stdout_text
+        )
+        logger.info(
+            "agent_process_completed task_id=%s mode=%s seed=%s exit_code=%s "
+            "runtime_sec=%.3f stdout_bytes=%s stderr_bytes=%s stream_events=%s",
+            task.task_id,
+            profile.name,
+            seed,
+            exit_code,
+            elapsed,
+            len(payload_stdout),
+            0,
+            len(stream_events),
+        )
+        return AgentExecutionResult(
+            stdout=payload_stdout,
+            stderr="",
+            exit_code=exit_code,
+            runtime_sec=elapsed,
+            stream_events=stream_events,
+        )
 
     def _resolve_working_directory(self, profile: AgentModeProfile) -> Path:
         if (
@@ -236,12 +384,9 @@ class ClaudeCliExecutionInterface(BaseModel):
         seed: int,
         profile: AgentModeProfile,
     ) -> AgentExecutionResult:
-        """Execute one benchmark task using a local Claude-compatible CLI binary."""
+        """Execute one benchmark task using a local Cursor-compatible CLI binary."""
         prompt = build_task_prompt(task=task, seed=seed, profile=profile)
-        command = [self.config.command, "-p", "--max-turns", str(self.config.max_turns)]
-        if self.config.skip_permissions:
-            command.append("--dangerously-skip-permissions")
-        command.append(prompt)
+        command = self._build_command(prompt=prompt)
         cwd = self._resolve_working_directory(profile)
 
         is_baseline = profile.name == "baseline"
@@ -259,24 +404,89 @@ class ClaudeCliExecutionInterface(BaseModel):
                 )
             denied_paths = self._resolve_denied_paths(cwd=cwd)
             sandbox_profile = self._build_sandbox_profile(denied_paths=denied_paths)
+            logger.info(
+                "baseline_isolation_enabled task_id=%s mode=%s seed=%s denied_paths=%s",
+                task.task_id,
+                profile.name,
+                seed,
+                denied_paths,
+            )
             command = [sandbox_exec, "-p", sandbox_profile, *command]
 
-        start = time.monotonic()
-        completed = subprocess.run(  # noqa: S603
-            command,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=self.config.timeout_sec,
-            check=False,
+        log_command = [*command[:-1], "<prompt_redacted>"]
+        logger.info(
+            "sampling_started task_id=%s mode=%s seed=%s timeout_sec=%s cwd=%s command=%s",
+            task.task_id,
+            profile.name,
+            seed,
+            self.config.timeout_sec,
+            cwd,
+            log_command,
         )
-        elapsed = time.monotonic() - start
+
+        if self.config.debug_stream:
+            return self._run_task_streaming(
+                command=command,
+                cwd=cwd,
+                task=task,
+                seed=seed,
+                profile=profile,
+            )
+
+        start = time.monotonic()
+        try:
+            completed = subprocess.run(  # noqa: S603
+                command,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=self.config.timeout_sec,
+                check=False,
+            )
+            elapsed = time.monotonic() - start
+            logger.info(
+                "agent_process_completed task_id=%s mode=%s seed=%s exit_code=%s "
+                "runtime_sec=%.3f stdout_bytes=%s stderr_bytes=%s",
+                task.task_id,
+                profile.name,
+                seed,
+                completed.returncode,
+                elapsed,
+                len(completed.stdout),
+                len(completed.stderr),
+            )
+        except subprocess.TimeoutExpired as error:
+            elapsed = time.monotonic() - start
+            stdout = error.stdout or ""
+            stderr = error.stderr or ""
+            timeout_msg = (
+                f"Agent execution timed out after {self.config.timeout_sec} seconds."
+            )
+            stderr_text = f"{stderr}\n{timeout_msg}".strip() if stderr else timeout_msg
+            logger.warning(
+                "agent_process_timeout task_id=%s mode=%s seed=%s runtime_sec=%.3f timeout_sec=%s",
+                task.task_id,
+                profile.name,
+                seed,
+                elapsed,
+                self.config.timeout_sec,
+            )
+            return AgentExecutionResult(
+                stdout=stdout,
+                stderr=stderr_text,
+                exit_code=124,
+                runtime_sec=elapsed,
+            )
         return AgentExecutionResult(
             stdout=completed.stdout,
             stderr=completed.stderr,
             exit_code=completed.returncode,
             runtime_sec=elapsed,
         )
+
+
+# Backward-compatible alias for previous interface name.
+ClaudeCliExecutionInterface = CursorAgentExecutionInterface
 
 
 def parse_json_payload_from_stdout(stdout: str) -> dict[str, Any]:

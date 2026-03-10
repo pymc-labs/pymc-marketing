@@ -13,9 +13,9 @@ cv:
   n_folds: 5
 sampler:
   nuts_sampler: nutpie
-  chains: 14
-  cores: 14
-  draws: 500
+  chains: 4
+  cores: 4
+  draws: 1_000
 ground_truth:
   parameters:
     beta_x1_adstock_saturated: 0.0

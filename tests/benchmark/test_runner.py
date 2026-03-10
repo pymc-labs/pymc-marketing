@@ -110,3 +110,25 @@ def test_runner_exports_csv_and_jsonl(tmp_path: Path) -> None:
     assert "metric_cv_param_std_mean" in run_df.columns
     assert "metric_generalization_gap_mean" in run_df.columns
     assert "metric_runtime_per_fold_sec" in run_df.columns
+
+
+def test_runner_logs_dataset_check_ok(tmp_path: Path, caplog) -> None:
+    dataset_path = tmp_path / "dataset.csv"
+    dataset_path.write_text("date_week,y,x1\n2024-01-01,1,0.1\n", encoding="utf-8")
+    task = load_task_spec(
+        {
+            "task_id": "task_dataset_log",
+            "task_type": "mmm_1d",
+            "dataset_path": str(dataset_path),
+            "date_column": "date_week",
+            "target_column": "y",
+            "channel_columns": ["x1"],
+            "cv": {"n_init": 12, "forecast_horizon": 2, "step_size": 1, "n_folds": 5},
+        }
+    )
+    caplog.set_level("INFO", logger="benchmark.runner")
+    runner = BenchmarkRunner(backend=_FakeBackend(), output_dir=tmp_path / "out")
+    _ = runner.run(tasks=[task], seeds=[11], modes=["baseline"])
+
+    assert "dataset_check" in caplog.text
+    assert "status=ok" in caplog.text

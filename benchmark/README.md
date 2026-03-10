@@ -58,10 +58,9 @@ These settings are encoded in each task spec and written into run records.
 - `benchmark/backends.py`
   - `BaselineVsSkilledBackend`: mode-aware backend wrapper.
   - `AgentInterfaceBackend`: executes baseline/skilled profiles through a real agent CLI interface.
-  - `DummyDeterministicBackend`: deterministic local harness backend for fast validation.
 
 - `benchmark/agent_interface.py`
-  - `ClaudeCliExecutionInterface`: command-line adapter for agent execution.
+  - `CursorAgentExecutionInterface`: command-line adapter for agent execution.
   - `AgentModeProfile`: mode-specific behavior policy (baseline vs skilled).
   - Structured prompt builder with pinned sampler and CV requirements.
   - JSON payload parser for agent outputs.
@@ -195,16 +194,15 @@ From repository root:
 python -m benchmark.cli --tasks-dir benchmark/tasks --output-dir benchmark/results/latest --seeds 42 314
 ```
 
-This runs baseline and skilled modes for all task specs using the configured backend (default local dummy backend).
-
-To run with the actual agent interface:
+This runs baseline and skilled modes for all task specs using the agent CLI interface:
 
 ```bash
 python -m benchmark.cli \
-  --backend agent-cli \
-  --agent-command claude \
+  --agent-command cursor-agent \
   --agent-max-turns 10 \
   --agent-timeout-sec 900 \
+  --log-level INFO \
+  --log-file benchmark/results/latest/benchmark.log \
   --tasks-dir benchmark/tasks \
   --output-dir benchmark/results/latest \
   --seeds 42
@@ -214,8 +212,7 @@ To enforce hard baseline isolation (baseline cannot read `.cursor/skills` at run
 
 ```bash
 python -m benchmark.cli \
-  --backend agent-cli \
-  --agent-command claude \
+  --agent-command cursor-agent \
   --agent-max-turns 10 \
   --agent-timeout-sec 900 \
   --enable-baseline-path-isolation \
@@ -230,6 +227,16 @@ Optional mode-specific workspace control:
 - `--baseline-working-dir <path>`
 - `--skilled-working-dir <path>`
 - `--baseline-denied-path <path>` (repeatable)
+- `--agent-debug-stream` (enables live Cursor stream events and `agent_events.jsonl` artifacts)
+- `--log-level <DEBUG|INFO|WARNING|ERROR|CRITICAL>`
+- `--log-file <path>`
+
+Runtime logs include key lifecycle events such as:
+
+- `dataset_check` (including `status=ok` when local data path exists and is readable)
+- `sampling_started` (agent process launch per task/mode/seed)
+- `backend_run_success` / `runner_run_complete` (successful payload validation and run completion)
+- `agent_stream_event` (periodic stream-json events when `--agent-debug-stream` is enabled)
 
 ### Step 3: inspect outputs
 
@@ -245,6 +252,7 @@ Expected files:
 - `benchmark_summary.csv`
 - `run_results.jsonl`
 - `artifacts/`
+  - `agent_events.jsonl` appears under each run artifact folder when stream debug mode is enabled.
 
 ### Step 4: open report notebook
 
@@ -282,6 +290,8 @@ Isolation semantics for `agent-cli` backend:
 - With `--enable-baseline-path-isolation`, baseline runs are launched with filesystem deny rules for configured `--baseline-denied-path` entries (defaults to `.cursor/skills` relative to baseline working directory when not provided).
 - Skilled runs are launched without deny rules.
 
+`cursor` can also be used as `--agent-command` only when its invocation supports the same non-interactive prompt and JSON output contract expected by the benchmark runtime.
+
 The parsed JSON is then validated against a strict Pydantic schema (`AgentBackendPayload`):
 
 - unknown keys are rejected (`extra="forbid"`),
@@ -293,6 +303,8 @@ On validation failure, the run is marked as `status="failure"` and structured de
 - `BenchmarkResult.payload_validation_errors`
 - `run_results.csv` column `payload_validation_error_count`
 
+The benchmark runtime is agent-only; deterministic/local isolation is handled in tests using fixture-backed fake agent interfaces.
+
 ## Troubleshooting
 
 - **`ModuleNotFoundError: benchmark`**
@@ -303,6 +315,10 @@ On validation failure, the run is marked as `status="failure"` and structured de
 
 - **Agent backend returns failure with empty metrics**
   - Ensure the agent stdout is valid JSON and includes required keys listed in the output contract.
+  - Check runtime logs for `sampling_started`, `agent_process_completed`, and parse/validation failure events.
+
+- **`cursor-agent` returns authentication error**
+  - Run `cursor-agent login` (or `agent login`) first, or set `CURSOR_API_KEY` in the environment before running the benchmark.
 
 - **Fold count gate failing**
   - Ensure each task emits at least 5 CV folds and each fold has CRPS data.
