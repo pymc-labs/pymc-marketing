@@ -44,7 +44,7 @@ mmm/plotting/
     __init__.py              # re-exports MMMPlotSuite
     _helpers.py              # shared: subplot creation, color mapping, HDI bands, type defs
     suite.py                 # MMMPlotSuite — namespace wrapper with 7 sub-objects
-    time_series.py           # TimeSeriesPlots namespace (4 methods)
+    diagnostics.py           # DiagnosticsPlots namespace (4 methods)
     distributions.py         # DistributionPlots namespace (3 methods)
     saturation.py            # SaturationPlots namespace (2 methods)
     budget.py                # BudgetPlots namespace (2 methods)
@@ -92,7 +92,7 @@ mmm.plot.decomposition.channel_share_hdi()
 class MMMPlotSuite:
     def __init__(self, data: MMMIDataWrapper):
 
-        self.diagnostics = TimeSeriesPlots(data)
+        self.diagnostics = DiagnosticsPlots(data)
         self.distributions = DistributionPlots(data)
         self.saturation = SaturationPlots(data)
         self.budget = BudgetPlots(data)
@@ -191,7 +191,7 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 
 ## Scope Split: Major Release vs Follow-up
 
-### Major Release (28 issues)
+### Major Release (29 issues)
 
 **Breaking API changes:**
 
@@ -201,9 +201,10 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 | I.2 | Constructor accepts None | Require valid `data` (wraps `idata`), fail-fast |
 | II.1 | Return type roulette | Always `tuple[Figure, NDArray[Axes]]` |
 | II.2 | Inconsistent `original_scale` default | `True` everywhere |
-| II.3 | `plt.show()` in methods | Remove; `param_stability` returns all figures |
+| II.3 | `plt.show()` in methods | Remove; `param_stability` uses multi-panel figure instead of per-dim loop |
 | II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob` singular, `figsize: tuple[float, float]` |
-| — | Drop `saturation_curves_scatter` | Already deprecated |
+| VII.1 | Coord name `x` → `channel` | Rename coordinate in `channel_share_hdi` |
+| — | Remove `saturation_curves_scatter` | Already deprecated; hard removal with no shim (callers get `AttributeError`). Migration guide points to `saturation.scatterplot()` |
 
 **Non-breaking, included during decomposition:**
 
@@ -212,10 +213,12 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 | I.3 | MMMIDataWrapper bypassed | All methods use wrapper |
 | I.4 | Deep nested functions | Extract to module-level or namespace methods |
 | I.5 | No shared color palette | Shared channel→color mapping in `_helpers.py` |
+| I.6 | Duplicated subplot logic / arviz-plots | All methods use `PlotCollection`; bar-plot methods fall back to matplotlib |
 | II.4 | Monkey-patching idata | Pass data as parameter to shared helper |
 | II.6 | No dims filtering on predictive/media | Add `dims` parameter |
-| II.7 | Inconsistent figure customization | `figsize` + `ax` on all methods |
+| II.7 | Inconsistent figure customization | 6 standard params via arviz-plots (see [figure customization design](./2026-03-11-figure-customization-design.md)) |
 | IV.1 | Copy-paste bug in prior_predictive | Fix error messages and docstrings |
+| IV.2 | `plt.gcf()` fragility in `channel_share_hdi` | Replace with explicit figure reference |
 | IV.3 | `_validate_dims` hardcoded to posterior | Validate against correct dataset |
 | IV.4 | color_cycle iteration bug | Reset cycle per panel |
 | IV.5 | title parameter shadowing | Rename local variable |
@@ -250,11 +253,6 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 | VI.1 | Plotting gallery | Documentation |
 | VII.2 | Use `xarray.to_dataframe` more | Internal refactoring |
 | VII.3 | Time-varying media visualization | New feature |
-
-**Note:** VII.1 (coord name `x` → `channel`) is a breaking change and could be
-included in the major release. It is scoped to one method
-(`channel_contribution_share_hdi`) and the fix is trivial. Consider including it
-in the Decomposition namespace PR.
 
 ---
 
@@ -291,7 +289,7 @@ in the Decomposition namespace PR.
 - IV.18 — Add optional parameter to `_compute_residuals`
 - II.5 — `var` → `var_names` (list[str] for both methods)
 - II.6 — Add `dims` parameter
-- II.7 — Add `figsize` + `ax`
+- II.7 — Add 6 standard customization params (arviz-plots)
 
 **LOE:** L (4 methods, establishes the pattern for all subsequent PRs)
 
@@ -307,7 +305,7 @@ in the Decomposition namespace PR.
 **Fixes included:**
 - II.1 — `channel_parameter` currently returns bare `Figure`; fix to standard return
 - IV.15 — Lazy seaborn import (only `posterior_distribution` and `prior_vs_posterior`)
-- II.7 — Add `figsize` + `ax`
+- II.7 — Add 6 standard customization params (arviz-plots)
 
 **LOE:** M
 
@@ -318,7 +316,7 @@ in the Decomposition namespace PR.
 **Methods:**
 - `saturation_scatterplot` → `mmm.plot.saturation.scatterplot()`
 - `saturation_curves` → `mmm.plot.saturation.curves()`
-- Drop `saturation_curves_scatter` (already deprecated)
+- Remove `saturation_curves_scatter` entirely (already deprecated; not carried into new namespace)
 
 **Fixes included:**
 - II.2 — `original_scale` default → `True`
@@ -345,8 +343,7 @@ in the Decomposition namespace PR.
 - IV.14 — Handle multi-axes return from `az.plot_forest`
 - IV.17 — Remove dead `agg` parameter path
 - II.5 — `figsize: tuple[int, int]` → `tuple[float, float]` in waterfall
-
-**Optional:** Include VII.1 (coord `x` → `channel` in `channel_share_hdi`)
+- VII.1 — Rename coord `x` → `channel` in `channel_share_hdi`
 
 **LOE:** L
 
@@ -361,7 +358,7 @@ in the Decomposition namespace PR.
 **Fixes included:**
 - II.1 — Standardize return type
 - IV.9 — kwargs conflict detection
-- II.7 — Consistent `figsize` + `ax`
+- II.7 — Add 6 standard customization params (arviz-plots)
 
 **LOE:** M
 
@@ -394,16 +391,10 @@ in the Decomposition namespace PR.
 
 **Fixes included:**
 - II.3 — Remove all `plt.show()` calls
-- II.3 — `param_stability` returns all figures (not just the last one) — return type becomes `list[tuple[Figure, NDArray[Axes]]]` or a dict keyed by dim value
+- II.3 — `param_stability` combines all dimension values into a single multi-panel figure (one panel per dim value) instead of creating separate figures in a loop. Returns standard `tuple[Figure, NDArray[Axes]]`. Users can subset via `dims` to control figure size.
 - II.1 — Fix `cv_predictions` wrapping axes in list instead of ndarray
 - II.1 — Fix `param_stability` returning single `Axes` instead of `NDArray[Axes]`
 - I.4 — Extract nested functions (`_align_y_to_df`, `_plot_hdi_from_sel`, `_pred_matrix_for_rows`, `_filter_rows_and_y`, `_plot_line`)
-
-**Design decision needed:** `param_stability` currently creates one figure per
-dimension value. Options:
-1. Return `list[tuple[Figure, NDArray[Axes]]]` — one entry per dimension
-2. Return `dict[str, tuple[Figure, NDArray[Axes]]]` — keyed by dim value
-3. Combine all dims into a single multi-panel figure
 
 **LOE:** L
 
@@ -544,7 +535,7 @@ All methods now accept a consistent set of customization parameters
 ## Behavioral Changes
 
 - No method calls `plt.show()` — you control when to display
-- `param_stability` returns all figures, not just the last one
+- `param_stability` combines all dimension values into a single multi-panel figure (use `dims` to subset)
 - Constructor requires valid `data: MMMIDataWrapper` (no more `MMMPlotSuite(idata=None)`)
 - All methods use arviz-plots `PlotCollection` internally
 - Multi-backend support: pass `backend="plotly"` with `return_as_pc=True`
@@ -575,7 +566,7 @@ Every issue from the comprehensive audit mapped to its resolution:
 | II.4 | Monkey-patching idata | Shared helper with data parameter | 7 |
 | II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob`, `figsize` types | 2–8 |
 | II.6 | No dims filtering | Add `dims` on all methods | 2–8 |
-| II.7 | Inconsistent figure customization | `figsize` + `ax` on all methods | 2–8 |
+| II.7 | Inconsistent figure customization | 6 standard params via arviz-plots (see [figure customization design](./2026-03-11-figure-customization-design.md)) | 2–8 |
 | III.1–III.5 | Missing methods | **Deferred** — follow-up release | — |
 | IV.1 | Copy-paste bug in prior_predictive | Fix messages and docstrings | 2 |
 | IV.2 | `plt.gcf()` fragility | Explicit figure reference | 5 |
@@ -597,6 +588,6 @@ Every issue from the comprehensive audit mapped to its resolution:
 | IV.18 | `_compute_residuals` hardcoded var | Add optional parameter | 2 |
 | V.1–V.5 | Test coverage gaps | **Deferred** (partially addressed in PR 11) | 11 |
 | VI.1 | Plotting gallery | **Deferred** — follow-up release | — |
-| VII.1 | Coord `x` → `channel` | Optional inclusion in PR 5 | 5? |
+| VII.1 | Coord `x` → `channel` | Rename coordinate in `channel_share_hdi` | 5 |
 | VII.2 | Use `xarray.to_dataframe` | **Deferred** — follow-up release | — |
 | VII.3 | Time-varying media visualization | **Deferred** — follow-up release | — |
