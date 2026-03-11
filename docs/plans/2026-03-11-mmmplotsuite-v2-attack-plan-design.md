@@ -14,6 +14,7 @@
 - [Decisions](#decisions)
 - [Target Architecture](#target-architecture)
 - [Standardized API Contract](#standardized-api-contract)
+- [Helper Function Removal Plan](#helper-function-removal-plan)
 - [Scope Split: Major Release vs Follow-up](#scope-split-major-release-vs-follow-up)
 - [PR Sequence](#pr-sequence)
 - [Cross-Cutting Concerns](#cross-cutting-concerns)
@@ -26,12 +27,13 @@
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Decomposition approach | **D: Namespace Sub-Objects** | Best discoverability (`mmm.plot.sensitivity.analysis()`); aligns with 7 plotting families; each namespace is small and focused |
+| Decomposition approach | **D: Namespace Sub-Objects** | Best discoverability (`mmm.plot.sensitivity.analysis()`); aligns with 6 plotting families; each namespace is small and focused |
+| Suite separation | **Two separate suites: `MMMPlotSuite` + `MMMCVPlotSuite`** | 5 of 20 methods don't need `idata` at all (3 CV + 2 budget). CV methods share zero meaningful code with idata methods — only 4 subplot-plumbing helpers, all of which are replaced by arviz-plots. `mmm.plot` should not expose CV methods; `cv.plot` should not expose model-fit methods. Clean separation of concerns. |
 | arviz-plots adoption | **Included** in major release | Avoids a second breaking change for figure customization; II.7 is solved by exposing arviz-plots' native customization model. See [figure customization design](./2026-03-11-figure-customization-design.md) |
 | Release strategy | **Major release** for breaking changes + decomposition; **follow-up minor releases** for missing features, performance, tests, docs | Keeps the major release focused and reviewable |
 | Backward compatibility | **Hard break** — old method names stop working | Migration guide provides the full old→new mapping; no deprecation shims |
 | PR strategy | **Family-by-family clean rooms** — one PR per namespace, each family is "born clean" | Focused, reviewable PRs (~300–700 lines each); parallelizable across contributors |
-| Namespace constructor arg | **`data: MMMIDataWrapper` only** — no separate `idata` arg | `MMMIDataWrapper` already holds `idata` as a public attribute; passing both creates a redundant access path that undermines I.3 (all access through wrapper). `MMM.plot` already constructs `MMMPlotSuite(data=data)` without a separate `idata`. |
+| Namespace constructor arg | **`data: MMMIDataWrapper` only** — no separate `idata` arg | `MMMIDataWrapper` already holds `idata` as a public attribute; passing both creates a redundant access path that undermines I.3 (all access through wrapper). `MMM.plot` already constructs `MMMPlotSuite(data=data)` without a separate `idata`. Applies only to `MMMPlotSuite` namespaces; `MMMCVPlotSuite` takes no constructor data. |
 
 ---
 
@@ -41,30 +43,23 @@
 
 ```
 mmm/plotting/
-    __init__.py              # re-exports MMMPlotSuite
-    _helpers.py              # shared: subplot creation, color mapping, HDI bands, type defs
-    suite.py                 # MMMPlotSuite — namespace wrapper with 7 sub-objects
+    __init__.py              # re-exports MMMPlotSuite, MMMCVPlotSuite
+    _helpers.py              # shared: _process_plot_params, _extract_matplotlib_result,
+                             #   _validate_dims, channel_color_map
+    suite.py                 # MMMPlotSuite — namespace wrapper with 6 sub-objects
+    cv_suite.py              # MMMCVPlotSuite — 3 flat CV methods, no data dependency
     diagnostics.py           # DiagnosticsPlots namespace (4 methods)
     distributions.py         # DistributionPlots namespace (3 methods)
     saturation.py            # SaturationPlots namespace (2 methods)
     budget.py                # BudgetPlots namespace (2 methods)
     sensitivity.py           # SensitivityPlots namespace (3 methods)
     decomposition.py         # DecompositionPlots namespace (3 methods)
-    cross_validation.py      # CrossValidationPlots namespace (3 methods)
 ```
 
 ### User Experience
 
 ```python
-# Grouped discovery via tab-completion
-mmm.plot.sensitivity.analysis(channels=["tv", "radio"])
-mmm.plot.sensitivity.uplift(channel="tv")
-mmm.plot.sensitivity.marginal(channel="tv")
-
-mmm.plot.cv.predictions(results)
-mmm.plot.cv.param_stability(results)
-mmm.plot.cv.crps(results)
-
+# MMMPlotSuite — model-fit plots (requires fitted model with idata)
 mmm.plot.diagnostics.posterior_predictive(var_names=["y"])
 mmm.plot.diagnostics.prior_predictive(var_names=["y"])
 mmm.plot.diagnostics.residuals()
@@ -80,33 +75,85 @@ mmm.plot.saturation.curves()
 mmm.plot.budget.allocation(samples)
 mmm.plot.budget.contribution_over_time(samples)
 
+mmm.plot.sensitivity.analysis(channels=["tv", "radio"])
+mmm.plot.sensitivity.uplift(channel="tv")
+mmm.plot.sensitivity.marginal(channel="tv")
+
 mmm.plot.decomposition.waterfall()
 mmm.plot.decomposition.contributions_over_time()
 mmm.plot.decomposition.channel_share_hdi()
+
+# MMMCVPlotSuite — cross-validation plots (no model data needed)
+cv.plot.predictions(results)
+cv.plot.param_stability(results)
+cv.plot.crps(results)
 ```
 
-### Suite Wrapper
+### Suite Wrappers
 
 ```python
 # mmm/plotting/suite.py
 class MMMPlotSuite:
+    """Model-fit plotting. Requires valid MMMIDataWrapper."""
     def __init__(self, data: MMMIDataWrapper):
-
         self.diagnostics = DiagnosticsPlots(data)
         self.distributions = DistributionPlots(data)
         self.saturation = SaturationPlots(data)
         self.budget = BudgetPlots(data)
         self.sensitivity = SensitivityPlots(data)
         self.decomposition = DecompositionPlots(data)
-        self.cv = CrossValidationPlots(data)
 ```
 
-> **Design note:** Namespace classes receive only `data: MMMIDataWrapper`, not
-> a separate `idata` argument. The wrapper already holds `idata` as a public
-> attribute (`data.idata`), so passing it separately would create a redundant
-> access path and undermine the rule that all data access goes through the
-> wrapper (I.3). The real-world caller (`MMM.plot`) already constructs
-> `MMMPlotSuite(data=data)` without a separate `idata`.
+```python
+# mmm/plotting/cv_suite.py
+class MMMCVPlotSuite:
+    """Cross-validation plotting. No model data dependency.
+
+    All data comes from the `results` argument on each method —
+    the combined InferenceData returned by TimeSliceCrossValidator.run().
+    """
+    def predictions(self, results: az.InferenceData, ...) -> ...: ...
+    def param_stability(self, results: az.InferenceData, ...) -> ...: ...
+    def crps(self, results: az.InferenceData, ...) -> ...: ...
+```
+
+> **Design note — MMMPlotSuite:** Namespace classes receive only
+> `data: MMMIDataWrapper`, not a separate `idata` argument. The wrapper
+> already holds `idata` as a public attribute (`data.idata`), so passing
+> it separately would create a redundant access path and undermine the
+> rule that all data access goes through the wrapper (I.3).
+>
+> **Design note — MMMCVPlotSuite:** This suite has no constructor data
+> dependency. The 3 CV methods receive all their plotting data via the
+> `results` argument (the combined `InferenceData` from
+> `TimeSliceCrossValidator.run()`). Analysis showed that these methods
+> share zero domain-specific code with the idata-dependent methods — the
+> only overlap was 4 subplot-plumbing helpers, all of which are replaced
+> by arviz-plots' `PlotCollection`.
+>
+> **Design note — Budget methods on MMMPlotSuite:** `budget.allocation()`
+> and `budget.contribution_over_time()` receive external data via their
+> `samples` argument, but budget optimization always occurs in the
+> context of a fitted model, so placing them on `MMMPlotSuite` is
+> contextually correct.
+
+### Caller Integration
+
+```python
+# multidimensional.py — returns MMMPlotSuite (requires fitted model)
+class MMM:
+    @property
+    def plot(self) -> MMMPlotSuite:
+        self._validate_model_was_built()
+        self._validate_idata_exists()
+        return MMMPlotSuite(data=self.data)
+
+# time_slice_cross_validation.py — returns MMMCVPlotSuite (no data needed)
+class TimeSliceCrossValidator:
+    @property
+    def plot(self) -> MMMCVPlotSuite:
+        return MMMCVPlotSuite()
+```
 
 ### Namespace Class Pattern
 
@@ -187,6 +234,78 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 - All methods use `PlotCollection` internally for rendering (I.6)
 - Bar-plot methods that cannot use arviz-plots fall back to matplotlib with the same parameter signature (see [figure customization design](./2026-03-11-figure-customization-design.md#arviz-plots-coverage-gaps))
 
+### MMMCVPlotSuite Contract
+
+`MMMCVPlotSuite` methods follow the same standard customization parameters
+as `MMMPlotSuite` methods (figsize, plot_collection, backend, visuals,
+aes_by_visuals, return_as_pc, **pc_kwargs). Differences:
+
+- No `self._data` — all plotting data comes from the `results` argument
+- `dims` validation runs against the `results` data, not a model's `idata`
+- `_validate_dims` is called as a standalone function from `_helpers.py`,
+  passing the relevant dataset from `results` (not `self.idata.posterior`)
+
+---
+
+## Helper Function Removal Plan
+
+The current `MMMPlotSuite` has ~15 private helper methods. With the move
+to arviz-plots (`PlotCollection`) and the two-suite separation, most
+subplot-scaffolding helpers become redundant. This section maps each
+helper to its fate.
+
+### Helpers replaced by arviz-plots
+
+These helpers exist because the current code manually manages matplotlib
+subplot grids, title generation, and dimension iteration. `PlotCollection`
+handles all of this natively.
+
+| Helper | Current purpose | Replaced by | Removed in PR |
+|--------|----------------|-------------|---------------|
+| `_init_subplots` | `fig, axes = plt.subplots(nrows, ncols, figsize)` with layout math | `PlotCollection.wrap()` / `.grid()` handles subplot creation, layout, and sizing | 2–8 (each family PR drops usage) |
+| `_build_subplot_title` | Builds `"geo=CA, region=West"` from dim names + combo tuple | `PlotCollection.grid(cols=[...], rows=[...])` auto-labels panels from xarray coords | 2–8 |
+| `_dim_list_handler` | Extracts dim keys/values, generates `itertools.product` combinations | `PlotCollection` handles dimension-aware layout natively via xarray coords | 2–8 |
+| `_get_additional_dim_combinations` | Identifies non-standard dims and their cartesian product | Same as `_dim_list_handler` — subsumed by `PlotCollection` dimension handling | 2–8 |
+| `_add_median_and_hdi` | Plots median line + HDI fill_between on an `Axes` | `pc.map("line", ...)` + `pc.map("hdi_band", fill_between_y, ...)` | 2 (diagnostics) |
+
+### Helpers refactored to standalone functions in `_helpers.py`
+
+These helpers perform validation or data manipulation that is independent
+of the plotting library. They move from instance methods on `MMMPlotSuite`
+to standalone functions.
+
+| Helper | Current issue | New form in `_helpers.py` | PR |
+|--------|--------------|--------------------------|-----|
+| `_validate_dims` | Hardcoded to `self.idata.posterior.coords` (IV.3) | `_validate_dims(dataset: xr.Dataset, dims: dict)` — accepts target dataset as parameter. Usable by both suites. | 1 |
+| `_filter_df_by_indexer` | Instance method only used by `cv_predictions` | Module-level function in `cv_suite.py` (CV-specific) | 8 |
+
+### Helpers that stay (data access / computation)
+
+These helpers perform data extraction or computation, not subplot
+scaffolding. They move into their respective namespace classes or into
+`MMMIDataWrapper`.
+
+| Helper | Current purpose | New location | PR |
+|--------|----------------|-------------|-----|
+| `_get_posterior_predictive_data` | Retrieves `posterior_predictive` group | `DiagnosticsPlots` private method or inline (only 2 callers) | 2 |
+| `_get_prior_predictive_data` | Retrieves `prior_predictive` group | `DiagnosticsPlots` private method or inline (only 2 callers) | 2 |
+| `_compute_residuals` | Computes `y_pred - y_obs` (IV.18: hardcoded var) | `DiagnosticsPlots` private method; fix IV.18 | 2 |
+| `_reduce_and_stack` | Sums leftover dims, stacks chain+draw (IV.12: silent sum) | Module-level in `decomposition.py` (only decomposition methods use it); fix IV.12 | 5 |
+| `_spend_or_data_label` | Returns `"spend"` or `"data"` label | Inline in saturation namespace (trivial, 2 callers) | 4 |
+| `_select_channel_x_for_indexers` | Picks spend vs raw channel data | Saturation namespace private method | 4 |
+| `_plot_budget_allocation_bars` | Renders budget bar chart | `BudgetPlots` private method | 6 |
+| `_prepare_allocated_contribution_data` | Extracts allocation data from samples | `BudgetPlots` private method | 6 |
+| `_plot_single_allocated_contribution` | Renders single allocation panel | `BudgetPlots` private method | 6 |
+
+### Summary
+
+| Category | Count | Action |
+|----------|-------|--------|
+| Replaced by arviz-plots | 5 | Delete — `PlotCollection` handles subplot creation, layout, titles, dimension iteration |
+| Refactored to standalone | 2 | Move to `_helpers.py` or `cv_suite.py` as module-level functions |
+| Stay (data/computation) | 9 | Move into respective namespace classes |
+| **Total** | **16** | |
+
 ---
 
 ## Scope Split: Major Release vs Follow-up
@@ -197,8 +316,8 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 
 | ID | Issue | Change |
 |----|-------|--------|
-| I.1 | God class decomposition | 7 namespace sub-objects |
-| I.2 | Constructor accepts None | Require valid `data` (wraps `idata`), fail-fast |
+| I.1 | God class decomposition | 6 namespace sub-objects on `MMMPlotSuite` + separate `MMMCVPlotSuite` |
+| I.2 | Constructor accepts None | `MMMPlotSuite` requires valid `data` (wraps `idata`), fail-fast. `MMMCVPlotSuite` takes no data — methods receive `results` as argument. |
 | II.1 | Return type roulette | Always `tuple[Figure, NDArray[Axes]]` |
 | II.2 | Inconsistent `original_scale` default | `True` everywhere |
 | II.3 | `plt.show()` in methods | Remove; `param_stability` uses multi-panel figure instead of per-dim loop |
@@ -266,9 +385,15 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 - `_process_plot_params()` — validates and normalizes the 6 standard customization params
 - `_extract_matplotlib_result()` — converts `PlotCollection` to `tuple[Figure, NDArray[Axes]]`
 - Shared channel→color mapping (I.5)
-- `_validate_dims` that accepts the target dataset (IV.3)
+- `_validate_dims(dataset, dims)` as standalone function accepting target dataset (IV.3)
 - Contribution variable resolution helper (consolidates 5 strategies)
 - arviz-plots imports and version compatibility checks
+
+**Does NOT include** (see [Helper Function Removal Plan](#helper-function-removal-plan)):
+Old subplot-scaffolding helpers (`_init_subplots`, `_build_subplot_title`,
+`_dim_list_handler`, `_get_additional_dim_combinations`, `_add_median_and_hdi`)
+are not ported — `PlotCollection` replaces all of them. Each family PR
+rewrites its methods using `PlotCollection` directly.
 
 **Resolves:** I.5, I.6 (partially — infrastructure created; each family PR adopts it), IV.3 (partially)
 
@@ -382,33 +507,43 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 
 ---
 
-### PR 8 — Cross-Validation Namespace
+### PR 8 — MMMCVPlotSuite
 
-**Methods:**
-- `cv_predictions` → `mmm.plot.cv.predictions()`
-- `param_stability` → `mmm.plot.cv.param_stability()`
-- `cv_crps` → `mmm.plot.cv.crps()`
+**Content:** `cv_suite.py` — the separate cross-validation plot suite.
+
+**Methods (flat on `MMMCVPlotSuite`, no namespace nesting):**
+- `cv_predictions` → `cv.plot.predictions(results)`
+- `param_stability` → `cv.plot.param_stability(results)`
+- `cv_crps` → `cv.plot.crps(results)`
+
+**Key design points:**
+- `MMMCVPlotSuite` has no constructor data dependency — all plotting data
+  comes from the `results: az.InferenceData` argument on each method
+- `_validate_dims` called as standalone function from `_helpers.py`,
+  passing the relevant dataset from `results` (not `self.idata.posterior`)
+- `_filter_df_by_indexer` moves to `cv_suite.py` as a module-level function
 
 **Fixes included:**
 - II.3 — Remove all `plt.show()` calls
 - II.3 — `param_stability` combines all dimension values into a single multi-panel figure (one panel per dim value) instead of creating separate figures in a loop. Returns standard `tuple[Figure, NDArray[Axes]]`. Users can subset via `dims` to control figure size.
 - II.1 — Fix `cv_predictions` wrapping axes in list instead of ndarray
 - II.1 — Fix `param_stability` returning single `Axes` instead of `NDArray[Axes]`
-- I.4 — Extract nested functions (`_align_y_to_df`, `_plot_hdi_from_sel`, `_pred_matrix_for_rows`, `_filter_rows_and_y`, `_plot_line`)
+- I.4 — Extract nested functions (`_align_y_to_df`, `_plot_hdi_from_sel`, `_pred_matrix_for_rows`, `_filter_rows_and_y`, `_plot_line`) to module-level functions in `cv_suite.py`
 
 **LOE:** L
 
 ---
 
-### PR 9 — Suite Wrapper + Cleanup
+### PR 9 — Suite Wrappers + Cleanup
 
 **Content:**
-- `MMMPlotSuite` class with 7 namespace sub-objects
-- Constructor validation: `data` required, must wrap valid `idata` (I.2)
+- `MMMPlotSuite` class with 6 namespace sub-objects (no CV namespace)
+- `MMMCVPlotSuite` re-exported from `__init__.py`
+- Constructor validation: `MMMPlotSuite(data)` requires valid `MMMIDataWrapper` (I.2)
 - Remove dead `_cache` from `MMMIDataWrapper` (IV.11)
 - Delete old `mmm/plot.py`
-- Update `multidimensional.py` `.plot` property
-- Update `time_slice_cross_validation.py` `.plot` property
+- Update `multidimensional.py` `.plot` property → returns `MMMPlotSuite(data=self.data)`
+- Update `time_slice_cross_validation.py` `.plot` property → returns `MMMCVPlotSuite()`
 - Update all imports across the codebase
 
 **LOE:** M
@@ -445,7 +580,9 @@ These are resolved in PR 1 (Foundation) and enforced by every subsequent PR:
 
 | Concern | Resolution |
 |---------|-----------|
-| I.3 — All methods use `MMMIDataWrapper` | Namespace classes receive only `data: MMMIDataWrapper` (no separate `idata` arg); no raw `self._data.idata.posterior` access |
+| Suite separation | `MMMPlotSuite` for model-fit plots (requires `data`); `MMMCVPlotSuite` for CV plots (stateless). `mmm.plot` returns the former; `cv.plot` returns the latter. No cross-contamination. |
+| Helper removal | 5 subplot-scaffolding helpers (`_init_subplots`, `_build_subplot_title`, `_dim_list_handler`, `_get_additional_dim_combinations`, `_add_median_and_hdi`) are **not ported** — `PlotCollection` replaces them. See [Helper Function Removal Plan](#helper-function-removal-plan). |
+| I.3 — All methods use `MMMIDataWrapper` | `MMMPlotSuite` namespace classes receive only `data: MMMIDataWrapper` (no separate `idata` arg); no raw `self._data.idata.posterior` access. `MMMCVPlotSuite` has no `self._data` at all. |
 | I.4 — No nested functions | Extract to module-level private functions or namespace private methods |
 | I.5 — Shared color palette | `_helpers.channel_color_map(channels)` returns consistent channel→color dict |
 | I.6 — arviz-plots adoption | All methods use `PlotCollection` internally; bar-plot methods fall back to matplotlib |
@@ -464,8 +601,9 @@ These are resolved in PR 1 (Foundation) and enforced by every subsequent PR:
 
 ## Overview
 MMMPlotSuite has been reorganized from a flat API into grouped namespaces
-for better discoverability. All methods are now accessed through family
-sub-objects on `mmm.plot`.
+for better discoverability. Model-fit methods are accessed through family
+sub-objects on `mmm.plot`. Cross-validation methods have moved to a
+separate `MMMCVPlotSuite`, accessed via `cv.plot`.
 
 ## Method Name Mapping
 
@@ -489,9 +627,9 @@ sub-objects on `mmm.plot`.
 | `mmm.plot.sensitivity_analysis()` | `mmm.plot.sensitivity.analysis()` |
 | `mmm.plot.uplift_curve()` | `mmm.plot.sensitivity.uplift()` |
 | `mmm.plot.marginal_curve()` | `mmm.plot.sensitivity.marginal()` |
-| `mmm.plot.cv_predictions()` | `mmm.plot.cv.predictions()` |
-| `mmm.plot.param_stability()` | `mmm.plot.cv.param_stability()` |
-| `mmm.plot.cv_crps()` | `mmm.plot.cv.crps()` |
+| `mmm.plot.cv_predictions()` | `cv.plot.predictions()` (moved to `MMMCVPlotSuite`) |
+| `mmm.plot.param_stability()` | `cv.plot.param_stability()` (moved to `MMMCVPlotSuite`) |
+| `mmm.plot.cv_crps()` | `cv.plot.crps()` (moved to `MMMCVPlotSuite`) |
 
 ## Parameter Changes
 
@@ -536,7 +674,9 @@ All methods now accept a consistent set of customization parameters
 
 - No method calls `plt.show()` — you control when to display
 - `param_stability` combines all dimension values into a single multi-panel figure (use `dims` to subset)
-- Constructor requires valid `data: MMMIDataWrapper` (no more `MMMPlotSuite(idata=None)`)
+- `MMMPlotSuite` constructor requires valid `data: MMMIDataWrapper` (no more `MMMPlotSuite(idata=None)`)
+- CV methods moved to separate `MMMCVPlotSuite` — access via `cv.plot` instead of `mmm.plot`
+- `cv.plot` no longer exposes model-fit methods; `mmm.plot` no longer exposes CV methods
 - All methods use arviz-plots `PlotCollection` internally
 - Multi-backend support: pass `backend="plotly"` with `return_as_pc=True`
 
@@ -544,6 +684,7 @@ All methods now accept a consistent set of customization parameters
 
 - `saturation_curves_scatter` — use `mmm.plot.saturation.scatterplot()` instead
 - `ax` parameter — use `plot_collection` for composing onto existing figures
+- `MMMPlotSuite(idata=None)` pattern — CV methods no longer need it (they live on `MMMCVPlotSuite`)
 ```
 
 ---
@@ -554,15 +695,15 @@ Every issue from the comprehensive audit mapped to its resolution:
 
 | ID | Issue | Resolution | PR |
 |----|-------|-----------|-----|
-| I.1 | God class (5,150 lines) | Decompose into 7 namespace sub-objects | 2–9 |
-| I.2 | Constructor allows invalid state | Require valid `data` (wraps `idata`) | 9 |
+| I.1 | God class (5,150 lines) | Decompose into 6 namespace sub-objects (`MMMPlotSuite`) + separate `MMMCVPlotSuite` (3 methods) | 2–9 |
+| I.2 | Constructor allows invalid state | `MMMPlotSuite` requires valid `data`; `MMMCVPlotSuite` is stateless (no data needed) | 8, 9 |
 | I.3 | MMMIDataWrapper bypassed | All methods use wrapper | 1–8 |
 | I.4 | Deep nested functions | Extract to module-level | 2–8 |
 | I.5 | No shared color palette | `_helpers.channel_color_map()` | 1 |
-| I.6 | Duplicated subplot logic / arviz-plots | All methods use `PlotCollection`; bar-plot methods fall back to matplotlib | 1–8 |
+| I.6 | Duplicated subplot logic / arviz-plots | All methods use `PlotCollection`; bar-plot methods fall back to matplotlib. 5 subplot-scaffolding helpers removed (see [Helper Function Removal Plan](#helper-function-removal-plan)). | 1–8 |
 | II.1 | Return type roulette | `tuple[Figure, NDArray[Axes]]` always | 2–8 |
 | II.2 | Inconsistent `original_scale` default | `True` everywhere | 4 |
-| II.3 | `plt.show()` + figure discarding | Remove; return all figures | 8 |
+| II.3 | `plt.show()` + figure discarding | Remove; return all figures | 8 (MMMCVPlotSuite) |
 | II.4 | Monkey-patching idata | Shared helper with data parameter | 7 |
 | II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob`, `figsize` types | 2–8 |
 | II.6 | No dims filtering | Add `dims` on all methods | 2–8 |
