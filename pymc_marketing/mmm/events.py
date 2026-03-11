@@ -92,13 +92,13 @@ This module provides event transformations for use in Marketing Mix Models.
 
 """
 
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import (
     BaseModel,
@@ -109,10 +109,12 @@ from pydantic import (
     validate_call,
 )
 from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, create_dim_handler
-from pytensor.tensor.variable import TensorVariable
+from pymc_extras.prior import Prior
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
 from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
+from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.mmm.utils import density
 
 BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
@@ -135,6 +137,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
             gt=0,
             description="Number of days before and after the basis.",
         ),
+        **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
         """Sample the curve of the saturation transformation given parameters.
 
@@ -145,6 +148,8 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
         days : int
             Number of days around basis. Default is 14 days or two weeks before and
             after the basis for a total of 28 days.
+        sample_prior_predictive_kwargs : Any
+            Pass kwargs to pm.sample_prior_predictive
 
         Returns
         -------
@@ -161,6 +166,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
             parameters=parameters,
             x=x,
             coords=coords,
+            **sample_prior_predictive_kwargs,
         )
 
 
@@ -214,12 +220,10 @@ class EventEffect(BaseModel):
 
         return self
 
-    def apply(self, X: pt.TensorLike, name: str = "event") -> TensorVariable:
+    def apply(self, X: XTensorLike, name: str = "event") -> XTensorVariable:
         """Apply the event effect to the data."""
-        dim_handler = create_dim_handler(("x", *self.dims))
-        return self.basis.apply(X, dims=self.dims) * dim_handler(
-            self.effect_size.create_variable(f"{name}_effect_size"),
-            self.effect_size.dims,
+        return self.basis.apply(X) * self.effect_size.create_variable(
+            f"{name}_effect_size", xdist=True
         )
 
     def to_dict(self) -> dict:
@@ -259,11 +263,13 @@ class GaussianBasis(Basis):
 
     lookup_name = "gaussian"
 
-    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+    def function(
+        self, x: XTensorLike, sigma: XTensorLike, *, dim: str | None = None
+    ) -> XTensorVariable:
         """Gaussian bump function."""
-        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
-        out = pm.math.exp(pm.logp(rv, x))
-        return out
+        x = as_xtensor(x)
+        sigma = as_xtensor(sigma)
+        return density(pmd.Normal, value=x, sigma=sigma)
 
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
@@ -318,21 +324,21 @@ class HalfGaussianBasis(Basis):
         self.mode = mode
         self.include_event = include_event
 
-    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+    def function(
+        self, x: XTensorLike, sigma: XTensorLike, *, dim: str | None = None
+    ) -> XTensorVariable:
         """One-sided Gaussian bump function."""
-        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
-        out = pm.math.exp(pm.logp(rv, x))
+        x = as_xtensor(x)
+        sigma = as_xtensor(sigma)
+        out = density(pmd.Normal, value=x, sigma=sigma)
         # Sign determines if the zeroing happens after or before the event.
         sign = 1 if self.mode == "after" else -1
         # Build boolean mask(s) in x's shape and broadcast to out's shape.
         pre_mask = sign * x < 0
         if not self.include_event:
-            pre_mask = pm.math.or_(pre_mask, sign * x == 0)
+            pre_mask = pre_mask | ptx.math.equal(sign * x, 0)
 
-        # Ensure mask matches output shape for elementwise switch
-        pre_mask = pt.broadcast_to(pre_mask, out.shape)
-
-        return pt.switch(pre_mask, 0, out)
+        return ptx.math.switch(pre_mask, 0, out)
 
     def to_dict(self) -> dict:
         """Convert the half Gaussian basis to a dictionary."""
@@ -398,36 +404,39 @@ class AsymmetricGaussianBasis(Basis):
 
     def function(
         self,
-        x: pt.TensorLike,
-        sigma_before: pt.TensorLike,
-        sigma_after: pt.TensorLike,
-        a_after: pt.TensorLike,
-    ) -> pt.TensorVariable:
+        x: XTensorLike,
+        sigma_before: XTensorLike,
+        sigma_after: XTensorLike,
+        a_after: XTensorLike,
+        *,
+        dim: str | None = None,
+    ) -> XTensorVariable:
         """Asymmetric Gaussian bump function."""
+        x = as_xtensor(x)
+        sigma_before = as_xtensor(sigma_before)
+        sigma_after = as_xtensor(sigma_after)
+
         match self.event_in:
             case "before":
-                indicator_before = pt.cast(x <= 0, "float32")
-                indicator_after = pt.cast(x > 0, "float32")
+                indicator_before = ptx.math.cast(x <= 0, "float32")
+                indicator_after = ptx.math.cast(x > 0, "float32")
             case "after":
-                indicator_before = pt.cast(x < 0, "float32")
-                indicator_after = pt.cast(x >= 0, "float32")
+                indicator_before = ptx.math.cast(x < 0, "float32")
+                indicator_after = ptx.math.cast(x >= 0, "float32")
             case "exclude":
-                indicator_before = pt.cast(x < 0, "float32")
-                indicator_after = pt.cast(x > 0, "float32")
+                indicator_before = ptx.math.cast(x < 0, "float32")
+                indicator_after = ptx.math.cast(x > 0, "float32")
             case _:
                 raise ValueError(f"Invalid event_in: {self.event_in}")
 
-        rv_before = pm.Normal.dist(mu=0.0, sigma=sigma_before)
-        rv_after = pm.Normal.dist(mu=0.0, sigma=sigma_after)
-
-        y_before = pt.switch(
+        y_before = ptx.math.switch(
             indicator_before,
-            pm.math.exp(pm.logp(rv_before, x)),
+            density(pmd.Normal, value=x, sigma=sigma_before),
             0,
         )
-        y_after = pt.switch(
+        y_after = ptx.math.switch(
             indicator_after,
-            pm.math.exp(pm.logp(rv_after, x)) * a_after,
+            density(pmd.Normal, value=x, sigma=sigma_after) * a_after,
             0,
         )
 

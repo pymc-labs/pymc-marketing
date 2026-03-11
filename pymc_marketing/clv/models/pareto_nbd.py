@@ -124,7 +124,6 @@ class ParetoNBDModel(CLVModel):
 
         # Initialize model with customer data; `model_config` parameter is optional
         model = ParetoNBDModel(
-            data=rfm_df,
             model_config={
                 "r": Prior("Weibull", alpha=2, beta=1),
                 "alpha: Prior("Weibull", alpha=2, beta=10),
@@ -134,11 +133,11 @@ class ParetoNBDModel(CLVModel):
         )
 
         # Fit model quickly to large datasets via the default Maximum a Posteriori method
-        model.fit(method='map')
+        model.fit(data=rfm_df,method='map')
         print(model.fit_summary())
 
         # Use 'demz' for more informative predictions and reliable performance on smaller datasets
-        model.fit(method='demz')
+        model.fit(data=rfm_df,method='demz')
         print(model.fit_summary())
 
         # Predict number of purchases for customers over the next 10 time periods
@@ -198,7 +197,7 @@ class ParetoNBDModel(CLVModel):
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
@@ -208,22 +207,6 @@ class ParetoNBDModel(CLVModel):
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=["purchase_covariate_cols", "dropout_covariate_cols"],
-        )
-        self.purchase_covariate_cols = list(
-            self.model_config["purchase_covariate_cols"]
-        )
-        self.dropout_covariate_cols = list(self.model_config["dropout_covariate_cols"])
-        self.covariate_cols = self.purchase_covariate_cols + self.dropout_covariate_cols
-        self._validate_cols(
-            data,
-            required_cols=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
-                *self.covariate_cols,
-            ],
-            must_be_unique=["customer_id"],
         )
 
     @property
@@ -240,8 +223,59 @@ class ParetoNBDModel(CLVModel):
             "dropout_covariate_cols": [],
         }
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    @property
+    def purchase_covariate_cols(self) -> list[str]:
+        """Purchase covariate column names from model_config."""
+        return list(self.model_config.get("purchase_covariate_cols", []))
+
+    @property
+    def dropout_covariate_cols(self) -> list[str]:
+        """Dropout covariate column names from model_config."""
+        return list(self.model_config.get("dropout_covariate_cols", []))
+
+    @property
+    def covariate_cols(self) -> list[str]:
+        """All covariate column names."""
+        return self.purchase_covariate_cols + self.dropout_covariate_cols
+
+    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate Pareto/NBD-specific data requirements."""
+        self._validate_cols(
+            data,
+            required_cols=[
+                "customer_id",
+                "frequency",
+                "recency",
+                "T",
+                *self.covariate_cols,
+            ],
+            must_be_unique=["customer_id"],
+        )
+
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Input data with customer_id, frequency, recency, and T columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,
@@ -316,7 +350,13 @@ class ParetoNBDModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-    def fit(self, method: str = "map", fit_method: str | None = None, **kwargs):  # type: ignore
+    def fit(
+        self,
+        data: pd.DataFrame | None = None,
+        method: str = "map",
+        fit_method: str | None = None,
+        **kwargs,
+    ):  # type: ignore
         """Infer posteriors of model parameters to run predictions.
 
         Parameters
@@ -336,10 +376,10 @@ class ParetoNBDModel(CLVModel):
 
         if fit_method:
             warnings.warn(
-                "'fit_method' is deprecated and will be removed in a future release. "
+                "'fit_method' is deprecated and will be removed in version 1.0. "
                 "Use 'method' instead.",
                 DeprecationWarning,
-                stacklevel=1,
+                stacklevel=2,
             )
             method = fit_method
 
@@ -357,7 +397,7 @@ class ParetoNBDModel(CLVModel):
                     action="ignore",
                     category=UserWarning,
                 )
-                return super().fit(method, **kwargs)
+                return super().fit(data=data, method=method, **kwargs)
 
     @staticmethod
     def _logp(
