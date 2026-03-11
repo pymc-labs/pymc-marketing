@@ -376,11 +376,7 @@ class TimeSliceCrossValidator:
             # Set the sampler config on the model prior to fitting
             mmm.sampler_config = effective_sampler_config
 
-        _ = mmm.fit(
-            X,
-            y,
-            progressbar=True,
-        )
+        _ = mmm.fit(X, y)
         return mmm
 
     def _prepare_fold_model(
@@ -388,7 +384,7 @@ class TimeSliceCrossValidator:
         mmm: Any,
         X_train: pd.DataFrame,
         original_scale_vars: list[str] | None = None,
-        lift_test_df: pd.DataFrame | None = None,
+        df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
     ) -> Any:
         """Prepare a fold-local MMM before fitting.
@@ -402,11 +398,11 @@ class TimeSliceCrossValidator:
         original_scale_vars : list[str], optional
             Contribution variables to register in original scale via
             ``add_original_scale_contribution_variable`` before fitting.
-        lift_test_df : pd.DataFrame, optional
+        df_lift_test : pd.DataFrame, optional
             Lift test measurements. If provided, they are filtered to
             observations available up to the end of the training window.
         lift_test_date_column : str, optional
-            Date column in ``lift_test_df`` used for leakage-safe filtering.
+            Date column in ``df_lift_test`` used for leakage-safe filtering.
 
         Returns
         -------
@@ -417,26 +413,26 @@ class TimeSliceCrossValidator:
         ------
         ValueError
             If lift tests are provided without a date column configuration,
-            if the date column is missing from ``lift_test_df``, or if no
+            if the date column is missing from ``df_lift_test``, or if no
             fold-eligible lift rows remain after filtering.
         """
         if original_scale_vars is not None:
             mmm.add_original_scale_contribution_variable(var=original_scale_vars)
 
-        if lift_test_df is not None:
+        if df_lift_test is not None:
             if lift_test_date_column is None:
                 raise ValueError(
-                    "`lift_test_date_column` is required when `lift_test_df` is provided."
+                    "`lift_test_date_column` is required when `df_lift_test` is provided."
                 )
-            if lift_test_date_column not in lift_test_df.columns:
+            if lift_test_date_column not in df_lift_test.columns:
                 raise ValueError(
                     f"`lift_test_date_column` ('{lift_test_date_column}') "
-                    "must be a column in `lift_test_df`."
+                    "must be a column in `df_lift_test`."
                 )
 
             train_end = pd.to_datetime(X_train[self.date_column]).max()
-            lift_dates = pd.to_datetime(lift_test_df[lift_test_date_column])
-            fold_lift_df = lift_test_df.loc[lift_dates <= train_end].copy()
+            lift_dates = pd.to_datetime(df_lift_test[lift_test_date_column])
+            fold_lift_df = df_lift_test.loc[lift_dates <= train_end].copy()
 
             if fold_lift_df.empty:
                 raise ValueError(
@@ -611,7 +607,7 @@ class TimeSliceCrossValidator:
         mmm: MMMBuilder | None = None,
         model_names: list[str] | None = None,
         original_scale_vars: list[str] | None = None,
-        lift_test_df: pd.DataFrame | None = None,
+        df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
     ) -> az.InferenceData:
         """Run the complete time-slice cross-validation loop.
@@ -649,13 +645,13 @@ class TimeSliceCrossValidator:
             Contribution variables to register with
             ``add_original_scale_contribution_variable(var=...)`` on each
             fold-local model after build and before fit.
-        lift_test_df : pd.DataFrame, optional
+        df_lift_test : pd.DataFrame, optional
             Lift-test measurements to apply on each fold-local model.
             Rows are filtered leakage-safely per fold using
             ``lift_test_date_column`` and the fold training end date.
         lift_test_date_column : str, optional
-            Name of the date column in ``lift_test_df``. Required when
-            ``lift_test_df`` is provided.
+            Name of the date column in ``df_lift_test``. Required when
+            ``df_lift_test`` is provided.
 
         Returns
         -------
@@ -712,7 +708,7 @@ class TimeSliceCrossValidator:
         ...     X,
         ...     y,
         ...     mmm=mmm,
-        ...     lift_test_df=df_lift_test,
+        ...     df_lift_test=df_lift_test,
         ...     lift_test_date_column="date",
         ... )
 
@@ -763,7 +759,7 @@ class TimeSliceCrossValidator:
                 fold_mmm,
                 X_train=X_train,
                 original_scale_vars=original_scale_vars,
-                lift_test_df=lift_test_df,
+                df_lift_test=df_lift_test,
                 lift_test_date_column=lift_test_date_column,
             )
 

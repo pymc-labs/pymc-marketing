@@ -891,7 +891,7 @@ def test_run_with_lift_tests_requires_date_column():
     )
 
     with pytest.raises(ValueError, match="lift_test_date_column"):
-        _ = cv.run(X, y, mmm=_RecordingFoldModel(), lift_test_df=df_lift_test)
+        _ = cv.run(X, y, mmm=_RecordingFoldModel(), df_lift_test=df_lift_test)
 
 
 def test_run_filters_lift_tests_to_train_window():
@@ -919,7 +919,7 @@ def test_run_filters_lift_tests_to_train_window():
         X,
         y,
         mmm=_RecordingFoldModel(),
-        lift_test_df=df_lift_test,
+        df_lift_test=df_lift_test,
         lift_test_date_column="date",
     )
     rows_used = [
@@ -957,7 +957,7 @@ def test_run_with_lift_tests_and_raw_mmm_instance():
         X,
         y,
         mmm=_RecordingFoldModel(),
-        lift_test_df=df_lift_test,
+        df_lift_test=df_lift_test,
         lift_test_date_column="date",
     )
     assert len(cv._cv_results) == cv.get_n_splits(X, y)
@@ -987,7 +987,7 @@ def test_run_lift_tests_empty_after_filter_raises():
             X,
             y,
             mmm=_RecordingFoldModel(),
-            lift_test_df=df_lift_test,
+            df_lift_test=df_lift_test,
             lift_test_date_column="date",
         )
 
