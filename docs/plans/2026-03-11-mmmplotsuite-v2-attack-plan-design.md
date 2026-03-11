@@ -30,9 +30,9 @@
 | Decomposition approach | **D: Namespace Sub-Objects** | Best discoverability (`mmm.plot.sensitivity.analysis()`); aligns with 6 plotting families; each namespace is small and focused |
 | Suite separation | **Two separate suites: `MMMPlotSuite` + `MMMCVPlotSuite`** | 5 of 20 methods don't need `idata` at all (3 CV + 2 budget). CV methods share zero meaningful code with idata methods — only 4 subplot-plumbing helpers, all of which are replaced by arviz-plots. `mmm.plot` should not expose CV methods; `cv.plot` should not expose model-fit methods. Clean separation of concerns. |
 | arviz-plots adoption | **Included** in major release | Avoids a second breaking change for figure customization; II.7 is solved by exposing arviz-plots' native customization model. See [figure customization design](./2026-03-11-figure-customization-design.md) |
-| Release strategy | **Major release** for breaking changes + decomposition; **follow-up minor releases** for missing features, performance, tests, docs | Keeps the major release focused and reviewable |
+| Release strategy | **Major release** for breaking changes + decomposition (each PR ships with tests); **follow-up minor releases** for missing features, performance, edge-case tests, docs | Keeps the major release focused and reviewable; no test debt at ship time |
 | Backward compatibility | **Hard break** — old method names stop working | Migration guide provides the full old→new mapping; no deprecation shims |
-| PR strategy | **Family-by-family clean rooms** — one PR per namespace, each family is "born clean" | Focused, reviewable PRs (~300–700 lines each); parallelizable across contributors |
+| PR strategy | **Family-by-family clean rooms** — one PR per namespace, each family is "born clean" with tests | Focused, reviewable PRs; each ships code + tests together; parallelizable across contributors |
 | Namespace constructor arg | **`data: MMMIDataWrapper` only** — no separate `idata` arg | `MMMIDataWrapper` already holds `idata` as a public attribute; passing both creates a redundant access path that undermines I.3 (all access through wrapper). `MMM.plot` already constructs `MMMPlotSuite(data=data)` without a separate `idata`. Applies only to `MMMPlotSuite` namespaces; `MMMCVPlotSuite` takes no constructor data. |
 | `MMMPlotlyFactory` | **Out of scope** for this release | The `backend` parameter provides a migration path to Plotly via arviz-plots. Deprecation of `MMMPlotlyFactory` can be evaluated once arviz-plots Plotly support stabilizes. |
 
@@ -250,7 +250,7 @@ aes_by_visuals, return_as_pc, **pc_kwargs). Differences:
 
 ## Helper Function Removal Plan
 
-The current `MMMPlotSuite` has ~15 private helper methods. With the move
+The current `MMMPlotSuite` has 16 private helper methods. With the move
 to arviz-plots (`PlotCollection`) and the two-suite separation, most
 subplot-scaffolding helpers become redundant. This section maps each
 helper to its fate.
@@ -365,11 +365,11 @@ scaffolding. They move into their respective namespace classes or into
 | IV.6 | Per-date HDI computation loop | Performance optimization |
 | IV.7 | O(n×m) loop in cv_crps | Performance optimization |
 | IV.10 | Broad exception catching | Behavior change; needs careful rollout |
-| V.1 | Methods with zero tests | Test-only |
-| V.2 | Weak test assertions | Test-only |
-| V.3 | No edge case tests | Test-only |
-| V.4 | Legacy test migration | Test-only |
-| V.5 | Thread-safety tests | Test-only |
+| V.1 | Methods with zero tests | Partially addressed in PRs 2–8 (each ships with tests); follow-up for comprehensive coverage |
+| V.2 | Weak test assertions | Partially addressed in PRs 2–8; follow-up for exhaustive checks |
+| V.3 | No edge case tests | Follow-up: single channel, single geo, missing data, etc. |
+| V.4 | Legacy test migration | Addressed in PR 9 (legacy `test_plotting.py` removal) |
+| V.5 | Thread-safety tests | Follow-up: verify `PlotCollection`-based methods are thread-safe |
 | VI.1 | Plotting gallery | Documentation |
 | VII.2 | Use `xarray.to_dataframe` more | Internal refactoring |
 | VII.3 | Time-varying media visualization | New feature |
@@ -385,9 +385,15 @@ scaffolding. They move into their respective namespace classes or into
 
 ```
 PR 1 (Foundation) → PRs 2–8 (parallelizable, all depend only on PR 1)
-PRs 2–8 → PR 9 (Suite Wrappers, depends on all family PRs)
-PR 9 → PR 10 (Migration Guide) → PR 11 (Test Overhaul)
+PRs 2–8 → PR 9 (Suite Wrappers + Cleanup, depends on all family PRs)
+PR 9 → PR 10 (Migration Guide)
 ```
+
+> **Testing strategy:** Every family PR (2–8) ships with its own tests —
+> return-type checks, axis-count assertions, parameter variations, and
+> basic edge cases. PR 9 removes legacy `test_plotting.py` tests and
+> parametrized cross-cutting  tests that verify the standard API contract
+> (return type, standard params, `dims` filtering) across all namespaces.
 
 ### PR 1 — Foundation
 
@@ -546,7 +552,7 @@ rewrites its methods using `PlotCollection` directly.
 
 ---
 
-### PR 9 — Suite Wrappers + Cleanup
+### PR 9 — Suite Wrappers + Cleanup + Cross-Cutting Tests
 
 **Content:**
 - `MMMPlotSuite` class with 6 namespace sub-objects (no CV namespace)
@@ -559,6 +565,19 @@ rewrites its methods using `PlotCollection` directly.
 - Update `multidimensional.py` `.plot` property → returns `MMMPlotSuite(data=self.data)`
 - Update `time_slice_cross_validation.py` `.plot` property → returns `MMMCVPlotSuite()`
 - Update all imports across the codebase (including notebooks)
+
+**Tests included:**
+- Remove legacy `test_plotting.py` tests that duplicate new coverage
+- Add cross-cutting parametrized tests that verify the standard API contract
+  across all namespaces (unify repeated assertions from PRs 2–8):
+  - `@pytest.mark.parametrize` over all public methods: return type is
+    `tuple[Figure, NDArray[Axes]]`
+  - `@pytest.mark.parametrize` over all public methods: `return_as_pc=True`
+    returns `PlotCollection`
+  - `@pytest.mark.parametrize` over all public methods: `dims` parameter
+    accepted and filters correctly
+  - Constructor validation: `MMMPlotSuite(data=None)` raises (I.2)
+  - Old import path raises `ImportError` with migration message
 
 **LOE:** M
 
@@ -573,18 +592,6 @@ rewrites its methods using `PlotCollection` directly.
 - Removed methods (`saturation_curves_scatter`)
 
 **LOE:** S
-
----
-
-### PR 11 — Test Overhaul
-
-**Content:**
-- Tests for each namespace class
-- Richer assertions (axis labels, titles, legend entries, data values)
-- Edge cases (single channel, single geo, missing data)
-- Remove legacy `test_plotting.py` tests that duplicate new coverage
-
-**LOE:** L
 
 ---
 
@@ -742,7 +749,7 @@ Every issue from the comprehensive audit mapped to its resolution:
 | IV.16 | Error message formatting | Fix raw `\n` | 4 |
 | IV.17 | Dead `agg` parameter | Remove dead code | 5 |
 | IV.18 | `_compute_residuals` hardcoded var | Add optional parameter | 2 |
-| V.1–V.5 | Test coverage gaps | **Deferred** (partially addressed in PR 11) | 11 |
+| V.1–V.5 | Test coverage gaps | Partially addressed: each family PR (2–8) ships with tests; PR 9 removes legacy tests and adds cross-cutting parametrized tests. Follow-up for edge cases (V.3) and thread-safety (V.5). | 2–9 |
 | VI.1 | Plotting gallery | **Deferred** — follow-up release | — |
 | VII.1 | Coord `x` → `channel` | Rename coordinate in `channel_share_hdi` | 5 |
 | VII.2 | Use `xarray.to_dataframe` | **Deferred** — follow-up release | — |
