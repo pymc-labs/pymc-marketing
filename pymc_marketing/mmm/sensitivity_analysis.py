@@ -93,11 +93,13 @@ from typing import Literal
 import arviz as az
 import numpy as np
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
 from pymc import Model
 from pytensor import function
-from pytensor.compile.sharedvalue import SharedVariable
-from pytensor.graph import vectorize_graph
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
+from pytensor.xtensor.vectorization import vectorize_graph
+from xarray import DataArray
 
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
@@ -231,37 +233,6 @@ class SensitivityAnalysis:
 
         return mask_values
 
-    def _transform_output_to_xarray(
-        self,
-        result: np.ndarray,
-        sweep_values: np.ndarray,
-        dims_order: list[str],
-    ) -> xr.DataArray:
-        """Transform a numpy result into an xarray.DataArray with correct dims/coords.
-
-        Expected input shape: (sample, sweep, *dims_order)
-        """
-        # Build dims list in the exact order of the numpy result
-        dims: list[str] = ["sample", "sweep", *dims_order]
-
-        # Helper for base labels (ignore filtering at data and coord level)
-        def _base_labels(dim_name: str, axis_size: int) -> list:
-            return list(self.model.coords.get(dim_name, np.arange(axis_size)))
-
-        # Assemble coords aligned with dims
-        coords: dict[str, np.ndarray | list] = {}
-        coords["sample"] = np.arange(result.shape[0])
-        coords["sweep"] = np.asarray(sweep_values)
-
-        # Map remaining dims using model coords and filters
-        # Compute axis offsets: after (sample, sweep), axes align with dims_order
-        axis_offset = 2
-        for i, dim_name in enumerate(dims_order):
-            axis_size = result.shape[axis_offset + i]
-            coords[dim_name] = _base_labels(dim_name, axis_size)
-
-        return xr.DataArray(result, coords=coords, dims=dims)
-
     def _add_to_idata(self, result: xr.DataArray) -> None:
         """Add the result to the idata.
 
@@ -298,7 +269,6 @@ class SensitivityAnalysis:
         posterior_sample_fraction: float = 1.0,
         response_mask: xr.DataArray | np.ndarray | None = None,
         extend_idata: bool = False,
-        **kwargs,
     ) -> xr.DataArray | None:
         """
         Run sweeps by forward-evaluating the response graph (no Jacobian).
@@ -334,108 +304,76 @@ class SensitivityAnalysis:
             extend_idata is True, stores the result under
             `idata.sensitivity_analysis` and returns None.
         """
-        if "posterior_sample_batch" in kwargs:
-            legacy_value = kwargs.pop("posterior_sample_batch")
-            warnings.warn(
-                "'posterior_sample_batch' is deprecated; use 'posterior_sample_fraction' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            legacy_value = float(legacy_value)
-            if legacy_value <= 0:
-                raise ValueError(
-                    "'posterior_sample_batch' must be > 0 for backwards compatibility conversion."
-                )
-            posterior_sample_fraction = min(1.0, 1.0 / math.sqrt(legacy_value))
+        # Create symbolic input variable. We don't use numerical inputs directly,
+        # so that the same compiled function can be used with different values
+        sweep = ptx.xtensor("sweep", dims=("sweep",))
 
-        if kwargs:
-            raise TypeError(
-                f"run_sweep() got unexpected keyword arguments: {', '.join(kwargs)}"
-            )
-
-        # Determine dims order from the provided var_input (drop 'date')
-        dims_order = self._compute_dims_order_from_varinput(var_input)
-
-        response_dims = tuple(self.model.named_vars_to_dims.get(var_names, ()))
-
-        # 1) Extract response graph (shape typically: (sample, date, *dims_order))
+        # Extract response graph (dims typically: (sample, date, *dims_order))
         resp_graph = self._extract_response_distribution(
             response_variable=var_names,
             posterior_sample_fraction=posterior_sample_fraction,
         )
 
         if response_mask is not None:
+            # In this case our function will have a symbolic mask input as well
             mask_array = self._prepare_response_mask(
                 response_mask,
-                response_dims,
+                self.model[var_names].dims,
                 var_names=var_names,
             )
-            # Add sample dimension and broadcast to match resp_graph shape
-            mask_tensor = pt.constant(mask_array, dtype="bool")
-            # resp_graph has shape (sample, date, *response_dims)
-            # mask_array has shape (*response_dims)
-            # We need to add leading dimensions for sample (and date if present)
-            pad_dims = resp_graph.ndim - mask_tensor.ndim
-            if pad_dims > 0:
-                mask_tensor = pt.shape_padleft(mask_tensor, pad_dims)
-            mask_tensor = pt.broadcast_to(mask_tensor, resp_graph.shape)
-            zeros_resp = pt.zeros_like(resp_graph)
-            resp_graph = pt.set_subtensor(
-                zeros_resp[mask_tensor],
-                resp_graph[mask_tensor],
+            mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
+
+            # Have to go to tensor (.values), because we don't yet have xtensor.where
+
+            # We also have to broadcast the mask_tensor because we can't currently vectorize a set_subtensor with slices
+            # otherwise this would suffice: resp_graph[..., ~mask_array].set(0)
+            mask_bcast, _ = pt.broadcast_arrays(mask, resp_graph.values)
+            resp_graph = as_xtensor(
+                resp_graph.values[~mask_bcast].set(0), dims=resp_graph.dims
             )
 
-        # 2) Prepare batched input carrying the sweep axis
-        data_shared: SharedVariable = self.model[var_input]
-        base_value = data_shared.get_value()
-        num_sweeps = int(np.asarray(sweep_values).shape[0])
+        # Broadcast response by combining base_value with sweep
+        base_value: XTensorVariable = self.model[var_input]
 
-        # Always evaluate in float64 so fractional sweep_values are not truncated
-        # when channel_data has an integer dtype (e.g. int32 spend counts).
-        eval_dtype = np.float64
+        match sweep_type:
+            case "multiplicative":
+                sweep_combinations = sweep * base_value
+            case "additive":
+                sweep_combinations = sweep + base_value
+            case "absolute":
+                sweep_combinations = sweep.broadcast_like(base_value)
+            case _:
+                raise ValueError(f"Unknown sweep_type {sweep_type!r}")
 
-        # Build a (sweep, 1, 1, ..., 1) array to broadcast against base_value
-        sweep_col = np.asarray(sweep_values, dtype=eval_dtype).reshape(
-            (num_sweeps,) + (1,) * base_value.ndim
+        sweep_response = vectorize_graph(
+            resp_graph, replace={base_value: sweep_combinations}
         )
-        base_value_f = base_value.astype(eval_dtype)
-        if sweep_type == "multiplicative":
-            batched_input = sweep_col * base_value_f[None, ...]
-        elif sweep_type == "additive":
-            batched_input = sweep_col + base_value_f[None, ...]
-        elif sweep_type == "absolute":
-            batched_input = np.broadcast_to(
-                sweep_col,
-                (num_sweeps, *base_value_f.shape),
-            )
+        sweep_response_summed = sweep_response.sum(dim="date").transpose(
+            "sample", "sweep", ...
+        )
+
+        if response_mask is None:
+            result = function([sweep], sweep_response_summed)(sweep_values)
         else:
-            raise ValueError(f"Unknown sweep_type {sweep_type!r}")
+            result = function([sweep, mask], sweep_response_summed)(
+                sweep_values, mask_array
+            )
 
-        # 3) Vectorize the response graph over the new sweep axis by replacing the shared
-        #    input with a tensor that carries a leading sweep dimension.
-        channel_in = pt.tensor(
-            name=f"{var_input}_sweep_in",
-            dtype=eval_dtype,
-            shape=(None, *data_shared.type.shape),
-        )
-        sweep_graph = vectorize_graph(resp_graph, replace={data_shared: channel_in})
-        fn = function([channel_in], sweep_graph)  # (sweep, sample, date, *dims_order)
+        dims = sweep_response_summed.dims
+        coords = {}
+        for dim, shape in zip(dims, result.shape, strict=True):
+            if dim == "sweep":
+                dim_coords = np.asarray(sweep_values)
+            else:
+                dim_coords = self.model.coords.get(dim)
+                if dim_coords is None:
+                    dim_coords = np.arange(shape)
+                else:
+                    dim_coords = np.asarray(dim_coords)
+            coords[dim] = dim_coords
 
-        evaluated = fn(batched_input)
+        xr_result = DataArray(result, dims=dims, coords=coords)
 
-        # 4) Reduce the date axis (axis=2) as in the draft (mean over time)
-        #    Result shape: (sweep, sample, *dims_order)
-        evaluated_no_date = evaluated.sum(axis=2)
-
-        # 5) Reorder axes to (sample, sweep, *dims_order)
-        #    Move sweep axis (0) to position 1, sample axis becomes 0.
-        result = np.moveaxis(evaluated_no_date, 0, 1)
-
-        xr_result = self._transform_output_to_xarray(
-            result,
-            sweep_values=sweep_values,
-            dims_order=dims_order,
-        )
         if extend_idata:
             self._add_to_idata(xr_result)
             return None
