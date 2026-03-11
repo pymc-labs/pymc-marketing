@@ -9,8 +9,8 @@ channel_columns:
 cv:
   n_init: 120
   forecast_horizon: 8
-  step_size: 4
-  n_folds: 5
+  step_size: 1
+  n_folds: 3
 sampler:
   nuts_sampler: nutpie
   chains: 4

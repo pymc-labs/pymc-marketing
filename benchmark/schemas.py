@@ -53,8 +53,8 @@ class TimeSliceCVConfig(BaseModel):
     @field_validator("n_folds")
     @classmethod
     def _minimum_folds(cls, value: int) -> int:
-        if value < 5:
-            raise ValueError("Each task must have at least 5 time-slice CV folds.")
+        if value < 2:
+            raise ValueError("Each task must have at least 2 time-slice CV folds.")
         return value
 
 
