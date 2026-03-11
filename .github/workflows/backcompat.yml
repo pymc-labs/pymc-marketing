@@ -1,0 +1,103 @@
+name: Backcompat Check
+
+on:
+  push:
+    paths:
+      - scripts/backcompat/**
+      - scripts/backcompat/models/**
+      - environment.yml
+  pull_request:
+    paths:
+      - scripts/backcompat/**
+      - scripts/backcompat/models/**
+      - environment.yml
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backcompat:
+    name: Backcompat matrix
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        model:
+          - basic_mmm
+          - beta_geo
+          - beta_geo_beta_binom
+          - gamma_gamma
+          - modified_beta_geo
+          - pareto_nbd
+          - shifted_beta_geo
+          # Excluded models (pre-existing issues):
+          # - mixed_logit: Serialization not fully supported (requires 4 positional args)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          micromamba-version: latest
+          environment-file: environment.yml
+          environment-name: pymc-marketing-dev
+          cache-environment: true
+          cache-downloads: true
+
+      - name: Fetch main baseline
+        run: |
+          git fetch origin main --depth=1
+          git worktree add /tmp/repo-main origin/main
+
+          # Copy backcompat scripts from current branch to main worktree
+          # (backcompat/ directory doesn't exist on main yet - will after this PR merges)
+          mkdir -p /tmp/repo-main/scripts/backcompat/models
+          cp scripts/__init__.py /tmp/repo-main/scripts/
+          cp -r scripts/backcompat/*.py /tmp/repo-main/scripts/backcompat/
+          cp -r scripts/backcompat/models/*.py /tmp/repo-main/scripts/backcompat/models/
+
+          # Patch pytensor import compatibility in main branch
+          # Main uses: from pytensor.graph.traversal import ancestors
+          # PyTensor 2.31+ requires: from pytensor.graph.basic import ancestors
+          # Apply the same try/except pattern that we use in current branch
+          cat > /tmp/pytensor_patch.py << 'EOF'
+          import sys
+          filepath = sys.argv[1]
+          with open(filepath, 'r') as f:
+              content = f.read()
+
+          # Replace single-line import with try/except block
+          old_import = 'from pytensor.graph.traversal import ancestors'
+          new_import = '''# Handle PyTensor version compatibility: traversal module moved in 2.31+
+          try:
+              from pytensor.graph.traversal import ancestors
+          except ImportError:
+              from pytensor.graph.basic import ancestors'''
+
+          content = content.replace(old_import, new_import)
+
+          with open(filepath, 'w') as f:
+              f.write(content)
+          EOF
+          python3 /tmp/pytensor_patch.py /tmp/repo-main/pymc_marketing/pytensor_utils.py
+
+          micromamba run -n pymc-marketing-dev bash -c "cd /tmp/repo-main && python -m scripts.backcompat.capture ${{ matrix.model }} /tmp/backcompat/main/${{ matrix.model }}"
+          git worktree remove /tmp/repo-main
+
+      - name: Capture candidate from HEAD
+        run: |
+          micromamba run -n pymc-marketing-dev python -m scripts.backcompat.capture ${{ matrix.model }} /tmp/backcompat/head/${{ matrix.model }}
+
+      - name: Compare candidate to main baseline
+        run: |
+          micromamba run -n pymc-marketing-dev python -m scripts.backcompat.compare /tmp/backcompat/main/${{ matrix.model }}/manifest.json
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backcompat-${{ matrix.model }}
+          path: |
+            /tmp/backcompat/main/${{ matrix.model }}
+            /tmp/backcompat/head/${{ matrix.model }}
