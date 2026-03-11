@@ -34,6 +34,7 @@
 | Backward compatibility | **Hard break** — old method names stop working | Migration guide provides the full old→new mapping; no deprecation shims |
 | PR strategy | **Family-by-family clean rooms** — one PR per namespace, each family is "born clean" | Focused, reviewable PRs (~300–700 lines each); parallelizable across contributors |
 | Namespace constructor arg | **`data: MMMIDataWrapper` only** — no separate `idata` arg | `MMMIDataWrapper` already holds `idata` as a public attribute; passing both creates a redundant access path that undermines I.3 (all access through wrapper). `MMM.plot` already constructs `MMMPlotSuite(data=data)` without a separate `idata`. Applies only to `MMMPlotSuite` namespaces; `MMMCVPlotSuite` takes no constructor data. |
+| `MMMPlotlyFactory` | **Out of scope** for this release | The `backend` parameter provides a migration path to Plotly via arviz-plots. Deprecation of `MMMPlotlyFactory` can be evaluated once arviz-plots Plotly support stabilizes. |
 
 ---
 
@@ -377,6 +378,17 @@ scaffolding. They move into their respective namespace classes or into
 
 ## PR Sequence
 
+> **LOE scale:** S (1–4 hours) · M (1–3 days) · L (1–2 weeks).
+> See [comprehensive audit](./2026-03-10-mmmplotsuite-comprehensive-issues.md) for full scale.
+
+**Dependency graph:**
+
+```
+PR 1 (Foundation) → PRs 2–8 (parallelizable, all depend only on PR 1)
+PRs 2–8 → PR 9 (Suite Wrappers, depends on all family PRs)
+PR 9 → PR 10 (Migration Guide) → PR 11 (Test Overhaul)
+```
+
 ### PR 1 — Foundation
 
 **Content:** `_helpers.py` with shared infrastructure.
@@ -541,10 +553,12 @@ rewrites its methods using `PlotCollection` directly.
 - `MMMCVPlotSuite` re-exported from `__init__.py`
 - Constructor validation: `MMMPlotSuite(data)` requires valid `MMMIDataWrapper` (I.2)
 - Remove dead `_cache` from `MMMIDataWrapper` (IV.11)
-- Delete old `mmm/plot.py`
+- Delete old `mmm/plot.py` and replace with a stub that raises `ImportError` with a message:
+  `"MMMPlotSuite has moved to pymc_marketing.mmm.plotting. See the migration guide."`
+  This keeps the hard break but gives users an actionable error instead of a bare `ModuleNotFoundError`.
 - Update `multidimensional.py` `.plot` property → returns `MMMPlotSuite(data=self.data)`
 - Update `time_slice_cross_validation.py` `.plot` property → returns `MMMCVPlotSuite()`
-- Update all imports across the codebase
+- Update all imports across the codebase (including notebooks)
 
 **LOE:** M
 
@@ -682,6 +696,7 @@ All methods now accept a consistent set of customization parameters
 
 ## Removed
 
+- **Import path changed:** `from pymc_marketing.mmm.plot import MMMPlotSuite` → `from pymc_marketing.mmm.plotting import MMMPlotSuite`. The old `mmm/plot.py` module is replaced with a stub that raises `ImportError` with migration guidance.
 - `saturation_curves_scatter` — use `mmm.plot.saturation.scatterplot()` instead
 - `ax` parameter — use `plot_collection` for composing onto existing figures
 - `MMMPlotSuite(idata=None)` pattern — CV methods no longer need it (they live on `MMMCVPlotSuite`)
