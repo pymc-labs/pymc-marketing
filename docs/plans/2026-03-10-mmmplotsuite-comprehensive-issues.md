@@ -24,22 +24,24 @@
 
 ## I. Structural / Architectural Issues
 
-These are systemic problems not captured by any single GitHub issue.
+arvizThese are systemic problems not captured by any single GitHub issue.
 
 ### I.1 God Class — 5,150 lines, 21+ public methods
 
 `MMMPlotSuite` violates the Single Responsibility Principle. It handles seven distinct
 plotting families:
 
-| Family | Methods |
-|--------|---------|
-| Time-series diagnostics | `posterior_predictive`, `prior_predictive`, `residuals_over_time`, `residuals_posterior_distribution` |
-| Distribution diagnostics | `posterior_distribution`, `channel_parameter`, `prior_vs_posterior` |
-| Saturation/response curves | `saturation_scatterplot`, `saturation_curves`, `saturation_curves_scatter` (deprecated) |
-| Budget allocation | `budget_allocation`, `allocated_contribution_by_channel_over_time` |
-| Sensitivity/uplift/marginal | `sensitivity_analysis`, `uplift_curve`, `marginal_curve` |
-| Decomposition | `waterfall_components_decomposition`, `contributions_over_time`, `channel_contribution_share_hdi` |
-| Cross-validation | `cv_predictions`, `param_stability`, `cv_crps` |
+
+| Family                      | Methods                                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Time-series diagnostics     | `posterior_predictive`, `prior_predictive`, `residuals_over_time`, `residuals_posterior_distribution` |
+| Distribution diagnostics    | `posterior_distribution`, `channel_parameter`, `prior_vs_posterior`                                   |
+| Saturation/response curves  | `saturation_scatterplot`, `saturation_curves`, `saturation_curves_scatter` (deprecated)               |
+| Budget allocation           | `budget_allocation`, `allocated_contribution_by_channel_over_time`                                    |
+| Sensitivity/uplift/marginal | `sensitivity_analysis`, `uplift_curve`, `marginal_curve`                                              |
+| Decomposition               | `waterfall_components_decomposition`, `contributions_over_time`, `channel_contribution_share_hdi`     |
+| Cross-validation            | `cv_predictions`, `param_stability`, `cv_crps`                                                        |
+
 
 Each of these families could be a separate module or mixin. The monolithic class makes
 the file extremely difficult to navigate, test, and extend.
@@ -86,13 +88,15 @@ that operate on an external `samples` dataset would need a small adapter.
 Several methods contain complex nested functions (50–90 lines) that are hard to test,
 debug, and reuse:
 
-| Method | Nested function | Lines |
-|--------|----------------|-------|
-| `cv_predictions` | `_align_y_to_df` | ~15 lines |
-| `cv_predictions` | `_plot_hdi_from_sel` | ~50 lines |
-| `cv_crps` | `_pred_matrix_for_rows` | ~90 lines |
-| `cv_crps` | `_filter_rows_and_y` | ~15 lines |
-| `sensitivity_analysis` | `_plot_line` | ~57 lines |
+
+| Method                 | Nested function         | Lines     |
+| ---------------------- | ----------------------- | --------- |
+| `cv_predictions`       | `_align_y_to_df`        | ~15 lines |
+| `cv_predictions`       | `_plot_hdi_from_sel`    | ~50 lines |
+| `cv_crps`              | `_pred_matrix_for_rows` | ~90 lines |
+| `cv_crps`              | `_filter_rows_and_y`    | ~15 lines |
+| `sensitivity_analysis` | `_plot_line`            | ~57 lines |
+
 
 These should be class methods, private module functions, or factored into helper
 classes.
@@ -115,11 +119,13 @@ HDI band drawing, legend assembly, and time-series line/fill layering.
 
 Currently three different subplot-creation patterns coexist:
 
-| Pattern | Used by |
-|---------|---------|
-| `self._init_subplots()` (standardized helper) | Most methods |
-| `plt.subplots()` directly | `saturation_scatterplot`, `saturation_curves`, `allocated_contribution`, `cv_predictions`, `param_stability`, `residuals_posterior_distribution` |
-| Manual axes normalization after `plt.subplots()` | `saturation_curves` (2277–2282), `allocated_contribution` (3033–3040), `waterfall` (4094–4102) |
+
+| Pattern                                          | Used by                                                                                                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `self._init_subplots()` (standardized helper)    | Most methods                                                                                                                                     |
+| `plt.subplots()` directly                        | `saturation_scatterplot`, `saturation_curves`, `allocated_contribution`, `cv_predictions`, `param_stability`, `residuals_posterior_distribution` |
+| Manual axes normalization after `plt.subplots()` | `saturation_curves` (2277–2282), `allocated_contribution` (3033–3040), `waterfall` (4094–4102)                                                   |
+
 
 The duplicated axes-normalization code (flatten + wrap in ndarray) appears in at least
 three methods, each with slightly different implementations.
@@ -146,13 +152,15 @@ These correspond to GitHub issues #2369–#2378 and #2388, plus additional findi
 
 Methods return at least **five different shapes**:
 
-| Return type | Methods |
-|-------------|---------|
-| `tuple[Figure, NDArray[Axes]]` | Most methods |
-| `Figure` (bare) | `channel_parameter` |
-| `plt.Axes` or `tuple[Figure, NDArray[Axes]]` (union) | `sensitivity_analysis`, `uplift_curve`, `marginal_curve` |
+
+| Return type                                                     | Methods                                                                                                  |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `tuple[Figure, NDArray[Axes]]`                                  | Most methods                                                                                             |
+| `Figure` (bare)                                                 | `channel_parameter`                                                                                      |
+| `plt.Axes` or `tuple[Figure, NDArray[Axes]]` (union)            | `sensitivity_analysis`, `uplift_curve`, `marginal_curve`                                                 |
 | `tuple[Figure, Axes]` or `tuple[Figure, NDArray[Axes]]` (union) | `budget_allocation`, `waterfall_components_decomposition`, `allocated_contribution_by_channel_over_time` |
-| `tuple[Figure, Axes]` (single) | `param_stability` (declared as `NDArray[Axes]`, actually returns single `Axes`) |
+| `tuple[Figure, Axes]` (single)                                  | `param_stability` (declared as `NDArray[Axes]`, actually returns single `Axes`)                          |
+
 
 **Additional finding:** `cv_predictions` declares return `tuple[Figure, NDArray[Axes]]`
 but when `n_axes == 1`, it wraps axes in a Python `list`, not an `NDArray`. The type
@@ -165,21 +173,25 @@ returns `tuple[Figure, Axes]` (single Axes, not array) in most branches.
 
 ### II.2 Inconsistent `original_scale` default (GitHub #2371)
 
-| Default | Methods |
-|---------|---------|
-| `True` | `contributions_over_time`, `waterfall_components_decomposition`, `allocated_contribution_by_channel_over_time` |
-| `False` | `saturation_scatterplot`, `saturation_curves` |
-| Not exposed | `channel_contribution_share_hdi` |
+
+| Default     | Methods                                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------------------- |
+| `True`      | `contributions_over_time`, `waterfall_components_decomposition`, `allocated_contribution_by_channel_over_time` |
+| `False`     | `saturation_scatterplot`, `saturation_curves`                                                                  |
+| Not exposed | `channel_contribution_share_hdi`                                                                               |
+
 
 > **Backward Compatible:** No (changing defaults alters behavior for existing callers; requires deprecation cycle) — **LOE:** M
 
 ### II.3 `plt.show()` and figure discarding in `param_stability` / `cv_predictions` (GitHub #2373)
 
-| Method | `plt.show()` calls |
-|--------|--------------------|
-| `cv_predictions` | 1 (line 4641) |
+
+| Method            | `plt.show()` calls             |
+| ----------------- | ------------------------------ |
+| `cv_predictions`  | 1 (line 4641)                  |
 | `param_stability` | **3** (lines 4762, 4794, 4813) |
-| All other methods | 0 |
+| All other methods | 0                              |
+
 
 `param_stability` is especially problematic — when `dims` is provided, it creates a
 *separate figure per dimension value* in a for-loop, calling `plt.show()` on each.
@@ -201,14 +213,16 @@ block. Thread-unsafe, mutates shared state.
 
 ### II.5 Parameter naming and type inconsistencies (GitHub #1751, #2375)
 
-| Parameter | Inconsistency |
-|-----------|---------------|
-| `var` vs `var_names` | `posterior_predictive` takes `list[str]`, `prior_predictive` takes `str`; neither uses ArviZ's `var_names` convention (GitHub #1751) |
-| `hdi_prob` vs `hdi_probs` | Singular everywhere except `saturation_curves` (plural + accepts `list[float]`) |
-| `figsize` | `tuple[float, float]` in most places; `tuple[int, int]` in `waterfall_components_decomposition`; bare `tuple` in `channel_contribution_share_hdi` |
-| `subplot_kwargs` | `saturation_curves` uses a less-precise annotation |
-| `dims` type | `param_stability` uses a more restrictive type than other methods |
-| `rc_params` | Only available on `saturation_curves` |
+
+| Parameter                 | Inconsistency                                                                                                                                     |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `var` vs `var_names`      | `posterior_predictive` takes `list[str]`, `prior_predictive` takes `str`; neither uses ArviZ's `var_names` convention (GitHub #1751)              |
+| `hdi_prob` vs `hdi_probs` | Singular everywhere except `saturation_curves` (plural + accepts `list[float]`)                                                                   |
+| `figsize`                 | `tuple[float, float]` in most places; `tuple[int, int]` in `waterfall_components_decomposition`; bare `tuple` in `channel_contribution_share_hdi` |
+| `subplot_kwargs`          | `saturation_curves` uses a less-precise annotation                                                                                                |
+| `dims` type               | `param_stability` uses a more restrictive type than other methods                                                                                 |
+| `rc_params`               | Only available on `saturation_curves`                                                                                                             |
+
 
 > **Backward Compatible:** No (renaming parameters breaks keyword callers; requires deprecation aliases) — **LOE:** M
 
@@ -226,13 +240,15 @@ have no option to subset by channel — all channels are always plotted.
 
 ### II.7 Inconsistent figure customization surface (GitHub #822, #2378)
 
-| Customization | Coverage |
-|---------------|----------|
-| `figsize` | 14/21 methods |
-| `ax` parameter | 4/21 methods (`budget_allocation`, `sensitivity_analysis`, `uplift_curve`, `marginal_curve`) |
-| `**kwargs` | Varies — sometimes to `plt.subplots()`, sometimes to plot calls |
-| `rc_params` | 1/21 methods (`saturation_curves` only) |
-| `title` control | Sensitivity family only |
+
+| Customization   | Coverage                                                                                     |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `figsize`       | 14/21 methods                                                                                |
+| `ax` parameter  | 4/21 methods (`budget_allocation`, `sensitivity_analysis`, `uplift_curve`, `marginal_curve`) |
+| `**kwargs`      | Varies — sometimes to `plt.subplots()`, sometimes to plot calls                              |
+| `rc_params`     | 1/21 methods (`saturation_curves` only)                                                      |
+| `title` control | Sensitivity family only                                                                      |
+
 
 7 methods offer **zero** figure customization parameters.
 
@@ -244,12 +260,14 @@ have no option to subset by channel — all channels are always plotted.
 
 ### III.1 Four legacy methods not in the suite (GitHub #2128)
 
-| Legacy method | File | Suite equivalent |
-|---------------|------|-----------------|
-| `plot_grouped_contribution_breakdown_over_time` | `base.py:1068` | **None** (GitHub #2052) |
-| `plot_prior_vs_posterior` | `base.py:1225` | Exists in suite but legacy has different features |
-| `plot_channel_contribution_grid` | `mmm.py:1805` | **None** (GitHub #2053) |
-| `plot_new_spend_contributions` | `mmm.py:2007` | **None** (GitHub #2241) |
+
+| Legacy method                                   | File           | Suite equivalent                                  |
+| ----------------------------------------------- | -------------- | ------------------------------------------------- |
+| `plot_grouped_contribution_breakdown_over_time` | `base.py:1068` | **None** (GitHub #2052)                           |
+| `plot_prior_vs_posterior`                       | `base.py:1225` | Exists in suite but legacy has different features |
+| `plot_channel_contribution_grid`                | `mmm.py:1805`  | **None** (GitHub #2053)                           |
+| `plot_new_spend_contributions`                  | `mmm.py:2007`  | **None** (GitHub #2241)                           |
+
 
 > **Backward Compatible:** Yes (additive — new methods) — **LOE:** L
 
@@ -298,10 +316,10 @@ Copy-pasted from `_get_posterior_predictive_data` without updating.
 **Additional locations of the same copy-paste problem:**
 
 - Line 587–614: The `prior_predictive` method's own docstring says "Plot time series
-  from the **posterior** predictive distribution" and references
-  `self.idata.posterior_predictive`.
+from the **posterior** predictive distribution" and references
+`self.idata.posterior_predictive`.
 - Line 662: The fallback title string reads "Posterior Predictive Time Series" when it
-  should say "Prior Predictive Time Series".
+should say "Prior Predictive Time Series".
 
 **Testing gap:** There is a test for `_get_posterior_predictive_data` error handling but
 not for the prior equivalent `_get_prior_predictive_data`. A regression test should be
@@ -462,14 +480,16 @@ Based on analysis of `tests/mmm/test_plot.py` (~5,336 lines).
 
 ### V.1 Methods with zero or near-zero dedicated tests
 
-| Method | Test count | Quality |
-|--------|-----------|---------|
-| `prior_predictive` | **0** unit tests | Only tested indirectly via legacy `test_plotting.py` |
-| `posterior_predictive` | 1 integration test | No mocked unit tests; missing hdi_prob, original_scale, multi-dim |
-| `budget_allocation` | 2 tests | Type-check only; missing figsize, error paths, bar labels |
-| `uplift_curve` | 1 test | "Doesn't crash" quality |
-| `marginal_curve` | 1 test | "Doesn't crash" quality |
-| `saturation_curves_scatter` | 1 test | Only checks deprecation warning |
+
+| Method                      | Test count         | Quality                                                           |
+| --------------------------- | ------------------ | ----------------------------------------------------------------- |
+| `prior_predictive`          | **0** unit tests   | Only tested indirectly via legacy `test_plotting.py`              |
+| `posterior_predictive`      | 1 integration test | No mocked unit tests; missing hdi_prob, original_scale, multi-dim |
+| `budget_allocation`         | 2 tests            | Type-check only; missing figsize, error paths, bar labels         |
+| `uplift_curve`              | 1 test             | "Doesn't crash" quality                                           |
+| `marginal_curve`            | 1 test             | "Doesn't crash" quality                                           |
+| `saturation_curves_scatter` | 1 test             | Only checks deprecation warning                                   |
+
 
 > **Backward Compatible:** N/A (test-only) — **LOE:** L
 
@@ -477,6 +497,7 @@ Based on analysis of `tests/mmm/test_plot.py` (~5,336 lines).
 
 Many tests only assert `isinstance(fig, Figure)` or `fig is not None`. They don't
 check:
+
 - Axis labels, titles, legend entries
 - Number of axes matches expected dimensions
 - Data plotted matches expected values
@@ -487,6 +508,7 @@ check:
 ### V.3 No edge case tests
 
 No tests cover:
+
 - Single channel scenario (1 media channel)
 - Single geo scenario (1 dimension value)
 - NaN/missing values in contributions or posterior data
@@ -559,15 +581,16 @@ Enhancement to visualize how media effects change over time (time-varying coeffi
 The branch introduces a multi-backend architecture powered by `arviz_plots`:
 
 - **Config system:** `MMMPlotConfig` singleton (modeled after ArviZ `rcParams`) with
-  `plot.backend`, `plot.use_v2`, `plot.show_warnings` settings
+`plot.backend`, `plot.use_v2`, `plot.show_warnings` settings
 - **Legacy extraction:** Original `MMMPlotSuite` renamed to `LegacyMMMPlotSuite` and
-  moved to `legacy_plot.py`
+moved to `legacy_plot.py`
 - **Version dispatch:** `MMM.plot` property returns v1 or v2 suite based on config flag
 - **Deprecation timeline:** v0.18.0 (introduce), v0.19.0 (default), v0.20.0 (remove legacy)
 
 ### Migration progress: ~60–65% complete
 
 **Converted to arviz-plots (9 methods):**
+
 - `posterior_predictive`, `contributions_over_time`
 - `saturation_scatterplot`, `saturation_curves`
 - `budget_allocation_roas` (new method, no legacy equivalent)
@@ -575,36 +598,40 @@ The branch introduces a multi-backend architecture powered by `arviz_plots`:
 - `sensitivity_analysis`, `uplift_curve`, `marginal_curve`
 
 **Still matplotlib-only stubs (4 methods):**
+
 - `prior_predictive`, `residuals_over_time`, `residuals_posterior_distribution`,
-  `posterior_distribution`
+`posterior_distribution`
 
 **Missing entirely (7+ methods from current main):**
+
 - `channel_parameter`, `prior_vs_posterior`, `waterfall_components_decomposition`,
-  `channel_contribution_share_hdi`, `cv_predictions`, `param_stability`, `cv_crps`
+`channel_contribution_share_hdi`, `cv_predictions`, `param_stability`, `cv_crps`
 
 ### Key arviz-plots APIs used
 
-| API | Purpose |
-|-----|---------|
-| `PlotCollection.wrap()` | Time-series layouts (dim-based subplots) |
-| `PlotCollection.grid()` | Grid layouts (rows × cols) |
-| `pc.map()` | Layering visual elements |
-| `pc.add_legend()` | Channel legends |
-| `visuals.fill_between_y` | HDI bands |
-| `visuals.line_xy` | Median/mean lines |
-| `visuals.scatter_xy` | Scatter plots |
-| `visuals.multiple_lines` | Sampled posterior curves |
-| `xr.DataArray.azstats.hdi()` | HDI computation on xarray |
-| `arviz_base.convert_to_datatree` | DataArray → DataTree for `plot_dist` |
+
+| API                              | Purpose                                  |
+| -------------------------------- | ---------------------------------------- |
+| `PlotCollection.wrap()`          | Time-series layouts (dim-based subplots) |
+| `PlotCollection.grid()`          | Grid layouts (rows × cols)               |
+| `pc.map()`                       | Layering visual elements                 |
+| `pc.add_legend()`                | Channel legends                          |
+| `visuals.fill_between_y`         | HDI bands                                |
+| `visuals.line_xy`                | Median/mean lines                        |
+| `visuals.scatter_xy`             | Scatter plots                            |
+| `visuals.multiple_lines`         | Sampled posterior curves                 |
+| `xr.DataArray.azstats.hdi()`     | HDI computation on xarray                |
+| `arviz_base.convert_to_datatree` | DataArray → DataTree for `plot_dist`     |
+
 
 ### Design decisions worth preserving
 
 1. **Every method accepts `plot_collection` and `backend` parameters** — composable
-   plots and per-call backend override
+  plots and per-call backend override
 2. **Shared `_sensitivity_analysis_plot` helper** — eliminated the monkey-patching
-   anti-pattern from `uplift_curve`/`marginal_curve`
+  anti-pattern from `uplift_curve`/`marginal_curve`
 3. **Data injection pattern** — methods accept explicit data parameters with fallback
-   to `self.idata`, enabling testability
+  to `self.idata`, enabling testability
 
 ### Why the branch is stale
 
@@ -619,65 +646,74 @@ conflicts in the existing ones.
 
 ### Critical (blocks other work or causes user-facing bugs)
 
-| ID | Issue | Reason | BC | LOE |
-|----|-------|--------|----|-----|
-| IV.1 | Copy-paste bug in `_get_prior_predictive_data` | Wrong error message misleads users | Yes | XS |
-| II.3 | `plt.show()` + figure discarding in `param_stability` / `cv_predictions` | Silent data loss; prevents customization | No | M |
-| II.4 | Monkey-patching is thread-unsafe | Corrupts state under concurrency | Yes | M |
-| I.2 | Constructor accepts `None, None` | Deferred crash instead of fail-fast | Yes | XS |
+
+| ID   | Issue                                                                    | Reason                                   | BC  | LOE |
+| ---- | ------------------------------------------------------------------------ | ---------------------------------------- | --- | --- |
+| IV.1 | Copy-paste bug in `_get_prior_predictive_data`                           | Wrong error message misleads users       | Yes | XS  |
+| II.3 | `plt.show()` + figure discarding in `param_stability` / `cv_predictions` | Silent data loss; prevents customization | No  | M   |
+| II.4 | Monkey-patching is thread-unsafe                                         | Corrupts state under concurrency         | Yes | M   |
+| I.2  | Constructor accepts `None, None`                                         | Deferred crash instead of fail-fast      | Yes | XS  |
+
 
 ### High (API inconsistencies that confuse users)
 
-| ID | Issue | Reason | BC | LOE |
-|----|-------|--------|----|-----|
-| I.1 | 5,150-line god class | Unmaintainable, hard to extend | Yes | XL |
-| I.3 | MMMIDataWrapper largely bypassed (incl. #2370) | Wrapper bypassed; 5 contrib-var strategies, `StopIteration` bug | Yes | L |
-| II.1 | Return type roulette (5 shapes) | Callers can't write generic code | No | L |
-| II.2 | Inconsistent `original_scale` default | Surprising behavior differences | No | M |
-| II.5 | Parameter naming inconsistencies (incl. `var_names`, #1751) | Confusing API surface | No | M |
-| II.6 | No subsetting on predictive/media methods | 50-geo or many-channel models produce unusable output | Yes | S |
-| II.7 | Inconsistent figure customization | 7 methods have zero customization | Yes | L |
-| I.6 | Duplicated subplot logic — delegate to arviz-plots | Major code reduction opportunity | Yes | XL |
+
+| ID   | Issue                                                       | Reason                                                          | BC  | LOE |
+| ---- | ----------------------------------------------------------- | --------------------------------------------------------------- | --- | --- |
+| I.1  | 5,150-line god class                                        | Unmaintainable, hard to extend                                  | Yes | XL  |
+| I.3  | MMMIDataWrapper largely bypassed (incl. #2370)              | Wrapper bypassed; 5 contrib-var strategies, `StopIteration` bug | Yes | L   |
+| II.1 | Return type roulette (5 shapes)                             | Callers can't write generic code                                | No  | L   |
+| II.2 | Inconsistent `original_scale` default                       | Surprising behavior differences                                 | No  | M   |
+| II.5 | Parameter naming inconsistencies (incl. `var_names`, #1751) | Confusing API surface                                           | No  | M   |
+| II.6 | No subsetting on predictive/media methods                   | 50-geo or many-channel models produce unusable output           | Yes | S   |
+| II.7 | Inconsistent figure customization                           | 7 methods have zero customization                               | Yes | L   |
+| I.6  | Duplicated subplot logic — delegate to arviz-plots          | Major code reduction opportunity                                | Yes | XL  |
+
 
 ### Medium (missing functionality, performance, testing)
 
-| ID | Issue | Reason | BC | LOE |
-|----|-------|--------|----|-----|
-| III.1–III.5 | Missing methods (#2128, #2054, #2242, #2153) | Feature gaps | Yes | S–L |
-| IV.6 | Per-date HDI computation loop | Performance bottleneck | Yes | M |
-| IV.7 | O(n×m) loop in `cv_crps` | Performance bottleneck | Yes | M |
-| IV.10 | Broad exception catching | Masks real bugs | Partial | M |
-| V.1 | `prior_predictive` has 0 tests | Risk of regressions | N/A | L |
-| V.2 | Weak test assertions | False confidence in test suite | N/A | M |
-| I.5 | No shared color palette / mapping | Inconsistent colors across plots | Yes | M |
-| IV.18 | `_compute_residuals` hardcodes `y_original_scale` | Limits residual analysis | Yes | S |
+
+| ID          | Issue                                             | Reason                           | BC      | LOE |
+| ----------- | ------------------------------------------------- | -------------------------------- | ------- | --- |
+| III.1–III.5 | Missing methods (#2128, #2054, #2242, #2153)      | Feature gaps                     | Yes     | S–L |
+| IV.6        | Per-date HDI computation loop                     | Performance bottleneck           | Yes     | M   |
+| IV.7        | O(n×m) loop in `cv_crps`                          | Performance bottleneck           | Yes     | M   |
+| IV.10       | Broad exception catching                          | Masks real bugs                  | Partial | M   |
+| V.1         | `prior_predictive` has 0 tests                    | Risk of regressions              | N/A     | L   |
+| V.2         | Weak test assertions                              | False confidence in test suite   | N/A     | M   |
+| I.5         | No shared color palette / mapping                 | Inconsistent colors across plots | Yes     | M   |
+| IV.18       | `_compute_residuals` hardcodes `y_original_scale` | Limits residual analysis         | Yes     | S   |
+
 
 ### Lower (cleanup, nice-to-have)
 
-| ID | Issue | Reason | BC | LOE |
-|----|-------|--------|----|-----|
-| IV.2 | `plt.gcf()` fragility | Unlikely in practice but architecturally wrong | Yes | S |
-| IV.9 | `**kwargs` + `**subplot_kwargs` conflict | Edge case | Yes | XS |
-| IV.11 | Dead `_cache` in MMMIDataWrapper | Dead code | Yes | XS |
-| IV.12 | `_reduce_and_stack` silently sums | Subtle data bug risk | Partial | XS |
-| IV.13 | Redundant local imports (2 locations) | Noise | Yes | XS |
-| IV.15 | Seaborn dependency for 2 methods | Optional optimization | Yes | S |
-| IV.16 | Error message formatting (raw `\n` in f-strings) | Cosmetic | Yes | XS |
-| IV.17 | No validation of `agg` parameter (hardcoded anyway) | Dead code path | Yes | XS |
-| VI.1 | Plotting gallery (#820) | Documentation | N/A | L |
-| VII.1–VII.3 | Older issues (#76, #765, #1183) | Low urgency | Mixed | S–L |
+
+| ID          | Issue                                               | Reason                                         | BC      | LOE |
+| ----------- | --------------------------------------------------- | ---------------------------------------------- | ------- | --- |
+| IV.2        | `plt.gcf()` fragility                               | Unlikely in practice but architecturally wrong | Yes     | S   |
+| IV.9        | `**kwargs` + `**subplot_kwargs` conflict            | Edge case                                      | Yes     | XS  |
+| IV.11       | Dead `_cache` in MMMIDataWrapper                    | Dead code                                      | Yes     | XS  |
+| IV.12       | `_reduce_and_stack` silently sums                   | Subtle data bug risk                           | Partial | XS  |
+| IV.13       | Redundant local imports (2 locations)               | Noise                                          | Yes     | XS  |
+| IV.15       | Seaborn dependency for 2 methods                    | Optional optimization                          | Yes     | S   |
+| IV.16       | Error message formatting (raw `\n` in f-strings)    | Cosmetic                                       | Yes     | XS  |
+| IV.17       | No validation of `agg` parameter (hardcoded anyway) | Dead code path                                 | Yes     | XS  |
+| VI.1        | Plotting gallery (#820)                             | Documentation                                  | N/A     | L   |
+| VII.1–VII.3 | Older issues (#76, #765, #1183)                     | Low urgency                                    | Mixed   | S–L |
+
 
 ---
 
 ## Appendix: Issue Count Summary
 
-| Category | GitHub Issues | Code-Review Findings | Total |
-|----------|--------------|---------------------|-------|
-| Structural / Architectural | — | 6 | 6 |
-| API Consistency | 9 (#822, #1751, #2369, #2371, #2373–#2376, #2378) | 0 | 7 |
-| Missing Functionality | 7 (#2052–#2242, #2153) | 1 | 5 |
-| Code Quality & Bugs | — | 18 | 18 |
-| Test Coverage Gaps | — | 5 | 5 |
-| Documentation | 1 (#820) | 0 | 1 |
-| Older / Miscellaneous | 3 (#76, #765, #1183) | 0 | 3 |
-| **Total** | **20** | **30** | **45** |
+
+| Category                   | GitHub Issues                                     | Code-Review Findings | Total  |
+| -------------------------- | ------------------------------------------------- | -------------------- | ------ |
+| Structural / Architectural | —                                                 | 6                    | 6      |
+| API Consistency            | 9 (#822, #1751, #2369, #2371, #2373–#2376, #2378) | 0                    | 7      |
+| Missing Functionality      | 7 (#2052–#2242, #2153)                            | 1                    | 5      |
+| Code Quality & Bugs        | —                                                 | 18                   | 18     |
+| Test Coverage Gaps         | —                                                 | 5                    | 5      |
+| Documentation              | 1 (#820)                                          | 0                    | 1      |
+| Older / Miscellaneous      | 3 (#76, #765, #1183)                              | 0                    | 3      |
+| **Total**                  | **20**                                            | **30**               | **45** |
