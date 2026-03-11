@@ -29,8 +29,8 @@
 `MMMPlotSuite` in `pymc_marketing/mmm/plot.py` is a single class that handles seven
 distinct plotting families. At 5,150 lines it violates the Single Responsibility
 Principle and is painful to navigate, test, and extend. A comprehensive audit
-identified 63 issues across structural, API consistency, code quality, and test
-coverage dimensions (see `2026-03-10-mmmplotsuite-comprehensive-issues.md`).
+identified 45 issues across structural, API consistency, code quality, and test
+coverage dimensions (see [comprehensive issues list](./2026-03-10-mmmplotsuite-comprehensive-issues.md)).
 
 ### The Seven Plotting Families
 
