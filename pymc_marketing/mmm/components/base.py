@@ -441,7 +441,7 @@ class Transformation:
         """
         coords = coords or {}
         with pm.Model(coords=coords):
-            variables = self._create_distributions(dims=dims)
+            variables = self._create_distributions()
 
             # Register any constant tensors (non-distribution priors) as
             # pm.Deterministic nodes so they are captured in the prior output.
