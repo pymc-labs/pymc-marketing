@@ -48,7 +48,8 @@ def test_prior_without_dims(seasonality) -> None:
     periodicity = seasonality(n_order=2, prior=prior)
 
     assert periodicity.prior.dims == (periodicity.prefix,)
-    assert prior.dims is None
+    # `pymc_extras.prior.Prior` normalizes unset dims to an empty tuple.
+    assert prior.dims == ()
 
 
 @pytest.mark.parametrize(

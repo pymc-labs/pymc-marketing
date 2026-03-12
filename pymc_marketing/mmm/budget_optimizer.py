@@ -1081,11 +1081,21 @@ class BudgetOptimizer(BaseModel):
         # Local import to avoid circular import at module load time
         from pymc_marketing.pytensor_utils import extract_response_distribution
 
-        return extract_response_distribution(
+        response_distribution = extract_response_distribution(
             pymc_model=self._pymc_model,
             idata=self.mmm_model.idata,
             response_variable=response_variable,
         )
+
+        # Utility functions used by the optimizer operate on a 1D "samples" vector.
+        # Some response variables can carry extra dimensions (e.g. per-date values),
+        # yielding tensors of shape (sample, ...). Flatten to a single vector so
+        # downstream utilities that expect 1D inputs can operate without imposing
+        # a particular aggregation semantics here.
+        if response_distribution.type.ndim > 1:
+            response_distribution = response_distribution.reshape((-1,))
+
+        return response_distribution
 
     def _compile_objective_and_grad(self):
         """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""

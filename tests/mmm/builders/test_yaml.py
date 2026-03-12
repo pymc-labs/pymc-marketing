@@ -50,6 +50,10 @@ def get_yaml_files():
         if "wrong_" not in file.name
         and "multi_dimensional_example_model.yml" not in file.name
         and "multi_dimensional_fivetran.yml" not in file.name
+        # Exclude cost_per_unit example: it's a documentation-focused config
+        # that exercises cost-per-unit MMM behavior separately from the
+        # generic YAML builder smoke tests in this module.
+        and "cost_per_unit_example.yml" not in file.name
     ]
 
 
