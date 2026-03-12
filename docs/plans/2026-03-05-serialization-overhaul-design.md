@@ -29,6 +29,7 @@
   - [What Gets Added](#what-gets-added)
 - [File Layout](#file-layout)
 - [Error Handling](#error-handling)
+- [Implementation Order](#implementation-order)
 - [Testing Strategy](#testing-strategy)
 - [Tickets Resolved by This Design](#tickets-resolved-by-this-design)
 
@@ -56,9 +57,16 @@ contract, making it difficult for users to create custom serializable components
 
 ### Current Serialization Patterns (4+, inconsistent)
 
+These patterns fall into two conceptual layers:
+
+**Component layer** — how individual components serialize themselves into dicts:
+
 1. **`to_dict()`/`from_dict()` + `register_deserialization`** — adstock, saturation, HSGP, fourier, events/Basis
 2. **Pydantic `model_dump()`/`model_validate()`** — HSGPKwargs, Scaling, LinearTrend, MuEffect subclasses
 3. **`singledispatch` serializers** — per-type handlers for MuEffects in `multidimensional.py`
+
+**Orchestrator layer** — how the MMM packs/unpacks those component dicts into idata attrs:
+
 4. **Manual JSON encoding** — `create_idata_attrs()` / `attrs_to_init_kwargs()` on MMM
 
 ## Design Decisions
@@ -107,7 +115,14 @@ the new `TypeRegistry` system at that time.
 
 ## Solution Overview
 
-The proposed solution replaces the four inconsistent serialization patterns with a unified system built on three pillars:
+The proposed solution addresses both layers of the serialization problem —
+the component layer (patterns 1–3: how individual components serialize
+themselves) and the orchestrator layer (pattern 4: how the MMM packs those
+into idata attrs). The component layer is the priority since that's where
+all known failures live; the orchestrator simplification follows
+mechanically once components round-trip correctly.
+
+The unified system is built on three pillars:
 
 **1. One registry, one contract.** A `TypeRegistry` singleton (in a new `pymc_marketing/serialization.py` module) replaces all scattered registries, lookup dicts, and `singledispatch` handlers. Every serializable object produces a JSON dict with a `__type__` key containing its fully-qualified class path. The registry dispatches deserialization from that key alone — no more `"class"`, `"hsgp_class"`, `"lookup_name"`, or key-set heuristics. Classes opt in via a `@registry.register` decorator or by inheriting `SerializableMixin` (which auto-registers subclasses). User-defined types follow the same single mechanism.
 
@@ -609,6 +624,38 @@ effect = registry.deserialize(effect_data, context=ctx)
 7. **HSGP Prior equality** — HSGP priors that contain PyTensor symbolic expressions (e.g., `lam=-pt.log(mass)/upper`) are replaced by `DeferredFactory` instances that store the factory function and scalar args. After a save/load roundtrip, `deferred.resolve()` re-creates an identical `Prior` with fresh tensor expressions, so the equality problem disappears — there are no stale tensor-vs-float type mismatches to compare.
 
 8. **Silent failures** — The broad `except Exception` catch-all in `build_from_idata()` is removed. All MuEffect deserialization goes through `registry.deserialize()`, which raises an explicit `SerializationError` with an actionable message. If deserialization fails, the user knows immediately.
+
+## Implementation Order
+
+The work is sequenced in two phases matching the two conceptual layers:
+
+**Phase 1 — Component layer (patterns 1–3).** Fix how individual components
+serialize themselves. This is where all known failures live and where the
+design has the most impact:
+
+1. `pymc_marketing/serialization.py` — `TypeRegistry`, `Serializable` protocol,
+   `SerializableMixin`, `DeferredFactory`, `DeserializationContext`, `SerializationError`
+2. Transformation subclasses (adstock, saturation, basis) — add `from_dict()`
+   classmethods, emit `__type__`, remove `RegistrationMeta`/`lookup_name`,
+   register with `@registry.register`
+3. HSGP classes — `DeferredFactory` for `eta`/`ls`, `list→tuple` normalization
+   in `from_dict()`, `__type__` key, `@registry.register`
+4. HSGPKwargs — custom `to_dict()`/`from_dict()` with `DeferredFactory` for `cov_func`
+5. Fourier, EventEffect, MediaTransformation — `__type__` key, `@registry.register`
+6. MuEffect subclasses — `SerializableMixin` on `MuEffect` base, custom overrides
+   for `FourierEffect` and `EventAdditiveEffect` (including supplementary data storage)
+7. Remove `singledispatch` serializers, `_MUEFFECT_DESERIALIZERS`, per-type lookup dicts
+
+**Phase 2 — Orchestrator layer (pattern 4).** Once every component can correctly
+round-trip via `TypeRegistry`, simplify how the MMM stores and retrieves them:
+
+1. Update `_serializable_model_config` in `multidimensional.py` to use
+   `registry.serialize()` instead of duck-typing
+2. Simplify `create_idata_attrs()` / `attrs_to_init_kwargs()` — all component
+   attrs go through `registry.serialize()`/`registry.deserialize()`
+3. Add `__serialization_version__` attr to idata
+4. Remove the broad `except Exception` catch-all in `build_from_idata()`
+5. `pymc_marketing/migrate.py` — version-aware migration for old `.nc` files
 
 ## Testing Strategy
 
