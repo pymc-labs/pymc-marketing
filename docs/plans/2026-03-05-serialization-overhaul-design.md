@@ -16,7 +16,7 @@
 - [Solution Overview](#solution-overview)
 - [Architecture](#architecture)
   - [1. Core Serialization Infrastructure](#1-core-serialization-infrastructure)
-  - [2. DeferredFactory — Solving the PyTensor Problem](#2-deferredfactory--solving-the-pytensor-problem)
+  - [2. DeferredFactory — Solving the Non-Serializable State Problem](#2-deferredfactory--solving-the-non-serializable-state-problem)
   - [3. EventAdditiveEffect & Supplementary Data Storage](#3-eventadditiveeffect--supplementary-data-storage)
   - [4. Registry Consolidation & MMM Save/Load](#4-registry-consolidation--mmm-saveload)
   - [5. Migration Tool](#5-migration-tool)
@@ -300,10 +300,13 @@ class DeserializationContext:
     idata: az.InferenceData | None = None
 ```
 
-### 2. DeferredFactory — Solving the PyTensor Problem
+### 2. DeferredFactory — Solving the Non-Serializable State Problem
 
-Instead of storing the result of `create_eta_prior(upper=5.0, mass=0.95)` (a `Prior`
-with tensor params), store the recipe:
+Some objects cannot be JSON-encoded: PyTensor symbolic expressions, live PyMC
+covariance objects, and any future state that only makes sense at runtime.
+Instead of attempting to serialize these, store a recipe — the factory function
+path and its scalar arguments. For example, instead of storing the result of
+`create_eta_prior(upper=5.0, mass=0.95)` (a `Prior` with tensor params), store:
 
 ```python
 class DeferredFactory(BaseModel):
