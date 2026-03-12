@@ -55,7 +55,7 @@ contract, making it difficult for users to create custom serializable components
 | **HSGP Prior equality** (SoftPlusHSGP, HSGPPeriodic) | `Prior` objects store PyTensor symbolic expressions (`lam=-pt.log(mass)/upper`). `Prior.to_dict()` handles this correctly via `.eval()`, but after roundtrip the parameter type changes from `TensorVariable` to `float`, breaking `Prior.__eq__` (TypeError on cross-type comparison). Dict-level roundtrip works. | When comparing a loaded model's HSGP priors against original objects (e.g., asserting config equality after save/load). Does not affect model fitting or predictions — only equality checks break. | [source](../../pymc_marketing/mmm/hsgp.py#L204), [test](../../tests/mmm/test_serialization_issues.py#L61), [#2087](https://github.com/pymc-labs/pymc-marketing/issues/2087) |
 | **Silent failures** | `build_from_idata()` catches all MuEffect deserialization errors with a broad `except Exception` and only warns — model loads but with missing effects. Effects dropped with only a warning and no recovery path. | When loading any model where a MuEffect fails to deserialize. A warning is emitted but the model appears to load successfully with missing effects — predictions and contributions will be wrong, and the warning is easy to miss. | [catch-all](../../pymc_marketing/mmm/multidimensional.py#L3301), [test](../../tests/mmm/test_serialization_issues.py#L195), [#1921](https://github.com/pymc-labs/pymc-marketing/issues/1921) |
 
-### Current Serialization Patterns (4+, inconsistent)
+### Current Serialization Patterns
 
 These patterns fall into two conceptual layers:
 
@@ -472,8 +472,9 @@ class MyTransform(Transformation):
 2. Applies sequential migration steps: v0 -> v1 -> ... -> current
 3. Each step rewrites attrs (adding `__type__` keys, renaming `"hsgp_class"`,
    converting MuEffect `"class"` keys to fully-qualified `"__type__"`)
-4. Runnable standalone: `python -m pymc_marketing.migrate model.nc`
-5. Called automatically by `load()` on old versions with a deprecation warning
+4. Drops the stale `id` attr (the hash changes when `to_dict()` output changes; the next `save()` writes the correct one)
+5. Runnable standalone: `python -m pymc_marketing.migrate model.nc`
+6. Called automatically by `load()` on old versions with a deprecation warning
 
 ## End State Summary
 
