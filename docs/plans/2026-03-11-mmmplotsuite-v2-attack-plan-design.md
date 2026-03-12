@@ -28,12 +28,14 @@
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Decomposition approach | **D: Namespace Sub-Objects** | Best discoverability (`mmm.plot.sensitivity.analysis()`); aligns with 6 plotting families; each namespace is small and focused |
+| Transformations namespace | **`transformations` instead of `saturation`** | Saturation and adstock are both channel transformations. Grouping under `transformations` provides a natural home for future adstock plots without another namespace addition. Current saturation methods are prefixed (`saturation_scatterplot`, `saturation_curves`) to stay unambiguous when adstock methods join later. |
 | Suite separation | **Two separate suites: `MMMPlotSuite` + `MMMCVPlotSuite`** | 5 of 20 methods don't need `idata` at all (3 CV + 2 budget). CV methods share zero meaningful code with idata methods — only 4 subplot-plumbing helpers, all of which are replaced by arviz-plots. `mmm.plot` should not expose CV methods; `cv.plot` should not expose model-fit methods. Clean separation of concerns. |
 | arviz-plots adoption | **Included** in major release | Avoids a second breaking change for figure customization; II.7 is solved by exposing arviz-plots' native customization model. See [figure customization design](./2026-03-11-figure-customization-design.md) |
 | Release strategy | **Major release** for breaking changes + decomposition (each PR ships with tests); **follow-up minor releases** for missing features, performance, edge-case tests, docs | Keeps the major release focused and reviewable; no test debt at ship time |
 | Backward compatibility | **Hard break** — old method names stop working | Migration guide provides the full old→new mapping; no deprecation shims |
 | PR strategy | **Family-by-family clean rooms** — one PR per namespace, each family is "born clean" with tests | Focused, reviewable PRs; each ships code + tests together; parallelizable across contributors |
 | Namespace constructor arg | **`data: MMMIDataWrapper` only** — no separate `idata` arg | `MMMIDataWrapper` already holds `idata` as a public attribute; passing both creates a redundant access path that undermines I.3 (all access through wrapper). `MMM.plot` already constructs `MMMPlotSuite(data=data)` without a separate `idata`. Applies only to `MMMPlotSuite` namespaces; `MMMCVPlotSuite` takes no constructor data. |
+| Optional `idata` override on methods | **Every method that accesses `self._data` accepts `idata: az.InferenceData \| None = None`** | Users work with `InferenceData` directly — this is the object they have in hand. When provided, the method constructs `MMMIDataWrapper(idata)` and uses that for all access (both `.idata` and wrapper helpers like `get_channel_spend()`). Makes methods fully reusable with different fitted models without constructing a new suite. Consistent pattern — currently only `posterior_predictive` and `prior_predictive` accept an ad-hoc `idata` override; the rest silently bind to `self._data`. With this decision, all data-dependent methods get the same override. Resolution: `data = MMMIDataWrapper(idata) if idata is not None else self._data`. |
 | `MMMPlotlyFactory` | **Out of scope** for this release | The `backend` parameter provides a migration path to Plotly via arviz-plots. Deprecation of `MMMPlotlyFactory` can be evaluated once arviz-plots Plotly support stabilizes. |
 
 ---
@@ -51,7 +53,7 @@ mmm/plotting/
     cv_suite.py              # MMMCVPlotSuite — 3 flat CV methods, no data dependency
     diagnostics.py           # DiagnosticsPlots namespace (4 methods)
     distributions.py         # DistributionPlots namespace (3 methods)
-    saturation.py            # SaturationPlots namespace (2 methods)
+    transformations.py       # TransformationPlots namespace (2 saturation methods; future home for adstock plots)
     budget.py                # BudgetPlots namespace (2 methods)
     sensitivity.py           # SensitivityPlots namespace (3 methods)
     decomposition.py         # DecompositionPlots namespace (3 methods)
@@ -70,8 +72,8 @@ mmm.plot.distributions.posterior()
 mmm.plot.distributions.channel_parameter()
 mmm.plot.distributions.prior_vs_posterior()
 
-mmm.plot.saturation.scatterplot()
-mmm.plot.saturation.curves()
+mmm.plot.transformations.saturation_scatterplot()
+mmm.plot.transformations.saturation_curves()
 
 mmm.plot.budget.allocation(samples)
 mmm.plot.budget.contribution_over_time(samples)
@@ -88,6 +90,11 @@ mmm.plot.decomposition.channel_share_hdi()
 cv.plot.predictions(results)
 cv.plot.param_stability(results)
 cv.plot.crps(results)
+
+# Optional idata override — use a different fitted model's InferenceData
+other_idata: az.InferenceData = other_mmm.idata
+mmm.plot.diagnostics.posterior_predictive(idata=other_idata)
+mmm.plot.decomposition.waterfall(idata=other_idata)
 ```
 
 ### Suite Wrappers
@@ -99,7 +106,7 @@ class MMMPlotSuite:
     def __init__(self, data: MMMIDataWrapper):
         self.diagnostics = DiagnosticsPlots(data)
         self.distributions = DistributionPlots(data)
-        self.saturation = SaturationPlots(data)
+        self.transformations = TransformationPlots(data)
         self.budget = BudgetPlots(data)
         self.sensitivity = SensitivityPlots(data)
         self.decomposition = DecompositionPlots(data)
@@ -123,6 +130,20 @@ class MMMCVPlotSuite:
 > already holds `idata` as a public attribute (`data.idata`), so passing
 > it separately would create a redundant access path and undermine the
 > rule that all data access goes through the wrapper (I.3).
+>
+> **Design note — method-level `idata` override:** Every method that
+> accesses `self._data` accepts `idata: az.InferenceData | None = None`
+> and resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data`
+> at the top. All subsequent access in the method goes through the resolved
+> local `data` — both `data.idata` and wrapper helpers like
+> `data.get_channel_spend()`. This makes individual methods fully reusable
+> with different fitted models (e.g., comparing two model fits side-by-side)
+> without constructing a new suite instance. Currently only
+> `posterior_predictive` and `prior_predictive` have an ad-hoc `idata`
+> override; this decision standardizes the pattern across all 17
+> data-dependent methods. The parameter is `az.InferenceData` (not
+> `MMMIDataWrapper`) because that is the object users have in hand —
+> the wrapper construction is an internal detail.
 >
 > **Design note — MMMCVPlotSuite:** This suite has no constructor data
 > dependency. The 3 CV methods receive all their plotting data via the
@@ -171,6 +192,7 @@ class SensitivityPlots:
         channels: list[str] | None = None,
         hdi_prob: float = 0.94,
         original_scale: bool = True,
+        idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         plot_collection: PlotCollection | None = None,
@@ -202,6 +224,7 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 
 | Parameter | Type | Default | Notes |
 |-----------|------|---------|-------|
+| `idata` | `az.InferenceData \| None` | `None` | Override instance data; method resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data`. Only on `MMMPlotSuite` methods that access `self._data`. |
 | `dims` | `dict[str, Any] \| None` | `None` | Subset dimensions (e.g., `{"geo": ["CA", "NY"]}`) |
 | `figsize` | `tuple[float, float] \| None` | `None` | Convenience for `figure_kwargs`; ignored with `plot_collection` |
 | `plot_collection` | `PlotCollection \| None` | `None` | Plot onto existing arviz-plots collection |
@@ -234,6 +257,7 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 - All data access goes through `MMMIDataWrapper` methods
 - All methods use `PlotCollection` internally for rendering (I.6)
 - Bar-plot methods that cannot use arviz-plots fall back to matplotlib with the same parameter signature (see [figure customization design](./2026-03-11-figure-customization-design.md#arviz-plots-coverage-gaps))
+- Every method that accesses `self._data` resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data` at the top of the method body. All subsequent access in the method uses the resolved local `data` (both `data.idata` and wrapper helpers like `data.get_channel_spend()`), never `self._data` directly.
 
 ### MMMCVPlotSuite Contract
 
@@ -242,6 +266,7 @@ as `MMMPlotSuite` methods (figsize, plot_collection, backend, visuals,
 aes_by_visuals, return_as_pc, **pc_kwargs). Differences:
 
 - No `self._data` — all plotting data comes from the `results` argument
+- **No `idata` override parameter** — since there is no `self._data`, the `idata` parameter does not apply. CV methods already receive all their data via the `results` argument.
 - `dims` validation runs against the `results` data, not a model's `idata`
 - `_validate_dims` is called as a standalone function from `_helpers.py`,
   passing the relevant dataset from `results` (not `self.idata.posterior`)
@@ -292,8 +317,8 @@ scaffolding. They move into their respective namespace classes or into
 | `_get_prior_predictive_data` | Retrieves `prior_predictive` group | `DiagnosticsPlots` private method or inline (only 2 callers) | 2 |
 | `_compute_residuals` | Computes `y_pred - y_obs` (IV.18: hardcoded var) | `DiagnosticsPlots` private method; fix IV.18 | 2 |
 | `_reduce_and_stack` | Sums leftover dims, stacks chain+draw (IV.12: silent sum) | Module-level in `decomposition.py` (only decomposition methods use it); fix IV.12 | 5 |
-| `_spend_or_data_label` | Returns `"spend"` or `"data"` label | Inline in saturation namespace (trivial, 2 callers) | 4 |
-| `_select_channel_x_for_indexers` | Picks spend vs raw channel data | Saturation namespace private method | 4 |
+| `_spend_or_data_label` | Returns `"spend"` or `"data"` label | Inline in transformations namespace (trivial, 2 callers) | 4 |
+| `_select_channel_x_for_indexers` | Picks spend vs raw channel data | Transformations namespace private method | 4 |
 | `_plot_budget_allocation_bars` | Renders budget bar chart | `BudgetPlots` private method | 6 |
 | `_prepare_allocated_contribution_data` | Extracts allocation data from samples | `BudgetPlots` private method | 6 |
 | `_plot_single_allocated_contribution` | Renders single allocation panel | `BudgetPlots` private method | 6 |
@@ -324,7 +349,7 @@ scaffolding. They move into their respective namespace classes or into
 | II.3 | `plt.show()` in methods | Remove; `param_stability` uses multi-panel figure instead of per-dim loop |
 | II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob` singular, `figsize: tuple[float, float]` |
 | VII.1 | Coord name `x` → `channel` | Rename coordinate in `channel_share_hdi` |
-| — | Remove `saturation_curves_scatter` | Already deprecated; hard removal with no shim (callers get `AttributeError`). Migration guide points to `saturation.scatterplot()` |
+| — | Remove `saturation_curves_scatter` | Already deprecated; hard removal with no shim (callers get `AttributeError`). Migration guide points to `transformations.saturation_scatterplot()` |
 
 **Non-breaking, included during decomposition:**
 
@@ -384,16 +409,32 @@ scaffolding. They move into their respective namespace classes or into
 **Dependency graph:**
 
 ```
-PR 1 (Foundation) → PRs 2–8 (parallelizable, all depend only on PR 1)
-PRs 2–8 → PR 9 (Suite Wrappers + Cleanup, depends on all family PRs)
-PR 9 → PR 10 (Migration Guide)
+PR 1 (Foundation)
+ ├→ PR 4 (Transformations — template PR, ships first)
+ │   └→ PRs 2, 3, 5, 6, 7 (parallel, follow PR 4's established pattern)
+ ├→ PR 8 (MMMCVPlotSuite — parallel with PR 4; different architecture, no shared template)
+ │
+ All family PRs (2–8) → PR 9 (Suite Wrappers + Cleanup)
+                          └→ PR 10 (Migration Guide)
 ```
 
-> **Testing strategy:** Every family PR (2–8) ships with its own tests —
-> return-type checks, axis-count assertions, parameter variations, and
-> basic edge cases. PR 9 removes legacy `test_plotting.py` tests and
-> parametrized cross-cutting  tests that verify the standard API contract
-> (return type, standard params, `dims` filtering) across all namespaces.
+**Why PR 4 is the template:** One family PR must ship first to prove
+the structural pattern (namespace class, standard params, `PlotCollection`,
+tests) in production code. PR 4 is the best candidate: M LOE (2 methods,
+~471 lines) ships faster than PR 2's L LOE (4 methods, ~512 lines);
+covers both core plot types (line + HDI band, scatter); and has minimal
+domain-specific complications — the work is almost entirely the
+structural pattern itself.
+
+PR 8 (`MMMCVPlotSuite`) is independently parallel because it has a
+fundamentally different architecture — no `self._data`, all plotting
+data arrives via the `results` argument, and it's a separate suite
+class. It doesn't benefit from the same template as PRs 2–7.
+**Testing strategy:** Every family PR (2–8) ships with its own tests —
+return-type checks, axis-count assertions, parameter variations, and
+basic edge cases. PR 9 removes legacy `test_plotting.py` tests and
+adds parametrized cross-cutting tests that verify the standard API contract
+(return type, standard params, `dims` filtering) across all namespaces.
 
 ### PR 1 — Foundation
 
@@ -434,7 +475,7 @@ rewrites its methods using `PlotCollection` directly.
 - II.6 — Add `dims` parameter
 - II.7 — Add 6 standard customization params (arviz-plots)
 
-**LOE:** L (4 methods, establishes the pattern for all subsequent PRs)
+**LOE:** L (4 methods; follows the pattern established by PR 4)
 
 ---
 
@@ -454,11 +495,27 @@ rewrites its methods using `PlotCollection` directly.
 
 ---
 
-### PR 4 — Saturation Namespace
+### PR 4 — Transformations Namespace ⟵ template PR
+
+> **Template role:** This is the first family PR to land. It establishes
+> the concrete reference implementation that PRs 2, 3, 5, 6, 7 follow.
+> The PR must demonstrate every structural pattern in a reviewable,
+> copy-able form:
+>
+> 1. Namespace class structure (`class TransformationPlots`, `__init__(self, data)`, `self._data`)
+> 2. Full standard signature (all 6 customization params + `idata` override + `return_as_pc` + `**pc_kwargs`)
+> 3. `data = MMMIDataWrapper(idata) if idata is not None else self._data` resolution at the top of each method
+> 4. `_process_plot_params()` call to validate/normalize params
+> 5. `_validate_dims()` call against the correct dataset
+> 6. `PlotCollection.wrap()` / `.grid()` creation from xarray data
+> 7. `pc.map(...)` for rendering (line + HDI band in `saturation_curves`, scatter in `saturation_scatterplot`)
+> 8. `_extract_matplotlib_result()` conversion to `tuple[Figure, NDArray[Axes]]`
+> 9. All access exclusively through resolved local `data` (no `self._data` after resolution)
+> 10. Test file with return-type checks, axis-count assertions, `dims` filtering, `idata` override, `return_as_pc=True`
 
 **Methods:**
-- `saturation_scatterplot` → `mmm.plot.saturation.scatterplot()`
-- `saturation_curves` → `mmm.plot.saturation.curves()`
+- `saturation_scatterplot` → `mmm.plot.transformations.saturation_scatterplot()`
+- `saturation_curves` → `mmm.plot.transformations.saturation_curves()`
 - Remove `saturation_curves_scatter` entirely (already deprecated; not carried into new namespace)
 
 **Fixes included:**
@@ -467,7 +524,7 @@ rewrites its methods using `PlotCollection` directly.
 - IV.16 — Fix error message formatting (raw `\n`)
 - II.6 — Add channel subsetting via `dims`
 
-**LOE:** M
+**LOE:** M (2 methods; ships first to unblock parallel work on PRs 2, 3, 5, 6, 7)
 
 ---
 
@@ -576,6 +633,8 @@ rewrites its methods using `PlotCollection` directly.
     returns `PlotCollection`
   - `@pytest.mark.parametrize` over all public methods: `dims` parameter
     accepted and filters correctly
+  - `@pytest.mark.parametrize` over all data-dependent methods: `idata`
+    override accepted and used instead of `self._data`
   - Constructor validation: `MMMPlotSuite(data=None)` raises (I.2)
   - Old import path raises `ImportError` with migration message
 
@@ -603,7 +662,7 @@ These are resolved in PR 1 (Foundation) and enforced by every subsequent PR:
 |---------|-----------|
 | Suite separation | `MMMPlotSuite` for model-fit plots (requires `data`); `MMMCVPlotSuite` for CV plots (stateless). `mmm.plot` returns the former; `cv.plot` returns the latter. No cross-contamination. |
 | Helper removal | 5 subplot-scaffolding helpers (`_init_subplots`, `_build_subplot_title`, `_dim_list_handler`, `_get_additional_dim_combinations`, `_add_median_and_hdi`) are **not ported** — `PlotCollection` replaces them. See [Helper Function Removal Plan](#helper-function-removal-plan). |
-| I.3 — All methods use `MMMIDataWrapper` | `MMMPlotSuite` namespace classes receive only `data: MMMIDataWrapper` (no separate `idata` arg); no raw `self._data.idata.posterior` access. `MMMCVPlotSuite` has no `self._data` at all. |
+| I.3 — All methods use `MMMIDataWrapper` | `MMMPlotSuite` namespace classes receive only `data: MMMIDataWrapper` (no separate `idata` arg); no raw `self._data.idata.posterior` access. `MMMCVPlotSuite` has no `self._data` at all. Every data-dependent method accepts `idata: az.InferenceData | None = None` and resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data` — all access goes through the resolved local `data`. |
 | I.4 — No nested functions | Extract to module-level private functions or namespace private methods |
 | I.5 — Shared color palette | `_helpers.channel_color_map(channels)` returns consistent channel→color dict |
 | I.6 — arviz-plots adoption | All methods use `PlotCollection` internally; bar-plot methods fall back to matplotlib |
@@ -637,9 +696,9 @@ separate `MMMCVPlotSuite`, accessed via `cv.plot`.
 | `mmm.plot.posterior_distribution()` | `mmm.plot.distributions.posterior()` |
 | `mmm.plot.channel_parameter()` | `mmm.plot.distributions.channel_parameter()` |
 | `mmm.plot.prior_vs_posterior()` | `mmm.plot.distributions.prior_vs_posterior()` |
-| `mmm.plot.saturation_scatterplot()` | `mmm.plot.saturation.scatterplot()` |
-| `mmm.plot.saturation_curves()` | `mmm.plot.saturation.curves()` |
-| `mmm.plot.saturation_curves_scatter()` | **Removed** (use `saturation.scatterplot`) |
+| `mmm.plot.saturation_scatterplot()` | `mmm.plot.transformations.saturation_scatterplot()` |
+| `mmm.plot.saturation_curves()` | `mmm.plot.transformations.saturation_curves()` |
+| `mmm.plot.saturation_curves_scatter()` | **Removed** (use `transformations.saturation_scatterplot`) |
 | `mmm.plot.waterfall_components_decomposition()` | `mmm.plot.decomposition.waterfall()` |
 | `mmm.plot.contributions_over_time()` | `mmm.plot.decomposition.contributions_over_time()` |
 | `mmm.plot.channel_contribution_share_hdi()` | `mmm.plot.decomposition.channel_share_hdi()` |
@@ -657,14 +716,15 @@ separate `MMMCVPlotSuite`, accessed via `cv.plot`.
 | Old | New | Affected methods |
 |-----|-----|-----------------|
 | `var: str` or `var: list[str]` | `var_names: list[str]` | `posterior_predictive`, `prior_predictive` |
-| `hdi_probs: list[float]` | `hdi_prob: float` | `saturation.curves` |
+| `hdi_probs: list[float]` | `hdi_prob: float` | `transformations.saturation_curves` |
 | `figsize: tuple[int, int]` | `figsize: tuple[float, float]` | `decomposition.waterfall` |
+| `idata: xr.Dataset \| None` (ad-hoc, 2 methods) | `idata: az.InferenceData \| None` (consistent, all data-dependent methods) | All `MMMPlotSuite` methods that access `self._data` |
 
 ## Default Changes
 
 | Parameter | Old default | New default | Affected methods |
 |-----------|------------|-------------|-----------------|
-| `original_scale` | `False` | `True` | `saturation.scatterplot`, `saturation.curves` |
+| `original_scale` | `False` | `True` | `transformations.saturation_scatterplot`, `transformations.saturation_curves` |
 
 ## Return Type Changes
 
@@ -696,6 +756,7 @@ All methods now accept a consistent set of customization parameters
 - No method calls `plt.show()` — you control when to display
 - `param_stability` combines all dimension values into a single multi-panel figure (use `dims` to subset)
 - `MMMPlotSuite` constructor requires valid `data: MMMIDataWrapper` (no more `MMMPlotSuite(idata=None)`)
+- All data-dependent methods accept `idata: az.InferenceData | None = None` to override instance data (e.g., plot with a different fitted model's InferenceData without constructing a new suite — the wrapper is constructed internally)
 - CV methods moved to separate `MMMCVPlotSuite` — access via `cv.plot` instead of `mmm.plot`
 - `cv.plot` no longer exposes model-fit methods; `mmm.plot` no longer exposes CV methods
 - All methods use arviz-plots `PlotCollection` internally
@@ -704,7 +765,7 @@ All methods now accept a consistent set of customization parameters
 ## Removed
 
 - **Import path changed:** `from pymc_marketing.mmm.plot import MMMPlotSuite` → `from pymc_marketing.mmm.plotting import MMMPlotSuite`. The old `mmm/plot.py` module is replaced with a stub that raises `ImportError` with migration guidance.
-- `saturation_curves_scatter` — use `mmm.plot.saturation.scatterplot()` instead
+- `saturation_curves_scatter` — use `mmm.plot.transformations.saturation_scatterplot()` instead
 - `ax` parameter — use `plot_collection` for composing onto existing figures
 - `MMMPlotSuite(idata=None)` pattern — CV methods no longer need it (they live on `MMMCVPlotSuite`)
 ```
