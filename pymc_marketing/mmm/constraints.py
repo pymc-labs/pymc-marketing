@@ -18,8 +18,9 @@ from collections.abc import Callable
 from typing import Any, Literal
 
 import pytensor.tensor as pt
-from pymc.pytensorf import rewrite_pregrad
 from pytensor import function
+from pytensor.graph import rewrite_graph
+from pytensor.xtensor.type import XTensorVariable
 
 
 class Constraint:
@@ -30,7 +31,7 @@ class Constraint:
     ----------
         key (str): Identifier for the constraint.
         constraint_type (Literal["eq", "ineq"]): Type of the constraint ("eq" for equality, "ineq" for inequality).
-        constraint_fun (Callable[[pt.TensorVariable, pt.TensorVariable, Any], pt.TensorVariable]):
+        constraint_fun (Callable[[XTensorVariable, XTensorVariable, Any], XTensorVariable]):
             Function that computes the symbolic constraint, taking `budgets_sym`, `total_budget_sym`, and `optimizer`.
     """
 
@@ -39,7 +40,7 @@ class Constraint:
         key: str,
         constraint_type: Literal["eq", "ineq"],
         constraint_fun: Callable[
-            [pt.TensorVariable, pt.TensorVariable, Any], pt.TensorVariable
+            [XTensorVariable, XTensorVariable, Any], XTensorVariable
         ],
     ):
         self.key = key
@@ -51,9 +52,9 @@ def build_default_sum_constraint(key: str = "default") -> Constraint:
     """Return a Constraint enforcing sum(budgets) == total_budget."""
 
     def _constraint_fun(
-        budgets_sym: pt.TensorVariable, total_budget_sym: pt.TensorVariable, optimizer
-    ) -> pt.TensorVariable:
-        return pt.sum(budgets_sym) - total_budget_sym
+        budgets_sym: XTensorVariable, total_budget_sym: XTensorVariable, optimizer
+    ) -> XTensorVariable:
+        return budgets_sym.sum() - total_budget_sym
 
     return Constraint(
         key=key,
@@ -87,7 +88,12 @@ def compile_constraints_for_scipy(constraints: list[Constraint] | dict, optimize
         constraint_fun_output = constraint.constraint_fun(
             budgets, total_budget, optimizer
         )
-        sym_jac_output = pt.grad(rewrite_pregrad(constraint_fun_output), budgets_flat)
+        # Gradients not implement for XTensorVariables
+        constraint_fun_output_tensor = rewrite_graph(
+            constraint_fun_output.values,
+            include=("lower_xtensor", "canonicalize", "stabilize"),
+        )
+        sym_jac_output = pt.grad(constraint_fun_output_tensor, budgets_flat)
 
         # Compile symbolic => python callables
         compiled_fun = function(

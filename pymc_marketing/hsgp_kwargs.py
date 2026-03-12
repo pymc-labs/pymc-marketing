@@ -69,12 +69,12 @@ class HSGPKwargs(BaseModel):
         ]
         | None
     ) = None
-    eta_lam: float = Field(1, gt=0, description="Exponential prior for the variance")
+    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance")
     ls_mu: float = Field(
-        5, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
+        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
     )
     ls_sigma: float = Field(
-        5,
+        5.0,
         gt=0,
         description="Standard deviation of the inverse gamma prior for the lengthscale",
     )
