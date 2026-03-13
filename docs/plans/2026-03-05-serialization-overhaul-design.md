@@ -13,6 +13,7 @@
   - [Current Serialization Patterns](#current-serialization-patterns-4-inconsistent)
 - [Design Decisions](#design-decisions)
 - [Scope Boundaries](#scope-boundaries)
+- [Serialization Policy](#serialization-policy)
 - [Solution Overview](#solution-overview)
 - [Architecture](#architecture)
   - [1. Core Serialization Infrastructure](#1-core-serialization-infrastructure)
@@ -112,6 +113,65 @@ and must continue to work unchanged.
 MuEffects (its `mu_effects` defaults to an empty list and is not stored in
 idata attrs). If MVITS ever starts serializing MuEffects, it should adopt
 the new `TypeRegistry` system at that time.
+
+## Serialization Policy
+
+This section defines what the library guarantees and what extension authors
+are responsible for. It serves as a contract for current and future
+developers.
+
+### What the library guarantees
+
+1. **Registered types roundtrip correctly.** Any type registered with
+   `TypeRegistry` via `@registry.register` or `SerializableMixin` will
+   serialize to a JSON-safe dict and deserialize back to an equivalent
+   object. This is verified by roundtrip tests for every built-in type.
+2. **One mechanism for all types.** The `TypeRegistry` is the single
+   dispatch point for serialization and deserialization. There are no
+   parallel systems to learn.
+3. **Explicit failures.** If deserialization fails (unregistered type,
+   corrupt data, missing supplementary data), a `SerializationError` is
+   raised with an actionable message. No silent degradation.
+
+### What extension authors must do
+
+1. **Register custom types.** Use `@registry.register` on any class that
+   will be saved as part of a model. `MuEffect` subclasses that inherit
+   `SerializableMixin` are auto-registered; `Transformation` subclasses
+   and other non-mixin classes need the explicit decorator.
+2. **Import before load.** The module defining a custom type must be
+   imported before calling `load()`. The registry does not dynamically
+   import from `__type__` paths.
+3. **Ensure `to_dict()` output is self-contained.** The dict returned by
+   `to_dict()` must contain everything needed to reconstruct the object
+   via `from_dict()`. If auxiliary data (e.g., a DataFrame) is required,
+   use the supplementary data mechanism — do not rely on external files
+   or side-channel state.
+
+### What is explicitly not supported
+
+1. **Arbitrary live objects.** The library will not attempt to serialize
+   PyTensor tensors, PyMC model objects, covariance function instances,
+   or other non-JSON-safe runtime state. Use `DeferredFactory` to store
+   a recipe (factory function + scalar args) instead.
+2. **Unregistered types.** If a type is not in the `TypeRegistry`, it
+   cannot be deserialized. This is by design — it prevents arbitrary
+   code execution from `.nc` files (unlike pickle).
+3. **Cross-version object equality.** After a save/load roundtrip,
+   `loaded_obj == original_obj` is a goal but not a hard guarantee for
+   all types. The guarantee is functional equivalence: the loaded model
+   produces the same predictions. Object-level equality depends on each
+   class's `__eq__` implementation.
+
+### Design direction
+
+The long-term goal is for components to be pure configuration objects —
+immutable after construction, holding only JSON-serializable state, and
+generating runtime objects (PyTensor expressions, PyMC variables) on
+demand during `build_model()`. `DeferredFactory` is the first step in
+this direction: it replaces live state with a serializable recipe.
+Future component work should prefer this pattern over storing
+non-serializable objects as fields.
 
 ## Solution Overview
 
