@@ -579,12 +579,13 @@ heuristics, or per-family lookup dicts.
 - `lookup_name` attribute on `Transformation` subclasses (replaced by `__type__`)
 - `adstock_from_dict()`, `saturation_from_dict()`, `basis_from_dict()` standalone deserializers
 - 11 MMM-specific `register_deserialization()` calls (adstock, saturation, HSGP, HSGPKwargs, fourier ×3, events ×2, media_transformation ×2)
+- `_model_config_formatting()` override in `multidimensional.py` (the heuristic `list→tuple`/`list→np.array` conversion is replaced by `registry.deserialize()` dispatch in `attrs_to_init_kwargs`)
 
 ### What Stays Unchanged
 
 - **`prior.py`**: the 1 `register_deserialization()` call for `Prior` is retained (feeds `pymc_extras` global registry used by `parse_model_config` across all model families)
 - **`special_priors.py`**: the 4 `register_deserialization()` calls for `LogNormalPrior`, `LaplacePrior`, `MaskedPrior`, `SpecialPrior` are retained (same reason)
-- **`model_builder.py`**: `ModelBuilder.create_idata_attrs()`, `_json_default`, `attrs_to_init_kwargs()`, and `_model_config_formatting()` are not modified — CLV, Customer Choice, and MVITS models continue to use the existing serialization path
+- **`model_builder.py`**: `ModelBuilder.create_idata_attrs()`, `_json_default`, `attrs_to_init_kwargs()`, and `_model_config_formatting()` are not modified — CLV, Customer Choice, and MVITS models continue to use the existing serialization path (note: the MMM override of `_model_config_formatting()` in `multidimensional.py` **is** removed — see "What Gets Removed")
 - **`model_config.py`**: `parse_model_config()` continues to use `pymc_extras.deserialize()` — no changes
 - **CLV, Customer Choice, MVITS models**: no serialization changes at all
 
