@@ -619,9 +619,17 @@ class BudgetOptimizer(BaseModel):
     default_constraints : bool, optional
         Whether to add a default sum constraint on the total budget. Default is True.
     budget_distribution_over_period : xarray.DataArray, optional
-        Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
-        where date dimension has length num_periods. Values along date dimension should sum to 1 for
-        each combination of other dimensions. If None, budget is distributed evenly across periods.
+        Fixed temporal distribution of each budget cell across periods.
+        Must have dims ``("date", *budget_dims)`` where the ``"date"``
+        dim has length ``num_periods``. Values must sum to 1 along the
+        ``"date"`` dim for every combination of the remaining dims
+        (i.e., ``budget_distribution_over_period.sum(dim="date")`` must
+        be all ones). Each value is the fraction of that cell's total
+        budget assigned to the corresponding period — e.g. fractions
+        ``[0.4, 0.3, 0.2, 0.1]`` along ``"date"`` mean 40 % of the
+        budget in period 0, 30 % in period 1, and so on.
+        If None, budget is distributed uniformly
+        (``1 / num_periods`` per period).
     """
 
     num_periods: int = Field(
@@ -667,9 +675,10 @@ class BudgetOptimizer(BaseModel):
     budget_distribution_over_period: DataArray | None = Field(
         default=None,
         description=(
-            "Distribution factors for budget allocation over time. Should have dims ('date', *budget_dims) "
-            "where date dimension has length num_periods. Values along date dimension should sum to 1 for "
-            "each combination of other dimensions. If None, budget is distributed evenly across periods."
+            "Fixed temporal distribution of each budget cell across periods. "
+            "Must have dims ('date', *budget_dims) where 'date' has length num_periods. "
+            "Values must sum to 1 along 'date' for every combination of the remaining dims. "
+            "If None, budget is distributed uniformly (1/num_periods per period)."
         ),
     )
 
