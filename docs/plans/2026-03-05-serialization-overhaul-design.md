@@ -151,7 +151,7 @@ developers.
 ### What is explicitly not supported
 
 1. **Arbitrary live objects.** The library will not attempt to serialize
-   PyTensor tensors, PyMC model objects, covariance function instances,
+   PyTensor tensors, PyMC model objects,
    or other non-JSON-safe runtime state. Use `DeferredFactory` to store
    a recipe (factory function + scalar args) instead.
 2. **Unregistered types.** If a type is not in the `TypeRegistry`, it
@@ -162,16 +162,6 @@ developers.
    all types. The guarantee is functional equivalence: the loaded model
    produces the same predictions. Object-level equality depends on each
    class's `__eq__` implementation.
-
-### Design direction
-
-The long-term goal is for components to be pure configuration objects —
-immutable after construction, holding only JSON-serializable state, and
-generating runtime objects (PyTensor expressions, PyMC variables) on
-demand during `build_model()`. `DeferredFactory` is the first step in
-this direction: it replaces live state with a serializable recipe.
-Future component work should prefer this pattern over storing
-non-serializable objects as fields.
 
 ## Solution Overview
 
