@@ -1071,12 +1071,15 @@ class BudgetOptimizer(BaseModel):
         )
 
         # Utility functions used by the optimizer operate on a 1D "samples" vector.
-        # Some response variables can carry extra dimensions (e.g. per-date values),
-        # yielding tensors of shape (sample, ...). Flatten to a single vector so
-        # downstream utilities that expect 1D inputs can operate without imposing
-        # a particular aggregation semantics here.
-        if response_distribution.type.ndim > 1:
-            response_distribution = response_distribution.reshape((-1,))
+        # Only flatten when extracting the optimizer's response_variable (used in
+        # objective/constraints); other variables (e.g. channel_data) keep shape.
+        # XTensorVariable has no native reshape; use pt.reshape on .values.
+        if (
+            response_variable == self.response_variable
+            and response_distribution.type.ndim > 1
+        ):
+            flat = pt.reshape(response_distribution.values, (-1,))
+            response_distribution = as_xtensor(flat, dims=("sample",))
 
         return response_distribution
 
