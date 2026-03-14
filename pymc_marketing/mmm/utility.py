@@ -52,14 +52,31 @@ UtilityFunctionType = Callable[[XTensorVariable, XTensorVariable], float]
 
 
 def _check_samples_dimensionality(samples: XTensorVariable) -> XTensorVariable:
-    """Check if samples is a 1D tensor variable."""
+    """Check that samples has at least one dimension; return as-is."""
     ndim = samples.type.ndim
-    if ndim == 1:
-        return samples
-    else:
+    if ndim < 1:
         raise ValueError(
-            f"Function expected samples to be a 1D tensor variable. Got {ndim} dimensions."
+            f"Function expected samples to have at least 1 dimension. Got {ndim}."
         )
+    return samples
+
+
+def _to_1d_samples(samples: XTensorVariable) -> XTensorVariable:
+    """Reduce multi-dimensional samples to 1D (sample,) for quantile/risk metrics.
+
+    If samples has a 'sample' dimension and others (e.g. channel, date), sums over
+    the non-sample dims to get one value per sample. Otherwise flattens to 1D.
+    """
+    samples = as_xtensor(samples)
+    if samples.type.ndim == 1:
+        return samples
+    if "sample" in samples.dims:
+        other_dims = [d for d in samples.dims if d != "sample"]
+        if other_dims:
+            return samples.sum(dim=other_dims)
+    # No sample dim or already 1D: flatten to 1D
+    flat = pt.reshape(samples.values, (-1,))
+    return as_xtensor(flat, dims=("sample",))
 
 
 def _compute_quantile(x: XTensorVariable, q: float) -> XTensorVariable:
@@ -129,7 +146,7 @@ def tail_distance(confidence_level: float = 0.75) -> UtilityFunctionType:
         samples: XTensorVariable, budgets: XTensorVariable
     ) -> XTensorVariable:
         samples = as_xtensor(samples)
-        samples = _check_samples_dimensionality(samples)
+        samples = _to_1d_samples(_check_samples_dimensionality(samples))
         mean = samples.mean()
         q1 = _compute_quantile(samples, confidence_level)
         q2 = _compute_quantile(samples, 1 - confidence_level)
@@ -160,7 +177,7 @@ def _calculate_roas_distribution_for_allocation(
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
-    samples = _check_samples_dimensionality(samples)
+    samples = _to_1d_samples(_check_samples_dimensionality(samples))
     total_budget = budgets.sum()
     roas_distribution = samples / total_budget
     return roas_distribution
@@ -217,10 +234,10 @@ def mean_tightness_score(
         samples: XTensorVariable, budgets: XTensorVariable
     ) -> XTensorVariable:
         samples = as_xtensor(samples)
-        samples = _check_samples_dimensionality(samples)
-        mean = samples.mean()
+        samples_1d = _to_1d_samples(_check_samples_dimensionality(samples))
+        mean = samples_1d.mean()
         tail_metric = tail_distance(confidence_level)
-        return 1 - alpha * tail_metric(samples, budgets) / mean
+        return 1 - alpha * tail_metric(samples_1d, budgets) / mean
 
     return _mean_tightness_score
 
@@ -269,7 +286,7 @@ def value_at_risk(confidence_level: float = 0.95) -> UtilityFunctionType:
         samples: XTensorVariable, budgets: XTensorVariable
     ) -> XTensorVariable:
         samples = as_xtensor(samples)
-        samples = _check_samples_dimensionality(samples)
+        samples = _to_1d_samples(_check_samples_dimensionality(samples))
         return _compute_quantile(samples, 1 - confidence_level)
 
     return _value_at_risk
@@ -319,7 +336,7 @@ def conditional_value_at_risk(confidence_level: float = 0.95) -> UtilityFunction
         samples: XTensorVariable, budgets: XTensorVariable
     ) -> XTensorVariable:
         samples = as_xtensor(samples)
-        samples = _check_samples_dimensionality(samples)
+        samples = _to_1d_samples(_check_samples_dimensionality(samples))
         VaR = _compute_quantile(samples, 1 - confidence_level)
         mask = samples <= VaR
         num_tail_losses = mask.sum()
@@ -368,7 +385,7 @@ def sharpe_ratio(risk_free_rate: float = 0.0) -> UtilityFunctionType:
         samples: XTensorVariable, budgets: XTensorVariable
     ) -> XTensorVariable:
         samples = as_xtensor(samples)
-        samples = _check_samples_dimensionality(samples)
+        samples = _to_1d_samples(_check_samples_dimensionality(samples))
         excess_returns = samples - risk_free_rate
         # Should this be dim="sample"?
         mean_excess_return = excess_returns.mean()
@@ -417,7 +434,7 @@ def raroc(risk_free_rate: float = 0.0) -> UtilityFunctionType:
     def _raroc(samples: XTensorVariable, budgets: XTensorVariable) -> XTensorVariable:
         samples = as_xtensor(samples)
         budgets = as_xtensor(budgets)
-        samples = _check_samples_dimensionality(samples)
+        samples = _to_1d_samples(_check_samples_dimensionality(samples))
         capital = budgets.sum()
         expected_return = samples.mean()
         risk_adjusted_return = expected_return - risk_free_rate
@@ -474,7 +491,7 @@ def adjusted_value_at_risk_score(
     def _adjusted_value_at_risk_score(
         samples: XTensorVariable, budgets: XTensorVariable
     ) -> XTensorVariable:
-        samples = _check_samples_dimensionality(samples)
+        samples = _to_1d_samples(_check_samples_dimensionality(samples))
         var = _compute_quantile(samples, 1 - confidence_level)
         mean = samples.mean()
         return (1 - risk_aversion) * mean + risk_aversion * var
