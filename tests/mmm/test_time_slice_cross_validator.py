@@ -243,12 +243,22 @@ class TestTimeSliceCrossValidator:
         assert result.y_test.equals(y_test)
         assert result.idata is not None
 
-    def test_run_method_basic(self, cv, XY, mmm_fixture, mock_pymc_sample):
+    @pytest.mark.parametrize(
+        argnames="random_seed",
+        argvalues=[42, np.random.default_rng(42)],
+        ids=["int", "rng"],
+    )
+    def test_run_method_basic(self, cv, XY, mmm_fixture, mock_pymc_sample, random_seed):
         """Test run method returns correct number of results."""
         X, y = XY
         # run() now returns a combined InferenceData; per-fold results are
         # available on `cv._cv_results` after calling run().
-        _combined = cv.run(X, y, mmm=_MMMBuilder(mmm_fixture))
+        _combined = cv.run(
+            X,
+            y,
+            mmm=_MMMBuilder(mmm_fixture),
+            sampler_config={"random_seed": random_seed},
+        )
 
         expected_splits = cv.get_n_splits(X, y)
         assert hasattr(cv, "_cv_results")

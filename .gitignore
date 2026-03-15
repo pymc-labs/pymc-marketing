@@ -58,6 +58,11 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Test artifacts from save/load tests
+test.nc
+test_*.nc
+tmp-model
+
 # Translations
 *.mo
 *.pot

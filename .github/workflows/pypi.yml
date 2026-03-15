@@ -41,7 +41,7 @@ jobs:
           echo "Checking import and version number (on release)"
           venv-bdist/bin/python -c "import pymc_marketing as pmm; assert pmm.__version__ == '${{  github.ref_name }}' if '${{ github.ref_type }}' == 'tag' else pmm.__version__; print(pmm.__version__)"
           cd ..
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: artifact
           path: dist/*
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: artifact
           path: dist
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: artifact
           path: dist

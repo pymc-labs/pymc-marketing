@@ -17,11 +17,12 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor as pt
 import pytest
 import xarray as xr
 from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
 from pymc_extras.prior import Prior
+from pytensor.compile import ViewOp
+from pytensor.tensor.elemwise import Elemwise
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
@@ -128,25 +129,25 @@ class TestBetaGeoBetaBinomModel:
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "alpha" not in model.model_config
                 else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "beta" not in model.model_config
                 else model.model_config["beta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "delta" not in model.model_config
                 else model.model_config["delta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "gamma" not in model.model_config
                 else model.model_config["gamma"].pymc_distribution,
             )
@@ -180,7 +181,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -188,7 +190,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -196,7 +199,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
@@ -204,13 +208,14 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
             ValueError, match=r"Column customer_id has duplicate entries"
         ):
-            data = pd.DataFrame(
+            data_invalid = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 1]),
                     "frequency": np.asarray([1, 1]),
@@ -219,13 +224,12 @@ class TestBetaGeoBetaBinomModel:
                 }
             )
 
-            BetaGeoBetaBinomModel(
-                data=data,
-            )
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
     def test_T_homogeneity(self):
         with pytest.raises(ValueError, match=r"Column T has non-homogeneous entries"):
-            data = pd.DataFrame(
+            data_invalid = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 2]),
                     "frequency": np.asarray([1, 2]),
@@ -234,9 +238,8 @@ class TestBetaGeoBetaBinomModel:
                 }
             )
 
-            BetaGeoBetaBinomModel(
-                data=data,
-            )
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
     @pytest.mark.parametrize("custom_config", (True, False))
     def test_model_repr(self, custom_config):
@@ -311,7 +314,8 @@ class TestBetaGeoBetaBinomModel:
         )
 
     def test_fit_result_without_fit(self, mocker, model_config):
-        model = BetaGeoBetaBinomModel(data=self.pred_data, model_config=model_config)
+        model = BetaGeoBetaBinomModel(model_config=model_config)
+        model.build_model(data=self.pred_data)
         with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
