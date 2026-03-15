@@ -85,6 +85,28 @@ def test_plot_data(saturated_data):
     plt.close()
 
 
+def test_plot_data_with_datetime_index():
+    """Ensure plot_data works with DatetimeIndex (Issue #1864, pandas #54485)."""
+    dates = pd.date_range("2024-01-01", periods=100, freq="D")
+    n = len(dates)
+    X = pd.DataFrame(
+        {
+            "competitor": rng.integers(400, 600, size=n),
+            "own": rng.integers(200, 400, size=n),
+        },
+        index=dates,
+    )
+    y = pd.Series(rng.integers(0, 100, size=n), index=dates, name="new")
+
+    model = MVITS(existing_sales=["competitor", "own"])
+    model.X = X
+    model.y = y
+
+    ax = model.plot_data()
+    assert isinstance(ax, Axes)
+    plt.close()
+
+
 @pytest.fixture(scope="module")
 def fit_model(saturated_data, mock_pymc_sample):
     model = MVITS(existing_sales=["competitor", "own"], saturated_market=True)
