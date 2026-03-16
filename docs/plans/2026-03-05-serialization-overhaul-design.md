@@ -1,8 +1,8 @@
 # Serialization Overhaul Design
 
-**Date:** 2026-03-05
-**Status:** Approved
-**Scope:** Multidimensional MMM serialization — unify patterns, fix all known issues, future-proof for custom components
+**Date:** 2026-03-05 (updated 2026-03-16)
+**Status:** Approved — Option B (Convention-First with Base-Class Hooks)
+**Scope:** Multidimensional MMM serialization — unify patterns, fix all known issues, future-proof for custom components. Additionally, `ModelBuilder` base class gains TypeRegistry-aware hooks so any model family can adopt the new system incrementally.
 
 ---
 
@@ -79,12 +79,35 @@ These patterns fall into two conceptual layers:
 
 ## Scope Boundaries
 
-This overhaul targets **Multidimensional MMM serialization only**. The legacy
-`MMMModelBuilder` (being deprecated) is not addressed. CLV models, Customer
-Choice models (MNLogit, NestedLogit, MixedLogit), and MVITS are **out of scope**
-and must continue to work unchanged.
+This overhaul targets **Multidimensional MMM serialization** as the primary
+focus. The legacy `MMMModelBuilder` (being deprecated) is not addressed. CLV
+models, Customer Choice models (MNLogit, NestedLogit, MixedLogit), and MVITS
+are **not modified** and must continue to work unchanged.
 
-**Why non-MMM models are excluded:**
+**Additionally (Option B — Convention-First with Base-Class Hooks):** The
+`ModelBuilder` base class receives two small, backward-compatible changes that
+make it TypeRegistry-aware. These hooks have **zero behavioral impact** on
+existing non-MMM models — they only activate for types explicitly registered
+with the `TypeRegistry`. This enables any model family to adopt TypeRegistry
+incrementally (one class at a time) whenever there's a reason to, without
+requiring a dedicated migration effort. See
+[Scope Options](2026-03-13-serialization-scope-options.md) for the full
+evaluation.
+
+**What the base-class hooks do:**
+
+1. **`_json_default()` tries registry first:** Before the existing duck-typing
+   cascade (`to_dict()` → `model_dump()` → `__dict__` → `str()`), the method
+   attempts `registry.serialize(obj)`. If the object's type is not registered,
+   it falls through to the existing path unchanged.
+
+2. **`_model_config_formatting()` checks for `__type__` keys:** When
+   processing a deserialized `model_config` dict, if a value is a dict
+   containing a `__type__` key, it's routed through `registry.deserialize()`
+   instead of the existing heuristic. Non-`__type__` dicts continue through
+   the existing `list→tuple`/`list→np.array` heuristic.
+
+**Why non-MMM model code is not modified:**
 
 - CLV and Customer Choice models use a much simpler serialization path — their
   only serialized objects are `Prior` instances in `model_config`. They have no
@@ -105,13 +128,15 @@ and must continue to work unchanged.
   registry. These calls are **retained** — removing them would break Prior
   deserialization for CLV, Customer Choice, and MMM alike.
 - Changes to `_serializable_model_config` and `registry.serialize()` are scoped
-  to the **MMM subclass override** in `multidimensional.py`, not the
-  `ModelBuilder` base class.
+  to the **MMM subclass override** in `multidimensional.py`. The base class
+  `ModelBuilder._json_default` and `ModelBuilder._model_config_formatting`
+  are modified only to add the TypeRegistry-first dispatch (see hooks above).
 
 **MVITS note:** MVITS imports `MuEffect` but does not currently serialize
 MuEffects (its `mu_effects` defaults to an empty list and is not stored in
-idata attrs). If MVITS ever starts serializing MuEffects, it should adopt
-the new `TypeRegistry` system at that time.
+idata attrs). If MVITS ever starts serializing MuEffects, it can now do so
+by registering types with `@registry.register` — the base-class hooks will
+handle serialization/deserialization automatically.
 
 ## Serialization Policy
 
@@ -480,11 +505,61 @@ remaining functionally equivalent (re-populated in `create_data()` during `build
 
 ### 4. Registry Consolidation & MMM Save/Load
 
+#### Base-Class Hooks (Option B)
+
+The `ModelBuilder` base class gains two small, backward-compatible changes
+so that the `TypeRegistry` is available project-wide without modifying
+non-MMM model code:
+
+**`_json_default()` — registry-first dispatch:**
+
+```python
+def _json_default(obj):
+    from pymc_marketing.serialization import registry
+    try:
+        return registry.serialize(obj)
+    except (KeyError, TypeError):
+        pass
+    # existing duck-typing cascade follows unchanged
+    if hasattr(obj, "to_dict"):
+        return obj.to_dict()
+    ...
+```
+
+**`_model_config_formatting()` — `__type__` key detection:**
+
+```python
+@classmethod
+def _model_config_formatting(cls, model_config: dict) -> dict:
+    from pymc_marketing.serialization import registry
+    for key, value in model_config.items():
+        if isinstance(value, dict) and "__type__" in value:
+            model_config[key] = registry.deserialize(value)
+        elif isinstance(value, dict):
+            # existing heuristic for legacy format
+            for sub_key in value:
+                if isinstance(value[sub_key], list):
+                    if sub_key == "dims":
+                        value[sub_key] = tuple(value[sub_key])
+                    else:
+                        value[sub_key] = np.array(value[sub_key])
+    return model_config
+```
+
+These hooks are safe because:
+- The registry-first check only activates for registered types. Unregistered
+  objects fall through to the existing duck-typing cascade.
+- The `__type__` key check only activates for dicts produced by the new
+  serialization system. Old-format dicts without `__type__` follow the
+  existing heuristic unchanged.
+- Non-MMM models do not produce `__type__` dicts today, so their behavior
+  is identical before and after this change.
+
 #### Save Side (`create_idata_attrs`)
 
 Related: [#880](https://github.com/pymc-labs/pymc-marketing/issues/880) — remove unnecessary attrs serialization
 
-1. Each component object (adstock, saturation, HSGP, scaling, mu_effects, etc.) serialized via `registry.serialize(obj)` — one call, consistent output. The MMM subclass's `_serializable_model_config` property in `multidimensional.py` (which currently uses duck-typing with `hasattr(value, "to_dict")` / `hasattr(value, "model_dump")`) is updated to use `registry.serialize()` for consistency. The base `ModelBuilder._json_default` and `ModelBuilder.create_idata_attrs` are **not modified** — CLV, Customer Choice, and MVITS continue to use the existing duck-typing path. Plain JSON-safe scalars (`date_column`, `adstock_first`, `channel_columns`, `dims`, …) remain as direct `json.dumps()` / string assignment.
+1. Each component object (adstock, saturation, HSGP, scaling, mu_effects, etc.) serialized via `registry.serialize(obj)` — one call, consistent output. The MMM subclass's `_serializable_model_config` property in `multidimensional.py` (which currently uses duck-typing with `hasattr(value, "to_dict")` / `hasattr(value, "model_dump")`) is updated to use `registry.serialize()` for consistency. The base `ModelBuilder._json_default` now tries `registry.serialize()` first (see hooks above), so any TypeRegistry-registered type serializes correctly through the base class path as well. Plain JSON-safe scalars (`date_column`, `adstock_first`, `channel_columns`, `dims`, …) remain as direct `json.dumps()` / string assignment.
 2. Supplementary data written to idata groups
 3. `__serialization_version__` attr added to idata for migration support
 
@@ -582,9 +657,12 @@ heuristics, or per-family lookup dicts.
 
 - **`prior.py`**: the 1 `register_deserialization()` call for `Prior` is retained (feeds `pymc_extras` global registry used by `parse_model_config` across all model families)
 - **`special_priors.py`**: the 4 `register_deserialization()` calls for `LogNormalPrior`, `LaplacePrior`, `MaskedPrior`, `SpecialPrior` are retained (same reason)
-- **`model_builder.py`**: `ModelBuilder.create_idata_attrs()`, `_json_default`, `attrs_to_init_kwargs()`, and `_model_config_formatting()` are not modified — CLV, Customer Choice, and MVITS models continue to use the existing serialization path (note: the MMM override of `_model_config_formatting()` in `multidimensional.py` **is** removed — see "What Gets Removed")
 - **`model_config.py`**: `parse_model_config()` continues to use `pymc_extras.deserialize()` — no changes
-- **CLV, Customer Choice, MVITS models**: no serialization changes at all
+- **CLV, Customer Choice, MVITS models**: no serialization code changes at all. Their behavior is identical — the base-class hooks only activate for TypeRegistry-registered types, and non-MMM models do not produce or consume `__type__` dicts today.
+
+### What Gets Modified in Base Class (Option B)
+
+- **`model_builder.py`**: `_json_default()` gains a registry-first try/except before the existing duck-typing cascade (~5 lines). `_model_config_formatting()` gains a `__type__` key check before the existing heuristic (~5 lines). `create_idata_attrs()` and `attrs_to_init_kwargs()` are **not modified** in the base class. (Note: the MMM override of `_model_config_formatting()` in `multidimensional.py` **is** removed — see "What Gets Removed".)
 
 ### What Gets Added
 
@@ -602,7 +680,9 @@ pymc_marketing/
                              #      DeserializationContext, SerializationError
   migrate.py                # NEW: migrate_idata(), version migration steps,
                              #      CLI entry point
-  model_builder.py           # MODIFIED: ModelIO uses registry
+  model_builder.py           # MODIFIED (Option B): _json_default() gains
+                             #   registry-first dispatch; _model_config_formatting()
+                             #   gains __type__ key detection. ~10 lines total.
   deserialize.py             # REMOVED
   special_priors.py          # MODIFIED: 4 register_deserialization calls replaced
                              #           with @registry.register on LogNormalPrior,
@@ -705,6 +785,17 @@ round-trip via `TypeRegistry`, simplify how the MMM stores and retrieves them:
 3. Add `__serialization_version__` attr to idata
 4. Remove the broad `except Exception` catch-all in `build_from_idata()`
 5. `pymc_marketing/migrate.py` — version-aware migration for old `.nc` files
+
+**Phase 3 — Base-class hooks (Option B).** Make `ModelBuilder` TypeRegistry-aware
+so any model family can adopt the new system incrementally:
+
+1. Update `ModelBuilder._json_default()` to try `registry.serialize()` before
+   the duck-typing cascade (~5 lines)
+2. Update `ModelBuilder._model_config_formatting()` to check for `__type__` keys
+   before the existing heuristic (~5 lines)
+3. Add tests verifying the hooks are transparent to non-MMM models (no behavioral
+   change) and that registered types serialize/deserialize correctly through the
+   base class path
 
 ## Testing Strategy
 
