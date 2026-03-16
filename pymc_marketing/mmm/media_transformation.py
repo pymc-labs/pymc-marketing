@@ -95,9 +95,10 @@ from dataclasses import dataclass
 from typing import cast
 
 import pymc as pm
-import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.deserialize import register_deserialization
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -165,17 +166,17 @@ class MediaTransformation:
                 f"Saturation dimensions {self.saturation.combined_dims} are not a subset of {self.dims}"
             )
 
-    def __call__(self, x):
+    def __call__(self, x, dim: str | None = None):
         """Apply adstock and saturation transformation to media data.
 
         Parameters
         ----------
-        x : pt.TensorLike
+        x : XTensorLike
             The media data to transform.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The transformed media data.
 
         Examples
@@ -209,7 +210,7 @@ class MediaTransformation:
                 )
 
         """
-        return self.second.apply(self.first.apply(x, self.dims), self.dims)
+        return self.second.apply(self.first.apply(x, core_dim=dim), core_dim=dim)
 
     def to_dict(self) -> dict:
         """Convert the media transformation to a dictionary.
@@ -460,7 +461,7 @@ class MediaConfigList:
         """
         return cls([MediaConfig.from_dict(config) for config in data])
 
-    def __call__(self, x) -> pt.TensorVariable:
+    def __call__(self, x) -> XTensorVariable:
         """Apply media transformation to media data.
 
         Assumes that the columns in the data correspond to the media channels
@@ -468,15 +469,18 @@ class MediaConfigList:
 
         Parameters
         ----------
-        x : pt.TensorLike
+        x : XTensorLike
             The media data to transform.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The transformed media data.
 
         """
+        x = ptx.as_xtensor(x)
+        # TODO: This should be defined explicitly, since order of x shouldn't matter
+        date_dim, media_dim = x.dims
         model = pm.modelcontext(None)
 
         transformed_data = []
@@ -487,7 +491,9 @@ class MediaConfigList:
             model.add_coord(config.name, config.columns)
             end_idx = start_idx + len(config.columns)
 
-            media_data = x[:, start_idx:end_idx]
+            media_data = x.isel({media_dim: slice(start_idx, end_idx)}).rename(
+                {media_dim: config.name}
+            )
 
             adstock = config.media_transformation.adstock
             saturation = config.media_transformation.saturation
@@ -495,13 +501,15 @@ class MediaConfigList:
             saturation.prefix = f"{config.name}_{saturation.prefix}"
 
             media_transformation_data = config.media_transformation(
-                media_data,
-            )
+                media_data, dim=date_dim
+            ).rename({config.name: media_dim})
             transformed_data.append(media_transformation_data)
 
             start_idx = end_idx
 
-        return pt.concatenate(transformed_data, axis=1)
+        return ptx.concat(transformed_data, dim=media_dim).transpose(
+            date_dim, media_dim
+        )
 
 
 def _is_media_config_list(data):
