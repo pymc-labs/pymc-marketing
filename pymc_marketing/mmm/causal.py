@@ -31,7 +31,7 @@ import pandas as pd
 import pymc as pm
 import pytensor
 import pytensor.tensor as pt
-from pydantic import Field, InstanceOf, validate_call
+from pydantic import ConfigDict, Field, InstanceOf, validate_call
 from pymc_extras.prior import Prior
 
 try:
@@ -654,7 +654,7 @@ class TBFPC:
     - Kass, R. & Raftery, A. (1995). "Bayes Factors."
     """
 
-    @validate_call(config=dict(arbitrary_types_allowed=True))
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
         target: Annotated[
