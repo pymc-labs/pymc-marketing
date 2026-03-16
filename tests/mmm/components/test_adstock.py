@@ -30,11 +30,24 @@ from pytensor.xtensor.type import XTensorVariable
 from pymc_marketing.mmm.components.adstock import (
     ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
+    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
+    NoAdstock,
+    WeibullCDFAdstock,
+    WeibullPDFAdstock,
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+
+ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
+    BinomialAdstock,
+    GeometricAdstock,
+    DelayedAdstock,
+    WeibullPDFAdstock,
+    WeibullCDFAdstock,
+    NoAdstock,
+]
 
 
 def adstocks() -> list:
@@ -256,3 +269,50 @@ def test_deserialize_new_transformation() -> None:
     assert instance.l_max == 10
 
     ADSTOCK_TRANSFORMATIONS.pop("new_adstock")
+
+
+class TestAdstockTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of adstock classes."""
+
+    @pytest.mark.parametrize(
+        "adstock_cls", ALL_ADSTOCK_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_to_dict_includes_type_key(self, adstock_cls):
+        """to_dict() output must include __type__ with fully-qualified class path."""
+        obj = adstock_cls(l_max=4)
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{adstock_cls.__module__}.{adstock_cls.__qualname__}"
+        assert data["__type__"] == expected
+
+    @pytest.mark.parametrize(
+        "adstock_cls", ALL_ADSTOCK_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_registered_in_type_registry(self, adstock_cls):
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{adstock_cls.__module__}.{adstock_cls.__qualname__}"
+        assert type_key in registry._registry, f"{adstock_cls.__name__} not registered"
+
+    def test_roundtrip_via_registry(self):
+        from pymc_marketing.serialization import registry
+
+        original = GeometricAdstock(l_max=8)
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+        assert isinstance(restored, GeometricAdstock)
+        assert restored == original
+
+    def test_roundtrip_with_custom_priors(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        original = GeometricAdstock(
+            l_max=6,
+            priors={"alpha": Prior("Beta", alpha=1.0, beta=3.0)},
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+        assert isinstance(restored, GeometricAdstock)
+        assert restored.l_max == original.l_max

@@ -176,6 +176,7 @@ class Transformation:
 
         """
         return {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "lookup_name": self.lookup_name,
             "prefix": self.prefix,
             "priors": {

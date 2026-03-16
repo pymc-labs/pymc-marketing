@@ -77,6 +77,7 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     weibull_adstock,
 )
+from pymc_marketing.serialization import registry
 
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {}
 
@@ -141,6 +142,18 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
 
         return data
 
+    @classmethod
+    def from_dict(cls, data: dict) -> AdstockTransformation:
+        """Reconstruct an adstock transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("lookup_name", None)
+
+        if "priors" in data:
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
+
     def sample_curve(
         self,
         parameters: xr.Dataset,
@@ -180,6 +193,7 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
         )
 
 
+@registry.register
 class BinomialAdstock(AdstockTransformation):
     """Wrapper around the binomial adstock function.
 
@@ -218,6 +232,7 @@ class BinomialAdstock(AdstockTransformation):
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
+@registry.register
 class GeometricAdstock(AdstockTransformation):
     """Wrapper around geometric adstock function.
 
@@ -256,6 +271,7 @@ class GeometricAdstock(AdstockTransformation):
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
+@registry.register
 class DelayedAdstock(AdstockTransformation):
     """Wrapper around delayed adstock function.
 
@@ -298,6 +314,7 @@ class DelayedAdstock(AdstockTransformation):
     }
 
 
+@registry.register
 class WeibullPDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with PDF function.
 
@@ -341,6 +358,7 @@ class WeibullPDFAdstock(AdstockTransformation):
     }
 
 
+@registry.register
 class WeibullCDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with CDF function.
 
@@ -384,6 +402,7 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
+@registry.register
 class NoAdstock(AdstockTransformation):
     """Wrapper around no adstock transformation."""
 
