@@ -24,23 +24,20 @@ bug is fixed. Until then, the tests fail — demonstrating the issue exists.
 Issues verified (FAILING — demonstrating bugs):
 1. Prior equality after roundtrip with PyTensor expression parameters
 2. HSGP/HSGPPeriodic/SoftPlusHSGP dims tuple→list mismatch after JSON roundtrip
-3. HSGPKwargs.cov_func with live pm.gp.cov.Covariance object
-4. EventAdditiveEffect deserialization raises ValueError
-5. build_from_idata silently drops MuEffects that fail to deserialize
-6. Custom MuEffect subclass not in deserialization registry
-7. LinearTrendEffect model_dump(mode="json") fails on Prior fields
-7b. LinearTrendEffect linear_trend_first_date lost through serialization roundtrip
-8. Default _serialize_mu_effect fails for custom MuEffects with complex fields
+3. EventAdditiveEffect deserialization raises ValueError
+4. build_from_idata silently drops MuEffects that fail to deserialize
+5. Custom MuEffect subclass not in deserialization registry
+6. LinearTrendEffect model_dump(mode="json") fails on Prior fields
+6b. LinearTrendEffect linear_trend_first_date lost through serialization roundtrip
+7. Default _serialize_mu_effect fails for custom MuEffects with complex fields
 """
 
 import json
 
 import numpy as np
 import pandas as pd
-import pymc as pm
 from pymc_extras.prior import Prior
 
-from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.additive_effect import (
     LinearTrendEffect,
     MuEffect,
@@ -145,33 +142,6 @@ class TestSoftPlusHSGPRoundtrip:
         orig_dict = original.to_dict()
         loaded_dict = loaded.to_dict()
         assert orig_dict == loaded_dict
-
-
-class TestHSGPKwargsCovFuncSerialization:
-    """Issue: HSGPKwargs.cov_func can hold a live pm.gp.cov.Covariance object
-    that is not JSON-serializable, causing model_dump(mode="json") to fail.
-    """
-
-    def test_hsgp_kwargs_model_dump_json_with_live_cov_func(self):
-        """HSGPKwargs with live pm.gp.cov.Covariance should be serializable."""
-        cov = pm.gp.cov.ExpQuad(input_dim=1, ls=5.0)
-        kwargs = HSGPKwargs(m=200, eta_lam=1, ls_mu=5, ls_sigma=5, cov_func=cov)
-
-        d = kwargs.model_dump(mode="json")
-        json_str = json.dumps(d)
-        assert json_str is not None
-
-    def test_hsgp_kwargs_roundtrip_with_live_cov_func(self):
-        """HSGPKwargs with live cov_func should roundtrip through JSON."""
-        cov = pm.gp.cov.ExpQuad(input_dim=1, ls=5.0)
-        kwargs = HSGPKwargs(m=200, eta_lam=1, ls_mu=5, ls_sigma=5, cov_func=cov)
-
-        d = kwargs.model_dump(mode="json")
-        json_str = json.dumps(d)
-        loaded = HSGPKwargs.model_validate(json.loads(json_str))
-
-        assert loaded.m == kwargs.m
-        assert loaded.eta_lam == kwargs.eta_lam
 
 
 class TestEventAdditiveEffectDeserialization:

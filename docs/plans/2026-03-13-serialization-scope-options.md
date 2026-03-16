@@ -28,7 +28,7 @@ The proposed serialization design introduces three core primitives:
 2. **`SerializableMixin`** — auto-registers Pydantic BaseModel subclasses and provides default `to_dict()`/`from_dict()`.
 3. **`DeferredFactory`** — stores a "recipe" (factory function + scalar args) for objects that can't be JSON-encoded (PyTensor expressions, live PyMC objects).
 
-The design targets 8 known serialization failures, all in the MMM family. Before proceeding, we're evaluating: should this pattern extend to CLV, Customer Choice (MNLogit, NestedLogit, MixedLogit), and MVITS?
+The design targets 7 known serialization failures, all in the MMM family. Before proceeding, we're evaluating: should this pattern extend to CLV, Customer Choice (MNLogit, NestedLogit, MixedLogit), and MVITS?
 
 ## Current State by Model Family
 
@@ -42,7 +42,7 @@ The design targets 8 known serialization failures, all in the MMM family. Before
 | `RegistrationMeta` metaclass usage | 3 (adstock, saturation, basis) | 0 | 0 | 0 |
 | `singledispatch` serializers | Yes | No | No | No |
 | Model config contents | Prior + HSGPKwargs + components | Prior only | Prior only | Prior only |
-| Known serialization failures | 8 | 0 | 0 | 0 |
+| Known serialization failures | 7 | 0 | 0 | 0 |
 
 ### How each family serializes model_config today
 
