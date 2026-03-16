@@ -162,7 +162,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf, StrictBool, validate_call
+from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from pymc_extras.deserialize import deserialize
@@ -2348,7 +2348,7 @@ class MMM(RegressionModelBuilder):
 
         return posterior_predictive_samples
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_saturation_curve(
         self,
         max_value: float = Field(
@@ -2506,7 +2506,7 @@ class MMM(RegressionModelBuilder):
 
         return curve
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_adstock_curve(
         self,
         amount: float = Field(
