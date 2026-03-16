@@ -641,7 +641,6 @@ class BudgetOptimizer(BaseModel):
     mmm_model: InstanceOf[OptimizerCompatibleModelWrapper] = Field(
         ...,
         description="The marketing mix model to optimize.",
-        arbitrary_types_allowed=True,
         alias="model",
     )
 
@@ -653,7 +652,6 @@ class BudgetOptimizer(BaseModel):
     utility_function: UtilityFunctionType = Field(
         default=average_response,
         description="Utility function to maximize.",
-        arbitrary_types_allowed=True,
     )
 
     budgets_to_optimize: DataArray | None = Field(
@@ -664,7 +662,6 @@ class BudgetOptimizer(BaseModel):
     custom_constraints: Sequence[Constraint] = Field(
         default=(),
         description="Custom constraints for the optimizer.",
-        arbitrary_types_allowed=True,
     )
 
     default_constraints: bool = Field(
