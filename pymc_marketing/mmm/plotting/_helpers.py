@@ -22,6 +22,9 @@ from typing import Any
 import numpy as np
 import xarray as xr
 from arviz_plots import PlotCollection
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from numpy.typing import NDArray
 
 MATPLOTLIB_CYCLE_SIZE = 10
 
@@ -141,3 +144,32 @@ def _process_plot_params(
         pc_kwargs["figure_kwargs"] = fig_kwargs
 
     return pc_kwargs
+
+
+def _extract_matplotlib_result(
+    pc: PlotCollection,
+    return_as_pc: bool,
+) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    """Convert a ``PlotCollection`` to ``(Figure, NDArray[Axes])`` or return as-is.
+
+    Parameters
+    ----------
+    pc : PlotCollection
+        The plot collection to extract from.
+    return_as_pc : bool
+        If True, return the ``PlotCollection`` directly.
+
+    Returns
+    -------
+    tuple[Figure, NDArray[Axes]] or PlotCollection
+        Standard matplotlib tuple when ``return_as_pc=False``,
+        otherwise the original ``PlotCollection``.
+    """
+    if return_as_pc:
+        return pc
+
+    fig = pc.viz.ds["figure"].item()
+    plot_da = pc.viz.ds["plot"]
+    axes = np.atleast_1d(np.array(plot_da.values.flat))
+
+    return fig, axes

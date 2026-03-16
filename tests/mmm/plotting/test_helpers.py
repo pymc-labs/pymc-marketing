@@ -17,16 +17,22 @@ from __future__ import annotations
 
 import warnings
 
+import matplotlib
 import numpy as np
 import pytest
 import xarray as xr
 from arviz_plots import PlotCollection
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 from pymc_marketing.mmm.plotting._helpers import (
+    _extract_matplotlib_result,
     _process_plot_params,
     _validate_dims,
     channel_color_map,
 )
+
+matplotlib.use("Agg")
 
 
 @pytest.fixture
@@ -229,3 +235,40 @@ class TestProcessPlotParams:
             "figure_kwargs": {"figsize": (10, 5)},
             "col_wrap": 2,
         }
+
+
+class TestExtractMatplotlibResult:
+    @pytest.fixture
+    def single_panel_pc(self):
+        data = xr.Dataset({"x": (["a"], [1, 2, 3])})
+        return PlotCollection.wrap(data, backend="matplotlib")
+
+    @pytest.fixture
+    def multi_panel_pc(self):
+        data = xr.Dataset(
+            {"x": (["a", "b"], np.random.randn(3, 2))},
+            coords={"a": [0, 1, 2], "b": ["p", "q"]},
+        )
+        return PlotCollection.grid(data, cols=["b"], backend="matplotlib")
+
+    def test_return_as_pc_true_returns_plot_collection(self, single_panel_pc):
+        result = _extract_matplotlib_result(single_panel_pc, return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+        assert result is single_panel_pc
+
+    def test_return_as_pc_false_returns_tuple(self, single_panel_pc):
+        result = _extract_matplotlib_result(single_panel_pc, return_as_pc=False)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        fig, axes = result
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(a, Axes) for a in axes.flat)
+
+    def test_single_panel_wraps_in_ndarray(self, single_panel_pc):
+        _, axes = _extract_matplotlib_result(single_panel_pc, return_as_pc=False)
+        assert axes.shape == (1,)
+
+    def test_multi_panel_returns_correct_count(self, multi_panel_pc):
+        _, axes = _extract_matplotlib_result(multi_panel_pc, return_as_pc=False)
+        assert axes.size == 2
