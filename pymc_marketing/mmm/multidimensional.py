@@ -162,7 +162,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf, StrictBool, validate_call
+from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from pymc_extras.deserialize import deserialize
@@ -2348,7 +2348,7 @@ class MMM(RegressionModelBuilder):
 
         return posterior_predictive_samples
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_saturation_curve(
         self,
         max_value: float = Field(
@@ -2506,7 +2506,7 @@ class MMM(RegressionModelBuilder):
 
         return curve
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_adstock_curve(
         self,
         amount: float = Field(
@@ -3434,9 +3434,15 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
         budget_distribution_over_period : xr.DataArray | None
-            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
-            where date dimension has length num_periods. Values along date dimension should sum to 1 for
-            each combination of other dimensions. If None, budget is distributed evenly across periods.
+            Fixed temporal distribution of each budget cell across periods.
+            Must have dims ``("date", *budget_dims)`` where ``"date"``
+            has length ``num_periods``. Values must sum to 1 along
+            ``"date"`` for every combination of the remaining dims
+            (i.e., ``budget_distribution_over_period.sum(dim="date")``
+            must be all ones). Each value is the fraction of that
+            cell's total budget assigned to the corresponding period.
+            If None, budget is distributed uniformly
+            (``1 / num_periods`` per period).
         cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
             Cost per unit conversion factors for the **optimization period**.
             Converts budgets from monetary units (e.g., dollars) to the
@@ -3673,9 +3679,14 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         include_carryover : bool
             Whether to include carryover effects.
         budget_distribution_over_period : xr.DataArray | None
-            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
-            where date dimension has length num_periods. Values along date dimension should sum to 1 for
-            each combination of other dimensions. If provided, multiplies the noise values by this distribution.
+            Fixed temporal distribution of each budget cell across periods.
+            Must have dims ``("date", *budget_dims)`` where ``"date"``
+            has length ``num_periods``. Values must sum to 1 along
+            ``"date"`` for every combination of the remaining dims
+            (i.e., ``budget_distribution_over_period.sum(dim="date")``
+            must be all ones). If provided, multiplies the allocation
+            by this distribution to create the per-period spending
+            pattern.
 
         Returns
         -------
