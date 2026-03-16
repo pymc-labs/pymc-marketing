@@ -1754,8 +1754,8 @@ def test_add_calibration_test_measurements(multi_dim_data):
     assert "channel_contribution_original_scale" in mmm.model.named_vars
     assert "cost_per_target" not in mmm.model.named_vars
 
-    pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
-    assert "cpt_calibration" in pot_names
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
 
 def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
@@ -3905,7 +3905,7 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
 
 
 def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
-    """Test that attempting to re-register calibration potentials raises a duplicate name error."""
+    """Test that attempting to re-register calibration observations raises a duplicate name error."""
     X, y = multi_dim_data
 
     # Create MMM model
@@ -3947,10 +3947,7 @@ def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
         name_prefix="cpt_calibration",
     )
 
-    # Attempting to re-register the calibration potentials should raise a duplicate name error
-    with pytest.raises(
-        ValueError, match="Variable name cpt_calibration already exists"
-    ):
+    with pytest.raises(ValueError, match="cpt_calibration"):
         mmm.add_cost_per_target_calibration(
             data=spend_df,
             calibration_data=calibration_df,

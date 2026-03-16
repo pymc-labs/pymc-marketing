@@ -33,6 +33,7 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.lift_test import (
     NonMonotonicError,
     UnalignedValuesError,
+    add_cost_per_target_observations,
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     assert_monotonic,
@@ -542,10 +543,9 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
     assert dummy_mmm_model._last_lift_test_df["date"].notna().all()
 
 
-def test_add_cost_per_target_potentials(dummy_mmm_model):
+def test_add_cost_per_target_observations(dummy_mmm_model):
     model = dummy_mmm_model
 
-    # Create a simple constant cost_per_target tensor over (date, channel)
     dates = model.model.coords["date"]
     channels = model.model.coords["channel"]
     const_cpt = as_xtensor(
@@ -553,7 +553,6 @@ def test_add_cost_per_target_potentials(dummy_mmm_model):
         dims=("date", "channel"),
     )
 
-    # Calibration DataFrame: rows map to existing channels (no extra dims in this fixture)
     calibration_df = pd.DataFrame(
         {
             "channel": [channels[0], channels[1]],
@@ -562,20 +561,18 @@ def test_add_cost_per_target_potentials(dummy_mmm_model):
         }
     )
 
-    # Add potentials using tensor pathway
-    add_cost_per_target_potentials(
+    add_cost_per_target_observations(
         calibration_df=calibration_df,
         model=model.model,
         cpt_value=const_cpt,
         name_prefix="cpt_calibration",
     )
 
-    # Check aggregated potential was added with the expected base name
-    pot_names = [getattr(p, "name", None) for p in model.model.potentials]
-    assert "cpt_calibration" in pot_names
+    obs_names = [rv.name for rv in model.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
 
-def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
+def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
     """Test that KeyError is raised when required columns are missing from calibration_df."""
     model = dummy_mmm_model.model
     channels = model.coords["channel"]
@@ -585,32 +582,29 @@ def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
         np.full((len(dates), len(channels)), 30.0, dtype=float)
     )
 
-    # Test missing 'sigma' column
     calibration_df = pd.DataFrame(
         {
             "channel": [channels[0], channels[1]],
             "cost_per_target": [30.0, 45.0],
-            # Missing 'sigma' column
         }
     )
 
     match = r"Missing required columns in calibration_df: \['sigma'\]"
     with pytest.raises(KeyError, match=match):
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_df,
             model=model,
             cpt_value=const_cpt,
             name_prefix="cpt_calibration",
         )
 
-    # Test missing multiple columns
     calibration_df_minimal = pd.DataFrame({"channel": [channels[0], channels[1]]})
 
     match = (
         r"Missing required columns in calibration_df: \['cost_per_target', 'sigma'\]"
     )
     with pytest.raises(KeyError, match=match):
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_df_minimal,
             model=model,
             cpt_value=const_cpt,
@@ -618,13 +612,13 @@ def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
         )
 
 
-def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
+def test_add_cost_per_target_observations_with_posterior_predictive_out_of_sample(
     mock_pymc_sample,
 ):
-    """Test that add_cost_per_target_potentials works with sample_posterior_predictive on out-of-sample data.
+    """Test that add_cost_per_target_observations works with sample_posterior_predictive on out-of-sample data.
 
     This test validates that:
-    1. Adding cost_per_target potentials doesn't break posterior predictive sampling
+    1. Adding cost_per_target observations doesn't break posterior predictive sampling
     2. Out-of-sample data (different dates than training) works correctly
     3. The returned data structure is valid
     """
@@ -672,17 +666,15 @@ def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
         }
     )
 
-    # Add cost_per_target potentials to the model
-    add_cost_per_target_potentials(
+    add_cost_per_target_observations(
         calibration_df=calibration_df,
         model=mmm.model,
         cpt_value=const_cpt,
         name_prefix="cpt_calibration",
     )
 
-    # Verify potential was added
-    pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
-    assert "cpt_calibration" in pot_names
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
     # Fit the model
     mmm.fit(X_train, y_train, draws=25, tune=25, chains=1, random_seed=42)
@@ -741,3 +733,35 @@ def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
     assert not np.isnan(posterior_pred["y"].values).any(), (
         "Predictions should not contain NaN values"
     )
+
+
+def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_model):
+    model = dummy_mmm_model
+
+    dates = model.model.coords["date"]
+    channels = model.model.coords["channel"]
+    const_cpt = as_xtensor(
+        np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    with pytest.warns(
+        FutureWarning, match="add_cost_per_target_potentials is deprecated"
+    ):
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df,
+            model=model.model,
+            cpt_value=const_cpt,
+            name_prefix="cpt_calibration",
+        )
+
+    obs_names = [rv.name for rv in model.model.observed_RVs]
+    assert "cpt_calibration" in obs_names

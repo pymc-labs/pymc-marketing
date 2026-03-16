@@ -198,7 +198,7 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
-    add_cost_per_target_potentials,
+    add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
@@ -2326,8 +2326,13 @@ class MMM(RegressionModelBuilder):
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, model, dataset_xarray)
 
+        cpt_names: set[str] = getattr(self, "_cpt_calibration_names", set())
+        if cpt_names and "var_names" not in sample_posterior_predictive_kwargs:
+            all_observed = [rv.name for rv in model.observed_RVs]
+            var_names = [n for n in all_observed if n not in cpt_names]
+            sample_posterior_predictive_kwargs["var_names"] = var_names
+
         with model:
-            # Sample from posterior predictive
             post_pred = pm.sample_posterior_predictive(
                 self.idata, **sample_posterior_predictive_kwargs
             )
@@ -2928,13 +2933,17 @@ class MMM(RegressionModelBuilder):
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
     ) -> None:
-        """Calibrate cost-per-target using constraints via ``pm.Potential``.
+        """Calibrate cost-per-target using an observed Normal likelihood.
 
-        This adds a deterministic ``cpt_variable_name`` computed as
-        ``channel_data_spend / channel_contribution_original_scale`` and creates
-        per-row penalty terms based on ``calibration_data`` using a quadratic penalty:
+        This computes cost-per-target as
+        ``channel_data_spend / channel_contribution_original_scale`` and adds
+        an observed ``Normal`` likelihood for each calibration row:
 
-        ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+        ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
+
+        .. versionchanged:: 0.14.0
+            Replaced the manual quadratic ``Potential`` with an observed
+            ``Normal`` likelihood for compatibility with ``pymc.dims``.
 
         Parameters
         ----------
@@ -3031,12 +3040,16 @@ class MMM(RegressionModelBuilder):
             )
             cpt_tensor = as_xtensor(spend_xarray) / denom
 
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_data,
             model=self.model,
             cpt_value=cpt_tensor,
             name_prefix=name_prefix,
         )
+
+        if not hasattr(self, "_cpt_calibration_names"):
+            self._cpt_calibration_names: set[str] = set()
+        self._cpt_calibration_names.add(name_prefix)
 
     def create_fit_data(
         self,
