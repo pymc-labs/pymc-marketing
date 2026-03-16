@@ -36,6 +36,7 @@ from pytensor.tensor import as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from xarray import DataArray
 
+from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
 
@@ -182,14 +183,6 @@ def approx_hsgp_hyperparams(
     m = int(a2 * c / (lengthscale_min / S))
 
     return m, c
-
-
-class CovFunc(StrEnum):
-    """Supported covariance functions for the HSGP model."""
-
-    ExpQuad = "expquad"
-    Matern52 = "matern52"
-    Matern32 = "matern32"
 
 
 def create_eta_prior(mass: float = 0.05, upper: float = 1.0) -> Prior:
