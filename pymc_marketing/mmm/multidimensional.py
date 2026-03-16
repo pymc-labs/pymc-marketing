@@ -3316,9 +3316,12 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class,
             start_date=start_date,
             end_date=end_date,
-            include_carryover=False,
+            include_carryover=True,
         )
-        self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        self.num_periods = (
+            len(self.zero_data[self.model_class.date_column].unique())
+            - self.adstock.l_max
+        )
         self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
