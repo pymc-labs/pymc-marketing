@@ -19,7 +19,7 @@ from typing import NamedTuple
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
-from pymc.dims import Weibull
+from pymc.distributions import Weibull
 from pymc.logprob.utils import CheckParameterValue
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable

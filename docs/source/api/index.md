@@ -24,6 +24,7 @@
   plot
   prior
   pytensor_utils
+  serialization
   special_priors
   utils
 ```
