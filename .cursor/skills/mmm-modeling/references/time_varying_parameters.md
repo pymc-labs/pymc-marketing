@@ -145,7 +145,7 @@ config = HSGPKwargs(
     eta_lam=1.0,    # marginal standard deviation prior scale
     ls_mu=5.0,      # length-scale prior mean (InverseGamma)
     ls_sigma=5.0,   # length-scale prior sigma (InverseGamma)
-    cov_func=None,  # custom covariance function (overrides eta/ls priors)
+    cov_func=None,  # CovFunc enum: "expquad", "matern52", "matern32" (default: Matern52)
 )
 ```
 
@@ -156,7 +156,7 @@ config = HSGPKwargs(
 | `eta_lam` | `1.0` | Scale for the marginal standard deviation prior. Controls the amplitude of the GP. |
 | `ls_mu` | Default varies | Mean of the length-scale prior. Controls the smoothness timescale of the GP. |
 | `ls_sigma` | Default varies | Standard deviation of the length-scale prior. |
-| `cov_func` | `None` | Optional custom covariance function. If provided, overrides `eta_lam`, `ls_mu`, `ls_sigma`. Useful for multi-scale patterns (sum of two kernels with different length-scales). |
+| `cov_func` | `None` | Covariance function enum (`CovFunc`). Supported values: `"expquad"`, `"matern52"`, `"matern32"`. Defaults to `Matern52` when `None`. |
 
 ## Parameterization Tips
 
@@ -177,23 +177,18 @@ Higher `m` lets the HSGP represent higher-frequency variation. The default of 20
 
 `L` defines the "box" `[-L, L]` over which the GP approximation is valid. If `L` is too small, the approximation degrades near the boundaries. The automatic computation is usually sufficient, but for out-of-sample prediction you may need to manually set `L` large enough to cover the prediction window.
 
-### Multi-scale events
+### Covariance function selection
 
-For events operating on two distinct timescales (e.g., both quarterly and sporadic), supply a custom `cov_func` that is the **sum of two covariance functions**, each with its own length-scale prior:
+`HSGPKwargs.cov_func` accepts a `CovFunc` enum value or `None`:
 
-```python
-import pymc as pm
+| Value | Kernel | Smoothness |
+|-------|--------|------------|
+| `"expquad"` | Exponentiated Quadratic (RBF) | Very smooth (infinitely differentiable) |
+| `"matern52"` | Matérn 5/2 | Smooth (twice differentiable) |
+| `"matern32"` | Matérn 3/2 | Less smooth (once differentiable) |
+| `None` | Defaults to Matérn 5/2 | |
 
-ls_short = 10.0   # captures event-like fluctuations (~10 weeks)
-ls_long = 52.0    # captures quarterly/annual patterns (~1 year)
-
-cov_func = (
-    pm.gp.cov.ExpQuad(input_dim=1, ls=ls_short)
-    + pm.gp.cov.ExpQuad(input_dim=1, ls=ls_long)
-)
-
-config = HSGPKwargs(m=300, L=200, cov_func=cov_func)
-```
+For most marketing mix models, `Matern52` (the default) is a good starting point. Use `ExpQuad` if you expect very smooth temporal variation, or `Matern32` for rougher patterns.
 
 ## Out-of-Sample Behavior
 

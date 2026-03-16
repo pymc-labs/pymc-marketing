@@ -37,13 +37,21 @@ class CLVModel(ModelBuilder):
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | None = None,
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
-        self.data = data
+        if data is not None:
+            warnings.warn(
+                f"'{self._model_type}(data)' is deprecated and will be removed in version 1.0. "
+                f"Use '{self._model_type}.build_model(data)' or '{self._model_type}.fit(data)' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            self.data = data
+
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
@@ -109,6 +117,7 @@ class CLVModel(ModelBuilder):
 
     def fit(  # type: ignore
         self,
+        data: pd.DataFrame | None = None,
         method: str = "mcmc",
         fit_method: str | None = None,
         **kwargs,
@@ -117,6 +126,9 @@ class CLVModel(ModelBuilder):
 
         Parameters
         ----------
+        data : pd.DataFrame, optional
+            The input data for model fitting. If not provided, uses data
+            from model initialization (deprecated) or previously built model.
         method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
@@ -128,16 +140,31 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
 
         """
-        self.build_model()  # type: ignore
-
+        # Handle deprecated fit_method parameter
         if fit_method:
             warnings.warn(
-                "'fit_method' is deprecated and will be removed in a future release. "
+                "'fit_method' is deprecated and will be removed in version 1.0. "
                 "Use 'method' instead.",
                 DeprecationWarning,
-                stacklevel=1,
+                stacklevel=2,
             )
             method = fit_method
+
+        # TODO: Delete this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self.build_model(data)  # type: ignore
+        elif hasattr(self, "data") and self.data is not None:
+            # Using old API data - build model if not already built
+            if not hasattr(self, "model"):
+                self.build_model()  # type: ignore
+        else:
+            # No data available anywhere
+            if not hasattr(self, "model"):
+                raise ValueError(
+                    "Data must be provided either to fit(data=...) or "
+                    "model must be built with build_model(data=...) first."
+                )
 
         approx = None
         match method:
@@ -278,6 +305,10 @@ class CLVModel(ModelBuilder):
 
         model.idata = idata
         model._rename_posterior_variables()
+
+        # Extract data from fit_data group if it exists
+        if hasattr(idata, "fit_data"):
+            model.data = idata.fit_data.to_dataframe()
 
         model.build_model()  # type: ignore
         if model.id != idata.attrs["id"]:

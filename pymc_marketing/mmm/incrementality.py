@@ -130,12 +130,12 @@ from typing import TYPE_CHECKING
 import arviz as az
 import numpy as np
 import pandas as pd
-import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
 from pandas.tseries.offsets import BaseOffset
 from pydantic import ConfigDict, validate_call
 from pytensor import function
-from pytensor.graph import vectorize_graph
+from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
@@ -387,10 +387,11 @@ class Incrementality:
             raise ValueError(
                 f"Incrementality requires channel data of float type, got {data_dtype}"
             )
-        batched_input = pt.tensor(
+        batched_input = ptx.xtensor(
             name="channel_data_batched",
             dtype=data_shared.dtype,
             shape=(None, *data_shared.type.shape),
+            dims=("__batch__", *data_shared.type.dims),
         )
         replace_dict: dict = {data_shared: batched_input}
         func_inputs: list = [batched_input]
@@ -403,10 +404,11 @@ class Incrementality:
         has_time_index = "time_index" in self.model.model.named_vars
         if has_time_index:
             time_shared = self.model.model["time_index"]
-            batched_time = pt.tensor(
+            batched_time = ptx.xtensor(
                 name="time_index_batched",
                 dtype=time_shared.dtype,
                 shape=(None, *time_shared.type.shape),
+                dims=("__batch__", *time_shared.type.dims),
             )
             replace_dict[time_shared] = batched_time
             func_inputs.append(batched_time)

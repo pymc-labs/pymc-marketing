@@ -70,10 +70,9 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
         "v": Prior("DiracDelta", c=15.44),
     }
     model = GammaGammaModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    model.build_model()
+    model.build_model(data=test_summary_data)
     fake_fit = pm.sample_prior_predictive(
         draws=50, model=model.model, random_seed=rng
     ).prior
@@ -104,8 +103,8 @@ def df_cum_transactions():
         "beta": Prior("HalfFlat"),
     }
 
-    pnbd = ParetoNBDModel(data=rfm_data, model_config=model_config)
-    pnbd.fit()
+    pnbd = ParetoNBDModel(model_config=model_config)
+    pnbd.fit(data=rfm_data)
 
     df_cum = _expected_cumulative_transactions(
         model=pnbd,
