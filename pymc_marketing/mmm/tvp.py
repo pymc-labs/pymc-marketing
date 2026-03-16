@@ -164,9 +164,7 @@ def _create_hsgp_instance(
         "InverseGamma", mu=float(hsgp_kwargs.ls_mu), sigma=float(hsgp_kwargs.ls_sigma)
     )
     cov_func = (
-        hsgp_kwargs.cov_func
-        if isinstance(hsgp_kwargs.cov_func, CovFunc)
-        else CovFunc.Matern52
+        hsgp_kwargs.cov_func if hsgp_kwargs.cov_func is not None else CovFunc.Matern52
     )
 
     if X_mid is None:
