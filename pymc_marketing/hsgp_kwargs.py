@@ -13,11 +13,19 @@
 #   limitations under the License.
 """Class to store and validate keyword argument for the Hilbert Space Gaussian Process (HSGP) components."""
 
+from enum import StrEnum
 from typing import Annotated
 
-import pymc as pm
-from pydantic import BaseModel, Field, InstanceOf
+from pydantic import BaseModel, Field
 from pymc_extras.deserialize import register_deserialization
+
+
+class CovFunc(StrEnum):
+    """Supported covariance functions for the HSGP model."""
+
+    ExpQuad = "expquad"
+    Matern52 = "matern52"
+    Matern32 = "matern32"
 
 
 class HSGPKwargs(BaseModel):
@@ -51,8 +59,9 @@ class HSGPKwargs(BaseModel):
         Mean of the inverse gamma prior for the lengthscale. Default is 5.
     ls_sigma : float
         Standard deviation of the inverse gamma prior for the lengthscale. Default is 5.
-    cov_func : ~pymc.gp.cov.Covariance, optional
-        Gaussian process Covariance function. By default it is None.
+    cov_func : CovFunc, optional
+        Covariance function enum. Supported values: ``ExpQuad``, ``Matern52``, ``Matern32``.
+        By default it is None (resolved to ``Matern52`` at model-build time).
     """  # noqa E501
 
     m: int = Field(200, description="Number of basis functions")
@@ -78,8 +87,8 @@ class HSGPKwargs(BaseModel):
         gt=0,
         description="Standard deviation of the inverse gamma prior for the lengthscale",
     )
-    cov_func: InstanceOf[pm.gp.cov.Covariance] | str | None = Field(
-        None, description="Gaussian process Covariance function"
+    cov_func: CovFunc | None = Field(
+        None, description="Covariance function enum (ExpQuad, Matern52, Matern32)"
     )
 
 
