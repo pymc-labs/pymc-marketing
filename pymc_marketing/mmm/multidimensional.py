@@ -191,6 +191,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.constraints import Constraint
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
@@ -3316,9 +3317,12 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class,
             start_date=start_date,
             end_date=end_date,
-            include_carryover=False,
+            include_carryover=True,
         )
-        self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        self.num_periods = (
+            len(self.zero_data[self.model_class.date_column].unique())
+            - self.adstock.l_max
+        )
         self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
@@ -3404,7 +3408,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_bounds: xr.DataArray | None = None,
         response_variable: str = "total_media_contribution_original_scale",
         utility_function: UtilityFunctionType = average_response,
-        constraints: Sequence[dict[str, Any]] = (),
+        constraints: Sequence[Constraint] = (),
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
@@ -3427,8 +3431,9 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Response variable to optimize.
         utility_function : UtilityFunctionType
             Utility function to maximize.
-        constraints : Sequence[dict[str, Any]]
-            Custom constraints for the optimizer.
+        constraints : Sequence[Constraint]
+            Custom constraints for the optimizer. Each element must be an instance of
+            :class:`~pymc_marketing.mmm.constraints.Constraint`.
         default_constraints : bool
             Whether to add default constraints.
         budgets_to_optimize : xr.DataArray | None
