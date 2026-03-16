@@ -272,3 +272,21 @@ class TestExtractMatplotlibResult:
     def test_multi_panel_returns_correct_count(self, multi_panel_pc):
         _, axes = _extract_matplotlib_result(multi_panel_pc, return_as_pc=False)
         assert axes.size == 2
+
+
+class TestPublicAPI:
+    def test_all_helpers_importable_from_helpers_module(self):
+        from pymc_marketing.mmm.plotting._helpers import (
+            _extract_matplotlib_result,
+            _process_plot_params,
+            _validate_dims,
+            channel_color_map,
+        )
+
+        assert callable(_validate_dims)
+        assert callable(_process_plot_params)
+        assert callable(_extract_matplotlib_result)
+        assert callable(channel_color_map)
+
+    def test_plotting_package_importable(self):
+        import pymc_marketing.mmm.plotting  # noqa: F401
