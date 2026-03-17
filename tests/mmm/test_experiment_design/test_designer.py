@@ -882,12 +882,6 @@ class TestInitFromMockMMM:
         assert d._spend_correlation is not None
         assert d._spend_correlation.shape == (2, 2)
 
-    def test_init_no_scalers(self):
-        mmm = _make_mock_mmm()
-        d = ExperimentDesigner(mmm)
-        assert d._channel_scaler is None
-        assert d._target_scaler is None
-
     def test_init_raises_unfitted(self):
         mmm = _make_mock_mmm()
         mmm.idata = None
@@ -922,30 +916,23 @@ class TestInitFromMockMMM:
         with pytest.raises(NotImplementedError, match="WeibullAdstock"):
             ExperimentDesigner(mmm)
 
-    def test_init_with_scalers(self):
-        mmm = _make_mock_mmm()
-        mmm.scalers = {"_channel": "ch_scaler", "_target": "tgt_scaler"}
-        d = ExperimentDesigner(mmm)
-        assert d._channel_scaler == "ch_scaler"
-        assert d._target_scaler == "tgt_scaler"
-
-    def test_init_scalers_missing_keys(self):
-        mmm = _make_mock_mmm()
-        mmm.scalers = {}
-        d = ExperimentDesigner(mmm)
-        assert d._channel_scaler is None
-
     def test_init_predict_exception_fallback(self):
-        """When predict() raises, residual_std defaults to 1.0."""
+        """When predict() raises, residual_std defaults to 1.0 with a warning."""
+        import warnings
+
         mmm = _make_mock_mmm()
 
         def _raise(_):
             raise RuntimeError("no predict")
 
         mmm.predict = _raise
-        d = ExperimentDesigner(mmm)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            d = ExperimentDesigner(mmm)
         assert d._residual_std == 1.0
         assert d._residual_autocorr == 0.0
+        residual_warnings = [x for x in w if "residual" in str(x.message).lower()]
+        assert len(residual_warnings) >= 1
 
     def test_init_predict_length_mismatch(self):
         """predict() returns more values than y; truncation branch is hit."""
@@ -955,7 +942,8 @@ class TestInitFromMockMMM:
         assert d._residual_std > 0
 
     def test_init_spend_corr_exception(self):
-        """When X[channels].corr() fails, _spend_correlation falls back to None."""
+        """When X[channels].corr() fails, _spend_correlation falls back to None with a warning."""
+        import warnings
         from unittest.mock import patch
 
         mmm = _make_mock_mmm()
@@ -963,9 +951,13 @@ class TestInitFromMockMMM:
         def _raise_on_corr(self, *a, **kw):
             raise RuntimeError("boom")
 
-        with patch.object(pd.DataFrame, "corr", _raise_on_corr):
-            d = ExperimentDesigner(mmm)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            with patch.object(pd.DataFrame, "corr", _raise_on_corr):
+                d = ExperimentDesigner(mmm)
         assert d._spend_correlation is None
+        corr_warnings = [x for x in w if "correlation" in str(x.message).lower()]
+        assert len(corr_warnings) >= 1
 
     def test_init_short_residuals(self):
         """With very short y, autocorrelation defaults to 0.0."""

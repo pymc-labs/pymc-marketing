@@ -22,6 +22,7 @@ multiple spend channels, analysed via Interrupted Time Series (ITS).
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -42,8 +43,8 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from arviz import InferenceData
 
-_SUPPORTED_SATURATION = {"logistic", "LogisticSaturation"}
-_SUPPORTED_ADSTOCK = {"geometric", "GeometricAdstock"}
+_SUPPORTED_SATURATION = {"LogisticSaturation"}
+_SUPPORTED_ADSTOCK = {"GeometricAdstock"}
 
 _DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
     "assurance": 0.5,
@@ -129,24 +130,17 @@ class ExperimentDesigner:
                 f"Supported: {_SUPPORTED_ADSTOCK}"
             )
 
-        self._saturation_type = sat_type
-        self._adstock_type = ads_type
-
-        self.channel_columns: list[str] = list(mmm.channel_columns)
-        self.l_max: int = int(mmm.adstock.l_max)
-        self.normalize: bool = bool(mmm.adstock.normalize)
-
         posterior = mmm.idata.posterior.stack(sample=("chain", "draw"))
-
         sat_var_map = mmm.saturation.variable_mapping
         ads_var_map = mmm.adstock.variable_mapping
 
-        self._posterior_samples: dict[str, dict[str, np.ndarray]] = {}
+        posterior_samples: dict[str, dict[str, np.ndarray]] = {}
         channel_dim = self._find_channel_dim(posterior, sat_var_map)
 
-        for channel in self.channel_columns:
+        channel_columns = list(mmm.channel_columns)
+        for channel in channel_columns:
             sel = {channel_dim: channel} if channel_dim else {}
-            self._posterior_samples[channel] = {
+            posterior_samples[channel] = {
                 "lam": posterior[sat_var_map["lam"]]
                 .sel(**sel)
                 .values.astype(np.float64),
@@ -158,31 +152,65 @@ class ExperimentDesigner:
                 .values.astype(np.float64),
             }
 
-        self.n_draws: int = len(next(iter(self._posterior_samples.values()))["lam"])
-
         n_recent = min(8, len(mmm.X))
         channel_spend = mmm.X[mmm.channel_columns].tail(n_recent).mean()
-        self._current_spend: dict[str, float] = {
-            ch: float(channel_spend[ch]) for ch in self.channel_columns
-        }
+        current_spend = {ch: float(channel_spend[ch]) for ch in channel_columns}
 
-        self._compute_residual_std(mmm)
+        residual_std, residual_autocorr = self._compute_residual_std(mmm)
 
         try:
-            self._spend_correlation: pd.DataFrame | None = mmm.X[
-                mmm.channel_columns
-            ].corr()
+            spend_correlation: pd.DataFrame | None = mmm.X[mmm.channel_columns].corr()
         except Exception:
-            self._spend_correlation = None
+            warnings.warn(
+                "Could not compute spend correlation matrix. "
+                "Correlation-based diagnostics will be unavailable.",
+                stacklevel=2,
+            )
+            spend_correlation = None
 
-        self._channel_scaler = None
-        self._target_scaler = None
-        if hasattr(mmm, "scalers"):
-            try:
-                self._channel_scaler = mmm.scalers["_channel"]
-                self._target_scaler = mmm.scalers["_target"]
-            except (KeyError, AttributeError):
-                pass
+        self._init_common(
+            saturation_type=sat_type,
+            adstock_type=ads_type,
+            channel_columns=channel_columns,
+            l_max=int(mmm.adstock.l_max),
+            normalize=bool(mmm.adstock.normalize),
+            posterior_samples=posterior_samples,
+            current_spend=current_spend,
+            residual_std=residual_std,
+            residual_autocorr=residual_autocorr,
+            spend_correlation=spend_correlation,
+        )
+
+    def _init_common(
+        self,
+        *,
+        saturation_type: str,
+        adstock_type: str,
+        channel_columns: list[str],
+        l_max: int,
+        normalize: bool,
+        posterior_samples: dict[str, dict[str, np.ndarray]],
+        current_spend: dict[str, float],
+        residual_std: float,
+        residual_autocorr: float,
+        spend_correlation: pd.DataFrame | None,
+    ) -> None:
+        """Set all instance attributes from pre-extracted data.
+
+        Both ``__init__`` and ``from_idata`` funnel through this method
+        so that new attributes only need to be added in one place.
+        """
+        self._saturation_type = saturation_type
+        self._adstock_type = adstock_type
+        self.channel_columns = channel_columns
+        self.l_max = l_max
+        self.normalize = normalize
+        self._posterior_samples = posterior_samples
+        self.n_draws: int = len(next(iter(posterior_samples.values()))["lam"])
+        self._current_spend = current_spend
+        self._residual_std = residual_std
+        self._residual_autocorr = residual_autocorr
+        self._spend_correlation = spend_correlation
 
     @staticmethod
     def _find_channel_dim(posterior: Any, sat_var_map: dict[str, str]) -> str | None:
@@ -196,8 +224,15 @@ class ExperimentDesigner:
             return None
         return dims[0]
 
-    def _compute_residual_std(self, mmm: Any) -> None:
-        """Compute per-week residual standard deviation and autocorrelation."""
+    @staticmethod
+    def _compute_residual_std(mmm: Any) -> tuple[float, float]:
+        """Compute per-week residual standard deviation and autocorrelation.
+
+        Returns
+        -------
+        tuple[float, float]
+            ``(residual_std, residual_autocorr)``.
+        """
         try:
             y_pred = mmm.predict(mmm.X)
             y_actual = np.asarray(mmm.y).ravel()
@@ -205,16 +240,19 @@ class ExperimentDesigner:
             if len(y_actual) != len(y_pred_flat):
                 y_pred_flat = y_pred_flat[: len(y_actual)]
             residuals = y_actual - y_pred_flat
-            self._residual_std: float = float(np.std(residuals))
+            std = float(np.std(residuals))
             if len(residuals) > 2:
-                self._residual_autocorr: float = float(
-                    np.corrcoef(residuals[:-1], residuals[1:])[0, 1]
-                )
+                autocorr = float(np.corrcoef(residuals[:-1], residuals[1:])[0, 1])
             else:
-                self._residual_autocorr = 0.0
+                autocorr = 0.0
+            return std, autocorr
         except Exception:
-            self._residual_std = 1.0
-            self._residual_autocorr = 0.0
+            warnings.warn(
+                "Could not compute residuals from mmm.predict(). "
+                "Using default residual_std=1.0.",
+                stacklevel=2,
+            )
+            return 1.0, 0.0
 
     def _effective_sigma(self, T: int) -> float:
         """Compute measurement noise on the cumulative scale with AR(1) correction.
@@ -281,17 +319,13 @@ class ExperimentDesigner:
             )
 
         instance = cls.__new__(cls)
-        instance._saturation_type = saturation
-        instance._adstock_type = adstock
 
         posterior = idata.posterior.stack(sample=("chain", "draw"))
-
         channels = list(posterior["saturation_lam"].coords["channel"].values)
-        instance.channel_columns = channels
 
-        instance._posterior_samples = {}
+        posterior_samples: dict[str, dict[str, np.ndarray]] = {}
         for channel in channels:
-            instance._posterior_samples[channel] = {
+            posterior_samples[channel] = {
                 "lam": posterior["saturation_lam"]
                 .sel(channel=channel)
                 .values.astype(np.float64),
@@ -303,34 +337,40 @@ class ExperimentDesigner:
                 .values.astype(np.float64),
             }
 
-        instance.n_draws = len(instance._posterior_samples[channels[0]]["lam"])
-
         cd = idata.constant_data
-        instance.l_max = int(cd["l_max"].values)
-        instance.normalize = bool(cd["normalize"].values)
-        instance._residual_std = float(cd["residual_std"].values)
-        if "residual_autocorr" in cd:
-            instance._residual_autocorr = float(cd["residual_autocorr"].values)
-        else:
-            instance._residual_autocorr = 0.0
-
         spend = cd["current_weekly_spend"]
-        instance._current_spend = {
-            ch: float(spend.sel(channel=ch).values) for ch in channels
-        }
+        current_spend = {ch: float(spend.sel(channel=ch).values) for ch in channels}
 
         if "spend_correlation" in cd:
             corr_vals = cd["spend_correlation"].values
-            instance._spend_correlation = pd.DataFrame(
+            spend_correlation: pd.DataFrame | None = pd.DataFrame(
                 corr_vals, index=channels, columns=channels
             )
         else:
-            instance._spend_correlation = None
+            spend_correlation = None
 
-        instance._channel_scaler = None
-        instance._target_scaler = None
+        instance._init_common(
+            saturation_type="LogisticSaturation",
+            adstock_type="GeometricAdstock",
+            channel_columns=channels,
+            l_max=int(cd["l_max"].values),
+            normalize=bool(cd["normalize"].values),
+            posterior_samples=posterior_samples,
+            current_spend=current_spend,
+            residual_std=float(cd["residual_std"].values),
+            residual_autocorr=(
+                float(cd["residual_autocorr"].values)
+                if "residual_autocorr" in cd
+                else 0.0
+            ),
+            spend_correlation=spend_correlation,
+        )
 
         return instance
+
+    # ------------------------------------------------------------------
+    # Saturation and adstock helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _eval_saturation(
@@ -375,6 +415,37 @@ class ExperimentDesigner:
             S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
             return x_current * S
 
+    def _ramp_fractions_matrix(
+        self,
+        alpha_samples: np.ndarray,
+        T_active: int,
+    ) -> np.ndarray:
+        """Compute per-draw, per-week adstock ramp fractions in [0, 1].
+
+        This is the single source of truth for ramp fraction computation.
+        Both ``_compute_ramp_fraction`` and ``plot_adstock_ramp`` delegate
+        to this method.
+
+        Parameters
+        ----------
+        alpha_samples : np.ndarray
+            Posterior draws for adstock alpha, shape ``(n_draws,)``.
+        T_active : int
+            Experiment duration in weeks.
+
+        Returns
+        -------
+        np.ndarray
+            Ramp fractions, shape ``(n_draws, T_active)``, values in [0, 1].
+        """
+        alpha_safe = np.clip(alpha_samples, 1e-6, 1 - 1e-6)
+        t_arr = np.arange(T_active)
+        partial_sums = (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
+            1.0 - alpha_safe[:, None]
+        )
+        S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
+        return partial_sums / S[:, None]
+
     def _compute_adstock_ramp(
         self,
         alpha_samples: np.ndarray,
@@ -396,17 +467,14 @@ class ExperimentDesigner:
             For normalised adstock these are fractions in [0, 1];
             for unnormalised they are raw partial sums.
         """
+        if self.normalize:
+            return self._ramp_fractions_matrix(alpha_samples, T_active)
+
         alpha_safe = np.clip(alpha_samples, 1e-6, 1 - 1e-6)
         t_arr = np.arange(T_active)
-        partial_sums = (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
+        return (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
             1.0 - alpha_safe[:, None]
         )
-
-        if self.normalize:
-            S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
-            return partial_sums / S[:, None]
-        else:
-            return partial_sums
 
     def _predict_lift(
         self,
@@ -479,266 +547,61 @@ class ExperimentDesigner:
         This is the ratio of time-averaged lift to steady-state lift,
         averaged over posterior draws.
         """
-        alpha_safe = np.clip(alpha_samples, 1e-6, 1 - 1e-6)
-        t_arr = np.arange(T_active)
-        partial_sums = (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
-            1.0 - alpha_safe[:, None]
-        )
+        return float(np.mean(self._ramp_fractions_matrix(alpha_samples, T_active)))
 
-        S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
-        ramp_fracs = partial_sums / S[:, None]
-        return float(np.mean(ramp_fracs))
+    # ------------------------------------------------------------------
+    # Channel-level diagnostics (shared by scoring and plotting)
+    # ------------------------------------------------------------------
 
-    def _compute_scoring_dimensions(
-        self,
-        recommendations: Sequence[ExperimentRecommendation],
-    ) -> dict[str, np.ndarray]:
-        """Compute raw scoring dimensions for all candidates.
+    def _channel_metrics(self) -> dict[str, dict[str, float]]:
+        """Compute per-channel diagnostic metrics.
 
-        Returns a dict mapping dimension name to an array of raw values,
-        one per recommendation (same ordering).
+        Returns a dict mapping channel name to a dict with keys:
+        ``hdi_width``, ``mean_correlation``, ``gradient``, ``mean_alpha``.
         """
-        n = len(recommendations)
-        channels = [r.channel for r in recommendations]
-
-        uncertainty = np.zeros(n)
-        for i, ch in enumerate(channels):
-            p = self._posterior_samples[ch]
-            hdi_lam = az.hdi(p["lam"], hdi_prob=0.94)
-            hdi_beta = az.hdi(p["beta"], hdi_prob=0.94)
-            lam_width = float(hdi_lam[1] - hdi_lam[0])
-            beta_width = float(hdi_beta[1] - hdi_beta[0])
-            uncertainty[i] = lam_width * beta_width
-
-        correlation = np.zeros(n)
-        has_correlation = self._spend_correlation is not None
-        if has_correlation and self._spend_correlation is not None:
-            corr_df = self._spend_correlation
-            for i, ch in enumerate(channels):
-                others = [
-                    abs(float(corr_df.loc[ch, other]))  # type: ignore[arg-type]
-                    for other in self.channel_columns
-                    if other != ch
-                ]
-                correlation[i] = float(np.mean(others)) if others else 0.0
-
-        gradient = np.zeros(n)
-        for i, ch in enumerate(channels):
-            p = self._posterior_samples[ch]
-            lam_mean = float(np.mean(p["lam"]))
-            beta_mean = float(np.mean(p["beta"]))
-            x_ss = float(self._current_spend[ch])
-            h = max(x_ss * 0.01, 1e-6)
-            grad = (
-                self._eval_saturation(x_ss + h, lam_mean, beta_mean)
-                - self._eval_saturation(x_ss, lam_mean, beta_mean)
-            ) / h
-            gradient[i] = float(grad)
-
-        assurance = np.array([r.assurance for r in recommendations])
-        abs_cost = np.array([abs(r.net_cost) for r in recommendations])
-        cost_efficiency = np.where(abs_cost > 1e-10, assurance / abs_cost, 0.0)
-
-        dims = {
-            "uncertainty": uncertainty,
-            "gradient": gradient,
-            "assurance": assurance,
-            "cost_efficiency": cost_efficiency,
-        }
-        if has_correlation:
-            dims["correlation"] = correlation
-        return dims
-
-    @staticmethod
-    def _min_max_normalize(values: np.ndarray) -> np.ndarray:
-        """Min-max normalize to [0, 1]. Returns 0.5 if range is zero."""
-        vmin, vmax = values.min(), values.max()
-        if vmax - vmin < 1e-10:
-            return np.full_like(values, 0.5)
-        return (values - vmin) / (vmax - vmin)
-
-    def _compute_scores(
-        self,
-        recommendations: Sequence[ExperimentRecommendation],
-        score_weights: dict[str, float] | None = None,
-    ) -> np.ndarray:
-        """Compute weighted composite scores for all recommendations."""
-        weights = dict(_DEFAULT_SCORE_WEIGHTS)
-        if score_weights is not None:
-            weights.update(score_weights)
-
-        dims = self._compute_scoring_dimensions(recommendations)
-
-        if "correlation" not in dims and "correlation" in weights:
-            corr_w = weights.pop("correlation")
-            remaining = [k for k in weights if k != "correlation"]
-            if remaining:
-                per_key = corr_w / len(remaining)
-                for k in remaining:
-                    weights[k] += per_key
-
-        total_w = sum(weights.values())
-        if total_w > 0:
-            weights = {k: v / total_w for k, v in weights.items()}
-
-        scores = np.zeros(len(recommendations))
-        for dim_name, raw_values in dims.items():
-            if dim_name in weights:
-                scores += weights[dim_name] * self._min_max_normalize(raw_values)
-
-        return scores
-
-    def recommend(
-        self,
-        spend_changes: list[float] | None = None,
-        durations: list[int] | None = None,
-        min_snr: float = 2.0,
-        significance_level: float = 0.05,
-        score_weights: dict[str, float] | None = None,
-    ) -> ExperimentRecommendations:
-        """Recommend experiments across all channels.
-
-        Evaluates a grid of candidate designs (channel x spend change x
-        duration) and returns a ranked collection of recommendations.
-
-        Parameters
-        ----------
-        spend_changes : list[float] | None
-            Fractional per-week spend changes. E.g. ``[0.2, -0.5, -1.0]``
-            means +20%, -50%, and go-dark. Defaults to
-            ``[0.1, 0.2, 0.3, 0.5, -0.2, -0.5, -1.0]``.
-        durations : list[int] | None
-            Experiment durations in weeks. Defaults to ``[4, 6, 8, 12]``.
-        min_snr : float
-            Minimum signal-to-noise ratio to include in results.
-        significance_level : float
-            Significance level for the two-sided power calculation.
-        score_weights : dict[str, float] | None
-            Custom weights for scoring dimensions. By default, experiments
-            are ranked by assurance (will the experiment detect the effect?)
-            and cost efficiency (assurance per unit of spend disruption).
-            Advanced users can override with any combination of
-            ``"uncertainty"``, ``"correlation"``, ``"gradient"``,
-            ``"assurance"``, ``"cost_efficiency"``.
-
-        Returns
-        -------
-        ExperimentRecommendations
-            Recommendations sorted by score (descending).
-        """
-        if spend_changes is None:
-            spend_changes = [0.1, 0.2, 0.3, 0.5, -0.2, -0.5, -1.0]
-        if durations is None:
-            durations = [4, 6, 8, 12]
-
-        candidates: list[ExperimentRecommendation] = []
-
-        for channel in self.channel_columns:
-            x_current = self._current_spend[channel]
-            alpha_samples = self._posterior_samples[channel]["alpha"]
-
-            for frac in spend_changes:
-                delta_x = frac * x_current
-
-                for T in durations:
-                    predicted_lift = self._predict_lift(channel, delta_x, T)
-                    expected_lift = float(np.mean(predicted_lift))
-                    hdi_arr = az.hdi(predicted_lift, hdi_prob=0.94)
-                    lift_hdi = (float(hdi_arr[0]), float(hdi_arr[1]))
-                    sigma_d = self._effective_sigma(T)
-                    snr = expected_lift / sigma_d if sigma_d > 0 else 0.0
-
-                    if abs(snr) < min_snr:
-                        continue
-
-                    assurance = self._compute_assurance(
-                        predicted_lift, sigma_d, significance_level
-                    )
-                    ramp_frac = self._compute_ramp_fraction(alpha_samples, T)
-                    net_cost = delta_x * T
-
-                    rec = ExperimentRecommendation(
-                        channel=channel,
-                        spend_change_frac=frac,
-                        spend_change_abs=delta_x,
-                        duration_weeks=T,
-                        expected_lift=expected_lift,
-                        expected_lift_hdi=lift_hdi,
-                        snr=snr,
-                        assurance=assurance,
-                        adstock_ramp_fraction=ramp_frac,
-                        net_cost=net_cost,
-                        score=0.0,
-                        rationale="",
-                    )
-                    candidates.append(rec)
-
-        null_candidates = self._identify_null_candidates()
-
-        if not candidates:
-            return ExperimentRecommendations(
-                [], null_confirmation_candidates=null_candidates
-            )
-
-        scores = self._compute_scores(candidates, score_weights)
-        for i, rec in enumerate(candidates):
-            rec.score = float(scores[i])
-
-        uncertainty_ranks = self._get_uncertainty_ranks()
-        for rec in candidates:
-            corr_result = self._get_correlation_info(rec.channel)
-            corr_desc = corr_result[0] if corr_result else None
-            corr_value = corr_result[1] if corr_result else None
-            rec.rationale = _format_rationale(
-                rec,
-                uncertainty_rank=uncertainty_ranks.get(rec.channel),
-                correlation_info=corr_desc,
-                max_correlation=corr_value,
-            )
-
-        candidates.sort(key=lambda r: r.score, reverse=True)
-        return ExperimentRecommendations(
-            candidates, null_confirmation_candidates=null_candidates
-        )
-
-    def _identify_null_candidates(self) -> list[str]:
-        """Identify channels whose posterior contribution is near zero.
-
-        A channel is flagged when the posterior mean of its absolute
-        contribution at current spend is less than one residual standard
-        deviation, indicating the model believes the channel has
-        negligible effect.
-
-        Returns
-        -------
-        list[str]
-            Channel names suitable for null-confirmation testing.
-        """
-        null_candidates: list[str] = []
-        for ch in self.channel_columns:
-            params = self._posterior_samples[ch]
-            x_current = self._current_spend[ch]
-            x_ss = self._compute_steady_state_spend(x_current, params["alpha"])
-            contribution = np.abs(
-                self._eval_saturation(x_ss, params["lam"], params["beta"])
-            )
-            mean_contribution = float(np.mean(contribution))
-            if mean_contribution < self._residual_std:
-                null_candidates.append(ch)
-        return null_candidates
-
-    def _get_uncertainty_ranks(self) -> dict[str, int]:
-        """Rank channels by posterior uncertainty (1 = most uncertain)."""
-        uncertainties = {}
+        result: dict[str, dict[str, float]] = {}
         for ch in self.channel_columns:
             p = self._posterior_samples[ch]
+
             hdi_lam = az.hdi(p["lam"], hdi_prob=0.94)
             hdi_beta = az.hdi(p["beta"], hdi_prob=0.94)
             lam_w = float(hdi_lam[1] - hdi_lam[0])
             beta_w = float(hdi_beta[1] - hdi_beta[0])
-            uncertainties[ch] = lam_w * beta_w
 
-        ranked = sorted(uncertainties, key=lambda ch: uncertainties[ch], reverse=True)
+            mean_corr = 0.0
+            if self._spend_correlation is not None:
+                corr_df = self._spend_correlation
+                others = [
+                    abs(float(corr_df.loc[ch, o]))  # type: ignore[arg-type]
+                    for o in self.channel_columns
+                    if o != ch
+                ]
+                mean_corr = float(np.mean(others)) if others else 0.0
+
+            x_ss = self._current_spend[ch]
+            lam_mean = float(np.mean(p["lam"]))
+            beta_mean = float(np.mean(p["beta"]))
+            h = max(x_ss * 0.01, 1e-6)
+            grad = float(
+                (
+                    self._eval_saturation(x_ss + h, lam_mean, beta_mean)
+                    - self._eval_saturation(x_ss, lam_mean, beta_mean)
+                )
+                / h
+            )
+
+            result[ch] = {
+                "hdi_width": lam_w * beta_w,
+                "mean_correlation": mean_corr,
+                "gradient": grad,
+                "mean_alpha": float(np.mean(p["alpha"])),
+            }
+        return result
+
+    def _get_uncertainty_ranks(self) -> dict[str, int]:
+        """Rank channels by posterior uncertainty (1 = most uncertain)."""
+        metrics = self._channel_metrics()
+        ranked = sorted(metrics, key=lambda ch: metrics[ch]["hdi_width"], reverse=True)
         return {ch: rank + 1 for rank, ch in enumerate(ranked)}
 
     def _get_correlation_info(self, channel: str) -> tuple[str, float] | None:
@@ -768,6 +631,219 @@ class ExperimentDesigner:
             return None
         desc = f"high spend correlation with {max_other} (r = {max_corr:.2f})"
         return desc, max_corr
+
+    # ------------------------------------------------------------------
+    # Scoring
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _min_max_normalize(values: np.ndarray) -> np.ndarray:
+        """Min-max normalize to [0, 1]. Returns 0.5 if range is zero."""
+        vmin, vmax = values.min(), values.max()
+        if vmax - vmin < 1e-10:
+            return np.full_like(values, 0.5)
+        return (values - vmin) / (vmax - vmin)
+
+    def _compute_scores(
+        self,
+        assurances: np.ndarray,
+        net_costs: np.ndarray,
+        score_weights: dict[str, float] | None = None,
+    ) -> np.ndarray:
+        """Compute weighted composite scores for candidates.
+
+        Scoring uses two dimensions: ``assurance`` (will the experiment
+        detect the effect?) and ``cost_efficiency`` (assurance per unit
+        of spend disruption).
+        """
+        weights = dict(_DEFAULT_SCORE_WEIGHTS)
+        if score_weights is not None:
+            weights.update(score_weights)
+
+        known_dims = {"assurance", "cost_efficiency"}
+        weights = {k: v for k, v in weights.items() if k in known_dims}
+
+        total_w = sum(weights.values())
+        if total_w <= 0:
+            return np.zeros(len(assurances))
+        weights = {k: v / total_w for k, v in weights.items()}
+
+        scores = np.zeros(len(assurances))
+        if weights.get("assurance", 0) > 0:
+            scores += weights["assurance"] * self._min_max_normalize(assurances)
+        if weights.get("cost_efficiency", 0) > 0:
+            abs_cost = np.abs(net_costs)
+            cost_eff = np.where(abs_cost > 1e-10, assurances / abs_cost, 0.0)
+            scores += weights["cost_efficiency"] * self._min_max_normalize(cost_eff)
+
+        return scores
+
+    # ------------------------------------------------------------------
+    # Recommendation
+    # ------------------------------------------------------------------
+
+    def recommend(
+        self,
+        spend_changes: list[float] | None = None,
+        durations: list[int] | None = None,
+        min_snr: float = 2.0,
+        significance_level: float = 0.05,
+        score_weights: dict[str, float] | None = None,
+    ) -> ExperimentRecommendations:
+        """Recommend experiments across all channels.
+
+        Evaluates a grid of candidate designs (channel x spend change x
+        duration) and returns a ranked collection of recommendations.
+
+        Parameters
+        ----------
+        spend_changes : list[float] | None
+            Fractional per-week spend changes. E.g. ``[0.2, -0.5, -1.0]``
+            means +20%, -50%, and go-dark. Defaults to
+            ``[0.1, 0.2, 0.3, 0.5, -0.2, -0.5, -1.0]``.
+        durations : list[int] | None
+            Experiment durations in weeks. Defaults to ``[4, 6, 8, 12]``.
+        min_snr : float
+            Minimum signal-to-noise ratio to include in results.
+        significance_level : float
+            Significance level for the two-sided power calculation.
+        score_weights : dict[str, float] | None
+            Custom weights for scoring dimensions. By default, experiments
+            are ranked by ``"assurance"`` (will the experiment detect the
+            effect?) and ``"cost_efficiency"`` (assurance per unit of spend
+            disruption).
+
+        Returns
+        -------
+        ExperimentRecommendations
+            Recommendations sorted by score (descending).
+        """
+        if spend_changes is None:
+            spend_changes = [0.1, 0.2, 0.3, 0.5, -0.2, -0.5, -1.0]
+        if durations is None:
+            durations = [4, 6, 8, 12]
+
+        candidate_data = self._evaluate_candidates(
+            spend_changes, durations, min_snr, significance_level
+        )
+        null_candidates = self._identify_null_candidates()
+
+        if not candidate_data:
+            return ExperimentRecommendations(
+                [], null_confirmation_candidates=null_candidates
+            )
+
+        assurances = np.array([c["assurance"] for c in candidate_data])
+        net_costs = np.array([c["net_cost"] for c in candidate_data])
+        scores = self._compute_scores(assurances, net_costs, score_weights)
+
+        uncertainty_ranks = self._get_uncertainty_ranks()
+
+        candidates: list[ExperimentRecommendation] = []
+        for i, data in enumerate(candidate_data):
+            score = float(scores[i])
+            corr_result = self._get_correlation_info(data["channel"])
+            corr_desc = corr_result[0] if corr_result else None
+            corr_value = corr_result[1] if corr_result else None
+
+            rec = ExperimentRecommendation(
+                **data,
+                score=score,
+                rationale="",
+            )
+            rec.rationale = _format_rationale(
+                rec,
+                uncertainty_rank=uncertainty_ranks.get(rec.channel),
+                correlation_info=corr_desc,
+                max_correlation=corr_value,
+            )
+            candidates.append(rec)
+
+        candidates.sort(key=lambda r: r.score, reverse=True)
+        return ExperimentRecommendations(
+            candidates, null_confirmation_candidates=null_candidates
+        )
+
+    def _evaluate_candidates(
+        self,
+        spend_changes: list[float],
+        durations: list[int],
+        min_snr: float,
+        significance_level: float,
+    ) -> list[dict[str, Any]]:
+        """Evaluate the candidate grid and return raw metric dicts.
+
+        Each dict contains all fields needed for an
+        ``ExperimentRecommendation`` except ``score`` and ``rationale``.
+        """
+        candidate_data: list[dict[str, Any]] = []
+
+        for channel in self.channel_columns:
+            x_current = self._current_spend[channel]
+            alpha_samples = self._posterior_samples[channel]["alpha"]
+
+            for frac in spend_changes:
+                delta_x = frac * x_current
+
+                for T in durations:
+                    predicted_lift = self._predict_lift(channel, delta_x, T)
+                    expected_lift = float(np.mean(predicted_lift))
+                    hdi_arr = az.hdi(predicted_lift, hdi_prob=0.94)
+                    lift_hdi = (float(hdi_arr[0]), float(hdi_arr[1]))
+                    sigma_d = self._effective_sigma(T)
+                    snr = expected_lift / sigma_d if sigma_d > 0 else 0.0
+
+                    if abs(snr) < min_snr:
+                        continue
+
+                    assurance = self._compute_assurance(
+                        predicted_lift, sigma_d, significance_level
+                    )
+                    ramp_frac = self._compute_ramp_fraction(alpha_samples, T)
+                    net_cost = delta_x * T
+
+                    candidate_data.append(
+                        {
+                            "channel": channel,
+                            "spend_change_frac": frac,
+                            "spend_change_abs": delta_x,
+                            "duration_weeks": T,
+                            "expected_lift": expected_lift,
+                            "expected_lift_hdi": lift_hdi,
+                            "snr": snr,
+                            "assurance": assurance,
+                            "adstock_ramp_fraction": ramp_frac,
+                            "net_cost": net_cost,
+                        }
+                    )
+
+        return candidate_data
+
+    def _identify_null_candidates(self) -> list[str]:
+        """Identify channels whose posterior contribution is near zero.
+
+        A channel is flagged when the posterior mean of its absolute
+        contribution at current spend is less than one residual standard
+        deviation, indicating the model believes the channel has
+        negligible effect.
+
+        Returns
+        -------
+        list[str]
+            Channel names suitable for null-confirmation testing.
+        """
+        null_candidates: list[str] = []
+        for ch in self.channel_columns:
+            params = self._posterior_samples[ch]
+            x_current = self._current_spend[ch]
+            x_ss = self._compute_steady_state_spend(x_current, params["alpha"])
+            contribution = np.abs(
+                self._eval_saturation(x_ss, params["lam"], params["beta"])
+            )
+            mean_contribution = float(np.mean(contribution))
+            if mean_contribution < self._residual_std:
+                null_candidates.append(ch)
+        return null_candidates
 
     # ------------------------------------------------------------------
     # Plotting
@@ -803,48 +879,12 @@ class ExperimentDesigner:
         if figsize is None:
             figsize = (10, 4)
 
+        metrics = self._channel_metrics()
+
         n_metrics = 4
         fig, axes = plt.subplots(1, n_metrics, figsize=figsize)
         x_pos = np.arange(len(channels))
         bar_colors = [colors[ch] for ch in channels]
-
-        hdi_widths = []
-        correlations = []
-        gradients = []
-        alphas = []
-
-        for ch in channels:
-            p = self._posterior_samples[ch]
-            hdi_lam = az.hdi(p["lam"], hdi_prob=0.94)
-            hdi_beta = az.hdi(p["beta"], hdi_prob=0.94)
-            lam_w = float(hdi_lam[1] - hdi_lam[0])
-            beta_w = float(hdi_beta[1] - hdi_beta[0])
-            hdi_widths.append(lam_w * beta_w)
-
-            if self._spend_correlation is not None:
-                corr_df = self._spend_correlation
-                others = [
-                    abs(float(corr_df.loc[ch, o]))  # type: ignore[arg-type]
-                    for o in channels
-                    if o != ch
-                ]
-                correlations.append(float(np.mean(others)) if others else 0.0)
-            else:
-                correlations.append(0.0)
-
-            x_ss = self._current_spend[ch]
-            lam_mean = float(np.mean(p["lam"]))
-            beta_mean = float(np.mean(p["beta"]))
-            h = max(x_ss * 0.01, 1e-6)
-            grad = float(
-                (
-                    self._eval_saturation(x_ss + h, lam_mean, beta_mean)
-                    - self._eval_saturation(x_ss, lam_mean, beta_mean)
-                )
-                / h
-            )
-            gradients.append(grad)
-            alphas.append(float(np.mean(p["alpha"])))
 
         titles = [
             "Posterior HDI Width\n(lam × beta)",
@@ -852,9 +892,10 @@ class ExperimentDesigner:
             "Saturation Gradient\n(at operating point)",
             "Adstock α\n(posterior mean)",
         ]
-        values = [hdi_widths, correlations, gradients, alphas]
+        value_keys = ["hdi_width", "mean_correlation", "gradient", "mean_alpha"]
 
-        for ax_i, title, vals in zip(axes, titles, values, strict=True):
+        for ax_i, title, key in zip(axes, titles, value_keys, strict=True):
+            vals = [metrics[ch][key] for ch in channels]
             ax_i.bar(x_pos, vals, color=bar_colors)
             ax_i.set_xticks(x_pos)
             ax_i.set_xticklabels(channels, rotation=45, ha="right")
@@ -1095,9 +1136,6 @@ class ExperimentDesigner:
 
     def plot_adstock_ramp(
         self,
-        recommendations: ExperimentRecommendations
-        | Sequence[ExperimentRecommendation]
-        | None = None,
         max_weeks: int = 16,
         colors: dict[str, str] | None = None,
         figsize: tuple[float, float] | None = None,
@@ -1109,8 +1147,6 @@ class ExperimentDesigner:
 
         Parameters
         ----------
-        recommendations : ExperimentRecommendations | Sequence[ExperimentRecommendation] | None
-            If provided, marks the durations of recommended experiments.
         max_weeks : int
             Maximum duration to plot.
         colors : dict[str, str] | None
@@ -1134,17 +1170,9 @@ class ExperimentDesigner:
         for ch in self.channel_columns:
             c = colors[ch]
             alpha = self._posterior_samples[ch]["alpha"]
-            ramp_fracs = np.zeros((self.n_draws, max_weeks))
-
-            for t_idx, T in enumerate(weeks):
-                alpha_safe = np.clip(alpha, 1e-6, 1 - 1e-6)
-                t_arr = np.arange(T)
-                partial = (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
-                    1.0 - alpha_safe[:, None]
-                )
-                S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
-                frac_per_draw = np.mean(partial / S[:, None], axis=1)
-                ramp_fracs[:, t_idx] = frac_per_draw
+            ramp_matrix = self._ramp_fractions_matrix(alpha, max_weeks)
+            cumsum = np.cumsum(ramp_matrix, axis=1)
+            ramp_fracs = cumsum / weeks[None, :]
 
             mean_ramp = ramp_fracs.mean(axis=0)
             low = np.percentile(ramp_fracs, 5.5, axis=0)
