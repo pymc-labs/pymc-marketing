@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import importlib
+import warnings
 from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
@@ -28,6 +29,8 @@ import pymc_marketing.prior  # noqa: F401
 REGISTRY: dict[str, Any] = {
     # "Prior": pymc_extras.prior.Prior,   # <— example of a whitelisted alias
 }
+
+KNOWN_SPEC_KEYS = frozenset({"class", "kwargs", "args"})
 
 # -----------------------------------------------------------------------------
 
@@ -74,6 +77,16 @@ def build(spec: Mapping[str, Any]) -> Any:
     if not isinstance(spec["class"], str):
         raise TypeError(
             f"Expected string for 'class' but got {type(spec['class']).__name__}: {spec['class']}"
+        )
+
+    unknown_keys = set(spec.keys()) - KNOWN_SPEC_KEYS
+    if unknown_keys:
+        warnings.warn(
+            f"Unknown keys {unknown_keys} in build spec for "
+            f"'{spec['class']}'. Only {sorted(KNOWN_SPEC_KEYS)} are "
+            f"recognised; other keys are ignored.",
+            UserWarning,
+            stacklevel=2,
         )
 
     cls = locate(spec["class"])
