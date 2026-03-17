@@ -4759,7 +4759,6 @@ class MMMPlotSuite:
                 fontweight="bold",
                 y=1.06,
             )
-            plt.show()
             return fig, ax
 
         else:
@@ -4791,7 +4790,6 @@ class MMMPlotSuite:
                         fontweight="bold",
                         y=1.06,
                     )
-                    plt.show()
                     last_fig_ax = (fig, ax)
 
             # If dims provided but empty, fall back to the no-dims behavior
@@ -4810,7 +4808,6 @@ class MMMPlotSuite:
                     fontweight="bold",
                     y=1.06,
                 )
-                plt.show()
                 return fig, ax
 
             return last_fig_ax

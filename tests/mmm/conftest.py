@@ -280,6 +280,36 @@ def time_varying_media_fitted_mmm(simple_mmm_data):
 
 
 @pytest.fixture
+def time_varying_intercept_fitted_mmm(simple_mmm_data):
+    """Create a fitted MMM with time_varying_intercept=True but time_varying_media=False.
+
+    This combination means ``time_index`` exists in the model (for the
+    HSGP intercept) but is **not** an ancestor of ``channel_contribution``.
+    It reproduces the ``UnusedInputError`` reported in GH-XXXX when the
+    incrementality code unconditionally added ``time_index`` as a compiled
+    function input.
+    """
+    X = simple_mmm_data["X"]
+    y = simple_mmm_data["y"]
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+        time_varying_media=False,
+    )
+
+    mock_fit(mmm, X, y)
+    mmm.post_sample_model_transformation()
+
+    return mmm
+
+
+@pytest.fixture
 def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
     X = panel_mmm_data["X"]
