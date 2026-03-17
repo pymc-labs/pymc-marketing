@@ -948,3 +948,101 @@ def test_event_batch_dims():
     mmm.build_model(X, y)
     assert mmm.model["y"].dims == ("date", "geo")
     assert mmm.model["y"].eval(mode="FAST_COMPILE").shape == (n_date, 2)
+
+
+class TestEventsTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of Basis and EventEffect."""
+
+    @pytest.mark.parametrize(
+        "basis_cls,kwargs",
+        [
+            (
+                GaussianBasis,
+                {
+                    "prefix": "custom_basis",
+                    "priors": {"sigma": Prior("Gamma", mu=5, sigma=2)},
+                },
+            ),
+            (
+                HalfGaussianBasis,
+                {
+                    "mode": "before",
+                    "include_event": False,
+                    "prefix": "hg_basis",
+                    "priors": {"sigma": Prior("Gamma", mu=5, sigma=2)},
+                },
+            ),
+            (
+                AsymmetricGaussianBasis,
+                {
+                    "event_in": "before",
+                    "prefix": "ag_basis",
+                    "priors": {
+                        "sigma_before": Prior("Gamma", mu=2, sigma=0.5),
+                        "sigma_after": Prior("Gamma", mu=5, sigma=1),
+                        "a_after": Prior("Normal", mu=0.5, sigma=0.3),
+                    },
+                },
+            ),
+        ],
+        ids=["GaussianBasis", "HalfGaussianBasis", "AsymmetricGaussianBasis"],
+    )
+    def test_basis_roundtrip_all_parameters(self, basis_cls, kwargs):
+        from pymc_marketing.serialization import registry
+
+        original = basis_cls(**kwargs)
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is basis_cls
+        assert restored.prefix == kwargs["prefix"]
+        for prior_name, prior in kwargs["priors"].items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
+
+    @pytest.mark.parametrize(
+        "basis_cls",
+        [GaussianBasis, HalfGaussianBasis, AsymmetricGaussianBasis],
+        ids=lambda c: c.__name__,
+    )
+    def test_basis_to_dict_includes_type_key(self, basis_cls):
+        obj = basis_cls()
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{basis_cls.__module__}.{basis_cls.__qualname__}"
+        assert data["__type__"] == expected
+
+    @pytest.mark.parametrize(
+        "basis_cls",
+        [GaussianBasis, HalfGaussianBasis, AsymmetricGaussianBasis],
+        ids=lambda c: c.__name__,
+    )
+    def test_basis_registered_in_type_registry(self, basis_cls):
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{basis_cls.__module__}.{basis_cls.__qualname__}"
+        assert type_key in registry._registry, f"{basis_cls.__name__} not registered"
+
+    def test_event_effect_roundtrip_all_parameters(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        basis = GaussianBasis(
+            prefix="ev_basis",
+            priors={"sigma": Prior("Gamma", mu=5, sigma=2)},
+        )
+        effect_size = Prior("Normal", mu=0.5, sigma=2.0)
+        original = EventEffect(
+            basis=basis,
+            effect_size=effect_size,
+            dims=("date", "event"),
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is EventEffect
+        assert type(restored.basis) is GaussianBasis
+        assert restored.dims == original.dims
+        assert restored.basis.prefix == "ev_basis"
+        assert restored == original

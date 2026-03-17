@@ -115,6 +115,7 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.utils import density
+from pymc_marketing.serialization import registry
 
 BASIS_TRANSFORMATIONS: dict = {}
 BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
@@ -125,6 +126,20 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
 
     prefix: str = "basis"
     lookup_name: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Basis":
+        """Reconstruct a basis from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("lookup_name", None)
+
+        if "priors" in data:
+            from pymc_extras.deserialize import deserialize
+
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
 
     @validate_call
     def sample_curve(
@@ -173,6 +188,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
 def basis_from_dict(data: dict) -> Basis:
     """Create a basis transformation from a dictionary."""
     data = data.copy()
+    data.pop("__type__", None)
     lookup_name = data.pop("lookup_name")
     cls = BASIS_TRANSFORMATIONS[lookup_name]
 
@@ -192,6 +208,7 @@ register_deserialization(
 )
 
 
+@registry.register
 class EventEffect(BaseModel):
     """Event effect associated with an event model."""
 
@@ -229,6 +246,7 @@ class EventEffect(BaseModel):
     def to_dict(self) -> dict:
         """Convert the event effect to a dictionary."""
         return {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "class": "EventEffect",
             "data": {
                 "basis": self.basis.to_dict(),
@@ -240,10 +258,13 @@ class EventEffect(BaseModel):
     @classmethod
     def from_dict(cls, data: dict) -> "EventEffect":
         """Create an event effect from a dictionary."""
+        data_inner = data.get("data", data)
+        if "__type__" in data_inner:
+            data_inner = {k: v for k, v in data_inner.items() if k != "__type__"}
         return cls(
-            basis=deserialize(data["basis"]),
-            effect_size=deserialize(data["effect_size"]),
-            dims=data["dims"],
+            basis=deserialize(data_inner["basis"]),
+            effect_size=deserialize(data_inner["effect_size"]),
+            dims=data_inner["dims"],
         )
 
 
@@ -258,6 +279,7 @@ register_deserialization(
 )
 
 
+@registry.register
 class GaussianBasis(Basis):
     """Gaussian basis transformation."""
 
@@ -276,6 +298,7 @@ class GaussianBasis(Basis):
     }
 
 
+@registry.register
 class HalfGaussianBasis(Basis):
     R"""One-sided Gaussian basis transformation.
 
@@ -353,6 +376,7 @@ class HalfGaussianBasis(Basis):
     }
 
 
+@registry.register
 class AsymmetricGaussianBasis(Basis):
     R"""Asymmetric Gaussian bump basis transformation.
 
