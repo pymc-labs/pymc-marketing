@@ -389,12 +389,36 @@ class TestNullConfirmation:
         assert sliced.null_confirmation_candidates == recs.null_confirmation_candidates
 
     def test_null_candidates_in_repr_html(self):
-        """Null candidates should appear in HTML output."""
+        """Null candidates should appear in HTML output (empty recs)."""
         recs = ExperimentRecommendations(
             [], null_confirmation_candidates=["dead_channel"]
         )
         html = recs._repr_html_()
         assert "dead_channel" in html
+        assert "near-zero effect" in html
+
+    def test_null_candidates_in_repr_html_with_recs(self):
+        """Null candidates appear in HTML when recommendations exist too."""
+        rec = ExperimentRecommendation(
+            channel="tv",
+            spend_change_frac=0.2,
+            spend_change_abs=0.1,
+            duration_weeks=4,
+            expected_lift=1.0,
+            expected_lift_hdi=(0.5, 1.5),
+            snr=3.0,
+            assurance=0.8,
+            adstock_ramp_fraction=0.9,
+            net_cost=0.4,
+            score=0.7,
+            rationale="test",
+        )
+        recs = ExperimentRecommendations(
+            [rec], null_confirmation_candidates=["weak_ch"]
+        )
+        html = recs._repr_html_()
+        assert "<table>" in html
+        assert "weak_ch" in html
         assert "near-zero effect" in html
 
     def test_null_candidates_in_repr(self):
@@ -477,7 +501,7 @@ class TestScoring:
         np.testing.assert_array_almost_equal(result, [0.0, 0.5, 1.0])
 
     def test_weight_redistribution_without_correlation(self):
-        """When spend_correlation is None, its weight is redistributed."""
+        """When spend_correlation is None, correlation weight is redistributed."""
         idata = generate_experiment_fixture(
             channels=["ch1", "ch2"],
             true_params={
@@ -494,6 +518,11 @@ class TestScoring:
             spend_changes=[0.2, -1.0],
             durations=[4],
             min_snr=0.0,
+            score_weights={
+                "assurance": 0.4,
+                "cost_efficiency": 0.3,
+                "correlation": 0.3,
+            },
         )
         for rec in recs:
             assert rec.score >= 0.0
@@ -505,6 +534,141 @@ class TestScoring:
         assert min(ranks.values()) == 1
 
 
+class TestFromIdataEdgeCases:
+    """Tests for from_idata edge cases and alternate branches."""
+
+    def test_from_idata_without_residual_autocorr(self):
+        """from_idata sets autocorrelation to 0.0 when field is absent."""
+        import xarray as xr
+
+        idata = generate_experiment_fixture(
+            channels=["ch1"],
+            true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
+            fit_model=False,
+            seed=1,
+        )
+        cd = {
+            k: v
+            for k, v in idata.constant_data.data_vars.items()
+            if k != "residual_autocorr"
+        }
+        del idata.constant_data
+        idata.add_groups({"constant_data": xr.Dataset(cd)})
+        d = ExperimentDesigner.from_idata(idata)
+        assert d._residual_autocorr == 0.0
+
+    def test_from_idata_without_spend_correlation(self):
+        """from_idata sets correlation to None when field is absent."""
+        import xarray as xr
+
+        idata = generate_experiment_fixture(
+            channels=["ch1"],
+            true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
+            fit_model=False,
+            seed=1,
+        )
+        cd = {
+            k: v
+            for k, v in idata.constant_data.data_vars.items()
+            if k != "spend_correlation"
+        }
+        del idata.constant_data
+        idata.add_groups({"constant_data": xr.Dataset(cd)})
+        d = ExperimentDesigner.from_idata(idata)
+        assert d._spend_correlation is None
+
+
+class TestNormalizeFlag:
+    """Tests for normalize=False branch."""
+
+    def test_steady_state_unnormalized(self):
+        idata = generate_experiment_fixture(
+            channels=["ch1"],
+            true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
+            fit_model=False,
+            seed=1,
+        )
+        d = ExperimentDesigner.from_idata(idata)
+        d.normalize = False
+        alpha = d._posterior_samples["ch1"]["alpha"]
+        result = d._compute_steady_state_spend(1.0, alpha)
+        assert result.shape == alpha.shape
+        assert np.all(result > 1.0)
+
+    def test_adstock_ramp_unnormalized(self):
+        idata = generate_experiment_fixture(
+            channels=["ch1"],
+            true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
+            fit_model=False,
+            seed=1,
+        )
+        d = ExperimentDesigner.from_idata(idata)
+        d.normalize = False
+        alpha = d._posterior_samples["ch1"]["alpha"]
+        ramp = d._compute_adstock_ramp(alpha, T_active=4)
+        assert ramp.shape == (d.n_draws, 4)
+
+
+class TestRecommendDefaults:
+    """Test recommend() with default arguments."""
+
+    def test_recommend_default_args(self, designer):
+        recs = designer.recommend(min_snr=0.0)
+        assert len(recs) > 0
+
+    def test_recommend_includes_decrease_direction(self, designer):
+        recs = designer.recommend(
+            spend_changes=[-0.3],
+            durations=[4],
+            min_snr=0.0,
+        )
+        for rec in recs:
+            assert rec.spend_change_frac < 0
+            assert rec.spend_change_frac != -1.0
+
+
+class TestSingleChannel:
+    """Test behaviour with a single channel (no correlation possible)."""
+
+    def test_single_channel_correlation_info_none(self):
+        idata = generate_experiment_fixture(
+            channels=["solo"],
+            true_params={"solo": {"lam": 1.0, "beta": 2.0, "alpha": 0.5}},
+            fit_model=False,
+            seed=1,
+        )
+        d = ExperimentDesigner.from_idata(idata)
+        result = d._get_correlation_info("solo")
+        assert result is None
+
+
+class TestRecommendationsEquality:
+    """Tests for ExperimentRecommendations.__eq__."""
+
+    def test_eq_with_list(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        rec_list = list(recs)
+        assert recs == rec_list
+
+    def test_eq_with_unknown_type(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        assert recs.__eq__("not a list") is NotImplemented
+
+    def test_eq_with_container(self, designer):
+        recs = designer.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        recs2 = ExperimentRecommendations(list(recs))
+        assert recs == recs2
+
+
+class TestFixtureDefaults:
+    """Tests for generate_experiment_fixture default parameters."""
+
+    def test_default_channels_and_params(self):
+        idata = generate_experiment_fixture(fit_model=False, seed=42)
+        d = ExperimentDesigner.from_idata(idata)
+        assert d.channel_columns == ["tv", "search", "social"]
+
+
 class TestPlotting:
     """Smoke tests for plotting methods (verify they don't error)."""
 
@@ -513,6 +677,25 @@ class TestPlotting:
         assert fig is not None
         import matplotlib.pyplot as plt
 
+        plt.close(fig)
+
+    def test_plot_channel_diagnostics_no_correlation(self):
+        """Diagnostics with spend_correlation=None."""
+        import matplotlib.pyplot as plt
+
+        idata = generate_experiment_fixture(
+            channels=["a", "b"],
+            true_params={
+                "a": {"lam": 1.0, "beta": 1.0, "alpha": 0.5},
+                "b": {"lam": 0.5, "beta": 2.0, "alpha": 0.3},
+            },
+            fit_model=False,
+            seed=1,
+        )
+        d = ExperimentDesigner.from_idata(idata)
+        d._spend_correlation = None
+        fig, _axes = d.plot_channel_diagnostics()
+        assert fig is not None
         plt.close(fig)
 
     def test_plot_power_cost(self, designer):
@@ -528,6 +711,20 @@ class TestPlotting:
 
             plt.close(fig)
 
+    def test_plot_power_cost_decrease_direction(self, designer):
+        """Power-cost plot includes decrease markers."""
+        import matplotlib.pyplot as plt
+
+        recs = designer.recommend(
+            spend_changes=[0.2, -0.3, -1.0],
+            durations=[4],
+            min_snr=0.0,
+        )
+        if recs:
+            fig, _ax = designer.plot_power_cost(recs)
+            assert fig is not None
+            plt.close(fig)
+
     def test_plot_lift_distributions(self, designer):
         fig, _axes = designer.plot_lift_distributions(
             "tv",
@@ -539,6 +736,38 @@ class TestPlotting:
 
         plt.close(fig)
 
+    def test_plot_lift_distributions_defaults(self, designer):
+        """Lift distributions with default spend_changes and durations."""
+        import matplotlib.pyplot as plt
+
+        fig, _axes = designer.plot_lift_distributions("tv")
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plot_lift_distributions_single_row(self, designer):
+        """Lift distributions with a single spend change (triggers row newaxis)."""
+        import matplotlib.pyplot as plt
+
+        fig, _axes = designer.plot_lift_distributions(
+            "tv",
+            spend_changes=[0.2],
+            durations=[4, 6],
+        )
+        assert fig is not None
+        plt.close(fig)
+
+    def test_plot_lift_distributions_single_col(self, designer):
+        """Lift distributions with a single duration (triggers col newaxis)."""
+        import matplotlib.pyplot as plt
+
+        fig, _axes = designer.plot_lift_distributions(
+            "tv",
+            spend_changes=[0.2, -1.0],
+            durations=[4],
+        )
+        assert fig is not None
+        plt.close(fig)
+
     def test_plot_saturation_curve(self, designer):
         fig, _ax = designer.plot_saturation_curve(
             "tv",
@@ -547,6 +776,26 @@ class TestPlotting:
         assert fig is not None
         import matplotlib.pyplot as plt
 
+        plt.close(fig)
+
+    def test_plot_saturation_curve_existing_ax(self, designer):
+        """Saturation curve on a pre-existing axes."""
+        import matplotlib.pyplot as plt
+
+        _fig0, ax0 = plt.subplots()
+        fig, ax = designer.plot_saturation_curve("tv", ax=ax0, n_samples=10)
+        assert fig is not None
+        assert ax is ax0
+        plt.close(fig)
+
+    def test_plot_saturation_curve_with_spend_levels(self, designer):
+        """Saturation curve with spend-level markers."""
+        import matplotlib.pyplot as plt
+
+        fig, _ax = designer.plot_saturation_curve(
+            "tv", n_samples=10, spend_levels=[0.2, 0.5]
+        )
+        assert fig is not None
         plt.close(fig)
 
     def test_plot_adstock_ramp(self, designer):
