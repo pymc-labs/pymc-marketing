@@ -15,12 +15,14 @@
 """Tests for fixture generation and from_idata round-trip."""
 
 import arviz as az
+import numpy as np
 import pytest
 
 from pymc_marketing.mmm.experiment_design import (
     ExperimentDesigner,
     generate_experiment_fixture,
 )
+from pymc_marketing.mmm.experiment_design.fixture import _simulate_spend
 
 
 @pytest.fixture(scope="module")
@@ -122,3 +124,29 @@ class TestFromIdataRoundTrip:
     def test_unsupported_adstock_raises(self, synthetic_idata):
         with pytest.raises(NotImplementedError, match="Adstock"):
             ExperimentDesigner.from_idata(synthetic_idata, adstock="weibull")
+
+
+class TestSimulateSpend:
+    """Tests for _simulate_spend helper."""
+
+    def test_default_rng(self):
+        """Calling without rng uses the default generator (covers line 60)."""
+        spend = _simulate_spend(n_weeks=10, n_channels=2, channel_names=["a", "b"])
+        assert spend.shape == (10, 2)
+        assert np.all(spend > 0)
+
+
+class TestFixtureShortResiduals:
+    """Test fixture with very short time series."""
+
+    def test_short_series_autocorr_zero(self):
+        """With n_weeks=2, autocorrelation defaults to 0.0 (covers line 211)."""
+        idata = generate_experiment_fixture(
+            channels=["ch1"],
+            true_params={"ch1": {"lam": 1.0, "beta": 1.0, "alpha": 0.5}},
+            n_weeks=2,
+            fit_model=False,
+            seed=1,
+        )
+        autocorr = float(idata.constant_data["residual_autocorr"].values)
+        assert autocorr == 0.0

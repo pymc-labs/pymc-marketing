@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from pymc_marketing.mmm.experiment_design import (
@@ -25,6 +26,52 @@ from pymc_marketing.mmm.experiment_design import (
     ExperimentRecommendations,
     generate_experiment_fixture,
 )
+
+# ---------------------------------------------------------------------------
+# Lightweight stub classes whose __name__ satisfies _SUPPORTED_* checks
+# ---------------------------------------------------------------------------
+
+
+class LogisticSaturation:
+    variable_mapping = {"lam": "saturation_lam", "beta": "saturation_beta"}
+
+
+class GeometricAdstock:
+    variable_mapping = {"alpha": "adstock_alpha"}
+
+    def __init__(self, l_max: int = 8, normalize: bool = True):
+        self.l_max = l_max
+        self.normalize = normalize
+
+
+def _make_mock_mmm(channels=None, seed=42):
+    """Build a minimal object whose interface satisfies ``__init__``."""
+    if channels is None:
+        channels = ["tv", "search"]
+
+    idata = generate_experiment_fixture(
+        channels=channels,
+        true_params={ch: {"lam": 1.0, "beta": 2.0, "alpha": 0.5} for ch in channels},
+        fit_model=False,
+        seed=seed,
+    )
+
+    rng = np.random.default_rng(seed)
+    n = 20
+
+    class _MMM:
+        pass
+
+    mmm = _MMM()
+    mmm.idata = idata
+    mmm.adstock_first = True
+    mmm.channel_columns = channels
+    mmm.saturation = LogisticSaturation()
+    mmm.adstock = GeometricAdstock(l_max=8, normalize=True)
+    mmm.X = pd.DataFrame({ch: rng.uniform(1, 5, n) for ch in channels})
+    mmm.y = rng.uniform(10, 50, n)
+    mmm.predict = lambda x: np.asarray(mmm.y) + rng.normal(0, 1, len(mmm.y))
+    return mmm
 
 
 @pytest.fixture(scope="module")
@@ -804,3 +851,167 @@ class TestPlotting:
         import matplotlib.pyplot as plt
 
         plt.close(fig)
+
+
+class TestInitFromMockMMM:
+    """Test ExperimentDesigner.__init__ using a lightweight mock MMM."""
+
+    def test_init_creates_designer(self):
+        mmm = _make_mock_mmm()
+        d = ExperimentDesigner(mmm)
+        assert d.channel_columns == ["tv", "search"]
+        assert d.n_draws == 4000
+        assert d.l_max == 8
+        assert d.normalize is True
+
+    def test_init_sets_residual_std(self):
+        mmm = _make_mock_mmm()
+        d = ExperimentDesigner(mmm)
+        assert d._residual_std > 0
+        assert isinstance(d._residual_autocorr, float)
+
+    def test_init_sets_current_spend(self):
+        mmm = _make_mock_mmm()
+        d = ExperimentDesigner(mmm)
+        for ch in d.channel_columns:
+            assert d._current_spend[ch] > 0
+
+    def test_init_computes_spend_correlation(self):
+        mmm = _make_mock_mmm()
+        d = ExperimentDesigner(mmm)
+        assert d._spend_correlation is not None
+        assert d._spend_correlation.shape == (2, 2)
+
+    def test_init_no_scalers(self):
+        mmm = _make_mock_mmm()
+        d = ExperimentDesigner(mmm)
+        assert d._channel_scaler is None
+        assert d._target_scaler is None
+
+    def test_init_raises_unfitted(self):
+        mmm = _make_mock_mmm()
+        mmm.idata = None
+        with pytest.raises(ValueError, match="fitted"):
+            ExperimentDesigner(mmm)
+
+    def test_init_raises_adstock_first_false(self):
+        mmm = _make_mock_mmm()
+        mmm.adstock_first = False
+        with pytest.raises(NotImplementedError, match="adstock_first"):
+            ExperimentDesigner(mmm)
+
+    def test_init_raises_unsupported_saturation(self):
+        mmm = _make_mock_mmm()
+
+        class HillSaturation:
+            variable_mapping = {"lam": "saturation_lam", "beta": "saturation_beta"}
+
+        mmm.saturation = HillSaturation()
+        with pytest.raises(NotImplementedError, match="HillSaturation"):
+            ExperimentDesigner(mmm)
+
+    def test_init_raises_unsupported_adstock(self):
+        mmm = _make_mock_mmm()
+
+        class WeibullAdstock:
+            variable_mapping = {"alpha": "adstock_alpha"}
+            l_max = 8
+            normalize = True
+
+        mmm.adstock = WeibullAdstock()
+        with pytest.raises(NotImplementedError, match="WeibullAdstock"):
+            ExperimentDesigner(mmm)
+
+    def test_init_with_scalers(self):
+        mmm = _make_mock_mmm()
+        mmm.scalers = {"_channel": "ch_scaler", "_target": "tgt_scaler"}
+        d = ExperimentDesigner(mmm)
+        assert d._channel_scaler == "ch_scaler"
+        assert d._target_scaler == "tgt_scaler"
+
+    def test_init_scalers_missing_keys(self):
+        mmm = _make_mock_mmm()
+        mmm.scalers = {}
+        d = ExperimentDesigner(mmm)
+        assert d._channel_scaler is None
+
+    def test_init_predict_exception_fallback(self):
+        """When predict() raises, residual_std defaults to 1.0."""
+        mmm = _make_mock_mmm()
+
+        def _raise(_):
+            raise RuntimeError("no predict")
+
+        mmm.predict = _raise
+        d = ExperimentDesigner(mmm)
+        assert d._residual_std == 1.0
+        assert d._residual_autocorr == 0.0
+
+    def test_init_predict_length_mismatch(self):
+        """predict() returns more values than y; truncation branch is hit."""
+        mmm = _make_mock_mmm()
+        mmm.predict = lambda x: np.ones(len(mmm.y) + 5)
+        d = ExperimentDesigner(mmm)
+        assert d._residual_std > 0
+
+    def test_init_spend_corr_exception(self):
+        """When X[channels].corr() fails, _spend_correlation falls back to None."""
+        from unittest.mock import patch
+
+        mmm = _make_mock_mmm()
+
+        def _raise_on_corr(self, *a, **kw):
+            raise RuntimeError("boom")
+
+        with patch.object(pd.DataFrame, "corr", _raise_on_corr):
+            d = ExperimentDesigner(mmm)
+        assert d._spend_correlation is None
+
+    def test_init_short_residuals(self):
+        """With very short y, autocorrelation defaults to 0.0."""
+        mmm = _make_mock_mmm()
+        mmm.y = np.array([1.0, 2.0])
+        mmm.X = pd.DataFrame({"tv": [1.0, 2.0], "search": [3.0, 4.0]})
+        mmm.predict = lambda x: np.array([1.1, 2.1])
+        d = ExperimentDesigner(mmm)
+        assert d._residual_autocorr == 0.0
+
+    def test_recommend_from_mock_mmm(self):
+        """Full round-trip: init from mock MMM then recommend."""
+        mmm = _make_mock_mmm()
+        d = ExperimentDesigner(mmm)
+        recs = d.recommend(spend_changes=[0.2], durations=[4], min_snr=0.0)
+        assert len(recs) > 0
+
+
+class TestFindChannelDim:
+    """Direct tests for the _find_channel_dim static method."""
+
+    def test_returns_dim_name(self):
+        import xarray as xr
+
+        ds = xr.Dataset(
+            {
+                "saturation_lam": xr.DataArray(
+                    np.ones((4, 2)),
+                    dims=["sample", "channel"],
+                    coords={"channel": ["a", "b"]},
+                ),
+            }
+        )
+        result = ExperimentDesigner._find_channel_dim(ds, {"lam": "saturation_lam"})
+        assert result == "channel"
+
+    def test_returns_none_for_missing_var(self):
+        import xarray as xr
+
+        ds = xr.Dataset({"other": xr.DataArray(np.ones(4), dims=["sample"])})
+        result = ExperimentDesigner._find_channel_dim(ds, {"lam": "missing_var"})
+        assert result is None
+
+    def test_returns_none_for_scalar_var(self):
+        import xarray as xr
+
+        ds = xr.Dataset({"saturation_lam": xr.DataArray(np.ones(4), dims=["sample"])})
+        result = ExperimentDesigner._find_channel_dim(ds, {"lam": "saturation_lam"})
+        assert result is None
