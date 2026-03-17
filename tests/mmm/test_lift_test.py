@@ -15,7 +15,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
-import pytensor.tensor as pt
 import pytest
 from pymc.model_graph import fast_eval
 from pytensor.xtensor import as_xtensor
@@ -548,8 +547,12 @@ def test_add_cost_per_target_observations(dummy_mmm_model):
 
     dates = model.model.coords["date"]
     channels = model.model.coords["channel"]
-    const_cpt = as_xtensor(
+    cost = as_xtensor(
         np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.ones((len(dates), len(channels)), dtype=float),
         dims=("date", "channel"),
     )
 
@@ -564,7 +567,8 @@ def test_add_cost_per_target_observations(dummy_mmm_model):
     add_cost_per_target_observations(
         calibration_df=calibration_df,
         model=model.model,
-        cpt_value=const_cpt,
+        cost_value=cost,
+        target_value=target,
         name_prefix="cpt_calibration",
     )
 
@@ -578,8 +582,13 @@ def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
     channels = model.coords["channel"]
 
     dates = model.coords["date"]
-    const_cpt = pt.as_tensor_variable(
-        np.full((len(dates), len(channels)), 30.0, dtype=float)
+    cost = as_xtensor(
+        np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.ones((len(dates), len(channels)), dtype=float),
+        dims=("date", "channel"),
     )
 
     calibration_df = pd.DataFrame(
@@ -594,7 +603,8 @@ def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
         add_cost_per_target_observations(
             calibration_df=calibration_df,
             model=model,
-            cpt_value=const_cpt,
+            cost_value=cost,
+            target_value=target,
             name_prefix="cpt_calibration",
         )
 
@@ -607,25 +617,18 @@ def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
         add_cost_per_target_observations(
             calibration_df=calibration_df_minimal,
             model=model,
-            cpt_value=const_cpt,
+            cost_value=cost,
+            target_value=target,
             name_prefix="cpt_calibration",
         )
 
 
-def test_add_cost_per_target_observations_with_posterior_predictive_out_of_sample(
-    mock_pymc_sample,
-):
-    """Test that add_cost_per_target_observations works with sample_posterior_predictive on out-of-sample data.
-
-    This test validates that:
-    1. Adding cost_per_target observations doesn't break posterior predictive sampling
-    2. Out-of-sample data (different dates than training) works correctly
-    3. The returned data structure is valid
-    """
-    # Create sample data for model
+@pytest.fixture(scope="module")
+def fitted_mmm_with_cpt(mock_pymc_sample):
+    """MMM built, calibrated via add_cost_per_target_calibration, then fitted."""
     np.random.seed(42)
     n_train = 40
-    n_test = 10
+    channels = ["organic", "paid", "social"]
 
     df_train = pd.DataFrame(
         {
@@ -637,27 +640,18 @@ def test_add_cost_per_target_observations_with_posterior_predictive_out_of_sampl
         }
     )
 
-    X_train = df_train[["date", "organic", "paid", "social"]]
+    X_train = df_train[["date", *channels]]
     y_train = df_train["y"]
 
-    # Initialize and build model
     mmm = MMM(
         date_column="date",
         adstock=GeometricAdstock(l_max=4),
         saturation=LogisticSaturation(),
-        channel_columns=["organic", "paid", "social"],
+        channel_columns=channels,
     )
     mmm.build_model(X_train, y_train)
+    mmm.add_original_scale_contribution_variable(["channel_contribution"])
 
-    # Create a cost_per_target tensor over (date, channel)
-    dates = mmm.model.coords["date"]
-    channels = mmm.model.coords["channel"]
-    const_cpt = as_xtensor(
-        np.full((len(dates), len(channels)), 25.0, dtype=float),
-        ("date", "channel"),
-    )
-
-    # Calibration DataFrame with targets
     calibration_df = pd.DataFrame(
         {
             "channel": [channels[0], channels[1]],
@@ -665,30 +659,50 @@ def test_add_cost_per_target_observations_with_posterior_predictive_out_of_sampl
             "sigma": [3.0, 4.0],
         }
     )
-
-    add_cost_per_target_observations(
-        calibration_df=calibration_df,
-        model=mmm.model,
-        cpt_value=const_cpt,
-        name_prefix="cpt_calibration",
+    mmm.add_cost_per_target_calibration(
+        data=df_train,
+        calibration_data=calibration_df,
     )
 
-    obs_names = [rv.name for rv in mmm.model.observed_RVs]
-    assert "cpt_calibration" in obs_names
+    assert mmm._has_cpt_calibration is True
+    assert "cpt_calibration" in [rv.name for rv in mmm.model.observed_RVs]
 
-    # Fit the model
     mmm.fit(X_train, y_train, draws=25, tune=25, chains=1, random_seed=42)
+    return mmm, df_train
 
-    # Verify model was fitted
-    assert hasattr(mmm, "idata")
-    assert mmm.idata is not None
 
-    # Create out-of-sample data with different dates
+def _assert_posterior_predictive(posterior_pred, expected_dates):
+    assert "y" in posterior_pred
+    assert "cpt_calibration" not in posterior_pred
+    assert set(posterior_pred["y"].dims) == {"sample", "date"}
+    np.testing.assert_array_equal(
+        posterior_pred.coords["date"].values,
+        expected_dates,
+    )
+    assert not np.isnan(posterior_pred["y"].values).any()
+
+
+def test_posterior_predictive_in_sample_with_cpt(fitted_mmm_with_cpt):
+    mmm, df_train = fitted_mmm_with_cpt
+    X_train = df_train[["date", "organic", "paid", "social"]]
+
+    posterior_pred = mmm.sample_posterior_predictive(
+        X_train, extend_idata=False, random_seed=42
+    )
+    _assert_posterior_predictive(posterior_pred, X_train["date"].values)
+
+
+def test_posterior_predictive_out_of_sample_with_cpt(fitted_mmm_with_cpt):
+    mmm, df_train = fitted_mmm_with_cpt
+    np.random.seed(99)
+    n_test = 10
+
     df_test = pd.DataFrame(
         {
             "date": pd.to_datetime(
                 pd.date_range(
-                    start=df_train["date"].max() + pd.Timedelta(days=1), periods=n_test
+                    start=df_train["date"].max() + pd.Timedelta(days=1),
+                    periods=n_test,
                 )
             ),
             "organic": np.random.rand(n_test) * 520,
@@ -696,43 +710,12 @@ def test_add_cost_per_target_observations_with_posterior_predictive_out_of_sampl
             "social": np.random.rand(n_test) * 50,
         }
     )
-
     X_test = df_test[["date", "organic", "paid", "social"]]
 
-    # Sample posterior predictive with out-of-sample data
-    # This is the critical test - it should work without errors
     posterior_pred = mmm.sample_posterior_predictive(
         X_test, extend_idata=False, random_seed=42
     )
-
-    # Validate the output structure
-    assert posterior_pred is not None
-    assert "y" in posterior_pred, "Posterior predictive should contain 'y' variable"
-
-    # Validate dimensions - should match test data
-    assert "date" in posterior_pred.dims, "Should have 'date' dimension"
-    assert len(posterior_pred.coords["date"]) == n_test, (
-        f"Date dimension should have {n_test} entries for test data"
-    )
-
-    # Verify that the dates match the test data
-    np.testing.assert_array_equal(
-        posterior_pred.coords["date"].values,
-        X_test["date"].values,
-        err_msg="Posterior predictive dates should match test data dates",
-    )
-
-    # Verify shape of predictions
-    # When extend_idata=False and combined=True (default), dimensions are stacked
-    expected_dims = ("sample", "date")
-    assert set(posterior_pred["y"].dims) == set(expected_dims), (
-        f"Predictions should have dimensions {expected_dims}, got {posterior_pred['y'].dims}"
-    )
-
-    # Verify no NaN values in predictions
-    assert not np.isnan(posterior_pred["y"].values).any(), (
-        "Predictions should not contain NaN values"
-    )
+    _assert_posterior_predictive(posterior_pred, X_test["date"].values)
 
 
 def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_model):
@@ -740,8 +723,12 @@ def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_mode
 
     dates = model.model.coords["date"]
     channels = model.model.coords["channel"]
-    const_cpt = as_xtensor(
+    cost = as_xtensor(
         np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.ones((len(dates), len(channels)), dtype=float),
         dims=("date", "channel"),
     )
 
@@ -759,7 +746,8 @@ def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_mode
         add_cost_per_target_potentials(
             calibration_df=calibration_df,
             model=model.model,
-            cpt_value=const_cpt,
+            cost_value=cost,
+            target_value=target,
             name_prefix="cpt_calibration",
         )
 
