@@ -1,7 +1,6 @@
 # Serialization Overhaul Design
 
 **Date:** 2026-03-05 (updated 2026-03-16)
-**Status:** Approved — Option B (Convention-First with Base-Class Hooks)
 **Scope:** Multidimensional MMM serialization — unify patterns, fix all known issues, future-proof for custom components. Additionally, `ModelBuilder` base class gains TypeRegistry-aware hooks so any model family can adopt the new system incrementally.
 
 ---
@@ -769,7 +768,7 @@ design has the most impact:
    register with `@registry.register`
 3. HSGP classes — `DeferredFactory` for `eta`/`ls`, `list→tuple` normalization
    in `from_dict()`, `__type__` key, `@registry.register`
-4. HSGPKwargs — custom `to_dict()`/`from_dict()` with `DeferredFactory` for `cov_func`
+4. HSGPKwargs — add `__type__` key and `@registry.register`
 5. Fourier, EventEffect, MediaTransformation — `__type__` key, `@registry.register`
 6. MuEffect subclasses — `SerializableMixin` on `MuEffect` base, custom overrides
    for `FourierEffect` and `EventAdditiveEffect` (including supplementary data storage)

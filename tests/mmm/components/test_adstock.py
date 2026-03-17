@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import inspect
 import warnings
 
 import numpy as np
@@ -27,26 +28,20 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+import pymc_marketing.mmm.components.adstock as adstock_module
 from pymc_marketing.mmm.components.adstock import (
     ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
-    BinomialAdstock,
     DelayedAdstock,
     GeometricAdstock,
-    NoAdstock,
-    WeibullCDFAdstock,
-    WeibullPDFAdstock,
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
 
 ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
-    BinomialAdstock,
-    GeometricAdstock,
-    DelayedAdstock,
-    WeibullPDFAdstock,
-    WeibullCDFAdstock,
-    NoAdstock,
+    cls
+    for _, cls in inspect.getmembers(adstock_module, inspect.isclass)
+    if issubclass(cls, AdstockTransformation) and cls is not AdstockTransformation
 ]
 
 
@@ -294,25 +289,35 @@ class TestAdstockTypeRegistry:
         type_key = f"{adstock_cls.__module__}.{adstock_cls.__qualname__}"
         assert type_key in registry._registry, f"{adstock_cls.__name__} not registered"
 
-    def test_roundtrip_via_registry(self):
-        from pymc_marketing.serialization import registry
-
-        original = GeometricAdstock(l_max=8)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
-        assert isinstance(restored, GeometricAdstock)
-        assert restored == original
-
-    def test_roundtrip_with_custom_priors(self):
+    @pytest.mark.parametrize(
+        "adstock_cls", ALL_ADSTOCK_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_roundtrip_all_parameters(self, adstock_cls):
         from pymc_extras.prior import Prior
 
         from pymc_marketing.serialization import registry
 
-        original = GeometricAdstock(
-            l_max=6,
-            priors={"alpha": Prior("Beta", alpha=1.0, beta=3.0)},
-        )
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in adstock_cls.default_priors
+        }
+
+        kwargs: dict = {
+            "l_max": 7,
+            "normalize": False,
+            "mode": ConvMode.Before,
+            "prefix": "custom_prefix",
+            "priors": custom_priors,
+        }
+
+        original = adstock_cls(**kwargs)
         data = registry.serialize(original)
         restored = registry.deserialize(data)
-        assert isinstance(restored, GeometricAdstock)
-        assert restored.l_max == original.l_max
+
+        assert type(restored) is adstock_cls
+        assert restored.l_max == 7
+        assert restored.normalize is False
+        assert restored.mode == ConvMode.Before
+        assert restored.prefix == "custom_prefix"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
