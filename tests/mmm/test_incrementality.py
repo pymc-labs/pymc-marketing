@@ -216,6 +216,9 @@ class TestIncrementality:
             ("time_varying_media_fitted_mmm", "original", True, 0.0),
             ("time_varying_media_fitted_mmm", "monthly", True, 0.0),
             ("time_varying_media_fitted_mmm", "all_time", True, 0.0),
+            ("time_varying_intercept_fitted_mmm", "original", True, 0.0),
+            ("time_varying_intercept_fitted_mmm", "monthly", True, 0.0),
+            ("time_varying_intercept_fitted_mmm", "all_time", True, 0.0),
         ],
     )
     def test_compute_incremental_contribution_matches_ground_truth(
@@ -342,6 +345,22 @@ class TestIncrementality:
         )
 
         xr.testing.assert_allclose(result1, result2)
+
+    def test_time_varying_intercept_no_unused_input_error(
+        self, time_varying_intercept_fitted_mmm
+    ):
+        """Regression: time_varying_intercept without time_varying_media must not raise.
+
+        When the model has time_varying_intercept=True but
+        time_varying_media=False, ``time_index`` exists in the model but is
+        not part of the ``channel_contribution`` graph.  Previously the code
+        unconditionally added it as a compiled function input, causing
+        ``UnusedInputError``.
+        """
+        incr = time_varying_intercept_fitted_mmm.incrementality
+        result = incr.contribution_over_spend(frequency="all_time")
+        assert result.sizes["chain"] >= 1
+        assert result.sizes["draw"] >= 1
 
     def test_aggregate_spend_matches_data_wrapper(self, simple_fitted_mmm):
         """Test that _aggregate_spend delegates correctly to data wrapper."""

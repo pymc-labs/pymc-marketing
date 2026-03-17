@@ -135,6 +135,7 @@ import xarray as xr
 from pandas.tseries.offsets import BaseOffset
 from pydantic import ConfigDict, validate_call
 from pytensor import function
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -396,12 +397,16 @@ class Incrementality:
         replace_dict: dict = {data_shared: batched_input}
         func_inputs: list = [batched_input]
 
-        # When time_varying_media (or time_varying_intercept) is enabled,
-        # the response graph contains HSGP-based latent variables that
-        # depend on the ``time_index`` shared variable (shape n_dates).
-        # We must replace it alongside ``channel_data`` so that both
-        # tensors have a consistent date dimension (max_window).
-        has_time_index = "time_index" in self.model.model.named_vars
+        # When time_varying_media is enabled the response graph contains
+        # HSGP-based latent variables that depend on ``time_index``.
+        # We only replace it when the response graph *actually* depends on
+        # ``time_index``; otherwise it is unused (e.g. time_varying_intercept
+        # without time_varying_media) and would trigger an UnusedInputError.
+        has_time_index = (
+            "time_index" in self.model.model.named_vars
+            and self.model.model["time_index"]
+            in ancestors([response_graph], blockers=list())
+        )
         if has_time_index:
             time_shared = self.model.model["time_index"]
             batched_time = ptx.xtensor(
