@@ -24,9 +24,20 @@ from typing import Any
 import pandas as pd
 import yaml  # type: ignore
 
-from pymc_marketing.mmm.builders.factories import build, resolve
+from pymc_marketing.mmm.builders.factories import KNOWN_SPEC_KEYS, build, resolve
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.utils import from_netcdf
+
+KNOWN_TOP_LEVEL_KEYS = frozenset(
+    {
+        "model",
+        "data",
+        "effects",
+        "original_scale_vars",
+        "calibration",
+        "idata_path",
+    }
+)
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:
@@ -43,10 +54,30 @@ def _load_df(path: str | Path) -> pd.DataFrame:
     raise ValueError(f"Unrecognised tabular format: {path}")
 
 
+def _validate_config_structure(cfg: Mapping[str, Any]) -> None:
+    """Detect common YAML mis-indentation that silently drops config sections."""
+    model_spec = cfg.get("model")
+    if model_spec is None:
+        raise ValueError("YAML config must contain a top-level 'model' key.")
+
+    if not isinstance(model_spec, Mapping):
+        raise TypeError(f"'model' must be a mapping, got {type(model_spec).__name__}.")
+
+    misplaced = set(model_spec.keys()) - KNOWN_SPEC_KEYS
+    candidates = misplaced & KNOWN_TOP_LEVEL_KEYS
+    if candidates:
+        raise ValueError(
+            f"Found {candidates} nested under 'model', but "
+            f"{'it' if len(candidates) == 1 else 'they'} "
+            f"should be at the top level of the YAML file. "
+            f"Check the indentation of your YAML configuration."
+        )
+
+
 def _apply_and_validate_calibration_steps(
     model: MMM, cfg: Mapping[str, Any], base_dir: Path
 ) -> None:
-    calibration_specs = cfg.get("calibration", [])
+    calibration_specs = cfg.get("calibration") or []
     if not calibration_specs:
         return
 
@@ -139,6 +170,8 @@ def build_mmm_from_yaml(
     config_path = Path(config_path)
     cfg: Mapping[str, Any] = yaml.safe_load(config_path.read_text())
 
+    _validate_config_structure(cfg)
+
     # 1 ─────────────────────────────────── shell (no effects yet)
     # Merge model_kwargs into cfg["model"]["kwargs"], with model_kwargs taking precedence
     model_config = {**cfg["model"].get("kwargs", {}), **(model_kwargs or {})}
@@ -149,7 +182,7 @@ def build_mmm_from_yaml(
         model = build(cfg["model"])
 
     # 2 ──────────────────────────────── resolve covariates / target
-    data_cfg: Mapping[str, Any] = cfg.get("data", {})
+    data_cfg: Mapping[str, Any] = cfg.get("data") or {}
     if X is None:
         if "X_path" not in data_cfg:
             raise ValueError("X not provided and no `data.X_path` found in YAML.")
@@ -173,8 +206,7 @@ def build_mmm_from_yaml(
             )
 
     # 3 ───────────────────────────────────── effects (preserve order)
-    # Build and append each effect
-    for eff_spec in cfg.get("effects", []):
+    for eff_spec in cfg.get("effects") or []:
         effect = build(eff_spec)
         model.mu_effects.append(effect)
 
@@ -182,7 +214,7 @@ def build_mmm_from_yaml(
     model.build_model(X, y)  # this **must** precede any idata loading
 
     # 5 ───────────────────────── add original scale contribution variables
-    original_scale_vars = cfg.get("original_scale_vars", [])
+    original_scale_vars = cfg.get("original_scale_vars") or []
     if original_scale_vars:
         model.add_original_scale_contribution_variable(var=original_scale_vars)
 
