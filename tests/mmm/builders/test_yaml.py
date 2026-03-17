@@ -24,6 +24,7 @@ import yaml
 
 from pymc_marketing.mmm.builders.yaml import (
     _apply_and_validate_calibration_steps,
+    _validate_config_structure,
     build_mmm_from_yaml,
 )
 from pymc_marketing.model_config import ModelConfigError
@@ -362,3 +363,126 @@ def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
     # Check that the model has inference data after fitting
     assert model.idata is not None
     assert "posterior" in model.idata
+
+
+# ---------------------------------------------------------------------------
+# Tests for config structure validation (_validate_config_structure)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateConfigStructure:
+    """Tests for _validate_config_structure detecting mis-indented YAML keys."""
+
+    def test_valid_config(self):
+        """No error for a well-formed config."""
+        cfg = {
+            "model": {"class": "some.Class", "kwargs": {}},
+            "original_scale_vars": ["channel_contribution"],
+            "calibration": [],
+            "effects": [],
+        }
+        _validate_config_structure(cfg)
+
+    def test_missing_model_key(self):
+        with pytest.raises(ValueError, match="must contain a top-level 'model' key"):
+            _validate_config_structure({"effects": []})
+
+    def test_model_not_a_mapping(self):
+        with pytest.raises(TypeError, match="'model' must be a mapping"):
+            _validate_config_structure({"model": "not-a-dict"})
+
+    @pytest.mark.parametrize(
+        "misplaced_key",
+        [
+            "original_scale_vars",
+            "calibration",
+            "effects",
+            "data",
+            "idata_path",
+        ],
+    )
+    def test_misplaced_key_under_model(self, misplaced_key):
+        cfg = {
+            "model": {
+                "class": "some.Class",
+                "kwargs": {},
+                misplaced_key: "value",
+            }
+        }
+        with pytest.raises(ValueError, match="nested under 'model'"):
+            _validate_config_structure(cfg)
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        "tests/mmm/builders/config_files/wrong_nested_original_scale_vars.yml",
+        "tests/mmm/builders/config_files/wrong_nested_calibration.yml",
+        "tests/mmm/builders/config_files/wrong_nested_effects.yml",
+    ],
+)
+def test_build_mmm_rejects_nested_keys(config_path, X_data, y_data):
+    """YAML files with mis-indented top-level keys should raise ValueError."""
+    with pytest.raises(ValueError, match="nested under 'model'"):
+        build_mmm_from_yaml(config_path, X=X_data, y=y_data.squeeze())
+
+
+def test_original_scale_vars_none_is_harmless(tmp_path):
+    """original_scale_vars: (None in YAML) should not crash or skip silently."""
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=52, freq="W"),
+            "channel_1": range(52),
+            "channel_2": range(100, 152),
+        }
+    )
+    y = pd.Series(range(52), name="y")
+
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1", "channel_2"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        },
+        "original_scale_vars": None,
+    }
+
+    config_path = tmp_path / "config.yml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+    det_names = [v.name for v in model.model.deterministics]
+    assert "channel_contribution_original_scale" not in det_names
+
+
+def test_calibration_none_is_harmless(dummy_mmm, tmp_path):
+    """calibration: (None in YAML) should not crash."""
+    cfg = {"calibration": None}
+    _apply_and_validate_calibration_steps(dummy_mmm, cfg, tmp_path)
+    assert dummy_mmm.called_with is None
+
+
+def test_original_scale_vars_ordering_does_not_matter(X_data, y_data):
+    """The at-end config must create original_scale variables and apply lift test."""
+    config_path = "data/config_files/original_scale_vars_at_end.yml"
+
+    model = build_mmm_from_yaml(config_path, X=X_data, y=y_data.squeeze())
+
+    det_names = [v.name for v in model.model.deterministics]
+    assert "channel_contribution_original_scale" in det_names
+    assert "intercept_contribution_original_scale" in det_names
+
+    obs_names = [rv.name for rv in model.model.observed_RVs]
+    assert any("lift" in name for name in obs_names)

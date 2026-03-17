@@ -17,6 +17,7 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytest
+from pydantic import ValidationError
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
@@ -53,6 +54,20 @@ def model_config(request) -> dict[str, HSGPKwargs]:
             cov_func=request.param,
         )
     }
+
+
+@pytest.mark.parametrize(
+    "invalid_cov_func",
+    [
+        pm.gp.cov.ExpQuad(input_dim=1, ls=10),
+        "not_a_valid_kernel",
+        42,
+    ],
+    ids=["custom_covariance_object", "invalid_string", "wrong_type"],
+)
+def test_hsgp_kwargs_rejects_invalid_cov_func(invalid_cov_func):
+    with pytest.raises((ValueError, ValidationError)):
+        HSGPKwargs(cov_func=invalid_cov_func)
 
 
 def test_time_varying_prior(coords, mock_pymc_sample):
