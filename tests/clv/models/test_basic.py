@@ -20,6 +20,14 @@ import pytest
 from arviz import InferenceData, from_dict
 from pymc_extras.prior import Prior
 
+from pymc_marketing.clv.models import (
+    BetaGeoBetaBinomModel,
+    BetaGeoModel,
+    GammaGammaModel,
+    ModifiedBetaGeoModel,
+    ParetoNBDModel,
+    ShiftedBetaGeoModel,
+)
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.model_builder import DifferentModelError
 from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
@@ -50,7 +58,22 @@ class CLVModelTest(CLVModel):
             "x": Prior("Normal", mu=0, sigma=1),
         }
 
-    def build_model(self):
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate data for CLVModelTest."""
+        self._validate_cols(data, required_cols=["y"], must_be_unique=[])
+
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            self._validate_data(self.data)
+
         with pm.Model() as self.model:
             x = self.model_config["x"].create_variable("x")
             pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
@@ -165,7 +188,7 @@ class TestCLVModel:
         with pytest.warns(
             DeprecationWarning,
             match=(
-                "'fit_method' is deprecated and will be removed in a future release. "
+                "'fit_method' is deprecated and will be removed in version 1.0. "
                 "Use 'method' instead."
             ),
         ):
@@ -293,3 +316,21 @@ class TestCLVModel:
 
         with pytest.raises(ValueError, match=expected_error_msg):
             CLVModel._validate_cols(data=data, required_cols=required)
+
+
+@pytest.mark.parametrize(
+    "model_cls",
+    [
+        BetaGeoModel,
+        ParetoNBDModel,
+        ModifiedBetaGeoModel,
+        BetaGeoBetaBinomModel,
+        ShiftedBetaGeoModel,
+        GammaGammaModel,
+    ],
+)
+def test_build_model_without_data_raises_value_error(model_cls):
+    """Test that build_model() without data raises ValueError when data is unspecified."""
+    model = model_cls()
+    with pytest.raises(ValueError, match="requires data parameter"):
+        model.build_model()

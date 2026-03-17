@@ -15,7 +15,7 @@
 
 from pymc_marketing.mmm.components.adstock import NoAdstock
 from pymc_marketing.mmm.components.saturation import NoSaturation
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.multidimensional import MMM
 
 
 def FancyLinearRegression(
@@ -23,7 +23,7 @@ def FancyLinearRegression(
 ) -> MMM:
     """Create wrapper around MMM for a linear regression model.
 
-    See :func:`pymc_marketing.mmm.mmm.MMM` for more details.
+    See :func:`pymc_marketing.mmm.multidimensional.MMM` for more details.
 
     Parameters
     ----------
@@ -41,7 +41,7 @@ def FancyLinearRegression(
 
     .. code-block:: python
 
-        from pymc_marketing.mmm import MMM
+        from pymc_marketing.mmm.multidimensional import MMM
 
         linear_regression = MMM.load("linear_regression_model.nc")
 

@@ -49,8 +49,8 @@ class TestModifiedBetaGeoModel:
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = ModifiedBetaGeoModel(cls.data)
-        cls.model.build_model()
+        cls.model = ModifiedBetaGeoModel()
+        cls.model.build_model(data=cls.data)
 
         # Also instantiate lifetimes model for comparison
         cls.lifetimes_model = ModifiedBetaGeoFitter()
@@ -148,7 +148,11 @@ class TestModifiedBetaGeoModel:
             ValueError,
             match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
-            ModifiedBetaGeoModel(data=data_invalid)
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = ModifiedBetaGeoModel(data=data_invalid)
+            model.build_model()
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -163,9 +167,11 @@ class TestModifiedBetaGeoModel:
                 }
             )
 
-            ModifiedBetaGeoModel(
-                data=data,
-            )
+            with pytest.warns(
+                DeprecationWarning, match="will be removed in version 1.0"
+            ):
+                model = ModifiedBetaGeoModel(data=data)
+            model.build_model()
 
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
@@ -217,11 +223,8 @@ class TestModifiedBetaGeoModel:
     )
     def test_model_convergence(self, method, rtol, model_config):
         # b parameter has the largest mismatch of the four parameters
-        model = ModifiedBetaGeoModel(
-            data=self.data,
-            model_config=model_config,
-        )
-        model.build_model()
+        model = ModifiedBetaGeoModel(model_config=model_config)
+        model.build_model(data=self.data)
 
         sample_kwargs = (
             dict(random_seed=self.rng, chains=2, target_accept=0.90)
@@ -238,7 +241,8 @@ class TestModifiedBetaGeoModel:
         )
 
     def test_fit_result_without_fit(self, mocker, model_config):
-        model = ModifiedBetaGeoModel(data=self.data, model_config=model_config)
+        model = ModifiedBetaGeoModel(model_config=model_config)
+        model.build_model(data=self.data)
         with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
@@ -270,8 +274,8 @@ class TestModifiedBetaGeoModel:
             }
         )
 
-        mbg_model = ModifiedBetaGeoModel(data=data)
-        mbg_model.build_model()
+        mbg_model = ModifiedBetaGeoModel()
+        mbg_model.build_model(data=data)
         mbg_model.idata = az.from_dict(
             {
                 "a": np.full((2, 5), self.a_true),
@@ -467,9 +471,9 @@ class TestModifiedBetaGeoModelWithCovariates:
             dropout_covariate_cols=dropout_covariate_cols,
         )
         cls.model_with_covariates = ModifiedBetaGeoModel(
-            cls.data,
-            model_config={**non_nested_priors, **covariate_config},
+            model_config={**non_nested_priors, **covariate_config}
         )
+        cls.model_with_covariates.build_model(data=cls.data)
 
         # Mock an idata object for tests requiring a fitted model
         chains = 2
@@ -759,10 +763,9 @@ class TestModifiedBetaGeoModelWithCovariates:
             "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=4),
         }
         new_model = ModifiedBetaGeoModel(
-            synthetic_data,
             model_config=self.model_with_covariates.model_config | custom_priors,
         )
-        new_model.fit(fit_method="map")
+        new_model.fit(data=synthetic_data, method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:
