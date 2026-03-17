@@ -332,7 +332,10 @@ class HSGPBase(BaseModel):
             self.dims = (self.dims,)
             return self
 
-        if isinstance(self.dims, tuple) and len(self.dims) < 1:
+        if not isinstance(self.dims, tuple):
+            self.dims = tuple(self.dims)
+
+        if len(self.dims) < 1:
             raise ValueError("At least one dimension is required")
 
         if any(not isinstance(dim, str) for dim in self.dims):
@@ -952,9 +955,6 @@ class HSGP(HSGPBase):
         data.pop("__type__", None)
         data.pop("hsgp_class", None)
 
-        if "dims" in data and isinstance(data["dims"], list):
-            data["dims"] = tuple(data["dims"])
-
         for key in ["eta", "ls"]:
             value = data.get(key)
             if isinstance(value, dict):
@@ -1318,9 +1318,6 @@ class HSGPPeriodic(HSGPBase):
         data = data.copy()
         data.pop("__type__", None)
         data.pop("hsgp_class", None)
-
-        if "dims" in data and isinstance(data["dims"], list):
-            data["dims"] = tuple(data["dims"])
 
         for key in ["scale", "ls"]:
             value = data.get(key)

@@ -326,6 +326,50 @@ def test_from_dict_with_non_dictionary_distribution_hspg_periodic() -> None:
     assert hsgp.transform is None
 
 
+class TestDimsNormalization:
+    """Tests for dims list-to-tuple normalization in the validator."""
+
+    @pytest.mark.parametrize(
+        "dims, expected",
+        [
+            (["time"], ("time",)),
+            (["time", "channel"], ("time", "channel")),
+            ("time", ("time",)),
+            (("time",), ("time",)),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "cls, extra_kwargs",
+        [
+            (HSGP, {"ls": 1, "eta": 1, "L": 5}),
+            (HSGPPeriodic, {"ls": 1, "scale": 1, "period": 52}),
+        ],
+    )
+    def test_dims_normalized_to_tuple(self, cls, extra_kwargs, dims, expected):
+        obj = cls(m=10, dims=dims, **extra_kwargs)
+        assert obj.dims == expected
+        assert isinstance(obj.dims, tuple)
+
+    @pytest.mark.parametrize("dims", [[], ()])
+    def test_empty_dims_raises(self, dims):
+        with pytest.raises(ValueError, match="At least one dimension is required"):
+            HSGP(m=10, dims=dims, ls=1, eta=1, L=5)
+
+    @pytest.mark.parametrize(
+        "cls, base_data, dims",
+        [
+            (HSGP, {"L": 5, "m": 10, "ls": 1, "eta": 1}, ["time"]),
+            (HSGP, {"L": 5, "m": 10, "ls": 1, "eta": 1}, ["time", "channel"]),
+            (HSGPPeriodic, {"m": 20, "period": 60.0, "ls": 1, "scale": 1}, ["time"]),
+        ],
+    )
+    def test_from_dict_with_list_dims(self, cls, base_data, dims):
+        data = {**base_data, "dims": dims}
+        obj = cls.from_dict(data)
+        assert obj.dims == tuple(dims)
+        assert isinstance(obj.dims, tuple)
+
+
 def test_hsgp_with_shared_data():
     """
     Test that HSGP works with a shared variable (pm.MutableData / pm.Data) and that
