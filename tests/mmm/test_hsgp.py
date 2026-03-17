@@ -464,6 +464,9 @@ def test_hsgp_with_transform() -> None:
 
 
 def test_hsgp_periodic_with_transform() -> None:
+    seed = sum(map(ord, "HSGPPeriodic sigmoid transform"))
+    rng = np.random.default_rng(seed)
+
     X = np.arange(10)
 
     hsgp = HSGPPeriodic(
@@ -476,10 +479,11 @@ def test_hsgp_periodic_with_transform() -> None:
     ).register_data(X)
 
     coords = {"time": X}
-    prior = hsgp.sample_prior(draws=25, coords=coords)
+    prior = hsgp.sample_prior(draws=25, coords=coords, random_seed=rng)
     assert "f_raw" in prior
     assert "f" in prior
 
+    assert np.isfinite(prior["f_raw"]).all(), "NaN/Inf in raw GP output"
     assert ((prior["f"] >= 0) & (prior["f"] <= 1)).all()
 
 
