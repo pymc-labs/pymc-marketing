@@ -59,6 +59,7 @@ class TimeSliceCrossValidationResult:
     X_test: pd.DataFrame
     y_test: pd.Series
     idata: az.InferenceData
+    mmm: MMMBuilder | None = None
 
 
 class TimeSliceCrossValidator:
