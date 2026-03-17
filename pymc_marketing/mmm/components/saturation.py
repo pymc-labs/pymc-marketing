@@ -97,6 +97,7 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
+from pymc_marketing.serialization import registry
 
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
 
@@ -153,6 +154,20 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
     prefix: str = "saturation"
 
+    @classmethod
+    def from_dict(cls, data: dict) -> SaturationTransformation:
+        """Reconstruct a saturation transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("lookup_name", None)
+
+        if "priors" in data:
+            from pymc_extras.deserialize import deserialize
+
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
+
     @validate_call
     def sample_curve(
         self,
@@ -195,6 +210,7 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         )
 
 
+@registry.register
 class LogisticSaturation(SaturationTransformation):
     """Wrapper around logistic saturation function.
 
@@ -229,6 +245,7 @@ class LogisticSaturation(SaturationTransformation):
     }
 
 
+@registry.register
 class InverseScaledLogisticSaturation(SaturationTransformation):
     """Wrapper around inverse scaled logistic saturation function.
 
@@ -263,6 +280,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
     }
 
 
+@registry.register
 class TanhSaturation(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
@@ -297,6 +315,7 @@ class TanhSaturation(SaturationTransformation):
     }
 
 
+@registry.register
 class TanhSaturationBaselined(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
@@ -333,6 +352,7 @@ class TanhSaturationBaselined(SaturationTransformation):
     }
 
 
+@registry.register
 class MichaelisMentenSaturation(SaturationTransformation):
     """Wrapper around Michaelis-Menten saturation function.
 
@@ -367,6 +387,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
     }
 
 
+@registry.register
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
@@ -402,6 +423,7 @@ class HillSaturation(SaturationTransformation):
     }
 
 
+@registry.register
 class HillSaturationSigmoid(SaturationTransformation):
     """Wrapper around Hill saturation sigmoid function.
 
@@ -437,6 +459,7 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
+@registry.register
 class RootSaturation(SaturationTransformation):
     """Wrapper around Root saturation function.
 
@@ -471,6 +494,7 @@ class RootSaturation(SaturationTransformation):
     }
 
 
+@registry.register
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
 

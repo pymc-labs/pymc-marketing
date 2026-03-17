@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import inspect
 from inspect import signature
 
 import numpy as np
@@ -27,6 +28,7 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.mmm.components.saturation import (
     SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
@@ -34,6 +36,12 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+
+ALL_SATURATION_CLASSES: list[type[SaturationTransformation]] = [
+    cls
+    for _, cls in inspect.getmembers(saturation_module, inspect.isclass)
+    if issubclass(cls, SaturationTransformation) and cls is not SaturationTransformation
+]
 
 
 @pytest.fixture
@@ -328,3 +336,54 @@ def test_deserialize_new_transformation() -> None:
     assert isinstance(instance, NewSaturation)
 
     SATURATION_TRANSFORMATIONS.pop("new_saturation")
+
+
+class TestSaturationTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of saturation classes."""
+
+    @pytest.mark.parametrize(
+        "sat_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_to_dict_includes_type_key(self, sat_cls):
+        """to_dict() output must include __type__ with fully-qualified class path."""
+        obj = sat_cls()
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{sat_cls.__module__}.{sat_cls.__qualname__}"
+        assert data["__type__"] == expected
+
+    @pytest.mark.parametrize(
+        "sat_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_registered_in_type_registry(self, sat_cls):
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{sat_cls.__module__}.{sat_cls.__qualname__}"
+        assert type_key in registry._registry, f"{sat_cls.__name__} not registered"
+
+    @pytest.mark.parametrize(
+        "sat_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_roundtrip_all_parameters(self, sat_cls):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in sat_cls.default_priors
+        }
+
+        kwargs: dict = {
+            "prefix": "custom_sat",
+            "priors": custom_priors,
+        }
+
+        original = sat_cls(**kwargs)
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is sat_cls
+        assert restored.prefix == "custom_sat"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
