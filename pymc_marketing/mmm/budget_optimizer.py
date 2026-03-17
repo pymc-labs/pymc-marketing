@@ -764,7 +764,6 @@ class BudgetOptimizer(BaseModel):
         )
 
         # Fill a zero array, then set only the True positions
-        # TODO: We should be able to implement this with xtensor, once we have `.where`
         budgets_zeros = pt.zeros(self._budget_shape)
         budgets_zeros.name = "budgets_zeros"
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
@@ -996,7 +995,6 @@ class BudgetOptimizer(BaseModel):
 
         # Reconstruct the full shape for each time period
         budgets = ptx.zeros_like(budgets).expand_dims(date=num_periods, axis=0)
-        # Need to go to tensor, as we don't have `.where` yet and xtensor don't support >1D boolean indices
         repeated_budgets = budgets.values[:, bool_mask].set(
             repeated_budgets_flat.values
         )
