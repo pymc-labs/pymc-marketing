@@ -26,6 +26,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from pymc_marketing.mmm.plotting._helpers import (
+    _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _validate_dims,
@@ -290,3 +291,37 @@ class TestPublicAPI:
 
     def test_plotting_package_importable(self):
         import pymc_marketing.mmm.plotting  # noqa: F401
+
+
+class TestDimsToSelKwargs:
+    def test_none_returns_empty_dict(self):
+        assert _dims_to_sel_kwargs(None) == {}
+
+    def test_empty_returns_empty_dict(self):
+        assert _dims_to_sel_kwargs({}) == {}
+
+    def test_scalar_wrapped_in_list(self):
+        result = _dims_to_sel_kwargs({"channel": "tv"})
+        assert result == {"channel": ["tv"]}
+
+    def test_list_preserved(self):
+        result = _dims_to_sel_kwargs({"channel": ["tv", "radio"]})
+        assert result == {"channel": ["tv", "radio"]}
+
+    def test_tuple_preserved(self):
+        result = _dims_to_sel_kwargs({"channel": ("tv", "radio")})
+        assert result == {"channel": ("tv", "radio")}
+
+    def test_numpy_array_preserved(self):
+        arr = np.array(["tv", "radio"])
+        result = _dims_to_sel_kwargs({"channel": arr})
+        np.testing.assert_array_equal(result["channel"], arr)
+
+    def test_multiple_dims_mixed(self):
+        result = _dims_to_sel_kwargs({"channel": "tv", "geo": ["US", "UK"]})
+        assert result["channel"] == ["tv"]
+        assert result["geo"] == ["US", "UK"]
+
+    def test_integer_scalar_wrapped(self):
+        result = _dims_to_sel_kwargs({"fold": 2})
+        assert result == {"fold": [2]}

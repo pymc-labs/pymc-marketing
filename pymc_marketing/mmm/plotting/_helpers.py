@@ -29,6 +29,33 @@ from numpy.typing import NDArray
 MATPLOTLIB_CYCLE_SIZE = 10
 
 
+def _dims_to_sel_kwargs(
+    dims: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Convert scalar dim values to single-element lists for ``.sel()``.
+
+    When filtering xarray data with ``.sel()``, scalar values drop the
+    dimension.  Wrapping scalars in a list preserves the dimension as
+    size-1 so ``PlotCollection`` can still facet on it.
+
+    Parameters
+    ----------
+    dims : dict or None
+        Mapping of dimension name → value(s).
+
+    Returns
+    -------
+    dict
+        Same mapping with scalar values wrapped in single-element lists.
+    """
+    if not dims:
+        return {}
+    return {
+        k: v if isinstance(v, (list, tuple, np.ndarray)) else [v]
+        for k, v in dims.items()
+    }
+
+
 def _validate_dims(
     dataset: xr.Dataset,
     dims: dict[str, Any] | None,
