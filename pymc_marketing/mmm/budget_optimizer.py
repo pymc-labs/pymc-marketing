@@ -1072,6 +1072,9 @@ class BudgetOptimizer(BaseModel):
             pymc_model=self._pymc_model,
             idata=self.mmm_model.idata,
             response_variable=response_variable,
+            frozen_deterministics=getattr(
+                self.mmm_model, "frozen_deterministics", None
+            ),
         )
 
     def _compile_objective_and_grad(self):
