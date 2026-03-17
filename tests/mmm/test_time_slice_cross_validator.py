@@ -1114,3 +1114,50 @@ def test_combine_idata_uses_fallback_when_concat_raises(monkeypatch):
     assert hasattr(combined, "posterior_predictive")
     assert "cv" in combined.posterior_predictive.coords
     assert hasattr(combined, "cv_metadata")
+
+
+class TestReturnModels:
+    """Test the return_models parameter of TimeSliceCrossValidator.run()."""
+
+    @pytest.fixture
+    def cv_and_data(self):
+        dates = pd.date_range("2025-01-01", periods=4, freq="D")
+        X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+        y = pd.Series(np.arange(len(dates)))
+        cv = TimeSliceCrossValidator(
+            n_init=1, forecast_horizon=1, date_column="date", step_size=1
+        )
+        return cv, X, y
+
+    def test_run_return_models_false_returns_idata_only(self, cv_and_data):
+        cv, X, y = cv_and_data
+        result = cv.run(X, y, mmm=_RecordingFoldModel())
+        assert isinstance(result, az.InferenceData)
+
+    def test_run_return_models_true_returns_tuple(self, cv_and_data):
+        cv, X, y = cv_and_data
+        result = cv.run(X, y, mmm=_RecordingFoldModel(), return_models=True)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        cv_idata, models = result
+        assert isinstance(cv_idata, az.InferenceData)
+        assert isinstance(models, list)
+
+    def test_run_return_models_list_length_matches_splits(self, cv_and_data):
+        cv, X, y = cv_and_data
+        _, models = cv.run(X, y, mmm=_RecordingFoldModel(), return_models=True)
+        assert len(models) == cv.get_n_splits(X, y)
+
+    def test_run_return_models_each_model_is_fitted(self, cv_and_data):
+        cv, X, y = cv_and_data
+        _, models = cv.run(X, y, mmm=_RecordingFoldModel(), return_models=True)
+        for model in models:
+            assert model is not None
+            assert hasattr(model, "idata")
+            assert model.idata is not None
+
+    def test_run_return_models_false_result_mmm_is_none(self, cv_and_data):
+        cv, X, y = cv_and_data
+        cv.run(X, y, mmm=_RecordingFoldModel())
+        for r in cv._cv_results:
+            assert r.mmm is None

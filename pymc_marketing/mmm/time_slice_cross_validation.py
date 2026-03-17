@@ -22,7 +22,7 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 import copy
 from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, overload
 
 import arviz as az
 import numpy as np
@@ -599,6 +599,36 @@ class TimeSliceCrossValidator:
 
             yield train_idx, test_idx
 
+    @overload
+    def run(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sampler_config: dict[str, Any] | None = ...,
+        yaml_path: str | None = ...,
+        mmm: MMMBuilder | None = ...,
+        model_names: list[str] | None = ...,
+        original_scale_vars: list[str] | None = ...,
+        df_lift_test: pd.DataFrame | None = ...,
+        lift_test_date_column: str | None = ...,
+        return_models: Literal[False] = ...,
+    ) -> az.InferenceData: ...
+
+    @overload
+    def run(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sampler_config: dict[str, Any] | None = ...,
+        yaml_path: str | None = ...,
+        mmm: MMMBuilder | None = ...,
+        model_names: list[str] | None = ...,
+        original_scale_vars: list[str] | None = ...,
+        df_lift_test: pd.DataFrame | None = ...,
+        lift_test_date_column: str | None = ...,
+        return_models: Literal[True] = ...,
+    ) -> tuple[az.InferenceData, list[MMMBuilder]]: ...
+
     def run(
         self,
         X: pd.DataFrame,
@@ -610,7 +640,8 @@ class TimeSliceCrossValidator:
         original_scale_vars: list[str] | None = None,
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
-    ) -> az.InferenceData:
+        return_models: bool = False,
+    ) -> az.InferenceData | tuple[az.InferenceData, list[MMMBuilder]]:
         """Run the complete time-slice cross-validation loop.
 
         Executes cross-validation by iterating through all folds, fitting a model
@@ -653,13 +684,21 @@ class TimeSliceCrossValidator:
         lift_test_date_column : str, optional
             Name of the date column in ``df_lift_test``. Required when
             ``df_lift_test`` is provided.
+        return_models : bool, optional
+            If ``True``, return the fitted MMM instances for each fold
+            alongside the combined InferenceData. Default is ``False``.
 
         Returns
         -------
         arviz.InferenceData
             Combined InferenceData where each fold is concatenated along a new
             coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
-            train/test data.
+            train/test data. Returned when ``return_models`` is ``False``
+            (the default).
+        tuple[arviz.InferenceData, list[MMMBuilder]]
+            A tuple of the combined InferenceData and a list of fitted MMM
+            instances (one per fold). Returned when ``return_models`` is
+            ``True``.
 
         Raises
         ------
@@ -719,6 +758,10 @@ class TimeSliceCrossValidator:
         ...     n_init=100, forecast_horizon=10, date_column="date"
         ... )
         >>> combined_idata = cv.run(X, y, mmm=mmm_builder)
+
+        Returning fitted models alongside the combined InferenceData:
+
+        >>> combined_idata, models = cv.run(X, y, mmm=mmm, return_models=True)
         """
         # Upfront validation of model_names length
         n_splits = self.get_n_splits(X, y)
@@ -789,6 +832,8 @@ class TimeSliceCrossValidator:
                 y_test,
                 sampler_config=sampler_config,
             )
+            if return_models:
+                result.mmm = fold_mmm
             results.append(result)
         # Persist results on the instance so plotting helpers can access them
         self._cv_results = results
@@ -796,5 +841,9 @@ class TimeSliceCrossValidator:
         # datasets along a new coordinate named 'cv' where each label is the
         # fold name determined above.
         cv_idata = self._combine_idata(results, model_name_labels)
+
+        if return_models:
+            models = [r.mmm for r in results]
+            return cv_idata, models
 
         return cv_idata
