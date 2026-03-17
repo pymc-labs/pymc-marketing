@@ -294,6 +294,20 @@ class TestTimeSliceCrossValidator:
                     f"Results {i} and {j} have idata objects with same memory address"
                 )
 
+    def test_run_accepts_raw_mmm_instance(self, cv, XY, mmm_fixture, mock_pymc_sample):
+        """Test that run() works when passed a raw MMM whose build_model returns None."""
+        X, y = XY
+        _combined = cv.run(X, y, mmm=mmm_fixture)
+
+        expected_splits = cv.get_n_splits(X, y)
+        assert hasattr(cv, "_cv_results")
+        results = cv._cv_results
+        assert len(results) == expected_splits
+
+        for result in results:
+            assert isinstance(result, TimeSliceCrossValidationResult)
+            assert result.idata is not None
+
 
 class TestStepSize:
     """Test the step_size functionality."""
@@ -773,6 +787,211 @@ def test_run_produces_combined_cv_idata_and_returns_results_list():
     assert hasattr(cv, "idata") and cv.idata is not None
 
 
+class _RecordingFoldModel:
+    """Minimal MMM-like model used to test CV fold preparation behavior."""
+
+    def __init__(self):
+        self.idata = None
+        self.sampler_config = None
+        self._original_scale_vars: list[str] = []
+        self._last_lift_test_df = pd.DataFrame()
+
+    def build_model(self, X, y):
+        # In-place build pattern, matching MMM behavior.
+        return None
+
+    def add_original_scale_contribution_variable(self, var):
+        self._original_scale_vars = list(var)
+
+    def add_lift_test_measurements(self, df_lift_test):
+        self._last_lift_test_df = df_lift_test.copy()
+
+    def fit(self, X, y, progressbar=True):
+        return None
+
+    def sample_posterior_predictive(
+        self, X, extend_idata=True, combined=True, progressbar=False, **kwargs
+    ):
+        dates = pd.to_datetime(pd.Series(X["date"])).drop_duplicates().sort_values()
+        n_dates = len(dates)
+        base_arr = np.random.RandomState(11).normal(size=(1, 2, n_dates))
+
+        ds_pp = xr.Dataset(
+            {
+                "y_original_scale": xr.DataArray(
+                    base_arr,
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates.to_numpy()},
+                ),
+                "lift_rows_used": xr.DataArray(
+                    np.full((1, 2, n_dates), fill_value=len(self._last_lift_test_df)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": dates.to_numpy()},
+                ),
+            }
+        )
+        for v in self._original_scale_vars:
+            ds_pp[f"{v}_original_scale"] = xr.DataArray(
+                base_arr,
+                dims=("chain", "draw", "date"),
+                coords={"date": dates.to_numpy()},
+            )
+
+        self.idata = az.InferenceData(
+            posterior_predictive=ds_pp,
+            posterior=xr.Dataset({"beta": ds_pp["y_original_scale"]}),
+        )
+        return self.idata
+
+
+def test_run_applies_original_scale_vars_per_fold():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    _ = cv.run(
+        X,
+        y,
+        mmm=_RecordingFoldModel(),
+        original_scale_vars=[
+            "channel_contribution",
+            "fourier_contribution",
+            "intercept_contribution",
+        ],
+    )
+
+    assert hasattr(cv, "_cv_results")
+    for result in cv._cv_results:
+        pp = result.idata.posterior_predictive
+        assert "channel_contribution_original_scale" in pp.data_vars
+        assert "fourier_contribution_original_scale" in pp.data_vars
+        assert "intercept_contribution_original_scale" in pp.data_vars
+
+
+def test_run_with_lift_tests_requires_date_column():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["x1", "x1"],
+            "x": [0.25, 0.8],
+            "delta_x": [0.25, 0.8],
+            "delta_y": [1.0, 2.0],
+            "sigma": [3.0, 3.0],
+            "date": [pd.Timestamp("2025-01-01"), pd.Timestamp("2025-01-02")],
+        }
+    )
+
+    with pytest.raises(ValueError, match="lift_test_date_column"):
+        _ = cv.run(X, y, mmm=_RecordingFoldModel(), df_lift_test=df_lift_test)
+
+
+def test_run_filters_lift_tests_to_train_window():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["x1", "x1", "x1", "x1"],
+            "x": [0.1, 0.2, 0.3, 0.4],
+            "delta_x": [0.1, 0.2, 0.3, 0.4],
+            "delta_y": [1.0, 2.0, 3.0, 4.0],
+            "sigma": [3.0, 3.0, 3.0, 3.0],
+            "date": pd.to_datetime(
+                ["2025-01-01", "2025-01-02", "2025-01-03", "2025-01-04"]
+            ),
+        }
+    )
+
+    _ = cv.run(
+        X,
+        y,
+        mmm=_RecordingFoldModel(),
+        df_lift_test=df_lift_test,
+        lift_test_date_column="date",
+    )
+    rows_used = [
+        int(
+            result.idata.posterior_predictive["lift_rows_used"]
+            .isel(date=0)
+            .mean()
+            .item()
+        )
+        for result in cv._cv_results
+    ]
+    assert rows_used == [1, 2, 3]
+
+
+def test_run_with_lift_tests_and_raw_mmm_instance():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["x1", "x1", "x1"],
+            "x": [0.1, 0.2, 0.3],
+            "delta_x": [0.1, 0.2, 0.3],
+            "delta_y": [1.0, 2.0, 3.0],
+            "sigma": [3.0, 3.0, 3.0],
+            "date": pd.to_datetime(["2025-01-01", "2025-01-02", "2025-01-03"]),
+        }
+    )
+
+    _ = cv.run(
+        X,
+        y,
+        mmm=_RecordingFoldModel(),
+        df_lift_test=df_lift_test,
+        lift_test_date_column="date",
+    )
+    assert len(cv._cv_results) == cv.get_n_splits(X, y)
+
+
+def test_run_lift_tests_empty_after_filter_raises():
+    dates = pd.date_range("2025-01-01", periods=4, freq="D")
+    X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+    y = pd.Series(np.arange(len(dates)))
+    cv = TimeSliceCrossValidator(
+        n_init=1, forecast_horizon=1, date_column="date", step_size=1
+    )
+
+    df_lift_test = pd.DataFrame(
+        {
+            "channel": ["x1"],
+            "x": [0.1],
+            "delta_x": [0.1],
+            "delta_y": [1.0],
+            "sigma": [3.0],
+            "date": [pd.Timestamp("2025-02-01")],
+        }
+    )
+
+    with pytest.raises(ValueError, match="No lift test rows available"):
+        _ = cv.run(
+            X,
+            y,
+            mmm=_RecordingFoldModel(),
+            df_lift_test=df_lift_test,
+            lift_test_date_column="date",
+        )
+
+
 def _build_pp_dataset(dates, var_name="y"):
     arr = np.random.RandomState(4).normal(size=(1, 2, len(dates)))
     da = xr.DataArray(
@@ -895,3 +1114,50 @@ def test_combine_idata_uses_fallback_when_concat_raises(monkeypatch):
     assert hasattr(combined, "posterior_predictive")
     assert "cv" in combined.posterior_predictive.coords
     assert hasattr(combined, "cv_metadata")
+
+
+class TestReturnModels:
+    """Test the return_models parameter of TimeSliceCrossValidator.run()."""
+
+    @pytest.fixture
+    def cv_and_data(self):
+        dates = pd.date_range("2025-01-01", periods=4, freq="D")
+        X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
+        y = pd.Series(np.arange(len(dates)))
+        cv = TimeSliceCrossValidator(
+            n_init=1, forecast_horizon=1, date_column="date", step_size=1
+        )
+        return cv, X, y
+
+    def test_run_return_models_false_returns_idata_only(self, cv_and_data):
+        cv, X, y = cv_and_data
+        result = cv.run(X, y, mmm=_RecordingFoldModel())
+        assert isinstance(result, az.InferenceData)
+
+    def test_run_return_models_true_returns_tuple(self, cv_and_data):
+        cv, X, y = cv_and_data
+        result = cv.run(X, y, mmm=_RecordingFoldModel(), return_models=True)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        cv_idata, models = result
+        assert isinstance(cv_idata, az.InferenceData)
+        assert isinstance(models, list)
+
+    def test_run_return_models_list_length_matches_splits(self, cv_and_data):
+        cv, X, y = cv_and_data
+        _, models = cv.run(X, y, mmm=_RecordingFoldModel(), return_models=True)
+        assert len(models) == cv.get_n_splits(X, y)
+
+    def test_run_return_models_each_model_is_fitted(self, cv_and_data):
+        cv, X, y = cv_and_data
+        _, models = cv.run(X, y, mmm=_RecordingFoldModel(), return_models=True)
+        for model in models:
+            assert model is not None
+            assert hasattr(model, "idata")
+            assert model.idata is not None
+
+    def test_run_return_models_false_result_mmm_is_none(self, cv_and_data):
+        cv, X, y = cv_and_data
+        cv.run(X, y, mmm=_RecordingFoldModel())
+        for r in cv._cv_results:
+            assert r.mmm is None
