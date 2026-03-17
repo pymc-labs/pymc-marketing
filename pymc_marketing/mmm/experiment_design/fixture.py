@@ -203,7 +203,12 @@ def generate_experiment_fixture(
         saturated = _logistic_saturation_np(adstocked, p["lam"])
         y_pred_true += (p["beta"] / max_y) * saturated
 
-    residual_std = float(np.std(y_scaled - y_pred_true))
+    residuals = y_scaled - y_pred_true
+    residual_std = float(np.std(residuals))
+    if len(residuals) > 2:
+        residual_autocorr = float(np.corrcoef(residuals[:-1], residuals[1:])[0, 1])
+    else:
+        residual_autocorr = 0.0
 
     if fit_model:
         idata = _fit_mmm_for_fixture(
@@ -235,6 +240,7 @@ def generate_experiment_fixture(
                 coords={"channel": channels},
             ),
             "residual_std": xr.DataArray(residual_std),
+            "residual_autocorr": xr.DataArray(residual_autocorr),
             "l_max": xr.DataArray(l_max),
             "normalize": xr.DataArray(normalize),
             "spend_correlation": xr.DataArray(

@@ -90,8 +90,15 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
         Pre-sorted list of recommendations (highest score first).
     """
 
-    def __init__(self, recommendations: list[ExperimentRecommendation]) -> None:
+    def __init__(
+        self,
+        recommendations: list[ExperimentRecommendation],
+        null_confirmation_candidates: list[str] | None = None,
+    ) -> None:
         self._recommendations = list(recommendations)
+        self.null_confirmation_candidates: list[str] = (
+            null_confirmation_candidates or []
+        )
 
     # -- Sequence protocol ---------------------------------------------------
 
@@ -106,7 +113,10 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
     ) -> ExperimentRecommendation | ExperimentRecommendations:
         """Return a recommendation by index, or a sub-collection by slice."""
         if isinstance(index, slice):
-            return ExperimentRecommendations(self._recommendations[index])
+            return ExperimentRecommendations(
+                self._recommendations[index],
+                null_confirmation_candidates=self.null_confirmation_candidates,
+            )
         return self._recommendations[index]
 
     def __len__(self) -> int:
@@ -127,14 +137,35 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
 
     def __repr__(self) -> str:
         """Return a concise string representation."""
-        return f"ExperimentRecommendations({len(self)} recommendations)"
+        parts = [f"ExperimentRecommendations({len(self)} recommendations"]
+        if self.null_confirmation_candidates:
+            parts.append(
+                f", {len(self.null_confirmation_candidates)} null-confirmation "
+                "candidates"
+            )
+        parts.append(")")
+        return "".join(parts)
 
     # -- Jupyter rendering ---------------------------------------------------
 
     def _repr_html_(self) -> str:
         """Render as an HTML table in Jupyter notebooks."""
         if not self._recommendations:
-            return "<p><em>No recommendations (all candidates filtered out).</em></p>"
+            html = "<p><em>No recommendations (all candidates filtered out).</em></p>"
+            if self.null_confirmation_candidates:
+                channels = ", ".join(
+                    escape(ch) for ch in self.null_confirmation_candidates
+                )
+                html += (
+                    "<p><strong>Null-confirmation candidates:</strong> "
+                    f"The model believes {channels} "
+                    "ha"
+                    + ("s" if len(self.null_confirmation_candidates) == 1 else "ve")
+                    + " near-zero effect at current spend. "
+                    "Consider testing to confirm this belief and "
+                    "potentially reallocate budget.</p>"
+                )
+            return html
 
         header = (
             "<tr>"
@@ -174,7 +205,21 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
                 f"</tr>"
             )
 
-        return f"<table><thead>{header}</thead><tbody>{''.join(rows)}</tbody></table>"
+        html = f"<table><thead>{header}</thead><tbody>{''.join(rows)}</tbody></table>"
+
+        if self.null_confirmation_candidates:
+            channels = ", ".join(escape(ch) for ch in self.null_confirmation_candidates)
+            html += (
+                "<p><strong>Null-confirmation candidates:</strong> "
+                f"The model believes {channels} "
+                "ha"
+                + ("s" if len(self.null_confirmation_candidates) == 1 else "ve")
+                + " near-zero effect at current spend. "
+                "Consider testing to confirm this belief and "
+                "potentially reallocate budget.</p>"
+            )
+
+        return html
 
     def to_dataframe(self) -> pandas.DataFrame:
         """Convert to a :class:`pandas.DataFrame`.
@@ -210,10 +255,14 @@ class ExperimentRecommendations(Sequence[ExperimentRecommendation]):
         return pd.DataFrame(records)
 
 
+_HIGH_CORRELATION_THRESHOLD = 0.7
+
+
 def _format_rationale(
     rec: ExperimentRecommendation,
     uncertainty_rank: int | None = None,
     correlation_info: str | None = None,
+    max_correlation: float | None = None,
 ) -> str:
     """Generate a template-based rationale string for a recommendation.
 
@@ -226,11 +275,14 @@ def _format_rationale(
     correlation_info : str | None
         Description of spend correlation (e.g. "high correlation with
         Digital (r = 0.91)"). None if unavailable.
+    max_correlation : float | None
+        Maximum absolute spend correlation with any other channel.
+        Used to trigger an identification warning when high.
 
     Returns
     -------
     str
-        A three-sentence rationale.
+        A multi-sentence rationale, with an optional identification warning.
     """
     direction = (
         "go-dark"
@@ -265,4 +317,15 @@ def _format_rationale(
         f"net cost: {rec.net_cost:.2f} (model-scale units)."
     )
 
-    return f"{sentence1}\n{sentence2}\n{sentence3}"
+    parts = [sentence1, sentence2, sentence3]
+
+    if max_correlation is not None and max_correlation >= _HIGH_CORRELATION_THRESHOLD:
+        parts.append(
+            f"Caution: {rec.channel} has high spend correlation "
+            f"(r = {max_correlation:.2f}) with other channels, which "
+            "may indicate identification problems. The model's posterior "
+            "for this channel could be influenced by confounding. "
+            "Interpret assurance with care."
+        )
+
+    return "\n".join(parts)

@@ -46,11 +46,8 @@ _SUPPORTED_SATURATION = {"logistic", "LogisticSaturation"}
 _SUPPORTED_ADSTOCK = {"geometric", "GeometricAdstock"}
 
 _DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
-    "uncertainty": 0.2,
-    "correlation": 0.1,
-    "gradient": 0.1,
-    "assurance": 0.3,
-    "cost_efficiency": 0.3,
+    "assurance": 0.5,
+    "cost_efficiency": 0.5,
 }
 
 
@@ -60,6 +57,17 @@ class ExperimentDesigner:
     Consumes a fitted MMM and recommends which experiment to run based on
     posterior uncertainty. Supports national-level experiments analysed via
     Interrupted Time Series (ITS).
+
+    .. note::
+
+        Assurance values are conditional on the MMM being reasonably
+        well-identified. If a channel's effect is confounded (e.g., spend
+        correlates strongly with seasonal demand or another channel), the
+        posterior may be confidently wrong, producing misleadingly high
+        assurance. Always review model diagnostics (posterior predictive
+        checks, prior sensitivity, spend correlation) before acting on
+        recommendations. High spend correlation is flagged automatically
+        in each recommendation's rationale.
 
     Parameters
     ----------
@@ -189,16 +197,46 @@ class ExperimentDesigner:
         return dims[0]
 
     def _compute_residual_std(self, mmm: Any) -> None:
-        """Compute per-week residual standard deviation from the MMM."""
+        """Compute per-week residual standard deviation and autocorrelation."""
         try:
             y_pred = mmm.predict(mmm.X)
             y_actual = np.asarray(mmm.y).ravel()
             y_pred_flat = np.asarray(y_pred).ravel()
             if len(y_actual) != len(y_pred_flat):
                 y_pred_flat = y_pred_flat[: len(y_actual)]
-            self._residual_std: float = float(np.std(y_actual - y_pred_flat))
+            residuals = y_actual - y_pred_flat
+            self._residual_std: float = float(np.std(residuals))
+            if len(residuals) > 2:
+                self._residual_autocorr: float = float(
+                    np.corrcoef(residuals[:-1], residuals[1:])[0, 1]
+                )
+            else:
+                self._residual_autocorr = 0.0
         except Exception:
             self._residual_std = 1.0
+            self._residual_autocorr = 0.0
+
+    def _effective_sigma(self, T: int) -> float:
+        """Compute measurement noise on the cumulative scale with AR(1) correction.
+
+        When residuals are positively autocorrelated, the IID formula
+        ``sigma * sqrt(T)`` underestimates the true cumulative noise.
+        The AR(1) correction inflates the variance by ``(1 + rho) / (1 - rho)``
+        (the large-T approximation for an AR(1) process).
+
+        Parameters
+        ----------
+        T : int
+            Experiment duration in weeks.
+
+        Returns
+        -------
+        float
+            Corrected cumulative measurement noise.
+        """
+        rho = np.clip(self._residual_autocorr, 0.0, 0.99)
+        correction = (1.0 + rho) / (1.0 - rho) if rho > 0.0 else 1.0
+        return self._residual_std * np.sqrt(T * correction)
 
     @classmethod
     def from_idata(
@@ -271,6 +309,10 @@ class ExperimentDesigner:
         instance.l_max = int(cd["l_max"].values)
         instance.normalize = bool(cd["normalize"].values)
         instance._residual_std = float(cd["residual_std"].values)
+        if "residual_autocorr" in cd:
+            instance._residual_autocorr = float(cd["residual_autocorr"].values)
+        else:
+            instance._residual_autocorr = 0.0
 
         spend = cd["current_weekly_spend"]
         instance._current_spend = {
@@ -572,7 +614,10 @@ class ExperimentDesigner:
         significance_level : float
             Significance level for the two-sided power calculation.
         score_weights : dict[str, float] | None
-            Custom weights for scoring dimensions. Keys are
+            Custom weights for scoring dimensions. By default, experiments
+            are ranked by assurance (will the experiment detect the effect?)
+            and cost efficiency (assurance per unit of spend disruption).
+            Advanced users can override with any combination of
             ``"uncertainty"``, ``"correlation"``, ``"gradient"``,
             ``"assurance"``, ``"cost_efficiency"``.
 
@@ -600,7 +645,7 @@ class ExperimentDesigner:
                     expected_lift = float(np.mean(predicted_lift))
                     hdi_arr = az.hdi(predicted_lift, hdi_prob=0.94)
                     lift_hdi = (float(hdi_arr[0]), float(hdi_arr[1]))
-                    sigma_d = self._residual_std * np.sqrt(T)
+                    sigma_d = self._effective_sigma(T)
                     snr = expected_lift / sigma_d if sigma_d > 0 else 0.0
 
                     if abs(snr) < min_snr:
@@ -628,8 +673,12 @@ class ExperimentDesigner:
                     )
                     candidates.append(rec)
 
+        null_candidates = self._identify_null_candidates()
+
         if not candidates:
-            return ExperimentRecommendations([])
+            return ExperimentRecommendations(
+                [], null_confirmation_candidates=null_candidates
+            )
 
         scores = self._compute_scores(candidates, score_weights)
         for i, rec in enumerate(candidates):
@@ -637,15 +686,46 @@ class ExperimentDesigner:
 
         uncertainty_ranks = self._get_uncertainty_ranks()
         for rec in candidates:
-            corr_info = self._get_correlation_info(rec.channel)
+            corr_result = self._get_correlation_info(rec.channel)
+            corr_desc = corr_result[0] if corr_result else None
+            corr_value = corr_result[1] if corr_result else None
             rec.rationale = _format_rationale(
                 rec,
                 uncertainty_rank=uncertainty_ranks.get(rec.channel),
-                correlation_info=corr_info,
+                correlation_info=corr_desc,
+                max_correlation=corr_value,
             )
 
         candidates.sort(key=lambda r: r.score, reverse=True)
-        return ExperimentRecommendations(candidates)
+        return ExperimentRecommendations(
+            candidates, null_confirmation_candidates=null_candidates
+        )
+
+    def _identify_null_candidates(self) -> list[str]:
+        """Identify channels whose posterior contribution is near zero.
+
+        A channel is flagged when the posterior mean of its absolute
+        contribution at current spend is less than one residual standard
+        deviation, indicating the model believes the channel has
+        negligible effect.
+
+        Returns
+        -------
+        list[str]
+            Channel names suitable for null-confirmation testing.
+        """
+        null_candidates: list[str] = []
+        for ch in self.channel_columns:
+            params = self._posterior_samples[ch]
+            x_current = self._current_spend[ch]
+            x_ss = self._compute_steady_state_spend(x_current, params["alpha"])
+            contribution = np.abs(
+                self._eval_saturation(x_ss, params["lam"], params["beta"])
+            )
+            mean_contribution = float(np.mean(contribution))
+            if mean_contribution < self._residual_std:
+                null_candidates.append(ch)
+        return null_candidates
 
     def _get_uncertainty_ranks(self) -> dict[str, int]:
         """Rank channels by posterior uncertainty (1 = most uncertain)."""
@@ -661,8 +741,15 @@ class ExperimentDesigner:
         ranked = sorted(uncertainties, key=lambda ch: uncertainties[ch], reverse=True)
         return {ch: rank + 1 for rank, ch in enumerate(ranked)}
 
-    def _get_correlation_info(self, channel: str) -> str | None:
-        """Get correlation description for a channel."""
+    def _get_correlation_info(self, channel: str) -> tuple[str, float] | None:
+        """Get correlation description and value for a channel.
+
+        Returns
+        -------
+        tuple[str, float] | None
+            ``(description, max_correlation_value)`` or ``None`` if
+            spend correlation data is unavailable.
+        """
         if self._spend_correlation is None:
             return None
 
@@ -679,7 +766,8 @@ class ExperimentDesigner:
 
         if max_other is None:
             return None
-        return f"high spend correlation with {max_other} (r = {max_corr:.2f})"
+        desc = f"high spend correlation with {max_other} (r = {max_corr:.2f})"
+        return desc, max_corr
 
     # ------------------------------------------------------------------
     # Plotting

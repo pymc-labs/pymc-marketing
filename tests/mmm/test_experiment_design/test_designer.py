@@ -311,6 +311,158 @@ class TestExperimentRecommendations:
         assert "ExperimentRecommendations" in repr(recs)
 
 
+class TestAutocorrelationCorrection:
+    """Tests for AR(1) autocorrelation correction on sigma."""
+
+    def test_effective_sigma_no_autocorr(self, designer):
+        """With zero autocorrelation, effective sigma equals IID formula."""
+        designer._residual_autocorr = 0.0
+        sigma_iid = designer._residual_std * np.sqrt(8)
+        assert designer._effective_sigma(8) == pytest.approx(sigma_iid)
+
+    def test_effective_sigma_positive_autocorr_inflates(self, designer):
+        """Positive autocorrelation inflates sigma above IID baseline."""
+        designer._residual_autocorr = 0.0
+        sigma_iid = designer._effective_sigma(8)
+        designer._residual_autocorr = 0.4
+        sigma_corr = designer._effective_sigma(8)
+        assert sigma_corr > sigma_iid
+
+    def test_effective_sigma_negative_autocorr_clamped(self, designer):
+        """Negative autocorrelation is clamped to zero (no deflation)."""
+        designer._residual_autocorr = -0.3
+        sigma = designer._effective_sigma(8)
+        designer._residual_autocorr = 0.0
+        sigma_iid = designer._effective_sigma(8)
+        assert sigma == pytest.approx(sigma_iid)
+
+    def test_effective_sigma_known_correction(self, designer):
+        """Verify the AR(1) correction factor for a known rho."""
+        designer._residual_autocorr = 0.5
+        sigma = designer._effective_sigma(8)
+        expected = designer._residual_std * np.sqrt(8 * (1.5 / 0.5))
+        assert sigma == pytest.approx(expected)
+
+    def test_residual_autocorr_loaded_from_fixture(self, designer):
+        """Fixture-based designer should have autocorrelation set."""
+        assert hasattr(designer, "_residual_autocorr")
+        assert isinstance(designer._residual_autocorr, float)
+
+
+class TestNullConfirmation:
+    """Tests for null-confirmation candidate detection."""
+
+    def test_null_candidates_is_list(self, designer):
+        recs = designer.recommend(
+            spend_changes=[0.2, -1.0],
+            durations=[4],
+            min_snr=0.0,
+        )
+        assert isinstance(recs.null_confirmation_candidates, list)
+
+    def test_null_candidates_with_near_zero_beta(self):
+        """A channel with beta near zero should be a null candidate."""
+        idata = generate_experiment_fixture(
+            channels=["strong", "null_channel"],
+            true_params={
+                "strong": {"lam": 1.0, "beta": 3.0, "alpha": 0.5},
+                "null_channel": {"lam": 1.0, "beta": 0.001, "alpha": 0.5},
+            },
+            fit_model=False,
+            seed=42,
+        )
+        d = ExperimentDesigner.from_idata(idata)
+        recs = d.recommend(
+            spend_changes=[0.2, -1.0],
+            durations=[4, 8],
+            min_snr=0.0,
+        )
+        assert "null_channel" in recs.null_confirmation_candidates
+
+    def test_null_candidates_preserved_on_slice(self, designer):
+        recs = designer.recommend(
+            spend_changes=[0.2, -1.0],
+            durations=[4],
+            min_snr=0.0,
+        )
+        sliced = recs[:2]
+        assert sliced.null_confirmation_candidates == recs.null_confirmation_candidates
+
+    def test_null_candidates_in_repr_html(self):
+        """Null candidates should appear in HTML output."""
+        recs = ExperimentRecommendations(
+            [], null_confirmation_candidates=["dead_channel"]
+        )
+        html = recs._repr_html_()
+        assert "dead_channel" in html
+        assert "near-zero effect" in html
+
+    def test_null_candidates_in_repr(self):
+        recs = ExperimentRecommendations(
+            [], null_confirmation_candidates=["ch1", "ch2"]
+        )
+        assert "null-confirmation" in repr(recs)
+
+
+class TestCorrelationWarning:
+    """Tests for identification warnings on high-correlation channels."""
+
+    def test_high_correlation_triggers_warning(self):
+        """Rationale includes caution when correlation exceeds threshold."""
+        from pymc_marketing.mmm.experiment_design.recommendation import (
+            _format_rationale,
+        )
+
+        rec = ExperimentRecommendation(
+            channel="tv",
+            spend_change_frac=0.2,
+            spend_change_abs=0.1,
+            duration_weeks=8,
+            expected_lift=100.0,
+            expected_lift_hdi=(50.0, 150.0),
+            snr=3.0,
+            assurance=0.85,
+            adstock_ramp_fraction=0.9,
+            net_cost=0.8,
+            score=0.7,
+            rationale="",
+        )
+        rationale = _format_rationale(
+            rec,
+            correlation_info="high spend correlation with search (r = 0.85)",
+            max_correlation=0.85,
+        )
+        assert "Caution" in rationale
+        assert "identification" in rationale
+
+    def test_low_correlation_no_warning(self):
+        """Rationale does NOT include caution when correlation is low."""
+        from pymc_marketing.mmm.experiment_design.recommendation import (
+            _format_rationale,
+        )
+
+        rec = ExperimentRecommendation(
+            channel="tv",
+            spend_change_frac=0.2,
+            spend_change_abs=0.1,
+            duration_weeks=8,
+            expected_lift=100.0,
+            expected_lift_hdi=(50.0, 150.0),
+            snr=3.0,
+            assurance=0.85,
+            adstock_ramp_fraction=0.9,
+            net_cost=0.8,
+            score=0.7,
+            rationale="",
+        )
+        rationale = _format_rationale(
+            rec,
+            correlation_info="high spend correlation with search (r = 0.40)",
+            max_correlation=0.40,
+        )
+        assert "Caution" not in rationale
+
+
 class TestScoring:
     """Tests for scoring dimensions and normalisation."""
 
