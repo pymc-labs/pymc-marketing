@@ -992,3 +992,47 @@ class TestDeferredFactoryInHSGP:
         assert restored.centered is True
         assert restored.eta.resolve() is not None
         assert restored == original
+
+
+class TestHSGPKwargsTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of HSGPKwargs."""
+
+    def test_to_dict_includes_type_key(self):
+        from pymc_marketing.hsgp_kwargs import HSGPKwargs
+
+        obj = HSGPKwargs(m=200, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=5.0)
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
+        assert data["__type__"] == expected
+
+    def test_registered_in_type_registry(self):
+        from pymc_marketing.hsgp_kwargs import HSGPKwargs
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
+        assert type_key in registry._registry
+
+    def test_roundtrip_all_parameters(self):
+        from pymc_marketing.hsgp_kwargs import CovFunc, HSGPKwargs
+        from pymc_marketing.serialization import registry
+
+        original = HSGPKwargs(
+            m=150,
+            L=2.5,
+            eta_lam=0.5,
+            ls_mu=3.0,
+            ls_sigma=2.0,
+            cov_func=CovFunc.Matern32,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is HSGPKwargs
+        assert restored.m == 150
+        assert restored.L == 2.5
+        assert restored.eta_lam == 0.5
+        assert restored.ls_mu == 3.0
+        assert restored.ls_sigma == 2.0
+        assert restored.cov_func == CovFunc.Matern32
+        assert restored == original

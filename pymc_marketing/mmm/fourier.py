@@ -264,6 +264,7 @@ from pytensor.xtensor.type import XTensorVariable
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
+from pymc_marketing.serialization import registry
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -762,6 +763,7 @@ class FourierBase(BaseModel):
 
         """
         return {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "class": self.__class__.__name__,
             "data": self.model_dump(mode="json"),
         }
@@ -781,11 +783,14 @@ class FourierBase(BaseModel):
             Deserialized Fourier seasonality
 
         """
-        data = data["data"]
-        data["prior"] = deserialize(data["prior"])
-        return cls(**data)
+        inner = data.get("data", data)
+        if "__type__" in inner:
+            inner = {k: v for k, v in inner.items() if k != "__type__"}
+        inner["prior"] = deserialize(inner["prior"])
+        return cls(**inner)
 
 
+@registry.register
 class YearlyFourier(FourierBase):
     """Yearly fourier seasonality.
 
@@ -852,6 +857,7 @@ class YearlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@registry.register
 class MonthlyFourier(FourierBase):
     """Monthly fourier seasonality.
 
@@ -917,6 +923,7 @@ class MonthlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@registry.register
 class WeeklyFourier(FourierBase):
     """Weekly fourier seasonality.
 

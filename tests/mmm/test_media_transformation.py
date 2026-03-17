@@ -19,11 +19,14 @@ import pytest
 from pymc_extras.deserialize import deserialize
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.components.adstock import DelayedAdstock
+from pymc_marketing.mmm.components.saturation import TanhSaturation
 from pymc_marketing.mmm.media_transformation import (
     MediaConfig,
     MediaConfigList,
     MediaTransformation,
 )
+from pymc_marketing.mmm.transformers import ConvMode
 
 
 @pytest.fixture
@@ -193,6 +196,7 @@ def test_media_transformation_round_trip() -> None:
     data = media_transformation.to_dict()
 
     assert data == {
+        "__type__": f"{MediaTransformation.__module__}.{MediaTransformation.__qualname__}",
         "adstock": adstock.to_dict(),
         "saturation": saturation.to_dict(),
         "adstock_first": True,
@@ -225,3 +229,102 @@ def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
             adstock_first=True,
             dims=(),
         )
+
+
+class TestMediaTransformationTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of Media classes."""
+
+    def test_media_transformation_roundtrip_all_parameters(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        adstock = GeometricAdstock(
+            l_max=8,
+            normalize=False,
+            mode=ConvMode.Before,
+            prefix="custom_adstock",
+            priors={"alpha": Prior("Beta", alpha=2.0, beta=5.0)},
+        )
+        saturation = LogisticSaturation(
+            prefix="custom_sat",
+            priors={
+                "lam": Prior("Gamma", alpha=2, beta=2),
+                "beta": Prior("HalfNormal", sigma=3),
+            },
+        )
+        original = MediaTransformation(
+            adstock=adstock,
+            saturation=saturation,
+            adstock_first=False,
+            dims=("channel",),
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is MediaTransformation
+        assert type(restored.adstock) is GeometricAdstock
+        assert type(restored.saturation) is LogisticSaturation
+        assert restored.adstock_first is False
+        assert restored.dims == ("channel",)
+        assert restored.adstock.l_max == 8
+        assert restored.adstock.normalize is False
+        assert restored.adstock.mode == ConvMode.Before
+        assert restored.adstock.prefix == "custom_adstock"
+        assert restored.saturation.prefix == "custom_sat"
+        assert restored == original
+
+    def test_media_config_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import registry
+
+        mt = MediaTransformation(
+            adstock=GeometricAdstock(l_max=6),
+            saturation=LogisticSaturation(),
+            adstock_first=True,
+        )
+        original = MediaConfig(
+            name="online_channels",
+            columns=["tv", "radio", "digital"],
+            media_transformation=mt,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is MediaConfig
+        assert restored.name == "online_channels"
+        assert restored.columns == ["tv", "radio", "digital"]
+        assert type(restored.media_transformation.adstock) is GeometricAdstock
+        assert restored.media_transformation.adstock.l_max == 6
+        assert restored == original
+
+    def test_media_config_list_roundtrip_multiple_configs(self):
+        from pymc_marketing.serialization import registry
+
+        mt1 = MediaTransformation(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            adstock_first=True,
+        )
+        mt2 = MediaTransformation(
+            adstock=DelayedAdstock(l_max=6),
+            saturation=TanhSaturation(),
+            adstock_first=False,
+        )
+        mc1 = MediaConfig(
+            name="online", columns=["tv", "radio"], media_transformation=mt1
+        )
+        mc2 = MediaConfig(name="offline", columns=["print"], media_transformation=mt2)
+        original = MediaConfigList([mc1, mc2])
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is MediaConfigList
+        assert len(restored.media_configs) == 2
+        assert restored.media_configs[0].name == "online"
+        assert restored.media_configs[0].columns == ["tv", "radio"]
+        assert restored.media_configs[1].name == "offline"
+        assert (
+            type(restored.media_configs[1].media_transformation.adstock)
+            is DelayedAdstock
+        )
+        assert restored == original
