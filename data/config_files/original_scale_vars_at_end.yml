@@ -1,0 +1,41 @@
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:
+      - channel_1
+      - channel_2
+    target_column: "y"
+
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 4}
+
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs: {}
+
+    sampler_config:
+      tune: 100
+      draws: 100
+      chains: 2
+      random_seed: 42
+
+calibration:
+  - add_lift_test_measurements:
+      df_lift_test:
+        class: pandas.DataFrame
+        kwargs:
+          data:
+            channel: ["channel_1", "channel_2"]
+            x: [80.0, 50.0]
+            delta_x: [10.0, 6.0]
+            delta_y: [6.0, 4.0]
+            sigma: [1.5, 1.2]
+      name: "lift_test"
+
+# original_scale_vars intentionally placed at the very end to verify
+# that ordering does not affect model building.
+original_scale_vars:
+  - channel_contribution
+  - intercept_contribution
