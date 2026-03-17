@@ -296,14 +296,16 @@ class ExperimentDesigner:
         lam: np.ndarray | float,
         beta: np.ndarray | float,
     ) -> np.ndarray:
-        """Evaluate the saturation response using the canonical transformer.
+        """Evaluate the logistic saturation response in pure numpy.
 
-        Wraps :func:`pymc_marketing.mmm.transformers.logistic_saturation`
-        (PyTensor) and converts the result to numpy, then scales by ``beta``.
+        Uses the same formula as
+        :func:`pymc_marketing.mmm.transformers.logistic_saturation`
+        but avoids a PyTensor round-trip so callers can pass raw arrays.
         """
-        from pymc_marketing.mmm.transformers import logistic_saturation
-
-        return np.asarray(beta) * logistic_saturation(x, lam).eval()
+        x = np.asarray(x)
+        lam = np.asarray(lam)
+        sat = (1.0 - np.exp(-lam * x)) / (1.0 + np.exp(-lam * x))
+        return np.asarray(beta) * sat
 
     def _compute_steady_state_spend(
         self,
