@@ -181,6 +181,7 @@ def test_hsgp_to_dict() -> None:
     data = hsgp.to_dict()
 
     assert data == {
+        "__type__": "pymc_marketing.mmm.hsgp.HSGP",
         "L": 30.0,
         "m": 20,
         "ls": {
@@ -223,6 +224,7 @@ def test_hsgp_periodic_to_dict() -> None:
     data = hsgp.to_dict()
 
     assert data == {
+        "__type__": "pymc_marketing.mmm.hsgp.HSGPPeriodic",
         "m": 20,
         "period": 60.0,
         "cov_func": PeriodicCovFunc.Periodic,
@@ -248,6 +250,7 @@ def test_non_prior_parameters_still_serialize() -> None:
     data = hsgp.to_dict()
 
     assert data == {
+        "__type__": "pymc_marketing.mmm.hsgp.HSGP",
         "L": 5,
         "m": 10,
         "ls": 1,
@@ -770,3 +773,156 @@ class TestVariableFactorySerialization:
         # Should not raise - serialization should handle missing to_dict gracefully
         result = hsgp.to_dict()
         assert isinstance(result, dict)
+
+
+class TestHSGPTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of HSGP classes."""
+
+    @pytest.mark.parametrize(
+        "hsgp_cls", [HSGP, HSGPPeriodic, SoftPlusHSGP], ids=lambda c: c.__name__
+    )
+    def test_to_dict_includes_type_key(self, hsgp_cls):
+        if hsgp_cls is HSGPPeriodic:
+            obj = hsgp_cls(m=10, scale=1.0, ls=1.0, period=365.25, dims="time")
+        else:
+            obj = hsgp_cls(m=10, L=1.5, eta=1.0, ls=1.0, dims="time")
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{hsgp_cls.__module__}.{hsgp_cls.__qualname__}"
+        assert data["__type__"] == expected
+
+    @pytest.mark.parametrize(
+        "hsgp_cls", [HSGP, HSGPPeriodic, SoftPlusHSGP], ids=lambda c: c.__name__
+    )
+    def test_registered_in_type_registry(self, hsgp_cls):
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{hsgp_cls.__module__}.{hsgp_cls.__qualname__}"
+        assert type_key in registry._registry, f"{hsgp_cls.__name__} not registered"
+
+    def test_hsgp_roundtrip_all_parameters(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.hsgp_kwargs import CovFunc
+        from pymc_marketing.serialization import registry
+
+        original = HSGP(
+            m=15,
+            L=2.5,
+            eta=Prior("Exponential", lam=2.0),
+            ls=Prior("InverseGamma", alpha=3.0, beta=2.0),
+            dims=("time", "geo"),
+            centered=True,
+            drop_first=False,
+            cov_func=CovFunc.Matern52,
+            demeaned_basis=True,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is HSGP
+        assert restored.m == 15
+        assert restored.L == 2.5
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
+        assert restored.centered is True
+        assert restored.drop_first is False
+        assert restored.cov_func == CovFunc.Matern52
+        assert restored.demeaned_basis is True
+        assert restored == original
+
+    def test_hsgp_periodic_roundtrip_all_parameters(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        original = HSGPPeriodic(
+            m=15,
+            scale=Prior("Exponential", lam=1.5),
+            ls=Prior("InverseGamma", alpha=2.0, beta=1.0),
+            period=7.0,
+            dims=("time", "geo"),
+            demeaned_basis=True,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is HSGPPeriodic
+        assert restored.m == 15
+        assert restored.period == 7.0
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
+        assert restored.demeaned_basis is True
+        assert restored == original
+
+    def test_softplus_hsgp_roundtrip_all_parameters(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        original = SoftPlusHSGP(
+            m=20,
+            L=3.0,
+            eta=Prior("Exponential", lam=1.0),
+            ls=2.0,
+            dims="time",
+            centered=True,
+            drop_first=False,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is SoftPlusHSGP
+        assert restored.m == 20
+        assert restored.L == 3.0
+        assert restored.centered is True
+        assert restored.drop_first is False
+        assert restored == original
+
+
+class TestDeferredFactoryInHSGP:
+    def test_deferred_factory_in_eta(self):
+        from pymc_marketing.serialization import DeferredFactory
+
+        deferred = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_eta_prior",
+            kwargs={"upper": 5.0, "mass": 0.95},
+        )
+        hsgp = HSGP(m=10, L=1.5, eta=deferred, ls=1.0, dims="time")
+        data = hsgp.to_dict()
+        assert data["eta"]["__deferred__"] is True
+        assert data["eta"]["factory"] == "pymc_marketing.mmm.hsgp.create_eta_prior"
+
+    def test_deferred_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import DeferredFactory, registry
+
+        deferred_eta = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_eta_prior",
+            kwargs={"upper": 5.0, "mass": 0.95},
+        )
+        deferred_ls = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior",
+            kwargs={"upper": 30.0, "lower": 1.0, "mass": 0.9},
+        )
+        original = HSGP(
+            m=12,
+            L=2.0,
+            eta=deferred_eta,
+            ls=deferred_ls,
+            dims=("time", "geo"),
+            centered=True,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is HSGP
+        assert isinstance(restored.eta, DeferredFactory)
+        assert isinstance(restored.ls, DeferredFactory)
+        assert restored.eta.factory == deferred_eta.factory
+        assert restored.eta.kwargs == deferred_eta.kwargs
+        assert restored.ls.factory == deferred_ls.factory
+        assert restored.m == 12
+        assert restored.L == 2.0
+        assert restored.dims == ("time", "geo")
+        assert restored.centered is True
+        assert restored.eta.resolve() is not None

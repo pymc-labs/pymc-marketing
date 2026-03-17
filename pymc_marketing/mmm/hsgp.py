@@ -39,6 +39,7 @@ from xarray import DataArray
 from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
+from pymc_marketing.serialization import DeferredFactory, registry
 
 
 @validate_call
@@ -352,12 +353,18 @@ class HSGPBase(BaseModel):
             The object as a dictionary.
 
         """
-        data = self.model_dump()
-
-        def handle_prior(value):
-            return value if not hasattr(value, "to_dict") else value.to_dict()
-
-        return {key: handle_prior(value) for key, value in data.items()}
+        dumped = self.model_dump()
+        result = {}
+        for key, dumped_value in dumped.items():
+            live_value = getattr(self, key, dumped_value)
+            if hasattr(live_value, "to_dict"):
+                result[key] = live_value.to_dict()
+            else:
+                result[key] = dumped_value
+        result["__type__"] = (
+            f"{self.__class__.__module__}.{self.__class__.__qualname__}"
+        )
+        return result
 
     def sample_prior(
         self,
@@ -456,6 +463,7 @@ class HSGPBase(BaseModel):
         )
 
 
+@registry.register
 class HSGP(HSGPBase):
     """HSGP component.
 
@@ -725,10 +733,10 @@ class HSGP(HSGPBase):
 
     """
 
-    ls: InstanceOf[VariableFactory] | float = Field(
+    ls: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the lengthscales"
     )
-    eta: InstanceOf[VariableFactory] | float = Field(
+    eta: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the variance"
     )
     L: float = Field(..., gt=0, description="Extent of basis functions")
@@ -940,9 +948,22 @@ class HSGP(HSGPBase):
             The object created from the data.
 
         """
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("hsgp_class", None)
+
+        if "dims" in data and isinstance(data["dims"], list):
+            data["dims"] = tuple(data["dims"])
+
         for key in ["eta", "ls"]:
-            if isinstance(data[key], dict):
-                data[key] = Prior.from_dict(data[key])
+            value = data.get(key)
+            if isinstance(value, dict):
+                if value.get("__deferred__"):
+                    from pymc_marketing.serialization import DeferredFactory
+
+                    data[key] = DeferredFactory.from_dict(value)
+                else:
+                    data[key] = Prior.from_dict(value)
 
         return cls(**data)
 
@@ -953,6 +974,7 @@ class PeriodicCovFunc(StrEnum):
     Periodic = "periodic"
 
 
+@registry.register
 class HSGPPeriodic(HSGPBase):
     """HSGP component for periodic data.
 
@@ -1154,10 +1176,10 @@ class HSGPPeriodic(HSGPBase):
 
     """
 
-    ls: InstanceOf[VariableFactory] | float = Field(
+    ls: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the lengthscale"
     )
-    scale: InstanceOf[VariableFactory] | float = Field(
+    scale: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the scale"
     )
     cov_func: PeriodicCovFunc = Field(
@@ -1293,13 +1315,27 @@ class HSGPPeriodic(HSGPBase):
             The object created from the data.
 
         """
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("hsgp_class", None)
+
+        if "dims" in data and isinstance(data["dims"], list):
+            data["dims"] = tuple(data["dims"])
+
         for key in ["scale", "ls"]:
-            if isinstance(data[key], dict):
-                data[key] = Prior.from_dict(data[key])
+            value = data.get(key)
+            if isinstance(value, dict):
+                if value.get("__deferred__"):
+                    from pymc_marketing.serialization import DeferredFactory
+
+                    data[key] = DeferredFactory.from_dict(value)
+                else:
+                    data[key] = Prior.from_dict(value)
 
         return cls(**data)
 
 
+@registry.register
 class SoftPlusHSGP(HSGP):
     """HSGP with softplus transformation.
 
