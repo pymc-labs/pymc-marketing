@@ -850,16 +850,19 @@ class TestHSGPTypeRegistry:
         from pymc_marketing.hsgp_kwargs import CovFunc
         from pymc_marketing.serialization import registry
 
+        eta_prior = Prior("Exponential", lam=2.0)
+        ls_prior = Prior("InverseGamma", alpha=3.0, beta=2.0)
         original = HSGP(
             m=15,
             L=2.5,
-            eta=Prior("Exponential", lam=2.0),
-            ls=Prior("InverseGamma", alpha=3.0, beta=2.0),
+            eta=eta_prior,
+            ls=ls_prior,
             dims=("time", "geo"),
             centered=True,
             drop_first=False,
             cov_func=CovFunc.Matern52,
             demeaned_basis=True,
+            transform="sigmoid",
         )
         data = registry.serialize(original)
         restored = registry.deserialize(data)
@@ -867,12 +870,15 @@ class TestHSGPTypeRegistry:
         assert type(restored) is HSGP
         assert restored.m == 15
         assert restored.L == 2.5
+        assert restored.eta == eta_prior
+        assert restored.ls == ls_prior
         assert isinstance(restored.dims, tuple)
         assert restored.dims == ("time", "geo")
         assert restored.centered is True
         assert restored.drop_first is False
         assert restored.cov_func == CovFunc.Matern52
         assert restored.demeaned_basis is True
+        assert restored.transform == "sigmoid"
         assert restored == original
 
     def test_hsgp_periodic_roundtrip_all_parameters(self):
@@ -880,10 +886,12 @@ class TestHSGPTypeRegistry:
 
         from pymc_marketing.serialization import registry
 
+        scale_prior = Prior("Exponential", lam=1.5)
+        ls_prior = Prior("InverseGamma", alpha=2.0, beta=1.0)
         original = HSGPPeriodic(
             m=15,
-            scale=Prior("Exponential", lam=1.5),
-            ls=Prior("InverseGamma", alpha=2.0, beta=1.0),
+            scale=scale_prior,
+            ls=ls_prior,
             period=7.0,
             dims=("time", "geo"),
             demeaned_basis=True,
@@ -893,6 +901,8 @@ class TestHSGPTypeRegistry:
 
         assert type(restored) is HSGPPeriodic
         assert restored.m == 15
+        assert restored.scale == scale_prior
+        assert restored.ls == ls_prior
         assert restored.period == 7.0
         assert isinstance(restored.dims, tuple)
         assert restored.dims == ("time", "geo")
@@ -902,16 +912,20 @@ class TestHSGPTypeRegistry:
     def test_softplus_hsgp_roundtrip_all_parameters(self):
         from pymc_extras.prior import Prior
 
+        from pymc_marketing.hsgp_kwargs import CovFunc
         from pymc_marketing.serialization import registry
 
+        eta_prior = Prior("Exponential", lam=1.0)
         original = SoftPlusHSGP(
             m=20,
             L=3.0,
-            eta=Prior("Exponential", lam=1.0),
+            eta=eta_prior,
             ls=2.0,
-            dims="time",
+            dims=("time", "geo"),
             centered=True,
             drop_first=False,
+            cov_func=CovFunc.Matern52,
+            demeaned_basis=True,
         )
         data = registry.serialize(original)
         restored = registry.deserialize(data)
@@ -919,8 +933,14 @@ class TestHSGPTypeRegistry:
         assert type(restored) is SoftPlusHSGP
         assert restored.m == 20
         assert restored.L == 3.0
+        assert restored.eta == eta_prior
+        assert restored.ls == 2.0
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
         assert restored.centered is True
         assert restored.drop_first is False
+        assert restored.cov_func == CovFunc.Matern52
+        assert restored.demeaned_basis is True
         assert restored == original
 
 
@@ -965,8 +985,10 @@ class TestDeferredFactoryInHSGP:
         assert restored.eta.factory == deferred_eta.factory
         assert restored.eta.kwargs == deferred_eta.kwargs
         assert restored.ls.factory == deferred_ls.factory
+        assert restored.ls.kwargs == deferred_ls.kwargs
         assert restored.m == 12
         assert restored.L == 2.0
         assert restored.dims == ("time", "geo")
         assert restored.centered is True
         assert restored.eta.resolve() is not None
+        assert restored == original

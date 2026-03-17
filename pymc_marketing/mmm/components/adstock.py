@@ -423,6 +423,7 @@ class NoAdstock(AdstockTransformation):
 def adstock_from_dict(data: dict) -> AdstockTransformation:
     """Create an adstock transformation from a dictionary."""
     data = data.copy()
+    data.pop("__type__", None)
     lookup_name = data.pop("lookup_name")
     cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
 

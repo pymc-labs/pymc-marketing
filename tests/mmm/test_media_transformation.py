@@ -199,7 +199,12 @@ def test_media_transformation_round_trip() -> None:
         "dims": ("media",),
     }
     recovered = MediaTransformation.from_dict(data)
+    assert type(recovered.adstock) is GeometricAdstock
+    assert recovered.adstock.l_max == 10
+    assert type(recovered.saturation) is LogisticSaturation
+    assert recovered.adstock_first is True
     assert recovered.dims == ("media",)
+    assert recovered == media_transformation
 
 
 @pytest.mark.parametrize(

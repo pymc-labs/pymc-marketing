@@ -998,6 +998,13 @@ class TestEventsTypeRegistry:
         assert restored.prefix == kwargs["prefix"]
         for prior_name, prior in kwargs["priors"].items():
             assert restored.function_priors[prior_name] == prior
+
+        if basis_cls is HalfGaussianBasis:
+            assert restored.mode == kwargs["mode"]
+            assert restored.include_event == kwargs["include_event"]
+        elif basis_cls is AsymmetricGaussianBasis:
+            assert restored.event_in == kwargs["event_in"]
+
         assert restored == original
 
     @pytest.mark.parametrize(

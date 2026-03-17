@@ -959,8 +959,6 @@ class HSGP(HSGPBase):
             value = data.get(key)
             if isinstance(value, dict):
                 if value.get("__deferred__"):
-                    from pymc_marketing.serialization import DeferredFactory
-
                     data[key] = DeferredFactory.from_dict(value)
                 else:
                     data[key] = Prior.from_dict(value)
@@ -1323,8 +1321,6 @@ class HSGPPeriodic(HSGPBase):
             value = data.get(key)
             if isinstance(value, dict):
                 if value.get("__deferred__"):
-                    from pymc_marketing.serialization import DeferredFactory
-
                     data[key] = DeferredFactory.from_dict(value)
                 else:
                     data[key] = Prior.from_dict(value)

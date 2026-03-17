@@ -529,6 +529,7 @@ class NoSaturation(SaturationTransformation):
 def saturation_from_dict(data: dict) -> SaturationTransformation:
     """Get a saturation function from a dictionary."""
     data = data.copy()
+    data.pop("__type__", None)
     cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
 
     if "priors" in data:
