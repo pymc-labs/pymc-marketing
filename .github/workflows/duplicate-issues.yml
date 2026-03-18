@@ -94,6 +94,7 @@ jobs:
 
           echo "" >> /tmp/duplicate_response.txt
           echo "---" >> /tmp/duplicate_response.txt
+          echo "" >> /tmp/duplicate_response.txt
           echo "*[Workflow run](${RUN_URL})*" >> /tmp/duplicate_response.txt
 
           gh issue comment "$ISSUE_NUMBER" \
