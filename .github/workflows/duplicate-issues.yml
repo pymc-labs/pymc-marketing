@@ -86,11 +86,24 @@ jobs:
 
       - name: Comment on issue if duplicates found
         if: steps.extract_response.outputs.has_duplicates == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           ISSUE_NUMBER="${{ github.event.issue.number }}"
+
+          echo "" >> /tmp/duplicate_response.txt
+          echo "---" >> /tmp/duplicate_response.txt
+          echo "*[Workflow run](${RUN_URL})*" >> /tmp/duplicate_response.txt
 
           gh issue comment "$ISSUE_NUMBER" \
             --body-file /tmp/duplicate_response.txt
           echo "✅ Posted duplicate detection result to issue #$ISSUE_NUMBER"
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+      - name: Upload Claude output logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-output-duplicate-finder-${{ github.event.issue.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7
