@@ -166,6 +166,20 @@ class TestCalibrationStep:
         with pytest.raises(ValidationError, match="exactly one method"):
             CalibrationStep.model_validate("not-a-dict")
 
+    def test_direct_construction(self):
+        step = CalibrationStep(method_name="foo", params={"k": 1})
+        assert step.method_name == "foo"
+        assert step.params == {"k": 1}
+
+    def test_model_dump_round_trip(self):
+        step = CalibrationStep.model_validate(
+            {"add_lift_test_measurements": {"df": "some_value"}}
+        )
+        dumped = step.model_dump()
+        restored = CalibrationStep.model_validate(dumped)
+        assert restored.method_name == step.method_name
+        assert restored.params == step.params
+
 
 # ---------------------------------------------------------------------------
 # MMMYamlConfig
@@ -253,6 +267,19 @@ class TestMMMYamlConfig:
             }
         )
         assert cfg.calibration is None
+
+    def test_model_dump_round_trip_with_calibration(self):
+        raw = {
+            "model": {"class": "some.Class", "kwargs": {"x": 1}},
+            "calibration": [{"method_a": {"param": 1}}],
+        }
+        cfg = MMMYamlConfig.model_validate(raw)
+        dumped = cfg.model_dump(by_alias=True)
+        restored = MMMYamlConfig.model_validate(dumped)
+        assert restored.model.class_ == cfg.model.class_
+        assert len(restored.calibration) == 1
+        assert restored.calibration[0].method_name == "method_a"
+        assert restored.calibration[0].params == {"param": 1}
 
 
 # ---------------------------------------------------------------------------

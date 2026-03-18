@@ -147,7 +147,14 @@ class CalibrationStep(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _parse_single_method(cls, data: Any) -> dict[str, Any]:
-        if not isinstance(data, dict) or len(data) != 1:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "Each calibration step must map exactly one method name "
+                "to its parameters."
+            )
+        if "method_name" in data:
+            return data
+        if len(data) != 1:
             raise ValueError(
                 "Each calibration step must map exactly one method name "
                 "to its parameters."
