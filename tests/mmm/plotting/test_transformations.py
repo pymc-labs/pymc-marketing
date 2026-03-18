@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import arviz as az
 import matplotlib
 import numpy as np
@@ -25,7 +27,10 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.mmm.plotting.transformations import TransformationPlots
+from pymc_marketing.mmm.plotting.transformations import (
+    _SCALED_SPACE_MAX_THRESHOLD,
+    TransformationPlots,
+)
 
 matplotlib.use("Agg")
 
@@ -284,10 +289,8 @@ class TestSaturationScatterplotCostPerUnit:
 # ============================================================================
 
 
-@pytest.fixture(scope="module")
-def simple_curve() -> xr.DataArray:
-    """Saturation curve with dims (chain, draw, channel, x) -- no custom dims."""
-    rng = np.random.default_rng(SEED + 10)
+def _make_simple_curve(rng, scale: float = 1.0) -> xr.DataArray:
+    """Build a simple saturation curve; multiply y-values by *scale*."""
     x_values = np.linspace(0, 1, 50)
     channels = ["tv", "radio", "social"]
 
@@ -298,6 +301,7 @@ def simple_curve() -> xr.DataArray:
                 data[ci, di, c, :] = x_values / (1 + x_values) + rng.normal(
                     0, 0.01, size=50
                 )
+    data *= scale
 
     return xr.DataArray(
         data,
@@ -311,10 +315,8 @@ def simple_curve() -> xr.DataArray:
     )
 
 
-@pytest.fixture(scope="module")
-def panel_curve() -> xr.DataArray:
-    """Saturation curve with dims (chain, draw, channel, country, x)."""
-    rng = np.random.default_rng(SEED + 11)
+def _make_panel_curve(rng, scale: float = 1.0) -> xr.DataArray:
+    """Build a panel saturation curve; multiply y-values by *scale*."""
     x_values = np.linspace(0, 1, 40)
     channels = ["tv", "radio"]
     countries = ["US", "UK"]
@@ -327,6 +329,7 @@ def panel_curve() -> xr.DataArray:
                     data[ci, di, ch, co, :] = x_values / (1 + x_values) + rng.normal(
                         0, 0.01, size=40
                     )
+    data *= scale
 
     return xr.DataArray(
         data,
@@ -339,6 +342,37 @@ def panel_curve() -> xr.DataArray:
             "x": x_values,
         },
     )
+
+
+ORIGINAL_SCALE_FACTOR = 1000.0
+
+
+@pytest.fixture(scope="module")
+def simple_curve() -> xr.DataArray:
+    """Saturation curve in original scale (y >> threshold)."""
+    return _make_simple_curve(
+        np.random.default_rng(SEED + 10), scale=ORIGINAL_SCALE_FACTOR
+    )
+
+
+@pytest.fixture(scope="module")
+def simple_curve_scaled() -> xr.DataArray:
+    """Saturation curve in model-internal scaled space (y < threshold)."""
+    return _make_simple_curve(np.random.default_rng(SEED + 10))
+
+
+@pytest.fixture(scope="module")
+def panel_curve() -> xr.DataArray:
+    """Panel saturation curve in original scale (y >> threshold)."""
+    return _make_panel_curve(
+        np.random.default_rng(SEED + 11), scale=ORIGINAL_SCALE_FACTOR
+    )
+
+
+@pytest.fixture(scope="module")
+def panel_curve_scaled() -> xr.DataArray:
+    """Panel saturation curve in model-internal scaled space (y < threshold)."""
+    return _make_panel_curve(np.random.default_rng(SEED + 11))
 
 
 # ============================================================================
@@ -357,9 +391,9 @@ class TestSaturationCurvesBasic:
         fig, _axes = simple_plots.saturation_curves(curves=simple_curve)
         assert isinstance(fig, Figure)
 
-    def test_original_scale_false(self, simple_plots, simple_curve):
+    def test_original_scale_false(self, simple_plots, simple_curve_scaled):
         fig, _axes = simple_plots.saturation_curves(
-            curves=simple_curve, original_scale=False
+            curves=simple_curve_scaled, original_scale=False
         )
         assert isinstance(fig, Figure)
 
@@ -461,3 +495,37 @@ class TestSaturationCurvesLabels:
         )
         for ax in axes.flat:
             assert "Channel Data" in ax.get_xlabel()
+
+
+class TestSaturationCurvesScaleWarning:
+    """Heuristic warnings when curve magnitude doesn't match original_scale."""
+
+    def test_warns_original_scale_true_with_scaled_curves(
+        self, simple_plots, simple_curve_scaled
+    ):
+        assert float(simple_curve_scaled.max()) < _SCALED_SPACE_MAX_THRESHOLD
+        with pytest.warns(UserWarning, match="original_scale=True"):
+            simple_plots.saturation_curves(
+                curves=simple_curve_scaled, original_scale=True
+            )
+
+    def test_warns_original_scale_false_with_original_scale_curves(
+        self, simple_plots, simple_curve
+    ):
+        assert float(simple_curve.max()) >= _SCALED_SPACE_MAX_THRESHOLD
+        with pytest.warns(UserWarning, match="original_scale=False"):
+            simple_plots.saturation_curves(curves=simple_curve, original_scale=False)
+
+    def test_no_warning_when_scales_match_original(self, simple_plots, simple_curve):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            simple_plots.saturation_curves(curves=simple_curve, original_scale=True)
+
+    def test_no_warning_when_scales_match_scaled(
+        self, simple_plots, simple_curve_scaled
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            simple_plots.saturation_curves(
+                curves=simple_curve_scaled, original_scale=False
+            )

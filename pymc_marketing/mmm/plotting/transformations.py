@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import arviz as az
@@ -33,6 +34,8 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
+
+_SCALED_SPACE_MAX_THRESHOLD = 10.0
 
 
 def _x_axis_label(data: MMMIDataWrapper, apply_cost_per_unit: bool) -> str:
@@ -179,14 +182,36 @@ class TransformationPlots:
         Renders a scatter plot of observed data, posterior sample curves,
         and a credible interval band for each channel panel.
 
+        The ``curves`` y-values are plotted **as-is** — this function does
+        **not** rescale them.  Pass curves whose scale matches the
+        ``original_scale`` flag so they align with the scatter plot:
+
+        * ``original_scale=True`` (default) — pass curves generated with
+          ``mmm.sample_saturation_curve(original_scale=True)`` so that
+          y-values are already in original (un-scaled) units.
+        * ``original_scale=False`` — pass curves from
+          ``mmm.saturation.sample_curve(...)`` or
+          ``mmm.sample_saturation_curve(original_scale=False)`` (model-
+          internal scaled space).
+
+        A heuristic warning is emitted when the curve magnitude appears
+        inconsistent with the requested scale.
+
         Parameters
         ----------
         curves : xr.DataArray
-            Posterior-predictive saturation curves, typically from
-            ``mmm.saturation.sample_curve(...)``.
+            Posterior-predictive saturation curves.  Typical sources:
+
+            * ``mmm.sample_saturation_curve(original_scale=True)`` — curves
+              already in original scale (use with ``original_scale=True``).
+            * ``mmm.sample_saturation_curve(original_scale=False)`` or
+              ``mmm.saturation.sample_curve(params)`` — curves in scaled
+              space (use with ``original_scale=False``).
+
             Expected dims: ``(chain, draw, channel, [custom_dims], x)``.
         original_scale : bool, default True
-            If True, scale y-values to original units.
+            Controls the scatter-plot scale (contributions).  The caller
+            must ensure ``curves`` are in the matching scale.
         n_samples : int, default 10
             Number of posterior sample curves to draw per panel.
             Set to 0 to disable sample curves.
@@ -202,18 +227,8 @@ class TransformationPlots:
             Dimension filters.
         figsize : tuple[float, float], optional
             Convenience shorthand for figure size.
-        plot_collection : PlotCollection, optional
-            Plot onto an existing ``PlotCollection``.
         backend : str, optional
             Rendering backend.
-        visuals : dict, optional
-            Element-level customization. Keys:
-            ``"scatter"`` (observed data points),
-            ``"samples"`` (posterior sample curves),
-            ``"hdi"`` (HDI band).
-            Set a key to ``False`` to disable that element.
-        aes_by_visuals : dict, optional
-            Aesthetic mapping per visual element.
         return_as_pc : bool, default False
             Return ``PlotCollection`` instead of matplotlib tuple.
         **pc_kwargs
@@ -244,11 +259,20 @@ class TransformationPlots:
         )
 
         curves = curves.copy()
-        if original_scale:
-            # update y values to original scale
-            # TODO: what happens if curves are already in original scale?
-            target_scale = data.get_target_scale()
-            curves = curves * target_scale
+
+        curve_max = float(curves.max())
+        looks_scaled = curve_max < _SCALED_SPACE_MAX_THRESHOLD
+        if original_scale == looks_scaled:
+            expected = "original" if original_scale else "scaled"
+            actual = "scaled" if looks_scaled else "original"
+            warnings.warn(
+                f"original_scale={original_scale} but curves.max()="
+                f"{curve_max:.4g} suggests the curves are in {actual} "
+                f"space, not {expected}. Pass curves generated with "
+                f"mmm.sample_saturation_curve(original_scale={original_scale}).",
+                UserWarning,
+                stacklevel=2,
+            )
 
         # get values for x-axis (spend)
         x_scale = data.get_channel_scale()
