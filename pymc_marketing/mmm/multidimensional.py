@@ -1663,6 +1663,13 @@ class MMM(RegressionModelBuilder):
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
 
+        # xr.merge sorts coordinates alphabetically; restore user-provided order
+        self.xarray_dataset = self.xarray_dataset.reindex(channel=self.channel_columns)
+        if self.control_columns:
+            self.xarray_dataset = self.xarray_dataset.reindex(
+                control=self.control_columns
+            )
+
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
 
         self.model_coords = {

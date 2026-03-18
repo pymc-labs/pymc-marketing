@@ -4340,3 +4340,100 @@ class TestDataProperty:
         assert isinstance(wrapper, MMMIDataWrapper)
         # Verify time_index variable exists in schema (indicator of time-varying)
         assert "time_index" in wrapper.schema.groups["constant_data"].variables
+
+
+class TestChannelCoordinateOrdering:
+    """Regression tests for #2417: channel coordinates must preserve
+    the user-provided channel_columns order, not be alphabetically sorted."""
+
+    NON_ALPHA_CHANNELS = ["Z_tv", "A_social", "M_radio"]
+
+    @pytest.fixture
+    def shuffled_channel_data(self):
+        n = 14
+        dates = pd.date_range("2023-01-01", periods=n, freq="W")
+        geos = ["G1", "G2"]
+        rows = []
+        rng = np.random.default_rng(42)
+        for geo in geos:
+            for date in dates:
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        **{
+                            ch: rng.integers(100, 500) for ch in self.NON_ALPHA_CHANNELS
+                        },
+                    }
+                )
+        df = pd.DataFrame(rows)
+        y = pd.Series(rng.integers(200, 800, size=len(df)), name="target")
+        return df, y
+
+    @pytest.fixture
+    def shuffled_mmm(self):
+        return MMM(
+            date_column="date",
+            channel_columns=list(self.NON_ALPHA_CHANNELS),
+            dims=("geo",),
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+    def test_xarray_dataset_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data
+    ):
+        """Regression test for #2417: xarray_dataset channel coordinate must
+        match channel_columns order after xr.merge."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.build_model(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        actual = list(shuffled_mmm.xarray_dataset.coords["channel"].values)
+        assert actual == channels
+
+    def test_model_coords_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data
+    ):
+        """Regression test for #2417: model_coords['channel'] must match
+        channel_columns order, not alphabetical."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.build_model(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        actual = list(shuffled_mmm.model_coords["channel"])
+        assert actual == channels
+
+    def test_idata_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data, mock_pymc_sample
+    ):
+        """Regression test for #2417: InferenceData posterior channel coordinate
+        must match channel_columns order."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.fit(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        posterior_channels = list(shuffled_mmm.idata.posterior.coords["channel"].values)
+        assert posterior_channels == channels
+
+    def test_data_wrapper_channels_preserves_order(
+        self, shuffled_mmm, shuffled_channel_data, mock_pymc_sample
+    ):
+        """Regression test for #2417: MMMIDataWrapper.channels must match
+        channel_columns order."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.fit(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        wrapper = shuffled_mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        assert wrapper.channels == channels
