@@ -50,7 +50,29 @@ def suggest_typo_fix(
     return matches[0] if matches else None
 
 
-_BUILD_SPEC_KEYS = {"class", "class_", "kwargs", "args"}
+def _valid_field_keys(cls: type[BaseModel]) -> set[str]:
+    """Derive all accepted input keys from a Pydantic model's field definitions.
+
+    Collects both the Python field name and the alias (if any) for every
+    field declared on *cls*, so that YAML keys using either form are
+    recognised as valid.
+
+    Parameters
+    ----------
+    cls : type of BaseModel
+        The Pydantic model class to inspect.
+
+    Returns
+    -------
+    set of str
+        Union of field names and their aliases.
+    """
+    keys: set[str] = set()
+    for name, field_info in cls.model_fields.items():
+        keys.add(name)
+        if field_info.alias:
+            keys.add(field_info.alias)
+    return keys
 
 
 class BuildSpec(BaseModel):
@@ -96,8 +118,9 @@ class BuildSpec(BaseModel):
     @classmethod
     def _check_unknown_keys(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            for key in set(data.keys()) - _BUILD_SPEC_KEYS:
-                hint = suggest_typo_fix(key, _BUILD_SPEC_KEYS)
+            valid_keys = _valid_field_keys(cls)
+            for key in set(data.keys()) - valid_keys:
+                hint = suggest_typo_fix(key, valid_keys)
                 msg = f"Unknown key '{key}' in build spec."
                 if hint:
                     msg += f" Did you mean '{hint}'?"
@@ -165,16 +188,6 @@ class CalibrationStep(BaseModel):
         return {"method_name": name, "params": params}
 
 
-_TOP_LEVEL_KEYS = {
-    "model",
-    "data",
-    "effects",
-    "original_scale_vars",
-    "calibration",
-    "idata_path",
-}
-
-
 class MMMYamlConfig(BaseModel):
     """Schema for the top-level MMM YAML configuration.
 
@@ -220,8 +233,9 @@ class MMMYamlConfig(BaseModel):
     @classmethod
     def _check_unknown_keys(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            for key in set(data.keys()) - _TOP_LEVEL_KEYS:
-                hint = suggest_typo_fix(key, _TOP_LEVEL_KEYS)
+            valid_keys = _valid_field_keys(cls)
+            for key in set(data.keys()) - valid_keys:
+                hint = suggest_typo_fix(key, valid_keys)
                 msg = f"Unknown config key '{key}'."
                 if hint:
                     msg += f" Did you mean '{hint}'?"
