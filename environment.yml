@@ -1,5 +1,5 @@
 # to be used by devs in setting their local environments
-name: pymc-marketing-dev
+name: pymc-dev-pr1-foundation
 channels:
   - conda-forge
   - nodefaults

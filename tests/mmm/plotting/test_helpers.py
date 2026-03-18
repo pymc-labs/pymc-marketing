@@ -29,6 +29,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
+    _select_dims,
     _validate_dims,
     channel_color_map,
 )
@@ -280,11 +281,13 @@ class TestPublicAPI:
         from pymc_marketing.mmm.plotting._helpers import (
             _extract_matplotlib_result,
             _process_plot_params,
+            _select_dims,
             _validate_dims,
             channel_color_map,
         )
 
         assert callable(_validate_dims)
+        assert callable(_select_dims)
         assert callable(_process_plot_params)
         assert callable(_extract_matplotlib_result)
         assert callable(channel_color_map)
@@ -325,3 +328,60 @@ class TestDimsToSelKwargs:
     def test_integer_scalar_wrapped(self):
         result = _dims_to_sel_kwargs({"fold": 2})
         assert result == {"fold": [2]}
+
+
+class TestSelectDims:
+    """Tests for the combined validate + select helper."""
+
+    def test_none_dims_returns_unchanged(self, sample_dataset):
+        result = _select_dims(sample_dataset, None)
+        assert result is sample_dataset
+
+    def test_empty_dims_returns_unchanged(self, sample_dataset):
+        result = _select_dims(sample_dataset, {})
+        assert result is sample_dataset
+
+    def test_selects_valid_dims(self, sample_dataset):
+        result = _select_dims(sample_dataset, {"channel": "tv"})
+        assert list(result.coords["channel"].values) == ["tv"]
+        assert "date" in result.dims
+
+    def test_preserves_dim_as_size_one(self, sample_dataset):
+        result = _select_dims(sample_dataset, {"geo": "US"})
+        assert result.sizes["geo"] == 1
+
+    def test_ignores_extra_dims(self, sample_dataset):
+        result = _select_dims(sample_dataset, {"channel": "tv", "region": "US"})
+        assert list(result.coords["channel"].values) == ["tv"]
+
+    def test_all_extra_returns_unchanged(self, sample_dataset):
+        result = _select_dims(sample_dataset, {"region": "US"})
+        assert result is sample_dataset
+
+    def test_validates_matching_values(self, sample_dataset):
+        with pytest.raises(ValueError, match="Value 'FR' not found"):
+            _select_dims(sample_dataset, {"geo": "FR"})
+
+    def test_works_with_dataarray(self):
+        da = xr.DataArray(
+            np.random.randn(3, 2),
+            dims=("channel", "geo"),
+            coords={"channel": ["tv", "radio", "social"], "geo": ["US", "UK"]},
+        )
+        result = _select_dims(da, {"channel": "tv"})
+        assert isinstance(result, xr.DataArray)
+        assert list(result.coords["channel"].values) == ["tv"]
+
+    def test_dataarray_ignores_extra_dims(self):
+        da = xr.DataArray(
+            np.random.randn(3),
+            dims=("channel",),
+            coords={"channel": ["tv", "radio", "social"]},
+        )
+        result = _select_dims(da, {"channel": "tv", "geo": "US"})
+        assert list(result.coords["channel"].values) == ["tv"]
+
+    def test_multiple_dims_selected(self, sample_dataset):
+        result = _select_dims(sample_dataset, {"channel": "tv", "geo": "US"})
+        assert result.sizes["channel"] == 1
+        assert result.sizes["geo"] == 1

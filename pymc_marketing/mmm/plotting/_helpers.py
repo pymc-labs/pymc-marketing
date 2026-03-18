@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, TypeVar
 
 import numpy as np
 import xarray as xr
@@ -25,6 +25,8 @@ from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
+
+_XarrayT = TypeVar("_XarrayT", xr.Dataset, xr.DataArray)
 
 MATPLOTLIB_CYCLE_SIZE = 10
 
@@ -56,16 +58,51 @@ def _dims_to_sel_kwargs(
     }
 
 
+def _select_dims(
+    data: _XarrayT,
+    dims: dict[str, Any] | None,
+) -> _XarrayT:
+    """Validate dimension filters and apply ``.sel()`` in one step.
+
+    Only dimensions present in ``data`` are validated and selected;
+    extra keys in ``dims`` are silently ignored.
+
+    Parameters
+    ----------
+    data : xr.Dataset or xr.DataArray
+        The xarray object to filter.
+    dims : dict or None
+        Dimension name → value(s).  ``None`` or empty is a no-op.
+
+    Returns
+    -------
+    xr.Dataset or xr.DataArray
+        Filtered object (same type as *data*).  Dimensions are preserved
+        as size-1 (scalars are wrapped in lists) so downstream faceting
+        still works.
+    """
+    if not dims:
+        return data
+
+    applicable = {k: v for k, v in dims.items() if k in data.dims}
+    if not applicable:
+        return data
+
+    _validate_dims(data, applicable)
+    sel_kwargs = _dims_to_sel_kwargs(applicable)
+    return data.sel(**sel_kwargs)
+
+
 def _validate_dims(
-    dataset: xr.Dataset,
+    dataset: xr.Dataset | xr.DataArray,
     dims: dict[str, Any] | None,
 ) -> None:
     """Validate that ``dims`` keys and values exist in ``dataset`` coordinates.
 
     Parameters
     ----------
-    dataset : xr.Dataset
-        The dataset whose coordinates are checked.
+    dataset : xr.Dataset or xr.DataArray
+        The xarray object whose coordinates are checked.
     dims : dict or None
         Mapping of dimension name → value(s) to validate.
         Values may be scalars, lists, tuples, or numpy arrays.
@@ -117,7 +154,6 @@ def channel_color_map(channels: Sequence[str]) -> dict[str, str]:
 
 def _process_plot_params(
     figsize: tuple[float, float] | None,
-    plot_collection: PlotCollection | None,
     backend: str | None,
     return_as_pc: bool,
     **pc_kwargs,
@@ -132,8 +168,6 @@ def _process_plot_params(
     ----------
     figsize : tuple[float, float] or None
         Convenience shorthand injected into ``figure_kwargs``.
-    plot_collection : PlotCollection or None
-        When provided, ``figsize`` and layout kwargs are ignored.
     backend : str or None
         Rendering backend (``"matplotlib"``, ``"plotly"``, ``"bokeh"``).
     return_as_pc : bool
@@ -146,20 +180,13 @@ def _process_plot_params(
     dict
         Cleaned ``pc_kwargs``.
     """
-    if plot_collection is not None and figsize is not None:
-        warnings.warn(
-            "figsize is ignored when plot_collection is provided.",
-            UserWarning,
-            stacklevel=2,
-        )
-
     if not return_as_pc and backend is not None and backend != "matplotlib":
         raise ValueError(
             f"backend='{backend}' requires return_as_pc=True. "
             "Non-matplotlib backends cannot return (Figure, NDArray[Axes])."
         )
 
-    if figsize is not None and plot_collection is None:
+    if figsize is not None:
         fig_kwargs = pc_kwargs.pop("figure_kwargs", {})
         if "figsize" in fig_kwargs:
             warnings.warn(

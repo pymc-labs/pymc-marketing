@@ -18,8 +18,10 @@ from __future__ import annotations
 from typing import Any
 
 import arviz as az
+import arviz_plots as azp
 import numpy as np
 import xarray as xr
+from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -27,11 +29,9 @@ from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting._helpers import (
-    _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
-    _validate_dims,
-    channel_color_map,
+    _select_dims,
 )
 
 # ============================================================================
@@ -55,121 +55,6 @@ def _get_channel_x_data(
     return data.get_channel_data()
 
 
-def _get_visual_kwargs(
-    visuals: dict[str, Any] | None,
-    key: str,
-    defaults: dict[str, Any],
-) -> dict[str, Any] | None:
-    """Merge visual kwargs with defaults.  Returns None if the visual is disabled."""
-    if visuals is None:
-        return defaults
-    visual = visuals.get(key)
-    if visual is False:
-        return None
-    if visual is None:
-        return defaults
-    return {**defaults, **visual}
-
-
-def _iter_panels(
-    axes_da: xr.DataArray,
-    dataset: xr.Dataset,
-) -> list[tuple[Axes, xr.Dataset]]:
-    """Yield (axes, panel_data) for each panel in the PlotCollection."""
-    panels = []
-    for idx in np.ndindex(axes_da.shape):
-        ax = axes_da.values[idx]
-        coord_dict = {
-            dim: axes_da.coords[dim].values[i]
-            for dim, i in zip(axes_da.dims, idx, strict=True)
-        }
-        panel_data = dataset.sel(**coord_dict)
-        panels.append((ax, panel_data))
-    return panels
-
-
-def _iter_panels_da(
-    axes_da: xr.DataArray,
-    da: xr.DataArray,
-) -> list[tuple[Axes, xr.DataArray]]:
-    """Yield (axes, panel_slice) for each panel using a DataArray."""
-    panels = []
-    for idx in np.ndindex(axes_da.shape):
-        ax = axes_da.values[idx]
-        coord_dict = {
-            dim: axes_da.coords[dim].values[i]
-            for dim, i in zip(axes_da.dims, idx, strict=True)
-        }
-        da_sel = {k: v for k, v in coord_dict.items() if k in da.dims}
-        panel_slice = da.sel(**da_sel) if da_sel else da
-        panels.append((ax, panel_slice))
-    return panels
-
-
-def _scatter_visual(
-    panel_ds: xr.Dataset,
-    target: Axes,
-    *,
-    color_map: dict[str, str],
-    scatter_kwargs: dict[str, Any],
-) -> None:
-    """Draw scatter points on one panel."""
-    ch = str(panel_ds.coords["channel"].item()) if "channel" in panel_ds.coords else ""
-    color = color_map.get(ch, "C0")
-    x = panel_ds["x"].values.flatten()
-    y = panel_ds["y"].values.flatten()
-    target.scatter(x, y, color=color, **scatter_kwargs)
-
-
-def _sample_curves_visual(
-    da: xr.DataArray,
-    target: Axes,
-    *,
-    x_vals: np.ndarray,
-    n_samples: int,
-    rng: np.random.Generator,
-    color: str,
-    line_kwargs: dict[str, Any],
-) -> None:
-    """Draw random posterior sample curves on one panel."""
-    if n_samples <= 0:
-        return
-
-    stacked = da.stack(sample=("chain", "draw"))
-    n_total = stacked.sizes["sample"]
-    n_draw = min(n_samples, n_total)
-    indices = rng.choice(n_total, size=n_draw, replace=False)
-
-    for i in indices:
-        y_vals = stacked.isel(sample=i).values
-        target.plot(x_vals, y_vals, color=color, **line_kwargs)
-
-
-def _hdi_band_visual(
-    da: xr.DataArray,
-    target: Axes,
-    *,
-    x_vals: np.ndarray,
-    hdi_prob: float,
-    color: str,
-    fill_kwargs: dict[str, Any],
-) -> None:
-    """Draw HDI band on one panel."""
-    stacked = da.stack(sample=("chain", "draw"))
-    vals = stacked.transpose("x", "sample").values
-
-    alpha = (1 - hdi_prob) / 2
-    low = np.quantile(vals, alpha, axis=1)
-    high = np.quantile(vals, 1 - alpha, axis=1)
-
-    target.fill_between(x_vals, low, high, color=color, **fill_kwargs)
-
-
-# ============================================================================
-# Namespace class
-# ============================================================================
-
-
 class TransformationPlots:
     """Channel transformation plots (saturation scatter and curves).
 
@@ -182,10 +67,6 @@ class TransformationPlots:
     def __init__(self, data: MMMIDataWrapper) -> None:
         self._data = data
 
-    # ------------------------------------------------------------------ #
-    # saturation_scatterplot
-    # ------------------------------------------------------------------ #
-
     def saturation_scatterplot(
         self,
         original_scale: bool = True,
@@ -193,10 +74,7 @@ class TransformationPlots:
         idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
-        visuals: dict[str, Any] | None = None,
-        aes_by_visuals: dict[str, list[str]] | None = None,
         return_as_pc: bool = False,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
@@ -220,15 +98,8 @@ class TransformationPlots:
             ``{"channel": ["tv", "radio"]}``.
         figsize : tuple[float, float], optional
             Convenience shorthand injected into ``figure_kwargs``.
-        plot_collection : PlotCollection, optional
-            Plot onto an existing ``PlotCollection``.
         backend : str, optional
             Rendering backend (``"matplotlib"``, ``"plotly"``, ``"bokeh"``).
-        visuals : dict, optional
-            Element-level customization.  Keys: ``"scatter"`` (dict of
-            scatter kwargs, or ``False`` to disable).
-        aes_by_visuals : dict, optional
-            Aesthetic mapping per visual element.
         return_as_pc : bool, default False
             If True, return the ``PlotCollection`` instead of the
             matplotlib tuple.
@@ -239,11 +110,11 @@ class TransformationPlots:
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
         """
+        # TODO: decide how to validate!!!
         data = MMMIDataWrapper(idata) if idata is not None else self._data
 
         pc_kwargs = _process_plot_params(
             figsize=figsize,
-            plot_collection=plot_collection,
             backend=backend,
             return_as_pc=return_as_pc,
             **pc_kwargs,
@@ -257,47 +128,46 @@ class TransformationPlots:
 
         scatter_ds = xr.Dataset({"x": x_data, "y": mean_contrib})
 
-        _validate_dims(scatter_ds, dims)
+        scatter_ds = _select_dims(scatter_ds, dims)
 
-        if dims:
-            sel_kwargs = _dims_to_sel_kwargs(dims)
-            scatter_ds = scatter_ds.sel(**sel_kwargs)
+        pc = PlotCollection.grid(
+            scatter_ds[["y"]],
+            cols=data.custom_dims,
+            backend=backend,
+            rows=["channel"],
+            aes={"color": ["channel"]},
+            **pc_kwargs,
+        )
 
-        facet_dims = [d for d in scatter_ds["x"].dims if d != "date"]
+        pc.map(
+            azp.visuals.scatter_xy,
+            x=scatter_ds["x"],
+        )
 
-        if plot_collection is not None:
-            pc = plot_collection
-        else:
-            pc = PlotCollection.wrap(
-                scatter_ds,
-                cols=facet_dims if facet_dims else None,
-                backend=backend,
-                **pc_kwargs,
-            )
+        pc.map(
+            azp.visuals.labelled_x,
+            text=_x_axis_label(data, apply_cost_per_unit),
+            ignore_aes={"color"},
+        )
 
-        scatter_kw = _get_visual_kwargs(visuals, "scatter", {"alpha": 0.8, "s": 20})
-        if scatter_kw is not None:
-            colors = channel_color_map(data.channels)
-            axes_da = pc.viz.ds["plot"]
-            for ax, panel_data in _iter_panels(axes_da, scatter_ds):
-                _scatter_visual(
-                    panel_data, ax, color_map=colors, scatter_kwargs=scatter_kw
-                )
+        pc.map(
+            azp.visuals.labelled_y,
+            text="Channel Contributions",
+            ignore_aes={"color"},
+        )
 
-        x_label = _x_axis_label(data, apply_cost_per_unit)
-        for ax in np.array(pc.viz.ds["plot"].values).flat:
-            ax.set_xlabel(x_label)
-            ax.set_ylabel("Channel Contributions")
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+            ignore_aes={"color"},
+        )
 
         return _extract_matplotlib_result(pc, return_as_pc)
 
-    # ------------------------------------------------------------------ #
-    # saturation_curves
-    # ------------------------------------------------------------------ #
-
     def saturation_curves(
         self,
-        curve: xr.DataArray,
+        curves: xr.DataArray,
         original_scale: bool = True,
         n_samples: int = 10,
         hdi_prob: float = 0.94,
@@ -320,7 +190,7 @@ class TransformationPlots:
 
         Parameters
         ----------
-        curve : xr.DataArray
+        curves : xr.DataArray
             Posterior-predictive saturation curves, typically from
             ``mmm.saturation.sample_curve(...)``.
             Expected dims: ``(chain, draw, channel, [custom_dims], x)``.
@@ -363,25 +233,28 @@ class TransformationPlots:
         tuple[Figure, NDArray[Axes]] or PlotCollection
         """
         data = MMMIDataWrapper(idata) if idata is not None else self._data
-        rng = random_seed if random_seed is not None else np.random.default_rng()
+
+        pc: PlotCollection = self.saturation_scatterplot(
+            original_scale=original_scale,
+            apply_cost_per_unit=apply_cost_per_unit,
+            idata=idata,
+            dims=dims,
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=True,
+            **pc_kwargs,
+        )
 
         pc_kwargs = _process_plot_params(
             figsize=figsize,
-            plot_collection=plot_collection,
             backend=backend,
             return_as_pc=return_as_pc,
             **pc_kwargs,
         )
 
-        contributions = data.get_channel_contributions(original_scale=original_scale)
-        mean_contrib = contributions.mean(dim=["chain", "draw"])
-        x_obs = _get_channel_x_data(data, apply_cost_per_unit)
-        x_obs, mean_contrib = xr.broadcast(x_obs, mean_contrib)
-        scatter_ds = xr.Dataset({"x": x_obs, "y": mean_contrib})
-
         if original_scale:
             target_scale = data.get_target_scale()
-            curve_data = curve * target_scale
+            curve_data = curves * target_scale
 
             channel_scale = data.get_channel_scale()
             if apply_cost_per_unit:
@@ -389,94 +262,38 @@ class TransformationPlots:
                 x_scale = channel_scale * avg_cpu
             else:
                 x_scale = channel_scale
+            curve_data["x"] = curve_data["x"] * x_scale
         else:
-            curve_data = curve
-            x_scale = None
+            curve_data = curves
 
-        _validate_dims(scatter_ds, dims)
+        curve_data = _select_dims(curve_data, dims)
 
-        if dims:
-            sel_kwargs = _dims_to_sel_kwargs(dims)
-            scatter_ds = scatter_ds.sel(**sel_kwargs)
-            curve_sel = {k: v for k, v in sel_kwargs.items() if k in curve_data.dims}
-            if curve_sel:
-                curve_data = curve_data.sel(**curve_sel)
-            if x_scale is not None:
-                xscale_sel = {k: v for k, v in sel_kwargs.items() if k in x_scale.dims}
-                if xscale_sel:
-                    x_scale = x_scale.sel(**xscale_sel)
-
-        facet_dims = [d for d in scatter_ds["x"].dims if d != "date"]
-
-        if plot_collection is not None:
-            pc = plot_collection
-        else:
-            pc = PlotCollection.wrap(
-                scatter_ds,
-                cols=facet_dims if facet_dims else None,
-                backend=backend,
-                **pc_kwargs,
+        # add the hdi bands
+        if hdi_prob is not None:
+            hdi = curve_data.azstats.hdi(hdi_prob)
+            pc.map(
+                azp.visuals.fill_between_y,
+                x=curve_data["x"],
+                y_bottom=hdi.sel(ci_bound="lower"),
+                y_top=hdi.sel(ci_bound="upper"),
+                alpha=0.2,
             )
 
-        colors = channel_color_map(data.channels)
-        axes_da = pc.viz.ds["plot"]
+        # mean_curve = curve_data.mean(dim=["chain", "draw"]).to_dataset(name="y")
+        # pc.map(
+        #     azp.visuals.line_xy, x_dim="x", data=mean_curve['y']
+        # )
 
-        hdi_kw = _get_visual_kwargs(visuals, "hdi", {"alpha": 0.2})
-        samples_kw = _get_visual_kwargs(
-            visuals, "samples", {"linewidth": 0.5, "alpha": 0.4}
-        )
-        scatter_kw = _get_visual_kwargs(visuals, "scatter", {"alpha": 0.8, "s": 20})
+        if n_samples > 0:
+            # sample the curves
+            rng = random_seed if random_seed is not None else np.random.default_rng()
+            stacked = curve_data.stack(sample=("chain", "draw"))
+            idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
+            sampled_curves = stacked.isel(sample=idx).to_dataset(name="y")
 
-        for ax, curve_panel in _iter_panels_da(axes_da, curve_data):
-            ch = (
-                str(curve_panel.coords["channel"].item())
-                if "channel" in curve_panel.coords
-                else ""
+            # plot the sampled curves
+            pc.map(
+                azp.visuals.multiple_lines, x_dim="x", data=sampled_curves, alpha=0.2
             )
-            color = colors.get(ch, "C0")
-
-            raw_x = curve_panel.coords["x"].values
-            if x_scale is not None:
-                ch_scale_sel = {
-                    k: curve_panel.coords[k].item()
-                    for k in x_scale.dims
-                    if k in curve_panel.coords
-                }
-                scale_val = float(x_scale.sel(**ch_scale_sel).item())
-                panel_x = raw_x * scale_val
-            else:
-                panel_x = raw_x
-
-            if hdi_kw is not None:
-                _hdi_band_visual(
-                    curve_panel,
-                    ax,
-                    x_vals=panel_x,
-                    hdi_prob=hdi_prob,
-                    color=color,
-                    fill_kwargs=hdi_kw,
-                )
-
-            if samples_kw is not None and n_samples > 0:
-                _sample_curves_visual(
-                    curve_panel,
-                    ax,
-                    x_vals=panel_x,
-                    n_samples=n_samples,
-                    rng=rng,
-                    color=color,
-                    line_kwargs=samples_kw,
-                )
-
-        if scatter_kw is not None:
-            for ax, panel_data in _iter_panels(axes_da, scatter_ds):
-                _scatter_visual(
-                    panel_data, ax, color_map=colors, scatter_kwargs=scatter_kw
-                )
-
-        x_label = _x_axis_label(data, apply_cost_per_unit)
-        for ax in np.array(pc.viz.ds["plot"].values).flat:
-            ax.set_xlabel(x_label)
-            ax.set_ylabel("Channel Contributions")
 
         return _extract_matplotlib_result(pc, return_as_pc)
