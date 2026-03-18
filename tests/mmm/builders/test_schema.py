@@ -147,6 +147,12 @@ class TestCalibrationStep:
         with pytest.raises(ValidationError, match="exactly one method"):
             CalibrationStep.model_validate("not-a-dict")
 
+    def test_extra_keys_alongside_method_name_raises(self):
+        with pytest.raises(ValidationError):
+            CalibrationStep.model_validate(
+                {"method_name": "foo", "params": {"k": 1}, "extra": "bad"}
+            )
+
     def test_direct_construction(self):
         step = CalibrationStep(method_name="foo", params={"k": 1})
         assert step.method_name == "foo"

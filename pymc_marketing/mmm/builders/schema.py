@@ -141,6 +141,8 @@ class CalibrationStep(BaseModel):
         Keyword arguments to pass to the method.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     method_name: str = Field(..., description="Calibration method name.")
     params: dict[str, Any] | None = Field(None, description="Method keyword arguments.")
 
