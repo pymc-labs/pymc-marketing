@@ -43,6 +43,43 @@ def y_data():
     return pd.read_csv("data/processed/y.csv")
 
 
+@pytest.fixture
+def _minimal_model_config():
+    """Reusable minimal MMM config dict (no data/idata sections)."""
+    return {
+        "model": {
+            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1", "channel_2"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        }
+    }
+
+
+@pytest.fixture
+def _sample_data():
+    """Small X / y pair for lightweight integration tests."""
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=52, freq="W"),
+            "channel_1": range(52),
+            "channel_2": range(100, 152),
+        }
+    )
+    y = pd.Series(range(52), name="y")
+    return X, y
+
+
 def get_yaml_files():
     """Get all YAML files from the data/config_files directory."""
     config_dir = Path("data/config_files")
@@ -313,9 +350,73 @@ def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
     assert "posterior" in model.idata
 
 
-# ---------------------------------------------------------------------------
-# Tests for config structure validation (MMMYamlConfig)
-# ---------------------------------------------------------------------------
+def test_build_mmm_loads_data_from_yaml_paths(
+    tmp_path, _minimal_model_config, _sample_data
+):
+    """X and y loaded from CSV paths declared in ``data`` section."""
+    X, y = _sample_data
+    X.to_csv(tmp_path / "X.csv", index=False)
+    y.to_csv(tmp_path / "y.csv", index=False)
+
+    config = _minimal_model_config
+    config["data"] = {
+        "X_path": str(tmp_path / "X.csv"),
+        "y_path": str(tmp_path / "y.csv"),
+    }
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(config))
+
+    model = build_mmm_from_yaml(config_path)
+
+    assert model is not None
+    assert hasattr(model, "model")
+
+
+def test_build_mmm_raises_when_X_missing_and_no_data_path(
+    tmp_path, _minimal_model_config
+):
+    """ValueError when X is not passed and YAML has no ``data.X_path``."""
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(_minimal_model_config))
+
+    with pytest.raises(ValueError, match="X not provided"):
+        build_mmm_from_yaml(config_path)
+
+
+def test_build_mmm_raises_when_y_missing_and_no_data_path(
+    tmp_path, _minimal_model_config, _sample_data
+):
+    """ValueError when y is not passed and YAML has no ``data.y_path``."""
+    X, _ = _sample_data
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(_minimal_model_config))
+
+    with pytest.raises(ValueError, match="y not provided"):
+        build_mmm_from_yaml(config_path, X=X)
+
+
+def test_build_mmm_loads_idata_from_path(tmp_path, _minimal_model_config, _sample_data):
+    """idata_path in YAML causes InferenceData to be loaded into model."""
+    import arviz as az
+
+    X, y = _sample_data
+
+    idata = az.from_dict(posterior={"intercept": [1.0, 2.0, 3.0]})
+    idata_file = tmp_path / "idata.nc"
+    idata.to_netcdf(str(idata_file))
+
+    config = _minimal_model_config
+    config["idata_path"] = str(idata_file)
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(config))
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert model.idata is not None
+    assert "posterior" in model.idata
 
 
 class TestValidateConfigStructure:
