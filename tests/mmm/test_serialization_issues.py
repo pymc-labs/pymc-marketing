@@ -312,3 +312,66 @@ class TestDefaultSerializerWithPriorFields:
 
         assert serialized["class"] == "EffectWithTrend"
         assert "trend" in serialized
+
+
+class TestSerializationFixesThroughRegistry:
+    """Verify that known serialization issues are fixed via the TypeRegistry."""
+
+    def test_hsgp_dims_preserved_as_tuple(self):
+        """Issue: HSGP dims tuple->list after JSON roundtrip."""
+        from pymc_marketing.serialization import registry
+
+        original = HSGP(m=10, L=1.5, eta=1.0, ls=1.0, dims=("time", "geo"))
+        data = registry.serialize(original)
+        json_str = json.dumps(data)
+        data_back = json.loads(json_str)
+        restored = registry.deserialize(data_back)
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
+
+    def test_custom_mu_effect_roundtrips(self):
+        """Issue: Custom MuEffects not in _MUEFFECT_DESERIALIZERS."""
+        from pymc_marketing.serialization import registry
+
+        class MyCustomEffect(MuEffect):
+            param: float = 1.0
+
+            def create_data(self, mmm):
+                pass
+
+            def create_effect(self, mmm):
+                pass
+
+            def set_data(self, mmm, model, X):
+                pass
+
+        original = MyCustomEffect(param=42.0)
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+        assert isinstance(restored, MyCustomEffect)
+        assert restored.param == 42.0
+
+    def test_linear_trend_effect_serializes_without_error(self):
+        """Issue: LinearTrendEffect model_dump fails with Prior fields."""
+        from pymc_marketing.serialization import registry
+
+        effect = LinearTrendEffect(trend=LinearTrend(n_changepoints=5), prefix="trend")
+        data = registry.serialize(effect)
+        assert "__type__" in data
+        restored = registry.deserialize(data)
+        assert isinstance(restored, LinearTrendEffect)
+
+    def test_deferred_factory_replaces_tensor_priors(self):
+        """Issue: HSGP Prior equality breaks after roundtrip."""
+        from pymc_marketing.serialization import DeferredFactory, registry
+
+        deferred_eta = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_eta_prior",
+            kwargs={"upper": 5.0, "mass": 0.95},
+        )
+        hsgp = HSGP(m=10, L=1.5, eta=deferred_eta, ls=1.0, dims="time")
+        data = registry.serialize(hsgp)
+        restored = registry.deserialize(data)
+        assert isinstance(restored.eta, DeferredFactory)
+        resolved = restored.eta.resolve()
+        assert resolved is not None

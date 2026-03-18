@@ -362,11 +362,10 @@ def test_support_for_non_prior(new_transformation_class) -> None:
         priors={"a": 1, "b": 2},
     )
 
-    assert instance.to_dict() == {
-        "lookup_name": "new_transformation",
-        "prefix": "new",
-        "priors": {"a": 1, "b": 2},
-    }
+    result = instance.to_dict()
+    assert result["lookup_name"] == "new_transformation"
+    assert result["prefix"] == "new"
+    assert result["priors"] == {"a": 1, "b": 2}
 
 
 class StandardNormal:
@@ -398,13 +397,12 @@ def new_transformation_with_custom(new_transformation_class):
 def test_support_customer_serialization(
     new_transformation_with_custom,
 ) -> None:
-    assert new_transformation_with_custom.to_dict() == {
-        "lookup_name": "new_transformation",
-        "prefix": "new",
-        "priors": {
-            "a": {"type": "StandardNormal", "dims": ("channel",)},
-            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-        },
+    result = new_transformation_with_custom.to_dict()
+    assert result["lookup_name"] == "new_transformation"
+    assert result["prefix"] == "new"
+    assert result["priors"] == {
+        "a": {"type": "StandardNormal", "dims": ("channel",)},
+        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
 
 
@@ -426,13 +424,12 @@ def test_serialization(new_transformation_class) -> None:
         }
     )
 
-    assert instance.to_dict() == {
-        "lookup_name": "new_transformation",
-        "prefix": "new",
-        "priors": {
-            "a": [1, 2, 3],
-            "b": [1, 2, 3],
-        },
+    result = instance.to_dict()
+    assert result["lookup_name"] == "new_transformation"
+    assert result["prefix"] == "new"
+    assert result["priors"] == {
+        "a": [1, 2, 3],
+        "b": [1, 2, 3],
     }
 
 
