@@ -4445,6 +4445,38 @@ class TestComputeMeanContributionsOverTime:
         actual_channel = result[["channel_1", "channel_2", "channel_3"]].values
         np.testing.assert_allclose(actual_channel, expected_channel, rtol=1e-6)
 
+    def test_with_time_varying_intercept(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Time-varying intercept produces a per-date intercept column."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_intercept=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        assert "intercept" in result.columns
+        n_dates = X["date"].nunique()
+        assert result.shape[0] == n_dates
+
+        target_scale = mmm.idata.constant_data["target_scale"].values
+        scaled_intercept = mmm.idata.posterior["intercept_contribution"].mean(
+            dim=("chain", "draw")
+        )
+        expected_intercept = (scaled_intercept * target_scale).values
+
+        np.testing.assert_allclose(
+            result["intercept"].values, expected_intercept, rtol=1e-6
+        )
+
     def test_raises_without_idata(self) -> None:
         """Method raises ValueError before fitting."""
         mmm = MMM(
