@@ -258,13 +258,13 @@ class TransformationPlots:
             spend_data: xr.DataArray = x_data * x_scale
         else:
             curve_data = curves
+            spend_data = xr.DataArray(curves.coords["x"].values, dims=("x",))
 
         curve_data = _select_dims(curve_data, dims)
+        spend_data = _select_dims(spend_data, dims)
 
-        # add the hdi bands
         if hdi_prob is not None:
             hdi = curve_data.azstats.hdi(hdi_prob)
-            print(hdi.sizes)
             pc.map(
                 azp.visuals.fill_between_y,
                 x=spend_data,

@@ -132,7 +132,6 @@ class TestProcessPlotParams:
     def test_no_args_returns_empty_dict(self):
         result = _process_plot_params(
             figsize=None,
-            plot_collection=None,
             backend=None,
             return_as_pc=False,
         )
@@ -141,7 +140,6 @@ class TestProcessPlotParams:
     def test_figsize_injected_into_figure_kwargs(self):
         result = _process_plot_params(
             figsize=(12, 6),
-            plot_collection=None,
             backend=None,
             return_as_pc=False,
         )
@@ -152,7 +150,6 @@ class TestProcessPlotParams:
             warnings.simplefilter("always")
             result = _process_plot_params(
                 figsize=(12, 6),
-                plot_collection=None,
                 backend=None,
                 return_as_pc=False,
                 figure_kwargs={"figsize": (8, 4), "dpi": 100},
@@ -162,28 +159,10 @@ class TestProcessPlotParams:
         assert len(w) == 1
         assert "overrides" in str(w[0].message).lower()
 
-    def test_figsize_ignored_when_plot_collection_provided(self):
-        pc = PlotCollection.wrap(
-            xr.Dataset({"x": (["a"], [1, 2, 3])}),
-            backend="matplotlib",
-        )
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            result = _process_plot_params(
-                figsize=(12, 6),
-                plot_collection=pc,
-                backend=None,
-                return_as_pc=False,
-            )
-        assert "figure_kwargs" not in result
-        assert len(w) == 1
-        assert "ignored" in str(w[0].message).lower()
-
     def test_non_matplotlib_backend_without_return_as_pc_raises(self):
         with pytest.raises(ValueError, match="return_as_pc=True"):
             _process_plot_params(
                 figsize=None,
-                plot_collection=None,
                 backend="plotly",
                 return_as_pc=False,
             )
@@ -191,7 +170,6 @@ class TestProcessPlotParams:
     def test_non_matplotlib_backend_with_return_as_pc_ok(self):
         result = _process_plot_params(
             figsize=None,
-            plot_collection=None,
             backend="plotly",
             return_as_pc=True,
         )
@@ -200,7 +178,6 @@ class TestProcessPlotParams:
     def test_matplotlib_backend_explicit_ok(self):
         result = _process_plot_params(
             figsize=None,
-            plot_collection=None,
             backend="matplotlib",
             return_as_pc=False,
         )
@@ -209,7 +186,6 @@ class TestProcessPlotParams:
     def test_none_backend_ok(self):
         result = _process_plot_params(
             figsize=None,
-            plot_collection=None,
             backend=None,
             return_as_pc=False,
         )
@@ -218,7 +194,6 @@ class TestProcessPlotParams:
     def test_extra_pc_kwargs_forwarded(self):
         result = _process_plot_params(
             figsize=None,
-            plot_collection=None,
             backend=None,
             return_as_pc=False,
             col_wrap=3,
@@ -228,7 +203,6 @@ class TestProcessPlotParams:
     def test_figsize_merged_with_extra_kwargs(self):
         result = _process_plot_params(
             figsize=(10, 5),
-            plot_collection=None,
             backend=None,
             return_as_pc=False,
             col_wrap=2,

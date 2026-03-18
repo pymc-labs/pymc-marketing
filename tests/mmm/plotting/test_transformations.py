@@ -348,23 +348,23 @@ def panel_curve() -> xr.DataArray:
 
 class TestSaturationCurvesBasic:
     def test_returns_figure_and_axes(self, simple_plots, simple_curve):
-        fig, axes = simple_plots.saturation_curves(curve=simple_curve)
+        fig, axes = simple_plots.saturation_curves(curves=simple_curve)
         assert isinstance(fig, Figure)
         assert isinstance(axes, np.ndarray)
         assert all(isinstance(a, Axes) for a in axes.flat)
 
     def test_original_scale_true_is_default(self, simple_plots, simple_curve):
-        fig, _axes = simple_plots.saturation_curves(curve=simple_curve)
+        fig, _axes = simple_plots.saturation_curves(curves=simple_curve)
         assert isinstance(fig, Figure)
 
     def test_original_scale_false(self, simple_plots, simple_curve):
         fig, _axes = simple_plots.saturation_curves(
-            curve=simple_curve, original_scale=False
+            curves=simple_curve, original_scale=False
         )
         assert isinstance(fig, Figure)
 
     def test_axes_count_matches_channels(self, simple_plots, simple_data, simple_curve):
-        _, axes = simple_plots.saturation_curves(curve=simple_curve)
+        _, axes = simple_plots.saturation_curves(curves=simple_curve)
         assert axes.size == len(simple_data.channels)
 
 
@@ -372,39 +372,39 @@ class TestSaturationCurvesHDI:
     def test_hdi_band_drawn(self, simple_plots, simple_curve):
         """HDI band should add a fill_between poly collection to axes."""
         _, axes = simple_plots.saturation_curves(
-            curve=simple_curve, hdi_prob=0.94, n_samples=0
+            curves=simple_curve, hdi_prob=0.94, n_samples=0
         )
         for ax in axes.flat:
             polys = [c for c in ax.collections if "Poly" in type(c).__name__]
             assert len(polys) > 0, "HDI fill_between should be present"
 
     def test_custom_hdi_prob(self, simple_plots, simple_curve):
-        fig, _axes = simple_plots.saturation_curves(curve=simple_curve, hdi_prob=0.50)
+        fig, _axes = simple_plots.saturation_curves(curves=simple_curve, hdi_prob=0.50)
         assert isinstance(fig, Figure)
 
 
 class TestSaturationCurvesSamples:
     def test_sample_curves_drawn(self, simple_plots, simple_curve):
         """Sample curves should add Line2D objects to axes."""
-        _, axes = simple_plots.saturation_curves(curve=simple_curve, n_samples=5)
+        _, axes = simple_plots.saturation_curves(curves=simple_curve, n_samples=5)
         for ax in axes.flat:
             lines = ax.get_lines()
             assert len(lines) >= 5, "At least n_samples lines per panel"
 
-    def test_n_samples_zero_draws_no_lines(self, simple_plots, simple_curve):
-        _, axes = simple_plots.saturation_curves(curve=simple_curve, n_samples=0)
+    def test_n_samples_zero_draws_only_mean_line(self, simple_plots, simple_curve):
+        _, axes = simple_plots.saturation_curves(curves=simple_curve, n_samples=0)
         for ax in axes.flat:
             lines = ax.get_lines()
-            assert len(lines) == 0
+            assert len(lines) == 1, "Only the mean curve line should be present"
 
     def test_random_seed_reproducible(self, simple_plots, simple_curve):
         rng1 = np.random.default_rng(42)
         rng2 = np.random.default_rng(42)
         _, axes1 = simple_plots.saturation_curves(
-            curve=simple_curve, n_samples=3, random_seed=rng1
+            curves=simple_curve, n_samples=3, random_seed=rng1
         )
         _, axes2 = simple_plots.saturation_curves(
-            curve=simple_curve, n_samples=3, random_seed=rng2
+            curves=simple_curve, n_samples=3, random_seed=rng2
         )
         for a1, a2 in zip(axes1.flat, axes2.flat, strict=True):
             lines1 = [line.get_ydata() for line in a1.get_lines()]
@@ -416,25 +416,25 @@ class TestSaturationCurvesSamples:
 class TestSaturationCurvesDims:
     def test_single_dim_value(self, panel_plots, panel_curve):
         _, axes = panel_plots.saturation_curves(
-            curve=panel_curve, dims={"country": "US"}, n_samples=2
+            curves=panel_curve, dims={"country": "US"}, n_samples=2
         )
         assert axes.size == 2  # 2 channels x 1 country
 
     def test_list_dim_value(self, panel_plots, panel_curve):
         _, axes = panel_plots.saturation_curves(
-            curve=panel_curve, dims={"country": ["US", "UK"]}, n_samples=2
+            curves=panel_curve, dims={"country": ["US", "UK"]}, n_samples=2
         )
         assert axes.size == 4  # 2 channels x 2 countries
 
 
 class TestSaturationCurvesCustomization:
     def test_return_as_pc_true(self, simple_plots, simple_curve):
-        result = simple_plots.saturation_curves(curve=simple_curve, return_as_pc=True)
+        result = simple_plots.saturation_curves(curves=simple_curve, return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
     def test_custom_figsize(self, simple_plots, simple_curve):
         fig, _axes = simple_plots.saturation_curves(
-            curve=simple_curve, figsize=(20, 10)
+            curves=simple_curve, figsize=(20, 10)
         )
         w, h = fig.get_size_inches()
         assert w == pytest.approx(20, abs=1)
@@ -444,20 +444,20 @@ class TestSaturationCurvesCustomization:
 class TestSaturationCurvesIdataOverride:
     def test_idata_override(self, simple_plots, panel_idata, panel_curve):
         _, axes = simple_plots.saturation_curves(
-            curve=panel_curve, idata=panel_idata, n_samples=2
+            curves=panel_curve, idata=panel_idata, n_samples=2
         )
         assert axes.size == 4  # panel_idata has 2 channels x 2 countries
 
 
 class TestSaturationCurvesLabels:
     def test_ylabel_is_contributions(self, simple_plots, simple_curve):
-        _, axes = simple_plots.saturation_curves(curve=simple_curve)
+        _, axes = simple_plots.saturation_curves(curves=simple_curve)
         for ax in axes.flat:
             assert "Contribution" in ax.get_ylabel()
 
     def test_xlabel_without_cost_per_unit(self, simple_plots, simple_curve):
         _, axes = simple_plots.saturation_curves(
-            curve=simple_curve, apply_cost_per_unit=False
+            curves=simple_curve, apply_cost_per_unit=False
         )
         for ax in axes.flat:
             assert "Channel Data" in ax.get_xlabel()
