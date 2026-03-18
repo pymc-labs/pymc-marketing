@@ -39,6 +39,8 @@ from pymc_extras.prior import (
 from pytensor.tensor import TensorVariable, as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
+from pymc_marketing.serialization import registry
+
 
 class SpecialPrior(ABC):
     """A base class for specialized priors."""
@@ -122,6 +124,7 @@ class SpecialPrior(ABC):
         """Convert the SpecialPrior to a dictionary."""
         class_name = self.__class__.__name__
         data = {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "special_prior": class_name,
         }
         if self.parameters:
@@ -161,6 +164,8 @@ class SpecialPrior(ABC):
                 f"Not of type: {type(data)}"
             )
             raise ValueError(msg)
+
+        data = {k: v for k, v in data.items() if k != "__type__"}
 
         # Extract special keys
         centered = data.get("centered", True)
@@ -207,6 +212,7 @@ class SpecialPrior(ABC):
         )
 
 
+@registry.register
 class LogNormalPrior(SpecialPrior):
     r"""Lognormal prior parameterized by positive-scale mean and std.
 
@@ -334,6 +340,7 @@ register_deserialization(
 )
 
 
+@registry.register
 class LaplacePrior(SpecialPrior):
     """A Laplace prior parameterized by a location and a scale parameter.
 
@@ -404,6 +411,7 @@ register_deserialization(
 )
 
 
+@registry.register
 class MaskedPrior:
     """Create variables from a prior over only the active entries of a boolean mask.
 
@@ -677,6 +685,7 @@ class MaskedPrior:
             else np.asarray(self.mask, dtype=bool).tolist()
         )
         return {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "class": "MaskedPrior",
             "data": {
                 "prior": self.prior.to_dict()
@@ -702,6 +711,7 @@ class MaskedPrior:
         MaskedPrior
             Reconstructed instance.
         """
+        data = {k: v for k, v in data.items() if k != "__type__"}
         payload = data["data"] if "data" in data else data
         prior = (
             deserialize(payload["prior"])

@@ -593,6 +593,68 @@ def test_special_prior_hashable():
     assert len(mixed_set) == 2
 
 
+class TestSpecialPriorTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of SpecialPrior classes."""
+
+    @pytest.mark.parametrize(
+        "cls_name",
+        ["LogNormalPrior", "LaplacePrior", "MaskedPrior"],
+    )
+    def test_registered_in_type_registry(self, cls_name):
+        from pymc_marketing import special_priors
+        from pymc_marketing.serialization import registry
+
+        cls = getattr(special_priors, cls_name)
+        type_key = f"{cls.__module__}.{cls.__qualname__}"
+        assert type_key in registry._registry, f"{cls_name} not registered"
+
+    def test_log_normal_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import registry
+
+        original = LogNormalPrior(mu=2.0, sigma=0.8, dims=("channel",), centered=False)
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is LogNormalPrior
+        assert restored.parameters["mean"] == 2.0
+        assert restored.parameters["std"] == 0.8
+        assert restored.dims == ("channel",)
+        assert restored.centered is False
+
+    def test_laplace_prior_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import registry
+
+        original = LaplacePrior(mu=1.5, b=0.3, dims=("geo",), centered=False)
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is LaplacePrior
+        assert restored.parameters["mu"] == 1.5
+        assert restored.parameters["b"] == 0.3
+        assert restored.dims == ("geo",)
+        assert restored.centered is False
+
+    def test_masked_prior_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import registry
+
+        mask = xr.DataArray(
+            np.array([[True, False], [True, True]]),
+            dims=("geo", "channel"),
+            coords={"geo": ["a", "b"], "channel": ["tv", "radio"]},
+        )
+        original = MaskedPrior(
+            prior=Prior("Normal", mu=0, sigma=1, dims=("geo", "channel")),
+            mask=mask,
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is MaskedPrior
+        assert restored.dims == original.dims
+        assert tuple(restored.mask.dims) == tuple(original.mask.dims)
+        np.testing.assert_array_equal(restored.mask.values, original.mask.values)
+
+
 def test_mmm_with_special_prior_save_load_round_trip(tmp_path, mock_pymc_sample):
     """Test that MMM with SpecialPrior in saturation can be saved and loaded with check=True."""
     # Create minimal data
