@@ -1024,7 +1024,10 @@ def test_time_varying_media_with_custom_hsgp_single_dim_save_load(
     mmm.save(file)
     loaded = MMM.load(file)
 
-    assert loaded.time_varying_media.to_dict() == data
+    loaded_dict = loaded.time_varying_media.to_dict()
+    loaded_dict.pop("__type__", None)
+    expected = {**data, "dims": tuple(data["dims"])}
+    assert loaded_dict == expected
 
     os.remove(file)
 
@@ -1083,7 +1086,10 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim_save_load(
     mmm.save(file)
     loaded = MMM.load(file)
 
-    assert loaded.time_varying_intercept.to_dict() == data
+    loaded_dict = loaded.time_varying_intercept.to_dict()
+    loaded_dict.pop("__type__", None)
+    expected = {**data, "dims": tuple(data["dims"])}
+    assert loaded_dict == expected
 
     os.remove(file)
 
@@ -1140,7 +1146,10 @@ def test_time_varying_media_with_custom_hsgp_multi_dim_save_load(
     mmm.save(file)
     loaded = MMM.load(file)
 
-    assert loaded.time_varying_media.to_dict() == data
+    loaded_dict = loaded.time_varying_media.to_dict()
+    loaded_dict.pop("__type__", None)
+    expected = {**data, "dims": tuple(data["dims"])}
+    assert loaded_dict == expected
 
     os.remove(file)
 

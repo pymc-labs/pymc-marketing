@@ -996,6 +996,8 @@ class MMM(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
+        from pymc_marketing.serialization import registry
+
         def serialize_value(value):
             """Recursively serialize values to JSON-compatible types."""
             if isinstance(value, np.ndarray):
@@ -1004,13 +1006,13 @@ class MMM(RegressionModelBuilder):
                 return {k: serialize_value(v) for k, v in value.items()}
             elif isinstance(value, (list, tuple)):
                 return [serialize_value(v) for v in value]
-            elif hasattr(value, "to_dict"):
-                # Handle any object with a to_dict method (Prior, SpecialPrior, etc.)
-                return value.to_dict()
-            elif hasattr(value, "model_dump"):
-                # Handle Pydantic models
-                return value.model_dump()
             else:
+                try:
+                    return registry.serialize(value)
+                except (KeyError, TypeError):
+                    pass
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
                 return value
 
         serializable_config = {}
@@ -1021,39 +1023,35 @@ class MMM(RegressionModelBuilder):
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
+        from pymc_marketing.serialization import registry
+
         attrs = super().create_idata_attrs()
+        attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
-        attrs["adstock"] = json.dumps(self.adstock.to_dict())
-        attrs["saturation"] = json.dumps(self.saturation.to_dict())
+        attrs["adstock"] = json.dumps(registry.serialize(self.adstock))
+        attrs["saturation"] = json.dumps(registry.serialize(self.saturation))
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         attrs["time_varying_intercept"] = json.dumps(
-            self.time_varying_intercept
-            if not isinstance(self.time_varying_intercept, HSGPBase)
-            else {
-                **self.time_varying_intercept.to_dict(),
-                **{"hsgp_class": self.time_varying_intercept.__class__.__name__},
-            }
+            registry.serialize(self.time_varying_intercept)
+            if isinstance(self.time_varying_intercept, HSGPBase)
+            else self.time_varying_intercept
         )
         attrs["time_varying_media"] = json.dumps(
-            self.time_varying_media
-            if not isinstance(self.time_varying_media, HSGPBase)
-            else {
-                **self.time_varying_media.to_dict(),
-                **{"hsgp_class": self.time_varying_media.__class__.__name__},
-            }
+            registry.serialize(self.time_varying_media)
+            if isinstance(self.time_varying_media, HSGPBase)
+            else self.time_varying_media
         )
         attrs["target_column"] = self.target_column
-        attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
+        attrs["scaling"] = json.dumps(registry.serialize(self.scaling))
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
-        # Serialize mu_effects
-        mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
+        mu_effects_list = [registry.serialize(effect) for effect in self.mu_effects]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         if self._cost_per_unit_input is not None:
@@ -1114,6 +1112,42 @@ class MMM(RegressionModelBuilder):
     @classmethod
     def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
         """Convert the idata attributes to the model initialization kwargs."""
+        from pymc_marketing.serialization import registry
+
+        adstock_data = json.loads(attrs["adstock"])
+        saturation_data = json.loads(attrs["saturation"])
+        tvi_data = json.loads(attrs.get("time_varying_intercept", "false"))
+        tvm_data = json.loads(attrs.get("time_varying_media", "false"))
+        scaling_data = json.loads(attrs.get("scaling", "null"))
+
+        adstock = (
+            registry.deserialize(adstock_data)
+            if isinstance(adstock_data, dict) and "__type__" in adstock_data
+            else adstock_from_dict(adstock_data)
+        )
+        saturation = (
+            registry.deserialize(saturation_data)
+            if isinstance(saturation_data, dict) and "__type__" in saturation_data
+            else saturation_from_dict(saturation_data)
+        )
+        tvi = (
+            registry.deserialize(tvi_data)
+            if isinstance(tvi_data, dict) and "__type__" in tvi_data
+            else hsgp_from_dict(tvi_data)
+        )
+        tvm = (
+            registry.deserialize(tvm_data)
+            if isinstance(tvm_data, dict) and "__type__" in tvm_data
+            else hsgp_from_dict(tvm_data)
+        )
+        scaling = (
+            registry.deserialize(scaling_data)
+            if isinstance(scaling_data, dict)
+            and scaling_data
+            and "__type__" in scaling_data
+            else scaling_data
+        )
+
         return {
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
@@ -1121,20 +1155,16 @@ class MMM(RegressionModelBuilder):
             "date_column": attrs["date_column"],
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
-            "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
-            "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
+            "adstock": adstock,
+            "saturation": saturation,
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
-            "time_varying_intercept": hsgp_from_dict(
-                json.loads(attrs.get("time_varying_intercept", "false"))
-            ),
+            "time_varying_intercept": tvi,
             "target_column": attrs["target_column"],
-            "time_varying_media": hsgp_from_dict(
-                json.loads(attrs.get("time_varying_media", "false"))
-            ),
+            "time_varying_media": tvm,
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
-            "scaling": json.loads(attrs.get("scaling", "null")),
+            "scaling": scaling,
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
@@ -3182,15 +3212,22 @@ class MMM(RegressionModelBuilder):
         """
         # Restore mu_effects from idata attrs if present
         if "mu_effects" in idata.attrs:
+            from pymc_marketing.serialization import (
+                DeserializationContext,
+                registry,
+            )
+
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
+            ctx = DeserializationContext(idata=idata)
             self.mu_effects = []
             for effect_data in mu_effects_data:
                 try:
-                    effect = _deserialize_mu_effect(effect_data)
+                    if isinstance(effect_data, dict) and "__type__" in effect_data:
+                        effect = registry.deserialize(effect_data, context=ctx)
+                    else:
+                        effect = _deserialize_mu_effect(effect_data)
                     self.mu_effects.append(effect)
                 except Exception as e:
-                    # Log warning but continue - don't fail the load for unsupported effects
-                    # Catches ValueError, KeyError, AttributeError, pydantic.ValidationError, etc.
                     warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
 
         dataset = idata.fit_data.to_dataframe()

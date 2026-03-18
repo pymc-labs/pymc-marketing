@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import json
 import os
 
 import arviz as az
@@ -3031,3 +3032,35 @@ class TestMMMHelperMethods:
         for param_name in result[channel]["adstock_params"].keys():
             # Parameters should not have 'adstock_' prefix
             assert not param_name.startswith("adstock_")
+
+
+class TestSerializationVersion:
+    """Verify __serialization_version__ attr is written during save.
+
+    Uses simple_fitted_mmm from conftest (multidimensional MMM).
+    """
+
+    def test_idata_has_serialization_version(self, simple_fitted_mmm):
+        """create_idata_attrs must include __serialization_version__."""
+        attrs = simple_fitted_mmm.create_idata_attrs()
+        assert "__serialization_version__" in attrs
+        assert attrs["__serialization_version__"] == "1"
+
+    def test_adstock_attr_has_type_key(self, simple_fitted_mmm):
+        """Adstock attr should contain __type__ key after serialization."""
+        attrs = simple_fitted_mmm.create_idata_attrs()
+        adstock_data = json.loads(attrs["adstock"])
+        assert "__type__" in adstock_data
+
+    def test_saturation_attr_has_type_key(self, simple_fitted_mmm):
+        """Saturation attr should contain __type__ key after serialization."""
+        attrs = simple_fitted_mmm.create_idata_attrs()
+        saturation_data = json.loads(attrs["saturation"])
+        assert "__type__" in saturation_data
+
+    def test_scaling_attr_has_type_key(self, simple_fitted_mmm):
+        """Scaling attr should contain __type__ key if not null."""
+        attrs = simple_fitted_mmm.create_idata_attrs()
+        scaling_data = json.loads(attrs["scaling"])
+        if scaling_data is not None:
+            assert "__type__" in scaling_data
