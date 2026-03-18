@@ -17,8 +17,10 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from pymc_marketing.serialization import SerializableMixin
 
-class VariableScaling(BaseModel):
+
+class VariableScaling(SerializableMixin, BaseModel):
     """How to scale a variable.
 
     The scaling through the dimension of 'date' is assumed and doesn't need to be specified.
@@ -45,7 +47,7 @@ class VariableScaling(BaseModel):
         return self
 
 
-class Scaling(BaseModel):
+class Scaling(SerializableMixin, BaseModel):
     """Scaling configuration for the MMM.
 
     Examples

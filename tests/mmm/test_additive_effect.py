@@ -20,8 +20,10 @@ import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.additive_effect import (
+    EventAdditiveEffect,
     FourierEffect,
     LinearTrendEffect,
+    MuEffect,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -297,3 +299,74 @@ def test_linear_trend_effect(
     effect_predictions = idata.posterior_predictive.effect
     np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
+
+
+class TestMuEffectTypeRegistry:
+    def test_mu_effect_not_registered(self):
+        """MuEffect itself (abstract) should not be in the registry."""
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{MuEffect.__module__}.{MuEffect.__qualname__}"
+        assert type_key not in registry._registry
+
+    @pytest.mark.parametrize(
+        "cls",
+        [FourierEffect, LinearTrendEffect, EventAdditiveEffect],
+        ids=lambda c: c.__name__,
+    )
+    def test_concrete_subclass_registered(self, cls):
+        from pymc_marketing.serialization import registry
+
+        type_key = f"{cls.__module__}.{cls.__qualname__}"
+        assert type_key in registry._registry
+
+    def test_custom_mu_effect_auto_registered(self):
+        """User-defined MuEffect subclasses should be auto-registered."""
+        from pymc_marketing.serialization import registry
+
+        class CustomTestEffect(MuEffect):
+            my_val: int = 42
+
+            def create_data(self, mmm):
+                pass
+
+            def create_effect(self, mmm):
+                pass
+
+            def set_data(self, mmm, model, X):
+                pass
+
+        type_key = f"{CustomTestEffect.__module__}.{CustomTestEffect.__qualname__}"
+        assert type_key in registry._registry
+
+
+class TestFourierEffectSerialization:
+    """Tests for TypeRegistry-based round-trip serialization of FourierEffect."""
+
+    @pytest.mark.parametrize(
+        "fourier_cls",
+        [YearlyFourier, MonthlyFourier, WeeklyFourier],
+        ids=lambda c: c.__name__,
+    )
+    def test_fourier_effect_roundtrip_all_fourier_types(self, fourier_cls):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.serialization import registry
+
+        original = FourierEffect(
+            fourier=fourier_cls(
+                n_order=5,
+                prefix="custom_fourier",
+                prior=Prior("Laplace", mu=0.5, b=2.0),
+            ),
+            date_dim_name="custom_date",
+        )
+        data = registry.serialize(original)
+        restored = registry.deserialize(data)
+
+        assert type(restored) is FourierEffect
+        assert type(restored.fourier) is fourier_cls
+        assert restored.fourier.n_order == 5
+        assert restored.fourier.prefix == "custom_fourier"
+        assert restored.date_dim_name == "custom_date"
+        assert restored == original

@@ -121,6 +121,7 @@ from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
+from pymc_marketing.serialization import SerializableMixin
 
 
 def safe_to_datetime(
@@ -222,7 +223,7 @@ class Model(Protocol):
         """The PyMC model."""
 
 
-class MuEffect(ABC, BaseModel):
+class MuEffect(SerializableMixin, ABC, BaseModel):
     """Abstract base class for arbitrary additive mu effects.
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
@@ -247,6 +248,29 @@ class FourierEffect(MuEffect):
 
     fourier: InstanceOf[FourierBase]
     date_dim_name: str = Field("date")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict with ``__type__`` key."""
+        return {
+            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+            "fourier": self.fourier.to_dict(),
+            "date_dim_name": self.date_dim_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FourierEffect":
+        """Reconstruct from a dict, using registry for nested Fourier type."""
+        from pymc_marketing.serialization import registry
+
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        fourier_data = work["fourier"]
+        if "__type__" in fourier_data:
+            fourier = registry.deserialize(fourier_data)
+        else:
+            from pymc_extras.deserialize import deserialize
+
+            fourier = deserialize(fourier_data)
+        return cls(fourier=fourier, date_dim_name=work.get("date_dim_name", "date"))
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
