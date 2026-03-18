@@ -26,8 +26,12 @@ from os import PathLike
 
 from pyprojroot import here
 
-root = here()
-data_dir = root / "data"
+try:
+    root = here()
+except RuntimeError:
+    root = None
+
+data_dir = root / "data" if root is not None else None
 
 
 URL = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/{branch}/data"
@@ -86,5 +90,5 @@ def create_data_url(branch: str) -> URLPath:
     return URLPath(URL.format(branch=branch))
 
 
-if not data_dir.exists():
+if data_dir is None or not data_dir.exists():
     data_dir = create_data_url("main")

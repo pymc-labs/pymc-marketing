@@ -11,8 +11,10 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import importlib
 from os import fspath
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from pyprojroot import here
@@ -64,3 +66,15 @@ def test_url_path_truediv(data_url) -> None:
     expected_url = "https://raw.githubusercontent.com/pymc-labs/pymc-marketing/main/data/new_file.csv"
     assert new_path.url == expected_url
     assert isinstance(new_path, paths.URLPath)
+
+
+def test_here_failure_falls_back_to_url() -> None:
+    """When pyprojroot.here() raises RuntimeError, data_dir falls back to a URLPath."""
+    with patch("pyprojroot.here", side_effect=RuntimeError("Project root not found.")):
+        importlib.reload(paths)
+
+    assert paths.root is None
+    assert isinstance(paths.data_dir, paths.URLPath)
+    assert paths.data_dir.url == paths.URL.format(branch="main")
+
+    importlib.reload(paths)
