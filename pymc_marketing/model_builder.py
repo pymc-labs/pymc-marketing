@@ -247,20 +247,23 @@ class ModelIO:
 
         def _json_default(obj):
             """Handle objects that aren't JSON serializable by default."""
+            from pymc_marketing.serialization import registry
+
+            try:
+                return registry.serialize(obj)
+            except (KeyError, TypeError):
+                pass
+
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "model_dump"):
-                # Handle Pydantic models (e.g., HSGPKwargs)
                 return obj.model_dump(mode="json")
-            # For other objects, try to use their __dict__ but filter out non-serializable items
             if hasattr(obj, "__dict__"):
-                # Filter out methods, functions, and other non-serializable attributes
                 return {
                     k: v
                     for k, v in obj.__dict__.items()
                     if not callable(v) and not k.startswith("_")
                 }
-            # Last resort: convert to string representation
             return str(obj)
 
         attrs: dict[str, str] = {}

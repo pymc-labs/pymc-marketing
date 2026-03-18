@@ -1298,3 +1298,61 @@ def test_predict_posterior_keyerror_output_var_missing():
     model.sample_posterior_predictive = lambda *a, **k: {"not_output": np.ones(3)}
     with pytest.raises(KeyError):
         model.predict_posterior(pd.DataFrame({"input": [1, 2, 3]}))
+
+
+class TestJsonDefaultRegistryDispatch:
+    """Verify _json_default tries registry.serialize() before duck-typing."""
+
+    def test_registered_type_serialized_via_registry(self):
+        """A type registered in TypeRegistry should serialize with __type__ key."""
+        from pymc_marketing.serialization import registry
+
+        @registry.register
+        class _DummyRegistered:
+            def to_dict(self):
+                return {
+                    "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+                    "value": 42,
+                }
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls()
+
+        class FakeModel:
+            _model_type = "test"
+            version = "0.0.1"
+            sampler_config = {}
+            id = "test123"
+
+            @property
+            def _serializable_model_config(self):
+                return {"component": _DummyRegistered()}
+
+        model = FakeModel()
+        attrs = ModelIO.create_idata_attrs(model)
+        config = json.loads(attrs["model_config"])
+        assert "__type__" in config["component"]
+
+    def test_unregistered_type_falls_through(self):
+        """An unregistered type with to_dict() still works via duck-typing fallback."""
+
+        class _UnregisteredWithToDict:
+            def to_dict(self):
+                return {"value": 99}
+
+        class FakeModel:
+            _model_type = "test"
+            version = "0.0.1"
+            sampler_config = {}
+            id = "test123"
+
+            @property
+            def _serializable_model_config(self):
+                return {"component": _UnregisteredWithToDict()}
+
+        model = FakeModel()
+        attrs = ModelIO.create_idata_attrs(model)
+        config = json.loads(attrs["model_config"])
+        assert config["component"] == {"value": 99}
+        assert "__type__" not in config["component"]
