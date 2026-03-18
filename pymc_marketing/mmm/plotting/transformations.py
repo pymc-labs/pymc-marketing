@@ -34,16 +34,12 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 
-# ============================================================================
-# Module-level helpers (I.4 — no nested functions)
-# ============================================================================
-
 
 def _x_axis_label(data: MMMIDataWrapper, apply_cost_per_unit: bool) -> str:
     """Return the x-axis label based on cost-per-unit availability."""
     if apply_cost_per_unit and data.cost_per_unit is not None:
         return "Spend"
-    return "Channel Data (X)"
+    return "Channel Data"
 
 
 def _get_channel_x_data(
@@ -124,8 +120,6 @@ class TransformationPlots:
         mean_contrib = contributions.mean(dim=["chain", "draw"])
 
         x_data = _get_channel_x_data(data, apply_cost_per_unit)
-        x_data, mean_contrib = xr.broadcast(x_data, mean_contrib)
-
         scatter_ds = xr.Dataset({"x": x_data, "y": mean_contrib})
 
         scatter_ds = _select_dims(scatter_ds, dims)
@@ -253,36 +247,46 @@ class TransformationPlots:
         )
 
         if original_scale:
+            # update y values to original scale
+            # TODO: check whether data.to_scale is better and it might also validate the scaling
+            # TODO: make sure all multiplications in the file get validated before we multiply
             target_scale = data.get_target_scale()
             curve_data = curves * target_scale
 
-            channel_scale = data.get_channel_scale()
+            x_scale = data.get_channel_scale()
             if apply_cost_per_unit:
-                avg_cpu = data.get_avg_cost_per_unit()
-                x_scale = channel_scale * avg_cpu
-            else:
-                x_scale = channel_scale
-            curve_data["x"] = curve_data["x"] * x_scale
+                x_scale *= data.get_avg_cost_per_unit()
+
+            print(2)
+            x_data = curve_data["x"].copy()
+            curve_data["x"] = range(len(x_data))
+            spend_data: xr.DataArray = x_data * x_scale
         else:
             curve_data = curves
 
+        print(1)
         curve_data = _select_dims(curve_data, dims)
 
         # add the hdi bands
         if hdi_prob is not None:
             hdi = curve_data.azstats.hdi(hdi_prob)
+            print(hdi.sizes)
             pc.map(
                 azp.visuals.fill_between_y,
-                x=curve_data["x"],
+                x=spend_data,
                 y_bottom=hdi.sel(ci_bound="lower"),
                 y_top=hdi.sel(ci_bound="upper"),
                 alpha=0.2,
             )
 
-        # mean_curve = curve_data.mean(dim=["chain", "draw"]).to_dataset(name="y")
-        # pc.map(
-        #     azp.visuals.line_xy, x_dim="x", data=mean_curve['y']
-        # )
+        print(3)
+        mean_curve = curve_data.mean(dim=["chain", "draw"])
+        # mean_curve = mean_curve.transpose(*spend_data.dims)
+        print(mean_curve.sizes)
+        print(spend_data.sizes)
+        print()
+        pc.map(azp.visuals.line_xy, x=spend_data, y=mean_curve)
+        print(4)
 
         if n_samples > 0:
             # sample the curves
@@ -290,10 +294,15 @@ class TransformationPlots:
             stacked = curve_data.stack(sample=("chain", "draw"))
             idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
             sampled_curves = stacked.isel(sample=idx).to_dataset(name="y")
+            sampled_curves["x"] = spend_data
 
             # plot the sampled curves
-            pc.map(
-                azp.visuals.multiple_lines, x_dim="x", data=sampled_curves, alpha=0.2
-            )
+            for i in range(n_samples):
+                pc.map(
+                    azp.visuals.line_xy,
+                    x=spend_data,
+                    y=sampled_curves.isel(sample=i),
+                    alpha=0.2,
+                )
 
         return _extract_matplotlib_result(pc, return_as_pc)
