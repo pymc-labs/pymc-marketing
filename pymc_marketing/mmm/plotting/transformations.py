@@ -186,7 +186,7 @@ class TransformationPlots:
             ``mmm.saturation.sample_curve(...)``.
             Expected dims: ``(chain, draw, channel, [custom_dims], x)``.
         original_scale : bool, default True
-            If True, scale both curve y-values and x-axis to original units.
+            If True, scale y-values to original units.
         n_samples : int, default 10
             Number of posterior sample curves to draw per panel.
             Set to 0 to disable sample curves.
@@ -243,28 +243,28 @@ class TransformationPlots:
             **pc_kwargs,
         )
 
+        curves = curves.copy()
         if original_scale:
             # update y values to original scale
             # TODO: what happens if curves are already in original scale?
             target_scale = data.get_target_scale()
-            curve_data = curves * target_scale
+            curves = curves * target_scale
 
-            x_scale = data.get_channel_scale()
-            if apply_cost_per_unit:
-                x_scale *= data.get_avg_cost_per_unit()
+        # get values for x-axis (spend)
+        x_scale = data.get_channel_scale()
+        if apply_cost_per_unit:
+            x_scale *= data.get_avg_cost_per_unit()
+        x_data = curves["x"].copy()
+        curves["x"] = range(len(x_data))
+        spend_data: xr.DataArray = x_data * x_scale
 
-            x_data = curve_data["x"].copy()
-            curve_data["x"] = range(len(x_data))
-            spend_data: xr.DataArray = x_data * x_scale
-        else:
-            curve_data = curves
-            spend_data = xr.DataArray(curves.coords["x"].values, dims=("x",))
-
-        curve_data = _select_dims(curve_data, dims)
+        # select dimensions
+        curves = _select_dims(curves, dims)
         spend_data = _select_dims(spend_data, dims)
 
+        # plot the hdi band
         if hdi_prob is not None:
-            hdi = curve_data.azstats.hdi(hdi_prob)
+            hdi = curves.azstats.hdi(hdi_prob)
             pc.map(
                 azp.visuals.fill_between_y,
                 x=spend_data,
@@ -273,13 +273,14 @@ class TransformationPlots:
                 alpha=0.2,
             )
 
-        mean_curve = curve_data.mean(dim=["chain", "draw"])
+        # plot the mean curve
+        mean_curve = curves.mean(dim=["chain", "draw"])
         pc.map(azp.visuals.line_xy, x=spend_data, y=mean_curve)
 
         if n_samples > 0:
             # sample the curves
             rng = random_seed if random_seed is not None else np.random.default_rng()
-            stacked = curve_data.stack(sample=("chain", "draw"))
+            stacked = curves.stack(sample=("chain", "draw"))
             idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
             sampled_curves = stacked.isel(sample=idx).to_dataset(name="y")
             sampled_curves["x"] = spend_data
