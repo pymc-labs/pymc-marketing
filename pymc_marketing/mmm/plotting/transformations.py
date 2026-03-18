@@ -170,10 +170,7 @@ class TransformationPlots:
         idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
-        plot_collection: PlotCollection | None = None,
         backend: str | None = None,
-        visuals: dict[str, Any] | None = None,
-        aes_by_visuals: dict[str, list[str]] | None = None,
         return_as_pc: bool = False,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
@@ -248,8 +245,7 @@ class TransformationPlots:
 
         if original_scale:
             # update y values to original scale
-            # TODO: check whether data.to_scale is better and it might also validate the scaling
-            # TODO: make sure all multiplications in the file get validated before we multiply
+            # TODO: what happens if curves are already in original scale?
             target_scale = data.get_target_scale()
             curve_data = curves * target_scale
 
@@ -257,14 +253,12 @@ class TransformationPlots:
             if apply_cost_per_unit:
                 x_scale *= data.get_avg_cost_per_unit()
 
-            print(2)
             x_data = curve_data["x"].copy()
             curve_data["x"] = range(len(x_data))
             spend_data: xr.DataArray = x_data * x_scale
         else:
             curve_data = curves
 
-        print(1)
         curve_data = _select_dims(curve_data, dims)
 
         # add the hdi bands
@@ -279,14 +273,8 @@ class TransformationPlots:
                 alpha=0.2,
             )
 
-        print(3)
         mean_curve = curve_data.mean(dim=["chain", "draw"])
-        # mean_curve = mean_curve.transpose(*spend_data.dims)
-        print(mean_curve.sizes)
-        print(spend_data.sizes)
-        print()
         pc.map(azp.visuals.line_xy, x=spend_data, y=mean_curve)
-        print(4)
 
         if n_samples > 0:
             # sample the curves
@@ -302,7 +290,7 @@ class TransformationPlots:
                     azp.visuals.line_xy,
                     x=spend_data,
                     y=sampled_curves.isel(sample=i),
-                    alpha=0.2,
+                    alpha=0.3,
                 )
 
         return _extract_matplotlib_result(pc, return_as_pc)
