@@ -281,8 +281,12 @@ class MMMYamlConfig(BaseModel):
         try:
             return cls.model_validate(raw)
         except ValidationError as exc:
-            error_msg = "YAML configuration validation failed:\n" + "\n".join(
-                f"  - {e['msg']} (at {' -> '.join(str(x) for x in e['loc'])})"
-                for e in exc.errors()
-            )
+            parts: list[str] = []
+            for e in exc.errors():
+                loc = " -> ".join(str(x) for x in e["loc"])
+                line = f"  - {e['msg']}"
+                if loc:
+                    line += f" (at {loc})"
+                parts.append(line)
+            error_msg = "YAML configuration validation failed:\n" + "\n".join(parts)
             raise ValueError(error_msg) from exc

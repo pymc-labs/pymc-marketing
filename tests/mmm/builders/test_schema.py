@@ -29,10 +29,6 @@ from pymc_marketing.mmm.builders.schema import (
     suggest_typo_fix,
 )
 
-# ---------------------------------------------------------------------------
-# suggest_typo_fix
-# ---------------------------------------------------------------------------
-
 
 class TestSuggestTypoFix:
     def test_close_match(self):
@@ -47,11 +43,6 @@ class TestSuggestTypoFix:
     def test_close_match_effects(self):
         valid = {"model", "data", "effects", "original_scale_vars"}
         assert suggest_typo_fix("efects", valid) == "effects"
-
-
-# ---------------------------------------------------------------------------
-# BuildSpec
-# ---------------------------------------------------------------------------
 
 
 class TestBuildSpec:
@@ -113,11 +104,6 @@ class TestBuildSpec:
         assert spec.class_ == "foo.Bar"
 
 
-# ---------------------------------------------------------------------------
-# DataConfig
-# ---------------------------------------------------------------------------
-
-
 class TestDataConfig:
     def test_valid(self):
         cfg = DataConfig.model_validate(
@@ -134,11 +120,6 @@ class TestDataConfig:
     def test_unknown_key_raises(self):
         with pytest.raises(ValidationError):
             DataConfig.model_validate({"X_path": "a.csv", "z_path": "b.csv"})
-
-
-# ---------------------------------------------------------------------------
-# CalibrationStep
-# ---------------------------------------------------------------------------
 
 
 class TestCalibrationStep:
@@ -179,11 +160,6 @@ class TestCalibrationStep:
         restored = CalibrationStep.model_validate(dumped)
         assert restored.method_name == step.method_name
         assert restored.params == step.params
-
-
-# ---------------------------------------------------------------------------
-# MMMYamlConfig
-# ---------------------------------------------------------------------------
 
 
 class TestMMMYamlConfig:
@@ -282,11 +258,6 @@ class TestMMMYamlConfig:
         assert restored.calibration[0].params == {"param": 1}
 
 
-# ---------------------------------------------------------------------------
-# MMMYamlConfig.from_yaml_file
-# ---------------------------------------------------------------------------
-
-
 class TestFromYamlFile:
     def test_valid_file(self, tmp_path):
         config = {
@@ -314,11 +285,6 @@ class TestFromYamlFile:
             MMMYamlConfig.from_yaml_file(tmp_path / "nonexistent.yml")
 
 
-# ---------------------------------------------------------------------------
-# MMMYamlConfig.validate_or_raise
-# ---------------------------------------------------------------------------
-
-
 class TestValidateOrRaise:
     def test_valid_dict(self):
         raw = {"model": {"class": "some.Class"}}
@@ -329,6 +295,11 @@ class TestValidateOrRaise:
         with pytest.raises(ValueError, match="YAML configuration validation failed"):
             MMMYamlConfig.validate_or_raise({"modle": {"class": "some.Class"}})
 
-    def test_error_message_contains_location(self):
-        with pytest.raises(ValueError, match="at "):
+    def test_error_message_contains_location_for_field_errors(self):
+        with pytest.raises(ValueError, match=r"\(at model\)"):
             MMMYamlConfig.validate_or_raise({})
+
+    def test_empty_loc_omits_parenthetical(self):
+        with pytest.raises(ValueError, match=r"Did you mean 'model'\?$") as exc_info:
+            MMMYamlConfig.validate_or_raise({"modle": {"class": "some.Class"}})
+        assert "(at )" not in str(exc_info.value)
