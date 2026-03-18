@@ -1356,3 +1356,51 @@ class TestJsonDefaultRegistryDispatch:
         config = json.loads(attrs["model_config"])
         assert config["component"] == {"value": 99}
         assert "__type__" not in config["component"]
+
+
+class TestModelConfigFormattingTypeDetection:
+    """Verify _model_config_formatting routes __type__ dicts through registry."""
+
+    def test_type_key_deserialized_via_registry(self):
+        """A dict with __type__ key should be deserialized via registry."""
+        from pymc_marketing.serialization import registry
+
+        @registry.register
+        class _DummyConfigType:
+            def __init__(self, value=42):
+                self.value = value
+
+            def to_dict(self):
+                return {
+                    "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+                    "value": self.value,
+                }
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls(value=data.get("value", 42))
+
+        model_config = {
+            "component": {
+                "__type__": f"{_DummyConfigType.__module__}.{_DummyConfigType.__qualname__}",
+                "value": 42,
+            }
+        }
+        result = ModelIO._model_config_formatting(model_config)
+        assert isinstance(result["component"], _DummyConfigType)
+        assert result["component"].value == 42
+
+    def test_legacy_dict_without_type_key_unchanged(self):
+        """A dict without __type__ follows the existing list->tuple/array heuristic."""
+        model_config = {
+            "intercept": {"mu": 0, "sigma": 1, "dims": ["date"]},
+        }
+        result = ModelIO._model_config_formatting(model_config)
+        assert isinstance(result["intercept"]["dims"], tuple)
+        assert result["intercept"]["dims"] == ("date",)
+
+    def test_plain_scalars_unchanged(self):
+        """Non-dict values pass through unchanged."""
+        model_config = {"n_obs": 100, "name": "test"}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result == {"n_obs": 100, "name": "test"}

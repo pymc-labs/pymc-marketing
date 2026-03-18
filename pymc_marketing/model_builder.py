@@ -404,24 +404,23 @@ class ModelIO:
     def _model_config_formatting(cls, model_config: dict) -> dict:
         """Format the model configuration.
 
-        Because of json serialization, model_config values that were originally tuples
-        or numpy are being encoded as lists. This function converts them back to tuples
-        and numpy arrays to ensure correct id encoding.
+        If a value is a dict with a ``__type__`` key, it is deserialized via the
+        TypeRegistry. Otherwise the existing ``list→tuple`` / ``list→np.array``
+        heuristic is applied for backward compatibility.
         """
+        from pymc_marketing.serialization import registry
+
         for key in model_config:
-            if isinstance(model_config[key], dict):
-                for sub_key in model_config[key]:
-                    if isinstance(model_config[key][sub_key], list):
-                        # Check if "dims" key to convert it to tuple
+            value = model_config[key]
+            if isinstance(value, dict) and "__type__" in value:
+                model_config[key] = registry.deserialize(value)
+            elif isinstance(value, dict):
+                for sub_key in value:
+                    if isinstance(value[sub_key], list):
                         if sub_key == "dims":
-                            model_config[key][sub_key] = tuple(
-                                model_config[key][sub_key]
-                            )
-                        # Convert all other lists to numpy arrays
+                            value[sub_key] = tuple(value[sub_key])
                         else:
-                            model_config[key][sub_key] = np.array(
-                                model_config[key][sub_key]
-                            )
+                            value[sub_key] = np.array(value[sub_key])
         return model_config
 
     @classmethod
