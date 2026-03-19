@@ -30,6 +30,7 @@ from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.transformations import (
     _SCALED_SPACE_MAX_THRESHOLD,
     TransformationPlots,
+    _ensure_chain_draw_dims,
 )
 
 matplotlib.use("Agg")
@@ -529,3 +530,182 @@ class TestSaturationCurvesScaleWarning:
             simple_plots.saturation_curves(
                 curves=simple_curve_scaled, original_scale=False
             )
+
+
+# ============================================================================
+# Helpers & fixtures for sample-dimensioned curves
+# (as returned by mmm.sample_saturation_curve())
+# ============================================================================
+
+
+def _make_simple_sample_curve(rng, scale: float = 1.0) -> xr.DataArray:
+    """Build a curve with a flat ``sample`` dim (like mmm.sample_saturation_curve)."""
+    x_values = np.linspace(0, 1, 50)
+    channels = ["tv", "radio", "social"]
+    n_samples = 100
+
+    data = np.empty((n_samples, 3, 50))
+    for si in range(n_samples):
+        for c in range(3):
+            data[si, c, :] = x_values / (1 + x_values) + rng.normal(0, 0.01, size=50)
+    data *= scale
+
+    return xr.DataArray(
+        data,
+        dims=("sample", "channel", "x"),
+        coords={
+            "sample": np.arange(n_samples),
+            "channel": channels,
+            "x": x_values,
+        },
+    )
+
+
+def _make_panel_sample_curve(rng, scale: float = 1.0) -> xr.DataArray:
+    """Build a panel curve with a flat ``sample`` dim."""
+    x_values = np.linspace(0, 1, 40)
+    channels = ["tv", "radio"]
+    countries = ["US", "UK"]
+    n_samples = 60
+
+    data = np.empty((n_samples, 2, 2, 40))
+    for si in range(n_samples):
+        for ch in range(2):
+            for co in range(2):
+                data[si, ch, co, :] = x_values / (1 + x_values) + rng.normal(
+                    0, 0.01, size=40
+                )
+    data *= scale
+
+    return xr.DataArray(
+        data,
+        dims=("sample", "channel", "country", "x"),
+        coords={
+            "sample": np.arange(n_samples),
+            "channel": channels,
+            "country": countries,
+            "x": x_values,
+        },
+    )
+
+
+@pytest.fixture(scope="module")
+def simple_sample_curve() -> xr.DataArray:
+    return _make_simple_sample_curve(
+        np.random.default_rng(SEED + 20), scale=ORIGINAL_SCALE_FACTOR
+    )
+
+
+@pytest.fixture(scope="module")
+def simple_sample_curve_scaled() -> xr.DataArray:
+    return _make_simple_sample_curve(np.random.default_rng(SEED + 20))
+
+
+@pytest.fixture(scope="module")
+def panel_sample_curve() -> xr.DataArray:
+    return _make_panel_sample_curve(
+        np.random.default_rng(SEED + 21), scale=ORIGINAL_SCALE_FACTOR
+    )
+
+
+# ============================================================================
+# _normalize_curve_dims tests
+# ============================================================================
+
+
+class TestEnsureChainDrawDims:
+    def test_chain_draw_input_unchanged(self, simple_curve):
+        result = _ensure_chain_draw_dims(simple_curve)
+        assert "chain" in result.dims
+        assert "draw" in result.dims
+        assert "sample" not in result.dims
+
+    def test_sample_input_converted(self, simple_sample_curve):
+        result = _ensure_chain_draw_dims(simple_sample_curve)
+        assert "chain" in result.dims
+        assert "draw" in result.dims
+        assert "sample" not in result.dims
+        assert result.sizes["draw"] == simple_sample_curve.sizes["sample"]
+
+    def test_sample_values_preserved(self, simple_sample_curve):
+        result = _ensure_chain_draw_dims(simple_sample_curve)
+        original_mean = float(simple_sample_curve.mean())
+        converted_mean = float(result.mean())
+        assert original_mean == pytest.approx(converted_mean, rel=1e-10)
+
+    def test_raises_on_unknown_dims(self):
+        bad = xr.DataArray(
+            np.zeros((3, 4)),
+            dims=("foo", "bar"),
+        )
+        with pytest.raises(ValueError, match=r"'chain', 'draw'.*or 'sample'"):
+            _ensure_chain_draw_dims(bad)
+
+
+# ============================================================================
+# saturation_curves with sample-dimensioned curves
+# ============================================================================
+
+
+class TestSaturationCurvesWithSampleDim:
+    """Tests for curves produced by mmm.sample_saturation_curve()."""
+
+    def test_returns_figure_and_axes(self, simple_plots, simple_sample_curve):
+        fig, axes = simple_plots.saturation_curves(curves=simple_sample_curve)
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert all(isinstance(a, Axes) for a in axes.flat)
+
+    def test_axes_count_matches_channels(
+        self, simple_plots, simple_data, simple_sample_curve
+    ):
+        _, axes = simple_plots.saturation_curves(curves=simple_sample_curve)
+        assert axes.size == len(simple_data.channels)
+
+    def test_hdi_band_drawn(self, simple_plots, simple_sample_curve):
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_sample_curve, hdi_prob=0.94, n_samples=0
+        )
+        for ax in axes.flat:
+            polys = [c for c in ax.collections if "Poly" in type(c).__name__]
+            assert len(polys) > 0, "HDI fill_between should be present"
+
+    def test_sample_curves_drawn(self, simple_plots, simple_sample_curve):
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_sample_curve, n_samples=5
+        )
+        for ax in axes.flat:
+            lines = ax.get_lines()
+            assert len(lines) >= 5
+
+    def test_n_samples_zero_draws_only_mean_line(
+        self, simple_plots, simple_sample_curve
+    ):
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_sample_curve, n_samples=0
+        )
+        for ax in axes.flat:
+            lines = ax.get_lines()
+            assert len(lines) == 1
+
+    def test_panel_with_sample_dim(self, panel_plots, panel_sample_curve):
+        _, axes = panel_plots.saturation_curves(curves=panel_sample_curve, n_samples=2)
+        assert axes.size == 4  # 2 channels x 2 countries
+
+    def test_dims_filtering_with_sample_dim(self, panel_plots, panel_sample_curve):
+        _, axes = panel_plots.saturation_curves(
+            curves=panel_sample_curve, dims={"country": "US"}, n_samples=2
+        )
+        assert axes.size == 2  # 2 channels x 1 country
+
+    def test_original_scale_false(self, simple_plots, simple_sample_curve_scaled):
+        fig, _axes = simple_plots.saturation_curves(
+            curves=simple_sample_curve_scaled, original_scale=False
+        )
+        assert isinstance(fig, Figure)
+
+    def test_return_as_pc_true(self, simple_plots, simple_sample_curve):
+        result = simple_plots.saturation_curves(
+            curves=simple_sample_curve, return_as_pc=True
+        )
+        assert isinstance(result, PlotCollection)

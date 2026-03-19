@@ -2492,8 +2492,13 @@ class MMM(RegressionModelBuilder):
             num_points=num_points,
         )
 
-        # Flatten chain and draw dimensions to sample dimension
-        curve = curve.stack(sample=("chain", "draw"))
+        # Flatten chain and draw dimensions to a plain integer sample dimension
+        n_samples_total = curve.sizes["chain"] * curve.sizes["draw"]
+        curve = (
+            curve.stack(sample=("chain", "draw"))
+            .drop_vars(["chain", "draw"])
+            .assign_coords(sample=np.arange(n_samples_total))
+        )
 
         # Convert to original scale if requested
         if original_scale:
@@ -2626,8 +2631,13 @@ class MMM(RegressionModelBuilder):
             amount=amount,
         )
 
-        # Flatten chain and draw dimensions to sample dimension
-        curve = curve.stack(sample=("chain", "draw"))
+        # Flatten chain and draw dimensions to a plain integer sample dimension
+        n_samples_total = curve.sizes["chain"] * curve.sizes["draw"]
+        curve = (
+            curve.stack(sample=("chain", "draw"))
+            .drop_vars(["chain", "draw"])
+            .assign_coords(sample=np.arange(n_samples_total))
+        )
 
         return curve
 
