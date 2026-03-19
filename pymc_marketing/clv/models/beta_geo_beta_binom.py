@@ -355,7 +355,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         Given *recency*, *frequency*, and *T* for an individual customer, this method estimates the
         expected number of future purchases across *future_t* time periods.
 
-        Adapted from equation (13) in Bruce Hardie's notes [1]_, and `lifetimes` library:
+        Adapted from equation (13) in Bruce Hardie's notes [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179
 
         Parameters
@@ -432,7 +432,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         Estimate the probability that a customer with history *frequency*, *recency*, and *T*
         is currently active. Can also estimate alive probability for *future_t* periods into the future.
 
-        Adapted from equation (11) in Bruce Hardie's notes [1]_ and lifetimes library:
+        Adapted from equation (11) in Bruce Hardie's notes [1]_ and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L217
 
         Parameters

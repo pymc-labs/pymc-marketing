@@ -47,11 +47,11 @@ msgstr ""
 #: pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.expected_purchase_probability:7
 msgid ""
 "Adapted from equation (16) in Bruce Hardie's notes [R46e008abf410-1]_, and "
-"`lifetimes` package: "
+"the legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388"
 msgstr ""
 "Adaptado de la ecuación (16) en las notas de Bruce Hardie "
-"[R46e008abf410-1]_, y el paquete `lifetimes`: "
+"[R46e008abf410-1]_, y la biblioteca heredada ``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388"
 
 #: 653bbc5d695b4f9c8b2bf1e38ec5c7f5 of
