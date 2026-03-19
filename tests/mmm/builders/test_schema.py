@@ -289,23 +289,3 @@ class TestFromYamlFile:
     def test_missing_file_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             MMMYamlConfig.from_yaml_file(tmp_path / "nonexistent.yml")
-
-
-class TestValidateOrRaise:
-    def test_valid_dict(self):
-        raw = {"model": {"class": "some.Class"}}
-        cfg = MMMYamlConfig.validate_or_raise(raw)
-        assert cfg.model.class_ == "some.Class"
-
-    def test_invalid_dict_raises_value_error(self):
-        with pytest.raises(ValueError, match="YAML configuration validation failed"):
-            MMMYamlConfig.validate_or_raise({"modle": {"class": "some.Class"}})
-
-    def test_error_message_contains_location_for_field_errors(self):
-        with pytest.raises(ValueError, match=r"\(at model\)"):
-            MMMYamlConfig.validate_or_raise({})
-
-    def test_empty_loc_omits_parenthetical(self):
-        with pytest.raises(ValueError, match=r"Did you mean 'model'\?$") as exc_info:
-            MMMYamlConfig.validate_or_raise({"modle": {"class": "some.Class"}})
-        assert "(at )" not in str(exc_info.value)

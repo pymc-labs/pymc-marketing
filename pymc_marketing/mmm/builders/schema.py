@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml  # type: ignore
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 def suggest_typo_fix(
@@ -194,36 +194,3 @@ class MMMYamlConfig(BaseModel):
         """
         raw = yaml.safe_load(Path(path).read_text())
         return cls.model_validate(raw)
-
-    @classmethod
-    def validate_or_raise(cls, raw: dict[str, Any]) -> MMMYamlConfig:
-        """Validate a raw config dict, re-raising as :class:`ValueError`.
-
-        Parameters
-        ----------
-        raw : dict
-            Raw parsed YAML dictionary.
-
-        Returns
-        -------
-        MMMYamlConfig
-            Validated configuration object.
-
-        Raises
-        ------
-        ValueError
-            If validation fails, with detailed error messages including
-            field locations.
-        """
-        try:
-            return cls.model_validate(raw)
-        except ValidationError as exc:
-            parts: list[str] = []
-            for e in exc.errors():
-                loc = " -> ".join(str(x) for x in e["loc"])
-                line = f"  - {e['msg']}"
-                if loc:
-                    line += f" (at {loc})"
-                parts.append(line)
-            error_msg = "YAML configuration validation failed:\n" + "\n".join(parts)
-            raise ValueError(error_msg) from exc
