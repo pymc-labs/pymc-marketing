@@ -1074,6 +1074,26 @@ class MMM(RegressionModelBuilder):
 
         return attrs
 
+    def save(self, fname: str, **kwargs) -> None:
+        """Save the model, including supplementary data for MuEffects."""
+        import xarray as xr
+
+        from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
+
+        if self.idata is None or "posterior" not in self.idata:
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+
+        for effect in self.mu_effects:
+            if isinstance(effect, EventAdditiveEffect):
+                group_name = f"supplementary_data_{effect.prefix}"
+                if not hasattr(self.idata, group_name):
+                    ds = xr.Dataset.from_dataframe(
+                        effect.df_events.reset_index(drop=True)
+                    )
+                    self.idata.add_groups({group_name: ds})
+
+        super().save(fname, **kwargs)
+
     @classmethod
     def _model_config_formatting(cls, model_config: dict) -> dict:
         """Format the model configuration.
@@ -1108,6 +1128,27 @@ class MMM(RegressionModelBuilder):
             return d
 
         return format_nested_dict(model_config.copy())
+
+    @classmethod
+    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> MMM:
+        """Load from InferenceData, auto-migrating old formats."""
+        from pymc_marketing.serialization_migration import (
+            CURRENT_VERSION,
+            migrate_idata,
+        )
+
+        version = int(idata.attrs.get("__serialization_version__", "0"))
+        if version < CURRENT_VERSION:
+            warnings.warn(
+                f"Loading a model saved with serialization format v{version}. "
+                f"Migrating to v{CURRENT_VERSION}. Re-save the model to avoid "
+                "this warning in the future.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            migrate_idata(idata)
+
+        return super().load_from_idata(idata, check=check)  # type: ignore[return-value]
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
@@ -3221,14 +3262,11 @@ class MMM(RegressionModelBuilder):
             ctx = DeserializationContext(idata=idata)
             self.mu_effects = []
             for effect_data in mu_effects_data:
-                try:
-                    if isinstance(effect_data, dict) and "__type__" in effect_data:
-                        effect = registry.deserialize(effect_data, context=ctx)
-                    else:
-                        effect = _deserialize_mu_effect(effect_data)
-                    self.mu_effects.append(effect)
-                except Exception as e:
-                    warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
+                if isinstance(effect_data, dict) and "__type__" in effect_data:
+                    effect = registry.deserialize(effect_data, context=ctx)
+                else:
+                    effect = _deserialize_mu_effect(effect_data)
+                self.mu_effects.append(effect)
 
         dataset = idata.fit_data.to_dataframe()
 

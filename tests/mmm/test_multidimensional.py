@@ -298,6 +298,179 @@ def test_save_load_equality_with_all_effects(mock_pymc_sample):
     os.remove(file)
 
 
+class TestSupplementaryDataWrite:
+    """Verify EventAdditiveEffect's df_events is stored in idata during save."""
+
+    def test_event_supplementary_data_written_to_idata(
+        self, tmp_path, mock_pymc_sample
+    ):
+        """Save a model with EventAdditiveEffect -> idata contains supplementary group."""
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+        df_events = pd.DataFrame(
+            {
+                "start_date": pd.to_datetime(["2023-02-01", "2023-03-01"]),
+                "end_date": pd.to_datetime(["2023-02-08", "2023-03-08"]),
+                "name": ["event_a", "event_b"],
+            }
+        )
+
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "x1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["x1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        effect = EventEffect(
+            basis=GaussianBasis(),
+            effect_size=Prior("Normal"),
+            dims=("events",),
+        )
+        mmm.add_events(df_events, prefix="events", effect=effect)
+        mmm.fit(X, y)
+
+        fname = tmp_path / "model.nc"
+        mmm.save(str(fname))
+
+        loaded_idata = az.from_netcdf(fname)
+        assert hasattr(loaded_idata, "supplementary_data_events")
+
+    def test_event_supplementary_data_roundtrips(self, tmp_path, mock_pymc_sample):
+        """Save and reload a model with EventAdditiveEffect -> df_events is intact."""
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+        df_events = pd.DataFrame(
+            {
+                "start_date": pd.to_datetime(["2023-02-01", "2023-03-01"]),
+                "end_date": pd.to_datetime(["2023-02-08", "2023-03-08"]),
+                "name": ["event_a", "event_b"],
+            }
+        )
+
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "x1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["x1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        effect = EventEffect(
+            basis=GaussianBasis(),
+            effect_size=Prior("Normal"),
+            dims=("events",),
+        )
+        mmm.add_events(df_events, prefix="events", effect=effect)
+        mmm.fit(X, y)
+
+        fname = tmp_path / "model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert len(loaded.mu_effects) == 1
+        assert isinstance(loaded.mu_effects[0], EventAdditiveEffect)
+        assert list(loaded.mu_effects[0].df_events["name"]) == ["event_a", "event_b"]
+
+
+def _make_minimal_mmm_idata():
+    """Build a minimal InferenceData with valid v1 MMM attrs for testing."""
+    import json
+
+    from pymc_marketing.serialization import registry
+
+    posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
+    idata = az.InferenceData(posterior=posterior)
+
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+
+    idata.attrs["id"] = "test123"
+    idata.attrs["model_type"] = "MMM"
+    idata.attrs["version"] = "0.0.1"
+    idata.attrs["sampler_config"] = json.dumps({})
+    idata.attrs["model_config"] = json.dumps({})
+    idata.attrs["__serialization_version__"] = "1"
+    idata.attrs["date_column"] = "date"
+    idata.attrs["target_column"] = "target"
+    idata.attrs["channel_columns"] = json.dumps(["x1"])
+    idata.attrs["control_columns"] = json.dumps([])
+    idata.attrs["adstock"] = json.dumps(registry.serialize(adstock))
+    idata.attrs["saturation"] = json.dumps(registry.serialize(saturation))
+    idata.attrs["adstock_first"] = json.dumps(True)
+    idata.attrs["yearly_seasonality"] = json.dumps(None)
+    idata.attrs["time_varying_intercept"] = json.dumps(False)
+    idata.attrs["time_varying_media"] = json.dumps(False)
+    idata.attrs["scaling"] = json.dumps(None)
+    idata.attrs["dims"] = json.dumps([])
+    idata.attrs["dag"] = json.dumps(None)
+    idata.attrs["treatment_nodes"] = json.dumps(None)
+    idata.attrs["outcome_node"] = json.dumps(None)
+    idata.attrs["mu_effects"] = json.dumps([])
+    idata.attrs["cost_per_unit"] = json.dumps(None)
+    return idata
+
+
+class TestRegistryDeserialization:
+    """Verify the load side uses registry.deserialize() for components."""
+
+    def test_deserialization_error_raises_not_warns(self):
+        """MuEffect deserialization failures should raise, not silently warn."""
+        import json
+
+        from pymc_marketing.serialization import SerializationError
+
+        idata = _make_minimal_mmm_idata()
+        idata.attrs["mu_effects"] = json.dumps(
+            [{"__type__": "nonexistent.module.FakeEffect", "value": 1}]
+        )
+
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        X_df = pd.DataFrame(
+            {
+                "date": date_range,
+                "x1": np.random.uniform(100, 500, size=len(date_range)),
+                "target": np.random.randint(500, 1500, size=len(date_range)),
+            }
+        )
+        fit_data = xr.Dataset.from_dataframe(X_df)
+        idata.add_groups(fit_data=fit_data)
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["x1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises((SerializationError, KeyError)):
+            mmm.build_from_idata(idata)
+
+
 def test_single_channel():
     # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1630
     target_column = "y"

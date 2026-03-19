@@ -602,7 +602,7 @@ class EventAdditiveEffect(MuEffect):
             "reference_date": self.reference_date,
             "date_dim_name": self.date_dim_name,
             "effect": self.effect.to_dict(),
-            "df_events_group": f"supplementary_data/{self.prefix}",
+            "df_events_group": f"supplementary_data_{self.prefix}",
         }
 
     def model_post_init(self, context: Any, /) -> None:

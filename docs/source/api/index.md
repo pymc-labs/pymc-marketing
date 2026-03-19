@@ -15,6 +15,7 @@
   deserialize
   hsgp_kwargs
   metrics
+  serialization_migration
   mlflow
   mmm
   model_builder
