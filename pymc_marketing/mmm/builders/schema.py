@@ -11,11 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Pydantic schemas for validating MMM YAML configuration files.
-
-Mirrors the ``validate_or_raise`` / factory-classmethod patterns from
-:mod:`pymc_marketing.data.idata.schema`.
-"""
+"""Pydantic schemas for validating MMM YAML configuration files."""
 
 from __future__ import annotations
 
@@ -76,27 +72,7 @@ def _valid_field_keys(cls: type[BaseModel]) -> set[str]:
 
 
 class BuildSpec(BaseModel):
-    """Schema for an object build specification.
-
-    Parameters
-    ----------
-    class_ : str
-        Fully-qualified Python class name (aliased from ``class`` in YAML).
-    kwargs : dict, default {}
-        Keyword arguments for the class constructor.  Intentionally
-        ``dict[str, Any]`` because values are heterogeneous (plain values,
-        nested build specs, priors, etc.).
-    args : list, default []
-        Positional arguments for the class constructor.
-
-    Examples
-    --------
-    >>> spec = BuildSpec.model_validate(
-    ...     {"class": "pymc_marketing.mmm.GeometricAdstock", "kwargs": {"l_max": 12}}
-    ... )
-    >>> spec.class_
-    'pymc_marketing.mmm.GeometricAdstock'
-    """
+    """Schema for an object build specification."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
@@ -129,15 +105,7 @@ class BuildSpec(BaseModel):
 
 
 class DataConfig(BaseModel):
-    """Schema for data path configuration.
-
-    Parameters
-    ----------
-    X_path : str or None
-        Path to the covariate data file.
-    y_path : str or None
-        Path to the target data file.
-    """
+    """Schema for data path configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -146,23 +114,7 @@ class DataConfig(BaseModel):
 
 
 class CalibrationStep(BaseModel):
-    """Schema for a single calibration step.
-
-    In YAML this is written as a single-key mapping, e.g.::
-
-        - add_lift_test_measurements:
-            df_lift_test: ...
-
-    The ``model_validator`` restructures this into ``method_name`` /
-    ``params`` fields.
-
-    Parameters
-    ----------
-    method_name : str
-        Name of the calibration method to call on the MMM.
-    params : dict or None
-        Keyword arguments to pass to the method.
-    """
+    """Schema for a single calibration step."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -189,32 +141,7 @@ class CalibrationStep(BaseModel):
 
 
 class MMMYamlConfig(BaseModel):
-    """Schema for the top-level MMM YAML configuration.
-
-    Mirrors the ``validate_or_raise`` pattern from
-    :class:`pymc_marketing.data.idata.schema.MMMIdataSchema`.
-
-    Parameters
-    ----------
-    model : BuildSpec
-        MMM class and constructor arguments (required).
-    data : DataConfig or None
-        Paths to covariate and target data files.
-    effects : list of BuildSpec or None
-        Additive effects to append to the model.
-    original_scale_vars : list of str or None
-        Variables to add at original scale.
-    calibration : list of CalibrationStep or None
-        Calibration steps to apply after model build.
-    idata_path : str or None
-        Path to pre-existing InferenceData (NetCDF).
-
-    Examples
-    --------
-    >>> cfg = MMMYamlConfig.from_yaml_file("config.yml")  # doctest: +SKIP
-    >>> cfg.model.class_  # doctest: +SKIP
-    'pymc_marketing.mmm.multidimensional.MMM'
-    """
+    """Schema for the top-level MMM YAML configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -246,9 +173,6 @@ class MMMYamlConfig(BaseModel):
     def from_yaml_file(cls, path: str | Path) -> MMMYamlConfig:
         """Load and validate a YAML configuration file.
 
-        Analogous to
-        :meth:`pymc_marketing.data.idata.schema.MMMIdataSchema.from_model_config`.
-
         Parameters
         ----------
         path : str or Path
@@ -274,9 +198,6 @@ class MMMYamlConfig(BaseModel):
     @classmethod
     def validate_or_raise(cls, raw: dict[str, Any]) -> MMMYamlConfig:
         """Validate a raw config dict, re-raising as :class:`ValueError`.
-
-        Mirrors
-        :meth:`pymc_marketing.data.idata.schema.MMMIdataSchema.validate_or_raise`.
 
         Parameters
         ----------
