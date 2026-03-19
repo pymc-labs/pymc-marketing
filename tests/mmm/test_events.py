@@ -31,11 +31,11 @@ from pymc_marketing.mmm.events import (
     EventEffect,
     GaussianBasis,
     HalfGaussianBasis,
-    basis_from_dict,
     days_from_reference,
 )
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.plot import plot_curve
+from pymc_marketing.serialization import registry
 
 
 def test_gaussian_basis_plot() -> None:
@@ -126,7 +126,7 @@ def test_gaussian_basis_serialization():
 
     # Test to_dict and from_dict
     gaussian_dict = gaussian.to_dict()
-    gaussian_restored = basis_from_dict(gaussian_dict)
+    gaussian_restored = registry.deserialize(gaussian_dict)
 
     assert gaussian_restored.lookup_name == gaussian.lookup_name
     assert gaussian_restored.prefix == gaussian.prefix
@@ -621,7 +621,7 @@ def test_half_gaussian_serialization():
     )
 
     d = half.to_dict()
-    restored = basis_from_dict(d)
+    restored = registry.deserialize(d)
 
     assert isinstance(restored, HalfGaussianBasis)
     assert restored.lookup_name == "half_gaussian"
@@ -800,11 +800,10 @@ def test_asymmetric_gaussian_basis_serialization():
 
     # Test to_dict and from_dict
     asymmetric_dict = asymmetric.to_dict()
-    asymmetric_restored = basis_from_dict(asymmetric_dict)
+    asymmetric_restored = registry.deserialize(asymmetric_dict)
 
     assert isinstance(asymmetric_restored, AsymmetricGaussianBasis)
     assert asymmetric_restored.lookup_name == "asymmetric_gaussian"
-    # Cast to access AsymmetricGaussianBasis specific attributes
     restored_asymmetric = cast(AsymmetricGaussianBasis, asymmetric_restored)
     assert restored_asymmetric.event_in == asymmetric.event_in
 
@@ -824,9 +823,8 @@ def test_asymmetric_gaussian_basis_serialization_roundtrip():
     asymmetric_dict = asymmetric.to_dict()
 
     # Deserialize
-    restored_asymmetric = basis_from_dict(asymmetric_dict)
+    restored_asymmetric = registry.deserialize(asymmetric_dict)
 
-    # Compare all attributes
     assert restored_asymmetric.lookup_name == asymmetric.lookup_name
     assert restored_asymmetric.prefix == asymmetric.prefix
     # Cast to access AsymmetricGaussianBasis specific attributes

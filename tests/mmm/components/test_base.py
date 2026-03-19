@@ -64,16 +64,6 @@ def test_new_transformation_missing_function() -> None:
         NewTransformation()
 
 
-def test_new_transformation_missing_lookup_name() -> None:
-    class NewTransformation(Transformation):
-        prefix = "new"
-        default_priors = {}
-        function = lambda x: x  # noqa: E731
-
-    with pytest.raises(NotImplementedError, match=r"lookup_name must be implemented"):
-        NewTransformation()
-
-
 lambda_function = lambda x, a: x + a  # noqa: E731
 
 

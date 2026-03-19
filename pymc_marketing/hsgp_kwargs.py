@@ -17,7 +17,6 @@ from enum import StrEnum
 from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
-from pymc_extras.deserialize import register_deserialization
 
 from pymc_marketing.serialization import registry
 
@@ -106,20 +105,3 @@ class HSGPKwargs(BaseModel):
         """Reconstruct from a dict."""
         filtered = {k: v for k, v in data.items() if k != "__type__"}
         return cls.model_validate(filtered)
-
-
-def _is_hsgp_kwargs(data) -> bool:
-    return isinstance(data, dict) and data.keys() == {
-        "m",
-        "L",
-        "eta_lam",
-        "ls_mu",
-        "ls_sigma",
-        "cov_func",
-    }
-
-
-register_deserialization(
-    is_type=_is_hsgp_kwargs,
-    deserialize=lambda data: HSGPKwargs.model_validate(data),
-)

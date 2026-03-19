@@ -21,7 +21,6 @@ import pytest
 import xarray as xr
 from pymc_extras.deserialize import (
     DESERIALIZERS,
-    deserialize,
     register_deserialization,
 )
 from pymc_extras.prior import Prior
@@ -698,7 +697,7 @@ def test_fourier_deserialization(serialization, name, cls) -> None:
             "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
         },
     }
-    fourier = deserialize(data)
+    fourier = cls.from_dict(data)
 
     assert isinstance(fourier, cls)
     assert fourier.n_order == 4

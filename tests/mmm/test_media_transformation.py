@@ -16,7 +16,6 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytest
-from pymc_extras.deserialize import deserialize
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.components.adstock import DelayedAdstock
@@ -160,7 +159,7 @@ def test_media_transformation_deserialize() -> None:
         "adstock_first": True,
     }
 
-    media_transformation = deserialize(data)
+    media_transformation = MediaTransformation.from_dict(data)
     assert isinstance(media_transformation, MediaTransformation)
 
 
@@ -179,7 +178,7 @@ def test_media_config_list_deserialize() -> None:
         }
     ]
 
-    media_config_list = deserialize(data)
+    media_config_list = MediaConfigList.from_dict(data)
     assert isinstance(media_config_list, MediaConfigList)
 
 

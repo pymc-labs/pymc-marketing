@@ -108,20 +108,17 @@ from pydantic import (
     model_validator,
     validate_call,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
+from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.utils import density
 from pymc_marketing.serialization import registry
 
-BASIS_TRANSFORMATIONS: dict = {}
-BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
 
-
-class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
+class Basis(Transformation):
     """Basis transformation associated with an event model."""
 
     prefix: str = "basis"
@@ -185,29 +182,6 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
         )
 
 
-def basis_from_dict(data: dict) -> Basis:
-    """Create a basis transformation from a dictionary."""
-    data = data.copy()
-    data.pop("__type__", None)
-    lookup_name = data.pop("lookup_name")
-    cls = BASIS_TRANSFORMATIONS[lookup_name]
-
-    if "priors" in data:
-        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-    return cls(**data)
-
-
-def _is_basis(data):
-    return "lookup_name" in data and data["lookup_name"] in BASIS_TRANSFORMATIONS
-
-
-register_deserialization(
-    is_type=_is_basis,
-    deserialize=basis_from_dict,
-)
-
-
 @registry.register
 class EventEffect(BaseModel):
     """Event effect associated with an event model."""
@@ -261,22 +235,18 @@ class EventEffect(BaseModel):
         data_inner = data.get("data", data)
         if "__type__" in data_inner:
             data_inner = {k: v for k, v in data_inner.items() if k != "__type__"}
+
+        basis_data = data_inner["basis"]
+        if isinstance(basis_data, dict) and "__type__" in basis_data:
+            basis = registry.deserialize(basis_data)
+        else:
+            basis = deserialize(basis_data)
+
         return cls(
-            basis=deserialize(data_inner["basis"]),
+            basis=basis,
             effect_size=deserialize(data_inner["effect_size"]),
             dims=data_inner["dims"],
         )
-
-
-def _is_event_effect(data: dict) -> bool:
-    """Check if the data is an event effect."""
-    return data["class"] == "EventEffect"
-
-
-register_deserialization(
-    is_type=_is_event_effect,
-    deserialize=lambda data: EventEffect.from_dict(data["data"]),
-)
 
 
 @registry.register

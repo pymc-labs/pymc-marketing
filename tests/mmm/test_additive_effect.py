@@ -443,7 +443,7 @@ class TestEventAdditiveEffectSerialization:
         assert "__type__" in data
         assert "effect" in data
         assert "df_events_group" in data
-        assert data["df_events_group"] == "supplementary_data/custom_events"
+        assert data["df_events_group"] == "supplementary_data_custom_events"
         assert data["prefix"] == "custom_events"
         assert data["reference_date"] == "2024-06-01"
         assert data["date_dim_name"] == "custom_date"
@@ -485,7 +485,7 @@ class TestEventAdditiveEffectSerialization:
         data = registry.serialize(original)
 
         ds = xr.Dataset.from_dataframe(df.set_index("name"))
-        fake_idata_dict = {"supplementary_data/custom_events": ds}
+        fake_idata_dict = {"supplementary_data_custom_events": ds}
 
         class MockIdata:
             def __getitem__(self, key):

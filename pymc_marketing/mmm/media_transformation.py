@@ -97,7 +97,6 @@ from typing import cast
 import pymc as pm
 import pytensor.xtensor as ptx
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.deserialize import register_deserialization
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.adstock import (
@@ -267,21 +266,6 @@ class MediaTransformation:
         )
 
 
-def _is_media_transformation(data):
-    return (
-        isinstance(data, dict)
-        and "adstock" in data
-        and "saturation" in data
-        and "adstock_first" in data
-    )
-
-
-register_deserialization(
-    is_type=_is_media_transformation,
-    deserialize=MediaTransformation.from_dict,
-)
-
-
 @registry.register
 @dataclass
 class MediaConfig:
@@ -340,16 +324,6 @@ class MediaConfig:
                 data["media_transformation"]
             ),
         )
-
-
-def _is_media_config(data):
-    return (
-        isinstance(data, dict)
-        and "name" in data
-        and "columns" in data
-        and "media_transformation" in data
-        and _is_media_transformation(data["media_transformation"])
-    )
 
 
 @registry.register
@@ -536,13 +510,3 @@ class MediaConfigList:
         return ptx.concat(transformed_data, dim=media_dim).transpose(
             date_dim, media_dim
         )
-
-
-def _is_media_config_list(data):
-    return isinstance(data, list) and all(_is_media_config(config) for config in data)
-
-
-register_deserialization(
-    is_type=_is_media_config_list,
-    deserialize=MediaConfigList.from_dict,
-)

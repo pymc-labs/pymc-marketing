@@ -256,7 +256,7 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -994,30 +994,3 @@ class WeeklyFourier(FourierBase):
             The relevant period within the characteristic periodicity
         """
         return dates.dayofyear
-
-
-def _is_yearly_fourier(data: Any) -> bool:
-    return data.get("class") == "YearlyFourier"
-
-
-def _is_monthly_fourier(data: Any) -> bool:
-    return data.get("class") == "MonthlyFourier"
-
-
-def _is_weekly_fourier(data: Any) -> bool:
-    return data.get("class") == "WeeklyFourier"
-
-
-register_deserialization(
-    is_type=_is_yearly_fourier,
-    deserialize=lambda data: YearlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_monthly_fourier,
-    deserialize=lambda data: MonthlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_weekly_fourier, deserialize=lambda data: WeeklyFourier.from_dict(data)
-)

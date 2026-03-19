@@ -304,9 +304,6 @@ class Transformation:
         if not hasattr(self, "function"):
             raise NotImplementedError("function must be implemented in the subclass")
 
-        if not hasattr(self, "lookup_name"):
-            raise NotImplementedError("lookup_name must be implemented in the subclass")
-
     def _has_defaults_for_all_arguments(self) -> None:
         function_signature = signature(self.function)
 
