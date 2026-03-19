@@ -4437,3 +4437,149 @@ class TestChannelCoordinateOrdering:
         wrapper = shuffled_mmm.data
         assert isinstance(wrapper, MMMIDataWrapper)
         assert wrapper.channels == channels
+class TestComputeMeanContributionsOverTime:
+    """Tests for compute_mean_contributions_over_time method."""
+
+    def test_channels_only(self, single_dim_data, mock_pymc_sample) -> None:
+        """Channels + intercept only (no controls, no seasonality)."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        n_dates = X["date"].nunique()
+        assert result.shape[0] == n_dates
+        expected_columns = ["date", "channel_1", "channel_2", "channel_3", "intercept"]
+        assert result.columns.tolist() == expected_columns
+
+    def test_with_controls_and_seasonality(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Full model with controls and yearly seasonality."""
+        X, y = single_dim_data
+        X = X.copy()
+        X["ctrl"] = np.random.default_rng(0).uniform(size=len(X))
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            control_columns=["ctrl"],
+            target_column="target",
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        expected_columns = [
+            "date",
+            "channel_1",
+            "channel_2",
+            "channel_3",
+            "ctrl",
+            "yearly_seasonality",
+            "intercept",
+        ]
+        assert result.columns.tolist() == expected_columns
+
+    def test_multi_dimensional(self, multi_dim_data, mock_pymc_sample) -> None:
+        """Extra panel dimensions (e.g. country) produce additional columns."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        assert "country" in result.columns
+        assert "date" in result.columns
+        n_dates = X["date"].nunique()
+        n_countries = X["country"].nunique()
+        assert result.shape[0] == n_dates * n_countries
+        for ch in ["channel_1", "channel_2", "channel_3"]:
+            assert ch in result.columns
+        assert "intercept" in result.columns
+
+    def test_original_scale_values(self, single_dim_data, mock_pymc_sample) -> None:
+        """Verify values match manual target_scale multiplication."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        target_scale = mmm.idata.constant_data["target_scale"].values
+        scaled_channel = mmm.idata.posterior["channel_contribution"].mean(
+            dim=("chain", "draw")
+        )
+        expected_channel = (scaled_channel * target_scale).values
+
+        actual_channel = result[["channel_1", "channel_2", "channel_3"]].values
+        np.testing.assert_allclose(actual_channel, expected_channel, rtol=1e-6)
+
+    def test_with_time_varying_intercept(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Time-varying intercept produces a per-date intercept column."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_intercept=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        assert "intercept" in result.columns
+        n_dates = X["date"].nunique()
+        assert result.shape[0] == n_dates
+
+        target_scale = mmm.idata.constant_data["target_scale"].values
+        scaled_intercept = mmm.idata.posterior["intercept_contribution"].mean(
+            dim=("chain", "draw")
+        )
+        expected_intercept = (scaled_intercept * target_scale).values
+
+        np.testing.assert_allclose(
+            result["intercept"].values, expected_intercept, rtol=1e-6
+        )
+
+    def test_raises_without_idata(self) -> None:
+        """Method raises ValueError before fitting."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch"],
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        with pytest.raises(ValueError, match="idata"):
+            mmm.compute_mean_contributions_over_time()

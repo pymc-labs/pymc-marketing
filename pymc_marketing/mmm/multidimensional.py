@@ -1249,6 +1249,78 @@ class MMM(RegressionModelBuilder):
 
         return MMMIDataWrapper.from_mmm(self)
 
+    def compute_mean_contributions_over_time(self) -> pd.DataFrame:
+        """Get the mean contribution of each component over time in original scale.
+
+        Extracts channel, control, seasonality, and intercept contributions from
+        the posterior, computes the mean over MCMC samples (chain and draw), and
+        converts to original scale by multiplying by the target scaler stored in
+        ``idata.constant_data["target_scale"]``.
+
+        This method does **not** require
+        :meth:`add_original_scale_contribution_variable` to have been called.
+
+        Returns
+        -------
+        pd.DataFrame
+            Wide-format DataFrame with one row per observation (date x extra
+            dims).  Columns include:
+
+            - ``date`` -- date coordinate
+            - Extra dimension columns (e.g. ``geo``) when the model is
+              multidimensional
+            - One column per channel (named after channel coordinate labels)
+            - One column per control variable (if present)
+            - ``yearly_seasonality`` (if yearly seasonality is enabled)
+            - ``intercept``
+
+        Raises
+        ------
+        ValueError
+            If the model has not been fitted (no ``idata``).
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            contributions_df = mmm.compute_mean_contributions_over_time()
+
+        See Also
+        --------
+        add_original_scale_contribution_variable :
+            Pre-compute original-scale deterministics inside the model graph.
+        MMMIDataWrapper.get_contributions :
+            Full posterior contributions as an ``xr.Dataset``.
+        """
+        self._validate_idata_exists()
+        idata: az.InferenceData = cast(az.InferenceData, self.idata)
+
+        posterior: xr.Dataset = idata.posterior
+        target_scale: xr.DataArray = idata.constant_data["target_scale"]
+
+        def _to_original_scale_mean(var_name: str) -> xr.DataArray:
+            return (posterior[var_name] * target_scale).mean(dim=("chain", "draw"))
+
+        channel_da: xr.DataArray = _to_original_scale_mean("channel_contribution")
+        parts: list[xr.Dataset] = [channel_da.to_dataset(dim="channel")]
+
+        if "control_contribution" in posterior:
+            control_da: xr.DataArray = _to_original_scale_mean("control_contribution")
+            parts.append(control_da.to_dataset(dim="control"))
+
+        if "yearly_seasonality_contribution" in posterior:
+            seasonality_da: xr.DataArray = _to_original_scale_mean(
+                "yearly_seasonality_contribution"
+            )
+            parts.append(seasonality_da.to_dataset(name="yearly_seasonality"))
+
+        intercept_da: xr.DataArray = _to_original_scale_mean("intercept_contribution")
+        parts.append(intercept_da.to_dataset(name="intercept"))
+
+        merged: xr.Dataset = xr.merge(parts)
+        return merged.to_dataframe().reset_index()
+
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
         """Access summary DataFrame generation functionality.
