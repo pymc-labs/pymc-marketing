@@ -152,7 +152,6 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from functools import singledispatch
 from typing import Annotated, Any, cast
 
 import arviz as az
@@ -165,7 +164,6 @@ import xarray as xr
 from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -183,18 +181,12 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.causal import CausalGraphModel
-from pymc_marketing.mmm.components.adstock import (
-    AdstockTransformation,
-    adstock_from_dict,
-)
-from pymc_marketing.mmm.components.saturation import (
-    SaturationTransformation,
-    saturation_from_dict,
-)
+from pymc_marketing.mmm.components.adstock import AdstockTransformation
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
-from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
+from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_potentials,
@@ -231,144 +223,6 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
-
-
-@singledispatch
-def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
-    """Serialize a MuEffect to JSON-compatible dict.
-
-    Default implementation uses Pydantic's model_dump for unknown types.
-    Register new types with: @_serialize_mu_effect.register(YourEffect)
-    """
-    # Check if the effect has model_dump (Pydantic BaseModel)
-    if not hasattr(effect, "model_dump"):
-        raise TypeError(
-            f"Cannot serialize MuEffect of type '{effect.__class__.__name__}': "
-            f"MuEffect subclasses must inherit from pydantic.BaseModel. "
-            f"Update your custom effect class to inherit from MuEffect (which is now a BaseModel). "
-            f"See pymc_marketing.mmm.additive_effect.MuEffect for the new base class definition."
-        )
-
-    return {
-        "class": effect.__class__.__name__,
-        **effect.model_dump(mode="json"),
-    }
-
-
-def _deserialize_mu_effect(data: dict[str, Any]) -> MuEffect:
-    """Deserialize a MuEffect from dict using class name."""
-    class_name = data.get("class")
-    if class_name not in _MUEFFECT_DESERIALIZERS:
-        raise ValueError(
-            f"Unknown MuEffect class: {class_name}. "
-            f"Registered types: {list(_MUEFFECT_DESERIALIZERS.keys())}"
-        )
-    return _MUEFFECT_DESERIALIZERS[class_name](data)
-
-
-# Deserialization registry: maps class name -> deserializer function
-_MUEFFECT_DESERIALIZERS: dict[str, Callable[[dict[str, Any]], MuEffect]] = {}
-
-
-# Register serializers/deserializers at module load
-# Imports are inside function to avoid circular dependencies
-def _register_mu_effect_handlers():
-    """Register all known MuEffect serialization handlers."""
-    from pymc_marketing.mmm import fourier as fourier_module
-    from pymc_marketing.mmm.additive_effect import (
-        EventAdditiveEffect,
-        FourierEffect,
-        LinearTrendEffect,
-    )
-    from pymc_marketing.mmm.linear_trend import LinearTrend
-
-    # FourierEffect
-    @_serialize_mu_effect.register(FourierEffect)
-    def _(effect: FourierEffect) -> dict[str, Any]:
-        return {
-            "class": "FourierEffect",
-            "fourier": effect.fourier.to_dict(),
-            "date_dim_name": effect.date_dim_name,
-        }
-
-    def _deser_fourier(data: dict[str, Any]) -> FourierEffect:
-        # Get Fourier class from module by name and use its from_dict method
-        fourier_data = data["fourier"]
-        fourier_class_name = fourier_data.get("class")
-        fourier_class = getattr(fourier_module, fourier_class_name, None)
-        if fourier_class is None:
-            raise ValueError(
-                f"Unknown Fourier class: {fourier_class_name}. "
-                f"Not found in pymc_marketing.mmm.fourier module."
-            )
-
-        fourier = fourier_class.from_dict(fourier_data)
-        return FourierEffect(
-            fourier=fourier,
-            date_dim_name=data.get("date_dim_name", "date"),
-        )
-
-    # LinearTrendEffect
-    @_serialize_mu_effect.register(LinearTrendEffect)
-    def _(effect: LinearTrendEffect) -> dict[str, Any]:
-        # Serialize trend data, handling priors separately
-        trend_data = effect.trend.model_dump(mode="json", exclude={"priors"})
-        # Manually serialize priors using Prior.to_dict()
-        if effect.trend.priors is not None:
-            trend_data["priors"] = {
-                key: prior.to_dict() for key, prior in effect.trend.priors.items()
-            }
-        return {
-            "class": "LinearTrendEffect",
-            "trend": trend_data,
-            "prefix": effect.prefix,
-            "date_dim_name": effect.date_dim_name,
-        }
-
-    def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
-        # Deserialize priors separately using generic deserialize()
-        # to support both Prior and SpecialPrior (e.g., LogNormalPrior)
-        trend_data = data["trend"].copy()
-        if "priors" in trend_data and trend_data["priors"] is not None:
-            trend_data["priors"] = {
-                key: deserialize(prior_dict)
-                for key, prior_dict in trend_data["priors"].items()
-            }
-        return LinearTrendEffect(
-            trend=LinearTrend.model_validate(trend_data),
-            prefix=data["prefix"],
-            date_dim_name=data.get("date_dim_name", "date"),
-        )
-
-    # EventAdditiveEffect
-    @_serialize_mu_effect.register(EventAdditiveEffect)
-    def _(effect: EventAdditiveEffect) -> dict[str, Any]:
-        result = {
-            "class": "EventAdditiveEffect",
-            **effect.model_dump(mode="json", exclude={"df_events", "effect"}),
-        }
-        result["event_names"] = effect.df_events["name"].tolist()
-        return result
-
-    def _deser_event(data: dict[str, Any]) -> EventAdditiveEffect:
-        raise ValueError(
-            "EventAdditiveEffect deserialization not supported: "
-            "requires original df_events DataFrame. "
-            f"Event names in saved model: {data.get('event_names', [])}"
-        )
-
-    # Populate deserialization registry
-    _MUEFFECT_DESERIALIZERS.update(
-        {
-            "FourierEffect": _deser_fourier,
-            "LinearTrendEffect": _deser_linear_trend,
-            "EventAdditiveEffect": _deser_event,
-        }
-    )
-
-
-# Register handlers at module load
-_register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
@@ -1095,41 +949,6 @@ class MMM(RegressionModelBuilder):
         super().save(fname, **kwargs)
 
     @classmethod
-    def _model_config_formatting(cls, model_config: dict) -> dict:
-        """Format the model configuration.
-
-        Because of json serialization, model_config values that were originally tuples
-        or numpy are being encoded as lists. This function converts them back to tuples
-        and numpy arrays to ensure correct id encoding.
-
-        Parameters
-        ----------
-        model_config : dict
-            The model configuration to format.
-
-        Returns
-        -------
-        dict
-            The formatted model configuration.
-
-        """
-
-        def format_nested_dict(d: dict) -> dict:
-            for key, value in d.items():
-                if isinstance(value, dict):
-                    d[key] = format_nested_dict(value)
-                elif isinstance(value, list):
-                    # Check if the key is "dims" to convert it to tuple
-                    if key == "dims":
-                        d[key] = tuple(value)
-                    # Convert all other lists to numpy arrays
-                    else:
-                        d[key] = np.array(value)
-            return d
-
-        return format_nested_dict(model_config.copy())
-
-    @classmethod
     def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> MMM:
         """Load from InferenceData, auto-migrating old formats."""
         from pymc_marketing.serialization_migration import (
@@ -1155,39 +974,16 @@ class MMM(RegressionModelBuilder):
         """Convert the idata attributes to the model initialization kwargs."""
         from pymc_marketing.serialization import registry
 
-        adstock_data = json.loads(attrs["adstock"])
-        saturation_data = json.loads(attrs["saturation"])
-        tvi_data = json.loads(attrs.get("time_varying_intercept", "false"))
-        tvm_data = json.loads(attrs.get("time_varying_media", "false"))
-        scaling_data = json.loads(attrs.get("scaling", "null"))
+        def _deser(raw: str, fallback=None):
+            data = json.loads(raw)
+            if isinstance(data, dict) and "__type__" in data:
+                return registry.deserialize(data)
+            return fallback if fallback is not None else data
 
-        adstock = (
-            registry.deserialize(adstock_data)
-            if isinstance(adstock_data, dict) and "__type__" in adstock_data
-            else adstock_from_dict(adstock_data)
-        )
-        saturation = (
-            registry.deserialize(saturation_data)
-            if isinstance(saturation_data, dict) and "__type__" in saturation_data
-            else saturation_from_dict(saturation_data)
-        )
-        tvi = (
-            registry.deserialize(tvi_data)
-            if isinstance(tvi_data, dict) and "__type__" in tvi_data
-            else hsgp_from_dict(tvi_data)
-        )
-        tvm = (
-            registry.deserialize(tvm_data)
-            if isinstance(tvm_data, dict) and "__type__" in tvm_data
-            else hsgp_from_dict(tvm_data)
-        )
-        scaling = (
-            registry.deserialize(scaling_data)
-            if isinstance(scaling_data, dict)
-            and scaling_data
-            and "__type__" in scaling_data
-            else scaling_data
-        )
+        tvi_raw = attrs.get("time_varying_intercept", "false")
+        tvm_raw = attrs.get("time_varying_media", "false")
+        tvi_data = json.loads(tvi_raw)
+        tvm_data = json.loads(tvm_raw)
 
         return {
             "model_config": cls._model_config_formatting(
@@ -1196,16 +992,24 @@ class MMM(RegressionModelBuilder):
             "date_column": attrs["date_column"],
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
-            "adstock": adstock,
-            "saturation": saturation,
+            "adstock": _deser(attrs["adstock"]),
+            "saturation": _deser(attrs["saturation"]),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
-            "time_varying_intercept": tvi,
+            "time_varying_intercept": (
+                registry.deserialize(tvi_data)
+                if isinstance(tvi_data, dict) and "__type__" in tvi_data
+                else tvi_data
+            ),
             "target_column": attrs["target_column"],
-            "time_varying_media": tvm,
+            "time_varying_media": (
+                registry.deserialize(tvm_data)
+                if isinstance(tvm_data, dict) and "__type__" in tvm_data
+                else tvm_data
+            ),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
-            "scaling": scaling,
+            "scaling": _deser(attrs.get("scaling", "null")),
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
@@ -3251,22 +3055,15 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
-        # Restore mu_effects from idata attrs if present
         if "mu_effects" in idata.attrs:
-            from pymc_marketing.serialization import (
-                DeserializationContext,
-                registry,
-            )
+            from pymc_marketing.serialization import DeserializationContext, registry
 
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
             ctx = DeserializationContext(idata=idata)
-            self.mu_effects = []
-            for effect_data in mu_effects_data:
-                if isinstance(effect_data, dict) and "__type__" in effect_data:
-                    effect = registry.deserialize(effect_data, context=ctx)
-                else:
-                    effect = _deserialize_mu_effect(effect_data)
-                self.mu_effects.append(effect)
+            self.mu_effects = [
+                registry.deserialize(effect_data, context=ctx)
+                for effect_data in mu_effects_data
+            ]
 
         dataset = idata.fit_data.to_dataframe()
 

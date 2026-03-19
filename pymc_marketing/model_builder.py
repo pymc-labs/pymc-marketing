@@ -404,24 +404,24 @@ class ModelIO:
     def _model_config_formatting(cls, model_config: dict) -> dict:
         """Format the model configuration.
 
-        If a value is a dict with a ``__type__`` key, it is deserialized via the
-        TypeRegistry. Otherwise the existing ``list→tuple`` / ``list→np.array``
-        heuristic is applied for backward compatibility.
+        Recursively processes the config dict.  Dicts with a ``__type__`` key
+        are deserialized via the TypeRegistry.  Plain lists are converted back
+        to tuples (for ``dims``) or numpy arrays (everything else) to undo the
+        JSON round-trip.
         """
         from pymc_marketing.serialization import registry
 
-        for key in model_config:
-            value = model_config[key]
-            if isinstance(value, dict) and "__type__" in value:
-                model_config[key] = registry.deserialize(value)
-            elif isinstance(value, dict):
-                for sub_key in value:
-                    if isinstance(value[sub_key], list):
-                        if sub_key == "dims":
-                            value[sub_key] = tuple(value[sub_key])
-                        else:
-                            value[sub_key] = np.array(value[sub_key])
-        return model_config
+        def _format(d: dict) -> dict:
+            for key, value in d.items():
+                if isinstance(value, dict) and "__type__" in value:
+                    d[key] = registry.deserialize(value)
+                elif isinstance(value, dict):
+                    d[key] = _format(value)
+                elif isinstance(value, list):
+                    d[key] = tuple(value) if key == "dims" else np.array(value)
+            return d
+
+        return _format(model_config.copy())
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
