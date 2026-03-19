@@ -70,7 +70,7 @@ x[0] = 1
 def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
     x = as_xtensor(x, dims=dims)
     with model:
-        y = adstock.apply(x, dims=dims, core_dim="time")
+        y = adstock.apply(x, core_dim="time")
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape

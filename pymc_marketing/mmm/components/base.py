@@ -620,7 +620,6 @@ class Transformation:
         self,
         x: XTensorLike,
         *,
-        dims: Dims | None = None,
         core_dim: str | None = None,
         idx: XTensorLike | Sequence[XTensorLike] | dict[str, XTensorLike] | None = None,
     ) -> XTensorVariable:
@@ -632,8 +631,10 @@ class Transformation:
         ----------
         x : XTensorLike
             The data to be transformed.
-        core_dim: str
+        core_dim : str
             The dimension of X along which to apply the transformation.
+        idx : XTensorLike | Sequence[XTensorLike] | dict[str, XTensorLike] | None
+            Optional index to select subsets of the prior distributions.
 
         Returns
         -------
@@ -658,12 +659,6 @@ class Transformation:
                 transformed_data = transformation.apply(data, core_dim="date")
 
         """
-        if dims is not None:
-            warnings.warn(
-                "Transformation.apply no longer requires dims. Using it will raise in a future release",
-                FutureWarning,
-                stacklevel=2,
-            )
         kwargs = self._create_distributions(idx=idx)
         return self.function(x, dim=core_dim, **kwargs)
 

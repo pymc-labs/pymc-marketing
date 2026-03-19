@@ -525,7 +525,7 @@ def test_apply_idx(new_transformation_class) -> None:
     coords = {"geo": ["A", "B"], "channel": ["TV", "Radio", "Online"]}
     with pm.Model(coords=coords) as model:
         idx = as_xtensor([0, 0, 0, 1, 1, 1], dims=("geo",))
-        Y = instance.apply(X, idx=idx, dims=("channel",))
+        Y = instance.apply(X, idx=idx)
 
         expected = instance.function(
             X,
@@ -576,7 +576,6 @@ def test_apply_idx_more_dims(new_transformation_class) -> None:
         Y = instance.apply(
             X,
             idx=(geo_idx, product_idx),
-            dims="channel",
         )
 
         expected = instance.function(
