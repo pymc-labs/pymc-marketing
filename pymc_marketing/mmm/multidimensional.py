@@ -1691,6 +1691,19 @@ class MMM(RegressionModelBuilder):
                 metric_coordinate_name=metric_coordinate_name,
             )
 
+    def _reindex_dataset_to_user_order(self, dataset: xr.Dataset) -> xr.Dataset:
+        """Restore user-provided coordinate ordering after xr.merge.
+
+        ``xr.merge`` alphabetically sorts coordinates. This method restores
+        the original user-provided ordering for channel and control
+        coordinates, which is critical because ``pm.set_data`` performs
+        positional (not label-based) assignment.
+        """
+        dataset = dataset.reindex(channel=self.channel_columns)
+        if self.control_columns is not None:
+            dataset = dataset.reindex(control=self.control_columns)
+        return dataset
+
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame,  # type: ignore
@@ -1734,6 +1747,7 @@ class MMM(RegressionModelBuilder):
             dataarrays.append(control_dataarray)
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
+        self.xarray_dataset = self._reindex_dataset_to_user_order(self.xarray_dataset)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
 
@@ -2276,7 +2290,8 @@ class MMM(RegressionModelBuilder):
             ).to_dataset()
 
         dataarrays.append(y_xarray)
-        return xr.merge(dataarrays, join="outer", compat="no_conflicts").fillna(0)
+        result = xr.merge(dataarrays, join="outer", compat="no_conflicts").fillna(0)
+        return self._reindex_dataset_to_user_order(result)
 
     def _set_xarray_data(
         self,
