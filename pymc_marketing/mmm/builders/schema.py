@@ -71,6 +71,19 @@ def _valid_field_keys(cls: type[BaseModel]) -> set[str]:
     return keys
 
 
+def _check_for_unknown_keys(cls: type[BaseModel], data: Any, *, label: str) -> Any:
+    """Raise ``ValueError`` for any keys in *data* not declared on *cls*."""
+    if isinstance(data, dict):
+        valid_keys = _valid_field_keys(cls)
+        for key in set(data.keys()) - valid_keys:
+            hint = suggest_typo_fix(key, valid_keys)
+            msg = f"Unknown {label} key '{key}'."
+            if hint:
+                msg += f" Did you mean '{hint}'?"
+            raise ValueError(msg)
+    return data
+
+
 class BuildSpec(BaseModel):
     """Schema for an object build specification."""
 
@@ -93,15 +106,7 @@ class BuildSpec(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _check_unknown_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            valid_keys = _valid_field_keys(cls)
-            for key in set(data.keys()) - valid_keys:
-                hint = suggest_typo_fix(key, valid_keys)
-                msg = f"Unknown key '{key}' in build spec."
-                if hint:
-                    msg += f" Did you mean '{hint}'?"
-                raise ValueError(msg)
-        return data
+        return _check_for_unknown_keys(cls, data, label="build spec")
 
 
 class DataConfig(BaseModel):
@@ -159,15 +164,7 @@ class MMMYamlConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _check_unknown_keys(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            valid_keys = _valid_field_keys(cls)
-            for key in set(data.keys()) - valid_keys:
-                hint = suggest_typo_fix(key, valid_keys)
-                msg = f"Unknown config key '{key}'."
-                if hint:
-                    msg += f" Did you mean '{hint}'?"
-                raise ValueError(msg)
-        return data
+        return _check_for_unknown_keys(cls, data, label="config")
 
     @classmethod
     def from_yaml_file(cls, path: str | Path) -> MMMYamlConfig:

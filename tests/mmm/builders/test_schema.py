@@ -73,7 +73,7 @@ class TestBuildSpec:
             BuildSpec.model_validate({"class": "foo.Bar", "kwarg": {}})
 
     def test_unknown_key_without_suggestion(self):
-        with pytest.raises(ValidationError, match="Unknown key 'zzz'"):
+        with pytest.raises(ValidationError, match="Unknown build spec key 'zzz'"):
             BuildSpec.model_validate({"class": "foo.Bar", "zzz": {}})
 
     def test_model_dump_round_trip(self):
