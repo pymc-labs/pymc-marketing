@@ -64,9 +64,6 @@ def _select_dims(
 ) -> _XarrayT:
     """Validate dimension filters and apply ``.sel()`` in one step.
 
-    Only dimensions present in ``data`` are validated and selected;
-    extra keys in ``dims`` are silently ignored.
-
     Parameters
     ----------
     data : xr.Dataset or xr.DataArray
@@ -80,16 +77,18 @@ def _select_dims(
         Filtered object (same type as *data*).  Dimensions are preserved
         as size-1 (scalars are wrapped in lists) so downstream faceting
         still works.
+
+    Raises
+    ------
+    ValueError
+        If a key in *dims* is not a dimension of *data*, or a value
+        is not present in the corresponding coordinate.
     """
     if not dims:
         return data
 
-    applicable = {k: v for k, v in dims.items() if k in data.dims}
-    if not applicable:
-        return data
-
-    _validate_dims(data, applicable)
-    sel_kwargs = _dims_to_sel_kwargs(applicable)
+    _validate_dims(data, dims)
+    sel_kwargs = _dims_to_sel_kwargs(dims)
     return data.sel(**sel_kwargs)
 
 

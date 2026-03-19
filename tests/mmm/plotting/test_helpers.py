@@ -324,13 +324,13 @@ class TestSelectDims:
         result = _select_dims(sample_dataset, {"geo": "US"})
         assert result.sizes["geo"] == 1
 
-    def test_ignores_extra_dims(self, sample_dataset):
-        result = _select_dims(sample_dataset, {"channel": "tv", "region": "US"})
-        assert list(result.coords["channel"].values) == ["tv"]
+    def test_unknown_dim_key_raises(self, sample_dataset):
+        with pytest.raises(ValueError, match="Dimension 'region' not found"):
+            _select_dims(sample_dataset, {"region": "US"})
 
-    def test_all_extra_returns_unchanged(self, sample_dataset):
-        result = _select_dims(sample_dataset, {"region": "US"})
-        assert result is sample_dataset
+    def test_mixed_valid_and_unknown_dim_key_raises(self, sample_dataset):
+        with pytest.raises(ValueError, match="Dimension 'region' not found"):
+            _select_dims(sample_dataset, {"channel": "tv", "region": "US"})
 
     def test_validates_matching_values(self, sample_dataset):
         with pytest.raises(ValueError, match="Value 'FR' not found"):
@@ -346,14 +346,14 @@ class TestSelectDims:
         assert isinstance(result, xr.DataArray)
         assert list(result.coords["channel"].values) == ["tv"]
 
-    def test_dataarray_ignores_extra_dims(self):
+    def test_dataarray_unknown_dim_key_raises(self):
         da = xr.DataArray(
             np.random.randn(3),
             dims=("channel",),
             coords={"channel": ["tv", "radio", "social"]},
         )
-        result = _select_dims(da, {"channel": "tv", "geo": "US"})
-        assert list(result.coords["channel"].values) == ["tv"]
+        with pytest.raises(ValueError, match="Dimension 'geo' not found"):
+            _select_dims(da, {"channel": "tv", "geo": "US"})
 
     def test_multiple_dims_selected(self, sample_dataset):
         result = _select_dims(sample_dataset, {"channel": "tv", "geo": "US"})
