@@ -44,7 +44,6 @@ def _load_df(path: str | Path) -> pd.DataFrame:
 def _apply_and_validate_calibration_steps(
     model: MMM,
     steps: list[CalibrationStep] | None,
-    base_dir: Path,
 ) -> None:
     for step in steps or []:
         if not hasattr(model, step.method_name):
@@ -164,7 +163,7 @@ def build_mmm_from_yaml(
         model.add_original_scale_contribution_variable(var=original_scale_vars)
 
     # 6 -- apply calibration steps (if any)
-    _apply_and_validate_calibration_steps(model, cfg.calibration, config_path.parent)
+    _apply_and_validate_calibration_steps(model, cfg.calibration)
 
     # 7 -- attach inference data
     if cfg.idata_path is not None:

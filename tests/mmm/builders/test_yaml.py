@@ -221,7 +221,7 @@ def failing_mmm(dummy_mmm):
     return failing
 
 
-def test_apply_and_validate_calibration_steps_success(dummy_mmm, tmp_path):
+def test_apply_and_validate_calibration_steps_success(dummy_mmm):
     steps = [
         CalibrationStep.model_validate(
             {
@@ -235,27 +235,27 @@ def test_apply_and_validate_calibration_steps_success(dummy_mmm, tmp_path):
         )
     ]
 
-    _apply_and_validate_calibration_steps(dummy_mmm, steps, tmp_path)
+    _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
     assert isinstance(dummy_mmm.called_with["df"], pd.DataFrame)
 
 
-def test_apply_calibration_missing_method(dummy_mmm, tmp_path):
+def test_apply_calibration_missing_method(dummy_mmm):
     steps = [CalibrationStep.model_validate({"missing": {}})]
 
     with pytest.raises(AttributeError, match="has no calibration method 'missing'"):
-        _apply_and_validate_calibration_steps(dummy_mmm, steps, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
 
-def test_apply_calibration_not_callable(dummy_mmm, tmp_path):
+def test_apply_calibration_not_callable(dummy_mmm):
     dummy_mmm.not_callable = 123  # type: ignore[attr-defined]
     steps = [CalibrationStep.model_validate({"not_callable": {}})]
 
     with pytest.raises(TypeError, match="not callable"):
-        _apply_and_validate_calibration_steps(dummy_mmm, steps, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
 
-def test_apply_calibration_dist_disallowed(dummy_mmm, tmp_path):
+def test_apply_calibration_dist_disallowed(dummy_mmm):
     steps = [
         CalibrationStep.model_validate(
             {"add_lift_test_measurements": {"dist": "Gamma"}}
@@ -263,16 +263,16 @@ def test_apply_calibration_dist_disallowed(dummy_mmm, tmp_path):
     ]
 
     with pytest.raises(ValueError, match="`dist` parameter"):
-        _apply_and_validate_calibration_steps(dummy_mmm, steps, tmp_path)
+        _apply_and_validate_calibration_steps(dummy_mmm, steps)
 
 
-def test_apply_calibration_propagates_failure(failing_mmm, tmp_path):
+def test_apply_calibration_propagates_failure(failing_mmm):
     steps = [CalibrationStep.model_validate({"failing": {}})]
 
     with pytest.raises(
         RuntimeError, match="Failed to apply calibration step 'failing'"
     ):
-        _apply_and_validate_calibration_steps(failing_mmm, steps, tmp_path)
+        _apply_and_validate_calibration_steps(failing_mmm, steps)
 
 
 def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
@@ -516,9 +516,9 @@ def test_original_scale_vars_none_is_harmless(tmp_path):
     assert "channel_contribution_original_scale" not in det_names
 
 
-def test_calibration_none_is_harmless(dummy_mmm, tmp_path):
+def test_calibration_none_is_harmless(dummy_mmm):
     """calibration: None should not crash."""
-    _apply_and_validate_calibration_steps(dummy_mmm, None, tmp_path)
+    _apply_and_validate_calibration_steps(dummy_mmm, None)
     assert dummy_mmm.called_with is None
 
 
