@@ -33,7 +33,7 @@ def dummy_df():
     # Data is not needed for optimization of this model
     df = pd.DataFrame(
         data={
-            "date_week": pd.date_range(start=pd.Timestamp.today(), periods=n, freq="W"),
+            "date_week": pd.date_range(start="2024-01-01", periods=n, freq="W"),
             "channel_1": np.linspace(0, 1, num=n),
             "channel_2": np.linspace(0, 1, num=n),
             # Dim
@@ -78,7 +78,8 @@ def fitted_mmm(dummy_df, mock_pymc_sample):
         target_accept=0.8,
         tune=50,
         draws=50,
-        progressbar=False,  # Disable progress bar for cleaner test output
+        progressbar=False,
+        random_seed=42,
     )
 
     # Sample posterior predictive
@@ -87,6 +88,7 @@ def fitted_mmm(dummy_df, mock_pymc_sample):
         extend_idata=True,
         combined=True,
         progressbar=False,
+        random_seed=42,
     )
 
     return mmm
@@ -113,12 +115,14 @@ def fitted_mmm_tvp(dummy_df, mock_pymc_sample):
         tune=50,
         draws=50,
         progressbar=False,
+        random_seed=42,
     )
     mmm.sample_posterior_predictive(
         X=X_dummy,
         extend_idata=True,
         combined=True,
         progressbar=False,
+        random_seed=42,
     )
     return mmm
 
