@@ -45,6 +45,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.mmm.constraints import Constraint
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import SoftPlusHSGP
@@ -2956,7 +2957,7 @@ class MMM(
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
         response_variable: str = "total_contribution",
         utility_function: UtilityFunctionType = average_response,
-        constraints: Sequence[dict[str, Any]] = (),
+        constraints: Sequence[Constraint] = (),
         default_constraints: bool = True,
         callback: bool = False,
         **minimize_kwargs,
@@ -2995,9 +2996,9 @@ class MMM(
             The response variable to optimize. Default is "total_contribution".
         utility_function : UtilityFunctionType, optional
             The utility function to maximize. Default is the mean of the response distribution.
-        custom_constraints : list[dict[str, Any]], optional
-            Custom constraints for the optimization. If None, no custom constraints are applied. Format:
-            [{"key":...,"constraint_fun":...,"constraint_type":...}]
+        constraints : Sequence[Constraint], optional
+            Custom constraints for the optimization. Each element must be an instance of
+            :class:`~pymc_marketing.mmm.constraints.Constraint`.
         default_constraints : bool, optional
             Whether to add the default sum constraint to the optimizer. Default is True.
         callback : bool, optional

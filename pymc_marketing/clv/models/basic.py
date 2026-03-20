@@ -210,7 +210,10 @@ class CLVModel(ModelBuilder):
         # Convert map result to InferenceData
         map_strace = NDArray(model=model)
         map_strace.setup(draws=1, chain=0)
-        map_strace.record(map_res)
+        try:
+            map_strace.record(map_res, in_warmup=False)
+        except TypeError:
+            map_strace.record(map_res)
         map_strace.close()
         trace = MultiTrace([map_strace])
         return pm.to_inference_data(trace, model=model)

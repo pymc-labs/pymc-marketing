@@ -124,7 +124,7 @@ def test_apply_media_transformation(
             dims=("date", "media"),
         )
         transformed_media_data = media_configs(
-            data,
+            data, core_dim="date", media_dim="media"
         ).eval()
 
     assert transformed_media_data.shape == (media_data.shape[0], len(media_columns))
@@ -145,6 +145,32 @@ def test_apply_media_transformation(
     for rv in expected_free_RVs:
         expected_dims = offline_dims if rv.startswith("offline") else online_dims
         assert actual_dims[rv] == expected_dims
+
+
+def test_media_config_list_dim_order_independent(
+    media_data: pd.DataFrame,
+    create_media_config_list,
+) -> None:
+    """MediaConfigList works regardless of the dimension order of x."""
+    media_configs = create_media_config_list(online_dims=(), offline_dims=())
+    media_columns = media_configs.media_values
+    n_dates = len(media_data.index)
+    coords = {
+        "date": media_data.index,
+        "media": media_columns,
+    }
+
+    with pm.Model(coords=coords):
+        data_media_first = pmd.Data(
+            "media_data",
+            media_data.loc[:, media_columns].to_numpy().T,
+            dims=("media", "date"),
+        )
+        result = media_configs(
+            data_media_first, core_dim="date", media_dim="media"
+        ).eval()
+
+    assert result.shape == (n_dates, len(media_columns))
 
 
 def test_media_transformation_deserialize() -> None:

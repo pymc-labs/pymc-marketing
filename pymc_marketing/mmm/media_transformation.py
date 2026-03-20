@@ -85,7 +85,9 @@ Apply the media transformation to media data in PyMC model:
         media_data = pm.Data(
             "media_data", df.loc[:, media_columns].to_numpy(), dims=("date", "media")
         )
-        transformed_media_data = media_configs(media_data)
+        transformed_media_data = media_configs(
+            media_data, core_dim="date", media_dim="media"
+        )
 
 """
 
@@ -461,7 +463,7 @@ class MediaConfigList:
         configs = data.get("media_configs", [])
         return cls([MediaConfig.from_dict(config) for config in configs])
 
-    def __call__(self, x) -> XTensorVariable:
+    def __call__(self, x, *, core_dim: str, media_dim: str) -> XTensorVariable:
         """Apply media transformation to media data.
 
         Assumes that the columns in the data correspond to the media channels
@@ -471,6 +473,10 @@ class MediaConfigList:
         ----------
         x : XTensorLike
             The media data to transform.
+        core_dim : str
+            The dimension along which to apply the transformation (e.g. "date").
+        media_dim : str
+            The dimension indexing media channels (e.g. "channel" or "media").
 
         Returns
         -------
@@ -479,8 +485,6 @@ class MediaConfigList:
 
         """
         x = ptx.as_xtensor(x)
-        # TODO: This should be defined explicitly, since order of x shouldn't matter
-        date_dim, media_dim = x.dims
         model = pm.modelcontext(None)
 
         transformed_data = []
@@ -501,12 +505,12 @@ class MediaConfigList:
             saturation.prefix = f"{config.name}_{saturation.prefix}"
 
             media_transformation_data = config.media_transformation(
-                media_data, dim=date_dim
+                media_data, dim=core_dim
             ).rename({config.name: media_dim})
             transformed_data.append(media_transformation_data)
 
             start_idx = end_idx
 
         return ptx.concat(transformed_data, dim=media_dim).transpose(
-            date_dim, media_dim
+            core_dim, media_dim
         )
