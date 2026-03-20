@@ -15,6 +15,7 @@
 
 import json
 import subprocess
+import sys
 
 import arviz as az
 import numpy as np
@@ -152,7 +153,7 @@ class TestMigrateIdataCLI:
 
         result = subprocess.run(  # noqa: S603
             [
-                "/Users/imrisofer/miniconda3/envs/pymc-dev-2379/bin/python",
+                sys.executable,
                 "-m",
                 "pymc_marketing.serialization_migration",
                 str(fname),
