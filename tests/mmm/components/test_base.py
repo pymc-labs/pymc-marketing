@@ -28,11 +28,9 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 from pymc_marketing.mmm.components.base import (
-    DuplicatedTransformationError,
     MissingDataParameter,
     ParameterPriorException,
     Transformation,
-    create_registration_meta,
 )
 from pymc_marketing.mmm.components.saturation import TanhSaturation
 
@@ -353,9 +351,9 @@ def test_support_for_non_prior(new_transformation_class) -> None:
     )
 
     result = instance.to_dict()
-    assert result["lookup_name"] == "new_transformation"
     assert result["prefix"] == "new"
     assert result["priors"] == {"a": 1, "b": 2}
+    assert "lookup_name" not in result
 
 
 class StandardNormal:
@@ -388,12 +386,12 @@ def test_support_customer_serialization(
     new_transformation_with_custom,
 ) -> None:
     result = new_transformation_with_custom.to_dict()
-    assert result["lookup_name"] == "new_transformation"
     assert result["prefix"] == "new"
     assert result["priors"] == {
         "a": {"type": "StandardNormal", "dims": ("channel",)},
         "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
     }
+    assert "lookup_name" not in result
 
 
 def test_support_customer_samples(
@@ -415,44 +413,12 @@ def test_serialization(new_transformation_class) -> None:
     )
 
     result = instance.to_dict()
-    assert result["lookup_name"] == "new_transformation"
     assert result["prefix"] == "new"
     assert result["priors"] == {
         "a": [1, 2, 3],
         "b": [1, 2, 3],
     }
-
-
-def test_automatic_registration() -> None:
-    subclasses = {}
-
-    RegistrationMeta = create_registration_meta(subclasses)
-
-    class BaseTransform:
-        pass
-
-    class Transform(BaseTransform, metaclass=RegistrationMeta):
-        pass
-
-    class NewTransform(Transform):
-        lookup_name = "new"
-
-    assert subclasses == {"new": NewTransform}
-
-    class AnotherTransform(Transform):
-        lookup_name = "another"
-
-    assert subclasses == {"new": NewTransform, "another": AnotherTransform}
-
-    with pytest.raises(DuplicatedTransformationError) as e:
-
-        class _(Transform):
-            lookup_name = "new"
-
-    exception = e.value
-
-    assert exception.lookup_name == "new"
-    assert exception.name == "Transform"
+    assert "lookup_name" not in result
 
 
 def test_transform_sample_curve_with_variable_factory():

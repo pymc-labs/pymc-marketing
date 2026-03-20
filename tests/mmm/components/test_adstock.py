@@ -21,7 +21,6 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc_extras.deserialize import (
     DESERIALIZERS,
-    deserialize,
     register_deserialization,
 )
 from pymc_extras.prior import Prior
@@ -34,6 +33,7 @@ from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
+    NoAdstock,
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
@@ -104,7 +104,7 @@ def test_adstock_no_negative_lmax():
     adstocks(),
 )
 def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
-    if adstock.lookup_name == "no_adstock":
+    if isinstance(adstock, NoAdstock):
         raise pytest.skip(reason="NoAdstock has no parameters to sample.")
 
     prior = adstock.sample_prior()
@@ -115,8 +115,7 @@ def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
     assert curve.shape == (1, 500, adstock.l_max)
 
 
-@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_adstock_from_dict(deserialize_func) -> None:
+def test_adstock_from_dict() -> None:
     data = {
         "lookup_name": "geometric",
         "l_max": 10,
@@ -133,7 +132,8 @@ def test_adstock_from_dict(deserialize_func) -> None:
         },
     }
 
-    adstock = deserialize_func(data)
+    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
+        adstock = adstock_from_dict(data)
     assert adstock == GeometricAdstock(
         l_max=10,
         prefix="test",
@@ -145,49 +145,25 @@ def test_adstock_from_dict(deserialize_func) -> None:
 
 
 @pytest.mark.parametrize(
-    "adstock",
-    adstocks(),
+    "lookup_name, adstock_cls",
+    list(ADSTOCK_TRANSFORMATIONS.items()),
 )
-@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
 def test_adstock_from_dict_without_priors(
-    adstock: AdstockTransformation,
-    deserialize_func,
+    lookup_name: str,
+    adstock_cls: type[AdstockTransformation],
 ) -> None:
     data = {
-        "lookup_name": adstock.lookup_name,
+        "lookup_name": lookup_name,
         "l_max": 10,
         "prefix": "test",
         "mode": "Before",
     }
 
-    adstock = deserialize_func(data)
+    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
+        adstock = adstock_from_dict(data)
     assert adstock.default_priors == {
         k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
     }
-
-
-@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_automatic_register_adstock_transformation(deserialize_func) -> None:
-    class AnotherNewTransformation(AdstockTransformation):
-        lookup_name: str = "another_new_transformation"
-        default_priors = {}
-
-        def function(self, x):
-            return x
-
-    data = {
-        "lookup_name": "another_new_transformation",
-        "l_max": 10,
-        "normalize": False,
-        "mode": "Before",
-        "priors": {},
-    }
-    adstock = deserialize_func(data)
-    assert adstock == AnotherNewTransformation(
-        l_max=10, mode=ConvMode.Before, normalize=False, priors={}
-    )
-
-    ADSTOCK_TRANSFORMATIONS.pop("another_new_transformation")
 
 
 def test_repr() -> None:
@@ -234,7 +210,8 @@ def test_deserialization(
         },
     }
 
-    instance = deserialize(data)
+    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
+        instance = adstock_from_dict(data)
     assert isinstance(instance, GeometricAdstock)
     assert instance.prefix == "new"
     assert instance.l_max == 10
@@ -243,27 +220,6 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
-
-
-def test_deserialize_new_transformation() -> None:
-    class NewAdstock(AdstockTransformation):
-        lookup_name = "new_adstock"
-
-        def function(self, x):
-            return x
-
-        default_priors = {}
-
-    data = {
-        "lookup_name": "new_adstock",
-        "l_max": 10,
-    }
-
-    instance = deserialize(data)
-    assert isinstance(instance, NewAdstock)
-    assert instance.l_max == 10
-
-    ADSTOCK_TRANSFORMATIONS.pop("new_adstock")
 
 
 class TestAdstockTypeRegistry:

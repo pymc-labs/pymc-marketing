@@ -21,7 +21,6 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc_extras.deserialize import (
     DESERIALIZERS,
-    deserialize,
     register_deserialization,
 )
 from pymc_extras.prior import Prior
@@ -255,7 +254,8 @@ def test_saturation_from_dict() -> None:
         },
     }
 
-    saturation = saturation_from_dict(data)
+    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
+        saturation = saturation_from_dict(data)
     assert saturation == MichaelisMentenSaturation(
         priors={
             "alpha": Prior("HalfNormal", sigma=1),
@@ -264,13 +264,17 @@ def test_saturation_from_dict() -> None:
     )
 
 
-@pytest.mark.parametrize("saturation", saturation_functions())
-def test_saturation_from_dict_without_priors(saturation) -> None:
+@pytest.mark.parametrize(
+    "lookup_name, saturation_cls",
+    list(SATURATION_TRANSFORMATIONS.items()),
+)
+def test_saturation_from_dict_without_priors(lookup_name, saturation_cls) -> None:
     data = {
-        "lookup_name": saturation.lookup_name,
+        "lookup_name": lookup_name,
     }
 
-    saturation = saturation_from_dict(data)
+    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
+        saturation = saturation_from_dict(data)
     assert saturation.default_priors == {
         k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
     }
@@ -309,7 +313,8 @@ def test_deserialization(
         },
     }
 
-    instance = deserialize(data)
+    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
+        instance = saturation_from_dict(data)
     assert isinstance(instance, LogisticSaturation)
     assert instance.prefix == "new"
 
@@ -317,25 +322,6 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
-
-
-def test_deserialize_new_transformation() -> None:
-    class NewSaturation(SaturationTransformation):
-        lookup_name = "new_saturation"
-
-        def function(self, x):
-            return x
-
-        default_priors = {}
-
-    data = {
-        "lookup_name": "new_saturation",
-    }
-
-    instance = deserialize(data)
-    assert isinstance(instance, NewSaturation)
-
-    SATURATION_TRANSFORMATIONS.pop("new_saturation")
 
 
 class TestSaturationTypeRegistry:
