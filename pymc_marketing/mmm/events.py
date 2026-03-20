@@ -122,7 +122,6 @@ class Basis(Transformation):
     """Basis transformation associated with an event model."""
 
     prefix: str = "basis"
-    lookup_name: str
 
     @classmethod
     def from_dict(cls, data: dict) -> "Basis":
@@ -253,8 +252,6 @@ class EventEffect(BaseModel):
 class GaussianBasis(Basis):
     """Gaussian basis transformation."""
 
-    lookup_name = "gaussian"
-
     def function(
         self, x: XTensorLike, sigma: XTensorLike, *, dim: str | None = None
     ) -> XTensorVariable:
@@ -304,8 +301,6 @@ class HalfGaussianBasis(Basis):
     prefix : str
         Prefix for the parameter names.
     """
-
-    lookup_name = "half_gaussian"
 
     def __init__(
         self,
@@ -385,8 +380,6 @@ class AsymmetricGaussianBasis(Basis):
     prefix : str
         Prefix for the parameters.
     """
-
-    lookup_name = "asymmetric_gaussian"
 
     def __init__(
         self,

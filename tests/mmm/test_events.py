@@ -128,7 +128,6 @@ def test_gaussian_basis_serialization():
     gaussian_dict = gaussian.to_dict()
     gaussian_restored = registry.deserialize(gaussian_dict)
 
-    assert gaussian_restored.lookup_name == gaussian.lookup_name
     assert gaussian_restored.prefix == gaussian.prefix
 
 
@@ -147,7 +146,6 @@ def test_event_effect_serialization():
     effect_restored = EventEffect.from_dict(effect_dict["data"])
 
     assert effect_restored.dims == effect.dims
-    assert effect_restored.basis.lookup_name == effect.basis.lookup_name
     assert effect_restored.effect_size.to_dict() == effect.effect_size.to_dict()
 
 
@@ -300,7 +298,6 @@ def test_event_effect_serialization_roundtrip():
 
     # Compare all attributes
     assert restored_effect.dims == original_effect.dims
-    assert restored_effect.basis.lookup_name == original_effect.basis.lookup_name
     assert restored_effect.basis.prefix == original_effect.basis.prefix
     assert (
         restored_effect.effect_size.to_dict() == original_effect.effect_size.to_dict()
@@ -624,7 +621,6 @@ def test_half_gaussian_serialization():
     restored = registry.deserialize(d)
 
     assert isinstance(restored, HalfGaussianBasis)
-    assert restored.lookup_name == "half_gaussian"
     assert restored.mode == half.mode
     assert restored.include_event == half.include_event
 
@@ -803,7 +799,6 @@ def test_asymmetric_gaussian_basis_serialization():
     asymmetric_restored = registry.deserialize(asymmetric_dict)
 
     assert isinstance(asymmetric_restored, AsymmetricGaussianBasis)
-    assert asymmetric_restored.lookup_name == "asymmetric_gaussian"
     restored_asymmetric = cast(AsymmetricGaussianBasis, asymmetric_restored)
     assert restored_asymmetric.event_in == asymmetric.event_in
 
@@ -825,7 +820,6 @@ def test_asymmetric_gaussian_basis_serialization_roundtrip():
     # Deserialize
     restored_asymmetric = registry.deserialize(asymmetric_dict)
 
-    assert restored_asymmetric.lookup_name == asymmetric.lookup_name
     assert restored_asymmetric.prefix == asymmetric.prefix
     # Cast to access AsymmetricGaussianBasis specific attributes
     restored_asymmetric_specific = cast(AsymmetricGaussianBasis, restored_asymmetric)
