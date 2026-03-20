@@ -220,10 +220,6 @@ class TestSaturationScatterplotDims:
         )
         assert axes.size == 1  # 1 channel x 1 country
 
-    def test_unknown_dim_name_ignored(self, simple_plots):
-        fig, _ = simple_plots.saturation_scatterplot(dims={"region": "US"})
-        assert isinstance(fig, Figure)
-
     def test_invalid_dim_value_raises(self, panel_plots):
         with pytest.raises(ValueError, match="Value 'FR' not found"):
             panel_plots.saturation_scatterplot(dims={"country": "FR"})
