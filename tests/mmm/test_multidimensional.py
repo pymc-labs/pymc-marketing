@@ -471,6 +471,253 @@ class TestRegistryDeserialization:
             mmm.build_from_idata(idata)
 
 
+class TestSerializationIntegration:
+    """End-to-end save/load tests using the new TypeRegistry-based system."""
+
+    def test_full_roundtrip_basic(self, simple_fitted_mmm, tmp_path):
+        """Basic MMM save/load roundtrip preserves types and configuration."""
+        fname = tmp_path / "model.nc"
+        simple_fitted_mmm.save(str(fname))
+        loaded = type(simple_fitted_mmm).load(str(fname))
+
+        assert type(loaded.adstock) is type(simple_fitted_mmm.adstock)
+        assert type(loaded.saturation) is type(simple_fitted_mmm.saturation)
+        assert loaded.channel_columns == simple_fitted_mmm.channel_columns
+        assert loaded.date_column == simple_fitted_mmm.date_column
+        assert loaded.target_column == simple_fitted_mmm.target_column
+        assert loaded.adstock_first == simple_fitted_mmm.adstock_first
+
+        loaded_idata = az.from_netcdf(fname)
+        assert loaded_idata.attrs.get("__serialization_version__") == "1"
+
+    def test_roundtrip_with_tvp(self, tmp_path, mock_pymc_sample):
+        """Save/load with time-varying parameters (HSGP) preserves HSGP config."""
+        date_range = pd.date_range("2023-01-01", periods=100, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "ch1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "tvp_model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert loaded.time_varying_intercept is not None
+        assert loaded.time_varying_intercept is not False
+        if hasattr(loaded.time_varying_intercept, "to_dict"):
+            assert (
+                loaded.time_varying_intercept.to_dict()
+                == mmm.time_varying_intercept.to_dict()
+            )
+
+    def test_roundtrip_with_fourier_effect(self, tmp_path, mock_pymc_sample):
+        """Save/load with FourierEffect mu_effect preserves Fourier config."""
+        from pymc_marketing.mmm.additive_effect import FourierEffect
+        from pymc_marketing.mmm.fourier import YearlyFourier
+
+        date_range = pd.date_range("2023-01-01", periods=100, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "ch1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.mu_effects.append(
+            FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "fourier_model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert len(loaded.mu_effects) == 1
+        loaded_effect = loaded.mu_effects[0]
+        assert isinstance(loaded_effect, FourierEffect)
+        assert isinstance(loaded_effect.fourier, YearlyFourier)
+        assert loaded_effect.fourier.n_order == 3
+
+    def test_roundtrip_with_event_additive_effect(self, tmp_path, mock_pymc_sample):
+        """Save/load with EventAdditiveEffect — df_events roundtrips via supplementary data."""
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+        df_events = pd.DataFrame(
+            {
+                "start_date": pd.to_datetime(["2023-02-01", "2023-03-01"]),
+                "end_date": pd.to_datetime(["2023-02-08", "2023-03-08"]),
+                "name": ["promo_a", "promo_b"],
+            }
+        )
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "ch1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        effect = EventEffect(
+            basis=GaussianBasis(),
+            effect_size=Prior("Normal"),
+            dims=("promos",),
+        )
+        mmm.add_events(df_events, prefix="promos", effect=effect)
+        mmm.fit(X, y)
+
+        fname = tmp_path / "events_model.nc"
+        mmm.save(str(fname))
+
+        raw_idata = az.from_netcdf(fname)
+        assert hasattr(raw_idata, "supplementary_data_promos")
+
+        loaded = MMM.load(str(fname))
+        assert len(loaded.mu_effects) == 1
+        loaded_effect = loaded.mu_effects[0]
+        assert isinstance(loaded_effect, EventAdditiveEffect)
+        assert list(loaded_effect.df_events["name"]) == ["promo_a", "promo_b"]
+        assert loaded_effect.prefix == "promos"
+
+    def test_roundtrip_with_custom_mu_effect(self, tmp_path, mock_pymc_sample):
+        """A user-defined MuEffect subclass saves and loads correctly."""
+        from pymc_marketing.mmm.additive_effect import MuEffect
+        from pymc_marketing.serialization import registry
+
+        @registry.register
+        class _TestCustomEffect(MuEffect):
+            my_param: float = 1.0
+            prefix: str = "custom"
+            date_dim_name: str = "date"
+
+            def create_data(self, mmm):
+                pass
+
+            def create_effect(self, mmm):
+                import pytensor.tensor as pt
+                from pytensor.xtensor.type import as_xtensor
+
+                return as_xtensor(pt.zeros(1), dims=["date"])
+
+            def set_data(self, mmm, model, X):
+                pass
+
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "ch1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.mu_effects.append(_TestCustomEffect(my_param=42.0))
+        mmm.fit(X, y)
+
+        fname = tmp_path / "custom_model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert len(loaded.mu_effects) == 1
+        loaded_effect = loaded.mu_effects[0]
+        assert isinstance(loaded_effect, _TestCustomEffect)
+        assert loaded_effect.my_param == 42.0
+
+    def test_roundtrip_with_different_adstock_type(self, tmp_path, mock_pymc_sample):
+        """Save/load with a non-default adstock type preserves the concrete class."""
+        from pymc_marketing.mmm.components.adstock import DelayedAdstock
+        from pymc_marketing.mmm.components.saturation import TanhSaturation
+
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "ch1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=DelayedAdstock(l_max=3),
+            saturation=TanhSaturation(),
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "delayed_model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert isinstance(loaded.adstock, DelayedAdstock)
+        assert loaded.adstock.l_max == 3
+        assert isinstance(loaded.saturation, TanhSaturation)
+
+    def test_serialization_version_present_in_saved_model(
+        self, simple_fitted_mmm, tmp_path
+    ):
+        """Verify __serialization_version__ attr is present in saved models."""
+        fname = tmp_path / "versioned.nc"
+        simple_fitted_mmm.save(str(fname))
+        idata = az.from_netcdf(fname)
+        assert "__serialization_version__" in idata.attrs
+        assert idata.attrs["__serialization_version__"] == "1"
+
+    def test_roundtrip_panel_model(self, panel_fitted_mmm, tmp_path):
+        """Panel (multi-dimensional) MMM save/load preserves dims and priors."""
+        fname = tmp_path / "panel_model.nc"
+        panel_fitted_mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert loaded.dims == panel_fitted_mmm.dims
+        assert type(loaded.adstock) is type(panel_fitted_mmm.adstock)
+        assert type(loaded.saturation) is type(panel_fitted_mmm.saturation)
+        assert loaded.channel_columns == panel_fitted_mmm.channel_columns
+
+
 def test_single_channel():
     # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1630
     target_column = "y"
