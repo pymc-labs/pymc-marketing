@@ -3040,27 +3040,12 @@ class TestSerializationVersion:
     Uses simple_fitted_mmm from conftest (multidimensional MMM).
     """
 
-    def test_idata_has_serialization_version(self, simple_fitted_mmm):
-        """create_idata_attrs must include __serialization_version__."""
+    def test_idata_attrs_have_version_and_type_keys(self, simple_fitted_mmm):
         attrs = simple_fitted_mmm.create_idata_attrs()
-        assert "__serialization_version__" in attrs
+
         assert attrs["__serialization_version__"] == "1"
 
-    def test_adstock_attr_has_type_key(self, simple_fitted_mmm):
-        """Adstock attr should contain __type__ key after serialization."""
-        attrs = simple_fitted_mmm.create_idata_attrs()
-        adstock_data = json.loads(attrs["adstock"])
-        assert "__type__" in adstock_data
-
-    def test_saturation_attr_has_type_key(self, simple_fitted_mmm):
-        """Saturation attr should contain __type__ key after serialization."""
-        attrs = simple_fitted_mmm.create_idata_attrs()
-        saturation_data = json.loads(attrs["saturation"])
-        assert "__type__" in saturation_data
-
-    def test_scaling_attr_has_type_key(self, simple_fitted_mmm):
-        """Scaling attr should contain __type__ key if not null."""
-        attrs = simple_fitted_mmm.create_idata_attrs()
-        scaling_data = json.loads(attrs["scaling"])
-        if scaling_data is not None:
-            assert "__type__" in scaling_data
+        for key in ("adstock", "saturation", "scaling"):
+            data = json.loads(attrs[key])
+            if data is not None:
+                assert "__type__" in data, f"{key} missing __type__ key"

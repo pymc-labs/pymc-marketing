@@ -298,104 +298,6 @@ def test_save_load_equality_with_all_effects(mock_pymc_sample):
     os.remove(file)
 
 
-class TestSupplementaryDataWrite:
-    """Verify EventAdditiveEffect's df_events is stored in idata during save."""
-
-    def test_event_supplementary_data_written_to_idata(
-        self, tmp_path, mock_pymc_sample
-    ):
-        """Save a model with EventAdditiveEffect -> idata contains supplementary group."""
-        from pymc_extras.prior import Prior
-
-        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-
-        df_events = pd.DataFrame(
-            {
-                "start_date": pd.to_datetime(["2023-02-01", "2023-03-01"]),
-                "end_date": pd.to_datetime(["2023-02-08", "2023-03-08"]),
-                "name": ["event_a", "event_b"],
-            }
-        )
-
-        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
-        np.random.seed(42)
-        X = pd.DataFrame(
-            {
-                "date": date_range,
-                "x1": np.random.uniform(100, 500, size=len(date_range)),
-            }
-        )
-        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
-
-        mmm = MMM(
-            date_column="date",
-            channel_columns=["x1"],
-            target_column="target",
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-        )
-        effect = EventEffect(
-            basis=GaussianBasis(),
-            effect_size=Prior("Normal"),
-            dims=("events",),
-        )
-        mmm.add_events(df_events, prefix="events", effect=effect)
-        mmm.fit(X, y)
-
-        fname = tmp_path / "model.nc"
-        mmm.save(str(fname))
-
-        loaded_idata = az.from_netcdf(fname)
-        assert hasattr(loaded_idata, "supplementary_data_events")
-
-    def test_event_supplementary_data_roundtrips(self, tmp_path, mock_pymc_sample):
-        """Save and reload a model with EventAdditiveEffect -> df_events is intact."""
-        from pymc_extras.prior import Prior
-
-        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
-
-        df_events = pd.DataFrame(
-            {
-                "start_date": pd.to_datetime(["2023-02-01", "2023-03-01"]),
-                "end_date": pd.to_datetime(["2023-02-08", "2023-03-08"]),
-                "name": ["event_a", "event_b"],
-            }
-        )
-
-        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
-        np.random.seed(42)
-        X = pd.DataFrame(
-            {
-                "date": date_range,
-                "x1": np.random.uniform(100, 500, size=len(date_range)),
-            }
-        )
-        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
-
-        mmm = MMM(
-            date_column="date",
-            channel_columns=["x1"],
-            target_column="target",
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-        )
-        effect = EventEffect(
-            basis=GaussianBasis(),
-            effect_size=Prior("Normal"),
-            dims=("events",),
-        )
-        mmm.add_events(df_events, prefix="events", effect=effect)
-        mmm.fit(X, y)
-
-        fname = tmp_path / "model.nc"
-        mmm.save(str(fname))
-        loaded = MMM.load(str(fname))
-
-        assert len(loaded.mu_effects) == 1
-        assert isinstance(loaded.mu_effects[0], EventAdditiveEffect)
-        assert list(loaded.mu_effects[0].df_events["name"]) == ["event_a", "event_b"]
-
-
 def _make_minimal_mmm_idata():
     """Build a minimal InferenceData with valid v1 MMM attrs for testing."""
     import json
@@ -475,7 +377,7 @@ class TestSerializationIntegration:
     """End-to-end save/load tests using the new TypeRegistry-based system."""
 
     def test_full_roundtrip_basic(self, simple_fitted_mmm, tmp_path):
-        """Basic MMM save/load roundtrip preserves types and configuration."""
+        """Basic MMM save/load roundtrip preserves types, config, and version tag."""
         fname = tmp_path / "model.nc"
         simple_fitted_mmm.save(str(fname))
         loaded = type(simple_fitted_mmm).load(str(fname))
@@ -488,11 +390,12 @@ class TestSerializationIntegration:
         assert loaded.adstock_first == simple_fitted_mmm.adstock_first
 
         loaded_idata = az.from_netcdf(fname)
-        assert loaded_idata.attrs.get("__serialization_version__") == "1"
+        assert "__serialization_version__" in loaded_idata.attrs
+        assert loaded_idata.attrs["__serialization_version__"] == "1"
 
     def test_roundtrip_with_tvp(self, tmp_path, mock_pymc_sample):
         """Save/load with time-varying parameters (HSGP) preserves HSGP config."""
-        date_range = pd.date_range("2023-01-01", periods=100, freq="W")
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
         np.random.seed(42)
         X = pd.DataFrame(
             {
@@ -529,7 +432,7 @@ class TestSerializationIntegration:
         from pymc_marketing.mmm.additive_effect import FourierEffect
         from pymc_marketing.mmm.fourier import YearlyFourier
 
-        date_range = pd.date_range("2023-01-01", periods=100, freq="W")
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
         np.random.seed(42)
         X = pd.DataFrame(
             {
@@ -562,7 +465,7 @@ class TestSerializationIntegration:
         assert loaded_effect.fourier.n_order == 3
 
     def test_roundtrip_with_event_additive_effect(self, tmp_path, mock_pymc_sample):
-        """Save/load with EventAdditiveEffect — df_events roundtrips via supplementary data."""
+        """Save/load with EventAdditiveEffect — supplementary data and df_events roundtrip."""
         from pymc_extras.prior import Prior
 
         from pymc_marketing.mmm.events import EventEffect, GaussianBasis
@@ -611,6 +514,8 @@ class TestSerializationIntegration:
         assert isinstance(loaded_effect, EventAdditiveEffect)
         assert list(loaded_effect.df_events["name"]) == ["promo_a", "promo_b"]
         assert loaded_effect.prefix == "promos"
+        assert "start_date" in loaded_effect.df_events.columns
+        assert "end_date" in loaded_effect.df_events.columns
 
     def test_roundtrip_with_custom_mu_effect(self, tmp_path, mock_pymc_sample):
         """A user-defined MuEffect subclass saves and loads correctly."""
@@ -695,16 +600,6 @@ class TestSerializationIntegration:
         assert isinstance(loaded.adstock, DelayedAdstock)
         assert loaded.adstock.l_max == 3
         assert isinstance(loaded.saturation, TanhSaturation)
-
-    def test_serialization_version_present_in_saved_model(
-        self, simple_fitted_mmm, tmp_path
-    ):
-        """Verify __serialization_version__ attr is present in saved models."""
-        fname = tmp_path / "versioned.nc"
-        simple_fitted_mmm.save(str(fname))
-        idata = az.from_netcdf(fname)
-        assert "__serialization_version__" in idata.attrs
-        assert idata.attrs["__serialization_version__"] == "1"
 
     def test_roundtrip_panel_model(self, panel_fitted_mmm, tmp_path):
         """Panel (multi-dimensional) MMM save/load preserves dims and priors."""
