@@ -14,6 +14,7 @@
 """Configuration I/O for PyMC-Marketing."""
 
 from pymc_marketing.mmm.builders.factories import build
+from pymc_marketing.mmm.builders.schema import MMMYamlConfig
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 
-__all__ = ["build", "build_mmm_from_yaml"]
+__all__ = ["MMMYamlConfig", "build", "build_mmm_from_yaml"]
