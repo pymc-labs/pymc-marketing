@@ -12,7 +12,6 @@
   clv
   customer_choice
   data
-  deserialize
   hsgp_kwargs
   metrics
   serialization_migration
