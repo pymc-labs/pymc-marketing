@@ -156,7 +156,9 @@ class SaturationTransformation(Transformation):
         """Reconstruct a saturation transformation from a dict."""
         data = data.copy()
         data.pop("__type__", None)
-        data.pop("lookup_name", None)
+        data.pop(
+            "lookup_name", None
+        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
 
         if "priors" in data:
             from pymc_extras.deserialize import deserialize
@@ -505,6 +507,7 @@ class NoSaturation(SaturationTransformation):
     default_priors = {"beta": Prior("HalfNormal", sigma=1)}
 
 
+# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
 SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     "logistic": LogisticSaturation,
     "inverse_scaled_logistic": InverseScaledLogisticSaturation,

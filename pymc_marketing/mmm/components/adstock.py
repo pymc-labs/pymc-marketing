@@ -144,7 +144,9 @@ class AdstockTransformation(Transformation):
         """Reconstruct an adstock transformation from a dict."""
         data = data.copy()
         data.pop("__type__", None)
-        data.pop("lookup_name", None)
+        data.pop(
+            "lookup_name", None
+        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
 
         if "priors" in data:
             data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
@@ -405,6 +407,7 @@ class NoAdstock(AdstockTransformation):
         return
 
 
+# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
 ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
     "geometric": GeometricAdstock,
     "delayed": DelayedAdstock,

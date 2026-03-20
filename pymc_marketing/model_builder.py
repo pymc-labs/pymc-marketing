@@ -196,6 +196,8 @@ class ModelIO:
 
         def _serialize_for_hash(obj):
             """Serialize objects for deterministic hashing."""
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "model_dump"):
@@ -418,7 +420,10 @@ class ModelIO:
                 elif isinstance(value, dict):
                     d[key] = _format(value)
                 elif isinstance(value, list):
-                    d[key] = tuple(value) if key == "dims" else np.array(value)
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    elif value and all(isinstance(v, (int, float)) for v in value):
+                        d[key] = np.array(value)
             return d
 
         return _format(model_config.copy())
