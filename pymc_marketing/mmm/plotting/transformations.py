@@ -113,6 +113,7 @@ class TransformationPlots:
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
         return_as_pc: bool = False,
+        scatter_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Scatter plot of channel spend/data vs. mean channel contributions.
@@ -140,6 +141,9 @@ class TransformationPlots:
         return_as_pc : bool, default False
             If True, return the ``PlotCollection`` instead of the
             matplotlib tuple.
+        scatter_kwargs : dict, optional
+            Extra keyword arguments forwarded to the scatter visual
+            (``azp.visuals.scatter_xy``).
         **pc_kwargs
             Forwarded to ``PlotCollection.wrap()``.
 
@@ -177,7 +181,7 @@ class TransformationPlots:
         pc.map(
             azp.visuals.scatter_xy,
             x=scatter_ds["x"],
-            alpha=0.8,
+            **{"alpha": 0.8, **(scatter_kwargs or {})},
         )
 
         pc.map(
@@ -214,6 +218,10 @@ class TransformationPlots:
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
         return_as_pc: bool = False,
+        scatter_kwargs: dict[str, Any] | None = None,
+        hdi_kwargs: dict[str, Any] | None = None,
+        mean_curve_kwargs: dict[str, Any] | None = None,
+        sample_curves_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Overlay saturation curves with posterior sample lines and HDI bands.
@@ -270,6 +278,18 @@ class TransformationPlots:
             Rendering backend.
         return_as_pc : bool, default False
             Return ``PlotCollection`` instead of matplotlib tuple.
+        scatter_kwargs : dict, optional
+            Extra keyword arguments forwarded to the scatter visual
+            (``azp.visuals.scatter_xy``).
+        hdi_kwargs : dict, optional
+            Extra keyword arguments forwarded to the HDI band visual
+            (``azp.visuals.fill_between_y``).
+        mean_curve_kwargs : dict, optional
+            Extra keyword arguments forwarded to the mean curve visual
+            (``azp.visuals.line_xy``).
+        sample_curves_kwargs : dict, optional
+            Extra keyword arguments forwarded to each sample curve visual
+            (``azp.visuals.line_xy``).
         **pc_kwargs
             Forwarded to ``PlotCollection.wrap()``.
 
@@ -287,6 +307,7 @@ class TransformationPlots:
             figsize=figsize,
             backend=backend,
             return_as_pc=True,
+            scatter_kwargs=scatter_kwargs,
             **pc_kwargs,
         )
 
@@ -333,12 +354,17 @@ class TransformationPlots:
                 x=spend_data,
                 y_bottom=hdi.sel(ci_bound="lower"),
                 y_top=hdi.sel(ci_bound="upper"),
-                alpha=0.2,
+                **{"alpha": 0.2, **(hdi_kwargs or {})},
             )
 
         # plot the mean curve
         mean_curve = curves.mean(dim=["chain", "draw"])
-        pc.map(azp.visuals.line_xy, x=spend_data, y=mean_curve)
+        pc.map(
+            azp.visuals.line_xy,
+            x=spend_data,
+            y=mean_curve,
+            **(mean_curve_kwargs or {}),
+        )
 
         if n_samples > 0:
             # sample the curves
@@ -354,7 +380,7 @@ class TransformationPlots:
                     azp.visuals.line_xy,
                     x=spend_data,
                     y=sampled_curves.isel(sample=i),
-                    alpha=0.3,
+                    **{"alpha": 0.3, **(sample_curves_kwargs or {})},
                 )
 
         return _extract_matplotlib_result(pc, return_as_pc)
