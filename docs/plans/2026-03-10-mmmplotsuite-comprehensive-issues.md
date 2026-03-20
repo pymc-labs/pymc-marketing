@@ -24,7 +24,7 @@
 
 ## I. Structural / Architectural Issues
 
-arvizThese are systemic problems not captured by any single GitHub issue.
+These are systemic problems not captured by any single GitHub issue.
 
 ### I.1 God Class — 5,150 lines, 21+ public methods
 
