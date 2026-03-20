@@ -152,7 +152,11 @@ class TransformationPlots:
         tuple[Figure, NDArray[Axes]] or PlotCollection
         """
         # TODO: decide how to validate!!!
-        data = MMMIDataWrapper(idata) if idata is not None else self._data
+        data = (
+            MMMIDataWrapper(idata, schema=self._data.schema)
+            if idata is not None
+            else self._data
+        )
 
         pc_kwargs = _process_plot_params(
             figsize=figsize,
@@ -297,7 +301,11 @@ class TransformationPlots:
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
         """
-        data = MMMIDataWrapper(idata) if idata is not None else self._data
+        data = (
+            MMMIDataWrapper(idata, schema=self._data.schema)
+            if idata is not None
+            else self._data
+        )
 
         pc: PlotCollection = self.saturation_scatterplot(
             original_scale=original_scale,
