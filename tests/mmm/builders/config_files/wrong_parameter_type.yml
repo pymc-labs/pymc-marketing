@@ -24,9 +24,8 @@ model:
         kwargs:
           sigma: "wrong_value_type"  # String instead of number
 
-# ----------------------------------------------------------------------
-sampler_config:
-  tune: 1000
-  draws: 200
-  chains: 8
-  random_seed: 42
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42

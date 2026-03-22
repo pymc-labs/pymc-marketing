@@ -23,9 +23,8 @@ model:
         dist: "InvalidDistribution"
         kwargs: {}
 
-# ----------------------------------------------------------------------
-sampler_config:
-  tune: 1000
-  draws: 200
-  chains: 8
-  random_seed: 42
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42
