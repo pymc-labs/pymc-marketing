@@ -31,7 +31,6 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
     _validate_dims,
-    channel_color_map,
 )
 
 matplotlib.use("Agg")
@@ -89,43 +88,6 @@ class TestValidateDims:
         _validate_dims(ds_with_different_coords, {"fold": 2})
         with pytest.raises(ValueError, match="Dimension 'channel' not found"):
             _validate_dims(ds_with_different_coords, {"channel": "tv"})
-
-
-class TestChannelColorMap:
-    def test_returns_dict_with_correct_keys(self):
-        result = channel_color_map(["tv", "radio", "social"])
-        assert set(result.keys()) == {"tv", "radio", "social"}
-
-    def test_assigns_distinct_colors(self):
-        result = channel_color_map(["tv", "radio", "social"])
-        colors = list(result.values())
-        assert len(set(colors)) == 3
-
-    def test_deterministic_ordering(self):
-        channels = ["tv", "radio", "social"]
-        result1 = channel_color_map(channels)
-        result2 = channel_color_map(channels)
-        assert result1 == result2
-
-    def test_single_channel(self):
-        result = channel_color_map(["tv"])
-        assert "tv" in result
-        assert len(result) == 1
-
-    def test_wraps_after_cycle_length(self):
-        many_channels = [f"ch_{i}" for i in range(15)]
-        result = channel_color_map(many_channels)
-        assert len(result) == 15
-        assert result["ch_0"] == result["ch_10"]
-
-    def test_empty_channels(self):
-        result = channel_color_map([])
-        assert result == {}
-
-    def test_preserves_channel_order(self):
-        channels = ["social", "tv", "radio"]
-        result = channel_color_map(channels)
-        assert list(result.keys()) == ["social", "tv", "radio"]
 
 
 class TestProcessPlotParams:
@@ -257,14 +219,12 @@ class TestPublicAPI:
             _process_plot_params,
             _select_dims,
             _validate_dims,
-            channel_color_map,
         )
 
         assert callable(_validate_dims)
         assert callable(_select_dims)
         assert callable(_process_plot_params)
         assert callable(_extract_matplotlib_result)
-        assert callable(channel_color_map)
 
     def test_plotting_package_importable(self):
         import pymc_marketing.mmm.plotting  # noqa: F401

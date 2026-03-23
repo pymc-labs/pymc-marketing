@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
 from typing import Any, TypeVar
 
 import numpy as np
@@ -130,25 +129,6 @@ def _validate_dims(
                     f"Value '{v}' not found in dimension '{key}'. "
                     f"Available: {list(valid_values)}"
                 )
-
-
-def channel_color_map(channels: Sequence[str]) -> dict[str, str]:
-    """Return a deterministic channel → matplotlib color mapping.
-
-    Uses the default matplotlib color cycle (``C0``–``C9``), wrapping
-    for more than 10 channels.
-
-    Parameters
-    ----------
-    channels : sequence of str
-        Ordered channel names.
-
-    Returns
-    -------
-    dict[str, str]
-        ``{channel_name: "C<index>"}``, preserving input order.
-    """
-    return {ch: f"C{i % MATPLOTLIB_CYCLE_SIZE}" for i, ch in enumerate(channels)}
 
 
 def _process_plot_params(
