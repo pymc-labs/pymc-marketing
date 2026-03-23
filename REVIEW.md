@@ -61,11 +61,10 @@ data = (
 )
 ```
 
-### 2. **Missing Coverage Line** (Codecov Report)
-According to the PR comments, there's 1 line missing coverage in `transformations.py` (99.26% coverage). While excellent, consider:
-- Identifying which line is uncovered
-- Adding a test case if it's a reachable code path
-- Adding a `# pragma: no cover` comment if it's truly unreachable
+### 2. **Missing Coverage Line** ✅ RESOLVED
+~~According to the PR comments, there's 1 line missing coverage in `transformations.py` (99.26% coverage).~~
+
+**Resolution**: Added test case `test_multiindex_sample_unstacked` to cover the MultiIndex unstack path (line 67). All plotting module files now have **100% test coverage**.
 
 ### 3. **`__init__.py` Export Strategy**
 The `__init__.py` is currently empty. Consider:
@@ -169,9 +168,11 @@ Based on this foundation, consider:
 
 ```
 ✅ 43/43 helper tests passed (100% coverage)
-✅ 52/52 transformation tests passed
-✅ Total: 95/95 tests passed
-⚠️  1 warning about too many open figures (minor)
+✅ 53/53 transformation tests passed (100% coverage)
+✅ Total: 96/96 tests passed
+✅ All pre-commit checks passing
+✅ No warnings
+✅ 100% coverage on all plotting module files
 ```
 
 ## Final Verdict
@@ -184,10 +185,11 @@ This is high-quality foundational work. The code is well-tested, documented, and
 1. ✅ Resolve TODO comment (line 154)
 2. ✅ Add exports to `__init__.py`
 3. ✅ Fix figure cleanup warning in tests
+4. ✅ Achieve 100% test coverage
 
 ### Recommended (can be follow-up PRs):
-- Investigate and cover the missing line for 100% coverage
 - Document the scale threshold heuristic
 - Add more panel/multi-dimensional integration tests
+- Consider relaxing arviz-plots version constraint
 
 **Great work on establishing a solid foundation for the MMM plotting suite!** 🎉
