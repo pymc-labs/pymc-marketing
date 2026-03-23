@@ -29,21 +29,43 @@ from pymc_marketing.mmm.report import MMMReport, ReportConfig
 from pymc_marketing.mmm.report._notebook import build_notebook
 from pymc_marketing.mmm.report._sections import PARITY_MATRIX
 
+_CHANNELS = ["TV", "Search"]
+_DATE_RANGE = pd.date_range("2024-01-01", periods=4, freq="D")
+
 
 @dataclass
 class _FakeSensitivity:
     model: _FakeMMM
 
     def run_sweep(self, *args, **kwargs):
-        date = pd.date_range("2024-01-01", periods=4, freq="D")
-        channel = ["TV", "Search"]
         data = xr.DataArray(
             np.ones((2, 5, 4, 2)),
             dims=("chain", "draw", "date", "channel"),
-            coords={"date": date, "channel": channel},
+            coords={"date": _DATE_RANGE, "channel": _CHANNELS},
         )
         self.model.idata.add_groups(
             {"sensitivity_analysis": xr.Dataset({"channel_contribution": data})}
+        )
+
+
+class _FakeIncrementality:
+    def contribution_over_spend(self, **kwargs):
+        return xr.DataArray(
+            np.random.uniform(0.5, 2.0, size=(2, 5, 2)),
+            dims=("chain", "draw", "channel"),
+            coords={"channel": _CHANNELS},
+        )
+
+
+class _FakeData:
+    def aggregate_time(self, frequency):
+        return self
+
+    def get_elementwise_roas(self, original_scale=True):
+        return xr.DataArray(
+            np.random.uniform(0.5, 2.0, size=(2, 5, 2)),
+            dims=("chain", "draw", "channel"),
+            coords={"channel": _CHANNELS},
         )
 
 
@@ -126,8 +148,6 @@ class _FakePlotInteractive:
 
 class _FakeMMM:
     def __init__(self):
-        date = pd.date_range("2024-01-01", periods=4, freq="D")
-        channel = ["TV", "Search"]
         posterior = xr.Dataset(
             {
                 "intercept_contribution": xr.DataArray(
@@ -141,7 +161,22 @@ class _FakeMMM:
                 "y_original_scale": xr.DataArray(
                     np.random.normal(size=(2, 5, 4)),
                     dims=("chain", "draw", "date"),
-                    coords={"date": date},
+                    coords={"date": _DATE_RANGE},
+                ),
+                "channel_contribution_original_scale": xr.DataArray(
+                    np.random.normal(size=(2, 5, 4, 2)),
+                    dims=("chain", "draw", "date", "channel"),
+                    coords={"date": _DATE_RANGE, "channel": _CHANNELS},
+                ),
+                "control_contribution_original_scale": xr.DataArray(
+                    np.random.normal(size=(2, 5, 4)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": _DATE_RANGE},
+                ),
+                "intercept_contribution_original_scale": xr.DataArray(
+                    np.random.normal(size=(2, 5, 4)),
+                    dims=("chain", "draw", "date"),
+                    coords={"date": _DATE_RANGE},
                 ),
             }
         )
@@ -157,16 +192,18 @@ class _FakeMMM:
         self.fit_result = posterior
         self.date_column = "date"
         self.target_column = "y"
-        self.channel_columns = channel
+        self.channel_columns = _CHANNELS
         self.control_columns = ["promo"]
         self.dims = ("geo",)
         self.adstock = object()
         self.saturation = object()
-        self.X = pd.DataFrame({"date": date})
+        self.X = pd.DataFrame({"date": _DATE_RANGE})
         self.summary = _FakeSummary()
         self.plot = _FakePlot()
         self.plot_interactive = _FakePlotInteractive()
         self.sensitivity = _FakeSensitivity(self)
+        self.incrementality = _FakeIncrementality()
+        self.data = _FakeData()
 
 
 @pytest.fixture
@@ -219,6 +256,39 @@ def test_to_html_writes_output(fake_mmm, tmp_path):
     html = report.to_html(file_name=str(path))
     assert path.exists()
     assert "MMM Report" in html
+
+
+def test_diagnostics_has_no_trace_plot(fake_mmm):
+    report = MMMReport(fake_mmm)
+    diagnostics = report.report_data.sections["diagnostics"]
+    assert not diagnostics.static_figures
+
+
+def test_roas_section_has_forest_plots(fake_mmm):
+    report = MMMReport(fake_mmm)
+    roas = report.report_data.sections["roas"]
+    assert "roas_forest_elementwise" in roas.static_figures
+    assert "roas_forest_incremental" in roas.static_figures
+
+
+def test_component_section_has_waterfall_and_original_scale(fake_mmm):
+    report = MMMReport(fake_mmm)
+    components = report.report_data.sections["component_contributions"]
+    assert "waterfall_components_decomposition" in components.static_figures
+    assert "contributions_original_scale" in components.static_figures
+
+
+def test_static_figures_have_titles(fake_mmm):
+    report = MMMReport(fake_mmm)
+    import matplotlib.figure
+
+    for section in report.report_data.sections.values():
+        for name, fig in section.static_figures.items():
+            if isinstance(fig, matplotlib.figure.Figure):
+                suptitle = fig._suptitle
+                assert suptitle is not None and suptitle.get_text(), (
+                    f"Figure '{name}' in section '{section.title}' has no suptitle"
+                )
 
 
 def test_to_excel_writes_output(fake_mmm, tmp_path):

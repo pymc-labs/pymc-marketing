@@ -15,11 +15,13 @@
 
 from __future__ import annotations
 
+import warnings
 from collections import OrderedDict
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -56,6 +58,15 @@ PARITY_MATRIX: dict[str, tuple[str, ...]] = {
     ),
     "sensitivity": (NOTEBOOK_CASE_STUDY, NOTEBOOK_EXAMPLE),
 }
+
+
+def _finalize_figure(fig: Any, title: str) -> Any:
+    """Set suptitle and tight_layout on a matplotlib figure."""
+    fig.suptitle(title, fontsize=14, fontweight="bold")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "The figure layout has changed to tight")
+        fig.tight_layout()
+    return fig
 
 
 def _ensure_pandas(df: Any) -> pd.DataFrame:
@@ -163,27 +174,17 @@ def _section_diagnostics(mmm: Any, config: ReportConfig) -> ReportSection:
     ]
     summary_df = az.summary(data=mmm.fit_result, var_names=var_names).reset_index()
 
-    static_figures: dict[str, Any] = {}
-    if var_names:
-        trace_axes = az.plot_trace(
-            data=mmm.fit_result, var_names=var_names, compact=True
-        )
-        trace_fig = np.asarray(trace_axes).ravel()[0].figure
-        static_figures["trace_plot"] = trace_fig
-
     return ReportSection(
         title="Diagnostics",
-        description="Sampling diagnostics, divergences, and posterior traces.",
+        description="Sampling diagnostics and divergence summary.",
         source_code=(
             "divergences = mmm.idata['sample_stats']['diverging'].sum().item()\n"
-            "az.summary(data=mmm.fit_result, var_names=[...])\n"
-            "az.plot_trace(data=mmm.fit_result, var_names=[...], compact=True)"
+            "az.summary(data=mmm.fit_result, var_names=[...])"
         ),
         dataframes={
             "diagnostics": diagnostics_df,
             "arviz_summary": _add_point_forecast(summary_df, config.point_estimate),
         },
-        static_figures=static_figures,
     )
 
 
@@ -203,6 +204,7 @@ def _section_posterior_predictive(mmm: Any, config: ReportConfig) -> ReportSecti
         var=["y_original_scale"] if "y_original_scale" in mmm.idata.posterior else None,
         hdi_prob=hdi_prob,
     )
+    _finalize_figure(fig_static, "Posterior Predictive Fit")
 
     interactive_figures: dict[str, Any] = {}
     if config.include_interactive:
@@ -251,14 +253,40 @@ def _section_component_contributions(mmm: Any, config: ReportConfig) -> ReportSe
 
     hdi_prob = max(config.hdi_probs)
     fig_waterfall, _ = mmm.plot.waterfall_components_decomposition()
+    _finalize_figure(fig_waterfall, "Waterfall Components Decomposition")
+
     fig_over_time, _ = mmm.plot.contributions_over_time(
         var=["channel_contribution"],
         hdi_prob=hdi_prob,
         dims=config.dims,
     )
+    _finalize_figure(fig_over_time, "Channel Contributions Over Time")
+
     fig_share, _ = mmm.plot.channel_contribution_share_hdi(
         hdi_prob=hdi_prob, dims=config.dims
     )
+    _finalize_figure(fig_share, "Channel Contribution Share")
+
+    original_scale_vars = [
+        v
+        for v in [
+            "channel_contribution_original_scale",
+            "control_contribution_original_scale",
+            "intercept_contribution_original_scale",
+            "yearly_seasonality_contribution_original_scale",
+        ]
+        if v in mmm.idata.posterior
+    ]
+    fig_original, axes_original = mmm.plot.contributions_over_time(
+        var=original_scale_vars,
+        combine_dims=True,
+        hdi_prob=hdi_prob,
+        figsize=(12, 7),
+    )
+    legend = np.asarray(axes_original).ravel()[0].get_legend()
+    if legend is not None:
+        legend.set_bbox_to_anchor((0.8, -0.12))
+    _finalize_figure(fig_original, "Component Contributions (Original Scale)")
 
     interactive_figures: dict[str, Any] = {}
     if config.include_interactive:
@@ -276,7 +304,8 @@ def _section_component_contributions(mmm: Any, config: ReportConfig) -> ReportSe
         source_code=(
             "total_df = mmm.summary.total_contribution(...)\n"
             "channel_df = mmm.summary.contributions(component='channel', ...)\n"
-            "mmm.plot.waterfall_components_decomposition()"
+            "mmm.plot.waterfall_components_decomposition()\n"
+            "mmm.plot.contributions_over_time(var=[...], combine_dims=True)"
         ),
         dataframes={
             "total_contributions": total_df,
@@ -286,14 +315,47 @@ def _section_component_contributions(mmm: Any, config: ReportConfig) -> ReportSe
             "waterfall_components_decomposition": fig_waterfall,
             "contributions_over_time": fig_over_time,
             "channel_contribution_share_hdi": fig_share,
+            "contributions_original_scale": fig_original,
         },
         interactive_figures=interactive_figures,
     )
 
 
+def _roas_forest_figure(
+    mmm: Any,
+    method: str,
+    config: ReportConfig,
+) -> Any:
+    """Build an ``az.plot_forest`` figure for ROAS.
+
+    Always uses ``frequency="all_time"`` so the forest plot shows one
+    entry per channel (matching the case-study style).
+    """
+    if method == "incremental":
+        roas_xr = mmm.incrementality.contribution_over_spend(
+            frequency="all_time",
+            num_samples=config.num_samples,
+            random_state=config.random_state,
+        ).rename("roas")
+    else:
+        data = mmm.data.aggregate_time("all_time")
+        roas_xr = data.get_elementwise_roas(original_scale=True).rename("roas")
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    az.plot_forest(roas_xr, combined=True, ax=ax)
+    title = (
+        "Return on Ad Spend (Incremental)"
+        if method == "incremental"
+        else "Return on Ad Spend (Elementwise)"
+    )
+    _finalize_figure(fig, title)
+    return fig
+
+
 def _section_roas(mmm: Any, config: ReportConfig) -> ReportSection:
     hdi_prob = max(config.hdi_probs)
     dfs: dict[str, pd.DataFrame] = {}
+    static_figures: dict[str, Any] = {}
     interactive_figures: dict[str, Any] = {}
 
     for method in config.roas_methods:
@@ -311,6 +373,9 @@ def _section_roas(mmm: Any, config: ReportConfig) -> ReportSection:
             _apply_dims_filter(roas_df, config.dims), config.point_estimate
         )
         dfs[f"roas_{method}"] = roas_df
+        static_figures[f"roas_forest_{method}"] = _roas_forest_figure(
+            mmm, method, config
+        )
         if config.include_interactive:
             interactive_figures[f"roas_{method}"] = mmm.plot_interactive.roas(
                 hdi_prob=hdi_prob,
@@ -324,10 +389,11 @@ def _section_roas(mmm: Any, config: ReportConfig) -> ReportSection:
         title="ROAS",
         description="Elementwise and incremental return-on-ad-spend summaries.",
         source_code=(
-            "roas_elementwise = mmm.summary.roas(method='elementwise', ...)\n"
-            "roas_incremental = mmm.summary.roas(method='incremental', ...)"
+            "roas = mmm.incrementality.contribution_over_spend(...).rename('roas')\n"
+            "az.plot_forest(roas, combined=True)"
         ),
         dataframes=dfs,
+        static_figures=static_figures,
         interactive_figures=interactive_figures,
     )
 
@@ -348,6 +414,7 @@ def _section_saturation_curves(mmm: Any, config: ReportConfig) -> ReportSection:
     fig_static, _ = mmm.plot.saturation_scatterplot(
         original_scale=True, dims=config.dims
     )
+    _finalize_figure(fig_static, "Saturation Curves")
     interactive_figures: dict[str, Any] = {}
     if config.include_interactive:
         interactive_figures["saturation_curves"] = (
@@ -386,14 +453,15 @@ def _section_sensitivity(mmm: Any, config: ReportConfig) -> ReportSection | None
         hdi_prob=max(config.hdi_probs),
         x_sweep_axis="relative",
     )
+    _finalize_figure(fig_relative, "Sensitivity Analysis (Relative)")
     fig_absolute, _ = mmm.plot.sensitivity_analysis(
         hdi_prob=max(config.hdi_probs),
         x_sweep_axis="absolute",
+        hue_dim="channel",
     )
+    _finalize_figure(fig_absolute, "Sensitivity Analysis (Absolute)")
     sweep_df = (
-        mmm.idata["sensitivity_analysis"]["channel_contribution"]
-        .to_dataframe(name="value")
-        .reset_index()
+        mmm.idata["sensitivity_analysis"]["x"].to_dataframe(name="value").reset_index()
     )
     sweep_df = _apply_dims_filter(sweep_df, config.dims)
     return ReportSection(

@@ -54,6 +54,7 @@ def export_html(
     """Render report HTML from notebook representation."""
     _check_notebook_deps()
     from nbconvert import HTMLExporter
+    from traitlets.config import Config
 
     nb = build_notebook(report_data, include_interactive=True)
     if save_intermediate_notebook is not None:
@@ -61,9 +62,10 @@ def export_html(
             nbformat.writes(nb), encoding="utf-8"
         )
 
-    template_dir = Path(__file__).resolve().parent / "templates"
-    exporter = HTMLExporter(template_name="report_html")
-    exporter.extra_template_basedirs = [str(template_dir)]
+    config = Config()
+    config.TagRemovePreprocessor.enabled = True
+    config.TagRemovePreprocessor.remove_input_tags = {"report-code"}
+    exporter = HTMLExporter(config=config)
     html, _ = exporter.from_notebook_node(nb)
     if file_name is not None:
         Path(file_name).write_text(html, encoding="utf-8")
