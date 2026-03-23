@@ -39,7 +39,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
     using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
 
-    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy *lifetimes* library
+    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy ``lifetimes`` library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
@@ -313,7 +313,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (6) in [1]_, and *lifetimes* package:
+        Adapted from equation (6) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L151
 
         Parameters
@@ -372,7 +372,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (4) in [1]_, and `lifetimes` library:
+        Adapted from equation (4) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130
 
         Parameters
@@ -417,7 +417,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (5) in [1]_, and `lifetimes` library:
+        Adapted from equation (5) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188
 
         Parameters

@@ -67,10 +67,10 @@ msgstr ""
 
 #: 4b8dadaa762d4a738444421998c4d880 of pymc_marketing.clv.utils.rfm_summary:14
 msgid ""
-"Adapted from lifetimes package "
+"Adapted from the legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230"
 msgstr ""
-"Adaptado del paquete lifetimes "
+"Adaptado de la biblioteca heredada ``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230"
 
 #: 85bf68bdc1bc4de288704dd71a762fff of pymc_marketing.clv.utils.rfm_summary
