@@ -12,3 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 """MMM plotting package — namespace-based plot suite."""
+
+from pymc_marketing.mmm.plotting.transformations import TransformationPlots
+
+__all__ = ["TransformationPlots"]

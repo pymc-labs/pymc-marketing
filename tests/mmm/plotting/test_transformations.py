@@ -19,6 +19,7 @@ import warnings
 
 import arviz as az
 import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import xarray as xr
@@ -42,6 +43,13 @@ RNG = np.random.default_rng(SEED)
 # ============================================================================
 # Fixtures
 # ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def close_figures():
+    """Close all matplotlib figures after each test to prevent memory warnings."""
+    yield
+    plt.close("all")
 
 
 @pytest.fixture(scope="module")
