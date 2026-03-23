@@ -26,8 +26,8 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.report import MMMReport, ReportConfig
+from pymc_marketing.mmm.report._exporters import _make_sheet_name
 from pymc_marketing.mmm.report._notebook import build_notebook
-from pymc_marketing.mmm.report._sections import PARITY_MATRIX
 
 _CHANNELS = ["TV", "Search"]
 _DATE_RANGE = pd.date_range("2024-01-01", periods=4, freq="D")
@@ -211,6 +211,9 @@ def fake_mmm():
     return _FakeMMM()
 
 
+# --- ReportConfig validation tests ---
+
+
 def test_report_config_normalizes_hdi_probs():
     config = ReportConfig(hdi_probs=[0.94, 0.5, 0.94])
     assert config.hdi_probs == (0.5, 0.94)
@@ -221,22 +224,16 @@ def test_report_config_rejects_invalid_hdi_prob():
         ReportConfig(hdi_probs=(1.0,))
 
 
-def test_parity_matrix_contains_motivational_notebooks():
-    expected = {
-        "docs/source/notebooks/mmm/mmm_case_study.ipynb",
-        "docs/source/notebooks/mmm/mmm_example.ipynb",
-        "docs/source/notebooks/mmm/plot_interactive.ipynb",
-    }
-    flat = {item for values in PARITY_MATRIX.values() for item in values}
-    assert expected.issubset(flat)
+# --- Report data / section tests ---
 
 
 def test_to_dataframe_contains_point_forecast_columns(fake_mmm):
     report = MMMReport(fake_mmm)
     tables = report.to_dataframe()
-    assert "roas_elementwise" in tables
-    assert "point_forecast" in tables["roas_elementwise"].columns
     assert "posterior_predictive" in tables
+    assert "point_forecast" in tables["posterior_predictive"].columns
+    assert "roas_elementwise" in tables
+    assert "mean" in tables["roas_elementwise"].columns
 
 
 def test_build_notebook_has_header_and_report_code_cells(fake_mmm):
@@ -291,9 +288,106 @@ def test_static_figures_have_titles(fake_mmm):
                 )
 
 
+# --- Excel export tests ---
+
+
 def test_to_excel_writes_output(fake_mmm, tmp_path):
     pytest.importorskip("openpyxl")
     report = MMMReport(fake_mmm)
     path = tmp_path / "report.xlsx"
     report.to_excel(file_name=str(path))
     assert path.exists()
+
+
+def test_to_excel_one_sheet_per_dataframe(fake_mmm, tmp_path):
+    openpyxl = pytest.importorskip("openpyxl")
+    report = MMMReport(fake_mmm)
+    path = tmp_path / "report.xlsx"
+    report.to_excel(file_name=str(path))
+
+    wb = openpyxl.load_workbook(str(path))
+    total_dfs = sum(
+        len(section.dataframes) for section in report.report_data.sections.values()
+    )
+    assert len(wb.sheetnames) == 1 + total_dfs
+    assert wb.sheetnames[0] == "Cover"
+
+
+# --- _make_sheet_name unit tests ---
+
+
+def test_make_sheet_name_passthrough():
+    used: set[str] = set()
+    assert _make_sheet_name("model_overview", used) == "model_overview"
+    assert "model_overview" in used
+
+
+def test_make_sheet_name_truncates_long_names():
+    used: set[str] = set()
+    long_name = "a" * 50
+    result = _make_sheet_name(long_name, used)
+    assert len(result) <= 31
+    assert result in used
+
+
+def test_make_sheet_name_collision_suffix():
+    used: set[str] = {"my_table"}
+    result = _make_sheet_name("my_table", used)
+    assert result == "my_table_2"
+    assert "my_table_2" in used
+
+
+def test_make_sheet_name_sanitizes_illegal_chars():
+    used: set[str] = set()
+    result = _make_sheet_name("data[0]:summary*", used)
+    assert "[" not in result
+    assert "]" not in result
+    assert ":" not in result
+    assert "*" not in result
+    assert result == "data_0__summary_"
+
+
+# --- display_dataframes / slim HTML tests ---
+
+
+def test_notebook_excludes_time_series_tables(fake_mmm):
+    """Time-series sections should render no HTML tables in the notebook."""
+    report = MMMReport(fake_mmm)
+    nb = build_notebook(report.report_data, include_interactive=False)
+
+    sections_with_tables: set[str] = set()
+    current_section: str | None = None
+    for cell in nb.cells:
+        if cell.cell_type == "markdown" and cell.source.startswith("## "):
+            current_section = cell.source.split("\n")[0].lstrip("# ").strip()
+        if cell.cell_type == "code" and current_section is not None:
+            for out in cell.outputs:
+                if "text/html" in out.get("data", {}):
+                    sections_with_tables.add(current_section)
+
+    time_series_sections = {
+        "Posterior Predictive Fit",
+        "Component Contributions",
+        "Saturation Curves",
+    }
+    assert not sections_with_tables & time_series_sections, (
+        f"Time-series sections should have no HTML tables: "
+        f"{sections_with_tables & time_series_sections}"
+    )
+    assert "Model Overview" in sections_with_tables
+    assert "Diagnostics" in sections_with_tables
+
+
+def test_roas_dataframe_is_aggregated(fake_mmm):
+    """ROAS DataFrames should have one row per channel with az.summary cols."""
+    report = MMMReport(fake_mmm)
+    roas_section = report.report_data.sections["roas"]
+
+    for key in ("roas_elementwise", "roas_incremental"):
+        df = roas_section.dataframes[key]
+        assert len(df) == len(_CHANNELS)
+        assert "mean" in df.columns
+        assert "sd" in df.columns
+        assert "date" not in df.columns
+
+    assert roas_section.display_dataframes.keys() == roas_section.dataframes.keys()

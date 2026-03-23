@@ -11,7 +11,12 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Public MMM report interface."""
+"""Public MMM report interface.
+
+Exposes the high-level :class:`MMMReport` class that wraps a fitted MMM
+and provides convenience methods for exporting the report to HTML, PDF,
+Excel, or raw DataFrames.
+"""
 
 from __future__ import annotations
 
@@ -26,7 +31,42 @@ from pymc_marketing.mmm.report._sections import build_report_data
 
 
 class MMMReport:
-    """Generate standardized MMM reports across multiple output formats."""
+    """Generate standardized MMM reports across multiple output formats.
+
+    The report data (tables and figures) is computed lazily on first access
+    to :attr:`report_data` and cached for subsequent exports.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    hdi_probs : tuple of float
+        HDI probability levels for uncertainty intervals.
+    point_estimate : {"mean", "median"}
+        Which point estimate to highlight.
+    frequency : str
+        Time-aggregation frequency forwarded to summary methods.
+    roas_methods : tuple of {"elementwise", "incremental"}
+        ROAS computation methods to include.
+    dims : dict or None
+        Optional dimension filters applied to summary DataFrames.
+    sensitivity_sweep_values : tuple of float or None
+        Multipliers for the sensitivity-analysis sweep.
+    include_interactive : bool
+        Whether to generate Plotly interactive figures.
+    num_samples : int or None
+        Number of posterior samples for stochastic summaries.
+    random_state : int, RandomState, or None
+        Random state for reproducibility.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        report = MMMReport(mmm, hdi_probs=(0.94,))
+        report.to_html("report.html")
+        report.to_excel("report.xlsx")
+    """
 
     def __init__(
         self,
@@ -60,11 +100,24 @@ class MMMReport:
 
     @cached_property
     def report_data(self) -> ReportData:
-        """Computed report payload with metadata, tables, and figures."""
+        """Lazily computed report payload with metadata, tables, and figures.
+
+        Returns
+        -------
+        ReportData
+            The full report payload, computed once and cached.
+        """
         return build_report_data(self.mmm, self.config)
 
     def to_dataframe(self) -> dict[str, pd.DataFrame]:
-        """Return all report tables in a deterministic dictionary."""
+        """Return all report tables as a flat dictionary.
+
+        Returns
+        -------
+        dict of str to pd.DataFrame
+            Keys are the table names (e.g. ``"roas_elementwise"``); values
+            are independent copies of the underlying DataFrames.
+        """
         result: dict[str, pd.DataFrame] = {}
         for section in self.report_data.sections.values():
             for table_key, df in section.dataframes.items():
@@ -77,7 +130,20 @@ class MMMReport:
         *,
         save_intermediate_notebook: str | None = None,
     ) -> str:
-        """Export report to HTML and optionally write it to disk."""
+        """Export the report as an HTML string.
+
+        Parameters
+        ----------
+        file_name : str or None
+            If given, the HTML is also written to this path.
+        save_intermediate_notebook : str or None
+            If given, the intermediate ``.ipynb`` is saved to this path.
+
+        Returns
+        -------
+        str
+            The rendered HTML.
+        """
         return export_html(
             self.report_data,
             file_name=file_name,
@@ -90,9 +156,23 @@ class MMMReport:
         *,
         engine: Literal["auto", "latex", "webpdf"] = "auto",
     ) -> None:
-        """Export report to PDF with configurable engine selection."""
+        """Export the report as a PDF file.
+
+        Parameters
+        ----------
+        file_name : str
+            Destination path for the PDF.
+        engine : {"auto", "latex", "webpdf"}
+            PDF rendering backend.
+        """
         export_pdf(self.report_data, file_name=file_name, engine=engine)
 
     def to_excel(self, file_name: str) -> None:
-        """Export report tables to Excel."""
+        """Export report tables to an Excel workbook.
+
+        Parameters
+        ----------
+        file_name : str
+            Destination path for the ``.xlsx`` file.
+        """
         export_excel(self.report_data, file_name=file_name)

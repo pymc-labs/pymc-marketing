@@ -11,7 +11,12 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""MMM report generation utilities."""
+"""MMM report generation utilities.
+
+This package provides :class:`MMMReport`, a high-level interface for
+generating standardized reports from a fitted Media Mix Model.  Reports
+can be exported to HTML, PDF, or Excel.
+"""
 
 from pymc_marketing.mmm.report._contracts import (
     ReportConfig,

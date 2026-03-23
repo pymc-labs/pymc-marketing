@@ -11,7 +11,13 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Notebook construction for MMM reports."""
+"""Notebook construction for MMM reports.
+
+Builds an in-memory Jupyter notebook (:mod:`nbformat` v4) whose cells contain
+pre-rendered outputs (DataFrames as HTML, figures as base-64 PNG, interactive
+charts as Plotly JSON).  The notebook is the intermediate representation used
+by the HTML and PDF exporters.
+"""
 
 from __future__ import annotations
 
@@ -26,12 +32,32 @@ from pymc_marketing.mmm.report._contracts import ReportData
 
 
 def _fig_to_png_base64(fig: Any) -> str:
+    """Render a matplotlib figure to a base-64 encoded PNG string.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure to render.
+
+    Returns
+    -------
+    str
+        Base-64 encoded PNG bytes (ASCII).
+    """
     buffer = BytesIO()
     fig.savefig(buffer, format="png", bbox_inches="tight")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 def _load_logo_base64() -> str | None:
+    """Load the PyMC-Marketing logo as a base-64 string.
+
+    Returns
+    -------
+    str or None
+        Base-64 encoded JPEG bytes, or ``None`` if the logo file is not
+        found on disk.
+    """
     repo_root = Path(__file__).resolve().parents[3]
     logo_path = repo_root / "docs" / "source" / "_static" / "marketing-logo-light.jpg"
     if not logo_path.exists():
@@ -40,6 +66,18 @@ def _load_logo_base64() -> str | None:
 
 
 def _build_header_markdown(report_data: ReportData) -> str:
+    """Build the Markdown header cell for the report notebook.
+
+    Parameters
+    ----------
+    report_data : ReportData
+        Report payload whose metadata populates the header.
+
+    Returns
+    -------
+    str
+        Markdown source including the logo, title, and metadata bullet list.
+    """
     metadata = report_data.metadata
     logo_b64 = _load_logo_base64()
     logo_html = ""
@@ -66,7 +104,20 @@ def _build_header_markdown(report_data: ReportData) -> str:
 def build_notebook(
     report_data: ReportData, *, include_interactive: bool = True
 ) -> nbformat.NotebookNode:
-    """Build a notebook with pre-computed outputs."""
+    """Build a Jupyter notebook with pre-computed cell outputs.
+
+    Parameters
+    ----------
+    report_data : ReportData
+        Fully populated report payload.
+    include_interactive : bool
+        Whether to embed interactive Plotly figures as cell outputs.
+
+    Returns
+    -------
+    nbformat.NotebookNode
+        An nbformat v4 notebook ready for export or serialisation.
+    """
     nb = nbformat.v4.new_notebook()
     nb.cells = []
 
@@ -83,7 +134,7 @@ def build_notebook(
         cell.metadata["jupyter"] = {"source_hidden": True}
         cell.outputs = []
 
-        for name, df in section.dataframes.items():
+        for name, df in section.display_dataframes.items():
             cell.outputs.append(
                 nbformat.v4.new_output(
                     output_type="display_data",

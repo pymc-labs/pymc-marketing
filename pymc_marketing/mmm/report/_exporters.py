@@ -11,7 +11,12 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Export helpers for MMM reports."""
+"""Export helpers for MMM reports.
+
+Provides functions to render a :class:`ReportData` payload into HTML, PDF,
+or Excel files.  Heavy optional dependencies (``nbconvert``, ``openpyxl``)
+are imported lazily so the module can be loaded without them.
+"""
 
 from __future__ import annotations
 
@@ -24,8 +29,52 @@ import pandas as pd
 from pymc_marketing.mmm.report._contracts import ReportData
 from pymc_marketing.mmm.report._notebook import build_notebook
 
+_EXCEL_MAX_SHEET_NAME = 31
+_EXCEL_ILLEGAL_CHARS = set("[]:*?/\\")
+
+
+def _make_sheet_name(table_key: str, used: set[str]) -> str:
+    """Build a valid, unique Excel sheet name from *table_key*.
+
+    Parameters
+    ----------
+    table_key : str
+        The raw key identifying the DataFrame inside a report section.
+    used : set of str
+        Sheet names already consumed.  The returned name is added to this
+        set as a side-effect so that successive calls stay collision-free.
+
+    Returns
+    -------
+    str
+        A sheet name that is at most 31 characters long, free of illegal
+        Excel characters, and unique within *used*.
+    """
+    sanitized = "".join("_" if ch in _EXCEL_ILLEGAL_CHARS else ch for ch in table_key)
+    candidate = sanitized[:_EXCEL_MAX_SHEET_NAME]
+
+    if candidate not in used:
+        used.add(candidate)
+        return candidate
+
+    suffix = 2
+    while True:
+        tag = f"_{suffix}"
+        truncated = sanitized[: _EXCEL_MAX_SHEET_NAME - len(tag)] + tag
+        if truncated not in used:
+            used.add(truncated)
+            return truncated
+        suffix += 1
+
 
 def _check_notebook_deps() -> None:
+    """Raise :class:`ImportError` if ``nbconvert`` is not installed.
+
+    Raises
+    ------
+    ImportError
+        When the ``nbconvert`` package cannot be imported.
+    """
     try:
         import nbconvert  # noqa: F401
     except ImportError as err:
@@ -36,6 +85,13 @@ def _check_notebook_deps() -> None:
 
 
 def _check_excel_deps() -> None:
+    """Raise :class:`ImportError` if ``openpyxl`` is not installed.
+
+    Raises
+    ------
+    ImportError
+        When the ``openpyxl`` package cannot be imported.
+    """
     try:
         import openpyxl  # noqa: F401
     except ImportError as err:
@@ -51,7 +107,30 @@ def export_html(
     file_name: str | None = None,
     save_intermediate_notebook: str | None = None,
 ) -> str:
-    """Render report HTML from notebook representation."""
+    """Render the report as an HTML string.
+
+    The report is first converted to a Jupyter notebook, then exported
+    via ``nbconvert``'s :class:`~nbconvert.HTMLExporter`.
+
+    Parameters
+    ----------
+    report_data : ReportData
+        Fully populated report payload.
+    file_name : str or None
+        If given, the HTML is also written to this path.
+    save_intermediate_notebook : str or None
+        If given, the intermediate ``.ipynb`` is saved to this path.
+
+    Returns
+    -------
+    str
+        The rendered HTML.
+
+    Raises
+    ------
+    ImportError
+        If ``nbconvert`` is not installed.
+    """
     _check_notebook_deps()
     from nbconvert import HTMLExporter
     from traitlets.config import Config
@@ -78,7 +157,27 @@ def export_pdf(
     file_name: str,
     engine: Literal["auto", "latex", "webpdf"] = "auto",
 ) -> None:
-    """Export report as PDF, preferring webpdf then latex in auto mode."""
+    """Export the report as a PDF file.
+
+    In ``"auto"`` mode the function first attempts the ``webpdf`` backend
+    (Playwright + Chromium) and falls back to LaTeX.
+
+    Parameters
+    ----------
+    report_data : ReportData
+        Fully populated report payload.
+    file_name : str
+        Destination path for the PDF file.
+    engine : {"auto", "latex", "webpdf"}
+        PDF rendering backend.
+
+    Raises
+    ------
+    ImportError
+        If ``nbconvert`` is not installed.
+    RuntimeError
+        If neither the webpdf nor the latex backend succeeds.
+    """
     _check_notebook_deps()
     from nbconvert import PDFExporter, WebPDFExporter
     from traitlets.config import Config
@@ -120,7 +219,23 @@ def export_pdf(
 
 
 def export_excel(report_data: ReportData, *, file_name: str) -> None:
-    """Export report tables to Excel with a metadata cover sheet."""
+    """Export report tables to an Excel workbook.
+
+    The workbook contains a *Cover* sheet with report metadata followed by
+    one sheet per DataFrame across all report sections.
+
+    Parameters
+    ----------
+    report_data : ReportData
+        Fully populated report payload.
+    file_name : str
+        Destination path for the ``.xlsx`` file.
+
+    Raises
+    ------
+    ImportError
+        If ``openpyxl`` is not installed.
+    """
     _check_excel_deps()
     from openpyxl.drawing.image import Image
 
@@ -152,9 +267,10 @@ def export_excel(report_data: ReportData, *, file_name: str) -> None:
         )
         cover.to_excel(writer, sheet_name="Cover", index=False)
 
-        for section_key, section in report_data.sections.items():
+        used_sheets: set[str] = {"Cover"}
+        for section in report_data.sections.values():
             for table_key, df in section.dataframes.items():
-                sheet_name = f"{section_key[:12]}_{table_key[:18]}"[:31]
+                sheet_name = _make_sheet_name(table_key, used_sheets)
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
 
         ws = writer.book["Cover"]

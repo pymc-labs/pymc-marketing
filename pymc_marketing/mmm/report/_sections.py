@@ -11,7 +11,13 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Section builders for MMM report generation."""
+"""Section builders for MMM report generation.
+
+Each public/private function in this module constructs one logical section of
+the MMM report (e.g. model overview, diagnostics, ROAS).  The top-level entry
+point is :func:`build_report_data`, which assembles every section into a
+:class:`~pymc_marketing.mmm.report._contracts.ReportData` payload.
+"""
 
 from __future__ import annotations
 
@@ -33,35 +39,22 @@ from pymc_marketing.mmm.report._contracts import (
 )
 from pymc_marketing.version import __version__
 
-NOTEBOOK_CASE_STUDY = "docs/source/notebooks/mmm/mmm_case_study.ipynb"
-NOTEBOOK_EXAMPLE = "docs/source/notebooks/mmm/mmm_example.ipynb"
-NOTEBOOK_INTERACTIVE = "docs/source/notebooks/mmm/plot_interactive.ipynb"
-
-PARITY_MATRIX: dict[str, tuple[str, ...]] = {
-    "model_overview": (NOTEBOOK_CASE_STUDY, NOTEBOOK_EXAMPLE),
-    "diagnostics": (NOTEBOOK_CASE_STUDY, NOTEBOOK_EXAMPLE),
-    "posterior_predictive": (
-        NOTEBOOK_CASE_STUDY,
-        NOTEBOOK_EXAMPLE,
-        NOTEBOOK_INTERACTIVE,
-    ),
-    "component_contributions": (
-        NOTEBOOK_CASE_STUDY,
-        NOTEBOOK_EXAMPLE,
-        NOTEBOOK_INTERACTIVE,
-    ),
-    "roas": (NOTEBOOK_CASE_STUDY, NOTEBOOK_EXAMPLE, NOTEBOOK_INTERACTIVE),
-    "saturation_curves": (
-        NOTEBOOK_CASE_STUDY,
-        NOTEBOOK_EXAMPLE,
-        NOTEBOOK_INTERACTIVE,
-    ),
-    "sensitivity": (NOTEBOOK_CASE_STUDY, NOTEBOOK_EXAMPLE),
-}
-
 
 def _finalize_figure(fig: Any, title: str) -> Any:
-    """Set suptitle and tight_layout on a matplotlib figure."""
+    """Apply a bold suptitle and tight layout to a matplotlib figure.
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The figure to finalize.
+    title : str
+        Text used as the figure's suptitle.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The same figure, modified in-place.
+    """
     fig.suptitle(title, fontsize=14, fontweight="bold")
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "The figure layout has changed to tight")
@@ -70,6 +63,22 @@ def _finalize_figure(fig: Any, title: str) -> Any:
 
 
 def _ensure_pandas(df: Any) -> pd.DataFrame:
+    """Coerce *df* into a :class:`pandas.DataFrame`.
+
+    If *df* is already a DataFrame a copy is returned.  If it exposes a
+    ``to_pandas()`` method (e.g. xarray objects) that method is called.
+    Otherwise a new DataFrame is constructed.
+
+    Parameters
+    ----------
+    df : DataFrame, xarray object, or array-like
+        Data to convert.
+
+    Returns
+    -------
+    pd.DataFrame
+        A pandas DataFrame representation of *df*.
+    """
     if isinstance(df, pd.DataFrame):
         return df.copy()
     if hasattr(df, "to_pandas"):
@@ -78,6 +87,24 @@ def _ensure_pandas(df: Any) -> pd.DataFrame:
 
 
 def _add_point_forecast(df: pd.DataFrame, point_estimate: str) -> pd.DataFrame:
+    """Add a ``point_forecast`` column to *df*.
+
+    The column is populated from the column named *point_estimate* when it
+    exists, falling back to ``"mean"`` then ``"median"``.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Source DataFrame (not modified in place).
+    point_estimate : str
+        Preferred column name (``"mean"`` or ``"median"``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of *df* with an additional ``point_forecast`` column, or an
+        unchanged copy if none of the candidate columns are present.
+    """
     out = df.copy()
     if point_estimate in out.columns:
         out["point_forecast"] = out[point_estimate]
@@ -92,6 +119,23 @@ def _apply_dims_filter(
     df: pd.DataFrame,
     dims: Mapping[str, str | int | Iterable[str | int]] | None,
 ) -> pd.DataFrame:
+    """Filter rows of *df* according to dimension coordinate selections.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame to filter (not modified in place).
+    dims : dict or None
+        Mapping of column names to coordinate values.  Scalar values select
+        a single coordinate; sequences select multiple.  Columns absent from
+        *df* are silently skipped.  ``None`` disables filtering.
+
+    Returns
+    -------
+    pd.DataFrame
+        Filtered copy of *df*, or the original when *dims* is ``None`` or
+        *df* is empty.
+    """
     if dims is None or df.empty:
         return df
     out = df.copy()
@@ -106,6 +150,18 @@ def _apply_dims_filter(
 
 
 def _build_metadata(mmm: Any) -> ReportMetadata:
+    """Extract :class:`ReportMetadata` from a fitted MMM.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+
+    Returns
+    -------
+    ReportMetadata
+        Metadata stamped with the current UTC time.
+    """
     idata = mmm.idata
     posterior = idata.posterior
     chains = int(posterior.sizes.get("chain", 0))
@@ -137,6 +193,18 @@ def _build_metadata(mmm: Any) -> ReportMetadata:
 
 
 def _section_model_overview(mmm: Any) -> ReportSection:
+    """Build the *Model Overview* section.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+
+    Returns
+    -------
+    ReportSection
+        Section containing a single ``model_overview`` DataFrame.
+    """
     rows = [
         ("model_name", type(mmm).__name__),
         ("date_column", getattr(mmm, "date_column", "")),
@@ -153,10 +221,25 @@ def _section_model_overview(mmm: Any) -> ReportSection:
         description="Model metadata and configuration.",
         source_code="# Derived from MMM model attributes",
         dataframes={"model_overview": overview_df},
+        display_dataframes={"model_overview": overview_df},
     )
 
 
 def _section_diagnostics(mmm: Any, config: ReportConfig) -> ReportSection:
+    """Build the *Diagnostics* section.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration.
+
+    Returns
+    -------
+    ReportSection
+        Section with ``diagnostics`` and ``arviz_summary`` DataFrames.
+    """
     divergences = int(mmm.idata["sample_stats"]["diverging"].sum().item())
     diagnostics_df = pd.DataFrame({"metric": ["divergences"], "value": [divergences]})
     var_names = [
@@ -174,6 +257,11 @@ def _section_diagnostics(mmm: Any, config: ReportConfig) -> ReportSection:
     ]
     summary_df = az.summary(data=mmm.fit_result, var_names=var_names).reset_index()
 
+    summary_with_pf = _add_point_forecast(summary_df, config.point_estimate)
+    dfs = {
+        "diagnostics": diagnostics_df,
+        "arviz_summary": summary_with_pf,
+    }
     return ReportSection(
         title="Diagnostics",
         description="Sampling diagnostics and divergence summary.",
@@ -181,14 +269,27 @@ def _section_diagnostics(mmm: Any, config: ReportConfig) -> ReportSection:
             "divergences = mmm.idata['sample_stats']['diverging'].sum().item()\n"
             "az.summary(data=mmm.fit_result, var_names=[...])"
         ),
-        dataframes={
-            "diagnostics": diagnostics_df,
-            "arviz_summary": _add_point_forecast(summary_df, config.point_estimate),
-        },
+        dataframes=dfs,
+        display_dataframes=dfs,
     )
 
 
 def _section_posterior_predictive(mmm: Any, config: ReportConfig) -> ReportSection:
+    """Build the *Posterior Predictive Fit* section.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration.
+
+    Returns
+    -------
+    ReportSection
+        Section with the ``posterior_predictive`` DataFrame and corresponding
+        static/interactive figures.
+    """
     pp_df = _ensure_pandas(
         mmm.summary.posterior_predictive(
             hdi_probs=config.hdi_probs,
@@ -229,6 +330,22 @@ def _section_posterior_predictive(mmm: Any, config: ReportConfig) -> ReportSecti
 
 
 def _section_component_contributions(mmm: Any, config: ReportConfig) -> ReportSection:
+    """Build the *Component Contributions* section.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration.
+
+    Returns
+    -------
+    ReportSection
+        Section with ``total_contributions`` and ``channel_contributions``
+        DataFrames plus waterfall, time-series, share, and original-scale
+        figures.
+    """
     total_df = _ensure_pandas(
         mmm.summary.total_contribution(
             hdi_probs=config.hdi_probs,
@@ -321,25 +438,65 @@ def _section_component_contributions(mmm: Any, config: ReportConfig) -> ReportSe
     )
 
 
-def _roas_forest_figure(
-    mmm: Any,
-    method: str,
-    config: ReportConfig,
-) -> Any:
-    """Build an ``az.plot_forest`` figure for ROAS.
+def _roas_xarray(mmm: Any, method: str, config: ReportConfig) -> Any:
+    """Compute the ``all_time`` ROAS xarray for a given method.
 
-    Always uses ``frequency="all_time"`` so the forest plot shows one
-    entry per channel (matching the case-study style).
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    method : {"elementwise", "incremental"}
+        ROAS computation method.
+    config : ReportConfig
+        Report configuration (used for ``num_samples`` and
+        ``random_state``).
+
+    Returns
+    -------
+    xarray.DataArray
+        ROAS data array with dims ``(chain, draw, channel)``.
     """
     if method == "incremental":
-        roas_xr = mmm.incrementality.contribution_over_spend(
+        return mmm.incrementality.contribution_over_spend(
             frequency="all_time",
             num_samples=config.num_samples,
             random_state=config.random_state,
         ).rename("roas")
-    else:
-        data = mmm.data.aggregate_time("all_time")
-        roas_xr = data.get_elementwise_roas(original_scale=True).rename("roas")
+    data = mmm.data.aggregate_time("all_time")
+    return data.get_elementwise_roas(original_scale=True).rename("roas")
+
+
+def _roas_forest_figure(
+    mmm: Any,
+    method: str,
+    config: ReportConfig,
+    roas_xr: Any | None = None,
+) -> Any:
+    """Build an ``az.plot_forest`` figure for ROAS.
+
+    Always uses ``frequency="all_time"`` so the forest plot shows one
+    entry per channel.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    method : {"elementwise", "incremental"}
+        ROAS computation method.
+    config : ReportConfig
+        Report configuration (used for ``num_samples`` and
+        ``random_state``).
+    roas_xr : xarray.DataArray or None
+        Pre-computed ROAS xarray.  When ``None`` the array is computed
+        internally via :func:`_roas_xarray`.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Forest-plot figure for the requested ROAS method.
+    """
+    if roas_xr is None:
+        roas_xr = _roas_xarray(mmm, method, config)
 
     fig, ax = plt.subplots(figsize=(10, 6))
     az.plot_forest(roas_xr, combined=True, ax=ax)
@@ -353,33 +510,46 @@ def _roas_forest_figure(
 
 
 def _section_roas(mmm: Any, config: ReportConfig) -> ReportSection:
+    """Build the *ROAS* section.
+
+    ROAS is always aggregated over the full time range (``all_time``).
+    The summary DataFrame is produced by :func:`arviz.summary` on the raw
+    posterior xarray so each channel gets a single row with mean, sd, and
+    HDI bounds.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration.
+
+    Returns
+    -------
+    ReportSection
+        Section with per-method ROAS DataFrames and forest-plot figures.
+    """
     hdi_prob = max(config.hdi_probs)
     dfs: dict[str, pd.DataFrame] = {}
+    display_dfs: dict[str, pd.DataFrame] = {}
     static_figures: dict[str, Any] = {}
     interactive_figures: dict[str, Any] = {}
 
     for method in config.roas_methods:
-        roas_df = _ensure_pandas(
-            mmm.summary.roas(
-                hdi_probs=config.hdi_probs,
-                frequency=config.frequency,
-                method=method,
-                num_samples=config.num_samples,
-                random_state=config.random_state,
-                output_format="pandas",
-            )
-        )
-        roas_df = _add_point_forecast(
-            _apply_dims_filter(roas_df, config.dims), config.point_estimate
-        )
-        dfs[f"roas_{method}"] = roas_df
+        roas_xr = _roas_xarray(mmm, method, config)
+
+        summary_df = az.summary(roas_xr, hdi_prob=hdi_prob).reset_index()
+        key = f"roas_{method}"
+        dfs[key] = summary_df
+        display_dfs[key] = summary_df
+
         static_figures[f"roas_forest_{method}"] = _roas_forest_figure(
-            mmm, method, config
+            mmm, method, config, roas_xr=roas_xr
         )
         if config.include_interactive:
             interactive_figures[f"roas_{method}"] = mmm.plot_interactive.roas(
                 hdi_prob=hdi_prob,
-                frequency=config.frequency,
+                frequency="all_time",
                 method=method,
                 num_samples=config.num_samples,
                 random_state=config.random_state,
@@ -389,16 +559,33 @@ def _section_roas(mmm: Any, config: ReportConfig) -> ReportSection:
         title="ROAS",
         description="Elementwise and incremental return-on-ad-spend summaries.",
         source_code=(
-            "roas = mmm.incrementality.contribution_over_spend(...).rename('roas')\n"
-            "az.plot_forest(roas, combined=True)"
+            "roas = mmm.incrementality.contribution_over_spend("
+            "frequency='all_time').rename('roas')\n"
+            "az.summary(roas, hdi_prob=0.94)"
         ),
         dataframes=dfs,
+        display_dataframes=display_dfs,
         static_figures=static_figures,
         interactive_figures=interactive_figures,
     )
 
 
 def _section_saturation_curves(mmm: Any, config: ReportConfig) -> ReportSection:
+    """Build the *Saturation Curves* section.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration.
+
+    Returns
+    -------
+    ReportSection
+        Section with a ``saturation_curves`` DataFrame and scatter-plot
+        figures.
+    """
     saturation_df = _ensure_pandas(
         mmm.summary.saturation_curves(
             hdi_probs=config.hdi_probs,
@@ -439,6 +626,22 @@ def _section_saturation_curves(mmm: Any, config: ReportConfig) -> ReportSection:
 
 
 def _section_sensitivity(mmm: Any, config: ReportConfig) -> ReportSection | None:
+    """Build the *Sensitivity Analysis* section.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration.  When ``sensitivity_sweep_values`` is ``None``
+        the section is skipped.
+
+    Returns
+    -------
+    ReportSection or None
+        Section with the sweep DataFrame and relative/absolute figures, or
+        ``None`` if no sweep values were configured.
+    """
     if config.sensitivity_sweep_values is None:
         return None
 
@@ -481,7 +684,26 @@ def _section_sensitivity(mmm: Any, config: ReportConfig) -> ReportSection | None
 
 
 def build_report_data(mmm: Any, config: ReportConfig) -> ReportData:
-    """Build all report sections and metadata from a fitted MMM."""
+    """Build all report sections and metadata from a fitted MMM.
+
+    This is the main entry point for constructing the report payload.  It
+    iterates over every analytical block, assembles the resulting
+    :class:`ReportSection` instances into an ordered dictionary, and returns
+    the complete :class:`ReportData`.
+
+    Parameters
+    ----------
+    mmm : MMM
+        A fitted media-mix model instance.
+    config : ReportConfig
+        Report configuration controlling which summaries, intervals, and
+        figures to include.
+
+    Returns
+    -------
+    ReportData
+        Fully populated report payload ready for export.
+    """
     sections: OrderedDict[str, ReportSection] = OrderedDict()
     sections["model_overview"] = _section_model_overview(mmm)
     sections["diagnostics"] = _section_diagnostics(mmm, config)
@@ -496,5 +718,4 @@ def build_report_data(mmm: Any, config: ReportConfig) -> ReportData:
     return ReportData(
         metadata=_build_metadata(mmm),
         sections=sections,
-        parity_matrix=PARITY_MATRIX,
     )
