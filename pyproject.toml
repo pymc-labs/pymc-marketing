@@ -5,7 +5,7 @@ requires = ["hatchling<2", "hatch-fancy-pypi-readme"]
 [project]
 name = "pymc-marketing"
 description = "Marketing Statistical Models in PyMC"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
