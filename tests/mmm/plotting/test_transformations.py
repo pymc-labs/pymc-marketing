@@ -637,6 +637,35 @@ class TestEnsureChainDrawDims:
         converted_mean = float(result.mean())
         assert original_mean == pytest.approx(converted_mean, rel=1e-10)
 
+    def test_multiindex_sample_unstacked(self):
+        """Test curves with sample as MultiIndex over (chain, draw)."""
+        chains = [0, 0, 1, 1]
+        draws = [0, 1, 0, 1]
+        x_values = np.linspace(0, 1, 10)
+        channels = ["tv", "radio"]
+
+        data = np.random.randn(4, 2, 10)
+        da = xr.DataArray(
+            data,
+            dims=("sample", "channel", "x"),
+            coords={
+                "sample": np.arange(4),
+                "chain": ("sample", chains),
+                "draw": ("sample", draws),
+                "channel": channels,
+                "x": x_values,
+            },
+        )
+        # Create MultiIndex by setting index
+        da = da.set_index(sample=["chain", "draw"])
+
+        result = _ensure_chain_draw_dims(da)
+        assert "chain" in result.dims
+        assert "draw" in result.dims
+        assert "sample" not in result.dims
+        assert result.sizes["chain"] == 2
+        assert result.sizes["draw"] == 2
+
     def test_raises_on_unknown_dims(self):
         bad = xr.DataArray(
             np.zeros((3, 4)),
