@@ -62,10 +62,13 @@
    `_build_subplot_title`, `_dim_list_handler`, `_get_additional_dim_combinations`,
    `_add_median_and_hdi`). Bundling this with the major release avoids imposing a second
    breaking change later for figure customization. It also solves inconsistent figure
-   customization (issue II.7) by exposing arviz-plots' native customization model: 6
-   standard parameters (`figsize`, `plot_collection`, `backend`, `visuals`,
-   `aes_by_visuals`, `**pc_kwargs`) on every method. Bar-plot methods that cannot use
-   arviz-plots fall back to matplotlib with the same parameter signature.
+   customization (issue II.7) by exposing a consistent customization model: 5
+   standard parameters (`figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`,
+   `**pc_kwargs`) on every method. Each visual element gets its own explicit keyword
+   argument (e.g., `scatter_kwargs`, `hdi_kwargs`, `line_kwargs`) rather than a
+   single opaque `visuals` dict — this makes available kwargs discoverable via IDE
+   autocomplete. Bar-plot methods that cannot use arviz-plots fall back to matplotlib
+   with the same parameter signature.
    See [Helper Function Removal Plan](#helper-function-removal-plan) for what `PlotCollection` replaces.
    Full customization API: [figure customization design](./2026-03-11-figure-customization-design.md).
    Original issues:
@@ -98,15 +101,18 @@
 5. **Every data-dependent method accepts an `idata` override parameter.**
    All 17 `MMMPlotSuite` methods that access `self._data` accept
    `idata: az.InferenceData | None = None`. When provided, the method constructs
-   `MMMIDataWrapper(idata)` and uses that local wrapper for all subsequent access —
-   both `data.idata` and wrapper helpers like `data.get_channel_spend()`. This makes
-   individual methods fully reusable with different fitted models (e.g., comparing two
-   model fits side-by-side) without constructing a new suite instance. The parameter
-   type is `az.InferenceData` (not `MMMIDataWrapper`) because that is the object users
-   have in hand — the wrapper construction is an internal detail. Currently only
-   `posterior_predictive` and `prior_predictive` have an ad-hoc `idata` override; this
-   decision standardizes the pattern across all 17 data-dependent methods. Resolution
-   at the top of every method: `data = MMMIDataWrapper(idata) if idata is not None else self._data`.
+   `MMMIDataWrapper(idata, schema=self._data.schema)` and uses that local wrapper for
+   all subsequent access — both `data.idata` and wrapper helpers like
+   `data.get_channel_spend()`. Schema propagation is required so the override wrapper
+   knows the model's variable naming conventions (e.g., contribution variable names,
+   dimension structure). This makes individual methods fully reusable with different
+   fitted models (e.g., comparing two model fits side-by-side) without constructing a
+   new suite instance. The parameter type is `az.InferenceData` (not `MMMIDataWrapper`)
+   because that is the object users have in hand — the wrapper construction is an
+   internal detail. Currently only `posterior_predictive` and `prior_predictive` have
+   an ad-hoc `idata` override; this decision standardizes the pattern across all 17
+   data-dependent methods. Resolution at the top of every method:
+   `data = MMMIDataWrapper(idata, schema=self._data.schema) if idata is not None else self._data`.
    See [Standardized API Contract](#standardized-api-contract) for the full parameter table,
    [Behavioral Rules](#behavioral-rules) for the resolution pattern,
    and [Namespace Class Pattern](#namespace-class-pattern) for a concrete method signature example.
@@ -157,7 +163,8 @@
 mmm/plotting/
     __init__.py              # re-exports MMMPlotSuite, MMMCVPlotSuite
     _helpers.py              # shared: _process_plot_params, _extract_matplotlib_result,
-                             #   _validate_dims, channel_color_map
+                             #   _validate_dims, _dims_to_sel_kwargs, _select_dims,
+                             #   channel_color_map
     suite.py                 # MMMPlotSuite — namespace wrapper with 6 sub-objects
     cv_suite.py              # MMMCVPlotSuite — 3 flat CV methods, no data dependency
     diagnostics.py           # DiagnosticsPlots namespace (4 methods)
@@ -239,15 +246,16 @@ class MMMCVPlotSuite:
 >
 > **Design note — method-level `idata` override:** Every method that
 > accesses `self._data` accepts `idata: az.InferenceData | None = None`
-> and resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data`
-> at the top. All subsequent access in the method goes through the resolved
-> local `data` — both `data.idata` and wrapper helpers like
-> `data.get_channel_spend()`. This makes individual methods fully reusable
-> with different fitted models (e.g., comparing two model fits side-by-side)
-> without constructing a new suite instance. Currently only
-> `posterior_predictive` and `prior_predictive` have an ad-hoc `idata`
-> override; this decision standardizes the pattern across all 17
-> data-dependent methods. The parameter is `az.InferenceData` (not
+> and resolves `data = MMMIDataWrapper(idata, schema=self._data.schema) if idata is not None else self._data`
+> at the top. Schema propagation is required so the override wrapper knows
+> the model's variable naming conventions. All subsequent access in the
+> method goes through the resolved local `data` — both `data.idata` and
+> wrapper helpers like `data.get_channel_spend()`. This makes individual
+> methods fully reusable with different fitted models (e.g., comparing two
+> model fits side-by-side) without constructing a new suite instance.
+> Currently only `posterior_predictive` and `prior_predictive` have an
+> ad-hoc `idata` override; this decision standardizes the pattern across
+> all 17 data-dependent methods. The parameter is `az.InferenceData` (not
 > `MMMIDataWrapper`) because that is the object users have in hand —
 > the wrapper construction is an internal detail.
 >
@@ -296,6 +304,7 @@ class SomethingPlots:
     def method(
         self,
         # 1. Method-specific data params (varies per method)
+        idata: az.InferenceData | None = None,
         channels=None,
         hdi_prob=0.94,
         original_scale=True,
@@ -303,13 +312,14 @@ class SomethingPlots:
         dims=None,
         # 3. Figure customization (standard — identical across all methods)
         figsize=None,
-        plot_collection=None,
         backend=None,
-        visuals=None,
-        aes_by_visuals=None,
         # 4. Return control (standard)
         return_as_pc=False,
-        # 5. PlotCollection kwargs catch-all (standard)
+        # 5. Per-element visual kwargs (method-specific)
+        scatter_kwargs=None,
+        hdi_kwargs=None,
+        # ... other *_kwargs matching the method's visual elements
+        # 6. PlotCollection kwargs catch-all (standard)
         **pc_kwargs,
     ):
         ...
@@ -334,13 +344,11 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 
 | Parameter | Type | Default | Notes |
 |-----------|------|---------|-------|
-| `idata` | `az.InferenceData \| None` | `None` | Override instance data; method resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data`. Only on `MMMPlotSuite` methods that access `self._data`. |
+| `idata` | `az.InferenceData \| None` | `None` | Override instance data; method resolves `data = MMMIDataWrapper(idata, schema=self._data.schema) if idata is not None else self._data`. Only on `MMMPlotSuite` methods that access `self._data`. |
 | `dims` | `dict[str, Any] \| None` | `None` | Subset dimensions (e.g., `{"geo": ["CA", "NY"]}`) |
-| `figsize` | `tuple[float, float] \| None` | `None` | Convenience for `figure_kwargs`; ignored with `plot_collection` |
-| `plot_collection` | `PlotCollection \| None` | `None` | Plot onto existing arviz-plots collection |
+| `figsize` | `tuple[float, float] \| None` | `None` | Passed to `PlotCollection` figure creation |
 | `backend` | `str \| None` | `None` | `"matplotlib"`, `"plotly"`, `"bokeh"` |
-| `visuals` | `dict[str, Any] \| None` | `None` | Element-level customization (method-specific keys) |
-| `aes_by_visuals` | `dict[str, list[str]] \| None` | `None` | Aesthetic mapping per visual element |
+| `<element>_kwargs` | `dict[str, Any] \| None` | `None` | Per-element visual kwargs — one param per visual element (method-specific names, e.g., `scatter_kwargs`, `hdi_kwargs`, `line_kwargs`). Forwarded directly to the corresponding `azp.visuals.*` call. |
 | `return_as_pc` | `bool` | `False` | Opt-in to `PlotCollection` return |
 | `**pc_kwargs` | | | Forwarded to `PlotCollection.wrap()` or `.grid()` |
 
@@ -379,15 +387,13 @@ fig, axes = mmm.plot.decomposition.waterfall(
 **Visual element customization:**
 
 ```python
-# Style individual visual elements with backend kwargs
+# Style individual visual elements with per-element kwargs
+# Each *_kwargs dict is forwarded directly to the corresponding azp.visuals.* call
 fig, axes = mmm.plot.diagnostics.posterior_predictive(
-    visuals={
-        "line": {"color": "darkblue", "linewidth": 2},
-        "hdi_band": {"alpha": 0.15},
-        "observed": {"marker": "o", "s": 12, "color": "black"},
-    },
+    line_kwargs={"color": "darkblue", "linewidth": 2},
+    hdi_kwargs={"alpha": 0.15},
+    observed_kwargs={"marker": "o", "s": 12, "color": "black"},
 )
-
 ```
 
 **idata override — plot with a different fitted model's data:**
@@ -398,21 +404,14 @@ mmm.plot.diagnostics.posterior_predictive(idata=other_idata)
 mmm.plot.decomposition.waterfall(idata=other_idata)
 ```
 
-**PlotCollection — compose plots and post-process:**
+**PlotCollection — get back for post-processing:**
 
 ```python
-from arviz_plots import PlotCollection
-
-# Plot onto a pre-built grid (replaces manual plt.subplots composition)
-pc = PlotCollection.grid(data, cols=["channel"], figsize=(16, 4))
-mmm.plot.sensitivity.analysis(
-    channels=["tv", "radio"], plot_collection=pc)
-
-# Get PlotCollection back for further manipulation
+# Get PlotCollection back for further manipulation via return_as_pc=True
 pc = mmm.plot.sensitivity.analysis(
     channels=["tv", "radio"], return_as_pc=True
 )
-pc.map("reference_line", hline, y=0, color="red", linestyle="--")
+pc.map(azp.visuals.line_xy, x=reference_x, y=reference_y, color="red", linestyle="--")
 ```
 
 **Backend and layout kwargs:**
@@ -442,13 +441,13 @@ fig, axes = mmm.plot.sensitivity.analysis(
 - All data access goes through `MMMIDataWrapper` methods
 - All methods use `PlotCollection` internally for rendering (I.6)
 - Bar-plot methods that cannot use arviz-plots fall back to matplotlib with the same parameter signature (see [figure customization design](./2026-03-11-figure-customization-design.md#arviz-plots-coverage-gaps))
-- Every method that accesses `self._data` resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data` at the top of the method body. All subsequent access in the method uses the resolved local `data` (both `data.idata` and wrapper helpers like `data.get_channel_spend()`), never `self._data` directly.
+- Every method that accesses `self._data` resolves `data = MMMIDataWrapper(idata, schema=self._data.schema) if idata is not None else self._data` at the top of the method body. All subsequent access in the method uses the resolved local `data` (both `data.idata` and wrapper helpers like `data.get_channel_spend()`), never `self._data` directly.
 
 ### MMMCVPlotSuite Contract
 
 `MMMCVPlotSuite` methods follow the same standard customization parameters
-as `MMMPlotSuite` methods (figsize, plot_collection, backend, visuals,
-aes_by_visuals, return_as_pc, **pc_kwargs). Differences:
+as `MMMPlotSuite` methods (`figsize`, `backend`, per-element `*_kwargs`,
+`return_as_pc`, `**pc_kwargs`). Differences:
 
 - No `self._data` — all plotting data comes from the `results` argument
 - **No `idata` override parameter** — since there is no `self._data`, the `idata` parameter does not apply. CV methods already receive all their data via the `results` argument.
@@ -488,6 +487,8 @@ to standalone functions.
 | Helper | Current issue | New form in `_helpers.py` | PR |
 |--------|--------------|--------------------------|-----|
 | `_validate_dims` | Hardcoded to `self.idata.posterior.coords` (IV.3) | `_validate_dims(dataset: xr.Dataset, dims: dict)` — accepts target dataset as parameter. Usable by both suites. | 1 |
+| `_dims_to_sel_kwargs` | Not present | New: converts validated `dims` dict to `.sel()` kwargs. Can be used independently when only the conversion step is needed. | 1 |
+| `_select_dims` | Not present | New: combines `_validate_dims` + `_dims_to_sel_kwargs` + `.sel()` into a single call. Accepts both `xr.Dataset` and `xr.DataArray`. Use `_select_dims(data, dims)` instead of the three-step pattern. | 1 |
 | `_filter_df_by_indexer` | Instance method only used by `cv_predictions` | Module-level function in `cv_suite.py` (CV-specific) | 8 |
 
 ### Helpers that stay (data access / computation)
@@ -515,7 +516,8 @@ scaffolding. They move into their respective namespace classes or into
 | Replaced by arviz-plots | 5 | Delete — `PlotCollection` handles subplot creation, layout, titles, dimension iteration |
 | Refactored to standalone | 2 | Move to `_helpers.py` or `cv_suite.py` as module-level functions |
 | Stay (data/computation) | 9 | Move into respective namespace classes |
-| **Total** | **16** | |
+| **Total (existing helpers)** | **16** | |
+| New standalone functions (PR 1) | 2 | `_dims_to_sel_kwargs`, `_select_dims` — new functions added to `_helpers.py` |
 
 ---
 
