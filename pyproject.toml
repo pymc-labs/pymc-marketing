@@ -48,14 +48,12 @@ dependencies = [
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
 docs = [
-    "Setuptools<81",
     "blackjax",
     "fastprogress",
     "graphviz",
     "ipython!=8.7.0",
     "ipywidgets",
     "labs-sphinx-theme",
-    "lifetimes",
     "myst-nb>=1.1.2",
     "myst-parser",
     "numba",
@@ -80,14 +78,12 @@ docs = [
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
-    "Setuptools<81",
     "blackjax",
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
     "jax",
     "graphviz>=0.20.1",
-    "lifetimes==0.11.3",
     "papermill",
     "polars>=1.0.0",
     "pyprojroot",
