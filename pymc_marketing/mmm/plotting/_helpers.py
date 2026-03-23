@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any, TypeVar
+from typing import Any
 
 import numpy as np
 import xarray as xr
@@ -24,8 +24,6 @@ from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
-
-_XarrayT = TypeVar("_XarrayT", xr.Dataset, xr.DataArray)
 
 MATPLOTLIB_CYCLE_SIZE = 10
 
@@ -57,10 +55,10 @@ def _dims_to_sel_kwargs(
     }
 
 
-def _select_dims(
-    data: _XarrayT,
+def _select_dims[XarrayT: (xr.Dataset, xr.DataArray)](
+    data: XarrayT,
     dims: dict[str, Any] | None,
-) -> _XarrayT:
+) -> XarrayT:
     """Validate dimension filters and apply ``.sel()`` in one step.
 
     Parameters
