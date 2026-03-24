@@ -548,7 +548,7 @@ scaffolding. They move into their respective namespace classes or into
 | I.6 | Duplicated subplot logic / arviz-plots | All methods use `PlotCollection`; bar-plot methods fall back to matplotlib |
 | II.4 | Monkey-patching idata | Pass data as parameter to shared helper |
 | II.6 | No dims filtering on predictive/media | Add `dims` parameter |
-| II.7 | Inconsistent figure customization | 6 standard params via arviz-plots (see [figure customization design](./2026-03-11-figure-customization-design.md)) |
+| II.7 | Inconsistent figure customization | 5 standard params on every method: `figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs` (see [figure customization design](./2026-03-11-figure-customization-design.md)) |
 | IV.1 | Copy-paste bug in prior_predictive | Fix error messages and docstrings |
 | IV.2 | `plt.gcf()` fragility in `channel_share_hdi` | Replace with explicit figure reference |
 | IV.3 | `_validate_dims` hardcoded to posterior | Validate against correct dataset |
@@ -628,10 +628,12 @@ adds parametrized cross-cutting tests that verify the standard API contract
 **Content:** `_helpers.py` with shared infrastructure.
 
 **Includes:**
-- `_process_plot_params()` — validates and normalizes the 6 standard customization params
+- `_process_plot_params(figsize, backend, return_as_pc, **pc_kwargs)` — validates and normalizes the 5 standard customization params
 - `_extract_matplotlib_result()` — converts `PlotCollection` to `tuple[Figure, NDArray[Axes]]`
 - Shared channel→color mapping (I.5)
 - `_validate_dims(dataset, dims)` as standalone function accepting target dataset (IV.3)
+- `_dims_to_sel_kwargs(dataset, dims)` — converts validated `dims` dict to `.sel()` kwargs
+- `_select_dims(data, dims)` — combines validate + convert + `.sel()` in one call; accepts `xr.Dataset` or `xr.DataArray`
 - Contribution variable resolution helper (consolidates 5 strategies)
 - arviz-plots imports and version compatibility checks
 
@@ -660,7 +662,7 @@ rewrites its methods using `PlotCollection` directly.
 - IV.18 — Add optional parameter to `_compute_residuals`
 - II.5 — `var` → `var_names` (list[str] for both methods)
 - II.6 — Add `dims` parameter
-- II.7 — Add 6 standard customization params (arviz-plots)
+- II.7 — Add 5 standard customization params (`figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs`)
 
 **LOE:** L (4 methods; follows the pattern established by PR 4)
 
@@ -676,7 +678,7 @@ rewrites its methods using `PlotCollection` directly.
 **Fixes included:**
 - II.1 — `channel_parameter` currently returns bare `Figure`; fix to standard return
 - IV.15 — Lazy seaborn import (only `posterior_distribution` and `prior_vs_posterior`)
-- II.7 — Add 6 standard customization params (arviz-plots)
+- II.7 — Add 5 standard customization params (`figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs`)
 
 **LOE:** M
 
@@ -690,15 +692,17 @@ rewrites its methods using `PlotCollection` directly.
 > copy-able form:
 >
 > 1. Namespace class structure (`class TransformationPlots`, `__init__(self, data)`, `self._data`)
-> 2. Full standard signature (all 6 customization params + `idata` override + `return_as_pc` + `**pc_kwargs`)
-> 3. `data = MMMIDataWrapper(idata) if idata is not None else self._data` resolution at the top of each method
+> 2. Full standard signature: `idata`, `dims`, `figsize`, `backend`, `return_as_pc`, per-element `*_kwargs` (method-specific), `**pc_kwargs`
+> 3. `data = MMMIDataWrapper(idata, schema=self._data.schema) if idata is not None else self._data` resolution at the top of each method
 > 4. `_process_plot_params()` call to validate/normalize params
-> 5. `_validate_dims()` call against the correct dataset
-> 6. `PlotCollection.wrap()` / `.grid()` creation from xarray data
-> 7. `pc.map(...)` for rendering (line + HDI band in `saturation_curves`, scatter in `saturation_scatterplot`)
-> 8. `_extract_matplotlib_result()` conversion to `tuple[Figure, NDArray[Axes]]`
-> 9. All access exclusively through resolved local `data` (no `self._data` after resolution)
-> 10. Test file with return-type checks, axis-count assertions, `dims` filtering, `idata` override, `return_as_pc=True`
+> 5. `_select_dims(data, dims)` call — combined validate + filter in one step
+> 6. `PlotCollection.grid()` or `.wrap()` creation from xarray data — method chooses best fit
+> 7. Native `azp.visuals.*` functions for rendering (`scatter_xy`, `line_xy`, `fill_between_y`, `labelled_*`); custom module-level callbacks only when no native visual exists
+> 8. Per-element `*_kwargs` forwarded directly to the corresponding `azp.visuals.*` call
+> 9. DRY composition via `return_as_pc=True`: `saturation_curves` calls `saturation_scatterplot(return_as_pc=True)` to reuse the scatter layer instead of duplicating setup code
+> 10. `_extract_matplotlib_result()` conversion to `tuple[Figure, NDArray[Axes]]`
+> 11. All access exclusively through resolved local `data` (no `self._data` after resolution)
+> 12. Test file with return-type checks, axis-count assertions, `dims` filtering, `idata` override, `return_as_pc=True`
 
 **Methods:**
 - `saturation_scatterplot` → `mmm.plot.transformations.saturation_scatterplot()`
@@ -707,9 +711,14 @@ rewrites its methods using `PlotCollection` directly.
 
 **Fixes included:**
 - II.2 — `original_scale` default → `True`
-- II.5 — `hdi_probs` → `hdi_prob` (singular, single float)
+- II.5 — `hdi_probs` → `hdi_prob` (singular, single float); `curve` (singular) → `curves` (plural, reflects that the DataArray contains multiple posterior samples)
 - IV.16 — Fix error message formatting (raw `\n`)
 - II.6 — Add channel subsetting via `dims`
+
+**Additional patterns introduced in this PR (available to subsequent family PRs):**
+- `_ensure_chain_draw_dims` — module-level helper in `transformations.py` that normalises curve dimension format: `(chain, draw, ...)` returned as-is; `sample` MultiIndex over `(chain, draw)` unstacked; plain `sample` integer index expanded to `chain=0, draw=0..N-1`. Bridges the gap between `mmm.sample_saturation_curve()` output and the `(chain, draw)` format expected by arviz-plots HDI computation.
+- Mean curve as a dedicated visual layer — `mean_curve_kwargs` parameter renders the posterior mean as a visually prominent solid line, separate from individual sample lines and the HDI band.
+- Scale mismatch warning — heuristic `UserWarning` when `curves.max()` magnitude appears inconsistent with the `original_scale` flag; available as a template for any method accepting externally-scaled data.
 
 **LOE:** M (2 methods; ships first to unblock parallel work on PRs 2, 3, 5, 6, 7)
 
@@ -745,7 +754,7 @@ rewrites its methods using `PlotCollection` directly.
 **Fixes included:**
 - II.1 — Standardize return type
 - IV.9 — kwargs conflict detection
-- II.7 — Add 6 standard customization params (arviz-plots)
+- II.7 — Add 5 standard customization params (`figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs`)
 
 **LOE:** M
 
@@ -849,7 +858,7 @@ These are resolved in PR 1 (Foundation) and enforced by every subsequent PR:
 |---------|-----------|
 | Suite separation | `MMMPlotSuite` for model-fit plots (requires `data`); `MMMCVPlotSuite` for CV plots (stateless). `mmm.plot` returns the former; `cv.plot` returns the latter. No cross-contamination. |
 | Helper removal | 5 subplot-scaffolding helpers (`_init_subplots`, `_build_subplot_title`, `_dim_list_handler`, `_get_additional_dim_combinations`, `_add_median_and_hdi`) are **not ported** — `PlotCollection` replaces them. See [Helper Function Removal Plan](#helper-function-removal-plan). |
-| I.3 — All methods use `MMMIDataWrapper` | `MMMPlotSuite` namespace classes receive only `data: MMMIDataWrapper` (no separate `idata` arg); no raw `self._data.idata.posterior` access. `MMMCVPlotSuite` has no `self._data` at all. Every data-dependent method accepts `idata: az.InferenceData | None = None` and resolves `data = MMMIDataWrapper(idata) if idata is not None else self._data` — all access goes through the resolved local `data`. |
+| I.3 — All methods use `MMMIDataWrapper` | `MMMPlotSuite` namespace classes receive only `data: MMMIDataWrapper` (no separate `idata` arg); no raw `self._data.idata.posterior` access. `MMMCVPlotSuite` has no `self._data` at all. Every data-dependent method accepts `idata: az.InferenceData | None = None` and resolves `data = MMMIDataWrapper(idata, schema=self._data.schema) if idata is not None else self._data` — all access goes through the resolved local `data`. |
 | I.4 — No nested functions | Extract to module-level private functions or namespace private methods |
 | I.5 — Shared color palette | `_helpers.channel_color_map(channels)` returns consistent channel→color dict |
 | I.6 — arviz-plots adoption | All methods use `PlotCollection` internally; bar-plot methods fall back to matplotlib |
@@ -857,7 +866,7 @@ These are resolved in PR 1 (Foundation) and enforced by every subsequent PR:
 | II.2 — `original_scale=True` | Default on every method that exposes the parameter |
 | II.5 — Consistent param names | `var_names`, `hdi_prob`, `figsize: tuple[float, float]` |
 | II.6 — `dims` on all methods | Every method accepts `dims: dict[str, Any] | None` |
-| II.7 — Figure customization | 6 standard params: `figsize`, `plot_collection`, `backend`, `visuals`, `aes_by_visuals`, `**pc_kwargs` (see [design](./2026-03-11-figure-customization-design.md)) |
+| II.7 — Figure customization | 5 standard params: `figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs` (see [design](./2026-03-11-figure-customization-design.md)) |
 
 ---
 
@@ -932,11 +941,11 @@ All methods now accept a consistent set of customization parameters
 
 | Old | New | Notes |
 |-----|-----|-------|
-| `ax: plt.Axes` (4 methods) | `plot_collection: PlotCollection` | arviz-plots composability |
-| `**kwargs` (varies) | `visuals: dict` + `**pc_kwargs` | Element-level control via `visuals`; collection-level via `pc_kwargs` |
+| `ax: plt.Axes` (4 methods) | `return_as_pc=True` | Get `PlotCollection` back for post-processing; or use `**pc_kwargs` for layout |
+| `**kwargs` (varies) | per-element `*_kwargs` + `**pc_kwargs` | Element-level control via `scatter_kwargs`, `hdi_kwargs`, etc.; collection-level via `pc_kwargs` |
 | `rc_params` (1 method) | `**pc_kwargs` | Pass as `figure_kwargs` in `pc_kwargs` |
 | `subplot_kwargs` (1 method) | `**pc_kwargs` | Forwarded to `PlotCollection.wrap/grid` |
-| No customization (7 methods) | Full standard params | All methods now have `figsize`, `backend`, `visuals`, etc. |
+| No customization (7 methods) | Full standard params | All methods now have `figsize`, `backend`, per-element `*_kwargs`, etc. |
 
 ## Behavioral Changes
 
@@ -953,7 +962,7 @@ All methods now accept a consistent set of customization parameters
 
 - **Import path changed:** `from pymc_marketing.mmm.plot import MMMPlotSuite` → `from pymc_marketing.mmm.plotting import MMMPlotSuite`. The old `mmm/plot.py` module is replaced with a stub that raises `ImportError` with migration guidance.
 - `saturation_curves_scatter` — use `mmm.plot.transformations.saturation_scatterplot()` instead
-- `ax` parameter — use `plot_collection` for composing onto existing figures
+- `ax` parameter — use `return_as_pc=True` to get a `PlotCollection` back for post-processing
 - `MMMPlotSuite(idata=None)` pattern — CV methods no longer need it (they live on `MMMCVPlotSuite`)
 ```
 
@@ -977,7 +986,7 @@ Every issue from the comprehensive audit mapped to its resolution:
 | II.4 | Monkey-patching idata | Shared helper with data parameter | 7 |
 | II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob`, `figsize` types | 2–8 |
 | II.6 | No dims filtering | Add `dims` on all methods | 2–8 |
-| II.7 | Inconsistent figure customization | 6 standard params via arviz-plots (see [figure customization design](./2026-03-11-figure-customization-design.md)) | 2–8 |
+| II.7 | Inconsistent figure customization | 5 standard params on every method: `figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs` (see [figure customization design](./2026-03-11-figure-customization-design.md)) | 2–8 |
 | III.1–III.5 | Missing methods | **Deferred** — follow-up release | — |
 | IV.1 | Copy-paste bug in prior_predictive | Fix messages and docstrings | 2 |
 | IV.2 | `plt.gcf()` fragility | Explicit figure reference | 5 |
