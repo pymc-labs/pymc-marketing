@@ -124,7 +124,7 @@ class TypeRegistry:
     Usage::
 
         # As a bare decorator (type_key auto-derived):
-        @registry.register
+        @serialization.register
         class MyClass:
             def to_dict(self): ...
             @classmethod
@@ -132,7 +132,7 @@ class TypeRegistry:
 
 
         # With explicit type_key + custom deserializer:
-        registry.register("mod.MyClass", MyClass, deserializer=my_deser_fn)
+        serialization.register("mod.MyClass", MyClass, deserializer=my_deser_fn)
 
     """
 
@@ -183,7 +183,7 @@ class TypeRegistry:
         if type_key not in self._registry:
             raise KeyError(
                 f"Type {type_key!r} is not registered in the TypeRegistry. "
-                f"Use @registry.register to register it."
+                f"Use @serialization.register to register it."
             )
         entry = self._registry[type_key]
         if entry.serializer is not None:
@@ -215,13 +215,13 @@ class TypeRegistry:
             raise SerializationError(
                 "Dict is missing '__type__' key. Cannot determine which class "
                 "to deserialize to. Ensure the object was serialized with "
-                "registry.serialize() or a to_dict() that includes '__type__'."
+                "serialization.serialize() or a to_dict() that includes '__type__'."
             )
 
         if type_key not in self._registry:
             raise SerializationError(
                 f"Unknown type {type_key!r}. The class may not have been "
-                f"registered with @registry.register, or the module defining "
+                f"registered with @serialization.register, or the module defining "
                 f"it may not have been imported. "
                 f"Registered types: {sorted(self._registry.keys())}"
             )
@@ -234,7 +234,7 @@ class TypeRegistry:
         return entry.cls.from_dict(data)  # type: ignore[attr-defined]
 
 
-registry = TypeRegistry()
+serialization = TypeRegistry()
 
 
 class SerializableMixin:
@@ -242,16 +242,16 @@ class SerializableMixin:
 
     - Provides default ``to_dict()`` / ``from_dict()`` via
       ``model_dump(mode="json")`` / ``model_validate()``.
-    - Auto-registers concrete subclasses in the module-level ``registry``
+    - Auto-registers concrete subclasses in the module-level ``serialization``
       via ``__init_subclass__`` (no decorator needed).
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Auto-register concrete subclasses in the module-level registry."""
+        """Auto-register concrete subclasses in the module-level serialization."""
         super().__init_subclass__(**kwargs)
         if not inspect.isabstract(cls):
             type_key = f"{cls.__module__}.{cls.__qualname__}"
-            registry.register(type_key, cls)
+            serialization.register(type_key, cls)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict with ``__type__`` key via Pydantic model_dump."""

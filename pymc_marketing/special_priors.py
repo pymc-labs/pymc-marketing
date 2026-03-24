@@ -39,7 +39,7 @@ from pymc_extras.prior import (
 from pytensor.tensor import TensorVariable, as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
 class SpecialPrior(ABC):
@@ -212,7 +212,7 @@ class SpecialPrior(ABC):
         )
 
 
-@registry.register
+@serialization.register
 class LogNormalPrior(SpecialPrior):
     r"""Lognormal prior parameterized by positive-scale mean and std.
 
@@ -340,7 +340,7 @@ register_deserialization(
 )
 
 
-@registry.register
+@serialization.register
 class LaplacePrior(SpecialPrior):
     """A Laplace prior parameterized by a location and a scale parameter.
 
@@ -411,7 +411,7 @@ register_deserialization(
 )
 
 
-@registry.register
+@serialization.register
 class MaskedPrior:
     """Create variables from a prior over only the active entries of a boolean mask.
 

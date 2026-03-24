@@ -302,7 +302,7 @@ def _make_minimal_mmm_idata():
     """Build a minimal InferenceData with valid v1 MMM attrs for testing."""
     import json
 
-    from pymc_marketing.serialization import registry
+    from pymc_marketing.serialization import serialization
 
     posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
     idata = az.InferenceData(posterior=posterior)
@@ -320,8 +320,8 @@ def _make_minimal_mmm_idata():
     idata.attrs["target_column"] = "target"
     idata.attrs["channel_columns"] = json.dumps(["x1"])
     idata.attrs["control_columns"] = json.dumps([])
-    idata.attrs["adstock"] = json.dumps(registry.serialize(adstock))
-    idata.attrs["saturation"] = json.dumps(registry.serialize(saturation))
+    idata.attrs["adstock"] = json.dumps(serialization.serialize(adstock))
+    idata.attrs["saturation"] = json.dumps(serialization.serialize(saturation))
     idata.attrs["adstock_first"] = json.dumps(True)
     idata.attrs["yearly_seasonality"] = json.dumps(None)
     idata.attrs["time_varying_intercept"] = json.dumps(False)
@@ -337,7 +337,7 @@ def _make_minimal_mmm_idata():
 
 
 class TestRegistryDeserialization:
-    """Verify the load side uses registry.deserialize() for components."""
+    """Verify the load side uses serialization.deserialize() for components."""
 
     def test_deserialization_error_raises_not_warns(self):
         """MuEffect deserialization failures should raise, not silently warn."""
@@ -466,9 +466,9 @@ class TestSerializationIntegration:
         from pymc_marketing.mmm.additive_effect import FourierEffect, MuEffect
         from pymc_marketing.mmm.events import EventEffect, GaussianBasis
         from pymc_marketing.mmm.fourier import YearlyFourier
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
-        @registry.register
+        @serialization.register
         class _TestCustomEffect(MuEffect):
             my_param: float = 1.0
             prefix: str = "custom"

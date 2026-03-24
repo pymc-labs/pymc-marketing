@@ -1301,13 +1301,13 @@ def test_predict_posterior_keyerror_output_var_missing():
 
 
 class TestJsonDefaultRegistryDispatch:
-    """Verify _json_default tries registry.serialize() before duck-typing."""
+    """Verify _json_default tries serialization.serialize() before duck-typing."""
 
     def test_registered_type_serialized_via_registry(self):
         """A type registered in TypeRegistry should serialize with __type__ key."""
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
-        @registry.register
+        @serialization.register
         class _DummyRegistered:
             def to_dict(self):
                 return {
@@ -1359,13 +1359,13 @@ class TestJsonDefaultRegistryDispatch:
 
 
 class TestModelConfigFormattingTypeDetection:
-    """Verify _model_config_formatting routes __type__ dicts through registry."""
+    """Verify _model_config_formatting routes __type__ dicts through serialization."""
 
     def test_type_key_deserialized_via_registry(self):
-        """A dict with __type__ key should be deserialized via registry."""
-        from pymc_marketing.serialization import registry
+        """A dict with __type__ key should be deserialized via serialization."""
+        from pymc_marketing.serialization import serialization
 
-        @registry.register
+        @serialization.register
         class _DummyConfigType:
             def __init__(self, value=42):
                 self.value = value

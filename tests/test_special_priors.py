@@ -602,18 +602,18 @@ class TestSpecialPriorTypeRegistry:
     )
     def test_registered_in_type_registry(self, cls_name):
         from pymc_marketing import special_priors
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         cls = getattr(special_priors, cls_name)
         type_key = f"{cls.__module__}.{cls.__qualname__}"
-        assert type_key in registry._registry, f"{cls_name} not registered"
+        assert type_key in serialization._registry, f"{cls_name} not registered"
 
     def test_log_normal_roundtrip_all_parameters(self):
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         original = LogNormalPrior(mu=2.0, sigma=0.8, dims=("channel",), centered=False)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is LogNormalPrior
         assert restored.parameters["mean"] == 2.0
@@ -622,11 +622,11 @@ class TestSpecialPriorTypeRegistry:
         assert restored.centered is False
 
     def test_laplace_prior_roundtrip_all_parameters(self):
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         original = LaplacePrior(mu=1.5, b=0.3, dims=("geo",), centered=False)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is LaplacePrior
         assert restored.parameters["mu"] == 1.5
@@ -635,7 +635,7 @@ class TestSpecialPriorTypeRegistry:
         assert restored.centered is False
 
     def test_masked_prior_roundtrip_all_parameters(self):
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         mask = xr.DataArray(
             np.array([[True, False], [True, True]]),
@@ -646,8 +646,8 @@ class TestSpecialPriorTypeRegistry:
             prior=Prior("Normal", mu=0, sigma=1, dims=("geo", "channel")),
             mask=mask,
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is MaskedPrior
         assert restored.dims == original.dims

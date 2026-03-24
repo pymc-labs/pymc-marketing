@@ -29,10 +29,10 @@ Create a new adstock transformation:
     from pymc_extras.prior import Prior
 
 
-    from pymc_marketing.serialization import registry
+    from pymc_marketing.serialization import serialization
 
 
-    @registry.register
+    @serialization.register
     class MyAdstock(AdstockTransformation):
         def function(self, x, alpha):
             return x * alpha
@@ -79,7 +79,7 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     weibull_adstock,
 )
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
 class AdstockTransformation(Transformation):
@@ -192,7 +192,7 @@ class AdstockTransformation(Transformation):
         )
 
 
-@registry.register
+@serialization.register
 class BinomialAdstock(AdstockTransformation):
     """Wrapper around the binomial adstock function.
 
@@ -229,7 +229,7 @@ class BinomialAdstock(AdstockTransformation):
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
-@registry.register
+@serialization.register
 class GeometricAdstock(AdstockTransformation):
     """Wrapper around geometric adstock function.
 
@@ -266,7 +266,7 @@ class GeometricAdstock(AdstockTransformation):
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
-@registry.register
+@serialization.register
 class DelayedAdstock(AdstockTransformation):
     """Wrapper around delayed adstock function.
 
@@ -307,7 +307,7 @@ class DelayedAdstock(AdstockTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class WeibullPDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with PDF function.
 
@@ -349,7 +349,7 @@ class WeibullPDFAdstock(AdstockTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class WeibullCDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with CDF function.
 
@@ -391,7 +391,7 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class NoAdstock(AdstockTransformation):
     """Wrapper around no adstock transformation."""
 
@@ -423,12 +423,12 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
 
     .. deprecated:: 0.18.2
         `adstock_from_dict` is deprecated and will be removed in 0.20.0.
-        Use ``from pymc_marketing.serialization import registry; registry.deserialize(data)`` instead.
+        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
     """
     warnings.warn(
         "adstock_from_dict is deprecated and will be removed in 0.20.0. "
-        "Use `from pymc_marketing.serialization import registry; "
-        "registry.deserialize(data)` instead.",
+        "Use `from pymc_marketing.serialization import serialization; "
+        "serialization.deserialize(data)` instead.",
         FutureWarning,
         stacklevel=2,
     )
@@ -439,7 +439,7 @@ def adstock_from_dict(data: dict) -> AdstockTransformation:
     if lookup_name:
         cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
     elif type_key:
-        return registry.deserialize({**data, "__type__": type_key})
+        return serialization.deserialize({**data, "__type__": type_key})
     else:
         raise ValueError(
             "Cannot deserialize adstock: missing both 'lookup_name' and '__type__'"

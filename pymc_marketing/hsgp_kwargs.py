@@ -18,7 +18,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
 class CovFunc(StrEnum):
@@ -29,7 +29,7 @@ class CovFunc(StrEnum):
     Matern32 = "matern32"
 
 
-@registry.register
+@serialization.register
 class HSGPKwargs(BaseModel):
     """HSGP keyword arguments for the time-varying prior.
 

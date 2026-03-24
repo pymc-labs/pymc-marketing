@@ -14,7 +14,6 @@
   data
   hsgp_kwargs
   metrics
-  serialization_migration
   mlflow
   mmm
   model_builder
@@ -25,6 +24,7 @@
   prior
   pytensor_utils
   serialization
+  serialization_migration
   special_priors
   utils
 ```

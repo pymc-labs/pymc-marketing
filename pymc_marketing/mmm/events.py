@@ -115,7 +115,7 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.utils import density
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
 class Basis(Transformation):
@@ -181,7 +181,7 @@ class Basis(Transformation):
         )
 
 
-@registry.register
+@serialization.register
 class EventEffect(BaseModel):
     """Event effect associated with an event model."""
 
@@ -237,7 +237,7 @@ class EventEffect(BaseModel):
 
         basis_data = data_inner["basis"]
         if isinstance(basis_data, dict) and "__type__" in basis_data:
-            basis = registry.deserialize(basis_data)
+            basis = serialization.deserialize(basis_data)
         else:
             basis = deserialize(basis_data)
 
@@ -248,7 +248,7 @@ class EventEffect(BaseModel):
         )
 
 
-@registry.register
+@serialization.register
 class GaussianBasis(Basis):
     """Gaussian basis transformation."""
 
@@ -265,7 +265,7 @@ class GaussianBasis(Basis):
     }
 
 
-@registry.register
+@serialization.register
 class HalfGaussianBasis(Basis):
     R"""One-sided Gaussian basis transformation.
 
@@ -341,7 +341,7 @@ class HalfGaussianBasis(Basis):
     }
 
 
-@registry.register
+@serialization.register
 class AsymmetricGaussianBasis(Basis):
     R"""Asymmetric Gaussian bump basis transformation.
 

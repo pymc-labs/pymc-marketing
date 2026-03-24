@@ -29,7 +29,7 @@ import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.serialization import DeferredFactory, registry
+from pymc_marketing.serialization import DeferredFactory, serialization
 
 ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
     cls
@@ -63,8 +63,8 @@ class TestAdstockRoundtrips:
         }
 
         original = adstock_cls(**kwargs)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is adstock_cls
         assert restored.l_max == 7
@@ -92,8 +92,8 @@ class TestSaturationRoundtrips:
         }
 
         original = sat_cls(**kwargs)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is sat_cls
         assert restored.prefix == "custom_sat"
@@ -119,8 +119,8 @@ class TestHSGPRoundtrips:
             demeaned_basis=True,
             transform="sigmoid",
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is HSGP
         assert restored.m == 15
@@ -149,8 +149,8 @@ class TestHSGPRoundtrips:
             cov_func=CovFunc.Matern52,
             demeaned_basis=True,
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is SoftPlusHSGP
         assert restored.m == 20
@@ -178,8 +178,8 @@ class TestHSGPRoundtrips:
             dims=("time", "geo"),
             centered=True,
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is HSGP
         assert isinstance(restored.eta, DeferredFactory)
@@ -209,8 +209,8 @@ class TestHSGPRoundtrips:
             dims=("time", "geo"),
             centered=True,
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is HSGP
         assert isinstance(restored.eta, DeferredFactory)
@@ -237,8 +237,8 @@ class TestHSGPRoundtrips:
             dims=("time", "geo"),
             demeaned_basis=True,
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is HSGPPeriodic
         assert restored.m == 15
@@ -263,8 +263,8 @@ class TestFourierRoundtrips:
             prefix="custom_fourier",
             prior=Prior("Laplace", mu=0.5, b=2.0),
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is cls
         assert restored.n_order == 5
@@ -291,8 +291,8 @@ class TestMuEffectRoundtrips:
             ),
             date_dim_name="custom_date",
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is FourierEffect
         assert type(restored.fourier) is fourier_cls
@@ -317,8 +317,8 @@ class TestMuEffectRoundtrips:
             prefix="custom_trend",
             date_dim_name="custom_date",
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is LinearTrendEffect
         assert restored.prefix == "custom_trend"
@@ -346,8 +346,8 @@ class TestMuEffectRoundtrips:
                 pass
 
         original = UserEffect(my_param=2.71, my_str="custom_value")
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is UserEffect
         assert restored.my_param == 2.71
@@ -399,8 +399,8 @@ class TestMediaTransformationRoundtrips:
         )
         mc2 = MediaConfig(name="offline", columns=["print"], media_transformation=mt2)
         original = MediaConfigList([mc1, mc2])
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is MediaConfigList
         assert len(restored.media_configs) == 2
@@ -436,7 +436,7 @@ class TestHSGPKwargsRoundtrips:
         from pymc_marketing.hsgp_kwargs import HSGPKwargs
 
         type_key = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
-        assert type_key in registry._registry
+        assert type_key in serialization._registry
 
     def test_roundtrip_all_parameters(self):
         from pymc_marketing.hsgp_kwargs import CovFunc, HSGPKwargs
@@ -449,8 +449,8 @@ class TestHSGPKwargsRoundtrips:
             ls_sigma=2.0,
             cov_func=CovFunc.Matern32,
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is HSGPKwargs
         assert restored.m == 150
@@ -504,8 +504,8 @@ class TestBasisAndEventEffectRoundtrips:
 
         cls = getattr(events_mod, basis_cls)
         original = cls(**kwargs)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is cls
         assert restored.prefix == kwargs["prefix"]
@@ -547,8 +547,8 @@ class TestBasisAndEventEffectRoundtrips:
             effect_size=effect_size,
             dims=("date", "event"),
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is EventEffect
         assert type(restored.basis) is GaussianBasis
@@ -630,7 +630,7 @@ class TestEventAdditiveEffectRoundtrips:
             date_dim_name="custom_date",
         )
 
-        data = registry.serialize(original)
+        data = serialization.serialize(original)
 
         ds = xr.Dataset.from_dataframe(df.set_index("name"))
         fake_idata_dict = {"supplementary_data_custom_events": ds}
@@ -640,7 +640,7 @@ class TestEventAdditiveEffectRoundtrips:
                 return fake_idata_dict[key]
 
         ctx = DeserializationContext(idata=MockIdata())
-        restored = registry.deserialize(data, context=ctx)
+        restored = serialization.deserialize(data, context=ctx)
 
         assert type(restored) is EventAdditiveEffect
         assert len(restored.df_events) == 3
@@ -667,7 +667,7 @@ class TestLinearTrendRoundtrips:
         from pymc_marketing.mmm.linear_trend import LinearTrend
 
         type_key = f"{LinearTrend.__module__}.{LinearTrend.__qualname__}"
-        assert type_key in registry._registry
+        assert type_key in serialization._registry
 
     def test_roundtrip_all_parameters(self):
         from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -681,8 +681,8 @@ class TestLinearTrendRoundtrips:
                 "k": Prior("Normal", mu=0.1, sigma=0.1),
             },
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is LinearTrend
         assert restored.n_changepoints == 8
@@ -702,8 +702,8 @@ class TestScalingRoundtrips:
         from pymc_marketing.mmm.scaling import VariableScaling
 
         original = VariableScaling(method="mean", dims=("geo", "channel"))
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is VariableScaling
         assert restored.method == "mean"
@@ -717,8 +717,8 @@ class TestScalingRoundtrips:
             target=VariableScaling(method="max", dims="geo"),
             channel=VariableScaling(method="mean", dims=("geo", "channel")),
         )
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
         assert type(restored) is Scaling
         assert type(restored.target) is VariableScaling
@@ -775,4 +775,4 @@ class TestRegistrationValidation:
         ids=lambda s: s.rsplit(".", 1)[-1],
     )
     def test_type_registered(self, cls):
-        assert cls in registry._registry, f"{cls} not registered in TypeRegistry"
+        assert cls in serialization._registry, f"{cls} not registered in TypeRegistry"

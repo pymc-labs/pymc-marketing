@@ -109,10 +109,10 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
-@registry.register
+@serialization.register
 @dataclass
 class MediaTransformation:
     """Wrapper for applying adstock and saturation transformation to media data.
@@ -251,12 +251,12 @@ class MediaTransformation:
         saturation_data = data["saturation"]
 
         if "__type__" in adstock_data:
-            adstock = registry.deserialize(adstock_data)
+            adstock = serialization.deserialize(adstock_data)
         else:
             adstock = adstock_from_dict(adstock_data)
 
         if "__type__" in saturation_data:
-            saturation = registry.deserialize(saturation_data)
+            saturation = serialization.deserialize(saturation_data)
         else:
             saturation = saturation_from_dict(saturation_data)
 
@@ -268,7 +268,7 @@ class MediaTransformation:
         )
 
 
-@registry.register
+@serialization.register
 @dataclass
 class MediaConfig:
     """Configuration for a media transformation to certain media channels.
@@ -328,7 +328,7 @@ class MediaConfig:
         )
 
 
-@registry.register
+@serialization.register
 class MediaConfigList:
     """Wrapper for a list of media configurations to apply to media data.
 

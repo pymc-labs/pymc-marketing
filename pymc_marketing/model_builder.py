@@ -249,10 +249,10 @@ class ModelIO:
 
         def _json_default(obj):
             """Handle objects that aren't JSON serializable by default."""
-            from pymc_marketing.serialization import registry
+            from pymc_marketing.serialization import serialization
 
             try:
-                return registry.serialize(obj)
+                return serialization.serialize(obj)
             except (KeyError, TypeError):
                 pass
 
@@ -411,12 +411,12 @@ class ModelIO:
         to tuples (for ``dims``) or numpy arrays (everything else) to undo the
         JSON round-trip.
         """
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         def _format(d: dict) -> dict:
             for key, value in d.items():
                 if isinstance(value, dict) and "__type__" in value:
-                    d[key] = registry.deserialize(value)
+                    d[key] = serialization.deserialize(value)
                 elif isinstance(value, dict):
                     d[key] = _format(value)
                 elif isinstance(value, list):

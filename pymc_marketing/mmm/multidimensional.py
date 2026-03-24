@@ -851,7 +851,7 @@ class MMM(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         def serialize_value(value):
             """Recursively serialize values to JSON-compatible types."""
@@ -863,7 +863,7 @@ class MMM(RegressionModelBuilder):
                 return [serialize_value(v) for v in value]
             else:
                 try:
-                    return registry.serialize(value)
+                    return serialization.serialize(value)
                 except (KeyError, TypeError):
                     pass
                 if hasattr(value, "to_dict"):
@@ -878,35 +878,37 @@ class MMM(RegressionModelBuilder):
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         attrs = super().create_idata_attrs()
         attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
-        attrs["adstock"] = json.dumps(registry.serialize(self.adstock))
-        attrs["saturation"] = json.dumps(registry.serialize(self.saturation))
+        attrs["adstock"] = json.dumps(serialization.serialize(self.adstock))
+        attrs["saturation"] = json.dumps(serialization.serialize(self.saturation))
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         attrs["time_varying_intercept"] = json.dumps(
-            registry.serialize(self.time_varying_intercept)
+            serialization.serialize(self.time_varying_intercept)
             if isinstance(self.time_varying_intercept, HSGPBase)
             else self.time_varying_intercept
         )
         attrs["time_varying_media"] = json.dumps(
-            registry.serialize(self.time_varying_media)
+            serialization.serialize(self.time_varying_media)
             if isinstance(self.time_varying_media, HSGPBase)
             else self.time_varying_media
         )
         attrs["target_column"] = self.target_column
-        attrs["scaling"] = json.dumps(registry.serialize(self.scaling))
+        attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
-        mu_effects_list = [registry.serialize(effect) for effect in self.mu_effects]
+        mu_effects_list = [
+            serialization.serialize(effect) for effect in self.mu_effects
+        ]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         if self._cost_per_unit_input is not None:
@@ -973,12 +975,12 @@ class MMM(RegressionModelBuilder):
     @classmethod
     def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
         """Convert the idata attributes to the model initialization kwargs."""
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         def _deser(raw: str, fallback=None):
             data = json.loads(raw)
             if isinstance(data, dict) and "__type__" in data:
-                return registry.deserialize(data)
+                return serialization.deserialize(data)
             return fallback if fallback is not None else data
 
         tvi_raw = attrs.get("time_varying_intercept", "false")
@@ -998,13 +1000,13 @@ class MMM(RegressionModelBuilder):
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": (
-                registry.deserialize(tvi_data)
+                serialization.deserialize(tvi_data)
                 if isinstance(tvi_data, dict) and "__type__" in tvi_data
                 else tvi_data
             ),
             "target_column": attrs["target_column"],
             "time_varying_media": (
-                registry.deserialize(tvm_data)
+                serialization.deserialize(tvm_data)
                 if isinstance(tvm_data, dict) and "__type__" in tvm_data
                 else tvm_data
             ),
@@ -3144,12 +3146,15 @@ class MMM(RegressionModelBuilder):
 
         """
         if "mu_effects" in idata.attrs:
-            from pymc_marketing.serialization import DeserializationContext, registry
+            from pymc_marketing.serialization import (
+                DeserializationContext,
+                serialization,
+            )
 
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
             ctx = DeserializationContext(idata=idata)
             self.mu_effects = [
-                registry.deserialize(effect_data, context=ctx)
+                serialization.deserialize(effect_data, context=ctx)
                 for effect_data in mu_effects_data
             ]
 

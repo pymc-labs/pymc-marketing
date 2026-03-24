@@ -267,9 +267,9 @@ class TestSerializableMixin:
             x: int = 1
 
         type_key = f"{AutoReg.__module__}.{AutoReg.__qualname__}"
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
-        assert type_key in registry._registry
+        assert type_key in serialization._registry
 
     def test_to_dict(self):
         from pymc_marketing.serialization import SerializableMixin
@@ -297,15 +297,15 @@ class TestSerializableMixin:
         assert obj.value == 99
 
     def test_roundtrip_via_registry(self):
-        from pymc_marketing.serialization import SerializableMixin, registry
+        from pymc_marketing.serialization import SerializableMixin, serialization
 
         class RoundTripper(SerializableMixin, BaseModel):
             a: str = "foo"
             b: float = 3.14
 
         original = RoundTripper(a="bar", b=2.71)
-        data = registry.serialize(original)
-        restored = registry.deserialize(data)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
         assert isinstance(restored, RoundTripper)
         assert restored.a == "bar"
         assert restored.b == 2.71
@@ -314,14 +314,14 @@ class TestSerializableMixin:
         """Abstract subclasses should not be registered."""
         from abc import ABC, abstractmethod
 
-        from pymc_marketing.serialization import SerializableMixin, registry
+        from pymc_marketing.serialization import SerializableMixin, serialization
 
         class AbstractEffect(SerializableMixin, ABC, BaseModel):
             @abstractmethod
             def do_thing(self): ...
 
         type_key = f"{AbstractEffect.__module__}.{AbstractEffect.__qualname__}"
-        assert type_key not in registry._registry
+        assert type_key not in serialization._registry
 
         class ConcreteEffect(AbstractEffect):
             val: int = 1
@@ -330,4 +330,4 @@ class TestSerializableMixin:
                 return self.val
 
         concrete_key = f"{ConcreteEffect.__module__}.{ConcreteEffect.__qualname__}"
-        assert concrete_key in registry._registry
+        assert concrete_key in serialization._registry

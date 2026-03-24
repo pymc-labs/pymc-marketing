@@ -33,7 +33,7 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.model_builder import DifferentModelError
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -1612,7 +1612,7 @@ def test_save_load_with_tvp(
             assert get_random_variable_name(free_RV) == "FlatRV"
 
 
-@registry.register
+@serialization.register
 class CustomSaturation(SaturationTransformation):
     def function(self, x, beta, dim: str | None = None):
         return beta * x

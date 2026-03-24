@@ -35,7 +35,7 @@ from pymc_marketing.mmm.events import (
 )
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.plot import plot_curve
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
 def test_gaussian_basis_plot() -> None:
@@ -126,7 +126,7 @@ def test_gaussian_basis_serialization():
 
     # Test to_dict and from_dict
     gaussian_dict = gaussian.to_dict()
-    gaussian_restored = registry.deserialize(gaussian_dict)
+    gaussian_restored = serialization.deserialize(gaussian_dict)
 
     assert gaussian_restored.prefix == gaussian.prefix
 
@@ -618,7 +618,7 @@ def test_half_gaussian_serialization():
     )
 
     d = half.to_dict()
-    restored = registry.deserialize(d)
+    restored = serialization.deserialize(d)
 
     assert isinstance(restored, HalfGaussianBasis)
     assert restored.mode == half.mode
@@ -796,7 +796,7 @@ def test_asymmetric_gaussian_basis_serialization():
 
     # Test to_dict and from_dict
     asymmetric_dict = asymmetric.to_dict()
-    asymmetric_restored = registry.deserialize(asymmetric_dict)
+    asymmetric_restored = serialization.deserialize(asymmetric_dict)
 
     assert isinstance(asymmetric_restored, AsymmetricGaussianBasis)
     restored_asymmetric = cast(AsymmetricGaussianBasis, asymmetric_restored)
@@ -818,7 +818,7 @@ def test_asymmetric_gaussian_basis_serialization_roundtrip():
     asymmetric_dict = asymmetric.to_dict()
 
     # Deserialize
-    restored_asymmetric = registry.deserialize(asymmetric_dict)
+    restored_asymmetric = serialization.deserialize(asymmetric_dict)
 
     assert restored_asymmetric.prefix == asymmetric.prefix
     # Cast to access AsymmetricGaussianBasis specific attributes

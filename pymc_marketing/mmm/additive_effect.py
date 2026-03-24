@@ -260,12 +260,12 @@ class FourierEffect(MuEffect):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "FourierEffect":
         """Reconstruct from a dict, using registry for nested Fourier type."""
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         work = {k: v for k, v in data.items() if k != "__type__"}
         fourier_data = work["fourier"]
         if "__type__" in fourier_data:
-            fourier = registry.deserialize(fourier_data)
+            fourier = serialization.deserialize(fourier_data)
         else:
             from pymc_extras.deserialize import deserialize
 
@@ -472,12 +472,12 @@ class LinearTrendEffect(MuEffect):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "LinearTrendEffect":
         """Reconstruct from a dict, using registry for nested LinearTrend."""
-        from pymc_marketing.serialization import registry
+        from pymc_marketing.serialization import serialization
 
         work = {k: v for k, v in data.items() if k != "__type__"}
         trend_data = work["trend"]
         if "__type__" in trend_data:
-            trend = registry.deserialize(trend_data)
+            trend = serialization.deserialize(trend_data)
         else:
             from pymc_extras.deserialize import deserialize
 
@@ -712,7 +712,7 @@ def _deserialize_event_additive_effect(
     data: dict[str, Any],
     context: Any,
 ) -> EventAdditiveEffect:
-    from pymc_marketing.serialization import SerializationError, registry
+    from pymc_marketing.serialization import SerializationError, serialization
 
     group_name = data["df_events_group"]
 
@@ -734,7 +734,7 @@ def _deserialize_event_additive_effect(
 
     effect_data = data["effect"]
     if "__type__" in effect_data:
-        effect = registry.deserialize(effect_data)
+        effect = serialization.deserialize(effect_data)
     else:
         effect = EventEffect.from_dict(effect_data.get("data", effect_data))
 
@@ -748,9 +748,9 @@ def _deserialize_event_additive_effect(
 
 
 def _register_event_additive_effect() -> None:
-    from pymc_marketing.serialization import registry
+    from pymc_marketing.serialization import serialization
 
-    registry.register(
+    serialization.register(
         f"{EventAdditiveEffect.__module__}.{EventAdditiveEffect.__qualname__}",
         EventAdditiveEffect,
         deserializer=_deserialize_event_additive_effect,

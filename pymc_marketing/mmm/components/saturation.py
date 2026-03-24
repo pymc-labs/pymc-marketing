@@ -28,10 +28,10 @@ Create a new saturation transformation:
     from pymc_extras.prior import Prior
 
 
-    from pymc_marketing.serialization import registry
+    from pymc_marketing.serialization import serialization
 
 
-    @registry.register
+    @serialization.register
     class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
             return b * x
@@ -99,7 +99,7 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
 class SaturationTransformation(Transformation):
@@ -209,7 +209,7 @@ class SaturationTransformation(Transformation):
         )
 
 
-@registry.register
+@serialization.register
 class LogisticSaturation(SaturationTransformation):
     """Wrapper around logistic saturation function.
 
@@ -242,7 +242,7 @@ class LogisticSaturation(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class InverseScaledLogisticSaturation(SaturationTransformation):
     """Wrapper around inverse scaled logistic saturation function.
 
@@ -275,7 +275,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class TanhSaturation(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
@@ -308,7 +308,7 @@ class TanhSaturation(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class TanhSaturationBaselined(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
@@ -343,7 +343,7 @@ class TanhSaturationBaselined(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class MichaelisMentenSaturation(SaturationTransformation):
     """Wrapper around Michaelis-Menten saturation function.
 
@@ -376,7 +376,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
@@ -410,7 +410,7 @@ class HillSaturation(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class HillSaturationSigmoid(SaturationTransformation):
     """Wrapper around Hill saturation sigmoid function.
 
@@ -444,7 +444,7 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class RootSaturation(SaturationTransformation):
     """Wrapper around Root saturation function.
 
@@ -477,7 +477,7 @@ class RootSaturation(SaturationTransformation):
     }
 
 
-@registry.register
+@serialization.register
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
 
@@ -526,12 +526,12 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
 
     .. deprecated:: 0.18.2
         `saturation_from_dict` is deprecated and will be removed in 0.20.0.
-        Use ``from pymc_marketing.serialization import registry; registry.deserialize(data)`` instead.
+        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
     """
     warnings.warn(
         "saturation_from_dict is deprecated and will be removed in 0.20.0. "
-        "Use `from pymc_marketing.serialization import registry; "
-        "registry.deserialize(data)` instead.",
+        "Use `from pymc_marketing.serialization import serialization; "
+        "serialization.deserialize(data)` instead.",
         FutureWarning,
         stacklevel=2,
     )
@@ -542,7 +542,7 @@ def saturation_from_dict(data: dict) -> SaturationTransformation:
     if lookup_name:
         cls = SATURATION_TRANSFORMATIONS[lookup_name]
     elif type_key:
-        return registry.deserialize({**data, "__type__": type_key})
+        return serialization.deserialize({**data, "__type__": type_key})
     else:
         raise ValueError(
             "Cannot deserialize saturation: missing both 'lookup_name' and '__type__'"

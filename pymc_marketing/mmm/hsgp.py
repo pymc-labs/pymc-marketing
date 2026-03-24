@@ -38,7 +38,7 @@ from xarray import DataArray
 from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
-from pymc_marketing.serialization import DeferredFactory, registry
+from pymc_marketing.serialization import DeferredFactory, serialization
 
 
 @validate_call
@@ -465,7 +465,7 @@ class HSGPBase(BaseModel):
         )
 
 
-@registry.register
+@serialization.register
 class HSGP(HSGPBase):
     """HSGP component.
 
@@ -971,7 +971,7 @@ class PeriodicCovFunc(StrEnum):
     Periodic = "periodic"
 
 
-@registry.register
+@serialization.register
 class HSGPPeriodic(HSGPBase):
     """HSGP component for periodic data.
 
@@ -1327,7 +1327,7 @@ class HSGPPeriodic(HSGPBase):
         return cls(**data)
 
 
-@registry.register
+@serialization.register
 class SoftPlusHSGP(HSGP):
     """HSGP with softplus transformation.
 

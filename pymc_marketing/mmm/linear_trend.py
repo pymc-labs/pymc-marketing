@@ -72,10 +72,10 @@ from xarray import DataArray
 
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
-from pymc_marketing.serialization import registry
+from pymc_marketing.serialization import serialization
 
 
-@registry.register
+@serialization.register
 class LinearTrend(BaseModel):
     r"""LinearTrend class.
 
