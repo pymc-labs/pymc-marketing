@@ -521,7 +521,7 @@ class ParetoNBDModel(CLVModel):
         Given *recency*, *frequency*, and *T* for an individual customer, this method predicts the
         expected number of future purchases across *future_t* time periods.
 
-        Adapted from equation (41) In Bruce Hardie's notes [1]_, and `lifetimes` package:
+        Adapted from equation (41) In Bruce Hardie's notes [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L242
 
         Parameters
@@ -676,7 +676,7 @@ class ParetoNBDModel(CLVModel):
         given an individual customer's current *frequency*, *recency*, and *T*.
 
 
-        Adapted from equation (16) in Bruce Hardie's notes [1]_, and `lifetimes` package:
+        Adapted from equation (16) in Bruce Hardie's notes [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L388
 
         Parameters
@@ -858,7 +858,7 @@ class ParetoNBDModel(CLVModel):
         a prediction will be computed for a *new customer* with each set of covariates.
         *This is not a conditional prediction for observed customers!*
 
-        Adapted from equation (27) in Bruce Hardie's notes [1]_, and `lifetimes` package:
+        Adapted from equation (27) in Bruce Hardie's notes [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/pareto_nbd_fitter.py#L359
 
         Parameters

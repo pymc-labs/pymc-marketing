@@ -42,11 +42,12 @@ msgstr "El parámetro *data* solo es necesario para clientes fuera de muestra."
 #: 88c7b2b3b914498283e3bdc3d3c89739 of
 #: pymc_marketing.clv.models.modified_beta_geo.ModifiedBetaGeoModel.expected_probability_alive:6
 msgid ""
-"Adapted from equation (5) in [R94c3b4fddd93-1]_, and `lifetimes` library: "
+"Adapted from equation (5) in [R94c3b4fddd93-1]_, and the legacy "
+"``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188"
 msgstr ""
-"Adaptado de la ecuación (5) en [R94c3b4fddd93-1]_, y la biblioteca "
-"`lifetimes`: "
+"Adaptado de la ecuación (5) en [R94c3b4fddd93-1]_, y la biblioteca heredada "
+"``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188"
 
 #: 9e0e02723daf4ac69c5261f79cdf6ad0 of
