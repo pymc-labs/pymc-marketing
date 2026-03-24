@@ -76,7 +76,8 @@ class BaseGammaGammaModel(CLVModel):
 
         The computations are based on Eq 5 from [1], p.3.
 
-        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
+        Adapted from the legacy ``lifetimes`` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
@@ -166,7 +167,7 @@ class BaseGammaGammaModel(CLVModel):
 
         Note `future_t` is measured in months regardless of `time_unit` specified.
 
-        Adapted from lifetimes package
+        Adapted from the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246
 
         Parameters
