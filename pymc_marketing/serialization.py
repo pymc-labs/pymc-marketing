@@ -14,7 +14,7 @@
 """Unified serialization infrastructure for pymc-marketing.
 
 This module provides the ``TypeRegistry``, ``Serializable`` protocol,
-``SerializableMixin``, ``DeferredFactory``, and ``DeserializationContext``
+``SerializableBaseModel``, ``DeferredFactory``, and ``DeserializationContext``
 that replace the scattered serialization patterns across MMM components.
 
 Every serializable object produces a JSON-safe dict with a ``__type__`` key
@@ -237,8 +237,8 @@ class TypeRegistry:
 serialization = TypeRegistry()
 
 
-class SerializableMixin:
-    """Mixin that auto-implements Serializable for Pydantic BaseModel classes.
+class SerializableBaseModel(BaseModel):
+    """Base model that auto-implements Serializable for Pydantic BaseModel subclasses.
 
     - Provides default ``to_dict()`` / ``from_dict()`` via
       ``model_dump(mode="json")`` / ``model_validate()``.
@@ -257,11 +257,11 @@ class SerializableMixin:
         """Serialize to a dict with ``__type__`` key via Pydantic model_dump."""
         return {
             "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
-            **self.model_dump(mode="json"),  # type: ignore[attr-defined]
+            **self.model_dump(mode="json"),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
         """Reconstruct from a dict via Pydantic model_validate."""
         filtered = {k: v for k, v in data.items() if k != "__type__"}
-        return cls.model_validate(filtered)  # type: ignore[attr-defined]
+        return cls.model_validate(filtered)

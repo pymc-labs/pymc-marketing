@@ -114,14 +114,14 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf
+from pydantic import Field, InstanceOf
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
-from pymc_marketing.serialization import SerializableMixin
+from pymc_marketing.serialization import SerializableBaseModel
 
 
 def safe_to_datetime(
@@ -223,7 +223,7 @@ class Model(Protocol):
         """The PyMC model."""
 
 
-class MuEffect(SerializableMixin, ABC, BaseModel):
+class MuEffect(SerializableBaseModel, ABC):
     """Abstract base class for arbitrary additive mu effects.
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper

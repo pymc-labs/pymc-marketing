@@ -18,7 +18,6 @@ from __future__ import annotations
 from typing import Any, Self
 
 import pytest
-from pydantic import BaseModel
 
 
 class TestSerializationError:
@@ -261,11 +260,11 @@ class TestTypeRegistry:
             reg.serialize(Unknown())
 
 
-class TestSerializableMixin:
+class TestSerializableBaseModel:
     def test_auto_registration(self):
-        from pymc_marketing.serialization import SerializableMixin
+        from pymc_marketing.serialization import SerializableBaseModel
 
-        class AutoReg(SerializableMixin, BaseModel):
+        class AutoReg(SerializableBaseModel):
             x: int = 1
 
         type_key = f"{AutoReg.__module__}.{AutoReg.__qualname__}"
@@ -274,9 +273,9 @@ class TestSerializableMixin:
         assert type_key in serialization._registry
 
     def test_to_dict(self):
-        from pymc_marketing.serialization import SerializableMixin
+        from pymc_marketing.serialization import SerializableBaseModel
 
-        class MyModel(SerializableMixin, BaseModel):
+        class MyModel(SerializableBaseModel):
             name: str = "test"
             value: int = 42
 
@@ -289,9 +288,9 @@ class TestSerializableMixin:
         }
 
     def test_from_dict(self):
-        from pymc_marketing.serialization import SerializableMixin
+        from pymc_marketing.serialization import SerializableBaseModel
 
-        class MyModel2(SerializableMixin, BaseModel):
+        class MyModel2(SerializableBaseModel):
             name: str = "test"
             value: int = 42
 
@@ -301,9 +300,9 @@ class TestSerializableMixin:
         assert obj.value == 99
 
     def test_roundtrip_via_registry(self):
-        from pymc_marketing.serialization import SerializableMixin, serialization
+        from pymc_marketing.serialization import SerializableBaseModel, serialization
 
-        class RoundTripper(SerializableMixin, BaseModel):
+        class RoundTripper(SerializableBaseModel):
             a: str = "foo"
             b: float = 3.14
 
@@ -318,9 +317,9 @@ class TestSerializableMixin:
         """Abstract subclasses should not be registered."""
         from abc import ABC, abstractmethod
 
-        from pymc_marketing.serialization import SerializableMixin, serialization
+        from pymc_marketing.serialization import SerializableBaseModel, serialization
 
-        class AbstractEffect(SerializableMixin, ABC, BaseModel):
+        class AbstractEffect(SerializableBaseModel, ABC):
             @abstractmethod
             def do_thing(self): ...
 
