@@ -351,9 +351,11 @@ def test_support_for_non_prior(new_transformation_class) -> None:
     )
 
     result = instance.to_dict()
-    assert result["prefix"] == "new"
-    assert result["priors"] == {"a": 1, "b": 2}
-    assert "lookup_name" not in result
+    assert result == {
+        "__type__": f"{new_transformation_class.__module__}.{new_transformation_class.__qualname__}",
+        "prefix": "new",
+        "priors": {"a": 1, "b": 2},
+    }
 
 
 class StandardNormal:
@@ -385,13 +387,16 @@ def new_transformation_with_custom(new_transformation_class):
 def test_support_customer_serialization(
     new_transformation_with_custom,
 ) -> None:
+    cls = type(new_transformation_with_custom)
     result = new_transformation_with_custom.to_dict()
-    assert result["prefix"] == "new"
-    assert result["priors"] == {
-        "a": {"type": "StandardNormal", "dims": ("channel",)},
-        "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+    assert result == {
+        "__type__": f"{cls.__module__}.{cls.__qualname__}",
+        "prefix": "new",
+        "priors": {
+            "a": {"type": "StandardNormal", "dims": ("channel",)},
+            "b": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
+        },
     }
-    assert "lookup_name" not in result
 
 
 def test_support_customer_samples(
@@ -413,12 +418,14 @@ def test_serialization(new_transformation_class) -> None:
     )
 
     result = instance.to_dict()
-    assert result["prefix"] == "new"
-    assert result["priors"] == {
-        "a": [1, 2, 3],
-        "b": [1, 2, 3],
+    assert result == {
+        "__type__": f"{new_transformation_class.__module__}.{new_transformation_class.__qualname__}",
+        "prefix": "new",
+        "priors": {
+            "a": [1, 2, 3],
+            "b": [1, 2, 3],
+        },
     }
-    assert "lookup_name" not in result
 
 
 def test_transform_sample_curve_with_variable_factory():

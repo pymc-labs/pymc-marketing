@@ -166,8 +166,10 @@ class TestTypeRegistry:
                 return cls()
 
         result = reg.serialize(Baz())
-        assert result["__type__"] == f"{Baz.__module__}.{Baz.__qualname__}"
-        assert result["val"] == 99
+        assert result == {
+            "__type__": f"{Baz.__module__}.{Baz.__qualname__}",
+            "val": 99,
+        }
 
     def test_deserialize_standard(self):
         from pymc_marketing.serialization import TypeRegistry
@@ -280,9 +282,11 @@ class TestSerializableMixin:
 
         obj = MyModel()
         result = obj.to_dict()
-        assert "__type__" in result
-        assert result["name"] == "test"
-        assert result["value"] == 42
+        assert result == {
+            "__type__": f"{MyModel.__module__}.{MyModel.__qualname__}",
+            "name": "test",
+            "value": 42,
+        }
 
     def test_from_dict(self):
         from pymc_marketing.serialization import SerializableMixin
