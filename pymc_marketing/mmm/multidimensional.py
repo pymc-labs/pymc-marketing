@@ -2325,11 +2325,7 @@ class MMM(RegressionModelBuilder):
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, model, dataset_xarray)
 
-        if (
-            getattr(self, "_has_cpt_calibration", False)
-            and "var_names" not in sample_posterior_predictive_kwargs
-        ):
-            sample_posterior_predictive_kwargs["var_names"] = [self.output_var]
+        sample_posterior_predictive_kwargs.setdefault("var_names", [self.output_var])
 
         with model:
             post_pred = pm.sample_posterior_predictive(
@@ -3036,8 +3032,6 @@ class MMM(RegressionModelBuilder):
             target_value=self.model["channel_contribution_original_scale"],
             name_prefix=name_prefix,
         )
-
-        self._has_cpt_calibration = True
 
     def create_fit_data(
         self,

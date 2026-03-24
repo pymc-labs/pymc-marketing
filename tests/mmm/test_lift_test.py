@@ -664,7 +664,6 @@ def fitted_mmm_with_cpt(mock_pymc_sample):
         calibration_data=calibration_df,
     )
 
-    assert mmm._has_cpt_calibration is True
     assert "cpt_calibration" in [rv.name for rv in mmm.model.observed_RVs]
 
     mmm.fit(X_train, y_train, draws=25, tune=25, chains=1, random_seed=42)
