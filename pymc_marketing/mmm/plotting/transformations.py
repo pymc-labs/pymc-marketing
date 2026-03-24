@@ -318,7 +318,7 @@ class TransformationPlots:
             **pc_kwargs,
         )
 
-        pc_kwargs = _process_plot_params(
+        _process_plot_params(
             figsize=figsize,
             backend=backend,
             return_as_pc=return_as_pc,
@@ -377,7 +377,14 @@ class TransformationPlots:
             # sample the curves
             rng = random_seed if random_seed is not None else np.random.default_rng()
             stacked = curves.stack(sample=("chain", "draw"))
-            idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
+            total_samples = stacked.sizes["sample"]
+            if n_samples > total_samples:
+                raise ValueError(
+                    f"n_samples={n_samples} exceeds available posterior samples "
+                    f"({total_samples}). Reduce n_samples or increase the number "
+                    "of posterior draws."
+                )
+            idx = rng.choice(total_samples, size=n_samples, replace=False)
             sampled_curves = stacked.isel(sample=idx).to_dataset(name="y")
             sampled_curves["x"] = spend_data
 
