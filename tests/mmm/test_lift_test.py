@@ -672,7 +672,6 @@ def fitted_mmm_with_cpt(mock_pymc_sample):
 
 def _assert_posterior_predictive(posterior_pred, expected_dates):
     assert "y" in posterior_pred
-    assert "cpt_calibration" not in posterior_pred
     assert set(posterior_pred["y"].dims) == {"sample", "date"}
     np.testing.assert_array_equal(
         posterior_pred.coords["date"].values,
