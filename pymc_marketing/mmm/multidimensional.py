@@ -2412,8 +2412,6 @@ class MMM(RegressionModelBuilder):
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, model, dataset_xarray)
 
-        sample_posterior_predictive_kwargs.setdefault("var_names", [self.output_var])
-
         with model:
             post_pred = pm.sample_posterior_predictive(
                 self.idata, **sample_posterior_predictive_kwargs
