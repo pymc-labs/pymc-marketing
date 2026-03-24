@@ -159,7 +159,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
-import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.fgraph import clone_model as cm
@@ -190,7 +189,7 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
-    add_cost_per_target_potentials,
+    add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
@@ -2291,7 +2290,6 @@ class MMM(RegressionModelBuilder):
             mu_effect.set_data(self, model, dataset_xarray)
 
         with model:
-            # Sample from posterior predictive
             post_pred = pm.sample_posterior_predictive(
                 self.idata, **sample_posterior_predictive_kwargs
             )
@@ -2892,13 +2890,13 @@ class MMM(RegressionModelBuilder):
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
     ) -> None:
-        """Calibrate cost-per-target using constraints via ``pm.Potential``.
+        """Calibrate cost-per-target using an observed Normal likelihood.
 
-        This adds a deterministic ``cpt_variable_name`` computed as
-        ``channel_data_spend / channel_contribution_original_scale`` and creates
-        per-row penalty terms based on ``calibration_data`` using a quadratic penalty:
+        This computes cost-per-target as
+        ``mean(spend) / mean(contribution)`` over the date dimension and adds
+        an observed ``Normal`` likelihood for each calibration row:
 
-        ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+        ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
 
         Parameters
         ----------
@@ -2982,7 +2980,6 @@ class MMM(RegressionModelBuilder):
                 )
 
         with self.model:
-            # Ensure original-scale contribution exists
             if "channel_contribution_original_scale" not in self.model.named_vars:
                 raise ValueError(
                     "`channel_contribution_original_scale` is not in the model."
@@ -2990,15 +2987,11 @@ class MMM(RegressionModelBuilder):
                     "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
                 )
 
-            denom = ptx.math.clip(
-                self.model["channel_contribution_original_scale"], 1e-12, np.inf
-            )
-            cpt_tensor = as_xtensor(spend_xarray) / denom
-
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_data,
             model=self.model,
-            cpt_value=cpt_tensor,
+            cost_value=as_xtensor(spend_xarray),
+            target_value=self.model["channel_contribution_original_scale"],
             name_prefix=name_prefix,
         )
 
