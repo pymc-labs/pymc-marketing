@@ -151,7 +151,6 @@ class TransformationPlots:
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
         """
-        # TODO: decide how to validate!!!
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
             if idata is not None

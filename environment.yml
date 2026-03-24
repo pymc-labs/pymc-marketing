@@ -70,4 +70,4 @@ dependencies:
   - pip:
       - roadmapper
       - labs-sphinx-theme
-      - arviz-plots[matplotlib]>=1.0.0,<1.1
+      - arviz-plots[matplotlib]>=1.0.0
