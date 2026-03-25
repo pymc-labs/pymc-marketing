@@ -19,6 +19,7 @@ from typing import Any
 
 import arviz as az
 import arviz_plots as azp
+import numpy as np
 import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
@@ -127,14 +128,6 @@ def _compute_residuals(
     residuals = target - predictions
     residuals.name = "residuals"
     return residuals
-
-
-def _zero_hline(ax: Axes, **kwargs: Any) -> None:
-    """Draw a zero reference line on an axes panel.
-
-    Designed as a ``PlotCollection.map()``-compatible callback.
-    """
-    ax.axhline(y=0.0, **kwargs)
 
 
 def _plot_predictive(
@@ -527,7 +520,15 @@ class DiagnosticsPlots:
             y=mean_da,
             **{"label": "Mean residuals", **(line_kwargs or {})},
         )
-        pc.map(_zero_hline, linestyle="--", color="black", label="zero")
+        # Draw zero reference line using a zero-filled DataArray — PlotCollection.map
+        # does not pass `ax`, so axhline cannot be used directly.
+        zero_da = xr.zeros_like(mean_da)
+        pc.map(
+            azp.visuals.line_xy,
+            x=dates,
+            y=zero_da,
+            **{"linestyle": "--", "color": "black", "label": "zero"},
+        )
 
         pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
         pc.map(
@@ -647,4 +648,12 @@ class DiagnosticsPlots:
             color=line_colors,
         )
 
-        return _extract_matplotlib_result(pc, return_as_pc)
+        if return_as_pc:
+            return pc
+
+        # azp.plot_dist creates a PlotCollection whose viz dataset does not
+        # include a "plot" key (unlike PlotCollection.wrap).  Extract axes
+        # directly from the figure instead.
+        fig = pc.viz.ds["figure"].item()
+        axes = np.atleast_1d(np.array(fig.get_axes()))
+        return fig, axes
