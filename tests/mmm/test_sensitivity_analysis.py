@@ -15,6 +15,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 
@@ -24,6 +25,33 @@ from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 
+def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_val=1.2):
+    """Build a minimal saturation model (alpha*X)/(X+lam) with posterior draws."""
+    n_dates, n_channels = channel_data.shape
+    channel_names = [chr(ord("a") + i) for i in range(n_channels)]
+    coords = {"date": np.arange(n_dates), "channel": channel_names}
+
+    with pm.Model(coords=coords) as model:
+        X = pmd.Data("channel_data", channel_data, dims=("date", "channel"))
+        alpha = pmd.Gamma("alpha", 1.0, 1.0, dims=("channel",))
+        lam = pmd.Gamma("lam", 1.0, 1.0, dims=("channel",))
+        pmd.Deterministic(
+            "channel_contribution",
+            (alpha * X) / (X + lam),
+            dims=("date", "channel"),
+        )
+
+    alpha_draws = np.full((1, n_draws, n_channels), alpha_val, dtype=np.float64)
+    lam_draws = np.full((1, n_draws, n_channels), lam_val, dtype=np.float64)
+    dims = ["channel"]
+    idata = az.from_dict(
+        posterior={"alpha": alpha_draws, "lam": lam_draws},
+        dims={"alpha": dims, "lam": dims},
+    )
+    assert set(idata.posterior.dims) == {"chain", "draw", "channel"}
+    return model, idata
+
+
 @pytest.fixture
 def simple_model_and_idata():
     """A minimal PyMC model and an InferenceData posterior compatible with SensitivityAnalysis.
@@ -31,33 +59,8 @@ def simple_model_and_idata():
     Model dims convention: (date, channel). Response is a deterministic depending on pm.Data and two RVs.
     """
     rng = np.random.default_rng(123)
-    n_dates, n_channels, n_draws = 6, 4, 5
-
-    coords = {"date": np.arange(n_dates), "channel": list("abcd")}
-    with pm.Model(coords=coords) as model:
-        X = pm.Data(
-            "channel_data",
-            rng.gamma(2.0, 1.0, size=(n_dates, n_channels)).astype("float64"),
-            dims=("date", "channel"),
-        )
-        alpha = pm.Gamma("alpha", 1.0, 1.0, dims=("channel",))
-        lam = pm.Gamma("lam", 1.0, 1.0, dims=("channel",))
-
-        def saturation(x, alpha_param, lam_param):
-            return (alpha_param * x) / (x + lam_param)
-
-        pm.Deterministic(
-            "channel_contribution",
-            saturation(X, alpha, lam),
-            dims=("date", "channel"),
-        )
-
-    # Build a tiny posterior with shapes matching free RVs: (chain=1, draw=n_draws, channel)
-    alpha_draws = np.full((1, n_draws, n_channels), 0.8, dtype="float64")
-    lam_draws = np.full((1, n_draws, n_channels), 1.2, dtype="float64")
-
-    idata = az.from_dict(posterior={"alpha": alpha_draws, "lam": lam_draws})
-    return model, idata
+    channel_data = rng.gamma(2.0, 1.0, size=(6, 4)).astype(np.float64)
+    return _make_saturation_model_and_idata(channel_data, n_draws=5)
 
 
 @pytest.fixture
@@ -331,19 +334,6 @@ def test_posterior_sample_percentage_controls_draws(sensitivity):
     assert limited.sizes["sample"] == 2
 
 
-def test_posterior_sample_batch_backward_compatibility(sensitivity):
-    sweeps = np.linspace(0.5, 1.5, 4)
-    with pytest.warns(DeprecationWarning):
-        legacy = sensitivity.run_sweep(
-            var_input="channel_data",
-            var_names="channel_contribution",
-            sweep_values=sweeps,
-            posterior_sample_batch=2,
-        )
-
-    assert legacy.sizes["sample"] == 2
-
-
 def test_compute_dims_order_from_varinput_internal(sensitivity):
     # Drops 'date' and preserves remaining order
     dims_order = sensitivity._compute_dims_order_from_varinput("channel_data")
@@ -513,3 +503,33 @@ def test_run_sweep_with_2d_mask(simple_model_and_idata):
 
     # The masked result should be smaller than the full result
     assert masked.sum().item() < full.sum().item()
+
+
+def test_run_sweep_integer_channel_data_no_truncation():
+    """Fractional sweep_values must not be truncated when channel_data has integer dtype."""
+    rng = np.random.default_rng(42)
+    channel_data_int = rng.integers(50, 200, size=(8, 3)).astype(np.int32)
+    model, idata = _make_saturation_model_and_idata(channel_data_int, n_draws=10)
+
+    sa = SensitivityAnalysis(model, idata)
+    sweep_values = np.array([0.5, 1.0, 1.5])
+
+    result = sa.run_sweep(
+        var_input="channel_data",
+        var_names="channel_contribution",
+        sweep_values=sweep_values,
+        sweep_type="multiplicative",
+    )
+
+    # The channel contribution (alpha*X)/(X+lam) is strictly monotone in X for
+    # positive alpha and lam.  So mean contribution must be strictly ordered with
+    # sweep index — any truncation of fractional values breaks this ordering.
+    mean_by_sweep = result.mean(dim=["sample", "channel"])  # shape: (sweep,)
+    sweep_vals = mean_by_sweep.values
+
+    assert sweep_vals[0] > 0
+    assert sweep_vals[0] < sweep_vals[1] < sweep_vals[2], (
+        f"expected strictly increasing contributions across sweep values "
+        f"{sweep_values.tolist()}, got {sweep_vals.tolist()}. "
+        "Integer truncation of fractional sweep_values may be the cause."
+    )

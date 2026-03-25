@@ -14,6 +14,7 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
@@ -99,7 +100,7 @@ def test_fourier_effect(
     dims,
     coords,
 ) -> None:
-    effect = FourierEffect(fourier)
+    effect = FourierEffect(fourier=fourier)
 
     mmm = create_mock_mmm(
         dims=dims,
@@ -117,7 +118,7 @@ def test_fourier_effect(
         # Not necessarily the same shape
         created_variable = effect.create_effect(mmm)
 
-    assert created_variable.ndim == len(mmm.dims) + 1
+    assert set(created_variable.dims) - set(mmm.dims) == {"date"}
 
     # Variables created: data, beta coefficients, raw components (per mode), final contribution
     assert set(mmm.model.named_vars) == {
@@ -168,14 +169,14 @@ def test_fourier_effect_multidimensional(
     prefix = "weekly"
     prior = Prior("Laplace", mu=0, b=0.1, dims=prior_dims)
     fourier = WeeklyFourier(n_order=10, prefix=prefix, prior=prior)
-    fourier_effect = FourierEffect(fourier)
+    fourier_effect = FourierEffect(fourier=fourier)
 
     with mmm.model:
         fourier_effect.create_data(mmm)
         effect = fourier_effect.create_effect(mmm)
         pm.sample_prior_predictive()
 
-    assert effect.ndim == 2
+    assert set(effect.dims) == ({"date", *prior_dims} - {"weekly"})
 
 
 @pytest.mark.parametrize(
@@ -197,7 +198,7 @@ def test_fourier_components_sum_to_contribution(
       - <prefix>_contribution : (date[, extra dims]) == sum_{fourier} components
     """
     fourier = fourier_cls(n_order=4, prefix=prefix)
-    effect = FourierEffect(fourier)
+    effect = FourierEffect(fourier=fourier)
 
     mmm = create_mock_mmm(dims=(), model=create_fourier_model(coords={}))
 
@@ -252,7 +253,7 @@ def test_linear_trend_effect(
 ) -> None:
     prefix = "linear_trend"
     effect = LinearTrendEffect(
-        LinearTrend(priors=priors, dims=linear_trend_dims),
+        trend=LinearTrend(priors=priors, dims=linear_trend_dims),
         prefix=prefix,
     )
 
@@ -268,10 +269,9 @@ def test_linear_trend_effect(
     assert effect.linear_trend_first_date == mmm.model.coords["date"][0]
 
     with mmm.model:
-        pm.Deterministic(
+        pmd.Deterministic(
             "effect",
             effect.create_effect(mmm),
-            dims=deterministic_dims,
         )
 
     assert set(mmm.model.named_vars) == {

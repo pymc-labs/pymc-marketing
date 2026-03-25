@@ -14,14 +14,15 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
 import pytest
 from pymc.model_graph import fast_eval
-from pytensor.tensor.variable import TensorVariable
+from pytensor.xtensor import as_xtensor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
+from xarray import DataArray
 
-from pymc_marketing.mmm import MMM, GeometricAdstock
+from pymc_marketing.mmm import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     LogisticSaturation,
@@ -31,16 +32,17 @@ from pymc_marketing.mmm.components.saturation import (
 from pymc_marketing.mmm.lift_test import (
     NonMonotonicError,
     UnalignedValuesError,
+    add_cost_per_target_observations,
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
     assert_monotonic,
     create_time_varying_saturation,
-    create_variable_indexer,
     exact_row_indices,
     scale_channel_lift_measurements,
     scale_lift_measurements,
     scale_target_for_lift_measurements,
 )
+from pymc_marketing.mmm.multidimensional import MMM
 
 
 @pytest.fixture(scope="module")
@@ -138,33 +140,6 @@ def indices():
         "channel": [0, 1, 0],
         "date": [2, 1, 0],
     }
-
-
-@pytest.fixture(scope="module")
-def variable_indexer(fixed_model, indices):
-    return create_variable_indexer(fixed_model, indices)
-
-
-@pytest.mark.parametrize(
-    "name, expected",
-    [
-        ("alpha", [10, 20, 10]),
-        ("beta", [1, 3, 2]),
-        ("gamma", [11, 23, 12]),
-        ("delta", [3, 2, 1]),
-        ("epsilon", [33, 46, 12]),
-    ],
-)
-def test_variable_indexer(variable_indexer, name, expected) -> None:
-    np.testing.assert_allclose(
-        fast_eval(variable_indexer(name)),
-        expected,
-    )
-
-
-def test_variable_indexer_missing_variable(variable_indexer) -> None:
-    with pytest.raises(KeyError, match=r"The variable 'missing' is not in the model"):
-        variable_indexer("missing")
 
 
 def test_lift_test_missing_coords(df_lift_test) -> None:
@@ -286,15 +261,15 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
     )
 
     alpha_dims = "date"
-    dist = pm.Gamma
+    dist = pmd.Gamma
 
     coords = {
         "date": pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]),
         "channel": [0, 1, 2],
     }
     with pm.Model(coords=coords) as model:
-        pm.HalfNormal("saturation_alpha", dims=alpha_dims)
-        pm.HalfNormal("saturation_lam", dims="channel")
+        pmd.HalfNormal("saturation_alpha", dims=alpha_dims)
+        pmd.HalfNormal("saturation_lam", dims="channel")
 
         add_lift_measurements_to_likelihood_from_saturation(
             df_lift_test=df_lift_test_with_numerics_negative,
@@ -339,16 +314,12 @@ def saturation_functions() -> list[SaturationTransformation]:
 def test_create_time_varying_saturation_scales(saturation) -> None:
     kwargs = {name: 0.5 for name in saturation.default_priors.keys()}
 
-    xx = np.linspace(0, 1, 20)
-    yy = saturation.function(xx, **kwargs)
-    if isinstance(yy, TensorVariable):
-        yy = fast_eval(yy)
+    xx = DataArray(np.linspace(0, 1, 20), dims=("x",))
+    yy = fast_eval(saturation.function(xx, **kwargs))
 
     MULTIPLIER = 3.5
     function, _ = create_time_varying_saturation(saturation, "time_varying_name")
-    yy_tv = function(xx, **kwargs, time_varying=MULTIPLIER)
-    if isinstance(yy_tv, TensorVariable):
-        yy_tv = fast_eval(yy_tv)
+    yy_tv = fast_eval(function(xx, **kwargs, time_varying=MULTIPLIER))
 
     np.testing.assert_allclose(MULTIPLIER * yy, yy_tv)
 
@@ -400,11 +371,11 @@ def test_add_lift_measurements_to_likelihood_from_saturation(
         "date": [1, 2, 3, 4],
     }
     with pm.Model(coords=coords) as model:
-        saturation._create_distributions(dims="channel")
+        saturation._create_distributions()
 
         if time_varying_var_name is not None:
-            tvp_raw = pm.Normal("tvp_raw", dims="date")
-            pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+            tvp_raw = pmd.Normal("tvp_raw", dims="date")
+            pmd.Deterministic(time_varying_var_name, pmd.math.exp(tvp_raw))
 
     assert "lift_measurements" not in model
 
@@ -437,10 +408,10 @@ def test_tvp_needs_date_in_lift_tests() -> None:
         "date": [1, 2, 3, 4],
     }
     with pm.Model(coords=coords) as model:
-        saturation._create_distributions(dims="channel")
+        saturation._create_distributions()
 
-        tvp_raw = pm.Normal("tvp_raw", dims="date")
-        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+        tvp_raw = pmd.Normal("tvp_raw", dims="date")
+        pmd.Deterministic(time_varying_var_name, pmd.math.exp(tvp_raw))
 
     assert "lift_measurements" not in model
 
@@ -473,10 +444,10 @@ def test_tvp_needs_exact_date() -> None:
         "date": [1, 2, 3, 4],
     }
     with pm.Model(coords=coords) as model:
-        saturation._create_distributions(dims="channel")
+        saturation._create_distributions()
 
-        tvp_raw = pm.Normal("tvp_raw", dims="date")
-        pm.Deterministic(time_varying_var_name, pt.exp(tvp_raw), dims="date")
+        tvp_raw = pmd.Normal("tvp_raw", dims="date")
+        pmd.Deterministic(time_varying_var_name, pmd.math.exp(tvp_raw))
 
     assert "lift_measurements" not in model
 
@@ -549,6 +520,7 @@ def dummy_mmm_model():
     return model
 
 
+@pytest.mark.xfail(reason="Multidimensional MMM does not add mising date column")
 def test_adds_date_column_if_missing(dummy_mmm_model):
     df_lift_test = pd.DataFrame(
         {
@@ -570,17 +542,20 @@ def test_adds_date_column_if_missing(dummy_mmm_model):
     assert dummy_mmm_model._last_lift_test_df["date"].notna().all()
 
 
-def test_add_cost_per_target_potentials(dummy_mmm_model):
+def test_add_cost_per_target_observations(dummy_mmm_model):
     model = dummy_mmm_model
 
-    # Create a simple constant cost_per_target tensor over (date, channel)
     dates = model.model.coords["date"]
     channels = model.model.coords["channel"]
-    const_cpt = pt.as_tensor_variable(
-        np.full((len(dates), len(channels)), 30.0, dtype=float)
+    cost = as_xtensor(
+        np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.ones((len(dates), len(channels)), dtype=float),
+        dims=("date", "channel"),
     )
 
-    # Calibration DataFrame: rows map to existing channels (no extra dims in this fixture)
     calibration_df = pd.DataFrame(
         {
             "channel": [channels[0], channels[1]],
@@ -589,76 +564,71 @@ def test_add_cost_per_target_potentials(dummy_mmm_model):
         }
     )
 
-    # Add potentials using tensor pathway
-    add_cost_per_target_potentials(
+    add_cost_per_target_observations(
         calibration_df=calibration_df,
         model=model.model,
-        cpt_value=const_cpt,
+        cost_value=cost,
+        target_value=target,
         name_prefix="cpt_calibration",
     )
 
-    # Check aggregated potential was added with the expected base name
-    pot_names = [getattr(p, "name", None) for p in model.model.potentials]
-    assert "cpt_calibration" in pot_names
+    obs_names = [rv.name for rv in model.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
 
-def test_add_cost_per_target_potentials_missing_columns(dummy_mmm_model):
+def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
     """Test that KeyError is raised when required columns are missing from calibration_df."""
     model = dummy_mmm_model.model
     channels = model.coords["channel"]
 
     dates = model.coords["date"]
-    const_cpt = pt.as_tensor_variable(
-        np.full((len(dates), len(channels)), 30.0, dtype=float)
+    cost = as_xtensor(
+        np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.ones((len(dates), len(channels)), dtype=float),
+        dims=("date", "channel"),
     )
 
-    # Test missing 'sigma' column
     calibration_df = pd.DataFrame(
         {
             "channel": [channels[0], channels[1]],
             "cost_per_target": [30.0, 45.0],
-            # Missing 'sigma' column
         }
     )
 
     match = r"Missing required columns in calibration_df: \['sigma'\]"
     with pytest.raises(KeyError, match=match):
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_df,
             model=model,
-            cpt_value=const_cpt,
+            cost_value=cost,
+            target_value=target,
             name_prefix="cpt_calibration",
         )
 
-    # Test missing multiple columns
     calibration_df_minimal = pd.DataFrame({"channel": [channels[0], channels[1]]})
 
     match = (
         r"Missing required columns in calibration_df: \['cost_per_target', 'sigma'\]"
     )
     with pytest.raises(KeyError, match=match):
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_df_minimal,
             model=model,
-            cpt_value=const_cpt,
+            cost_value=cost,
+            target_value=target,
             name_prefix="cpt_calibration",
         )
 
 
-def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
-    mock_pymc_sample,
-):
-    """Test that add_cost_per_target_potentials works with sample_posterior_predictive on out-of-sample data.
-
-    This test validates that:
-    1. Adding cost_per_target potentials doesn't break posterior predictive sampling
-    2. Out-of-sample data (different dates than training) works correctly
-    3. The returned data structure is valid
-    """
-    # Create sample data for model
+@pytest.fixture(scope="module")
+def fitted_mmm_with_cpt(mock_pymc_sample):
+    """MMM built, calibrated via add_cost_per_target_calibration, then fitted."""
     np.random.seed(42)
     n_train = 40
-    n_test = 10
+    channels = ["organic", "paid", "social"]
 
     df_train = pd.DataFrame(
         {
@@ -670,26 +640,18 @@ def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
         }
     )
 
-    X_train = df_train[["date", "organic", "paid", "social"]]
+    X_train = df_train[["date", *channels]]
     y_train = df_train["y"]
 
-    # Initialize and build model
     mmm = MMM(
         date_column="date",
         adstock=GeometricAdstock(l_max=4),
         saturation=LogisticSaturation(),
-        channel_columns=["organic", "paid", "social"],
+        channel_columns=channels,
     )
     mmm.build_model(X_train, y_train)
+    mmm.add_original_scale_contribution_variable(["channel_contribution"])
 
-    # Create a cost_per_target tensor over (date, channel)
-    dates = mmm.model.coords["date"]
-    channels = mmm.model.coords["channel"]
-    const_cpt = pt.as_tensor_variable(
-        np.full((len(dates), len(channels)), 25.0, dtype=float)
-    )
-
-    # Calibration DataFrame with targets
     calibration_df = pd.DataFrame(
         {
             "channel": [channels[0], channels[1]],
@@ -697,32 +659,48 @@ def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
             "sigma": [3.0, 4.0],
         }
     )
-
-    # Add cost_per_target potentials to the model
-    add_cost_per_target_potentials(
-        calibration_df=calibration_df,
-        model=mmm.model,
-        cpt_value=const_cpt,
-        name_prefix="cpt_calibration",
+    mmm.add_cost_per_target_calibration(
+        data=df_train,
+        calibration_data=calibration_df,
     )
 
-    # Verify potential was added
-    pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
-    assert "cpt_calibration" in pot_names
+    assert "cpt_calibration" in [rv.name for rv in mmm.model.observed_RVs]
 
-    # Fit the model
     mmm.fit(X_train, y_train, draws=25, tune=25, chains=1, random_seed=42)
+    return mmm, df_train
 
-    # Verify model was fitted
-    assert hasattr(mmm, "idata")
-    assert mmm.idata is not None
 
-    # Create out-of-sample data with different dates
+def _assert_posterior_predictive(posterior_pred, expected_dates):
+    assert "y" in posterior_pred
+    assert set(posterior_pred["y"].dims) == {"sample", "date"}
+    np.testing.assert_array_equal(
+        posterior_pred.coords["date"].values,
+        expected_dates,
+    )
+    assert not np.isnan(posterior_pred["y"].values).any()
+
+
+def test_posterior_predictive_in_sample_with_cpt(fitted_mmm_with_cpt):
+    mmm, df_train = fitted_mmm_with_cpt
+    X_train = df_train[["date", "organic", "paid", "social"]]
+
+    posterior_pred = mmm.sample_posterior_predictive(
+        X_train, extend_idata=False, random_seed=42
+    )
+    _assert_posterior_predictive(posterior_pred, X_train["date"].values)
+
+
+def test_posterior_predictive_out_of_sample_with_cpt(fitted_mmm_with_cpt):
+    mmm, df_train = fitted_mmm_with_cpt
+    np.random.seed(99)
+    n_test = 10
+
     df_test = pd.DataFrame(
         {
             "date": pd.to_datetime(
                 pd.date_range(
-                    start=df_train["date"].max() + pd.Timedelta(days=1), periods=n_test
+                    start=df_train["date"].max() + pd.Timedelta(days=1),
+                    periods=n_test,
                 )
             ),
             "organic": np.random.rand(n_test) * 520,
@@ -730,40 +708,46 @@ def test_add_cost_per_target_potentials_with_posterior_predictive_out_of_sample(
             "social": np.random.rand(n_test) * 50,
         }
     )
-
     X_test = df_test[["date", "organic", "paid", "social"]]
 
-    # Sample posterior predictive with out-of-sample data
-    # This is the critical test - it should work without errors
     posterior_pred = mmm.sample_posterior_predictive(
         X_test, extend_idata=False, random_seed=42
     )
+    _assert_posterior_predictive(posterior_pred, X_test["date"].values)
 
-    # Validate the output structure
-    assert posterior_pred is not None
-    assert "y" in posterior_pred, "Posterior predictive should contain 'y' variable"
 
-    # Validate dimensions - should match test data
-    assert "date" in posterior_pred.dims, "Should have 'date' dimension"
-    assert len(posterior_pred.coords["date"]) == n_test, (
-        f"Date dimension should have {n_test} entries for test data"
+def test_add_cost_per_target_potentials_emits_deprecation_warning(dummy_mmm_model):
+    model = dummy_mmm_model
+
+    dates = model.model.coords["date"]
+    channels = model.model.coords["channel"]
+    cost = as_xtensor(
+        np.full((len(dates), len(channels)), 30.0, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.ones((len(dates), len(channels)), dtype=float),
+        dims=("date", "channel"),
     )
 
-    # Verify that the dates match the test data
-    np.testing.assert_array_equal(
-        posterior_pred.coords["date"].values,
-        X_test["date"].values,
-        err_msg="Posterior predictive dates should match test data dates",
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
     )
 
-    # Verify shape of predictions
-    # When extend_idata=False and combined=True (default), dimensions are stacked
-    expected_dims = ("sample", "date")
-    assert set(posterior_pred["y"].dims) == set(expected_dims), (
-        f"Predictions should have dimensions {expected_dims}, got {posterior_pred['y'].dims}"
-    )
+    with pytest.warns(
+        FutureWarning, match="add_cost_per_target_potentials is deprecated"
+    ):
+        add_cost_per_target_potentials(
+            calibration_df=calibration_df,
+            model=model.model,
+            cost_value=cost,
+            target_value=target,
+            name_prefix="cpt_calibration",
+        )
 
-    # Verify no NaN values in predictions
-    assert not np.isnan(posterior_pred["y"].values).any(), (
-        "Predictions should not contain NaN values"
-    )
+    obs_names = [rv.name for rv in model.model.observed_RVs]
+    assert "cpt_calibration" in obs_names

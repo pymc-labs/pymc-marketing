@@ -20,6 +20,9 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import xarray as xr
+from pymc.logprob.basic import logcdf, logp
+from pytensor import Variable, graph_replace
+from pytensor import xtensor as ptx
 
 
 def apply_sklearn_transformer_across_dim(
@@ -611,15 +614,10 @@ def build_contributions(
             ds = ds.rename({v: f"{exp_dim}__{v}" for v in ds.data_vars})
             datasets.append(ds)
         else:
-            # Single column variable; use a concise name if possible
-            short = (
-                "intercept"
-                if "intercept" in name
-                else "yearly_seasonality"
-                if "yearly" in name and "season" in name
-                else name
+            short_name = name.removesuffix("_original_scale").removesuffix(
+                "_contribution"
             )
-            datasets.append(da_b.to_dataset(name=short))
+            datasets.append(da_b.to_dataset(name=short_name))
 
     # Merge all datasets
     ds_all = (
@@ -647,3 +645,39 @@ def build_contributions(
         df = df.sort_values(sort_cols, kind="stable")
 
     return df
+
+
+def density(dist, *, value, **params: Variable):
+    """Request density of dist at value.
+
+    This helper creates dist with dummy `params`, requests its density from `pymc.logp`
+    and then  reintroduces the original `params` values.
+    This avoids accidental rewrite of random graphs above params when
+    the logp cannot be obtained by direct dispatch
+    """
+    masked_params = {k: p.type() for k, p in params.items()}
+    masked_dist = dist.dist(**masked_params)
+    masked_density = ptx.math.exp(logp(masked_dist, value))
+    return graph_replace(
+        masked_density,
+        tuple(zip(masked_params.values(), params.values(), strict=True)),
+        strict=False,
+    )
+
+
+def cdf(dist, *, value, **params: Variable):
+    """Request CDF of dist at value.
+
+    This helper creates dist with dummy `params`, requests its cdf from `pymc.logcdf`
+    and then  reintroduces the original `params` values.
+    This avoids accidental rewrite of random graphs above params when
+    the logcdf cannot be obtained by direct dispatch
+    """
+    masked_params = {k: p.type() for k, p in params.items()}
+    masked_dist = dist.dist(**masked_params)
+    masked_cdf = ptx.math.exp(logcdf(masked_dist, value))
+    return graph_replace(
+        masked_cdf,
+        tuple(zip(masked_params.values(), params.values(), strict=True)),
+        strict=False,
+    )

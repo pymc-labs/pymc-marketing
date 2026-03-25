@@ -15,11 +15,14 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
 import pytest
+from pydantic import ValidationError
+from pytensor.xtensor.type import XTensorVariable
+from xarray import DataArray
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.mmm.hsgp import SoftPlusHSGP
+from pymc_marketing.mmm.hsgp import CovFunc, SoftPlusHSGP
 from pymc_marketing.mmm.tvp import (
     create_hsgp_from_config,
     create_time_varying_gp_multiplier,
@@ -37,8 +40,10 @@ def coords():
     }
 
 
-@pytest.fixture
-def model_config() -> dict[str, HSGPKwargs]:
+@pytest.fixture(
+    params=[None, CovFunc.Matern52], ids=["cov_func_none", "cov_func_matern52"]
+)
+def model_config(request) -> dict[str, HSGPKwargs]:
     return {
         "intercept_tvp_config": HSGPKwargs(
             m=200,
@@ -46,13 +51,28 @@ def model_config() -> dict[str, HSGPKwargs]:
             eta_lam=1,
             ls_mu=5,
             ls_sigma=5,
+            cov_func=request.param,
         )
     }
 
 
-def test_time_varying_prior(coords):
+@pytest.mark.parametrize(
+    "invalid_cov_func",
+    [
+        pm.gp.cov.ExpQuad(input_dim=1, ls=10),
+        "not_a_valid_kernel",
+        42,
+    ],
+    ids=["custom_covariance_object", "invalid_string", "wrong_type"],
+)
+def test_hsgp_kwargs_rejects_invalid_cov_func(invalid_cov_func):
+    with pytest.raises((ValueError, ValidationError)):
+        HSGPKwargs(cov_func=invalid_cov_func)
+
+
+def test_time_varying_prior(coords, mock_pymc_sample):
     with pm.Model(coords=coords) as model:
-        X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
+        X = pmd.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         hsgp_kwargs = HSGPKwargs(m=3, L=10, eta_lam=1, ls_sigma=5)
         f = time_varying_prior(
             name="test",
@@ -63,7 +83,7 @@ def test_time_varying_prior(coords):
         )
 
         # Assert output verification
-        assert isinstance(f, pt.TensorVariable)
+        assert isinstance(f, XTensorVariable)
 
         # Assert internal parameters are created correctly
         assert model.test_raw_hsgp_coefs.eval().shape == (3,)
@@ -74,20 +94,18 @@ def test_time_varying_prior(coords):
         assert "test_raw_hsgp_coefs" in model.named_vars
 
         # Test that model can compile and sample
-        pm.Normal("obs", mu=f, sigma=1, observed=np.random.randn(5))
-        try:
-            pm.sample(50, tune=50, chains=1)
-        except pm.SamplingError:
-            pytest.fail("Time varying parameter didn't sample")
+        pm.Normal("obs", mu=f.values, sigma=1, observed=np.random.randn(5))
+        idata = pm.sample(50, tune=50, chains=1)
+        assert idata is not None
 
 
 def test_calling_without_default_args(coords):
     with pm.Model(coords=coords) as model:
-        X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
+        X = pmd.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         f = time_varying_prior(name="test", X=X, dims="date")
 
         # Assert output verification
-        assert isinstance(f, pt.TensorVariable)
+        assert isinstance(f, XTensorVariable)
 
         # Assert internal parameters are created correctly
         assert model.test_raw_hsgp_coefs.eval().shape == (200,)
@@ -98,9 +116,9 @@ def test_calling_without_default_args(coords):
         assert "test_raw_hsgp_coefs" in model.named_vars
 
 
-def test_multidimensional(coords):
+def test_multidimensional(coords, mock_pymc_sample):
     with pm.Model(coords=coords) as model:
-        X = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
+        X = pmd.Data("X", np.array([0, 1, 2, 3, 4.0]), dims="date")
         m = 7
         hsgp_kwargs = HSGPKwargs(m=m)
         prior = time_varying_prior(
@@ -117,15 +135,13 @@ def test_multidimensional(coords):
         # Test that model can compile and sample
         pm.Normal(
             "obs",
-            mu=prior,
+            mu=prior.values,
             sigma=1,
             observed=np.random.randn(5, 3),
             dims=("date", "channel"),
         )
-        try:
-            pm.sample(50, tune=50, chains=1)
-        except pm.SamplingError:
-            pytest.fail("Time varying parameter didn't sample")
+        idata = pm.sample(50, tune=50, chains=1)
+        assert idata is not None
 
 
 def test_calling_without_model():
@@ -141,7 +157,7 @@ def test_create_time_varying_intercept(coords, model_config):
     time_index_mid = 2
     time_resolution = 1
     with pm.Model(coords=coords):
-        time_index = pm.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
+        time_index = pmd.Data("X", np.array([0, 1, 2, 3, 4]), dims="date")
         result = create_time_varying_gp_multiplier(
             name="intercept",
             dims="date",
@@ -150,7 +166,7 @@ def test_create_time_varying_intercept(coords, model_config):
             time_resolution=time_resolution,
             hsgp_kwargs=model_config["intercept_tvp_config"],
         )
-        assert isinstance(result, pt.TensorVariable)
+        assert isinstance(result, XTensorVariable)
 
 
 @pytest.mark.parametrize(
@@ -249,7 +265,9 @@ class TestCreateHsgpFromConfig:
     def test_with_hsgp_kwargs_instance(self, time_index: npt.NDArray[np.int_]) -> None:
         """Test with HSGPKwargs instance."""
         config = HSGPKwargs(m=200, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0)
-        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        hsgp = create_hsgp_from_config(
+            X=DataArray(time_index, dims=("date",)), dims="date", config=config
+        )
         assert isinstance(hsgp, SoftPlusHSGP)
         assert hsgp.m == 200
 
@@ -263,7 +281,9 @@ class TestCreateHsgpFromConfig:
             "ls_sigma": 10.0,
             "cov_func": None,
         }
-        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        hsgp = create_hsgp_from_config(
+            X=DataArray(time_index, dims=("date",)), dims="date", config=config
+        )
         assert isinstance(hsgp, SoftPlusHSGP)
         assert hsgp.m == 200
 
@@ -279,7 +299,10 @@ class TestCreateHsgpFromConfig:
         """Test with explicit X_mid parameter."""
         config = HSGPKwargs(m=200, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0)
         hsgp = create_hsgp_from_config(
-            X=time_index, dims="date", config=config, X_mid=26.0
+            X=DataArray(time_index, dims=("date",)),
+            dims="date",
+            config=config,
+            X_mid=26.0,
         )
         assert hsgp.X_mid == 26.0
 
@@ -307,7 +330,9 @@ class TestCreateHsgpFromConfig:
         to parameterize_from_data which doesn't accept m parameter.
         """
         config: dict[str, int] = {"m": 200}
-        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        hsgp = create_hsgp_from_config(
+            X=DataArray(time_index, dims=("date",)), dims="date", config=config
+        )
         assert isinstance(hsgp, SoftPlusHSGP)
         assert hsgp.m == 200
 
@@ -318,14 +343,18 @@ class TestCreateHsgpFromConfig:
         to parameterize_from_data which doesn't accept L parameter.
         """
         config: dict[str, float] = {"L": 100.0}
-        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        hsgp = create_hsgp_from_config(
+            X=DataArray(time_index, dims=("date",)), dims="date", config=config
+        )
         assert isinstance(hsgp, SoftPlusHSGP)
         assert hsgp.L == 100.0
 
     def test_with_m_and_L_dict(self, time_index: npt.NDArray[np.int_]) -> None:
         """Test with dict containing m and L keys."""
         config: dict[str, int | float] = {"m": 150, "L": 80.0}
-        hsgp = create_hsgp_from_config(X=time_index, dims="date", config=config)
+        hsgp = create_hsgp_from_config(
+            X=DataArray(time_index, dims=("date",)), dims="date", config=config
+        )
         assert isinstance(hsgp, SoftPlusHSGP)
         assert hsgp.m == 150
         assert hsgp.L == 80.0

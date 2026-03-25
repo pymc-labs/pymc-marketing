@@ -19,6 +19,9 @@ import arviz as az
 import xarray as xr
 from pydantic import BaseModel, Field
 
+# Type aliases for time aggregation
+Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
+
 
 class VariableSchema(BaseModel):
     """Schema for a single variable in InferenceData.
@@ -34,8 +37,8 @@ class VariableSchema(BaseModel):
         Whether this variable must be present
     dims : tuple of str or "*"
         Expected dimension names. Use "*" to accept any dimensions.
-    dtype : str or None
-        Expected numpy dtype (e.g., "float64", "int64").
+    dtype : str, tuple of str, or None
+        Expected numpy dtype(s) (e.g., "float64", "int64", or ("float64", "int64")).
         Use None to skip dtype validation.
     description : str, default ""
         Human-readable description of this variable
@@ -57,7 +60,7 @@ class VariableSchema(BaseModel):
     name: str
     required: bool = True
     dims: tuple[str, ...] | Literal["*"]
-    dtype: str | None = None
+    dtype: str | tuple[str, ...] | None = None
     description: str = ""
 
     def validate_variable(self, data_array: xr.DataArray) -> list[str]:
@@ -89,11 +92,17 @@ class VariableSchema(BaseModel):
                 )
 
         # Check dtype
-        if self.dtype and str(data_array.dtype) != self.dtype:
-            errors.append(
-                f"Variable '{self.name}' has dtype {data_array.dtype}, "
-                f"expected {self.dtype}"
-            )
+        if self.dtype:
+            if isinstance(self.dtype, str):
+                allowed_dtypes: tuple[str, ...] = (self.dtype,)
+            else:
+                allowed_dtypes = self.dtype
+
+            if str(data_array.dtype) not in allowed_dtypes:
+                errors.append(
+                    f"Variable '{self.name}' has dtype {data_array.dtype}, "
+                    f"expected one of {allowed_dtypes}"
+                )
 
         return errors
 
@@ -259,47 +268,59 @@ class MMMIdataSchema(BaseModel):
             "channel_data": VariableSchema(
                 name="channel_data",
                 dims=("date", *custom_dims, "channel"),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Raw channel spend/impressions data",
                 required=True,
             ),
             "target_data": VariableSchema(
                 name="target_data",
                 dims=("date", *custom_dims),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Raw target variable",
                 required=True,
             ),
             "channel_scale": VariableSchema(
                 name="channel_scale",
                 dims="*",  # Varies by scaling config
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factors for channels",
                 required=True,
             ),
             "target_scale": VariableSchema(
                 name="target_scale",
                 dims="*",  # Varies by scaling config
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factor for target",
                 required=True,
             ),
         }
 
+        constant_data_vars["channel_spend"] = VariableSchema(
+            name="channel_spend",
+            dims=("date", *custom_dims, "channel"),
+            dtype=("float64", "float32", "int64", "int32"),
+            description=(
+                "Channel spend in monetary units. Precomputed as "
+                "channel_data * cost_per_unit when cost_per_unit is provided; "
+                "otherwise absent (falls back to channel_data)."
+            ),
+            required=False,
+        )
+
         if has_controls:
             constant_data_vars["control_data_"] = VariableSchema(
                 name="control_data_",
                 dims=("date", *custom_dims, "control"),
-                dtype="float64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Control variable data",
-                required=True,
+                required=False,
             )
 
         if time_varying:
             constant_data_vars["time_index"] = VariableSchema(
                 name="time_index",
                 dims=("date",),
-                dtype="int64",
+                dtype=("float64", "float32", "int64", "int32"),
                 description="Integer time index",
                 required=True,
             )
@@ -308,7 +329,7 @@ class MMMIdataSchema(BaseModel):
             constant_data_vars["dayofyear"] = VariableSchema(
                 name="dayofyear",
                 dims=("date",),
-                dtype="int64",
+                dtype=("int64", "int32"),
                 description="Day of year (1-365)",
                 required=True,
             )
@@ -332,7 +353,7 @@ class MMMIdataSchema(BaseModel):
                 dims=("chain", "draw", "date", *custom_dims),
                 dtype="float64",
                 description="Total predicted mean (scaled)",
-                required=True,
+                required=False,
             ),
         }
 
@@ -355,13 +376,13 @@ class MMMIdataSchema(BaseModel):
             )
 
         groups["posterior"] = InferenceDataGroupSchema(
-            name="posterior", required=True, variables=posterior_vars
+            name="posterior", required=False, variables=posterior_vars
         )
 
         # Fit data group (dynamic variables, just check it exists)
         groups["fit_data"] = InferenceDataGroupSchema(
             name="fit_data",
-            required=True,
+            required=False,
             variables={},  # Dynamic based on input columns
         )
 

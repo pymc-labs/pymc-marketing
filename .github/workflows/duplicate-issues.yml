@@ -1,0 +1,110 @@
+name: Duplicate Detection
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-${{ github.event.issue.number }}-duplicate
+  cancel-in-progress: true
+
+jobs:
+  check-duplicates:
+    if: github.event.action == 'opened' || github.event.changes.body
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Wait 10 minutes before checking
+        run: sleep 600
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "18"
+
+      - name: Install Claude Code CLI
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Verify Claude installation
+        run: |
+          claude --version
+
+      - name: Prepare issue content
+        id: prepare
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          {
+            printf '%s\n' "CURRENT_ISSUE_NUMBER: $ISSUE_NUMBER"
+            printf '%s\n' ""
+            printf '%s\n' "# Issue: $ISSUE_TITLE"
+            printf '%s\n' ""
+            printf '%s\n' "$ISSUE_BODY"
+          } > /tmp/issue_content.txt
+
+      - name: Run duplicate finder agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          claude -p \
+            --dangerously-skip-permissions \
+            --max-turns 50 \
+            --agent duplicate-finder \
+            --print \
+            < /tmp/issue_content.txt 2>&1 | tee /tmp/claude_output.log
+
+      - name: Extract agent response
+        id: extract_response
+        run: |
+          # Check if duplicates were found
+          if grep -q "^DUPLICATES: FOUND" /tmp/claude_output.log; then
+            # Extract everything after "DUPLICATES: FOUND"
+            RESPONSE=$(sed -n '/^DUPLICATES: FOUND/,$ p' /tmp/claude_output.log | tail -n +2)
+            echo "has_duplicates=true" >> $GITHUB_OUTPUT
+            # Store response in a temporary file to preserve formatting
+            echo "$RESPONSE" > /tmp/duplicate_response.txt
+          elif grep -q "^DUPLICATES: NONE" /tmp/claude_output.log; then
+            echo "has_duplicates=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_duplicates=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on issue if duplicates found
+        if: steps.extract_response.outputs.has_duplicates == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+
+          echo "" >> /tmp/duplicate_response.txt
+          echo "---" >> /tmp/duplicate_response.txt
+          echo "" >> /tmp/duplicate_response.txt
+          echo "*[Workflow run](${RUN_URL})*" >> /tmp/duplicate_response.txt
+
+          gh issue comment "$ISSUE_NUMBER" \
+            --body-file /tmp/duplicate_response.txt
+          echo "✅ Posted duplicate detection result to issue #$ISSUE_NUMBER"
+
+      - name: Upload Claude output logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-output-duplicate-finder-${{ github.event.issue.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7

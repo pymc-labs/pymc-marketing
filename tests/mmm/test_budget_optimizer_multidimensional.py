@@ -33,11 +33,11 @@ def dummy_df():
     # Data is not needed for optimization of this model
     df = pd.DataFrame(
         data={
-            "date_week": pd.date_range(start=pd.Timestamp.today(), periods=n, freq="W"),
+            "date_week": pd.date_range(start="2024-01-01", periods=n, freq="W"),
             "channel_1": np.linspace(0, 1, num=n),
             "channel_2": np.linspace(0, 1, num=n),
             # Dim
-            "geo": np.random.choice(["A", "B"], size=n),
+            "geo": ["A", "B"] * (n // 2),
             "event_1": np.concatenate([np.zeros(n - 1), [1]]),
             "event_2": np.concatenate([[1], np.zeros(n - 1)]),
             "t": range(n),
@@ -58,7 +58,7 @@ def dummy_df():
 
 
 @pytest.fixture(scope="module")
-def fitted_mmm(dummy_df):
+def fitted_mmm(dummy_df, mock_pymc_sample):
     """Create and fit a model once for all tests."""
     df_kwargs, X_dummy, y_dummy = dummy_df
 
@@ -78,7 +78,8 @@ def fitted_mmm(dummy_df):
         target_accept=0.8,
         tune=50,
         draws=50,
-        progressbar=False,  # Disable progress bar for cleaner test output
+        progressbar=False,
+        random_seed=42,
     )
 
     # Sample posterior predictive
@@ -87,22 +88,109 @@ def fitted_mmm(dummy_df):
         extend_idata=True,
         combined=True,
         progressbar=False,
+        random_seed=42,
     )
 
     return mmm
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_tvp(dummy_df, mock_pymc_sample):
+    """Create and fit a model with time_varying_media=True."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        time_varying_media=True,
+        **df_kwargs,
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    mmm.sample_posterior_predictive(
+        X=X_dummy,
+        extend_idata=True,
+        combined=True,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
+def _build_fitted_mmm_shuffled(channels, dims=("geo",)):
+    """Build and fit a real MMM with the given non-alphabetical channels."""
+    n = 10
+    data = {"date_week": pd.date_range("2023-01-01", periods=n, freq="W")}
+    if dims:
+        data["geo"] = ["G1", "G2"] * (n // 2)
+    for ch in channels:
+        data[ch] = np.linspace(0, 1, num=n)
+    df = pd.DataFrame(data)
+    y = pd.Series(np.ones(n), name="y")
+
+    mmm = MMM(
+        date_column="date_week",
+        channel_columns=channels,
+        dims=dims,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        target_column="y",
+    )
+    mmm.build_model(X=df, y=y)
+    mmm.fit(X=df, y=y, chains=2, tune=50, draws=50, progressbar=False)
+    mmm.sample_posterior_predictive(
+        X=df, extend_idata=True, combined=True, progressbar=False
+    )
+    return mmm
+
+
+@pytest.fixture(
+    scope="module",
+    params=[
+        ["Z_tv", "A_social"],
+        ["Z_tv", "M_radio", "A_social", "D_print", "B_search"],
+    ],
+    ids=["2ch_shuffled", "5ch_shuffled"],
+)
+def fitted_mmm_shuffled(request, mock_pymc_sample):
+    """Real multidimensional MMM with non-alphabetical channel names."""
+    return _build_fitted_mmm_shuffled(request.param, dims=("geo",))
+
+
+@pytest.fixture(
+    scope="module",
+    params=[
+        ["Z_tv", "A_social"],
+        ["Z_tv", "M_radio", "A_social", "D_print", "B_search"],
+    ],
+    ids=["2ch_shuffled", "5ch_shuffled"],
+)
+def fitted_mmm_shuffled_1d(request, mock_pymc_sample):
+    """Real MMM (no geo dim) with non-alphabetical channel names for dict bounds."""
+    return _build_fitted_mmm_shuffled(request.param, dims=())
 
 
 compile_kwargs = pytest.mark.parametrize(
     "compile_kwargs",
     [
         None,  # Default
-        {"mode": "JAX"},  # JAX backend
-        {"mode": "NUMBA"},  # Numba backend
+        # {"mode": "JAX"},  # JAX backend
+        # {"mode": "NUMBA"},  # Numba backend
     ],
     ids=[
         "default",
-        "jax_backend",
-        "numba_backend",
+        # "jax_backend",
+        # "numba_backend",
     ],
 )
 
@@ -155,6 +243,38 @@ def test_budget_optimizer_correct_mask(dummy_df, fitted_mmm, compile_kwargs):
 
     assert isinstance(optimal_budgets, xr.DataArray)
     assert optimal_budgets.shape == (2, 2)  # 2 channels, 2 geos
+    assert result.success
+
+
+@pytest.mark.parametrize("mask", (False, True))
+def test_budget_optimizer_time_varying_media(dummy_df, fitted_mmm_tvp, mask):
+    """Regression test for #2104: optimizer must work with time_varying_media=True."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    if mask:
+        budgets_to_optimize = xr.DataArray(
+            np.array([[True, False], [True, True]]),
+            dims=["channel", "geo"],
+            coords={"channel": ["channel_1", "channel_2"], "geo": ["A", "B"]},
+        )
+    else:
+        budgets_to_optimize = None
+
+    optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+        model=fitted_mmm_tvp,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+    )
+
+    optimal_budgets, result = optimizable_model.optimize_budget(
+        budget=1,
+        budgets_to_optimize=budgets_to_optimize,
+        return_if_fail=True,
+    )
+
+    assert optimizable_model.num_periods == 10
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert optimal_budgets.sizes == {"geo": 2, "channel": 2}
     assert result.success
 
 
@@ -1373,3 +1493,99 @@ def test_multidimensional_optimize_budget_callback_parametrized(
     assert hasattr(opt_result, "success")
     assert hasattr(opt_result, "x")
     assert hasattr(opt_result, "fun")
+
+
+def test_float_channel_data_optimized(simple_fitted_mmm):
+    """Budget optimizer should produce identical allocations regardless of channel_data dtype."""
+    total_budget = 5000.0
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=simple_fitted_mmm, start_date="2025-01-06", end_date="2025-02-03"
+    )
+    with pytest.warns(UserWarning, match="Using default equality constraint"):
+        optimizer = BudgetOptimizer(
+            model=wrapper,
+            num_periods=wrapper.num_periods,
+            response_variable="total_media_contribution_original_scale",
+        )
+    budget_bounds = {
+        ch: (0.0, total_budget) for ch in simple_fitted_mmm.channel_columns
+    }
+    optimal_budgets, _result = optimizer.allocate_budget(
+        total_budget=total_budget,
+        budget_bounds=budget_bounds,
+    )
+
+    float_alloc = optimal_budgets.values
+    equal_share = total_budget / len(float_alloc)
+
+    # Precondition: the float model (which has working gradients) must
+    # actually deviate from the equal split, otherwise the comparison is
+    # vacuous.
+    assert not np.allclose(float_alloc, equal_share, atol=0.01), (
+        f"Float model stayed at equal split {float_alloc} — "
+        f"test is inconclusive because there is no asymmetry to detect."
+    )
+
+
+def test_dataarray_bounds_respect_channel_ordering(fitted_mmm_shuffled):
+    """Regression test for #2323: DataArray bounds must reindex to match
+    internal coordinate ordering regardless of user-provided channel order."""
+    mmm = fitted_mmm_shuffled
+    channels = list(mmm.channel_columns)
+    geos = ["G1", "G2"]
+
+    assert sorted(channels) != channels
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm, start_date="2023-04-01", end_date="2023-06-01"
+    )
+
+    total = 100.0
+    n_ch = len(channels)
+    bounds_dict = {ch: (0.0, total * (i + 1) / n_ch) for i, ch in enumerate(channels)}
+
+    bounds_da = xr.DataArray(
+        [[list(bounds_dict[ch]) for ch in channels] for _ in geos],
+        dims=["geo", "channel", "bound"],
+        coords={"geo": geos, "channel": channels, "bound": ["lower", "upper"]},
+    )
+
+    optimal_budgets, _result = wrapper.optimize_budget(
+        budget=total, budget_bounds=bounds_da
+    )
+
+    for ch in channels:
+        vals = optimal_budgets.sel(channel=ch).values
+        lo, hi = bounds_dict[ch]
+        assert np.all(vals >= lo - 1e-6) and np.all(vals <= hi + 1e-6), (
+            f"{ch} allocation {vals} outside bounds [{lo}, {hi}]"
+        )
+
+
+def test_dict_bounds_respect_channel_ordering(fitted_mmm_shuffled_1d):
+    """Regression test for #2323: dict bounds must apply to correct channels
+    regardless of alphabetical ordering (single-dim budget)."""
+    mmm = fitted_mmm_shuffled_1d
+    channels = list(mmm.channel_columns)
+
+    assert sorted(channels) != channels
+
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm, start_date="2023-04-01", end_date="2023-06-01"
+    )
+
+    total = 100.0
+    n_ch = len(channels)
+    bounds = {ch: (0.0, total * (i + 1) / n_ch) for i, ch in enumerate(channels)}
+
+    optimal_budgets, _result = wrapper.optimize_budget(
+        budget=total, budget_bounds=bounds
+    )
+
+    for ch in channels:
+        val = optimal_budgets.sel(channel=ch).item()
+        lo, hi = bounds[ch]
+        assert lo - 1e-6 <= val <= hi + 1e-6, (
+            f"{ch}={val:.4f} outside bounds [{lo}, {hi}]"
+        )

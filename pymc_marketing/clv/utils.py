@@ -56,7 +56,7 @@ def customer_lifetime_value(
     and apply a discount rate for net present value estimations.
     Note `future_t` is measured in months regardless of `time_unit` specified.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
 
     Parameters
@@ -173,7 +173,7 @@ def _find_first_transactions(
     and appends a column named *repeated* to the transaction log to indicate which rows
     are repeated transactions for each *customer_id*.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L148
 
     Parameters
@@ -288,7 +288,7 @@ def rfm_summary(
 
     This function is not required if using the `clv.rfm_segments` utility.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230
 
     Parameters
@@ -445,7 +445,7 @@ def rfm_train_test_split(
 
     Note this function will exclude new customers whose first transactions occurred during the test period.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L27
 
     Parameters

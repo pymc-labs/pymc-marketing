@@ -39,7 +39,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
     using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
 
-    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy *lifetimes* library
+    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy ``lifetimes`` library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
@@ -93,7 +93,6 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         # model_config and sampler_configs are optional
         model = ModifiedBetaGeoModel(
-            data=data,
             model_config={
                 "r": Prior("HalfFlat"),
                 "alpha": Prior("HalfFlat"),
@@ -110,12 +109,12 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         # The default 'mcmc' fit_method provides informative predictions
         # and reliable performance on small datasets
-        model.fit()
+        model.fit(data=rfm_df)
         print(model.fit_summary())
 
         # Maximum a Posteriori can quickly fit a model to large datasets,
         # but will give limited insights into predictive uncertainty.
-        model.fit(fit_method='map')
+        model.fit(data=rfm_df,fit_method='map')
         print(model.fit_summary())
 
         # Predict number of purchases for current customers
@@ -141,8 +140,29 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
     _model_type = "MBG/NBD"
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Input data with customer_id, frequency, recency, and T columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
             "dropout_covariate": self.dropout_covariate_cols,
@@ -293,7 +313,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (6) in [1]_, and *lifetimes* package:
+        Adapted from equation (6) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L151
 
         Parameters
@@ -352,7 +372,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (4) in [1]_, and `lifetimes` library:
+        Adapted from equation (4) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130
 
         Parameters
@@ -397,7 +417,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (5) in [1]_, and `lifetimes` library:
+        Adapted from equation (5) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188
 
         Parameters

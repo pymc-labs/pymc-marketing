@@ -23,6 +23,7 @@ Example of a custom additive effect
     import numpy as np
     import pandas as pd
     import pymc as pm
+    import pymc.dims as pmd
     from pymc_extras.prior import create_dim_handler
 
     # A simple custom effect that penalizes certain dates/segments with a
@@ -38,19 +39,19 @@ Example of a custom additive effect
 
         def create_data(self, mmm):
             # Produce penalty values aligned with model dates (and optional extra dims)
-            dates = pd.to_datetime(mmm.model.coords["date"])
+            dates = safe_to_datetime(mmm.model.coords["date"], "date")
             penalty = self.penalty_provider(dates)
-            pm.Data(f"{self.name}_penalty", penalty, dims=("date", *mmm.dims))
+            pmd.Data(f"{self.name}_penalty", penalty, dims=("date", *mmm.dims))
 
         def create_effect(self, mmm):
             model = mmm.model
             penalty = model[f"{self.name}_penalty"]  # dims: (date, *mmm.dims)
 
             # Negative-only coefficient per extra dims, broadcast over date
-            coef = pm.TruncatedNormal(f"{self.name}_coef", mu=-0.5, sigma=-0.05, lower=-1.0, upper=0.0, dims=mmm.dims)
+            coef = pmd.TruncatedNormal(f"{self.name}_coef", mu=-0.5, sigma=-0.05, lower=-1.0, upper=0.0, dims=mmm.dims)
 
             dim_handler = create_dim_handler(("date", *mmm.dims))
-            effect = pm.Deterministic(
+            effect = pmd.Deterministic(
                 f"{self.name}_effect_contribution",
                 dim_handler(coef, mmm.dims) * penalty,
                 dims=("date", *mmm.dims),
@@ -59,7 +60,7 @@ Example of a custom additive effect
 
         def set_data(self, mmm, model, X):
             # Update to future dates during posterior predictive
-            dates = pd.to_datetime(model.coords["date"])
+            dates = safe_to_datetime(model.coords["date"], "date")
             penalty = self.penalty_provider(dates)
             pm.set_data({f"{self.name}_penalty": penalty}, model=model)
 
@@ -86,10 +87,10 @@ How it works
 - Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
   and ``set_data(mmm, model, X)``.
 - During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
-  introduce any needed ``pm.Data``. Then ``create_effect`` must return a tensor with
+  introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
   dims ("date", *mmm.dims) that is added additively to the model mean.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
-  and the new coordinates; update any ``pm.Data`` you created using ``pm.set_data``.
+  and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
 Tips for custom components
 --------------------------
@@ -104,19 +105,109 @@ Tips for custom components
   - In `set_data`, update the data variables when dates/dims change.
 """
 
+from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import BaseModel, InstanceOf
-from pymc_extras.prior import create_dim_handler
-from pytensor import tensor as pt
+from pydantic import BaseModel, Field, InstanceOf
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
-from pymc_marketing.mmm.utils import create_index
+from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
+
+
+def safe_to_datetime(
+    coords_values: pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray,
+    coord_name: str = "date",
+    validate_non_numeric: bool = True,
+) -> pd.DatetimeIndex:
+    """Safely convert coordinates to datetime, with validation.
+
+    This function prevents the issue where numeric values (e.g., [0, 1, 2, 3])
+    get incorrectly converted to dates starting from January 1st 1970 with
+    nanosecond intervals.
+
+    Parameters
+    ----------
+    coords_values : pd.Series | pd.Index | list | tuple | pd.DatetimeIndex | npt.NDArray
+        The coordinate values to convert to datetime
+    coord_name : str, optional
+        The name of the coordinate dimension (default: "date")
+    validate_non_numeric : bool, optional
+        Whether to validate that values are not numeric dtype. Set to False
+        when intentionally converting numeric time indices. Default: True
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        The converted datetime index
+
+    Raises
+    ------
+    ValueError
+        If the coordinate values have numeric dtype and validate_non_numeric is True
+
+    Examples
+    --------
+    >>> # Good usage - string dates
+    >>> safe_to_datetime(["2024-01-01", "2024-01-02"])
+
+    >>> # Good usage - already datetime
+    >>> safe_to_datetime(pd.to_datetime(["2024-01-01", "2024-01-02"]))
+
+    >>> # Raises error - numeric values with validation
+    >>> safe_to_datetime([0, 1, 2, 3])  # Raises ValueError
+
+    >>> # Allowed - numeric time indices with validation disabled
+    >>> safe_to_datetime([0, 1, 2, 3], validate_non_numeric=False)
+    """
+    # Convert to pandas Series/Index for dtype checking
+    if isinstance(coords_values, pd.DatetimeIndex):
+        # Already datetime, return as-is
+        return coords_values
+
+    # Validate that values are not numeric dtype (if requested)
+    if validate_non_numeric:
+        _validate_non_numeric_dtype(coords_values, f"Coordinate '{coord_name}'")
+
+    result = pd.to_datetime(coords_values)
+    # Ensure we always return DatetimeIndex, not Series
+    if isinstance(result, pd.Series):
+        return pd.DatetimeIndex(result)
+    return result
+
+
+def _get_datetime_coords(
+    coords: pd.Index | npt.NDArray,
+    coord_name: str,
+) -> pd.DatetimeIndex:
+    """Get datetime coordinates with automatic validation logic.
+
+    Automatically skips numeric validation for non-date coordinate names
+    (e.g., 'time'), allowing numeric indices for customer choice models.
+
+    Parameters
+    ----------
+    coords : pd.Index | npt.NDArray
+        The coordinate values from the model
+    coord_name : str
+        The name of the coordinate dimension
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        The converted datetime index
+    """
+    # Skip validation for non-date coordinates (e.g., numeric "time" indices)
+    validate = coord_name == "date"
+    return safe_to_datetime(coords, coord_name, validate_non_numeric=validate)
 
 
 class Model(Protocol):
@@ -131,35 +222,31 @@ class Model(Protocol):
         """The PyMC model."""
 
 
-class MuEffect(Protocol):
-    """Protocol for arbitrary additive mu effect."""
+class MuEffect(ABC, BaseModel):
+    """Abstract base class for arbitrary additive mu effects.
 
+    All mu_effects must inherit from this Pydantic BaseModel to ensure proper
+    serialization and deserialization when saving/loading MMM models.
+    """
+
+    @abstractmethod
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model."""
 
-    def create_effect(self, mmm: Model) -> pt.TensorVariable:
+    @abstractmethod
+    def create_effect(self, mmm: Model) -> XTensorVariable:
         """Create the additive effect in the model."""
 
+    @abstractmethod
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
 
-class FourierEffect:
+class FourierEffect(MuEffect):
     """Fourier seasonality additive effect for MMM."""
 
-    def __init__(self, fourier: FourierBase, date_dim_name: str = "date"):
-        """Initialize the Fourier effect.
-
-        Parameters
-        ----------
-        fourier : FourierBase
-            The FourierBase instance to use for the effect.
-        date_dim_name : str, optional
-            The name of the date dimension in the model, by default "date".
-
-        """
-        self.fourier = fourier
-        self.date_dim_name: str = date_dim_name
+    fourier: InstanceOf[FourierBase]
+    date_dim_name: str = Field("date")
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -172,16 +259,18 @@ class FourierEffect:
         model = mmm.model
 
         # Get dates from model coordinates
-        dates = pd.to_datetime(model.coords[self.date_dim_name])
+        dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         # Add weekday data to the model
-        pm.Data(
+        pmd.Data(
             f"{self.fourier.prefix}_day",
             self.fourier._get_days_in_period(dates).to_numpy(),
             dims=self.date_dim_name,
         )
 
-    def create_effect(self, mmm: Model) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> XTensorVariable:
         """Create the Fourier effect in the model.
 
         Parameters
@@ -191,7 +280,7 @@ class FourierEffect:
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The Fourier effect
         """
         model = mmm.model
@@ -199,38 +288,19 @@ class FourierEffect:
         # Apply the Fourier transformation to data
         day_data = model[f"{self.fourier.prefix}_day"]
 
-        # Store the unsummed basis components (including the internal fourier mode dim)
-        # so users can inspect individual sine/cos contributions if desired.
-        def create_deterministic(x: pt.TensorVariable) -> None:
-            pm.Deterministic(
-                f"{self.fourier.prefix}_components",
-                x,
-                dims=(self.date_dim_name, *self.fourier.prior.dims),
-            )
-
         # Call apply to create the components deterministic (unsummed basis * betas)
-        _ = self.fourier.apply(day_data, result_callback=create_deterministic)
-
-        # Retrieve the components deterministic just created
-        components_var = model[f"{self.fourier.prefix}_components"]
-        component_dims = model.named_vars_to_dims[components_var.name]
-        # Identify axis of the fourier prefix dimension and collapse it
-        prefix_axis = component_dims.index(self.fourier.prefix)
-        collapsed = components_var.sum(axis=prefix_axis)
-
-        # Determine final dims order consistent with MMM dims
-        dims = tuple(dim for dim in mmm.dims if dim in self.fourier.prior.dims)
-        fourier_dims = (self.date_dim_name, *dims)
-
-        fourier_contribution = pm.Deterministic(
-            f"{self.fourier.prefix}_contribution",
-            collapsed,
-            dims=fourier_dims,
+        fourier_dim = self.fourier.prefix
+        fourier_components = pmd.Deterministic(
+            f"{self.fourier.prefix}_components",
+            self.fourier.apply(day_data, sum=False).transpose(
+                self.date_dim_name, ..., fourier_dim
+            ),
         )
 
-        # Broadcast to full MMM dims ordering
-        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(fourier_contribution, fourier_dims)
+        return pmd.Deterministic(
+            f"{self.fourier.prefix}_contribution",
+            fourier_components.sum(dim=fourier_dim),
+        )
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
@@ -245,7 +315,9 @@ class FourierEffect:
             The dataset for prediction
         """
         # Get dates from the new dataset
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         # Update the data
         new_data = {
@@ -256,7 +328,7 @@ class FourierEffect:
         pm.set_data(new_data=new_data, model=model)
 
 
-class LinearTrendEffect:
+class LinearTrendEffect(MuEffect):
     """Wrapper for LinearTrend to use with MMM's MuEffect protocol.
 
     This class adapts the LinearTrend component to be used as an additive effect
@@ -268,6 +340,8 @@ class LinearTrendEffect:
         The LinearTrend instance to wrap.
     prefix : str
         The prefix to use for variables in the model.
+    date_dim_name : str
+        The name of the date dimension in the model.
 
     Examples
     --------
@@ -315,7 +389,7 @@ class LinearTrendEffect:
 
         with mock_mmm.model:
             effect.create_data(mock_mmm)
-            pm.Deterministic(
+            pmd.Deterministic(
                 "effect",
                 effect.create_effect(mock_mmm),
                 dims="date",
@@ -357,11 +431,16 @@ class LinearTrendEffect:
 
     """
 
-    def __init__(self, trend: LinearTrend, prefix: str, date_dim_name: str = "date"):
-        self.trend = trend
-        self.prefix = prefix
-        self.linear_trend_first_date: pd.Timestamp
-        self.date_dim_name: str = date_dim_name
+    trend: InstanceOf[LinearTrend]
+    prefix: str
+    date_dim_name: str = Field("date")
+
+    model_config = {"extra": "allow"}
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Runtime-only state, not serialized. Set in create_data().
+        self.linear_trend_first_date: pd.Timestamp  # type: ignore[annotation-unchecked]
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -374,13 +453,15 @@ class LinearTrendEffect:
         model: pm.Model = mmm.model
 
         # Create time index data (normalized between 0 and 1)
-        dates = pd.to_datetime(model.coords[self.date_dim_name])
+        dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
         self.linear_trend_first_date = dates[0]
         t = (dates - self.linear_trend_first_date).days.astype(float)
 
-        pm.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
+        pmd.Data(f"{self.prefix}_t", t, dims=self.date_dim_name)
 
-    def create_effect(self, mmm: Model) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> XTensorVariable:
         """Create the trend effect in the model.
 
         Parameters
@@ -390,34 +471,23 @@ class LinearTrendEffect:
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The trend effect in the model.
         """
         model: pm.Model = mmm.model
 
         # Get the time data
-        t = model[f"{self.prefix}_t"]
-        t_max = t.max().eval()
-        t = t / t_max if t_max > 0 else t
+        t_name = f"{self.prefix}_t"
+        t = model[t_name]
 
-        # Apply the trend
+        t_max = t.max()
+        t = t / ptx.math.switch(t_max > 0, t_max, 1)
         trend_effect = self.trend.apply(t)
 
-        # Create deterministic for the trend effect
-        trend_dims = (self.date_dim_name, *self.trend.dims)  # type: ignore
-        trend_non_broadcastable_dims = (
-            self.date_dim_name,
-            *self.trend.non_broadcastable_dims,
-        )
-        trend_effect = pm.Deterministic(
+        return pmd.Deterministic(
             f"{self.prefix}_effect_contribution",
-            trend_effect[create_index(trend_dims, trend_non_broadcastable_dims)],
-            dims=trend_non_broadcastable_dims,
+            trend_effect,
         )
-
-        # Return the trend effect
-        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(trend_effect, trend_non_broadcastable_dims)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions.
@@ -432,14 +502,16 @@ class LinearTrendEffect:
             The dataset for prediction.
         """
         # Create normalized time index for new data
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
         t = (new_dates - self.linear_trend_first_date).days.astype(float)
 
         # Update the data
         pm.set_data({f"{self.prefix}_t": t}, model=model)
 
 
-class EventAdditiveEffect(BaseModel):
+class EventAdditiveEffect(MuEffect):
     """Event effect class for the MMM.
 
     Parameters
@@ -497,29 +569,31 @@ class EventAdditiveEffect(BaseModel):
         """
         model: pm.Model = mmm.model
 
-        model_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        model_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
 
         if "days" not in model:
-            pm.Data(
+            pmd.Data(
                 "days",
                 days_from_reference(model_dates, self.reference_date),
                 dims=self.date_dim_name,
             )
 
-        pm.Data(
+        pmd.Data(
             f"{self.prefix}_start_diff",
             days_from_reference(self.start_dates, self.reference_date),
             dims=self.prefix,
         )
-        pm.Data(
+        pmd.Data(
             f"{self.prefix}_end_diff",
             days_from_reference(self.end_dates, self.reference_date),
             dims=self.prefix,
         )
 
-    def create_effect(self, mmm: Model) -> pt.TensorVariable:
+    def create_effect(self, mmm: Model) -> XTensorVariable:
         """Create the event effect in the model.
 
         Parameters
@@ -529,37 +603,38 @@ class EventAdditiveEffect(BaseModel):
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The average event effect in the model.
 
         """
         model: pm.Model = mmm.model
 
-        start_ref = model["days"][:, None] - model[f"{self.prefix}_start_diff"]
-        end_ref = model["days"][:, None] - model[f"{self.prefix}_end_diff"]
+        days = model["days"]
+        start_ref = days - model[f"{self.prefix}_start_diff"]
+        end_ref = days - model[f"{self.prefix}_end_diff"]
 
         def create_basis_matrix(start_ref, end_ref):
-            return pt.where(
+            return ptx.math.where(
                 (start_ref >= 0) & (end_ref <= 0),
                 0,
-                pt.where(pt.abs(start_ref) < pt.abs(end_ref), start_ref, end_ref),
+                ptx.math.where(
+                    ptx.math.abs(start_ref) < ptx.math.abs(end_ref), start_ref, end_ref
+                ),
             )
 
         X = create_basis_matrix(start_ref, end_ref)
         event_effect = self.effect.apply(X, name=self.prefix)
 
-        total_effect = pm.Deterministic(
+        return pmd.Deterministic(
             f"{self.prefix}_total_effect",
-            event_effect.sum(axis=1),
-            dims=self.date_dim_name,
+            event_effect.sum(dim=self.prefix),
         )
-
-        dim_handler = create_dim_handler((self.date_dim_name, *mmm.dims))
-        return dim_handler(total_effect, self.date_dim_name)
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
-        new_dates = pd.to_datetime(model.coords[self.date_dim_name])
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
 
         new_data = {
             "days": days_from_reference(new_dates, self.reference_date),

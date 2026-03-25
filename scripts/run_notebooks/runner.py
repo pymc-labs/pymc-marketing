@@ -14,6 +14,24 @@ Run all the notebooks in docs/mmm and docs/clv:
 python scripts/run_notebooks/runner.py --notebooks mmm clv
 ```
 
+Run a single notebook by relative path within the notebooks directory:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm/mmm_example.ipynb
+```
+
+Run a single notebook by full path from the repo root:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks docs/source/notebooks/mmm/mmm_example.ipynb
+```
+
+Mix directories and individual notebooks:
+
+```terminal
+python scripts/run_notebooks/runner.py --notebooks mmm clv/clv_quickstart.ipynb
+```
+
 Run all notebooks except those in docs/mmm and docs/clv:
 
 ```terminal
@@ -25,7 +43,6 @@ Run notebooks from index 2 to 5 (3rd to 5th notebook) in notebooks/mmm directory
 ```terminal
 python scripts/run_notebooks/runner.py --notebooks mmm --start-idx 2 --end-idx 5
 ```
-
 """
 
 # Monkey-patch nbclient to handle display_id=None for widget updates.
@@ -65,8 +82,21 @@ HERE = Path(__file__).parent
 KERNEL_NAME: str = "python3"
 DOC_SOURCE = Path("docs/source")
 NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
-NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
-NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+_NOTEBOOKS: list[Path] = list(NOTEBOOKS_PATH.glob("*/*.ipynb"))
+_NOTEBOOKS.append(DOC_SOURCE / "guide" / "benefits" / "model_deployment.ipynb")
+
+# Notebooks to exclude from testing (relative to repo root)
+BLACKLIST: set[str] = {
+    "docs/source/notebooks/mmm/mmm_chronos.ipynb",
+}
+
+
+def filter_blacklist(notebooks: list[Path]) -> list[Path]:
+    """Remove blacklisted notebooks from the list."""
+    return [nb for nb in notebooks if str(nb) not in BLACKLIST]
+
+
+NOTEBOOKS: list[Path] = filter_blacklist(_NOTEBOOKS)
 
 INJECTED_CODE_FILE = HERE / "injected.py"
 INJECTED_CODE = INJECTED_CODE_FILE.read_text()
@@ -109,7 +139,7 @@ def inject_pymc_sample_mock_code(cells: list) -> None:
     )
 
 
-def mock_run(notebook_path: Path) -> None:
+def mock_run(notebook_path: Path, kernel_name: str = KERNEL_NAME) -> None:
     nb = load_notebook_node(str(notebook_path))
     inject_pymc_sample_mock_code(nb.cells)
     with NamedTemporaryFile(suffix=".ipynb") as f:
@@ -119,27 +149,29 @@ def mock_run(notebook_path: Path) -> None:
             input_path=f.name,
             output_path=None,
             progress_bar=dict(desc=desc),
-            kernel_name=KERNEL_NAME,
+            kernel_name=kernel_name,
             cwd=notebook_path.parent,
         )
 
 
-def actual_run(notebook_path: Path) -> None:
+def actual_run(notebook_path: Path, kernel_name: str = KERNEL_NAME) -> None:
     papermill.execute_notebook(
         input_path=notebook_path,
         output_path=None,
-        kernel_name=KERNEL_NAME,
+        kernel_name=kernel_name,
         progress_bar={"desc": f"Running {notebook_path.name}"},
         cwd=notebook_path.parent,
     )
 
 
-def run_notebook(notebook_path: Path, mock: bool = True) -> None:
+def run_notebook(
+    notebook_path: Path, mock: bool = True, kernel_name: str = KERNEL_NAME
+) -> None:
     logging.info(f"Running notebook: {notebook_path.name}")
     run = mock_run if mock else actual_run
 
     try:
-        run(notebook_path)
+        run(notebook_path, kernel_name=kernel_name)
     except Exception as e:
         logging.error(f"Error running notebook: {notebook_path.name}")
         raise e
@@ -148,11 +180,16 @@ def run_notebook(notebook_path: Path, mock: bool = True) -> None:
 class RunParams(TypedDict):
     notebook_path: Path
     mock: bool
+    kernel_name: str
 
 
-def run_parameters(notebook_paths: list[Path]) -> list[RunParams]:
+def run_parameters(
+    notebook_paths: list[Path], kernel_name: str = KERNEL_NAME
+) -> list[RunParams]:
     def to_mock(notebook_path: Path) -> RunParams:
-        return RunParams(notebook_path=notebook_path, mock=True)
+        return RunParams(
+            notebook_path=notebook_path, mock=True, kernel_name=kernel_name
+        )
 
     return [to_mock(notebook_path) for notebook_path in notebook_paths]
 
@@ -184,6 +221,12 @@ def parse_args():
         help="Index of the notebook to end at (exclusive).",
     )
     parser.add_argument(
+        "--kernel",
+        type=str,
+        default=KERNEL_NAME,
+        help=f"Jupyter kernel name to use (default: {KERNEL_NAME}).",
+    )
+    parser.add_argument(
         "--parallel/no-parallel",
         dest="parallel",
         action="store_true",
@@ -199,8 +242,12 @@ def expand_directories(notebooks):
         if path.is_dir():
             logging.info(f"Expanding directory: {path}")
             expanded.extend(path.glob("*.ipynb"))
-        else:
+        elif path.is_file():
+            expanded.append(path)
+        elif notebook.is_file():
             expanded.append(notebook)
+        else:
+            logging.warning(f"Notebook not found: {notebook}")
     return expanded
 
 
@@ -212,6 +259,7 @@ if __name__ == "__main__":
         notebooks_to_run = [Path(notebook) for notebook in args.notebooks]
 
     notebooks_to_run = expand_directories(notebooks_to_run)
+    notebooks_to_run = filter_blacklist(notebooks_to_run)
 
     if args.exclude_dirs:
         exclude_set = set(args.exclude_dirs)
@@ -226,13 +274,13 @@ if __name__ == "__main__":
     def parallel_run():
         return Parallel(n_jobs=-1)(
             delayed(run_notebook)(**run_params)
-            for run_params in run_parameters(notebooks_to_run)
+            for run_params in run_parameters(notebooks_to_run, kernel_name=args.kernel)
         )
 
     def sequential_run():
         return [
             run_notebook(**run_params)
-            for run_params in run_parameters(notebooks_to_run)
+            for run_params in run_parameters(notebooks_to_run, kernel_name=args.kernel)
         ]
 
     run = parallel_run if args.parallel else sequential_run

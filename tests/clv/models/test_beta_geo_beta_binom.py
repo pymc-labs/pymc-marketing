@@ -17,11 +17,11 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
-import pytensor as pt
 import pytest
 import xarray as xr
-from lifetimes.fitters.beta_geo_beta_binom_fitter import BetaGeoBetaBinomFitter
 from pymc_extras.prior import Prior
+from pytensor.compile import ViewOp
+from pytensor.tensor.elemwise import Elemwise
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
@@ -79,15 +79,6 @@ class TestBetaGeoBetaBinomModel:
         cls.model = BetaGeoBetaBinomModel(cls.data)
         cls.model.build_model()
 
-        # Also instantiate lifetimes model for comparison
-        cls.lifetimes_model = BetaGeoBetaBinomFitter()
-        cls.lifetimes_model.params_ = {
-            "alpha": cls.alpha_true,
-            "beta": cls.beta_true,
-            "delta": cls.delta_true,
-            "gamma": cls.gamma_true,
-        }
-
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.data)
 
@@ -128,25 +119,25 @@ class TestBetaGeoBetaBinomModel:
             model.build_model()
             assert isinstance(
                 model.model["alpha"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "alpha" not in model.model_config
                 else model.model_config["alpha"].pymc_distribution,
             )
             assert isinstance(
                 model.model["beta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "beta" not in model.model_config
                 else model.model_config["beta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["delta"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "delta" not in model.model_config
                 else model.model_config["delta"].pymc_distribution,
             )
             assert isinstance(
                 model.model["gamma"].owner.op,
-                pt.tensor.elemwise.Elemwise
+                ViewOp | Elemwise
                 if "gamma" not in model.model_config
                 else model.model_config["gamma"].pymc_distribution,
             )
@@ -180,7 +171,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -188,7 +180,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="recency")
 
@@ -196,7 +189,8 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['recency'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="T")
 
@@ -204,13 +198,14 @@ class TestBetaGeoBetaBinomModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['T'\]",
         ):
-            BetaGeoBetaBinomModel(data=data_invalid)
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
             ValueError, match=r"Column customer_id has duplicate entries"
         ):
-            data = pd.DataFrame(
+            data_invalid = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 1]),
                     "frequency": np.asarray([1, 1]),
@@ -219,13 +214,12 @@ class TestBetaGeoBetaBinomModel:
                 }
             )
 
-            BetaGeoBetaBinomModel(
-                data=data,
-            )
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
     def test_T_homogeneity(self):
         with pytest.raises(ValueError, match=r"Column T has non-homogeneous entries"):
-            data = pd.DataFrame(
+            data_invalid = pd.DataFrame(
                 {
                     "customer_id": np.asarray([1, 2]),
                     "frequency": np.asarray([1, 2]),
@@ -234,9 +228,8 @@ class TestBetaGeoBetaBinomModel:
                 }
             )
 
-            BetaGeoBetaBinomModel(
-                data=data,
-            )
+            model = BetaGeoBetaBinomModel()
+            model.build_model(data=data_invalid)
 
     @pytest.mark.parametrize("custom_config", (True, False))
     def test_model_repr(self, custom_config):
@@ -311,7 +304,8 @@ class TestBetaGeoBetaBinomModel:
         )
 
     def test_fit_result_without_fit(self, mocker, model_config):
-        model = BetaGeoBetaBinomModel(data=self.pred_data, model_config=model_config)
+        model = BetaGeoBetaBinomModel(model_config=model_config)
+        model.build_model(data=self.pred_data)
         with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
             model.fit_result
 
@@ -330,14 +324,34 @@ class TestBetaGeoBetaBinomModel:
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):
-        true_purchases = (
-            self.lifetimes_model.conditional_expected_number_of_purchases_up_to_time(
-                m_periods_in_future=test_t,
-                frequency=self.pred_data["frequency"],
-                recency=self.pred_data["recency"],
-                n_periods=self.pred_data["T"],
-            )
-        )
+        # Reference values from BG/BB MLE on donations dataset (22 test customers)
+        # Fader, Hardie & Shang (2010): http://brucehardie.com/notes/010/
+        # Generated by scripts/data_generators/clv_testing_reference_values.py
+        # fmt: off
+        expected = {
+            1: np.array([
+                0.0163635985, 0.0192454297, 0.0705711640, 0.1333656672, 0.1885076216,
+                0.2577847473, 0.2577847473, 0.0267518639, 0.1203987353, 0.2375128019,
+                0.3240713492, 0.3747735140, 0.0502140854, 0.2323411603, 0.4052922893,
+                0.4917622806, 0.1309708958, 0.4558947364, 0.6087510473, 0.4071428268,
+                0.7257398139, 0.8427285806,
+            ]),
+            3: np.array([
+                0.0461519591, 0.0542798875, 0.1990391955, 0.3761450653, 0.5316676558,
+                0.7270571404, 0.7270571404, 0.0754510648, 0.3395730784, 0.6698820639,
+                0.9140121395, 1.0570127294, 0.1416240088, 0.6552959449, 1.1430880063,
+                1.3869683184, 0.3693908424, 1.2858073521, 1.7169239074, 1.1483072697,
+                2.0468794964, 2.3768350855,
+            ]),
+            6: np.array([
+                0.0852949601, 0.1003164531, 0.3678509117, 0.6951661197, 0.9825925563,
+                1.3436983168, 1.3436983168, 0.1394436052, 0.6275762227, 1.2380311694,
+                1.6892160262, 1.9535001398, 0.2617400088, 1.2110740811, 2.1125787023,
+                2.5633019627, 0.6826834173, 2.3763430393, 3.1731037857, 2.1222245954,
+                3.7829056086, 4.3927074315,
+            ]),
+        }
+        # fmt: on
 
         # test parametrization with default data has different dims
         est_num_purchases = self.model.expected_purchases(future_t=test_t)
@@ -350,7 +364,7 @@ class TestBetaGeoBetaBinomModel:
         assert est_num_purchases.dims == ("chain", "draw", "customer_id")
 
         np.testing.assert_allclose(
-            true_purchases,
+            expected[test_t],
             est_num_purchases.mean(("chain", "draw")),
             rtol=0.01,
         )
@@ -402,12 +416,34 @@ class TestBetaGeoBetaBinomModel:
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_probability_alive(self, test_t):
-        true_prob_alive = self.lifetimes_model.conditional_probability_alive(
-            m_periods_in_future=test_t,
-            frequency=self.pred_data["frequency"],
-            recency=self.pred_data["recency"],
-            n_periods=self.pred_data["T"],
-        )
+        # Reference values from BG/BB MLE on donations dataset (22 test customers)
+        # Fader, Hardie & Shang (2010): http://brucehardie.com/notes/010/
+        # Generated by scripts/data_generators/clv_testing_reference_values.py
+        # fmt: off
+        expected = {
+            1: np.array([
+                0.1081370764, 0.0694634679, 0.2547159436, 0.4813632059, 0.6803897509,
+                0.9304350590, 0.9304350590, 0.0664157716, 0.2989090750, 0.5896634357,
+                0.8045588433, 0.9304350590, 0.0950071759, 0.4395993139, 0.7668301737,
+                0.9304350590, 0.2001802111, 0.6968044619, 0.9304350590, 0.5219776465,
+                0.9304350590, 0.9304350590,
+            ]),
+            3: np.array([
+                0.0955180989, 0.0613574790, 0.2249920517, 0.4251908766, 0.6009921636,
+                0.8218586162, 0.8218586162, 0.0586654314, 0.2640280978, 0.5208530898,
+                0.7106714340, 0.8218586162, 0.0839203826, 0.3883005915, 0.6773454841,
+                0.8218586162, 0.1768203269, 0.6154913718, 0.8218586162, 0.4610658445,
+                0.8218586162, 0.8218586162,
+            ]),
+            6: np.array([
+                0.0821414673, 0.0527647997, 0.1934835123, 0.3656459131, 0.5168274780,
+                0.7067631521, 0.7067631521, 0.0504497542, 0.2270528373, 0.4479113125,
+                0.6111469453, 0.7067631521, 0.0721679288, 0.3339218506, 0.5824880581,
+                0.7067631521, 0.1520578955, 0.5292961751, 0.7067631521, 0.3964968465,
+                0.7067631521, 0.7067631521,
+            ]),
+        }
+        # fmt: on
 
         # test parametrization with default data has different dims
         est_prob_alive = self.model.expected_probability_alive(future_t=test_t)
@@ -419,7 +455,7 @@ class TestBetaGeoBetaBinomModel:
         assert est_prob_alive.shape == (self.chains, self.draws, self.pred_data_N)
         assert est_prob_alive.dims == ("chain", "draw", "customer_id")
         np.testing.assert_allclose(
-            true_prob_alive,
+            expected[test_t],
             est_prob_alive.mean(("chain", "draw")),
             rtol=0.01,
         )

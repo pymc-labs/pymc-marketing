@@ -26,14 +26,14 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_example.html
 :::
 
-:::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
-:img-top: ../gallery/images/mmm_example.png
-:link: ../notebooks/mmm/mmm_gam_options.html
-:::
-
 :::{grid-item-card} MMM Multidimensional Example Notebook (e.g. Geo-MMM)
 :img-top: ../gallery/images/mmm_multidimensional_example.png
 :link: ../notebooks/mmm/mmm_multidimensional_example.html
+:::
+
+:::{grid-item-card} Understanding Media Saturation
+:img-top: ../gallery/images/mmm_media_saturation.png
+:link: ../notebooks/mmm/mmm_media_saturation.html
 :::
 
 :::{grid-item-card} Build MMM from YAML Configuration
@@ -45,15 +45,55 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_sensitivity_analysis.png
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
+
+:::{grid-item-card} Interactive MMM Visualizations
+:img-top: ../gallery/images/plot_interactive.png
+:link: ../notebooks/mmm/plot_interactive.html
+:::
+
+:::{grid-item-card} Cost-per-Unit: Model What Drives Revenue, Report What You Spend
+:img-top: ../gallery/images/mmm_cost_per_unit.png
+:link: ../notebooks/mmm/mmm_cost_per_unit.html
+:::
+
+:::{grid-item-card} Parameter Recovery
+:img-top: ../gallery/images/mmm_data_generator.png
+:link: ../notebooks/mmm/mmm_data_generator.html
+:::
+
+:::{grid-item-card} MMM API Migration Guide
+:img-top: ../gallery/images/mmm_migration_guide.png
+:link: ../notebooks/mmm/mmm_migration_guide.html
+:::
+
+:::{grid-item-card} MMM Dims Migration Guide
+:img-top: ../gallery/images/mmm_dims_migration_guide.png
+:link: ../notebooks/mmm/mmm_dims_migration_guide.html
+:::
 ::::
 
-### Custom models
+### Custom Models
 ::::{grid} 1 2 3 3
 :gutter: 3
 
 :::{grid-item-card} Custom Models with MMM components
 :img-top: ../gallery/images/mmm_components.png
 :link: ../notebooks/mmm/mmm_components.html
+:::
+
+:::{grid-item-card} Custom Geo-Hierarchical MMM with Splines
+:img-top: ../gallery/images/mmm_custom_splines.png
+:link: ../notebooks/mmm/mmm_custom_splines.html
+:::
+
+:::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
+:img-top: ../gallery/images/mmm_example.png
+:link: ../notebooks/mmm/mmm_gam_options.html
+:::
+
+:::{grid-item-card} Custom MMM with ROAS Parameterization
+:img-top: ../gallery/images/mmm_roas_parametrization.png
+:link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
 ::::
 
@@ -84,7 +124,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Multi-Objective Optimization
-:img-top: ../gallery/images/mmm_allocation_assessment.png
+:img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
 ::::
@@ -99,7 +139,12 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_lift_test.html
 :::
 
-:::{grid-item-card} Case Study: Unobserved Confounders, ROAS and Lift Tests
+:::{grid-item-card} MMM Calibration with Geo-Level Lift Tests
+:img-top: ../gallery/images/mmm_geolift_calibration.png
+:link: ../notebooks/mmm/mmm_geolift_calibration.html
+:::
+
+:::{grid-item-card} Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html
 :::
@@ -177,6 +222,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MMM End-to-End Case Study
 :img-top: ../gallery/images/mmm_case_study.png
 :link: ../notebooks/mmm/mmm_case_study.html
+:::
+
+:::{grid-item-card} Integrating Foundational Time Series Models with PyMC-Marketing MMM
+:img-top: ../gallery/images/mmm_chronos.png
+:link: ../notebooks/mmm/mmm_chronos.html
 :::
 ::::
 

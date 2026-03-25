@@ -17,14 +17,12 @@ from __future__ import annotations
 
 import os
 import warnings
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
-import yaml  # type: ignore
 
 from pymc_marketing.mmm.builders.factories import build, resolve
+from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.utils import from_netcdf
 
@@ -44,51 +42,30 @@ def _load_df(path: str | Path) -> pd.DataFrame:
 
 
 def _apply_and_validate_calibration_steps(
-    model: MMM, cfg: Mapping[str, Any], base_dir: Path
+    model: MMM,
+    steps: list[CalibrationStep] | None,
 ) -> None:
-    calibration_specs = cfg.get("calibration", [])
-    if not calibration_specs:
-        return
+    for step in steps or []:
+        if not hasattr(model, step.method_name):
+            raise AttributeError(f"MMM has no calibration method '{step.method_name}'.")
 
-    if not isinstance(calibration_specs, list):
-        raise TypeError("`calibration` section must be a list of steps.")
-
-    for step in calibration_specs:
-        if not isinstance(step, Mapping):
-            raise TypeError(
-                "Each calibration step must be a mapping of method to parameters."
-            )
-        if len(step) != 1:
-            raise ValueError(
-                "Calibration steps must map a single method to its parameters."
-            )
-
-        method_name, raw_params = next(iter(step.items()))
-
-        if not hasattr(model, method_name):
-            raise AttributeError(f"MMM has no calibration method '{method_name}'.")
-
-        method = getattr(model, method_name)
+        method = getattr(model, step.method_name)
         if not callable(method):
-            raise TypeError(f"Attribute '{method_name}' is not callable on MMM.")
-
-        if raw_params is not None and not isinstance(raw_params, Mapping):
-            raise TypeError(
-                f"Calibration parameters for '{method_name}' must be a mapping, got {type(raw_params).__name__}."
-            )
+            raise TypeError(f"Attribute '{step.method_name}' is not callable on MMM.")
 
         if (
-            method_name == "add_lift_test_measurements"
-            and raw_params
-            and "dist" in raw_params
+            step.method_name == "add_lift_test_measurements"
+            and step.params
+            and "dist" in step.params
         ):
             raise ValueError(
-                "`dist` parameter for 'add_lift_test_measurements' is not supported via YAML configuration yet."
+                "`dist` parameter for 'add_lift_test_measurements' is not "
+                "supported via YAML configuration yet."
             )
 
         resolved_kwargs = (
-            {key: resolve(value) for key, value in raw_params.items()}
-            if raw_params is not None
+            {key: resolve(value) for key, value in step.params.items()}
+            if step.params is not None
             else {}
         )
 
@@ -96,7 +73,8 @@ def _apply_and_validate_calibration_steps(
             method(**resolved_kwargs)
         except Exception as err:  # pragma: no cover - re-raise with context
             raise RuntimeError(
-                f"Failed to apply calibration step '{method_name}' from YAML configuration: \n {err}"
+                f"Failed to apply calibration step '{step.method_name}' "
+                f"from YAML configuration: \n {err}"
             ) from err
 
 
@@ -137,30 +115,28 @@ def build_mmm_from_yaml(
     model : MMM
     """
     config_path = Path(config_path)
-    cfg: Mapping[str, Any] = yaml.safe_load(config_path.read_text())
+    cfg = MMMYamlConfig.from_yaml_file(config_path)
 
-    # 1 ─────────────────────────────────── shell (no effects yet)
-    # Merge model_kwargs into cfg["model"]["kwargs"], with model_kwargs taking precedence
-    model_config = {**cfg["model"].get("kwargs", {}), **(model_kwargs or {})}
-    cfg["model"]["kwargs"] = model_config
+    # 1 -- build MMM shell (no effects yet)
+    model_spec = cfg.model.model_dump(by_alias=True)
+    model_spec["kwargs"] = {**model_spec.get("kwargs", {}), **(model_kwargs or {})}
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=DeprecationWarning)
-        model = build(cfg["model"])
+        model = build(model_spec)
 
-    # 2 ──────────────────────────────── resolve covariates / target
-    data_cfg: Mapping[str, Any] = cfg.get("data", {})
+    # 2 -- resolve covariates / target
+    data_cfg = cfg.data
     if X is None:
-        if "X_path" not in data_cfg:
+        if data_cfg is None or data_cfg.X_path is None:
             raise ValueError("X not provided and no `data.X_path` found in YAML.")
-        X = _load_df(data_cfg["X_path"])
+        X = _load_df(data_cfg.X_path)
     if y is None:
-        if "y_path" not in data_cfg:
+        if data_cfg is None or data_cfg.y_path is None:
             raise ValueError("y not provided and no `data.y_path` found in YAML.")
-        y = _load_df(data_cfg["y_path"])
+        y = _load_df(data_cfg.y_path)
 
-    # Convert date column after loading data
-    date_column = model_config.get("date_column")
+    date_column = model_spec["kwargs"].get("date_column")
     if date_column:
         date_col_in_X = date_column in X.columns
 
@@ -169,29 +145,29 @@ def build_mmm_from_yaml(
 
         if not date_col_in_X:
             raise ValueError(
-                f"Date column '{date_column}' specified in config not found in either X or y data."
+                f"Date column '{date_column}' specified in config not found "
+                f"in either X or y data."
             )
 
-    # 3 ───────────────────────────────────── effects (preserve order)
-    # Build and append each effect
-    for eff_spec in cfg.get("effects", []):
-        effect = build(eff_spec)
+    # 3 -- effects (preserve order)
+    for eff_spec in cfg.effects or []:
+        effect = build(eff_spec.model_dump(by_alias=True))
         model.mu_effects.append(effect)
 
-    # 4 ───────────────────────────────────────────── build PyMC graph
-    model.build_model(X, y)  # this **must** precede any idata loading
+    # 4 -- build PyMC graph (must precede idata loading)
+    model.build_model(X, y)
 
-    # 5 ───────────────────────── add original scale contribution variables
-    original_scale_vars = cfg.get("original_scale_vars", [])
+    # 5 -- add original scale contribution variables
+    original_scale_vars = cfg.original_scale_vars or []
     if original_scale_vars:
         model.add_original_scale_contribution_variable(var=original_scale_vars)
 
-    # 6 ──────────────────────────────────────────── apply calibration steps (if any)
-    _apply_and_validate_calibration_steps(model, cfg, config_path.parent)
+    # 6 -- apply calibration steps (if any)
+    _apply_and_validate_calibration_steps(model, cfg.calibration)
 
-    # 7 ──────────────────────────────────────────── attach inference data
-    if (idata_fp := cfg.get("idata_path")) is not None:
-        idata_path = Path(idata_fp)
+    # 7 -- attach inference data
+    if cfg.idata_path is not None:
+        idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
             model.idata = from_netcdf(idata_path)
 

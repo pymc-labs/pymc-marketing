@@ -76,7 +76,8 @@ class BaseGammaGammaModel(CLVModel):
 
         The computations are based on Eq 5 from [1], p.3.
 
-        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
+        Adapted from the legacy ``lifetimes`` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
@@ -166,7 +167,7 @@ class BaseGammaGammaModel(CLVModel):
 
         Note `future_t` is measured in months regardless of `time_unit` specified.
 
-        Adapted from lifetimes package
+        Adapted from the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246
 
         Parameters
@@ -244,16 +245,17 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     .. code-block:: python
 
+        import pandas as pd
         import pymc as pm
-        from pymc_marketing.clv import GammaGammaModel
 
-        model = GammaGammaModel(
-            data=pandas.DataFrame(
+        data = pd.DataFrame(
                 {
                     "customer_id": [0, 1, 2, 3, ...],
                     "monetary_value": [23.5, 19.3, 11.2, 100.5, ...],
                     "frequency": [6, 8, 2, 1, ...],
                 }
+
+        model = GammaGammaModel(
             ),
             model_config={
                 "p": {"dist": "HalfNormal", kwargs: {}},
@@ -269,7 +271,7 @@ class GammaGammaModel(BaseGammaGammaModel):
             },
         )
 
-        model.fit()
+        model.fit(data=data)
         print(model.fit_summary())
 
         # Predict spend of customers for which we know transaction history, conditioned on data.
@@ -305,15 +307,11 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     def __init__(
         self,
-        data: pandas.DataFrame,
+        data: pandas.DataFrame | None = None,
+        *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        self._validate_cols(
-            data,
-            required_cols=["customer_id", "monetary_value", "frequency"],
-            must_be_unique=["customer_id"],
-        )
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -327,8 +325,38 @@ class GammaGammaModel(BaseGammaGammaModel):
             "v": Prior("HalfFlat"),
         }
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
+    def _validate_data(self, data: pandas.DataFrame) -> None:
+        """Validate Gamma-Gamma-specific data requirements."""
+        self._validate_cols(
+            data,
+            required_cols=["customer_id", "monetary_value", "frequency"],
+            must_be_unique=["customer_id"],
+        )
+
+    def build_model(self, data: pandas.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pandas.DataFrame, optional
+            Input data with customer_id, monetary_value, and frequency columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         z_mean = pt.as_tensor_variable(self.data["monetary_value"])
         x = pt.as_tensor_variable(self.data["frequency"])
 
@@ -444,13 +472,11 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def __init__(
         self,
-        data: pandas.DataFrame,
+        data: pandas.DataFrame | None = None,
+        *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        self._validate_cols(
-            data, required_cols=["customer_id", "individual_transaction_value"]
-        )
         super().__init__(
             data=data, model_config=model_config, sampler_config=sampler_config
         )
@@ -464,8 +490,35 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             "v": Prior("HalfFlat"),
         }
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    def _validate_data(self, data: pandas.DataFrame) -> None:
+        """Validate Gamma-Gamma Individual-specific data requirements."""
+        self._validate_cols(
+            data, required_cols=["customer_id", "individual_transaction_value"]
+        )
+
+    def build_model(self, data: pandas.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pandas.DataFrame, optional
+            Input data with customer_id and individual_transaction_value columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         z = self.data["individual_transaction_value"]
 
         coords = {
