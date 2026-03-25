@@ -557,22 +557,66 @@ class TestPosteriorPredictiveBasic:
         result = simple_plots.posterior_predictive(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_default_var_names_is_y(self, simple_plots):
-        # Must not raise — default var_names=["y"] exists in simple_idata
-        fig, _ = simple_plots.posterior_predictive()
-        assert isinstance(fig, Figure)
-
-    def test_explicit_var_names(self, simple_plots):
-        fig, _ = simple_plots.posterior_predictive(var_names=["y"])
-        assert isinstance(fig, Figure)
-
     def test_raises_on_missing_var(self, simple_plots):
         with pytest.raises(ValueError, match="nonexistent"):
-            simple_plots.posterior_predictive(var_names=["nonexistent"])
+            simple_plots.posterior_predictive(target_var="nonexistent")
 
-    def test_hdi_prob_accepted(self, simple_plots):
-        fig, _ = simple_plots.posterior_predictive(hdi_prob=0.50)
-        assert isinstance(fig, Figure)
+    def test_explicit_target_var(self, simple_plots, simple_data):
+        """Explicitly passing target_var='y_original_scale' plots that variable."""
+        _, axes = simple_plots.posterior_predictive(target_var="y_original_scale")
+        ax = axes.flat[0]
+        expected = simple_data.idata.posterior_predictive["y_original_scale"].mean(
+            dim=("chain", "draw")
+        ).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.allclose(y, expected, equal_nan=True) for y in line_y_arrays
+        ), "No line matches y_original_scale posterior mean"
+
+
+class TestPosteriorPredictiveElements:
+    def test_predicted_mean_line_present(self, simple_plots, simple_data):
+        """The predicted mean line y-data must match pp_ds['y'].mean(chain/draw)."""
+        _, axes = simple_plots.posterior_predictive()
+        ax = axes.flat[0]
+        expected = simple_data.idata.posterior_predictive["y"].mean(
+            dim=("chain", "draw")
+        ).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.allclose(y, expected, equal_nan=True) for y in line_y_arrays
+        ), "No line matches the posterior predictive mean"
+
+    def test_hdi_band_present(self, simple_plots):
+        """HDI fill_between band must create at least one collection in the axes."""
+        _, axes = simple_plots.posterior_predictive()
+        ax = axes.flat[0]
+        assert len(ax.collections) > 0, (
+            "No HDI band found in axes (expected fill_between collection)"
+        )
+
+    def test_x_data_length_matches_dates(self, simple_plots):
+        """All plotted lines must span the full date range (n_date=20)."""
+        _, axes = simple_plots.posterior_predictive()
+        ax = axes.flat[0]
+        n_date = 20  # matches simple_idata fixture
+        for line in ax.lines:
+            assert len(line.get_xdata()) == n_date
+
+    def test_narrower_hdi_prob_gives_narrower_band(self, simple_plots):
+        """A 50% HDI band must be narrower than the default 94% band."""
+        _, axes_94 = simple_plots.posterior_predictive(hdi_prob=0.94)
+        _, axes_50 = simple_plots.posterior_predictive(hdi_prob=0.50)
+        ax_94 = axes_94.flat[0]
+        ax_50 = axes_50.flat[0]
+
+        def band_height(ax):
+            verts = ax.collections[0].get_paths()[0].vertices
+            return verts[:, 1].max() - verts[:, 1].min()
+
+        assert band_height(ax_94) > band_height(ax_50), (
+            "94% HDI band should be wider than 50% HDI band"
+        )
 
 
 class TestPosteriorPredictiveDims:
@@ -590,25 +634,42 @@ class TestPosteriorPredictiveDims:
 
 
 class TestPosteriorPredictiveCustomization:
-    def test_figsize_accepted(self, simple_plots):
+    def test_figsize_sets_figure_dimensions(self, simple_plots):
+        """figsize must propagate to the returned Figure."""
         fig, _ = simple_plots.posterior_predictive(figsize=(10, 4))
-        assert isinstance(fig, Figure)
+        w, h = fig.get_size_inches()
+        assert abs(w - 10) < 0.1 and abs(h - 4) < 0.1
 
     def test_non_matplotlib_backend_without_return_as_pc_raises(self, simple_plots):
         with pytest.raises(ValueError, match="return_as_pc"):
             simple_plots.posterior_predictive(backend="plotly")
 
-    def test_line_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.posterior_predictive(line_kwargs={"color": "blue"})
-        assert isinstance(fig, Figure)
+    def test_line_kwargs_color_applied(self, simple_plots):
+        """line_kwargs color must appear on the predictive mean line."""
+        _, axes = simple_plots.posterior_predictive(line_kwargs={"color": "blue"})
+        ax = axes.flat[0]
+        colors = [line.get_color() for line in ax.lines]
+        assert any(c == "blue" for c in colors), (
+            "No line with color='blue' found — line_kwargs not applied"
+        )
 
-    def test_hdi_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.posterior_predictive(hdi_kwargs={"alpha": 0.1})
-        assert isinstance(fig, Figure)
+    def test_hdi_kwargs_alpha_applied(self, simple_plots):
+        """hdi_kwargs alpha must appear on the HDI collection."""
+        _, axes = simple_plots.posterior_predictive(hdi_kwargs={"alpha": 0.05})
+        ax = axes.flat[0]
+        alphas = [col.get_alpha() for col in ax.collections]
+        assert any(a is not None and abs(a - 0.05) < 1e-6 for a in alphas), (
+            "No collection with alpha=0.05 found — hdi_kwargs not applied"
+        )
 
-    def test_observed_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.posterior_predictive(observed_kwargs={"color": "red"})
-        assert isinstance(fig, Figure)
+    def test_observed_kwargs_color_applied(self, simple_plots):
+        """observed_kwargs color must appear on the observed data line."""
+        _, axes = simple_plots.posterior_predictive(observed_kwargs={"color": "red"})
+        ax = axes.flat[0]
+        colors = [line.get_color() for line in ax.lines]
+        assert any(c == "red" for c in colors), (
+            "No line with color='red' found — observed_kwargs not applied"
+        )
 
 
 class TestPosteriorPredictiveObserved:
@@ -660,7 +721,7 @@ Expected: `AttributeError: 'DiagnosticsPlots' object has no attribute 'posterior
 def _plot_predictive(
     data: MMMIDataWrapper,
     pp_ds: xr.Dataset,
-    var_names: list[str],
+    target_var: str,
     hdi_prob: float,
     dims: dict[str, Any] | None,
     backend: str | None,
@@ -673,7 +734,7 @@ def _plot_predictive(
     """Shared PlotCollection builder for posterior/prior predictive plots.
 
     Renders one panel per extra dimension combination. Each panel shows:
-    - A mean line + HDI band per variable in *var_names*.
+    - A mean line + HDI band for *target_var*.
     - The observed target (``data.get_target(original_scale=True)``) as a
       black line for reference.
 
@@ -683,8 +744,8 @@ def _plot_predictive(
         Resolved data wrapper (already accounting for any idata override).
     pp_ds : xr.Dataset
         The posterior_predictive or prior_predictive group.
-    var_names : list[str]
-        Variables from *pp_ds* to plot. All must exist — caller validates.
+    target_var : str
+        Variable from *pp_ds* to plot. Must exist — caller validates.
     hdi_prob : float
         HDI probability mass.
     dims : dict[str, Any] | None
@@ -707,40 +768,34 @@ def _plot_predictive(
     -------
     PlotCollection
     """
-    main_da = _select_dims(pp_ds[var_names[0]], dims)
+    var_da = _select_dims(pp_ds[target_var], dims)
     # extra_dims comes from data.custom_dims — the authoritative list of
     # user-defined segment dimensions (e.g. ["geo"] for geo-segmented models).
     extra_dims = list(data.custom_dims)
-    mean_da = main_da.mean(dim=("chain", "draw"))
+    mean_da = var_da.mean(dim=("chain", "draw"))
+    hdi_da = var_da.azstats.hdi(hdi_prob)
 
     layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
     pc = PlotCollection.wrap(layout_ds, cols=extra_dims, backend=backend, **pc_kwargs)
 
-    dates = main_da.coords["date"].values
+    dates = var_da.coords["date"].values
 
-    for vn in var_names:
-        var_da = _select_dims(pp_ds[vn], dims)
-        median_da = var_da.mean(dim=("chain", "draw"))
-        hdi_da = var_da.azstats.hdi(hdi_prob)
-
-        pc.map(
-            azp.visuals.line_xy,
-            x=dates,
-            y=median_da,
-            **{"label": vn, **(line_kwargs or {})},
-        )
-        pc.map(
-            azp.visuals.fill_between_y,
-            x=dates,
-            y_bottom=hdi_da.sel(ci_bound="lower"),
-            y_top=hdi_da.sel(ci_bound="upper"),
-            **{"alpha": 0.2, **(hdi_kwargs or {})},
-        )
+    pc.map(
+        azp.visuals.line_xy,
+        x=dates,
+        y=mean_da,
+        **{"label": target_var, **(line_kwargs or {})},
+    )
+    pc.map(
+        azp.visuals.fill_between_y,
+        x=dates,
+        y_bottom=hdi_da.sel(ci_bound="lower"),
+        y_top=hdi_da.sel(ci_bound="upper"),
+        **{"alpha": 0.2, **(hdi_kwargs or {})},
+    )
 
     # Observed target — always original scale so the user can visually compare
-    # predictions against actuals. Note: if var_names plots model-scale vars
-    # (e.g. "y" rather than "y_original_scale"), scales may differ; the caller
-    # should choose var_names accordingly.
+    # predictions against actuals.
     observed = data.get_target(original_scale=True)
     observed = _select_dims(observed, dims)
     pc.map(
@@ -762,7 +817,7 @@ def _plot_predictive(
 ```python
 def posterior_predictive(
     self,
-    var_names: list[str] | None = None,
+    target_var: str = "y",
     hdi_prob: float = 0.94,
     idata: az.InferenceData | None = None,
     dims: dict[str, Any] | None = None,
@@ -782,8 +837,8 @@ def posterior_predictive(
 
     Parameters
     ----------
-    var_names : list[str], optional
-        Variable names from posterior_predictive to plot. Default ``["y"]``.
+    target_var : str, default "y"
+        Variable name from posterior_predictive to plot (renamed from ``var`` — II.5).
     hdi_prob : float, default 0.94
         Probability mass of the HDI band (renamed from ``hdi_probs`` — II.5).
     idata : az.InferenceData, optional
@@ -817,7 +872,7 @@ def posterior_predictive(
 
         fig, axes = mmm.plot.diagnostics.posterior_predictive()
         fig, axes = mmm.plot.diagnostics.posterior_predictive(
-            var_names=["y"], hdi_prob=0.50, dims={"geo": ["CA"]}
+            target_var="y", hdi_prob=0.50, dims={"geo": ["CA"]}
         )
     """
     data = (
@@ -833,22 +888,18 @@ def posterior_predictive(
         **pc_kwargs,
     )
 
-    if var_names is None:
-        var_names = ["y"]
-
     pp_ds = _get_posterior_predictive(data)
 
-    for vn in var_names:
-        if vn not in pp_ds:
-            raise ValueError(
-                f"Variable '{vn}' not found in posterior_predictive. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
+    if target_var not in pp_ds:
+        raise ValueError(
+            f"Variable '{target_var}' not found in posterior_predictive. "
+            f"Available: {list(pp_ds.data_vars)}"
+        )
 
     pc = _plot_predictive(
         data=data,
         pp_ds=pp_ds,
-        var_names=var_names,
+        target_var=target_var,
         hdi_prob=hdi_prob,
         dims=dims,
         backend=backend,
@@ -916,13 +967,58 @@ class TestPriorPredictiveBasic:
 
     def test_raises_on_missing_var(self, simple_plots):
         with pytest.raises(ValueError, match="nonexistent"):
-            simple_plots.prior_predictive(var_names=["nonexistent"])
+            simple_plots.prior_predictive(target_var="nonexistent")
 
     def test_fix_iv1_error_messages_reference_prior(self, simple_plots):
         """IV.1: prior_predictive error messages must say 'prior', not 'posterior'."""
         with pytest.raises(ValueError, match="prior_predictive"):
             data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
             DiagnosticsPlots(data).prior_predictive()
+
+
+class TestPriorPredictiveElements:
+    def test_predicted_mean_line_present(self, simple_plots, simple_data):
+        """The prior mean line y-data must match prior_ds['y'].mean(chain/draw)."""
+        _, axes = simple_plots.prior_predictive()
+        ax = axes.flat[0]
+        expected = simple_data.idata.prior_predictive["y"].mean(
+            dim=("chain", "draw")
+        ).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.allclose(y, expected, equal_nan=True) for y in line_y_arrays
+        ), "No line matches the prior predictive mean"
+
+    def test_hdi_band_present(self, simple_plots):
+        """HDI fill_between band must create at least one collection in the axes."""
+        _, axes = simple_plots.prior_predictive()
+        ax = axes.flat[0]
+        assert len(ax.collections) > 0, (
+            "No HDI band found in axes (expected fill_between collection)"
+        )
+
+    def test_x_data_length_matches_dates(self, simple_plots):
+        """All plotted lines must span the full date range (n_date=20)."""
+        _, axes = simple_plots.prior_predictive()
+        ax = axes.flat[0]
+        n_date = 20  # matches simple_idata fixture
+        for line in ax.lines:
+            assert len(line.get_xdata()) == n_date
+
+    def test_narrower_hdi_prob_gives_narrower_band(self, simple_plots):
+        """A 50% HDI band must be narrower than the default 94% band."""
+        _, axes_94 = simple_plots.prior_predictive(hdi_prob=0.94)
+        _, axes_50 = simple_plots.prior_predictive(hdi_prob=0.50)
+        ax_94 = axes_94.flat[0]
+        ax_50 = axes_50.flat[0]
+
+        def band_height(ax):
+            verts = ax.collections[0].get_paths()[0].vertices
+            return verts[:, 1].max() - verts[:, 1].min()
+
+        assert band_height(ax_94) > band_height(ax_50), (
+            "94% HDI band should be wider than 50% HDI band"
+        )
 
 
 class TestPriorPredictiveDims:
@@ -936,17 +1032,27 @@ class TestPriorPredictiveDims:
 
 
 class TestPriorPredictiveCustomization:
-    def test_figsize_accepted(self, simple_plots):
+    def test_figsize_sets_figure_dimensions(self, simple_plots):
         fig, _ = simple_plots.prior_predictive(figsize=(10, 4))
-        assert isinstance(fig, Figure)
+        w, h = fig.get_size_inches()
+        assert abs(w - 10) < 0.1 and abs(h - 4) < 0.1
 
-    def test_line_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.prior_predictive(line_kwargs={"color": "green"})
-        assert isinstance(fig, Figure)
+    def test_line_kwargs_color_applied(self, simple_plots):
+        """line_kwargs color must appear on the prior mean line."""
+        _, axes = simple_plots.prior_predictive(line_kwargs={"color": "green"})
+        ax = axes.flat[0]
+        colors = [line.get_color() for line in ax.lines]
+        assert any(c == "green" for c in colors), (
+            "No line with color='green' found — line_kwargs not applied"
+        )
 
-    def test_observed_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.prior_predictive(observed_kwargs={"color": "gray"})
-        assert isinstance(fig, Figure)
+    def test_observed_kwargs_color_applied(self, simple_plots):
+        _, axes = simple_plots.prior_predictive(observed_kwargs={"color": "gray"})
+        ax = axes.flat[0]
+        colors = [line.get_color() for line in ax.lines]
+        assert any(c == "gray" for c in colors), (
+            "No line with color='gray' found — observed_kwargs not applied"
+        )
 
 
 class TestPriorPredictiveObserved:
@@ -988,7 +1094,7 @@ Add to `DiagnosticsPlots` — thin wrapper around `_plot_predictive` (introduced
 ```python
 def prior_predictive(
     self,
-    var_names: list[str] | None = None,
+    target_var: str = "y",
     hdi_prob: float = 0.94,
     idata: az.InferenceData | None = None,
     dims: dict[str, Any] | None = None,
@@ -1009,8 +1115,8 @@ def prior_predictive(
 
     Parameters
     ----------
-    var_names : list[str], optional
-        Variable names from prior_predictive to plot. Default ``["y"]``.
+    target_var : str, default "y"
+        Variable name from prior_predictive to plot (renamed from ``var`` — II.5).
     hdi_prob : float, default 0.94
         Probability mass of the HDI band.
     idata : az.InferenceData, optional
@@ -1052,22 +1158,18 @@ def prior_predictive(
         **pc_kwargs,
     )
 
-    if var_names is None:
-        var_names = ["y"]
-
     pp_ds = _get_prior_predictive(data)
 
-    for vn in var_names:
-        if vn not in pp_ds:
-            raise ValueError(
-                f"Variable '{vn}' not found in prior_predictive. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
+    if target_var not in pp_ds:
+        raise ValueError(
+            f"Variable '{target_var}' not found in prior_predictive. "
+            f"Available: {list(pp_ds.data_vars)}"
+        )
 
     pc = _plot_predictive(
         data=data,
         pp_ds=pp_ds,
-        var_names=var_names,
+        target_var=target_var,
         hdi_prob=hdi_prob,
         dims=dims,
         backend=backend,
@@ -1131,9 +1233,59 @@ class TestResidualsBasic:
         result = simple_plots.residuals(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_custom_hdi_prob(self, simple_plots):
-        fig, _ = simple_plots.residuals(hdi_prob=0.50)
-        assert isinstance(fig, Figure)
+
+class TestResidualsElements:
+    def test_mean_residuals_line_present(self, simple_plots, simple_data):
+        """Mean residuals line y-data must match _compute_residuals().mean(chain/draw)."""
+        from pymc_marketing.mmm.plotting.diagnostics import _compute_residuals
+        _, axes = simple_plots.residuals()
+        ax = axes.flat[0]
+        expected = _compute_residuals(simple_data).mean(dim=("chain", "draw")).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.allclose(y, expected, equal_nan=True) for y in line_y_arrays
+        ), "No line matches the mean residuals"
+
+    def test_zero_hline_present(self, simple_plots):
+        """A horizontal line at y=0 (reference line) must be present."""
+        _, axes = simple_plots.residuals()
+        ax = axes.flat[0]
+        # axhline creates a Line2D whose y-data is constant 0.0
+        hline_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.all(np.isclose(y, 0.0)) for y in hline_y_arrays
+        ), "No zero reference line found at y=0"
+
+    def test_hdi_band_present(self, simple_plots):
+        """HDI fill_between band must create at least one collection in the axes."""
+        _, axes = simple_plots.residuals()
+        ax = axes.flat[0]
+        assert len(ax.collections) > 0, (
+            "No HDI band found in residuals axes (expected fill_between collection)"
+        )
+
+    def test_narrower_hdi_prob_gives_narrower_band(self, simple_plots):
+        """A 50% HDI band must be narrower than the default 94% band."""
+        _, axes_94 = simple_plots.residuals(hdi_prob=0.94)
+        _, axes_50 = simple_plots.residuals(hdi_prob=0.50)
+        ax_94 = axes_94.flat[0]
+        ax_50 = axes_50.flat[0]
+
+        def band_height(ax):
+            verts = ax.collections[0].get_paths()[0].vertices
+            return verts[:, 1].max() - verts[:, 1].min()
+
+        assert band_height(ax_94) > band_height(ax_50), (
+            "94% HDI band should be wider than 50% HDI band"
+        )
+
+    def test_x_data_length_matches_dates(self, simple_plots):
+        """All plotted lines must span the full date range (n_date=20)."""
+        _, axes = simple_plots.residuals()
+        ax = axes.flat[0]
+        n_date = 20
+        for line in ax.lines:
+            assert len(line.get_xdata()) == n_date
 
 
 class TestResidualsDims:
@@ -1147,17 +1299,28 @@ class TestResidualsDims:
 
 
 class TestResidualsCustomization:
-    def test_figsize_accepted(self, simple_plots):
+    def test_figsize_sets_figure_dimensions(self, simple_plots):
         fig, _ = simple_plots.residuals(figsize=(10, 4))
-        assert isinstance(fig, Figure)
+        w, h = fig.get_size_inches()
+        assert abs(w - 10) < 0.1 and abs(h - 4) < 0.1
 
-    def test_hdi_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.residuals(hdi_kwargs={"alpha": 0.1})
-        assert isinstance(fig, Figure)
+    def test_hdi_kwargs_alpha_applied(self, simple_plots):
+        """hdi_kwargs alpha must appear on the HDI collection."""
+        _, axes = simple_plots.residuals(hdi_kwargs={"alpha": 0.05})
+        ax = axes.flat[0]
+        alphas = [col.get_alpha() for col in ax.collections]
+        assert any(a is not None and abs(a - 0.05) < 1e-6 for a in alphas), (
+            "No collection with alpha=0.05 found — hdi_kwargs not applied"
+        )
 
-    def test_line_kwargs_accepted(self, simple_plots):
-        fig, _ = simple_plots.residuals(line_kwargs={"color": "red"})
-        assert isinstance(fig, Figure)
+    def test_line_kwargs_color_applied(self, simple_plots):
+        """line_kwargs color must appear on the mean residuals line."""
+        _, axes = simple_plots.residuals(line_kwargs={"color": "red"})
+        ax = axes.flat[0]
+        colors = [line.get_color() for line in ax.lines]
+        assert any(c == "red" for c in colors), (
+            "No line with color='red' found — line_kwargs not applied"
+        )
 
 
 class TestResidualsIdataOverride:
@@ -1349,9 +1512,67 @@ class TestResidualsDistributionBasic:
         with pytest.raises(ValueError, match="return_as_pc"):
             simple_plots.residuals_distribution(backend="plotly")
 
-    def test_custom_quantiles_accepted(self, simple_plots):
-        fig, _ = simple_plots.residuals_distribution(quantiles=[0.1, 0.5, 0.9])
-        assert isinstance(fig, Figure)
+
+class TestResidualsDistributionElements:
+    def test_kde_curve_present(self, simple_plots):
+        """KDE must render at least one line (the density curve) in the axes."""
+        _, axes = simple_plots.residuals_distribution()
+        ax = axes.flat[0]
+        assert len(ax.lines) > 0, (
+            "No KDE curve found — expected at least one Line2D from azp.plot_dist"
+        )
+
+    def test_default_three_quantile_lines_present(self, simple_plots):
+        """Default quantiles=[0.25, 0.5, 0.75] must produce exactly 3 reference lines
+        beyond the KDE curve (total >= 4 lines)."""
+        _, axes = simple_plots.residuals_distribution()
+        ax = axes.flat[0]
+        # KDE curve + 3 quantile reference lines
+        assert len(ax.lines) >= 4, (
+            f"Expected KDE + 3 quantile lines (>=4 total), found {len(ax.lines)}"
+        )
+
+    def test_custom_quantile_count_matches(self, simple_plots):
+        """Passing 2 custom quantiles must produce 2 reference lines (KDE + 2 = >=3)."""
+        _, axes = simple_plots.residuals_distribution(quantiles=[0.1, 0.9])
+        ax = axes.flat[0]
+        assert len(ax.lines) >= 3, (
+            f"Expected KDE + 2 quantile lines (>=3 total), found {len(ax.lines)}"
+        )
+
+    def test_quantile_lines_are_vertical(self, simple_plots):
+        """Quantile reference lines must be vertical (constant x across all y-points)."""
+        _, axes = simple_plots.residuals_distribution()
+        ax = axes.flat[0]
+        # Skip the first line (KDE curve); quantile lines have identical x values
+        vertical_lines = [
+            line for line in ax.lines
+            if len(set(np.round(line.get_xdata(), 6))) == 1
+        ]
+        assert len(vertical_lines) >= 3, (
+            f"Expected >=3 vertical quantile lines, found {len(vertical_lines)}"
+        )
+
+    def test_quantile_x_positions_match_computed_quantiles(self, simple_plots, simple_data):
+        """The x-positions of quantile lines must match the computed quantile values."""
+        from pymc_marketing.mmm.plotting.diagnostics import _compute_residuals
+        _, axes = simple_plots.residuals_distribution()
+        ax = axes.flat[0]
+        residuals = _compute_residuals(simple_data)
+        expected_quantiles = np.quantile(
+            residuals.values.ravel(), [0.25, 0.5, 0.75]
+        )
+        vertical_x = sorted([
+            line.get_xdata()[0]
+            for line in ax.lines
+            if len(set(np.round(line.get_xdata(), 6))) == 1
+        ])
+        assert len(vertical_x) == len(expected_quantiles), (
+            f"Expected {len(expected_quantiles)} quantile lines, got {len(vertical_x)}"
+        )
+        assert np.allclose(vertical_x, np.sort(expected_quantiles), rtol=1e-3), (
+            f"Quantile line positions {vertical_x} don't match expected {expected_quantiles}"
+        )
 
 
 class TestResidualsDistributionAggregation:
@@ -1604,7 +1825,7 @@ Before marking this PR complete, verify:
 | `prior_predictive` renamed and IV.1 error messages fixed | Design doc §IV.1 | — |
 | `residuals` renamed from `residuals_over_time` | Design doc §PR2 | — |
 | `residuals_distribution` renamed from `residuals_posterior_distribution` | Design doc §PR2 | — |
-| `var` → `var_names` (list[str]) | Design doc §II.5 | — |
+| `var` → `target_var: str = "y"` (posterior_predictive, prior_predictive) | Design doc §II.5 | — |
 | `hdi_prob` default changed 0.85 → 0.94 | Design doc §Defaults | — |
 | IV.18: `_compute_residuals` accepts `pp_var` param | Design doc §IV.18 | — |
 | All methods accept `dims` parameter | Design doc §II.6 | — |
