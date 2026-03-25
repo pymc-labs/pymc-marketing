@@ -4064,6 +4064,55 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
         )
 
 
+def test_cost_per_target_calibration_non_alphabetical_channels(
+    multi_dim_data, mock_pymc_sample
+):
+    """Regression test: add_cost_per_target_calibration should work when
+    channel_columns are not in alphabetical order.
+
+    _create_xarray_from_pandas alphabetically sorts the channel coordinate,
+    but the model coords preserve the user-provided order.  The calibration
+    method must reindex to match before comparing.
+    """
+    X, y = multi_dim_data
+
+    non_alpha_channels = ["channel_2", "channel_1", "channel_3"]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=non_alpha_channels,
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    spend_df = X.copy()
+
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1]],
+            "channel": [non_alpha_channels[0], non_alpha_channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        name_prefix="cpt_calibration",
+    )
+
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
+
+
 class TestAddOriginalScaleContributionVariable:
     """Tests for add_original_scale_contribution_variable method."""
 
