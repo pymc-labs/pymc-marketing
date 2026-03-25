@@ -318,13 +318,6 @@ class TransformationPlots:
             **pc_kwargs,
         )
 
-        pc_kwargs = _process_plot_params(
-            figsize=figsize,
-            backend=backend,
-            return_as_pc=return_as_pc,
-            **pc_kwargs,
-        )
-
         curves = _ensure_chain_draw_dims(curves)
 
         curve_max = float(curves.max())
@@ -377,6 +370,7 @@ class TransformationPlots:
             # sample the curves
             rng = random_seed if random_seed is not None else np.random.default_rng()
             stacked = curves.stack(sample=("chain", "draw"))
+            n_samples = min(n_samples, stacked.sizes["sample"])
             idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
             sampled_curves = stacked.isel(sample=idx).to_dataset(name="y")
             sampled_curves["x"] = spend_data

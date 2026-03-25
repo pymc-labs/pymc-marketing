@@ -25,8 +25,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
-MATPLOTLIB_CYCLE_SIZE = 10
-
 
 def _dims_to_sel_kwargs(
     dims: dict[str, Any] | None,
