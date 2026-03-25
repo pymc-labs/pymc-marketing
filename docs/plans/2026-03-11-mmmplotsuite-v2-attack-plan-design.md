@@ -536,7 +536,7 @@ scaffolding. They move into their respective namespace classes or into
 | II.1 | Return type roulette | Always `tuple[Figure, NDArray[Axes]]` |
 | II.2 | Inconsistent `original_scale` default | `True` everywhere |
 | II.3 | `plt.show()` in methods | Remove; `param_stability` uses multi-panel figure instead of per-dim loop |
-| II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob` singular, `figsize: tuple[float, float]` |
+| II.5 | Parameter naming inconsistencies | `target_var` (predictive), `var_name` (single posterior), `var_names` (multi posterior); `hdi_prob` singular; `figsize: tuple[float, float]` |
 | VII.1 | Coord name `x` → `channel` | Rename coordinate in `channel_share_hdi` |
 | — | Remove `saturation_curves_scatter` | Already deprecated; hard removal with no shim (callers get `AttributeError`). Migration guide points to `transformations.saturation_scatterplot()` |
 
