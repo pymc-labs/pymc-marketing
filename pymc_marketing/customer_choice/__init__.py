@@ -13,6 +13,9 @@
 #   limitations under the License.
 """Customer Choice module."""
 
+from pymc_marketing.customer_choice.consideration_set_logit import (
+    ConsiderationSetMixedLogit,
+)
 from pymc_marketing.customer_choice.mv_its import (
     MVITS,
     plot_product,
@@ -24,6 +27,7 @@ from pymc_marketing.customer_choice.synthetic_data import (
 
 __all__ = [
     "MVITS",
+    "ConsiderationSetMixedLogit",
     "generate_saturated_data",
     "generate_unsaturated_data",
     "plot_product",
