@@ -373,7 +373,6 @@ class TransformationPlots:
             n_samples = min(n_samples, stacked.sizes["sample"])
             idx = rng.choice(stacked.sizes["sample"], size=n_samples, replace=False)
             sampled_curves = stacked.isel(sample=idx).to_dataset(name="y")
-            sampled_curves["x"] = spend_data
 
             # plot the sampled curves
             for i in range(n_samples):
