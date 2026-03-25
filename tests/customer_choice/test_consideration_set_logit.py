@@ -301,6 +301,139 @@ class TestConsiderationSetMixedLogitConfig:
         assert "gamma_0" in config
 
 
+class TestConsiderationSetMixedLogitInference:
+    """Tests for sample_posterior_predictive and apply_intervention."""
+
+    def test_sample_posterior_predictive(self, hiring_df, Z_tilde, utility_equations):
+        """Fit model then sample posterior predictive."""
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={"Z_tilde": Z_tilde},
+        )
+        idata = model.fit(
+            random_seed=42,
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+        assert idata is not None
+
+        post_pred = model.sample_posterior_predictive(random_seed=42)
+        assert "posterior_predictive" in post_pred.groups()
+        assert "p" in post_pred["posterior_predictive"]
+        assert "likelihood" in post_pred["posterior_predictive"]
+
+    def test_sample_posterior_predictive_with_new_instruments(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
+        """Posterior predictive with new consideration instruments."""
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={"Z_tilde": Z_tilde},
+        )
+        model.fit(
+            random_seed=42,
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+
+        # Counterfactual: shift Z_tilde
+        Z_cf = Z_tilde.copy()
+        Z_cf[:, 0] = 1.0  # increase consideration for first alt
+
+        post_pred = model.sample_posterior_predictive(
+            consideration_instruments={"Z_tilde": Z_cf},
+            extend_idata=False,
+            random_seed=42,
+        )
+        assert "posterior_predictive" in post_pred.groups()
+        assert "p" in post_pred["posterior_predictive"]
+
+    def test_apply_intervention(self, hiring_df, Z_tilde, utility_equations):
+        """Apply intervention with new consideration instruments."""
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={"Z_tilde": Z_tilde},
+        )
+        model.fit(
+            random_seed=42,
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+
+        # Counterfactual: everyone gets high consideration for alt 0
+        Z_cf = Z_tilde.copy()
+        Z_cf[:, 0] = 2.0
+
+        idata_cf = model.apply_intervention(
+            new_choice_df=hiring_df,
+            new_consideration_instruments={"Z_tilde": Z_cf},
+        )
+        assert "posterior_predictive" in idata_cf.groups()
+        assert "p" in idata_cf["posterior_predictive"]
+        assert hasattr(model, "intervention_idata")
+
+    def test_apply_intervention_multi_instrument(self, hiring_df, utility_equations):
+        """Apply intervention with multi-instrument Z_tilde."""
+        n = len(hiring_df)
+        Z_multi = rng.standard_normal((n, 3, 2))
+        z_names = ["inst_A", "inst_B"]
+
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={
+                "Z_tilde": Z_multi,
+                "z_instrument_names": z_names,
+            },
+        )
+        model.fit(
+            random_seed=42,
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+
+        # Counterfactual: shift first instrument
+        Z_cf = Z_multi.copy()
+        Z_cf[:, :, 0] = 2.0
+
+        idata_cf = model.apply_intervention(
+            new_choice_df=hiring_df,
+            new_consideration_instruments={
+                "Z_tilde": Z_cf,
+                "z_instrument_names": z_names,
+            },
+        )
+        assert "posterior_predictive" in idata_cf.groups()
+        assert "p" in idata_cf["posterior_predictive"]
+
+
 class TestConsiderationSetMixedLogitStability:
     def test_extreme_z_tilde_no_nan(self, hiring_df, utility_equations):
         """Large negative Z_tilde (unavailable alternatives) should not cause NaN."""
