@@ -807,6 +807,7 @@ rewrites its methods using `PlotCollection` directly.
 - II.1 — Fix `cv_predictions` wrapping axes in list instead of ndarray
 - II.1 — Fix `param_stability` returning single `Axes` instead of `NDArray[Axes]`
 - I.4 — Extract nested functions (`_align_y_to_df`, `_plot_hdi_from_sel`, `_pred_matrix_for_rows`, `_filter_rows_and_y`, `_plot_line`) to module-level functions in `cv_suite.py`
+- II.5 — `parameter: list[str]` → `var_names: list[str]` in `param_stability`
 
 **LOE:** L
 
