@@ -356,7 +356,9 @@ Every method accepts at minimum (see [figure customization design](./2026-03-11-
 
 | Old name | New name | Reason |
 |----------|----------|--------|
-| `var` (str or list) | `var_names` (list[str]) | ArviZ convention (II.5, #1751) |
+| `var` (predictive methods) | `target_var: str = "y"` | Identifies target variable; not a filter (II.5) |
+| `var` (single posterior selector) | `var_name: str` | Singular; method accepts exactly one variable (II.5) |
+| `var` / `parameter` / `param_name` (multi posterior filter) | `var_names: list[str]` | ArviZ convention; multi-select filter (II.5) |
 | `hdi_probs` (plural, list) | `hdi_prob` (singular, float) | Consistency; single HDI level per call |
 | `figsize: tuple[int, int]` | `figsize: tuple[float, float]` | Consistency across all methods |
 
