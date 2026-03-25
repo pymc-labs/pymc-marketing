@@ -232,6 +232,10 @@ class TestSaturationScatterplotDims:
         with pytest.raises(ValueError, match="Value 'FR' not found"):
             panel_plots.saturation_scatterplot(dims={"country": "FR"})
 
+    def test_invalid_dim_key_raises(self, panel_plots):
+        with pytest.raises(ValueError, match="Dimension 'bad_dim' not found"):
+            panel_plots.saturation_scatterplot(dims={"bad_dim": "US"})
+
 
 class TestSaturationScatterplotCustomization:
     def test_return_as_pc_true(self, simple_plots):
@@ -464,6 +468,16 @@ class TestSaturationCurvesDims:
             curves=panel_curve, dims={"country": ["US", "UK"]}, n_samples=2
         )
         assert axes.size == 4  # 2 channels x 2 countries
+
+
+class TestSaturationCurvesDimsInvalid:
+    def test_invalid_dim_key_raises(self, panel_plots, panel_curve):
+        with pytest.raises(ValueError, match="Dimension 'bad_dim' not found"):
+            panel_plots.saturation_curves(curves=panel_curve, dims={"bad_dim": "US"})
+
+    def test_invalid_dim_value_raises(self, panel_plots, panel_curve):
+        with pytest.raises(ValueError, match="Value 'FR' not found"):
+            panel_plots.saturation_curves(curves=panel_curve, dims={"country": "FR"})
 
 
 class TestSaturationCurvesCustomization:
