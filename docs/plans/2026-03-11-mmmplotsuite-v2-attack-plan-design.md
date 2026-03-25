@@ -682,6 +682,8 @@ rewrites its methods using `PlotCollection` directly.
 - II.1 — `channel_parameter` currently returns bare `Figure`; fix to standard return
 - IV.15 — Lazy seaborn import (only `posterior_distribution` and `prior_vs_posterior`)
 - II.7 — Add 5 standard customization params (`figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs`)
+- II.5 — `var: str` → `var_name: str` in `posterior_distribution` and `prior_vs_posterior`;
+         `param_name: str` → `var_name: str` in `channel_parameter`
 
 **LOE:** M
 
