@@ -181,8 +181,8 @@ mmm/plotting/
 
 ```python
 # MMMPlotSuite — model-fit plots (requires fitted model with idata)
-mmm.plot.diagnostics.posterior_predictive(var_names=["y"])
-mmm.plot.diagnostics.prior_predictive(var_names=["y"])
+mmm.plot.diagnostics.posterior_predictive(target_var="y")
+mmm.plot.diagnostics.prior_predictive(target_var="y")
 mmm.plot.diagnostics.residuals()
 mmm.plot.diagnostics.residuals_distribution()
 
