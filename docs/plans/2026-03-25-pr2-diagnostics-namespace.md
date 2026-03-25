@@ -4,7 +4,7 @@
 
 **Goal:** Implement the `DiagnosticsPlots` namespace class as PR 2 of the MMMPlotSuite v2 rewrite — 4 diagnostic plotting methods on a clean namespace class following the `TransformationPlots` (PR4) template.
 
-**Architecture:** `DiagnosticsPlots` holds only `data: MMMIDataWrapper` and implements 4 methods: `posterior_predictive`, `prior_predictive`, `residuals`, and `residuals_distribution`. The first three use `PlotCollection` with xarray's `.azstats.hdi()`. `residuals_distribution` uses a matplotlib fallback (`az.plot_dist` has no arviz-plots equivalent). All methods follow the standardized API contract from the design doc.
+**Architecture:** `DiagnosticsPlots` holds only `data: MMMIDataWrapper` and implements 4 methods: `posterior_predictive`, `prior_predictive`, `residuals`, and `residuals_distribution`. The first three use `PlotCollection` with xarray's `.azstats.hdi()`. `residuals_distribution` uses `azp.plot_dist` (KDE) with quantile reference lines via `azp.add_lines`. All methods follow the standardized API contract from the design doc.
 
 **Tech Stack:** Python ≥3.12, xarray (`.azstats.hdi()`), arviz-plots (`PlotCollection`, `azp.visuals`), arviz (`az.plot_dist`), matplotlib, numpy, pymc-marketing (`MMMIDataWrapper`, `_helpers.py`)
 
@@ -361,12 +361,10 @@ Expected: `ImportError: cannot import name 'DiagnosticsPlots' from 'pymc_marketi
 
 from __future__ import annotations
 
-import itertools
 from typing import Any
 
 import arviz as az
 import arviz_plots as azp
-import matplotlib.pyplot as plt
 import numpy as np
 import xarray as xr
 from arviz_plots import PlotCollection
@@ -1306,10 +1304,10 @@ git commit -m "feat(plotting): add DiagnosticsPlots.residuals()"
 
 ---
 
-## Task 5: `residuals_distribution()` method (matplotlib fallback)
+## Task 5: `residuals_distribution()` method
 
-`az.plot_dist` has no `PlotCollection` equivalent → matplotlib fallback.
-`return_as_pc=True` raises `ValueError`. Non-matplotlib backends raise `ValueError`.
+Uses `azp.plot_dist` (KDE) with `azp.add_lines` for quantile reference lines.
+`return_as_pc=True` is supported. Non-matplotlib backends require `return_as_pc=True`.
 
 **Files:**
 - Modify: `pymc_marketing/mmm/plotting/diagnostics.py`
@@ -1335,36 +1333,38 @@ class TestResidualsDistributionBasic:
         _, axes = simple_plots.residuals_distribution()
         assert axes.size == 1
 
-    def test_aggregation_mean_single_panel(self, simple_plots):
-        _, axes = simple_plots.residuals_distribution(aggregation="mean")
-        assert axes.size == 1
-
-    def test_aggregation_sum_single_panel(self, simple_plots):
-        _, axes = simple_plots.residuals_distribution(aggregation="sum")
-        assert axes.size == 1
-
-    def test_return_as_pc_raises(self, simple_plots):
-        with pytest.raises(ValueError, match="return_as_pc"):
-            simple_plots.residuals_distribution(return_as_pc=True)
-
-    def test_invalid_aggregation_raises(self, simple_plots):
-        with pytest.raises(ValueError, match="aggregation"):
-            simple_plots.residuals_distribution(aggregation="invalid")
+    def test_return_as_pc_returns_plot_collection(self, simple_plots):
+        result = simple_plots.residuals_distribution(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
 
     def test_invalid_quantile_raises(self, simple_plots):
         with pytest.raises(ValueError, match="quantile"):
             simple_plots.residuals_distribution(quantiles=[0.5, 1.5])
 
-    def test_non_matplotlib_backend_raises(self, simple_plots):
-        with pytest.raises(ValueError, match="backend"):
+    def test_invalid_aggregation_dim_raises(self, simple_plots):
+        with pytest.raises(ValueError, match="aggregation"):
+            simple_plots.residuals_distribution(aggregation=["nonexistent"])
+
+    def test_non_matplotlib_backend_without_return_as_pc_raises(self, simple_plots):
+        with pytest.raises(ValueError, match="return_as_pc"):
             simple_plots.residuals_distribution(backend="plotly")
+
+    def test_custom_quantiles_accepted(self, simple_plots):
+        fig, _ = simple_plots.residuals_distribution(quantiles=[0.1, 0.5, 0.9])
+        assert isinstance(fig, Figure)
+
+
+class TestResidualsDistributionAggregation:
+    def test_aggregation_none_panel_idata_multiple_panels(self, panel_plots):
+        _, axes = panel_plots.residuals_distribution()
+        assert axes.size >= 2  # one per geo value — geo is structural by default
+
+    def test_aggregation_geo_collapses_to_single_panel(self, panel_plots):
+        _, axes = panel_plots.residuals_distribution(aggregation=["geo"])
+        assert axes.size == 1
 
 
 class TestResidualsDistributionDims:
-    def test_panel_idata_multiple_panels(self, panel_plots):
-        _, axes = panel_plots.residuals_distribution()
-        assert axes.size >= 2
-
     def test_dims_filter(self, panel_plots):
         _, axes = panel_plots.residuals_distribution(dims={"geo": ["CA"]})
         assert axes.size == 1
@@ -1390,7 +1390,7 @@ Add to `DiagnosticsPlots`:
 def residuals_distribution(
     self,
     quantiles: list[float] | None = None,
-    aggregation: str | None = None,
+    aggregation: list[str] | None = None,
     idata: az.InferenceData | None = None,
     dims: dict[str, Any] | None = None,
     figsize: tuple[float, float] | None = None,
@@ -1398,41 +1398,43 @@ def residuals_distribution(
     return_as_pc: bool = False,
     dist_kwargs: dict[str, Any] | None = None,
     **pc_kwargs,
-) -> tuple[Figure, NDArray[Axes]]:
-    """Plot the posterior distribution of residuals.
+) -> PlotCollection | tuple[Figure, NDArray[Axes]]:
+    """Plot the posterior distribution of residuals using arviz-plots.
 
-    **Matplotlib fallback** — uses ``az.plot_dist`` which has no
-    PlotCollection equivalent. ``return_as_pc=True`` is not supported
-    and raises ``ValueError``. Non-matplotlib backends raise ``ValueError``.
-
-    When *aggregation* is ``None`` (default), creates one panel per extra-
-    dimension combination. When *aggregation* is ``"mean"`` or ``"sum"``,
-    reduces across all non-(chain, draw) dims first and renders a single panel.
+    Uses ``azp.plot_dist`` (KDE) with quantile reference lines via
+    ``azp.add_lines``.  The distribution is computed over
+    ``["chain", "draw", "date"]`` plus any dimensions in *aggregation*,
+    so extra model dims (e.g. ``"geo"``) are structural facet dims by default.
 
     Parameters
     ----------
     quantiles : list[float], optional
-        Quantiles to mark on the distribution. Default ``[0.25, 0.5, 0.75]``.
-    aggregation : str, optional
-        ``"mean"``, ``"sum"``, or None. Controls pre-plot reduction.
+        Quantile probabilities to mark as vertical reference lines.
+        Default ``[0.25, 0.5, 0.75]``. Each value must be in ``[0, 1]``.
+    aggregation : list[str], optional
+        Extra custom dimension names to collapse into the distribution
+        (added to ``sample_dims`` beyond ``["chain", "draw", "date"]``).
+        Example: ``aggregation=["geo"]`` merges geo panels into one combined
+        distribution. Default ``None`` — extra dims are structural facet dims.
     idata : az.InferenceData, optional
         Override instance data.
     dims : dict[str, Any], optional
         Subset dimensions applied before plotting.
     figsize : tuple[float, float], optional
-        Passed to ``plt.subplots``.
+        Figure size forwarded via ``figure_kwargs``.
     backend : str, optional
-        Only ``None`` or ``"matplotlib"`` accepted.
+        Rendering backend (e.g. ``"matplotlib"``). Non-matplotlib backends
+        require ``return_as_pc=True``.
     return_as_pc : bool, default False
-        Not supported; raises ``ValueError`` if True.
+        Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
     dist_kwargs : dict, optional
-        Extra kwargs forwarded to ``az.plot_dist``.
+        Extra kwargs forwarded to ``azp.plot_dist``.
     **pc_kwargs
-        Accepted for API consistency; ignored.
+        Forwarded to ``azp.plot_dist`` (e.g. ``figure_kwargs``).
 
     Returns
     -------
-    tuple[Figure, NDArray[Axes]]
+    PlotCollection or tuple[Figure, NDArray[Axes]]
 
     Examples
     --------
@@ -1440,99 +1442,62 @@ def residuals_distribution(
 
         fig, axes = mmm.plot.diagnostics.residuals_distribution()
         fig, axes = mmm.plot.diagnostics.residuals_distribution(
-            quantiles=[0.05, 0.5, 0.95], aggregation="mean"
+            quantiles=[0.05, 0.5, 0.95], aggregation=["geo"]
         )
     """
-    if return_as_pc:
-        raise ValueError(
-            "residuals_distribution uses a matplotlib fallback and does not "
-            "support return_as_pc=True."
-        )
-    if backend is not None and backend != "matplotlib":
-        raise ValueError(
-            f"backend='{backend}' is not supported for residuals_distribution "
-            "(matplotlib fallback only)."
-        )
-    if aggregation not in (None, "mean", "sum"):
-        raise ValueError(
-            f"aggregation must be 'mean', 'sum', or None; got {aggregation!r}."
-        )
-    if quantiles is None:
-        quantiles = [0.25, 0.5, 0.75]
-    for q in quantiles:
-        if not 0.0 <= q <= 1.0:
-            raise ValueError(
-                f"Each quantile must be in [0, 1]; got {q}."
-            )
-
     data = (
         MMMIDataWrapper(idata, schema=self._data.schema)
         if idata is not None
         else self._data
     )
 
+    if quantiles is None:
+        quantiles = [0.25, 0.5, 0.75]
+    for q in quantiles:
+        if not 0.0 <= q <= 1.0:
+            raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
+
     residuals_da = _compute_residuals(data)
     residuals_da = _select_dims(residuals_da, dims)
 
-    plot_figsize = figsize or (8, 6)
-    dist_kw: dict[str, Any] = {
-        "color": "C3",
-        "fill_kwargs": {"alpha": 0.7},
-        **(dist_kwargs or {}),
-    }
-
     if aggregation is not None:
-        dims_to_agg = [d for d in residuals_da.dims if d not in ("chain", "draw")]
-        res_agg = (
-            residuals_da.mean(dim=dims_to_agg)
-            if aggregation == "mean"
-            else residuals_da.sum(dim=dims_to_agg)
-        )
-        fig, ax = plt.subplots(figsize=plot_figsize)
-        az.plot_dist(res_agg, quantiles=quantiles, ax=ax, **dist_kw)
-        ax.axvline(x=0, color="black", linestyle="--", linewidth=1)
-        ax.set_title(f"Residuals Distribution ({aggregation})")
-        ax.set_xlabel("Residuals")
-        return fig, np.array([[ax]])
+        for dim in aggregation:
+            if dim not in residuals_da.dims:
+                raise ValueError(
+                    f"Dimension '{dim}' in aggregation not found in residuals. "
+                    f"Available: {list(residuals_da.dims)}"
+                )
 
-    # No aggregation — one panel per extra dim combination
-    extra_dims = list(data.custom_dims)
-    if extra_dims:
-        dim_values = [list(residuals_da.coords[d].values) for d in extra_dims]
-        combos = list(itertools.product(*dim_values))
-    else:
-        combos = [()]
+    sample_dims = ["chain", "draw", "date"] + (aggregation or [])
 
-    n = len(combos)
-    fig, axes_arr = plt.subplots(
-        nrows=n,
-        ncols=1,
-        figsize=(plot_figsize[0], plot_figsize[1] * n),
-        squeeze=False,
+    ds = residuals_da.to_dataset(name="residuals")
+    ref_ds = residuals_da.quantile(quantiles, dim=sample_dims)
+
+    pc_kwargs = _process_plot_params(
+        figsize=figsize, backend=backend, return_as_pc=return_as_pc, **pc_kwargs
     )
 
-    for row_idx, combo in enumerate(combos):
-        ax = axes_arr[row_idx][0]
-        indexers = dict(zip(extra_dims, combo, strict=False)) if extra_dims else {}
-        subset = residuals_da.sel(**indexers) if indexers else residuals_da
+    n_quantiles = len(quantiles)
+    line_colors = ["black"] + ["gray"] * (n_quantiles - 1)
 
-        stack_dims: tuple[str, ...] = (
-            ("chain", "draw", "date") if "date" in subset.dims else ("chain", "draw")
-        )
-        flat = subset.stack(all_samples=stack_dims)
+    pc = azp.plot_dist(
+        ds,
+        kind="kde",
+        var_names=["residuals"],
+        sample_dims=sample_dims,
+        backend=backend,
+        **(dist_kwargs or {}),
+        **pc_kwargs,
+    )
+    pc = azp.add_lines(
+        pc,
+        values=ref_ds,
+        ref_dim="quantile",
+        aes_by_visuals={"ref_line": ["color"]},
+        color=line_colors,
+    )
 
-        az.plot_dist(flat, quantiles=quantiles, ax=ax, **dist_kw)
-        ax.axvline(x=0, color="black", linestyle="--", linewidth=1)
-
-        title = (
-            ", ".join(f"{k}={v}" for k, v in indexers.items())
-            if indexers
-            else "Residuals Distribution"
-        )
-        ax.set_title(title)
-        ax.set_xlabel("Residuals")
-
-    return fig, axes_arr
+    return _extract_matplotlib_result(pc, return_as_pc)
 ```
 
 - [ ] **Step 5.4: Run tests — expect all pass**
@@ -1551,7 +1516,7 @@ conda run -n pymc-marketing-dev pre-commit run --files pymc_marketing/mmm/plotti
 
 ```bash
 git add pymc_marketing/mmm/plotting/diagnostics.py tests/mmm/plotting/test_diagnostics.py
-git commit -m "feat(plotting): add DiagnosticsPlots.residuals_distribution() (matplotlib fallback)"
+git commit -m "feat(plotting): add DiagnosticsPlots.residuals_distribution() using arviz-plots"
 ```
 
 ---
@@ -1645,12 +1610,12 @@ Before marking this PR complete, verify:
 | All methods accept `dims` parameter | Design doc §II.6 | — |
 | All methods accept 5 standard customization params | Design doc §II.7 | — |
 | All methods return `tuple[Figure, NDArray[Axes]]` by default | Design doc §II.1 | — |
-| `return_as_pc=True` returns `PlotCollection` (methods 1–3) | Design doc §II.1 | — |
+| `return_as_pc=True` returns `PlotCollection` (all 4 methods) | Design doc §II.1 | — |
 | No `plt.show()` calls | Design doc §II.3 | — |
 | All data access via resolved local `data` (idata override pattern) | Design doc §I.3 | — |
 | No nested functions — all helpers are module-level | Design doc §I.4 | — |
 | `PlotCollection` used for methods 1–3 | Design doc §I.6 | — |
-| `residuals_distribution` fallback acceptable (no PlotCollection equiv.) | Design doc §I.6 | — |
+| `residuals_distribution` uses `azp.plot_dist` + `azp.add_lines` | Design doc §I.6 | — |
 | `posterior_predictive` and `prior_predictive` share `_plot_predictive` helper | DRY | — |
 | Both predictive methods overlay observed data via `data.get_target(original_scale=True)` | User requirement | — |
 | `extra_dims` derived from `data.custom_dims` (not inferred from DataArray shape) | User requirement | — |
