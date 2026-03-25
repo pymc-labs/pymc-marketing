@@ -998,7 +998,7 @@ Every issue from the comprehensive audit mapped to its resolution:
 | II.2 | Inconsistent `original_scale` default | `True` everywhere | 4 |
 | II.3 | `plt.show()` + figure discarding | Remove; return all figures | 8 (MMMCVPlotSuite) |
 | II.4 | Monkey-patching idata | Shared helper with data parameter | 7 |
-| II.5 | Parameter naming inconsistencies | `var_names`, `hdi_prob`, `figsize` types | 2–8 |
+| II.5 | Parameter naming inconsistencies | `target_var` (predictive), `var_name` (single posterior), `var_names` (multi posterior), `hdi_prob`, `figsize` types | 2, 3, 5, 8 |
 | II.6 | No dims filtering | Add `dims` on all methods | 2–8 |
 | II.7 | Inconsistent figure customization | 5 standard params on every method: `figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs` (see [figure customization design](./2026-03-11-figure-customization-design.md)) | 2–8 |
 | III.1–III.5 | Missing methods | **Deferred** — follow-up release | — |
