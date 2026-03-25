@@ -1624,10 +1624,16 @@ class MMM(RegressionModelBuilder):
         # Convert to xarray, renaming date_column to "date" for internal consistency
         df_long = df_long.rename(columns={date_column: "date"})
         if valid_dims:
-            return df_long.set_index(
+            ds = df_long.set_index(
                 ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+        else:
+            ds = df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+
+        # .to_xarray() alphabetically sorts coordinates; restore the
+        # user-provided ordering so downstream code (pm.set_data,
+        # coordinate comparisons, etc.) sees a consistent order.
+        return ds.reindex({metric_coordinate_name: valid_metrics})
 
     def _create_xarray_from_pandas(
         self,
