@@ -584,6 +584,51 @@ class TestSaturationCurvesLabels:
             assert "Channel Data" in ax.get_xlabel()
 
 
+class TestSaturationCurvesDataValues:
+    def test_mean_curve_y_matches_curves_mean(self, simple_plots, simple_curve):
+        # simple_curve already has (chain, draw, channel, x) dims
+        # saturation_curves replaces curves["x"] internally but that only changes
+        # the coordinate, not the data values — expected_mean.values is unaffected
+        expected_mean = simple_curve.mean(dim=["chain", "draw"])
+        channels = ["tv", "radio", "social"]
+
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_curve, n_samples=0, hdi_prob=None
+        )
+        for ax, ch in zip(axes.flat, channels, strict=True):
+            line = ax.get_lines()[0]
+            np.testing.assert_allclose(
+                line.get_ydata(), expected_mean.sel(channel=ch).values, rtol=1e-5
+            )
+
+    def test_hdi_band_bounds_contain_mean(self, simple_plots, simple_curve):
+        # simple_curve already has (chain, draw, channel, x) dims
+        expected_mean = simple_curve.mean(dim=["chain", "draw"])
+        channels = ["tv", "radio", "social"]
+
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_curve, n_samples=0, hdi_prob=0.94
+        )
+        for ax, ch in zip(axes.flat, channels, strict=True):
+            polys = [c for c in ax.collections if "Poly" in type(c).__name__]
+            assert len(polys) > 0
+            verts = polys[0].get_paths()[0].vertices  # shape (2*n+3, 2)
+            n = len(expected_mean.sel(channel=ch))
+            y_lower = verts[1 : n + 1, 1]  # indices 1..n
+            y_upper = verts[n + 2 : 2 * n + 2, 1][::-1]  # indices n+2..2n+1, reversed
+            mean_vals = expected_mean.sel(channel=ch).values
+            assert np.all(mean_vals >= y_lower - 1e-6)
+            assert np.all(mean_vals <= y_upper + 1e-6)
+
+    def test_exact_line_count_with_samples(self, simple_plots, simple_curve):
+        n = 5
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_curve, n_samples=n, hdi_prob=None
+        )
+        for ax in axes.flat:
+            assert len(ax.get_lines()) == n + 1
+
+
 class TestSaturationCurvesScaleWarning:
     """Heuristic warnings when curve magnitude doesn't match original_scale."""
 
