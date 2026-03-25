@@ -41,13 +41,17 @@ Read `pymc_marketing/mmm/plotting/transformations.py` in full before implementin
 _get_posterior_predictive(data: MMMIDataWrapper) -> xr.Dataset
 _get_prior_predictive(data: MMMIDataWrapper) -> xr.Dataset
 _compute_residuals(data: MMMIDataWrapper, pp_var: str = "y_original_scale") -> xr.DataArray
-_zero_hline(ax: Axes, **kwargs) -> None     # PlotCollection-compatible zero reference line
+_zero_hline(ax: Axes, **kwargs) -> None       # PlotCollection-compatible zero reference line
+_plot_predictive(                              # shared builder for posterior/prior predictive
+    data, pp_ds, var_names, hdi_prob, dims,
+    backend, line_kwargs, hdi_kwargs, observed_kwargs, y_label, **pc_kwargs
+) -> PlotCollection
 
 # Namespace class
 class DiagnosticsPlots:
     __init__(self, data: MMMIDataWrapper) -> None
-    posterior_predictive(...)
-    prior_predictive(...)
+    posterior_predictive(...)    # thin wrapper around _plot_predictive
+    prior_predictive(...)        # thin wrapper around _plot_predictive
     residuals(...)
     residuals_distribution(...)
 ```
@@ -96,8 +100,10 @@ hdi_da  = da.azstats.hdi(hdi_prob)               # (date[, extra_dims], ci_bound
 #   .azstats is an arviz-base xarray accessor registered on import of arviz.
 #   ci_bound coordinate has values "lower" and "upper".
 
-# 3. Determine extra (faceting) dims
-extra_dims = [d for d in mean_da.dims if d != "date"]
+# 3. Determine extra (faceting) dims from the wrapper — authoritative source
+#    data.custom_dims lists the user-defined segment dimensions (e.g. ["geo"]).
+#    Using it directly avoids re-deriving dims from DataArray shape.
+extra_dims = list(data.custom_dims)
 
 # 4. Build PlotCollection layout dataset from extra dims only (not date)
 #    isel(date=0, drop=True) removes the date dim so PlotCollection facets
@@ -602,6 +608,31 @@ class TestPosteriorPredictiveCustomization:
         fig, _ = simple_plots.posterior_predictive(hdi_kwargs={"alpha": 0.1})
         assert isinstance(fig, Figure)
 
+    def test_observed_kwargs_accepted(self, simple_plots):
+        fig, _ = simple_plots.posterior_predictive(observed_kwargs={"color": "red"})
+        assert isinstance(fig, Figure)
+
+
+class TestPosteriorPredictiveObserved:
+    def test_observed_values_match_target(self, simple_plots, simple_data):
+        """The observed line y-data must match data.get_target(original_scale=True)."""
+        _, axes = simple_plots.posterior_predictive()
+        ax = axes.flat[0]
+        expected = simple_data.get_target(original_scale=True).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.allclose(y, expected, equal_nan=True) for y in line_y_arrays
+        ), "No line in the axes matches the observed target values"
+
+    def test_observed_present_in_panel_plot(self, panel_plots, panel_data):
+        """Multi-panel plot: observed data is present in each panel."""
+        _, axes = panel_plots.posterior_predictive()
+        observed = panel_data.get_target(original_scale=True)
+        for ax in axes.flat:
+            line_y_arrays = [line.get_ydata() for line in ax.lines]
+            # At least one line in each panel has the same length as the date axis
+            assert any(len(y) == observed.sizes["date"] for y in line_y_arrays)
+
 
 class TestPosteriorPredictiveIdataOverride:
     def test_idata_override_uses_different_data(self, simple_plots, panel_idata):
@@ -623,9 +654,112 @@ conda run -n pymc-marketing-dev pytest tests/mmm/plotting/test_diagnostics.py -k
 
 Expected: `AttributeError: 'DiagnosticsPlots' object has no attribute 'posterior_predictive'`
 
-- [ ] **Step 2.3: Implement `posterior_predictive()`**
+- [ ] **Step 2.3: Add `_plot_predictive` module-level helper + implement `posterior_predictive()`**
 
-Add this method to the `DiagnosticsPlots` class in `diagnostics.py`:
+**First**, add the shared helper to `diagnostics.py` (module level, after `_zero_hline`):
+
+```python
+def _plot_predictive(
+    data: MMMIDataWrapper,
+    pp_ds: xr.Dataset,
+    var_names: list[str],
+    hdi_prob: float,
+    dims: dict[str, Any] | None,
+    backend: str | None,
+    line_kwargs: dict[str, Any] | None,
+    hdi_kwargs: dict[str, Any] | None,
+    observed_kwargs: dict[str, Any] | None,
+    y_label: str,
+    **pc_kwargs,
+) -> PlotCollection:
+    """Shared PlotCollection builder for posterior/prior predictive plots.
+
+    Renders one panel per extra dimension combination. Each panel shows:
+    - A mean line + HDI band per variable in *var_names*.
+    - The observed target (``data.get_target(original_scale=True)``) as a
+      black line for reference.
+
+    Parameters
+    ----------
+    data : MMMIDataWrapper
+        Resolved data wrapper (already accounting for any idata override).
+    pp_ds : xr.Dataset
+        The posterior_predictive or prior_predictive group.
+    var_names : list[str]
+        Variables from *pp_ds* to plot. All must exist — caller validates.
+    hdi_prob : float
+        HDI probability mass.
+    dims : dict[str, Any] | None
+        Subset dimensions forwarded to ``_select_dims``.
+    backend : str | None
+        PlotCollection backend.
+    line_kwargs : dict | None
+        Extra kwargs for the predictive mean ``azp.visuals.line_xy`` call.
+    hdi_kwargs : dict | None
+        Extra kwargs for ``azp.visuals.fill_between_y``.
+    observed_kwargs : dict | None
+        Extra kwargs for the observed ``azp.visuals.line_xy`` call.
+        Defaults give a solid black line labelled "Observed".
+    y_label : str
+        Y-axis label (e.g. "Posterior Predictive").
+    **pc_kwargs
+        Forwarded to ``PlotCollection.wrap()``.
+
+    Returns
+    -------
+    PlotCollection
+    """
+    main_da = _select_dims(pp_ds[var_names[0]], dims)
+    # extra_dims comes from data.custom_dims — the authoritative list of
+    # user-defined segment dimensions (e.g. ["geo"] for geo-segmented models).
+    extra_dims = list(data.custom_dims)
+    mean_da = main_da.mean(dim=("chain", "draw"))
+
+    layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
+    pc = PlotCollection.wrap(layout_ds, cols=extra_dims, backend=backend, **pc_kwargs)
+
+    dates = main_da.coords["date"].values
+
+    for vn in var_names:
+        var_da = _select_dims(pp_ds[vn], dims)
+        median_da = var_da.mean(dim=("chain", "draw"))
+        hdi_da = var_da.azstats.hdi(hdi_prob)
+
+        pc.map(
+            azp.visuals.line_xy,
+            x=dates,
+            y=median_da,
+            **{"label": vn, **(line_kwargs or {})},
+        )
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=dates,
+            y_bottom=hdi_da.sel(ci_bound="lower"),
+            y_top=hdi_da.sel(ci_bound="upper"),
+            **{"alpha": 0.2, **(hdi_kwargs or {})},
+        )
+
+    # Observed target — always original scale so the user can visually compare
+    # predictions against actuals. Note: if var_names plots model-scale vars
+    # (e.g. "y" rather than "y_original_scale"), scales may differ; the caller
+    # should choose var_names accordingly.
+    observed = data.get_target(original_scale=True)
+    observed = _select_dims(observed, dims)
+    pc.map(
+        azp.visuals.line_xy,
+        x=dates,
+        y=observed,
+        **{"label": "Observed", "color": "black", **(observed_kwargs or {})},
+    )
+
+    pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
+    pc.map(azp.visuals.labelled_y, text=y_label, ignore_aes={"color"})
+    pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
+
+    return pc
+```
+
+**Then**, add the thin `posterior_predictive` method to the `DiagnosticsPlots` class:
 
 ```python
 def posterior_predictive(
@@ -639,14 +773,14 @@ def posterior_predictive(
     return_as_pc: bool = False,
     line_kwargs: dict[str, Any] | None = None,
     hdi_kwargs: dict[str, Any] | None = None,
+    observed_kwargs: dict[str, Any] | None = None,
     **pc_kwargs,
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
     """Plot time series from the posterior predictive distribution.
 
     Creates one panel per extra-dimension combination (e.g. one per geo
-    for geo-segmented models). Each panel shows the posterior median as a
-    line and an HDI band. Multiple variables in *var_names* are overlaid
-    as separate layers on the same panels.
+    for geo-segmented models). Each panel overlays the posterior mean line,
+    an HDI band, and the observed target (``data.get_target(original_scale=True)``).
 
     Parameters
     ----------
@@ -666,9 +800,12 @@ def posterior_predictive(
     return_as_pc : bool, default False
         If True, return the PlotCollection instead of ``(Figure, NDArray[Axes])``.
     line_kwargs : dict, optional
-        Forwarded to ``azp.visuals.line_xy`` for the median line.
+        Forwarded to ``azp.visuals.line_xy`` for the predictive mean line.
     hdi_kwargs : dict, optional
         Forwarded to ``azp.visuals.fill_between_y`` for the HDI band.
+    observed_kwargs : dict, optional
+        Forwarded to ``azp.visuals.line_xy`` for the observed data line.
+        Default: solid black line labelled "Observed".
     **pc_kwargs
         Forwarded to ``PlotCollection.wrap()``.
 
@@ -710,45 +847,19 @@ def posterior_predictive(
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
-    # Use the first var to determine layout (extra dims for faceting)
-    main_da = _select_dims(pp_ds[var_names[0]], dims)
-    extra_dims = [d for d in main_da.dims if d not in ("chain", "draw", "date")]
-    mean_da = main_da.mean(dim=("chain", "draw"))
-
-    # Build PlotCollection faceting on extra dims only (not on date)
-    layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
-    pc = PlotCollection.wrap(
-        layout_ds,
-        cols=extra_dims,
+    pc = _plot_predictive(
+        data=data,
+        pp_ds=pp_ds,
+        var_names=var_names,
+        hdi_prob=hdi_prob,
+        dims=dims,
         backend=backend,
+        line_kwargs=line_kwargs,
+        hdi_kwargs=hdi_kwargs,
+        observed_kwargs=observed_kwargs,
+        y_label="Posterior Predictive",
         **pc_kwargs,
     )
-
-    dates = main_da.coords["date"].values
-
-    for vn in var_names:
-        var_da = _select_dims(pp_ds[vn], dims)
-        median_da = var_da.mean(dim=("chain", "draw"))
-        hdi_da = var_da.azstats.hdi(hdi_prob)
-
-        pc.map(
-            azp.visuals.line_xy,
-            x=dates,
-            y=median_da,
-            **{"label": vn, **(line_kwargs or {})},
-        )
-        pc.map(
-            azp.visuals.fill_between_y,
-            x=dates,
-            y_bottom=hdi_da.sel(ci_bound="lower"),
-            y_top=hdi_da.sel(ci_bound="upper"),
-            **{"alpha": 0.2, **(hdi_kwargs or {})},
-        )
-
-    pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_y, text="Posterior Predictive", ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
-
     return _extract_matplotlib_result(pc, return_as_pc)
 ```
 
@@ -775,7 +886,7 @@ git commit -m "feat(plotting): add DiagnosticsPlots.posterior_predictive()"
 
 ## Task 3: `prior_predictive()` method
 
-Same structure as Task 2; uses `_get_prior_predictive` instead of `_get_posterior_predictive`.
+Same structure as Task 2; uses `_get_prior_predictive` and calls `_plot_predictive` (introduced in Task 2) with `y_label="Prior Predictive"`. The only structural differences from `posterior_predictive` are the data source and the y-axis label.
 
 **Files:**
 - Modify: `pymc_marketing/mmm/plotting/diagnostics.py`
@@ -835,6 +946,30 @@ class TestPriorPredictiveCustomization:
         fig, _ = simple_plots.prior_predictive(line_kwargs={"color": "green"})
         assert isinstance(fig, Figure)
 
+    def test_observed_kwargs_accepted(self, simple_plots):
+        fig, _ = simple_plots.prior_predictive(observed_kwargs={"color": "gray"})
+        assert isinstance(fig, Figure)
+
+
+class TestPriorPredictiveObserved:
+    def test_observed_values_match_target(self, simple_plots, simple_data):
+        """The observed line y-data must match data.get_target(original_scale=True)."""
+        _, axes = simple_plots.prior_predictive()
+        ax = axes.flat[0]
+        expected = simple_data.get_target(original_scale=True).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(
+            np.allclose(y, expected, equal_nan=True) for y in line_y_arrays
+        ), "No line in the axes matches the observed target values"
+
+    def test_observed_present_in_panel_plot(self, panel_plots, panel_data):
+        """Multi-panel plot: observed data is present in each panel."""
+        _, axes = panel_plots.prior_predictive()
+        observed = panel_data.get_target(original_scale=True)
+        for ax in axes.flat:
+            line_y_arrays = [line.get_ydata() for line in ax.lines]
+            assert any(len(y) == observed.sizes["date"] for y in line_y_arrays)
+
 
 class TestPriorPredictiveIdataOverride:
     def test_idata_override_does_not_mutate_self(self, simple_plots, simple_idata, panel_idata):
@@ -850,7 +985,7 @@ conda run -n pymc-marketing-dev pytest tests/mmm/plotting/test_diagnostics.py -k
 
 - [ ] **Step 3.3: Implement `prior_predictive()`**
 
-Add to `DiagnosticsPlots` (structure mirrors `posterior_predictive` exactly — only differences highlighted):
+Add to `DiagnosticsPlots` — thin wrapper around `_plot_predictive` (introduced in Task 2). Differences from `posterior_predictive`: data source is `_get_prior_predictive`, y-label is "Prior Predictive".
 
 ```python
 def prior_predictive(
@@ -864,13 +999,15 @@ def prior_predictive(
     return_as_pc: bool = False,
     line_kwargs: dict[str, Any] | None = None,
     hdi_kwargs: dict[str, Any] | None = None,
+    observed_kwargs: dict[str, Any] | None = None,
     **pc_kwargs,
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
     """Plot time series from the prior predictive distribution.
 
     Mirrors ``posterior_predictive`` but draws from the prior_predictive
-    group. Fix for issue IV.1: error messages correctly reference
-    'prior_predictive' (the old code showed 'posterior' messages here).
+    group. Each panel overlays the prior mean line, an HDI band, and the
+    observed target for comparison. Fix for issue IV.1: error messages
+    correctly reference 'prior_predictive'.
 
     Parameters
     ----------
@@ -886,9 +1023,11 @@ def prior_predictive(
     backend : str, optional
     return_as_pc : bool, default False
     line_kwargs : dict, optional
-        Forwarded to ``azp.visuals.line_xy``.
+        Forwarded to ``azp.visuals.line_xy`` for the predictive mean line.
     hdi_kwargs : dict, optional
         Forwarded to ``azp.visuals.fill_between_y``.
+    observed_kwargs : dict, optional
+        Forwarded to ``azp.visuals.line_xy`` for the observed data line.
     **pc_kwargs
         Forwarded to ``PlotCollection.wrap()``.
 
@@ -918,7 +1057,6 @@ def prior_predictive(
     if var_names is None:
         var_names = ["y"]
 
-    # Only difference from posterior_predictive: uses _get_prior_predictive
     pp_ds = _get_prior_predictive(data)
 
     for vn in var_names:
@@ -928,38 +1066,19 @@ def prior_predictive(
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
-    main_da = _select_dims(pp_ds[var_names[0]], dims)
-    extra_dims = [d for d in main_da.dims if d not in ("chain", "draw", "date")]
-    mean_da = main_da.mean(dim=("chain", "draw"))
-
-    layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
-    pc = PlotCollection.wrap(layout_ds, cols=extra_dims, backend=backend, **pc_kwargs)
-
-    dates = main_da.coords["date"].values
-
-    for vn in var_names:
-        var_da = _select_dims(pp_ds[vn], dims)
-        median_da = var_da.mean(dim=("chain", "draw"))
-        hdi_da = var_da.azstats.hdi(hdi_prob)
-
-        pc.map(
-            azp.visuals.line_xy,
-            x=dates,
-            y=median_da,
-            **{"label": vn, **(line_kwargs or {})},
-        )
-        pc.map(
-            azp.visuals.fill_between_y,
-            x=dates,
-            y_bottom=hdi_da.sel(ci_bound="lower"),
-            y_top=hdi_da.sel(ci_bound="upper"),
-            **{"alpha": 0.2, **(hdi_kwargs or {})},
-        )
-
-    pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_y, text="Prior Predictive", ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
-
+    pc = _plot_predictive(
+        data=data,
+        pp_ds=pp_ds,
+        var_names=var_names,
+        hdi_prob=hdi_prob,
+        dims=dims,
+        backend=backend,
+        line_kwargs=line_kwargs,
+        hdi_kwargs=hdi_kwargs,
+        observed_kwargs=observed_kwargs,
+        y_label="Prior Predictive",
+        **pc_kwargs,
+    )
     return _extract_matplotlib_result(pc, return_as_pc)
 ```
 
@@ -1130,7 +1249,7 @@ def residuals(
     residuals_da = _compute_residuals(data)  # (chain, draw, date[, extra_dims])
     residuals_da = _select_dims(residuals_da, dims)
 
-    extra_dims = [d for d in residuals_da.dims if d not in ("chain", "draw", "date")]
+    extra_dims = list(data.custom_dims)
     mean_da = residuals_da.mean(dim=("chain", "draw"))      # (date[, extra_dims])
     hdi_da = residuals_da.azstats.hdi(hdi_prob)             # (date[, extra_dims], ci_bound)
 
@@ -1377,7 +1496,7 @@ def residuals_distribution(
         return fig, np.array([[ax]])
 
     # No aggregation — one panel per extra dim combination
-    extra_dims = [d for d in residuals_da.dims if d not in ("chain", "draw", "date")]
+    extra_dims = list(data.custom_dims)
     if extra_dims:
         dim_values = [list(residuals_da.coords[d].values) for d in extra_dims]
         combos = list(itertools.product(*dim_values))
@@ -1532,3 +1651,6 @@ Before marking this PR complete, verify:
 | No nested functions — all helpers are module-level | Design doc §I.4 | — |
 | `PlotCollection` used for methods 1–3 | Design doc §I.6 | — |
 | `residuals_distribution` fallback acceptable (no PlotCollection equiv.) | Design doc §I.6 | — |
+| `posterior_predictive` and `prior_predictive` share `_plot_predictive` helper | DRY | — |
+| Both predictive methods overlay observed data via `data.get_target(original_scale=True)` | User requirement | — |
+| `extra_dims` derived from `data.custom_dims` (not inferred from DataArray shape) | User requirement | — |
