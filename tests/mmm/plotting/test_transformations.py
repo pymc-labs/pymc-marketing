@@ -480,6 +480,27 @@ class TestSaturationCurvesDimsInvalid:
             panel_plots.saturation_curves(curves=panel_curve, dims={"country": "FR"})
 
 
+class TestSaturationCurvesEdgeCases:
+    def test_hdi_prob_none_disables_band(self, simple_plots, simple_curve):
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_curve, hdi_prob=None, n_samples=0
+        )
+        for ax in axes.flat:
+            polys = [c for c in ax.collections if "Poly" in type(c).__name__]
+            assert len(polys) == 0, "No HDI fill when hdi_prob=None"
+
+    def test_n_samples_clamped_to_available(self, simple_plots, simple_curve):
+        # simple_curve: chain=2, draw=50 → stacked.sizes["sample"] = 100
+        n_available = 2 * 50
+        _, axes = simple_plots.saturation_curves(
+            curves=simple_curve, n_samples=10_000, hdi_prob=None
+        )
+        for ax in axes.flat:
+            lines = ax.get_lines()
+            # 1 mean line + n_available sample lines (clamped from 10_000)
+            assert len(lines) == n_available + 1
+
+
 class TestSaturationCurvesCustomization:
     def test_return_as_pc_true(self, simple_plots, simple_curve):
         result = simple_plots.saturation_curves(curves=simple_curve, return_as_pc=True)
