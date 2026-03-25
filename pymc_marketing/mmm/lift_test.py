@@ -18,6 +18,7 @@ Other methods can be MMM.add_cost_per_target_calibration.
 Use any of these methods directly while working with the `MMM` class.
 """
 
+import warnings
 from collections.abc import Callable, Sequence
 from typing import Concatenate, ParamSpec
 
@@ -702,22 +703,30 @@ def add_lift_measurements_to_likelihood_from_saturation(
     )
 
 
-def add_cost_per_target_potentials(
+def add_cost_per_target_observations(
     calibration_df: pd.DataFrame,
     *,
     model: pm.Model | None = None,
-    cpt_value: XTensorVariable,
+    cost_value: XTensorVariable,
+    target_value: XTensorVariable,
     target_column: str = "cost_per_target",
     name_prefix: str = "cpt_calibration",
+    target_per_cost: bool = False,
     get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
 ) -> None:
-    """Add ``Potential`` penalties to calibrate cost-per-target.
+    """Add observed Normal likelihood to calibrate cost-per-target.
 
-    For each row, we compute the mean of ``cpt_variable_name`` across the date
-    dimension for the specified (dims, channel) slice and add a soft quadratic
-    penalty:
+    By default the ratio is ``mean(cost) / mean(target)`` (cost-per-target).
+    Set ``target_per_cost=True`` to flip it to ``mean(target) / mean(cost)``
+    (target-per-cost, e.g. conversions per dollar).
 
-    ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+    An observed ``Normal`` likelihood term is added for each calibration row:
+
+    ``Normal(mu=ratio_mean, sigma=sigma, observed=target)``
+
+    Using the mean of numerator and denominator separately avoids
+    ``mean(cost / target)`` which is numerically unstable when spend is spiky
+    and the channel has slow or delayed adstock decay.
 
     Parameters
     ----------
@@ -728,12 +737,19 @@ def add_cost_per_target_potentials(
         CPT variable (excluding ``date``).
     model : pm.Model, optional
         Model containing the cost-per-target tensor. If None, uses the current model context.
-    cpt_value : XTensorVariable
-        XTensor representing cost-per-target values over the model coordinates.
+    cost_value : XTensorVariable
+        XTensor representing cost (spend) values over the model coordinates,
+        including a ``date`` dimension.
+    target_value : XTensorVariable
+        XTensor representing target (contribution) values over the model
+        coordinates, including a ``date`` dimension.
     target_column : str
         Column in ``calibration_df`` containing the calibration targets.
     name_prefix : str
-        Prefix for created potential names.
+        Name for the observed likelihood variable.
+    target_per_cost : bool
+        If ``False`` (default), computes ``mean(cost) / mean(target)``.
+        If ``True``, computes ``mean(target) / mean(cost)``.
     get_indices : Callable[[pd.DataFrame, pm.Model], Indices]
         Alignment function mapping rows to model coordinate indices.
 
@@ -741,10 +757,8 @@ def add_cost_per_target_potentials(
     --------
     .. code-block:: python
 
-        cpt_tensor = DataArray(
-            np.full((len(dates), len(geo), len(channels)), 30.0, dtype=float),
-            dims=("date", "geo", "channel"),
-        )
+        cost = as_xtensor(spend_array, dims=("date", "geo", "channel"))
+        target = as_xtensor(contribution_array, dims=("date", "geo", "channel"))
 
         calibration_df = pd.DataFrame(
             {
@@ -755,34 +769,31 @@ def add_cost_per_target_potentials(
             }
         )
 
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_df,
             model=mmm.model,
-            cpt_value=cpt_tensor,
+            cost_value=cost,
+            target_value=target,
             name_prefix="cpt_calibration",
         )
     """
     cost_per_target_dim = f"_{name_prefix}"
     current_model: pm.Model = modelcontext(model)
 
-    # Basic validation
     required_cols = {"channel", target_column, "sigma"}
     missing = required_cols - set(calibration_df.columns)
     if missing:
         raise KeyError(f"Missing required columns in calibration_df: {sorted(missing)}")
 
     cpt_dims = tuple(current_model.named_vars_to_dims["channel_data"])
-
     non_date_dims = [d for d in cpt_dims if d != "date"]
 
-    # Ensure calibration_df contains all needed dimension columns
     missing_dims = [d for d in non_date_dims if d not in calibration_df.columns]
     if missing_dims:
         raise KeyError(
             f"Calibration data missing dimension columns: {missing_dims}. Required dims: {non_date_dims}"
         )
 
-    # Build indices for selection in model coordinates (date excluded: we average over it)
     indices = get_indices(calibration_df[non_date_dims], current_model)
     indices_xr = {
         k: as_xtensor(v, dims=(cost_per_target_dim,)) for k, v in indices.items()
@@ -796,13 +807,55 @@ def add_cost_per_target_potentials(
     )
 
     with current_model:
-        # Compute mean over the date dimension once
-        cpt_mean = cpt_value.mean(dim="date")
+        cost_mean = cost_value.mean(dim="date")
+        target_mean = target_value.mean(dim="date")
+        if target_per_cost:
+            numerator = target_mean
+            denominator = ptx.math.clip(cost_mean, 1e-12, np.inf)
+        else:
+            numerator = cost_mean
+            denominator = ptx.math.clip(target_mean, 1e-12, np.inf)
+        ratio_mean = numerator / denominator
+        gathered_cpt = ratio_mean.isel(indices_xr, missing_dims="raise")
 
-        # Gather the cpt mean for each calibration row as a vector
-        gathered_cpt = cpt_mean.isel(indices_xr, missing_dims="raise")
+        current_model.add_coord(cost_per_target_dim, length=len(calibration_df))
+        pmd.Normal(
+            name_prefix,
+            mu=gathered_cpt,
+            sigma=sigmas,
+            observed=targets,
+        )
 
-        # Vectorized quadratic penalties and single aggregated Potential
-        deviation = ptx.math.abs(gathered_cpt - targets)
-        penalties = -(deviation**2) / (2 * (sigmas**2))
-        pmd.Potential(name_prefix, penalties.sum())
+
+def add_cost_per_target_potentials(
+    calibration_df: pd.DataFrame,
+    *,
+    model: pm.Model | None = None,
+    cost_value: XTensorVariable,
+    target_value: XTensorVariable,
+    target_column: str = "cost_per_target",
+    name_prefix: str = "cpt_calibration",
+    target_per_cost: bool = False,
+    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+) -> None:
+    """Call :func:`add_cost_per_target_observations` with a deprecation warning.
+
+    .. deprecated:: 0.14.0
+        Use :func:`add_cost_per_target_observations` instead.
+    """
+    warnings.warn(
+        "add_cost_per_target_potentials is deprecated and will be removed in a "
+        "future version. Use add_cost_per_target_observations instead.",
+        FutureWarning,
+        stacklevel=2,
+    )
+    add_cost_per_target_observations(
+        calibration_df,
+        model=model,
+        cost_value=cost_value,
+        target_value=target_value,
+        target_column=target_column,
+        name_prefix=name_prefix,
+        target_per_cost=target_per_cost,
+        get_indices=get_indices,
+    )
