@@ -252,6 +252,13 @@ class TestSaturationScatterplotCustomization:
         with pytest.raises(ValueError, match="return_as_pc=True"):
             simple_plots.saturation_scatterplot(backend="plotly")
 
+    def test_figsize_overrides_figure_kwargs_warns(self, simple_plots):
+        with pytest.warns(UserWarning, match="figsize parameter overrides"):
+            simple_plots.saturation_scatterplot(
+                figsize=(10, 5),
+                figure_kwargs={"figsize": (8, 4)},
+            )
+
 
 class TestSaturationScatterplotIdataOverride:
     def test_idata_override_uses_different_data(self, simple_plots, panel_idata):
@@ -521,6 +528,14 @@ class TestSaturationCurvesIdataOverride:
             curves=panel_curve, idata=panel_idata, n_samples=2
         )
         assert axes.size == 4  # panel_idata has 2 channels x 2 countries
+
+    def test_idata_override_does_not_mutate_self_data(
+        self, simple_plots, simple_data, panel_idata, panel_curve
+    ):
+        simple_plots.saturation_curves(
+            curves=panel_curve, idata=panel_idata, n_samples=2
+        )
+        assert simple_plots._data is simple_data
 
 
 class TestSaturationCurvesLabels:
