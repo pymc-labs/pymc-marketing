@@ -919,7 +919,13 @@ separate `MMMCVPlotSuite`, accessed via `cv.plot`.
 
 | Old | New | Affected methods |
 |-----|-----|-----------------|
-| `var: str` or `var: list[str]` | `var_names: list[str]` | `posterior_predictive`, `prior_predictive` |
+| `var: list[str] \| None` | `target_var: str = "y"` | `posterior_predictive` |
+| `var: str \| None` | `target_var: str = "y"` | `prior_predictive` |
+| `var: str` (required) | `var_name: str` | `posterior_distribution`, `prior_vs_posterior` |
+| `param_name: str` | `var_name: str` | `channel_parameter` |
+| `var: list[str]` (required) | `var_names: list[str]` | `contributions_over_time` |
+| `var: list[str] \| None` | `var_names: list[str] \| None` | `waterfall_components_decomposition` |
+| `parameter: list[str]` | `var_names: list[str]` | `param_stability` |
 | `hdi_probs: list[float]` | `hdi_prob: float` | `transformations.saturation_curves` |
 | `figsize: tuple[int, int]` | `figsize: tuple[float, float]` | `decomposition.waterfall` |
 | `idata: xr.Dataset \| None` (ad-hoc, 2 methods) | `idata: az.InferenceData \| None` (consistent, all data-dependent methods) | All `MMMPlotSuite` methods that access `self._data` |
