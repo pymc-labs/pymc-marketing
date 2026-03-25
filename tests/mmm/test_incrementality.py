@@ -23,6 +23,7 @@ import xarray as xr
 from pydantic import ValidationError
 
 from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.model_graph import deterministics_to_flat
 
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
@@ -36,12 +37,16 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
         if original_scale
         else "channel_contribution"
     )
-    model = mmm.model.copy()
+    names = mmm.frozen_deterministics
+    if names:
+        model = deterministics_to_flat(mmm.model, names=names)
+    else:
+        model = mmm.model.copy()
     with model:
         pm.set_data(
             {
                 "channel_data": channel_data_values.astype(
-                    mmm.model["channel_data"].type.dtype
+                    model["channel_data"].type.dtype
                 )
             }
         )
