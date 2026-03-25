@@ -744,6 +744,8 @@ rewrites its methods using `PlotCollection` directly.
 - IV.14 — Handle multi-axes return from `az.plot_forest`
 - IV.17 — Remove dead `agg` parameter path
 - II.5 — `figsize: tuple[int, int]` → `tuple[float, float]` in waterfall
+- II.5 — `var: list[str] | None` → `var_names: list[str] | None` in `waterfall_components_decomposition`;
+         `var: list[str]` → `var_names: list[str]` in `contributions_over_time`
 - VII.1 — Rename coord `x` → `channel` in `channel_share_hdi`
 
 **LOE:** L
