@@ -866,7 +866,7 @@ These are resolved in PR 1 (Foundation) and enforced by every subsequent PR:
 | I.6 — arviz-plots adoption | All methods use `PlotCollection` internally; bar-plot methods fall back to matplotlib |
 | II.1 — Standard return type | `tuple[Figure, NDArray[Axes]]` by default; `PlotCollection` opt-in via `return_as_pc=True` |
 | II.2 — `original_scale=True` | Default on every method that exposes the parameter |
-| II.5 — Consistent param names | `var_names`, `hdi_prob`, `figsize: tuple[float, float]` |
+| II.5 — Consistent param names | `target_var` (predictive group methods), `var_name` (single posterior), `var_names` (multi posterior); `hdi_prob`; `figsize: tuple[float, float]` |
 | II.6 — `dims` on all methods | Every method accepts `dims: dict[str, Any] | None` |
 | II.7 — Figure customization | 5 standard params: `figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs` (see [design](./2026-03-11-figure-customization-design.md)) |
 
