@@ -662,7 +662,8 @@ rewrites its methods using `PlotCollection` directly.
 **Fixes included:**
 - IV.1 — Copy-paste bug (wrong error messages in prior_predictive)
 - IV.18 — Add optional parameter to `_compute_residuals`
-- II.5 — `var` → `var_names` (list[str] for both methods)
+- II.5 — `var` → `target_var: str = "y"` for `posterior_predictive` and `prior_predictive`;
+         tighten `posterior_predictive` from `list[str] | None` to `str`
 - II.6 — Add `dims` parameter
 - II.7 — Add 5 standard customization params (`figsize`, `backend`, per-element `*_kwargs`, `return_as_pc`, `**pc_kwargs`)
 
