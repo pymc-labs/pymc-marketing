@@ -213,7 +213,7 @@ class TransformationPlots:
         curves: xr.DataArray,
         original_scale: bool = True,
         n_samples: int = 10,
-        hdi_prob: float = 0.94,
+        hdi_prob: float | None = 0.94,
         random_seed: np.random.Generator | None = None,
         apply_cost_per_unit: bool = True,
         idata: az.InferenceData | None = None,
@@ -265,8 +265,9 @@ class TransformationPlots:
         n_samples : int, default 10
             Number of posterior sample curves to draw per panel.
             Set to 0 to disable sample curves.
-        hdi_prob : float, default 0.94
+        hdi_prob : float or None, default 0.94
             Credible interval probability for the HDI band.
+            Set to None to disable HDI band rendering.
         random_seed : np.random.Generator, optional
             RNG for reproducible sample selection.
         apply_cost_per_unit : bool, default True
@@ -304,6 +305,13 @@ class TransformationPlots:
             MMMIDataWrapper(idata, schema=self._data.schema)
             if idata is not None
             else self._data
+        )
+
+        _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+            **pc_kwargs,
         )
 
         pc: PlotCollection = self.saturation_scatterplot(

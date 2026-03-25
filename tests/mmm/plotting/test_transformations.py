@@ -37,7 +37,6 @@ from pymc_marketing.mmm.plotting.transformations import (
 matplotlib.use("Agg")
 
 SEED = sum(map(ord, "TransformationPlots tests"))
-RNG = np.random.default_rng(SEED)
 
 
 # ============================================================================
