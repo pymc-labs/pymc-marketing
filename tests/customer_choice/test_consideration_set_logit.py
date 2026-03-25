@@ -393,6 +393,42 @@ class TestConsiderationSetMixedLogitInference:
         assert "p" in idata_cf["posterior_predictive"]
         assert hasattr(model, "intervention_idata")
 
+    def test_sample_posterior_predictive_with_new_choice_df(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
+        """Posterior predictive with a new choice_df and matching instruments."""
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={"Z_tilde": Z_tilde},
+        )
+        model.fit(
+            random_seed=42,
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+
+        # Use the same-sized data but with shifted values + new Z
+        new_df = hiring_df.copy()
+        new_df["age_A"] = new_df["age_A"] + 5  # everyone is older
+        Z_cf = Z_tilde.copy()
+        Z_cf[:, 0] = 1.0  # shift consideration for first alt
+
+        post_pred = model.sample_posterior_predictive(
+            choice_df=new_df,
+            consideration_instruments={"Z_tilde": Z_cf},
+            extend_idata=False,
+            random_seed=42,
+        )
+        assert "posterior_predictive" in post_pred.groups()
+        assert "p" in post_pred["posterior_predictive"]
+
     def test_apply_intervention_multi_instrument(self, hiring_df, utility_equations):
         """Apply intervention with multi-instrument Z_tilde."""
         n = len(hiring_df)
@@ -432,6 +468,56 @@ class TestConsiderationSetMixedLogitInference:
         )
         assert "posterior_predictive" in idata_cf.groups()
         assert "p" in idata_cf["posterior_predictive"]
+
+    def test_apply_intervention_with_new_equations(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
+        """Apply intervention with new utility equations (triggers refit).
+
+        The refit branch builds a fresh model and runs full MCMC, so we
+        pass equations with the same covariates but a different formula
+        structure (e.g., swapped covariate assignment) to exercise the
+        ``new_utility_equations is not None`` code path.
+        """
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={"Z_tilde": Z_tilde},
+        )
+        model.fit(
+            random_seed=42,
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+
+        # Same structure but swap age and exp (different utility spec)
+        new_equations = [
+            "Firm A ~ exp_A + age_A",
+            "Firm B ~ exp_B + age_B",
+            "Firm C ~ exp_C + age_C",
+        ]
+
+        idata_cf = model.apply_intervention(
+            new_choice_df=hiring_df,
+            new_utility_equations=new_equations,
+            new_consideration_instruments={"Z_tilde": Z_tilde},
+            fit_kwargs={
+                "draws": 50,
+                "tune": 50,
+                "chains": 1,
+                "target_accept": 0.8,
+            },
+        )
+        assert "posterior_predictive" in idata_cf.groups()
+        assert "posterior" in idata_cf.groups()
+        assert "p" in idata_cf["posterior_predictive"]
+        assert hasattr(model, "intervention_idata")
 
 
 class TestConsiderationSetMixedLogitStability:

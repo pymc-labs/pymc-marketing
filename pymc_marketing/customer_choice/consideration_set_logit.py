@@ -125,7 +125,6 @@ class ConsiderationSetMixedLogit(MixedLogit):
         instrumental_vars: dict | None = None,
         non_centered: bool = True,
     ):
-        self.consideration_instruments = consideration_instruments
         self.consideration_intercept = consideration_intercept
         self.random_consideration = random_consideration
 
@@ -136,17 +135,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
                 "with a mean-centred (N, J) or (N, J, K_z) array."
             )
 
-        Z = consideration_instruments["Z_tilde"]
-        self._multi_instrument = Z.ndim == 3
-        if self._multi_instrument:
-            self._n_z_instruments = Z.shape[2]
-            self._z_instrument_names = consideration_instruments.get(
-                "z_instrument_names",
-                [f"z_{k}" for k in range(self._n_z_instruments)],
-            )
-        else:
-            self._n_z_instruments = 1
-            self._z_instrument_names = None
+        self._update_consideration_instruments(consideration_instruments)
 
         super().__init__(
             choice_df=choice_df,
@@ -366,6 +355,29 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         return model
 
+    def _update_consideration_instruments(
+        self, consideration_instruments: dict
+    ) -> None:
+        """Update consideration instruments and refresh internal state.
+
+        Parameters
+        ----------
+        consideration_instruments : dict
+            Must contain 'Z_tilde' key. May contain 'z_instrument_names'.
+        """
+        self.consideration_instruments = consideration_instruments
+        Z = consideration_instruments["Z_tilde"]
+        self._multi_instrument = Z.ndim == 3
+        if self._multi_instrument:
+            self._n_z_instruments = Z.shape[2]
+            self._z_instrument_names = consideration_instruments.get(
+                "z_instrument_names",
+                [f"z_{k}" for k in range(self._n_z_instruments)],
+            )
+        else:
+            self._n_z_instruments = 1
+            self._z_instrument_names = None
+
     def sample_posterior_predictive(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
@@ -379,6 +391,9 @@ class ConsiderationSetMixedLogit(MixedLogit):
         ----------
         choice_df : pd.DataFrame, optional
             New choice data for prediction. If None, uses training data.
+            When provided, ``consideration_instruments`` must also be
+            supplied with a Z_tilde whose first dimension matches the
+            new DataFrame.
         consideration_instruments : dict, optional
             New consideration instruments. If None, uses training instruments.
         extend_idata : bool, optional
@@ -392,16 +407,29 @@ class ConsiderationSetMixedLogit(MixedLogit):
             Posterior predictive samples.
         """
         if consideration_instruments is not None:
-            self.consideration_instruments = consideration_instruments
+            self._update_consideration_instruments(consideration_instruments)
 
-        if choice_df is not None:
-            new_X, new_F, new_y = self.preprocess_model_data(
-                choice_df, self.utility_equations
-            )
+        # Build the data dict for pm.set_data — we always update Z when
+        # either the choice_df or the instruments change.
+        needs_data_update = (
+            choice_df is not None or consideration_instruments is not None
+        )
+
+        if needs_data_update:
+            if choice_df is not None:
+                new_X, new_F, new_y = self.preprocess_model_data(
+                    choice_df, self.utility_equations
+                )
+            else:
+                new_X, new_F, new_y = None, None, None
+
             with self.model:
-                data_dict = {"X": new_X, "y": new_y}
-                if new_F is not None and len(new_F) > 0:
-                    data_dict["W"] = new_F
+                data_dict: dict = {}
+                if new_X is not None:
+                    data_dict["X"] = new_X
+                    data_dict["y"] = new_y
+                    if new_F is not None and len(new_F) > 0:
+                        data_dict["W"] = new_F
                 data_dict["Z"] = self.consideration_instruments["Z_tilde"]
                 pm.set_data(data_dict)
 
@@ -435,6 +463,8 @@ class ConsiderationSetMixedLogit(MixedLogit):
             Updated utility specifications (triggers refit if provided).
         new_consideration_instruments : dict or None
             Updated consideration instruments. If None, reuses current.
+            When ``new_choice_df`` has a different number of rows from
+            the training data, this must be provided with matching shape.
         fit_kwargs : dict or None
             Keyword arguments for sampling if refitting.
 
@@ -444,7 +474,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             Posterior or predictive distribution under intervention.
         """
         if new_consideration_instruments is not None:
-            self.consideration_instruments = new_consideration_instruments
+            self._update_consideration_instruments(new_consideration_instruments)
 
         if fit_kwargs is None:
             fit_kwargs = {
@@ -462,7 +492,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             )
 
             with self.model:
-                data_dict = {"X": new_X, "y": new_y}
+                data_dict: dict = {"X": new_X, "y": new_y}
                 if new_F is not None:
                     data_dict["W"] = new_F
                 data_dict["Z"] = self.consideration_instruments["Z_tilde"]
