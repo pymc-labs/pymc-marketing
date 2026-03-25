@@ -195,8 +195,12 @@ class TestSaturationScatterplotBasic:
         assert all(isinstance(a, Axes) for a in axes.flat)
 
     def test_original_scale_true_is_default(self, simple_plots):
-        fig, _axes = simple_plots.saturation_scatterplot()
-        assert isinstance(fig, Figure)
+        # Calling with no args should produce identical scatter to original_scale=True
+        _, axes_default = simple_plots.saturation_scatterplot()
+        _, axes_explicit = simple_plots.saturation_scatterplot(original_scale=True)
+        offsets_default = axes_default.flat[0].collections[0].get_offsets()
+        offsets_explicit = axes_explicit.flat[0].collections[0].get_offsets()
+        assert np.allclose(offsets_default[:, 1], offsets_explicit[:, 1])
 
     def test_original_scale_false(self, simple_plots):
         fig, _axes = simple_plots.saturation_scatterplot(original_scale=False)
@@ -320,16 +324,6 @@ class TestSaturationScatterplotDataValues:
         offsets_true = axes_true.flat[0].collections[0].get_offsets()
         offsets_false = axes_false.flat[0].collections[0].get_offsets()
         assert not np.allclose(offsets_true[:, 1], offsets_false[:, 1])
-
-
-class TestSaturationScatterplotCostPerUnit:
-    def test_apply_cost_per_unit_true(self, panel_plots):
-        fig, _axes = panel_plots.saturation_scatterplot(apply_cost_per_unit=True)
-        assert isinstance(fig, Figure)
-
-    def test_apply_cost_per_unit_false(self, panel_plots):
-        fig, _axes = panel_plots.saturation_scatterplot(apply_cost_per_unit=False)
-        assert isinstance(fig, Figure)
 
 
 # ============================================================================
@@ -467,11 +461,10 @@ class TestSaturationCurvesHDI:
 
 class TestSaturationCurvesSamples:
     def test_sample_curves_drawn(self, simple_plots, simple_curve):
-        """Sample curves should add Line2D objects to axes."""
+        """Sample curves add exactly n_samples + 1 Line2D objects (samples + mean)."""
         _, axes = simple_plots.saturation_curves(curves=simple_curve, n_samples=5)
         for ax in axes.flat:
-            lines = ax.get_lines()
-            assert len(lines) >= 5, "At least n_samples lines per panel"
+            assert len(ax.get_lines()) == 6  # 5 samples + 1 mean
 
     def test_n_samples_zero_draws_only_mean_line(self, simple_plots, simple_curve):
         _, axes = simple_plots.saturation_curves(curves=simple_curve, n_samples=0)
@@ -835,8 +828,7 @@ class TestSaturationCurvesWithSampleDim:
             curves=simple_sample_curve, n_samples=5
         )
         for ax in axes.flat:
-            lines = ax.get_lines()
-            assert len(lines) >= 5
+            assert len(ax.get_lines()) == 6  # 5 samples + 1 mean
 
     def test_n_samples_zero_draws_only_mean_line(
         self, simple_plots, simple_sample_curve
@@ -859,10 +851,12 @@ class TestSaturationCurvesWithSampleDim:
         assert axes.size == 2  # 2 channels x 1 country
 
     def test_original_scale_false(self, simple_plots, simple_sample_curve_scaled):
-        fig, _axes = simple_plots.saturation_curves(
-            curves=simple_sample_curve_scaled, original_scale=False
-        )
-        assert isinstance(fig, Figure)
+        # Scaled curves with original_scale=False should produce no UserWarning
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            simple_plots.saturation_curves(
+                curves=simple_sample_curve_scaled, original_scale=False
+            )
 
     def test_return_as_pc_true(self, simple_plots, simple_sample_curve):
         result = simple_plots.saturation_curves(
