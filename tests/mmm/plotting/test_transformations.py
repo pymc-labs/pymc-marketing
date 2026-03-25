@@ -290,6 +290,38 @@ class TestSaturationScatterplotLabels:
             assert "Spend" in ax.get_xlabel()
 
 
+class TestSaturationScatterplotDataValues:
+    def test_scatter_y_matches_mean_contributions(self, simple_plots, simple_data):
+        _, axes = simple_plots.saturation_scatterplot(original_scale=True)
+        channels = simple_data.channels
+        contributions = simple_data.get_channel_contributions(original_scale=True)
+        expected_y = contributions.mean(dim=["chain", "draw"])
+
+        for ax, ch in zip(axes.flat, channels, strict=True):
+            offsets = ax.collections[0].get_offsets()
+            np.testing.assert_allclose(
+                offsets[:, 1], expected_y.sel(channel=ch).values, rtol=1e-5
+            )
+
+    def test_scatter_x_matches_channel_data(self, simple_plots, simple_data):
+        _, axes = simple_plots.saturation_scatterplot(apply_cost_per_unit=False)
+        channels = simple_data.channels
+        x_data = simple_data.get_channel_data()
+
+        for ax, ch in zip(axes.flat, channels, strict=True):
+            offsets = ax.collections[0].get_offsets()
+            np.testing.assert_allclose(
+                offsets[:, 0], x_data.sel(channel=ch).values, rtol=1e-5
+            )
+
+    def test_original_scale_changes_scatter_y(self, simple_plots):
+        _, axes_true = simple_plots.saturation_scatterplot(original_scale=True)
+        _, axes_false = simple_plots.saturation_scatterplot(original_scale=False)
+        offsets_true = axes_true.flat[0].collections[0].get_offsets()
+        offsets_false = axes_false.flat[0].collections[0].get_offsets()
+        assert not np.allclose(offsets_true[:, 1], offsets_false[:, 1])
+
+
 class TestSaturationScatterplotCostPerUnit:
     def test_apply_cost_per_unit_true(self, panel_plots):
         fig, _axes = panel_plots.saturation_scatterplot(apply_cost_per_unit=True)
