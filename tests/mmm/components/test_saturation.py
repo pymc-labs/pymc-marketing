@@ -35,6 +35,7 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.serialization import serialization
 
 ALL_SATURATION_CLASSES: list[type[SaturationTransformation]] = [
     cls
@@ -322,3 +323,48 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
+
+
+class TestSaturationRoundtrips:
+    """Every SaturationTransformation subclass round-trips with all params."""
+
+    @pytest.mark.parametrize(
+        "sat_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_roundtrip_all_parameters(self, sat_cls):
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in sat_cls.default_priors
+        }
+        kwargs: dict = {
+            "prefix": "custom_sat",
+            "priors": custom_priors,
+        }
+
+        original = sat_cls(**kwargs)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is sat_cls
+        assert restored.prefix == "custom_sat"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.components.saturation.LogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.TanhSaturation",
+        "pymc_marketing.mmm.components.saturation.TanhSaturationBaselined",
+        "pymc_marketing.mmm.components.saturation.HillSaturation",
+        "pymc_marketing.mmm.components.saturation.HillSaturationSigmoid",
+        "pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation",
+        "pymc_marketing.mmm.components.saturation.RootSaturation",
+        "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.NoSaturation",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

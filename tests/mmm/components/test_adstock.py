@@ -37,6 +37,7 @@ from pymc_marketing.mmm.components.adstock import (
     adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.serialization import serialization
 
 ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
     cls
@@ -220,3 +221,51 @@ def test_deserialization(
     assert isinstance(alpha, ArbitraryObject)
     assert alpha.msg == "hello"
     assert alpha.value == 1
+
+
+class TestAdstockRoundtrips:
+    """Every AdstockTransformation subclass round-trips with all params."""
+
+    @pytest.mark.parametrize(
+        "adstock_cls", ALL_ADSTOCK_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_roundtrip_all_parameters(self, adstock_cls):
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in adstock_cls.default_priors
+        }
+        kwargs: dict = {
+            "l_max": 7,
+            "normalize": False,
+            "mode": ConvMode.Before,
+            "prefix": "custom_prefix",
+            "priors": custom_priors,
+        }
+
+        original = adstock_cls(**kwargs)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is adstock_cls
+        assert restored.l_max == 7
+        assert restored.normalize is False
+        assert restored.mode == ConvMode.Before
+        assert restored.prefix == "custom_prefix"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.components.adstock.GeometricAdstock",
+        "pymc_marketing.mmm.components.adstock.DelayedAdstock",
+        "pymc_marketing.mmm.components.adstock.WeibullCDFAdstock",
+        "pymc_marketing.mmm.components.adstock.WeibullPDFAdstock",
+        "pymc_marketing.mmm.components.adstock.BinomialAdstock",
+        "pymc_marketing.mmm.components.adstock.NoAdstock",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"
