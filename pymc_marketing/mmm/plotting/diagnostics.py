@@ -344,7 +344,7 @@ class DiagnosticsPlots:
 
     def prior_predictive(
         self,
-        target_var: str = "y",
+        original_scale: bool = True,
         hdi_prob: float = 0.94,
         idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
@@ -364,8 +364,11 @@ class DiagnosticsPlots:
 
         Parameters
         ----------
-        target_var : str, default "y"
-            Variable name from prior_predictive to plot.
+        original_scale : bool, default True
+            If True, plots ``y_original_scale`` from prior_predictive and
+            the observed target in original units.
+            If False, plots ``y`` (internal model scale) and the observed target
+            in scaled units.
         hdi_prob : float, default 0.94
             Probability mass of the HDI band.
         idata : az.InferenceData, optional
@@ -393,6 +396,7 @@ class DiagnosticsPlots:
         .. code-block:: python
 
             fig, axes = mmm.plot.diagnostics.prior_predictive()
+            fig, axes = mmm.plot.diagnostics.prior_predictive(original_scale=False)
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -409,19 +413,17 @@ class DiagnosticsPlots:
 
         pp_ds = _get_prior_predictive(data)
 
-        if target_var not in pp_ds:
+        var_name = "y_original_scale" if original_scale else "y"
+        if var_name not in pp_ds:
             raise ValueError(
-                f"Variable '{target_var}' not found in prior_predictive. "
+                f"Variable '{var_name}' not found in prior_predictive. "
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
-        # Temporary bridge: derive original_scale from target_var for now
-        # (target_var signature is replaced in Task 3)
-        original_scale_flag = target_var == "y_original_scale"
         pc = self._plot_predictive(
             data=data,
             pp_ds=pp_ds,
-            original_scale=original_scale_flag,
+            original_scale=original_scale,
             hdi_prob=hdi_prob,
             dims=dims,
             backend=backend,
