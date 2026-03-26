@@ -110,6 +110,10 @@ class ConsiderationSetMixedLogit(MixedLogit):
     _model_type = "Consideration Set Mixed Logit"
     version = "0.1.0"
 
+    _multi_instrument: bool
+    _n_z_instruments: int
+    _z_instrument_names: list[str] | None
+
     def __init__(
         self,
         choice_df: pd.DataFrame,
@@ -214,8 +218,11 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         Returns
         -------
-        tuple[TensorVariable, TensorVariable]
-            (pi, log_pi) both of shape (n_obs, n_alts).
+        pi : TensorVariable
+            Consideration probabilities, shape (n_obs, n_alts).
+        log_pi : TensorVariable
+            Log-consideration probabilities via the numerically stable
+            identity log(sigmoid(x)) = x − softplus(x), shape (n_obs, n_alts).
         """
         gamma_z = self.model_config["gamma_z"].create_variable("gamma_z")
 
@@ -278,33 +285,20 @@ class ConsiderationSetMixedLogit(MixedLogit):
     ) -> pm.Model:
         """Build consideration set mixed logit model.
 
-        Reuses all utility machinery from MixedLogit, then adds the
-        consideration stage and computes log-consideration-adjusted
-        choice probabilities.
+        Reuses all utility machinery from the parent ``MixedLogit``, then
+        adds the consideration stage and computes
+        log-consideration-adjusted choice probabilities via the bridge
+        formula: ``P(j|n) = softmax(log(pi_nj) + V_nj)``.
 
-        Parameters
-        ----------
-        X : np.ndarray
-            Alternative-specific covariates, shape (n_obs, n_alts, n_covariates).
-        F : np.ndarray or None
-            Fixed covariates, shape (n_obs, n_fixed_covariates).
-        y : np.ndarray
-            Observed choices, shape (n_obs,).
-        observed : bool
-            Whether to include observed data in the model.
-
-        Returns
-        -------
-        model : pm.Model
+        Parameters are identical to :meth:`MixedLogit.make_model`.
         """
         Z_tilde = self.consideration_instruments["Z_tilde"]
 
-        # Add z_instruments to coords if multi-instrument
-        coords = dict(self.coords)
-        if self._multi_instrument:
-            coords["z_instruments"] = self._z_instrument_names
+        # Ensure z_instruments coord is present for multi-instrument models
+        if self._multi_instrument and self._z_instrument_names is not None:
+            self.coords["z_instruments"] = self._z_instrument_names
 
-        with pm.Model(coords=coords) as model:
+        with pm.Model(coords=self.coords) as model:
             # --- Data ---
             X_data = pm.Data("X", X, dims=("obs", "alts", "covariates"))
             if self._multi_instrument:
@@ -378,7 +372,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             self._n_z_instruments = 1
             self._z_instrument_names = None
 
-    def sample_posterior_predictive(  # type: ignore[override]
+    def sample_posterior_predictive(  # type: ignore[override]  # consideration_instruments param extends parent signature
         self,
         choice_df: pd.DataFrame | None = None,
         consideration_instruments: dict | None = None,
@@ -424,8 +418,8 @@ class ConsiderationSetMixedLogit(MixedLogit):
                 new_X, new_F, new_y = None, None, None
 
             with self.model:
-                data_dict: dict = {}
-                if new_X is not None:
+                data_dict = {}
+                if new_X is not None and new_y is not None:
                     data_dict["X"] = new_X
                     data_dict["y"] = new_y
                     if new_F is not None and len(new_F) > 0:
@@ -446,7 +440,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         return post_pred
 
-    def apply_intervention(  # type: ignore[override]
+    def apply_intervention(  # type: ignore[override]  # new_consideration_instruments param extends parent signature
         self,
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
@@ -492,7 +486,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             )
 
             with self.model:
-                data_dict: dict = {"X": new_X, "y": new_y}
+                data_dict = {"X": new_X, "y": new_y}
                 if new_F is not None:
                     data_dict["W"] = new_F
                 data_dict["Z"] = self.consideration_instruments["Z_tilde"]
@@ -503,7 +497,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
                     var_names=["p", "likelihood"],
                     return_inferencedata=True,
                     extend_inferencedata=False,
-                    random_seed=100,
+                    random_seed=100,  # TODO: inherit from sampler_config or accept as param
                 )
 
             self.intervention_idata = idata_new_policy
@@ -527,9 +521,22 @@ class ConsiderationSetMixedLogit(MixedLogit):
         return idata_new_policy
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create attributes for the InferenceData object."""
+        """Create attributes for the InferenceData object.
+
+        Z_tilde is not serialized into the attrs dict because it is a
+        large numeric array. When loading a saved model, callers must
+        re-supply ``consideration_instruments`` before prediction.
+        Shape metadata is stored so loaders can validate the new array.
+        """
         attrs = super().create_idata_attrs()
         attrs["consideration_intercept"] = json.dumps(self.consideration_intercept)
         attrs["random_consideration"] = json.dumps(self.random_consideration)
-        attrs["consideration_instruments"] = json.dumps("Placeholder for Z_tilde")
+        attrs["consideration_instruments"] = json.dumps(
+            {
+                "note": "Z_tilde array not serialized; re-supply on load",
+                "Z_tilde_shape": list(self.consideration_instruments["Z_tilde"].shape),
+                "multi_instrument": self._multi_instrument,
+                "z_instrument_names": self._z_instrument_names,
+            }
+        )
         return attrs
