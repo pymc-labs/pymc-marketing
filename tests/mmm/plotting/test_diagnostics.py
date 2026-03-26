@@ -690,11 +690,13 @@ class TestResidualsBasic:
 class TestResidualsElements:
     def test_mean_residuals_line_present(self, simple_plots, simple_data):
         """Mean residuals line y-data must match _compute_residuals().mean(chain/draw)."""
-        from pymc_marketing.mmm.plotting.diagnostics import _compute_residuals
-
         _, axes = simple_plots.residuals()
         ax = axes.flat[0]
-        expected = _compute_residuals(simple_data).mean(dim=("chain", "draw")).values
+        expected = (
+            simple_plots._compute_residuals(simple_data)
+            .mean(dim=("chain", "draw"))
+            .values
+        )
         line_y_arrays = [line.get_ydata() for line in ax.lines]
         assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
             "No line matches the mean residuals"
@@ -864,11 +866,9 @@ class TestResidualsDistributionElements:
         self, simple_plots, simple_data
     ):
         """The x-positions of quantile lines must match the computed quantile values."""
-        from pymc_marketing.mmm.plotting.diagnostics import _compute_residuals
-
         _, axes = simple_plots.residuals_distribution()
         ax = axes.flat[0]
-        residuals = _compute_residuals(simple_data)
+        residuals = simple_plots._compute_residuals(simple_data)
         expected_quantiles = np.quantile(residuals.values.ravel(), [0.25, 0.5, 0.75])
         vertical_x = sorted(
             [
