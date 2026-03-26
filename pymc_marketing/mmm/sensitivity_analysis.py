@@ -323,8 +323,6 @@ class SensitivityAnalysis:
             )
             mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
 
-            # Have to go to tensor (.values), because we don't yet have xtensor.where
-
             # We also have to broadcast the mask_tensor because we can't currently vectorize a set_subtensor with slices
             # otherwise this would suffice: resp_graph[..., ~mask_array].set(0)
             mask_bcast, _ = pt.broadcast_arrays(mask, resp_graph.values)
