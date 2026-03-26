@@ -356,8 +356,9 @@ class TestPosteriorPredictiveCustomization:
 
 class TestPosteriorPredictiveObserved:
     def test_observed_values_match_target(self, simple_plots, simple_data):
-        """The observed line y-data must match data.get_target(original_scale=True)."""
-        _, axes = simple_plots.posterior_predictive()
+        """The observed line y-data must match data.get_target(original_scale=True)
+        when target_var='y_original_scale'."""
+        _, axes = simple_plots.posterior_predictive(target_var="y_original_scale")
         ax = axes.flat[0]
         expected = simple_data.get_target(original_scale=True).values
         line_y_arrays = [line.get_ydata() for line in ax.lines]
@@ -373,6 +374,16 @@ class TestPosteriorPredictiveObserved:
             line_y_arrays = [line.get_ydata() for line in ax.lines]
             # At least one line in each panel has the same length as the date axis
             assert any(len(y) == observed.sizes["date"] for y in line_y_arrays)
+
+    def test_observed_respects_original_scale_false(self, simple_plots, simple_data):
+        """When plotting scaled predictions (target_var='y'), the observed line must use scaled target values."""
+        _, axes = simple_plots.posterior_predictive(target_var="y")
+        ax = axes.flat[0]
+        expected = simple_data.get_target(original_scale=False).values
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
+            "Observed line did not use scaled target when target_var='y'"
+        )
 
 
 class TestPosteriorPredictiveIdataOverride:
@@ -500,10 +511,11 @@ class TestPriorPredictiveCustomization:
 
 class TestPriorPredictiveObserved:
     def test_observed_values_match_target(self, simple_plots, simple_data):
-        """The observed line y-data must match data.get_target(original_scale=True)."""
-        _, axes = simple_plots.prior_predictive()
+        """The observed line y-data must match data.get_target(original_scale=False)
+        when target_var='y' (scaled predictions)."""
+        _, axes = simple_plots.prior_predictive(target_var="y")
         ax = axes.flat[0]
-        expected = simple_data.get_target(original_scale=True).values
+        expected = simple_data.get_target(original_scale=False).values
         line_y_arrays = [line.get_ydata() for line in ax.lines]
         assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
             "No line in the axes matches the observed target values"

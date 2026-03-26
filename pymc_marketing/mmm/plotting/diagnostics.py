@@ -92,99 +92,6 @@ def _get_prior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
     return data.idata.prior_predictive
 
 
-def _plot_predictive(
-    data: MMMIDataWrapper,
-    pp_ds: xr.Dataset,
-    target_var: str,
-    hdi_prob: float,
-    dims: dict[str, Any] | None,
-    backend: str | None,
-    line_kwargs: dict[str, Any] | None,
-    hdi_kwargs: dict[str, Any] | None,
-    observed_kwargs: dict[str, Any] | None,
-    y_label: str,
-    **pc_kwargs,
-) -> PlotCollection:
-    """Shared PlotCollection builder for posterior/prior predictive plots.
-
-    Renders one panel per extra dimension combination. Each panel shows:
-    - A mean line + HDI band for *target_var*.
-    - The observed target as a black line for reference.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Resolved data wrapper (already accounting for any idata override).
-    pp_ds : xr.Dataset
-        The posterior_predictive or prior_predictive group.
-    target_var : str
-        Variable from *pp_ds* to plot. Must exist — caller validates.
-    hdi_prob : float
-        HDI probability mass.
-    dims : dict[str, Any] | None
-        Subset dimensions forwarded to ``_select_dims``.
-    backend : str | None
-        PlotCollection backend.
-    line_kwargs : dict | None
-        Extra kwargs for the predictive mean ``azp.visuals.line_xy`` call.
-    hdi_kwargs : dict | None
-        Extra kwargs for ``azp.visuals.fill_between_y``.
-    observed_kwargs : dict | None
-        Extra kwargs for the observed ``azp.visuals.line_xy`` call.
-        Defaults give a solid black line labelled "Observed".
-    y_label : str
-        Y-axis label (e.g. "Posterior Predictive").
-    **pc_kwargs
-        Forwarded to ``PlotCollection.wrap()``.
-
-    Returns
-    -------
-    PlotCollection
-    """
-    var_da = _select_dims(pp_ds[target_var], dims)
-    # extra_dims comes from data.custom_dims — the authoritative list of
-    # user-defined segment dimensions (e.g. ["geo"] for geo-segmented models).
-    extra_dims = list(data.custom_dims)
-    mean_da = var_da.mean(dim=("chain", "draw"))
-    hdi_da = var_da.azstats.hdi(hdi_prob)
-
-    layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
-    pc = PlotCollection.wrap(layout_ds, cols=extra_dims, backend=backend, **pc_kwargs)
-
-    dates = var_da.coords["date"].values
-
-    pc.map(
-        azp.visuals.line_xy,
-        x=dates,
-        y=mean_da,
-        **{"label": target_var, **(line_kwargs or {})},
-    )
-    pc.map(
-        azp.visuals.fill_between_y,
-        x=dates,
-        y_bottom=hdi_da.sel(ci_bound="lower"),
-        y_top=hdi_da.sel(ci_bound="upper"),
-        **{"alpha": 0.2, **(hdi_kwargs or {})},
-    )
-
-    # Observed target — always original scale so the user can visually compare
-    # predictions against actuals.
-    observed = data.get_target(original_scale=True)
-    observed = _select_dims(observed, dims)
-    pc.map(
-        azp.visuals.line_xy,
-        x=dates,
-        y=observed,
-        **{"label": "Observed", "color": "black", **(observed_kwargs or {})},
-    )
-
-    pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_y, text=y_label, ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
-
-    return pc
-
-
 class DiagnosticsPlots:
     """Time-series diagnostic plots for fitted MMM models.
 
@@ -203,6 +110,100 @@ class DiagnosticsPlots:
 
     def __init__(self, data: MMMIDataWrapper) -> None:
         self._data = data
+
+    def _plot_predictive(
+        self,
+        data: MMMIDataWrapper,
+        pp_ds: xr.Dataset,
+        original_scale: bool,
+        hdi_prob: float,
+        dims: dict[str, Any] | None,
+        backend: str | None,
+        line_kwargs: dict[str, Any] | None,
+        hdi_kwargs: dict[str, Any] | None,
+        observed_kwargs: dict[str, Any] | None,
+        y_label: str,
+        **pc_kwargs,
+    ) -> PlotCollection:
+        """Shared PlotCollection builder for posterior/prior predictive plots.
+
+        Renders one panel per extra dimension combination. Each panel shows:
+        - A mean line + HDI band for the predictive variable.
+        - The observed target as a black line for reference, in the same scale.
+
+        Parameters
+        ----------
+        data : MMMIDataWrapper
+            Resolved data wrapper (already accounting for any idata override).
+        pp_ds : xr.Dataset
+            The posterior_predictive or prior_predictive group.
+        original_scale : bool
+            If True, plots ``y_original_scale``; if False, plots ``y``.
+            Also controls the scale of the observed target line.
+        hdi_prob : float
+            HDI probability mass.
+        dims : dict[str, Any] | None
+            Subset dimensions forwarded to ``_select_dims``.
+        backend : str | None
+            PlotCollection backend.
+        line_kwargs : dict | None
+            Extra kwargs for the predictive mean ``azp.visuals.line_xy`` call.
+        hdi_kwargs : dict | None
+            Extra kwargs for ``azp.visuals.fill_between_y``.
+        observed_kwargs : dict | None
+            Extra kwargs for the observed ``azp.visuals.line_xy`` call.
+            Defaults give a solid black line labelled "Observed".
+        y_label : str
+            Y-axis label (e.g. "Posterior Predictive").
+        **pc_kwargs
+            Forwarded to ``PlotCollection.wrap()``.
+
+        Returns
+        -------
+        PlotCollection
+        """
+        var_name = "y_original_scale" if original_scale else "y"
+        var_da = _select_dims(pp_ds[var_name], dims)
+        extra_dims = list(data.custom_dims)
+        mean_da = var_da.mean(dim=("chain", "draw"))
+        hdi_da = var_da.azstats.hdi(hdi_prob)
+
+        layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
+        pc = PlotCollection.wrap(
+            layout_ds, cols=extra_dims, backend=backend, **pc_kwargs
+        )
+
+        dates = var_da.coords["date"].values
+
+        pc.map(
+            azp.visuals.line_xy,
+            x=dates,
+            y=mean_da,
+            **{"label": var_name, **(line_kwargs or {})},
+        )
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=dates,
+            y_bottom=hdi_da.sel(ci_bound="lower"),
+            y_top=hdi_da.sel(ci_bound="upper"),
+            **{"alpha": 0.2, **(hdi_kwargs or {})},
+        )
+
+        # Observed target — uses the same scale as the predictions so they align.
+        observed = data.get_target(original_scale=original_scale)
+        observed = _select_dims(observed, dims)
+        pc.map(
+            azp.visuals.line_xy,
+            x=dates,
+            y=observed,
+            **{"label": "Observed", "color": "black", **(observed_kwargs or {})},
+        )
+
+        pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
+        pc.map(azp.visuals.labelled_y, text=y_label, ignore_aes={"color"})
+        pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
+
+        return pc
 
     def _compute_residuals(
         self,
@@ -322,10 +323,13 @@ class DiagnosticsPlots:
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
-        pc = _plot_predictive(
+        # Temporary bridge: derive original_scale from target_var for now
+        # (target_var signature is replaced in Task 3)
+        original_scale_flag = target_var == "y_original_scale"
+        pc = self._plot_predictive(
             data=data,
             pp_ds=pp_ds,
-            target_var=target_var,
+            original_scale=original_scale_flag,
             hdi_prob=hdi_prob,
             dims=dims,
             backend=backend,
@@ -410,10 +414,13 @@ class DiagnosticsPlots:
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
-        pc = _plot_predictive(
+        # Temporary bridge: derive original_scale from target_var for now
+        # (target_var signature is replaced in Task 3)
+        original_scale_flag = target_var == "y_original_scale"
+        pc = self._plot_predictive(
             data=data,
             pp_ds=pp_ds,
-            target_var=target_var,
+            original_scale=original_scale_flag,
             hdi_prob=hdi_prob,
             dims=dims,
             backend=backend,
