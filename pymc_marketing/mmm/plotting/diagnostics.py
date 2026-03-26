@@ -244,7 +244,7 @@ class DiagnosticsPlots:
 
     def posterior_predictive(
         self,
-        target_var: str = "y",
+        original_scale: bool = True,
         hdi_prob: float = 0.94,
         idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
@@ -260,12 +260,15 @@ class DiagnosticsPlots:
 
         Creates one panel per extra-dimension combination (e.g. one per geo
         for geo-segmented models). Each panel overlays the posterior mean line,
-        an HDI band, and the observed target (``data.get_target(original_scale=True)``).
+        an HDI band, and the observed target.
 
         Parameters
         ----------
-        target_var : str, default "y"
-            Variable name from posterior_predictive to plot.
+        original_scale : bool, default True
+            If True, plots ``y_original_scale`` from posterior_predictive and
+            the observed target in original units.
+            If False, plots ``y`` (internal model scale) and the observed target
+            in the same scaled units.
         hdi_prob : float, default 0.94
             Probability mass of the HDI band.
         idata : az.InferenceData, optional
@@ -299,7 +302,7 @@ class DiagnosticsPlots:
 
             fig, axes = mmm.plot.diagnostics.posterior_predictive()
             fig, axes = mmm.plot.diagnostics.posterior_predictive(
-                target_var="y", hdi_prob=0.50, dims={"geo": ["CA"]}
+                original_scale=False, hdi_prob=0.50, dims={"geo": ["CA"]}
             )
         """
         data = (
@@ -317,19 +320,17 @@ class DiagnosticsPlots:
 
         pp_ds = _get_posterior_predictive(data)
 
-        if target_var not in pp_ds:
+        var_name = "y_original_scale" if original_scale else "y"
+        if var_name not in pp_ds:
             raise ValueError(
-                f"Variable '{target_var}' not found in posterior_predictive. "
+                f"Variable '{var_name}' not found in posterior_predictive. "
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
-        # Temporary bridge: derive original_scale from target_var for now
-        # (target_var signature is replaced in Task 3)
-        original_scale_flag = target_var == "y_original_scale"
         pc = self._plot_predictive(
             data=data,
             pp_ds=pp_ds,
-            original_scale=original_scale_flag,
+            original_scale=original_scale,
             hdi_prob=hdi_prob,
             dims=dims,
             backend=backend,

@@ -235,29 +235,77 @@ class TestPosteriorPredictiveBasic:
         result = simple_plots.posterior_predictive(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
-    def test_raises_on_missing_var(self, simple_plots):
-        with pytest.raises(ValueError, match="nonexistent"):
-            simple_plots.posterior_predictive(target_var="nonexistent")
-
-    def test_explicit_target_var(self, simple_plots, simple_data):
-        """Explicitly passing target_var='y_original_scale' plots that variable."""
-        _, axes = simple_plots.posterior_predictive(target_var="y_original_scale")
-        ax = axes.flat[0]
-        expected = (
-            simple_data.idata.posterior_predictive["y_original_scale"]
-            .mean(dim=("chain", "draw"))
-            .values
+    def test_raises_when_y_original_scale_missing(self):
+        """original_scale=True must raise clearly when y_original_scale is absent."""
+        rng = np.random.default_rng(0)
+        n_chain, n_draw, n_date = 2, 10, 5
+        coords = {
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "date": np.arange(n_date),
+        }
+        pp = xr.Dataset(
+            {
+                "y": xr.DataArray(
+                    rng.normal(size=(n_chain, n_draw, n_date)),
+                    dims=("chain", "draw", "date"),
+                    coords=coords,
+                ),
+            }
         )
-        line_y_arrays = [line.get_ydata() for line in ax.lines]
-        assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
-            "No line matches y_original_scale posterior mean"
+        const = xr.Dataset(
+            {
+                "target_data": xr.DataArray(
+                    rng.normal(size=(n_date,)),
+                    dims=("date",),
+                    coords={"date": np.arange(n_date)},
+                ),
+                "target_scale": xr.DataArray(1.0),
+            }
         )
+        idata = az.InferenceData(posterior_predictive=pp, constant_data=const)
+        data = MMMIDataWrapper(idata, validate_on_init=False)
+        plots = DiagnosticsPlots(data)
+        with pytest.raises(ValueError, match="y_original_scale"):
+            plots.posterior_predictive(original_scale=True)
 
+    def test_raises_when_y_missing(self):
+        """original_scale=False must raise clearly when y is absent."""
+        rng = np.random.default_rng(0)
+        n_chain, n_draw, n_date = 2, 10, 5
+        coords = {
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "date": np.arange(n_date),
+        }
+        pp = xr.Dataset(
+            {
+                "y_original_scale": xr.DataArray(
+                    rng.normal(size=(n_chain, n_draw, n_date)) * 100 + 500,
+                    dims=("chain", "draw", "date"),
+                    coords=coords,
+                ),
+            }
+        )
+        const = xr.Dataset(
+            {
+                "target_data": xr.DataArray(
+                    rng.normal(size=(n_date,)),
+                    dims=("date",),
+                    coords={"date": np.arange(n_date)},
+                ),
+                "target_scale": xr.DataArray(1.0),
+            }
+        )
+        idata = az.InferenceData(posterior_predictive=pp, constant_data=const)
+        data = MMMIDataWrapper(idata, validate_on_init=False)
+        plots = DiagnosticsPlots(data)
+        with pytest.raises(ValueError, match="'y' not found"):
+            plots.posterior_predictive(original_scale=False)
 
-class TestPosteriorPredictiveElements:
-    def test_predicted_mean_line_present(self, simple_plots, simple_data):
-        """The predicted mean line y-data must match pp_ds['y'].mean(chain/draw)."""
-        _, axes = simple_plots.posterior_predictive()
+    def test_original_scale_false_plots_y(self, simple_plots, simple_data):
+        """original_scale=False must plot the 'y' (scaled) variable."""
+        _, axes = simple_plots.posterior_predictive(original_scale=False)
         ax = axes.flat[0]
         expected = (
             simple_data.idata.posterior_predictive["y"]
@@ -266,7 +314,23 @@ class TestPosteriorPredictiveElements:
         )
         line_y_arrays = [line.get_ydata() for line in ax.lines]
         assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
-            "No line matches the posterior predictive mean"
+            "No line matches y (scaled) posterior mean when original_scale=False"
+        )
+
+
+class TestPosteriorPredictiveElements:
+    def test_predicted_mean_line_present(self, simple_plots, simple_data):
+        """The predicted mean line y-data must match pp_ds['y_original_scale'].mean(chain/draw)."""
+        _, axes = simple_plots.posterior_predictive()
+        ax = axes.flat[0]
+        expected = (
+            simple_data.idata.posterior_predictive["y_original_scale"]
+            .mean(dim=("chain", "draw"))
+            .values
+        )
+        line_y_arrays = [line.get_ydata() for line in ax.lines]
+        assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
+            "No line matches the posterior predictive mean (y_original_scale)"
         )
 
     def test_hdi_band_present(self, simple_plots):
@@ -357,8 +421,8 @@ class TestPosteriorPredictiveCustomization:
 class TestPosteriorPredictiveObserved:
     def test_observed_values_match_target(self, simple_plots, simple_data):
         """The observed line y-data must match data.get_target(original_scale=True)
-        when target_var='y_original_scale'."""
-        _, axes = simple_plots.posterior_predictive(target_var="y_original_scale")
+        when original_scale=True (the default)."""
+        _, axes = simple_plots.posterior_predictive()
         ax = axes.flat[0]
         expected = simple_data.get_target(original_scale=True).values
         line_y_arrays = [line.get_ydata() for line in ax.lines]
@@ -376,13 +440,14 @@ class TestPosteriorPredictiveObserved:
             assert any(len(y) == observed.sizes["date"] for y in line_y_arrays)
 
     def test_observed_respects_original_scale_false(self, simple_plots, simple_data):
-        """When plotting scaled predictions (target_var='y'), the observed line must use scaled target values."""
-        _, axes = simple_plots.posterior_predictive(target_var="y")
+        """When plotting scaled predictions (original_scale=False), the observed line
+        must use scaled target values."""
+        _, axes = simple_plots.posterior_predictive(original_scale=False)
         ax = axes.flat[0]
         expected = simple_data.get_target(original_scale=False).values
         line_y_arrays = [line.get_ydata() for line in ax.lines]
         assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
-            "Observed line did not use scaled target when target_var='y'"
+            "Observed line did not use scaled target when original_scale=False"
         )
 
 
