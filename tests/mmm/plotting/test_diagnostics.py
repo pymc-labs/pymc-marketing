@@ -201,6 +201,7 @@ class TestComputeResiduals:
         assert {"chain", "draw", "date"}.issubset(result.dims)
 
     def test_custom_pp_var(self, simple_plots, simple_data):
+        """pp_var parameter allows non-hardcoded variable name."""
         result = simple_plots._compute_residuals(simple_data, pp_var="y_original_scale")
         assert result.name == "residuals"
 

@@ -560,7 +560,7 @@ class DiagnosticsPlots:
         ----------
         quantiles : list[float], optional
             Quantile probabilities to mark as vertical reference lines.
-            Default ``[0.1, 0.5, 0.9]``. Each value must be in ``[0, 1]``.
+            Default ``[0.25, 0.5, 0.75]``. Each value must be in ``[0, 1]``.
         aggregation : list[str], optional
             Extra custom dimension names to collapse into the distribution
             (added to ``sample_dims`` beyond ``["chain", "draw", "date"]``).
@@ -602,7 +602,7 @@ class DiagnosticsPlots:
         )
 
         if quantiles is None:
-            quantiles = [0.1, 0.5, 0.9]
+            quantiles = [0.25, 0.5, 0.75]
         for q in quantiles:
             if not 0.0 <= q <= 1.0:
                 raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
@@ -628,7 +628,7 @@ class DiagnosticsPlots:
         )
 
         n_quantiles = len(quantiles)
-        line_colors = ["gray"] * (n_quantiles)
+        line_colors = ["black"] + ["gray"] * (n_quantiles - 1)
 
         pc = azp.plot_dist(
             ds,
