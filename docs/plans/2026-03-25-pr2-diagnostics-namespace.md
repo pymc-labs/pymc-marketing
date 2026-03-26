@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python ≥3.12, xarray (`.azstats.hdi()`), arviz-plots (`PlotCollection`, `azp.visuals`), arviz (`az.plot_dist`), matplotlib, numpy, pymc-marketing (`MMMIDataWrapper`, `_helpers.py`)
 
-**Spec:** `docs/plans/2026-03-11-mmmplotsuite-v2-attack-plan-design.md` (PR 2 section)
+**Spec:** `https://raw.githubusercontent.com/pymc-labs/pymc-marketing/refs/heads/isofer/mmmplotsuite-overall/docs/plans/2026-03-11-mmmplotsuite-v2-attack-plan-design.md` (PR 2 section)
 
 ---
 

@@ -201,8 +201,8 @@ class TestComputeResiduals:
         result = _compute_residuals(simple_data)
         assert {"chain", "draw", "date"}.issubset(result.dims)
 
-    def test_custom_pp_var_fix_iv18(self, simple_data):
-        """pp_var parameter allows non-hardcoded variable name (fix IV.18)."""
+    def test_custom_pp_var(self, simple_data):
+        """pp_var parameter allows non-hardcoded variable name."""
         result = _compute_residuals(simple_data, pp_var="y_original_scale")
         assert result.name == "residuals"
 
@@ -413,8 +413,8 @@ class TestPriorPredictiveBasic:
         with pytest.raises(ValueError, match="nonexistent"):
             simple_plots.prior_predictive(target_var="nonexistent")
 
-    def test_fix_iv1_error_messages_reference_prior(self, simple_plots):
-        """IV.1: prior_predictive error messages must say 'prior', not 'posterior'."""
+    def test_error_messages_reference_prior(self):
+        """prior_predictive error messages must say 'prior', not 'posterior'."""
         with pytest.raises(ValueError, match="prior_predictive"):
             data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
             DiagnosticsPlots(data).prior_predictive()

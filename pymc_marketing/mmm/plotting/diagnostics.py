@@ -104,7 +104,6 @@ def _compute_residuals(
         Wrapper holding idata with posterior_predictive and constant_data.
     pp_var : str, default "y_original_scale"
         Variable in posterior_predictive to use as predictions.
-        This parameter was added to fix issue IV.18 (previously hardcoded).
 
     Returns
     -------
@@ -147,8 +146,7 @@ def _plot_predictive(
 
     Renders one panel per extra dimension combination. Each panel shows:
     - A mean line + HDI band for *target_var*.
-    - The observed target (``data.get_target(original_scale=True)``) as a
-      black line for reference.
+    - The observed target as a black line for reference.
 
     Parameters
     ----------
@@ -266,9 +264,9 @@ class DiagnosticsPlots:
         Parameters
         ----------
         target_var : str, default "y"
-            Variable name from posterior_predictive to plot (renamed from ``var`` — II.5).
+            Variable name from posterior_predictive to plot.
         hdi_prob : float, default 0.94
-            Probability mass of the HDI band (renamed from ``hdi_probs`` — II.5).
+            Probability mass of the HDI band.
         idata : az.InferenceData, optional
             Override instance data. Constructs a local MMMIDataWrapper for this
             call only — does not mutate ``self._data``.
@@ -357,13 +355,12 @@ class DiagnosticsPlots:
 
         Mirrors ``posterior_predictive`` but draws from the prior_predictive
         group. Each panel overlays the prior mean line, an HDI band, and the
-        observed target for comparison. Fix for issue IV.1: error messages
-        correctly reference 'prior_predictive'.
+        observed target for comparison.
 
         Parameters
         ----------
         target_var : str, default "y"
-            Variable name from prior_predictive to plot (renamed from ``var`` — II.5).
+            Variable name from prior_predictive to plot.
         hdi_prob : float, default 0.94
             Probability mass of the HDI band.
         idata : az.InferenceData, optional
