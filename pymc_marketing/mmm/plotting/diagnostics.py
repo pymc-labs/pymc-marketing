@@ -92,43 +92,6 @@ def _get_prior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
     return data.idata.prior_predictive
 
 
-def _compute_residuals(
-    data: MMMIDataWrapper,
-    pp_var: str = "y_original_scale",
-) -> xr.DataArray:
-    """Compute residuals as target_data - posterior predictions.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding idata with posterior_predictive and constant_data.
-    pp_var : str, default "y_original_scale"
-        Variable in posterior_predictive to use as predictions.
-
-    Returns
-    -------
-    xr.DataArray
-        Residuals named "residuals" with same dims as *pp_var*
-        (typically ``(chain, draw, date[, extra_dims])``).
-
-    Raises
-    ------
-    ValueError
-        If *pp_var* not in posterior_predictive, or target_data not in constant_data.
-    """
-    pp_ds = _get_posterior_predictive(data)
-    if pp_var not in pp_ds:
-        raise ValueError(
-            f"Variable '{pp_var}' not found in posterior_predictive. "
-            f"Available: {list(pp_ds.data_vars)}"
-        )
-    predictions = pp_ds[pp_var]
-    target = data.get_target(original_scale=True)
-    residuals = target - predictions
-    residuals.name = "residuals"
-    return residuals
-
-
 def _plot_predictive(
     data: MMMIDataWrapper,
     pp_ds: xr.Dataset,
@@ -240,6 +203,43 @@ class DiagnosticsPlots:
 
     def __init__(self, data: MMMIDataWrapper) -> None:
         self._data = data
+
+    def _compute_residuals(
+        self,
+        data: MMMIDataWrapper,
+        pp_var: str = "y_original_scale",
+    ) -> xr.DataArray:
+        """Compute residuals as target_data - posterior predictions.
+
+        Parameters
+        ----------
+        data : MMMIDataWrapper
+            Wrapper holding idata with posterior_predictive and constant_data.
+        pp_var : str, default "y_original_scale"
+            Variable in posterior_predictive to use as predictions.
+
+        Returns
+        -------
+        xr.DataArray
+            Residuals named "residuals" with same dims as *pp_var*
+            (typically ``(chain, draw, date[, extra_dims])``).
+
+        Raises
+        ------
+        ValueError
+            If *pp_var* not in posterior_predictive, or target_data not in constant_data.
+        """
+        pp_ds = _get_posterior_predictive(data)
+        if pp_var not in pp_ds:
+            raise ValueError(
+                f"Variable '{pp_var}' not found in posterior_predictive. "
+                f"Available: {list(pp_ds.data_vars)}"
+            )
+        predictions = pp_ds[pp_var]
+        target = data.get_target(original_scale=True)
+        residuals = target - predictions
+        residuals.name = "residuals"
+        return residuals
 
     def posterior_predictive(
         self,
@@ -486,7 +486,9 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        residuals_da = _compute_residuals(data)  # (chain, draw, date[, extra_dims])
+        residuals_da = self._compute_residuals(
+            data
+        )  # (chain, draw, date[, extra_dims])
         residuals_da = _select_dims(residuals_da, dims)
 
         extra_dims = list(data.custom_dims)
@@ -558,7 +560,7 @@ class DiagnosticsPlots:
         ----------
         quantiles : list[float], optional
             Quantile probabilities to mark as vertical reference lines.
-            Default ``[0.25, 0.5, 0.75]``. Each value must be in ``[0, 1]``.
+            Default ``[0.1, 0.5, 0.9]``. Each value must be in ``[0, 1]``.
         aggregation : list[str], optional
             Extra custom dimension names to collapse into the distribution
             (added to ``sample_dims`` beyond ``["chain", "draw", "date"]``).
@@ -600,12 +602,12 @@ class DiagnosticsPlots:
         )
 
         if quantiles is None:
-            quantiles = [0.25, 0.5, 0.75]
+            quantiles = [0.1, 0.5, 0.9]
         for q in quantiles:
             if not 0.0 <= q <= 1.0:
                 raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
 
-        residuals_da = _compute_residuals(data)
+        residuals_da = self._compute_residuals(data)
         residuals_da = _select_dims(residuals_da, dims)
 
         if aggregation is not None:
@@ -626,7 +628,7 @@ class DiagnosticsPlots:
         )
 
         n_quantiles = len(quantiles)
-        line_colors = ["black"] + ["gray"] * (n_quantiles - 1)
+        line_colors = ["gray"] * (n_quantiles)
 
         pc = azp.plot_dist(
             ds,

@@ -25,7 +25,6 @@ from matplotlib.figure import Figure
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.diagnostics import (
     DiagnosticsPlots,
-    _compute_residuals,
     _get_posterior_predictive,
     _get_prior_predictive,
 )
@@ -192,23 +191,22 @@ class TestGetPriorPredictive:
 
 
 class TestComputeResiduals:
-    def test_returns_dataarray_named_residuals(self, simple_data):
-        result = _compute_residuals(simple_data)
+    def test_returns_dataarray_named_residuals(self, simple_plots, simple_data):
+        result = simple_plots._compute_residuals(simple_data)
         assert isinstance(result, xr.DataArray)
         assert result.name == "residuals"
 
-    def test_has_chain_draw_date_dims(self, simple_data):
-        result = _compute_residuals(simple_data)
+    def test_has_chain_draw_date_dims(self, simple_plots, simple_data):
+        result = simple_plots._compute_residuals(simple_data)
         assert {"chain", "draw", "date"}.issubset(result.dims)
 
-    def test_custom_pp_var(self, simple_data):
-        """pp_var parameter allows non-hardcoded variable name."""
-        result = _compute_residuals(simple_data, pp_var="y_original_scale")
+    def test_custom_pp_var(self, simple_plots, simple_data):
+        result = simple_plots._compute_residuals(simple_data, pp_var="y_original_scale")
         assert result.name == "residuals"
 
-    def test_raises_on_missing_pp_var(self, simple_data):
+    def test_raises_on_missing_pp_var(self, simple_plots, simple_data):
         with pytest.raises(ValueError, match="y_nonexistent"):
-            _compute_residuals(simple_data, pp_var="y_nonexistent")
+            simple_plots._compute_residuals(simple_data, pp_var="y_nonexistent")
 
 
 class TestDiagnosticsPlotsConstructor:
