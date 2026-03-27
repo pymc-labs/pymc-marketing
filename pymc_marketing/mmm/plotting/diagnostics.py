@@ -802,3 +802,92 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
         return _extract_matplotlib_result(pc, return_as_pc)
+
+    def prior_vs_posterior(
+        self,
+        var_names: list[str] | str | None = None,
+        kind: str = "kde",
+        idata: az.InferenceData | None = None,
+        dims: dict[str, Any] | None = None,
+        figsize: tuple[float, float] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        visuals: dict[str, Any] | None = None,
+        aes: dict[str, Any] | None = None,
+        aes_by_visuals: dict[str, Any] | None = None,
+        **pc_kwargs,
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+        """Overlay prior and posterior 1-D marginal KDE distributions.
+
+        Thin wrapper around ``azp.plot_prior_posterior``, which handles
+        the prior/posterior colour legend automatically.
+
+        Parameters
+        ----------
+        var_names : list[str] | str | None, optional
+            Variable(s) to plot. ``None`` plots all variables present in
+            both groups.
+        kind : str, default "kde"
+            Plot kind forwarded to ``azp.plot_prior_posterior``.
+        idata : az.InferenceData, optional
+            Override instance data for this call only.
+        dims : dict[str, Any], optional
+            Coordinate filters, e.g. ``{"channel": ["tv"]}``.
+        figsize : tuple[float, float], optional
+            Figure size forwarded via ``figure_kwargs``.
+        backend : str, optional
+            Rendering backend. Non-matplotlib backends require ``return_as_pc=True``.
+        return_as_pc : bool, default False
+            If True, return the raw ``PlotCollection``.
+        visuals : dict, optional
+            Forwarded to ``azp.plot_prior_posterior``.
+        aes : dict, optional
+            Forwarded to ``azp.plot_prior_posterior`` as an explicit keyword argument.
+        aes_by_visuals : dict, optional
+            Forwarded to ``azp.plot_prior_posterior``.
+        **pc_kwargs
+            Forwarded to ``azp.plot_prior_posterior``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        Examples
+        --------
+        .. code-block:: python
+
+            fig, axes = mmm.plot.diagnostics.prior_vs_posterior()
+            fig, axes = mmm.plot.diagnostics.prior_vs_posterior(
+                var_names=["alpha"], dims={"channel": ["tv"]}
+            )
+        """
+        idata_to_use = idata if idata is not None else self._data.idata
+
+        if not hasattr(idata_to_use, "prior") or idata_to_use.prior is None:
+            raise ValueError(
+                "No prior group found in idata. "
+                "Run MMM.sample_prior_predictive() first."
+            )
+        if not hasattr(idata_to_use, "posterior") or idata_to_use.posterior is None:
+            raise ValueError("No posterior group found in idata. Fit the model first.")
+
+        pc_kwargs = _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+            **pc_kwargs,
+        )
+        coords = _dims_to_sel_kwargs(dims)
+
+        pc = azp.plot_prior_posterior(
+            idata_to_use,
+            kind=kind,
+            var_names=var_names,
+            coords=coords,
+            visuals=visuals,
+            aes_by_visuals=aes_by_visuals,
+            backend=backend,
+            **({"aes": aes} if aes is not None else {}),
+            **pc_kwargs,
+        )
+        return _extract_matplotlib_result(pc, return_as_pc)

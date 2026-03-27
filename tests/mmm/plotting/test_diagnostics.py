@@ -1056,3 +1056,37 @@ class TestPosterior:
         empty_idata = az.InferenceData()
         with pytest.raises(ValueError, match="posterior"):
             dist_plots.posterior(idata=empty_idata)
+
+
+class TestPriorVsPosterior:
+    def test_returns_figure_and_axes(self, dist_plots):
+        fig, axes = dist_plots.prior_vs_posterior()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert len(axes) >= 1
+
+    def test_return_as_pc(self, dist_plots):
+        result = dist_plots.prior_vs_posterior(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_var_names_filters_variables(self, dist_plots):
+        _, axes_all = dist_plots.prior_vs_posterior(var_names=None)
+        _, axes_one = dist_plots.prior_vs_posterior(var_names=["alpha"])
+        assert len(axes_one) < len(axes_all)
+
+    def test_dims_filters_coords(self, dist_plots):
+        _, axes_all = dist_plots.prior_vs_posterior(var_names=["alpha"])
+        _, axes_filtered = dist_plots.prior_vs_posterior(
+            var_names=["alpha"], dims={"channel": ["tv"]}
+        )
+        assert len(axes_filtered) < len(axes_all)
+
+    def test_raises_when_prior_missing(self, dist_plots):
+        no_prior_idata = az.InferenceData(posterior=dist_plots._data.idata.posterior)
+        with pytest.raises(ValueError, match="prior"):
+            dist_plots.prior_vs_posterior(idata=no_prior_idata)
+
+    def test_raises_when_posterior_missing(self, dist_plots):
+        no_posterior_idata = az.InferenceData(prior=dist_plots._data.idata.prior)
+        with pytest.raises(ValueError, match="posterior"):
+            dist_plots.prior_vs_posterior(idata=no_posterior_idata)
