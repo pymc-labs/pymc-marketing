@@ -144,12 +144,14 @@ def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Datas
 class DiagnosticsPlots:
     """Time-series diagnostic plots for fitted MMM models.
 
-    Provides four methods to visualize model fit and residuals:
+    Provides six methods to visualize model fit and residuals:
 
-    - ``posterior_predictive`` — Posterior predictive time series with HDI.
-    - ``prior_predictive``    — Prior predictive time series with HDI.
-    - ``residuals``            — Residuals (target − predictions) over time.
+    - ``posterior_predictive``   — Posterior predictive time series with HDI.
+    - ``prior_predictive``       — Prior predictive time series with HDI.
+    - ``residuals``              — Residuals (target − predictions) over time.
     - ``residuals_distribution`` — Posterior distribution of residuals.
+    - ``posterior``              — 1-D marginal KDE distributions of posterior variables.
+    - ``prior_vs_posterior``     — Overlaid prior and posterior KDE distributions.
 
     Parameters
     ----------
