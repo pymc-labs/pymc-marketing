@@ -357,10 +357,12 @@ class Incrementality:
         n_draws = posterior_sub.sizes["draw"]
 
         # Extract response distribution (batched over samples)
+        posterior_predictive_model = self.model.model
         response_graph = extract_response_distribution(
-            pymc_model=self.model.model,
+            pymc_model=posterior_predictive_model,
             idata=az.InferenceData(posterior=posterior_sub),
             response_variable="channel_contribution",
+            frozen_deterministics=self.model.frozen_deterministics,
         )
         # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
 
@@ -382,7 +384,7 @@ class Incrementality:
         # Compile vectorized evaluator (once, reused for both)
         # Use float64 for evaluation to avoid integer truncation when
         # counterfactual_spend_factor produces fractional values (e.g. 1.01).
-        data_shared = self.model.model["channel_data"]
+        data_shared = posterior_predictive_model["channel_data"]
         data_dtype = data_shared.dtype
         if np.dtype(data_dtype).kind != "f":
             raise ValueError(
@@ -403,12 +405,11 @@ class Incrementality:
         # ``time_index``; otherwise it is unused (e.g. time_varying_intercept
         # without time_varying_media) and would trigger an UnusedInputError.
         has_time_index = (
-            "time_index" in self.model.model.named_vars
-            and self.model.model["time_index"]
-            in ancestors([response_graph], blockers=list())
+            "time_index" in posterior_predictive_model.named_vars
+            and posterior_predictive_model["time_index"] in ancestors([response_graph])
         )
         if has_time_index:
-            time_shared = self.model.model["time_index"]
+            time_shared = posterior_predictive_model["time_index"]
             batched_time = ptx.xtensor(
                 name="time_index_batched",
                 dtype=time_shared.dtype,
@@ -437,7 +438,9 @@ class Incrementality:
         # variable. The PyTensor graph preserves the model's dim order, which
         # may have custom dims (e.g. "country") before "channel".
         cc_dims = list(
-            self.model.model.named_vars_to_dims.get("channel_contribution", ())
+            posterior_predictive_model.named_vars_to_dims.get(
+                "channel_contribution", ()
+            )
         )
         non_date_dims = [d for d in cc_dims if d != "date"]
         extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)

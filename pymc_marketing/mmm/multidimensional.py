@@ -160,10 +160,8 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
-import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
-from pymc.model.fgraph import clone_model as cm
 from pymc.util import RandomState
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
@@ -198,7 +196,7 @@ from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
-    add_cost_per_target_potentials,
+    add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
@@ -1421,9 +1419,17 @@ class MMM(RegressionModelBuilder):
             **self.saturation.model_config,
         }
 
-    def post_sample_model_transformation(self) -> None:
-        """Post-sample model transformation in order to store the HSGP state from fit."""
-        names = []
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """Deterministic variables that must be frozen at posterior values.
+
+        These are Deterministics whose computation involves a reduction over
+        a dimension (e.g. date) whose size may change during out-of-sample
+        evaluation.  Recomputing them with a different dimension size would
+        give wrong results; instead their posterior values should be
+        substituted directly.
+        """
+        names: list[str] = []
         if self.time_varying_intercept:
             names.extend(
                 SoftPlusHSGP.deterministics_to_replace("intercept_latent_process")
@@ -1434,10 +1440,7 @@ class MMM(RegressionModelBuilder):
                     "media_temporal_latent_multiplier"
                 )
             )
-        if not names:
-            return
-
-        self.model = deterministics_to_flat(self.model, names=names)
+        return names
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
@@ -1621,10 +1624,16 @@ class MMM(RegressionModelBuilder):
         # Convert to xarray, renaming date_column to "date" for internal consistency
         df_long = df_long.rename(columns={date_column: "date"})
         if valid_dims:
-            return df_long.set_index(
+            ds = df_long.set_index(
                 ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+        else:
+            ds = df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+
+        # .to_xarray() alphabetically sorts coordinates; restore the
+        # user-provided ordering so downstream code (pm.set_data,
+        # coordinate comparisons, etc.) sees a consistent order.
+        return ds.reindex({metric_coordinate_name: valid_metrics})
 
     def _create_xarray_from_pandas(
         self,
@@ -1760,7 +1769,6 @@ class MMM(RegressionModelBuilder):
             self._time_index = DataArray(
                 np.arange(0, X[self.date_column].unique().shape[0]), dims=("date",)
             )
-            self._time_index_mid = X[self.date_column].unique().shape[0] // 2
             self._time_resolution = (
                 X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
             ).days
@@ -1897,9 +1905,16 @@ class MMM(RegressionModelBuilder):
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
+                name = f"{v}_original_scale"
+                if name in self.model.named_vars:
+                    warnings.warn(
+                        f"{name} already in the model, skipping.",
+                        stacklevel=2,
+                    )
+                    continue
 
                 pmd.Deterministic(
-                    f"{v}_original_scale",
+                    name,
                     (self.model[v] * target_scale).transpose(
                         "date", ..., missing_dims="ignore"
                     ),
@@ -2159,8 +2174,6 @@ class MMM(RegressionModelBuilder):
                 mu_var += mu_effect.create_effect(self)
 
             mu_var.name = "mu"
-            # TODO: Are these dims still needed, they should be implied by mu_var?
-            self.model_config["likelihood"].dims = ("date", *self.dims)
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
@@ -2296,23 +2309,25 @@ class MMM(RegressionModelBuilder):
     def _set_xarray_data(
         self,
         dataset_xarray: xr.Dataset,
+        *,
+        model: pm.Model,
         clone_model: bool = True,
     ) -> pm.Model:
-        """Set xarray data into the model.
+        """Set xarray data into the model (inplace).
 
         Parameters
         ----------
         dataset_xarray : xr.Dataset
             Input data for channels and other variables.
-        clone_model : bool, optional
-            Whether to clone the model. Defaults to True.
+        model : pm.Model
+            The model to set data on.
+            If you don't want to mutate the original model, call model.copy() before passing it.
 
         Returns
         -------
-        None
+        pm.Model
+            The model with updated data.
         """
-        model = cm(self.model) if clone_model else self.model
-
         # Get channel data and handle dtype conversion
         channel_values = dataset_xarray._channel.transpose(
             "date", *self.dims, "channel"
@@ -2354,12 +2369,7 @@ class MMM(RegressionModelBuilder):
             else:
                 data["target_data"] = target_values
 
-        self.new_updated_data = data
-        self.new_updated_coords = coords
-        self.new_updated_model = model
-
-        with model:
-            pm.set_data(data, coords=coords)
+        pm.set_data(data, coords=coords, model=model)
 
         return model
 
@@ -2405,25 +2415,35 @@ class MMM(RegressionModelBuilder):
             X=X,
             include_last_observations=include_last_observations,
         )
+        if names := self.frozen_deterministics:
+            # This always clone
+            model = deterministics_to_flat(self.model, names=names)
+        elif clone_model:
+            model = self.model.copy()
         model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
-            clone_model=clone_model,
+            model=model,
         )
 
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, model, dataset_xarray)
 
-        with model:
-            # Sample from posterior predictive
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, **sample_posterior_predictive_kwargs
-            )
+        # Sample from posterior predictive
+        post_pred = pm.sample_posterior_predictive(
+            self.idata,
+            model=model,
+            **sample_posterior_predictive_kwargs,
+        )
 
-            if extend_idata and self.idata is not None:
-                self.idata.add_groups(
-                    posterior_predictive=post_pred.posterior_predictive,
-                    posterior_predictive_constant_data=post_pred.constant_data,
-                )  # type: ignore
+        if extend_idata and self.idata is not None:
+            if hasattr(self.idata, "posterior_predictive"):
+                del self.idata.posterior_predictive
+            if hasattr(self.idata, "posterior_predictive_constant_data"):
+                del self.idata.posterior_predictive_constant_data
+            self.idata.add_groups(
+                posterior_predictive=post_pred.posterior_predictive,
+                posterior_predictive_constant_data=post_pred.constant_data,
+            )
 
         group = "posterior_predictive"
         posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
@@ -2743,7 +2763,9 @@ class MMM(RegressionModelBuilder):
         """
         # Provide the underlying PyMC model, the model's inference data, and dims
         return SensitivityAnalysis(
-            pymc_model=self.model, idata=self.idata, dims=self.dims
+            pymc_model=self.model,
+            idata=self.idata,
+            dims=self.dims,
         )
 
     @property
@@ -3015,13 +3037,13 @@ class MMM(RegressionModelBuilder):
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
     ) -> None:
-        """Calibrate cost-per-target using constraints via ``pm.Potential``.
+        """Calibrate cost-per-target using an observed Normal likelihood.
 
-        This adds a deterministic ``cpt_variable_name`` computed as
-        ``channel_data_spend / channel_contribution_original_scale`` and creates
-        per-row penalty terms based on ``calibration_data`` using a quadratic penalty:
+        This computes cost-per-target as
+        ``mean(spend) / mean(contribution)`` over the date dimension and adds
+        an observed ``Normal`` likelihood for each calibration row:
 
-        ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+        ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
 
         Parameters
         ----------
@@ -3069,6 +3091,16 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
 
+        # Check for existing potentials with the same name_prefix
+        if name_prefix in self.model.named_vars:
+            warnings.warn(
+                f"Cost-per-target potentials with name '{name_prefix}' already exist. "
+                "Skipping to avoid duplicates.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return
+
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
             raise KeyError("'channel' column missing in calibration_data")
@@ -3105,7 +3137,6 @@ class MMM(RegressionModelBuilder):
                 )
 
         with self.model:
-            # Ensure original-scale contribution exists
             if "channel_contribution_original_scale" not in self.model.named_vars:
                 raise ValueError(
                     "`channel_contribution_original_scale` is not in the model."
@@ -3113,15 +3144,11 @@ class MMM(RegressionModelBuilder):
                     "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
                 )
 
-            denom = ptx.math.clip(
-                self.model["channel_contribution_original_scale"], 1e-12, np.inf
-            )
-            cpt_tensor = as_xtensor(spend_xarray) / denom
-
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_data,
             model=self.model,
-            cpt_value=cpt_tensor,
+            cost_value=as_xtensor(spend_xarray),
+            target_value=self.model["channel_contribution_original_scale"],
             name_prefix=name_prefix,
         )
 
@@ -3440,7 +3467,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Use the model's method to set data
         pymc_model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
-            clone_model=True,  # Ensure we work on a clone
+            model=self.model.copy(),
         )
 
         # Use the model's mu_effects and set data using the model instance
