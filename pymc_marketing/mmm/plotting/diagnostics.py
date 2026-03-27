@@ -550,7 +550,7 @@ class DiagnosticsPlots:
     def residuals_distribution(
         self,
         quantiles: list[float] | None = None,
-        aggregation: list[str] | None = None,
+        aggregation: list[str] | str | None = None,
         idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
@@ -571,11 +571,13 @@ class DiagnosticsPlots:
         quantiles : list[float], optional
             Quantile probabilities to mark as vertical reference lines.
             Default ``[0.0275, 0.5, 0.975]``. Each value must be in ``[0, 1]``.
-        aggregation : list[str], optional
+        aggregation : list[str] or str, optional
             Extra custom dimension names to collapse into the distribution
             (added to ``sample_dims`` beyond ``["chain", "draw", "date"]``).
-            Example: ``aggregation=["geo"]`` merges geo panels into one combined
-            distribution. Default ``None`` — extra dims are structural facet dims.
+            A single string is accepted and treated as ``[aggregation]``.
+            Example: ``aggregation="geo"`` or ``aggregation=["geo"]`` merges geo
+            panels into one combined distribution. Default ``None`` — extra dims
+            are structural facet dims.
         idata : az.InferenceData, optional
             Override instance data.
         dims : dict[str, Any], optional
@@ -620,6 +622,8 @@ class DiagnosticsPlots:
         residuals_da = self._compute_residuals(data)
         residuals_da = _select_dims(residuals_da, dims)
 
+        if isinstance(aggregation, str):
+            aggregation = [aggregation]
         if aggregation is not None:
             for dim in aggregation:
                 if dim not in residuals_da.dims:

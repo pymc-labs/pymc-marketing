@@ -833,7 +833,7 @@ class TestResidualsDistributionElements:
         )
 
     def test_default_three_quantile_lines_present(self, simple_plots):
-        """Default quantiles=[0.25, 0.5, 0.75] must produce exactly 3 reference lines
+        """Default quantiles=[0.0275, 0.5, 0.975] must produce exactly 3 reference lines
         beyond the KDE curve (total >= 4 lines)."""
         _, axes = simple_plots.residuals_distribution()
         ax = axes.flat[0]
@@ -869,7 +869,7 @@ class TestResidualsDistributionElements:
         _, axes = simple_plots.residuals_distribution()
         ax = axes.flat[0]
         residuals = simple_plots._compute_residuals(simple_data)
-        expected_quantiles = np.quantile(residuals.values.ravel(), [0.25, 0.5, 0.75])
+        expected_quantiles = np.quantile(residuals.values.ravel(), [0.0275, 0.5, 0.975])
         vertical_x = sorted(
             [
                 line.get_xdata()[0]
