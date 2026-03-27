@@ -19,7 +19,6 @@ from typing import Any
 
 import arviz as az
 import arviz_plots as azp
-import numpy as np
 import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
@@ -714,12 +713,4 @@ class DiagnosticsPlots:
             color=line_colors,
         )
 
-        if return_as_pc:
-            return pc
-
-        # azp.plot_dist creates a PlotCollection whose viz dataset does not
-        # include a "plot" key (unlike PlotCollection.wrap).  Extract axes
-        # directly from the figure instead.
-        fig = pc.viz.ds["figure"].item()
-        axes = np.atleast_1d(np.array(fig.get_axes()))
-        return fig, axes
+        return _extract_matplotlib_result(pc, return_as_pc)
