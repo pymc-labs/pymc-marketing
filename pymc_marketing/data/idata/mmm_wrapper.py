@@ -395,6 +395,12 @@ class MMMIDataWrapper:
 
     # ==================== Contribution Access ====================
 
+    @property
+    def _link(self) -> str:
+        """Detect the link function from idata attributes, defaulting to 'identity'."""
+        attrs = getattr(self.idata, "attrs", {})
+        return attrs.get("link", "identity")
+
     def get_channel_contributions(self, original_scale: bool = True) -> xr.DataArray:
         """Get channel contribution posterior samples.
 
@@ -419,7 +425,6 @@ class MMMIDataWrapper:
             include_controls=False,
             include_seasonality=False,
         )
-        # Extract from Dataset - xarray preserves coordinate structure
         return contributions["channels"]
 
     def get_contributions(
@@ -430,6 +435,11 @@ class MMMIDataWrapper:
         include_seasonality: bool = True,
     ) -> xr.Dataset:
         """Get all contribution variables in a single dataset.
+
+        For identity-link models, contributions are computed by multiplying
+        log-space values by ``target_scale``.  For log-link models, a hybrid
+        decomposition is used: counterfactual total media lift with
+        proportional log-space channel shares.
 
         Parameters
         ----------
@@ -452,27 +462,41 @@ class MMMIDataWrapper:
         ValueError
             If original_scale=True and target_scale is not found in constant_data
         """
-        contributions = {}
+        if self._link == "log" and original_scale:
+            return self._get_contributions_log_link(
+                include_baseline=include_baseline,
+                include_controls=include_controls,
+                include_seasonality=include_seasonality,
+            )
+        return self._get_contributions_identity(
+            original_scale=original_scale,
+            include_baseline=include_baseline,
+            include_controls=include_controls,
+            include_seasonality=include_seasonality,
+        )
 
-        # Channel contributions
-        # Channels variables - use "channels" (plural) as key to avoid xarray
-        # dimension/key name conflict (a key matching a dimension name gets
-        # promoted to a coordinate instead of staying as a data variable)
+    def _get_contributions_identity(
+        self,
+        original_scale: bool = True,
+        include_baseline: bool = True,
+        include_controls: bool = True,
+        include_seasonality: bool = True,
+    ) -> xr.Dataset:
+        """Additive decomposition for identity-link models."""
+        contributions: dict[str, xr.DataArray] = {}
+
         if original_scale:
             if "channel_contribution_original_scale" in self.idata.posterior:
                 contributions["channels"] = (
                     self.idata.posterior.channel_contribution_original_scale
                 )
             else:
-                # Compute on-the-fly
                 channel_contrib = self.idata.posterior.channel_contribution
                 target_scale = self.get_target_scale()
-                # xarray automatically handles broadcasting when dimensions match
                 contributions["channels"] = channel_contrib * target_scale
         else:
             contributions["channels"] = self.idata.posterior.channel_contribution
 
-        # Baseline/intercept
         if include_baseline:
             for var in ["intercept_contribution", "intercept_baseline"]:
                 if var in self.idata.posterior:
@@ -484,9 +508,6 @@ class MMMIDataWrapper:
                         contributions["baseline"] = baseline
                     break
 
-        # Control variables - use "controls" (plural) as key to avoid xarray
-        # dimension/key name conflict (a key matching a dimension name gets
-        # promoted to a coordinate instead of staying as a data variable)
         if include_controls and "control_contribution" in self.idata.posterior:
             control = self.idata.posterior.control_contribution
             if original_scale:
@@ -500,7 +521,6 @@ class MMMIDataWrapper:
             else:
                 contributions["controls"] = control
 
-        # Seasonality
         if (
             include_seasonality
             and "yearly_seasonality_contribution" in self.idata.posterior
@@ -519,6 +539,47 @@ class MMMIDataWrapper:
                     contributions["seasonality"] = seasonality * target_scale
             else:
                 contributions["seasonality"] = seasonality
+
+        return xr.Dataset(contributions)
+
+    def _get_contributions_log_link(
+        self,
+        include_baseline: bool = True,
+        include_controls: bool = True,
+        include_seasonality: bool = True,
+    ) -> xr.Dataset:
+        """Hybrid decomposition for log-link models (always original-scale).
+
+        Uses counterfactual total media lift with proportional log-space
+        channel shares so that per-channel contributions sum to the total
+        media lift.
+        """
+        posterior = self.idata.posterior
+        target_scale = self.get_target_scale()
+
+        mu_total = posterior["mu"]
+        channel_contrib = posterior["channel_contribution"]
+        media_total_log = channel_contrib.sum(dim="channel")
+
+        y_hat = np.exp(mu_total) * target_scale
+        y_hat_no_media = np.exp(mu_total - media_total_log) * target_scale
+        total_media_lift = y_hat - y_hat_no_media
+
+        per_channel_shares = channel_contrib / media_total_log
+        per_channel_shares = per_channel_shares.fillna(0.0)
+
+        contributions: dict[str, xr.DataArray] = {
+            "channels": total_media_lift * per_channel_shares,
+        }
+
+        if include_baseline:
+            contributions["baseline"] = y_hat_no_media
+
+        if include_controls and "control_contribution" in posterior:
+            contributions["controls"] = posterior["control_contribution"]
+
+        if include_seasonality and "yearly_seasonality_contribution" in posterior:
+            contributions["seasonality"] = posterior["yearly_seasonality_contribution"]
 
         return xr.Dataset(contributions)
 

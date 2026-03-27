@@ -200,6 +200,7 @@ from pymc_marketing.mmm.lift_test import (
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
+from pymc_marketing.mmm.link import LinkFunction, LinkSpec, get_link_spec
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.scaling import Scaling, VariableScaling
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
@@ -547,6 +548,15 @@ class MMM(RegressionModelBuilder):
         outcome_node: str | None = Field(
             None, description="Name of the outcome variable."
         ),
+        link: str = Field(
+            "identity",
+            description=(
+                "Link function relating the linear predictor to the "
+                "response scale. 'identity' (default) gives an additive "
+                "model; 'log' gives a multiplicative model via LogNormal "
+                "likelihood."
+            ),
+        ),
         cost_per_unit: InstanceOf[pd.DataFrame] | None = Field(
             default=None,
             description=(
@@ -559,7 +569,9 @@ class MMM(RegressionModelBuilder):
         ),
     ) -> None:
         """Define the constructor method."""
-        # Your existing initialization logic
+        self.link = LinkFunction(link)
+        self._link_spec: LinkSpec = get_link_spec(self.link)
+
         self.control_columns = control_columns
         self.time_varying_intercept = time_varying_intercept
         self.time_varying_media = time_varying_media
@@ -721,6 +733,7 @@ class MMM(RegressionModelBuilder):
             or self.dims != other.dims
             or self.control_columns != other.control_columns
             or self.adstock_first != other.adstock_first
+            or self.link != other.link
         ):
             return False
 
@@ -1046,6 +1059,7 @@ class MMM(RegressionModelBuilder):
             }
         )
         attrs["target_column"] = self.target_column
+        attrs["link"] = self.link.value
         attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
@@ -1123,6 +1137,7 @@ class MMM(RegressionModelBuilder):
             "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
             "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
+            "link": attrs.get("link", "identity"),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
             "time_varying_intercept": hsgp_from_dict(
                 json.loads(attrs.get("time_varying_intercept", "false"))
@@ -1250,10 +1265,12 @@ class MMM(RegressionModelBuilder):
     def compute_mean_contributions_over_time(self) -> pd.DataFrame:
         """Get the mean contribution of each component over time in original scale.
 
-        Extracts channel, control, seasonality, and intercept contributions from
-        the posterior, computes the mean over MCMC samples (chain and draw), and
-        converts to original scale by multiplying by the target scaler stored in
-        ``idata.constant_data["target_scale"]``.
+        For identity-link models, contributions are computed by multiplying each
+        posterior component by ``target_scale``.  For log-link models, a hybrid
+        decomposition strategy is used: the total media lift is computed
+        counterfactually, and per-channel shares are allocated proportionally in
+        log-space so that channel contributions sum exactly to the total media
+        lift.
 
         This method does **not** require
         :meth:`add_original_scale_contribution_variable` to have been called.
@@ -1270,7 +1287,7 @@ class MMM(RegressionModelBuilder):
             - One column per channel (named after channel coordinate labels)
             - One column per control variable (if present)
             - ``yearly_seasonality`` (if yearly seasonality is enabled)
-            - ``intercept``
+            - ``intercept`` (identity link) or ``non_media`` (log link)
 
         Raises
         ------
@@ -1292,6 +1309,12 @@ class MMM(RegressionModelBuilder):
             Full posterior contributions as an ``xr.Dataset``.
         """
         self._validate_idata_exists()
+        if self.link == LinkFunction.LOG:
+            return self._compute_multiplicative_contributions()
+        return self._compute_additive_contributions()
+
+    def _compute_additive_contributions(self) -> pd.DataFrame:
+        """Compute contributions using additive decomposition (identity link)."""
         idata: az.InferenceData = cast(az.InferenceData, self.idata)
 
         posterior: xr.Dataset = idata.posterior
@@ -1318,6 +1341,41 @@ class MMM(RegressionModelBuilder):
 
         merged: xr.Dataset = xr.merge(parts)
         return merged.to_dataframe().reset_index()
+
+    def _compute_multiplicative_contributions(self) -> pd.DataFrame:
+        """Compute contributions using hybrid decomposition (log link).
+
+        Layer 1: total media lift via counterfactual
+        Layer 2: per-channel allocation within media via log-space proportional shares
+        """
+        idata: az.InferenceData = cast(az.InferenceData, self.idata)
+
+        posterior: xr.Dataset = idata.posterior
+        target_scale: xr.DataArray = idata.constant_data["target_scale"]
+
+        mu_total: xr.DataArray = posterior["mu"]
+        channel_contrib: xr.DataArray = posterior["channel_contribution"]
+        media_total_log: xr.DataArray = channel_contrib.sum(dim="channel")
+
+        y_hat = (np.exp(mu_total) * target_scale).mean(("chain", "draw"))
+        y_hat_no_media = (np.exp(mu_total - media_total_log) * target_scale).mean(
+            ("chain", "draw")
+        )
+        total_media_lift = y_hat - y_hat_no_media
+
+        parts: dict[str, xr.DataArray] = {}
+        for ch in channel_contrib.coords["channel"].values:
+            ch_log = channel_contrib.sel(channel=ch).drop_vars(
+                "channel", errors="ignore"
+            )
+            share = (ch_log / media_total_log).mean(("chain", "draw"))
+            share = share.fillna(0.0)
+            parts[str(ch)] = total_media_lift * share
+
+        parts["non_media"] = y_hat_no_media
+
+        result: xr.Dataset = xr.Dataset(parts)
+        return result.to_dataframe().reset_index()
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
@@ -1380,12 +1438,8 @@ class MMM(RegressionModelBuilder):
     def default_model_config(self) -> dict:
         """Define the default model configuration."""
         base_config = {
-            "intercept": Prior("Normal", mu=0, sigma=2, dims=self.dims),
-            "likelihood": Prior(
-                "Normal",
-                sigma=Prior("HalfNormal", sigma=2, dims=self.dims),
-                dims=("date", *self.dims),
-            ),
+            "intercept": self._link_spec.default_intercept(self.dims),
+            "likelihood": self._link_spec.default_likelihood(self.dims),
             "gamma_control": Prior(
                 "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
             ),
@@ -1886,10 +1940,20 @@ class MMM(RegressionModelBuilder):
 
         Restricted to the model parameters. Only make it possible for "_contribution" variables.
 
+        For log-link models, contributions live in log-space so the simple
+        ``variable * target_scale`` conversion is not meaningful.  This method
+        raises ``ValueError`` when called with ``link='log'`` to prevent
+        silently incorrect results.
+
         Parameters
         ----------
         var : list[str]
             The variables to add the original scale contribution variable.
+
+        Raises
+        ------
+        ValueError
+            When called on a log-link model.
 
         Examples
         --------
@@ -1901,6 +1965,16 @@ class MMM(RegressionModelBuilder):
 
         """
         self._validate_model_was_built()
+
+        if self.link == LinkFunction.LOG:
+            raise ValueError(
+                "add_original_scale_contribution_variable is not supported for "
+                "log-link models because contributions are in log-space and "
+                "cannot be converted to original scale by simple multiplication. "
+                "Use compute_mean_contributions_over_time() instead, which "
+                "applies the correct counterfactual decomposition."
+            )
+
         target_scale = self.model["target_scale"]
         with self.model:
             for v in var:
@@ -2026,6 +2100,22 @@ class MMM(RegressionModelBuilder):
             X=X,  # type: ignore
             y=y,  # type: ignore
         )
+
+        self._link_spec.validate_target(np.asarray(y))
+        LinkSpec.validate_likelihood_compatibility(
+            self.link, self.model_config["likelihood"]
+        )
+
+        if self.link == LinkFunction.LOG and self.mu_effects:
+            warnings.warn(
+                "With link='log', MuEffect components that are additive on "
+                "the linear predictor become multiplicative factors on y "
+                "(via exp). Verify that your mu_effects are intended for "
+                "use in a multiplicative model.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         # Compute and save scales
         self._compute_scales()
 
@@ -2125,11 +2215,6 @@ class MMM(RegressionModelBuilder):
                 channel_contribution.transpose("date", ...),
             )
 
-            pmd.Deterministic(
-                "total_media_contribution_original_scale",
-                (channel_contribution.sum(dim="date") * _target_scale).sum(),
-            )
-
             # Add other contributions and likelihood
             mu_var = intercept + channel_contribution.sum(dim="channel")
 
@@ -2173,7 +2258,17 @@ class MMM(RegressionModelBuilder):
             for mu_effect in self.mu_effects:
                 mu_var += mu_effect.create_effect(self)
 
-            mu_var.name = "mu"
+            if self.link == LinkFunction.LOG:
+                mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
+            else:
+                mu_var.name = "mu"
+
+            self._link_spec.create_media_contribution_deterministic(
+                mu_var=mu_var,
+                channel_contribution=channel_contribution,
+                target_scale=_target_scale,
+            )
+
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
