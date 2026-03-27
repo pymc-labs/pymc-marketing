@@ -170,7 +170,7 @@ class DiagnosticsPlots:
 
         layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
         pc = PlotCollection.wrap(
-            layout_ds, cols=extra_dims, backend=backend, **pc_kwargs
+            layout_ds, cols=extra_dims, backend=backend, col_wrap=1, **pc_kwargs
         )
 
         dates = var_da.coords["date"].values
@@ -507,7 +507,7 @@ class DiagnosticsPlots:
 
         layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="residuals")
         pc = PlotCollection.wrap(
-            layout_ds, cols=extra_dims, backend=backend, **pc_kwargs
+            layout_ds, cols=extra_dims, backend=backend, col_wrap=1, **pc_kwargs
         )
 
         dates = residuals_da.coords["date"].values
@@ -570,7 +570,7 @@ class DiagnosticsPlots:
         ----------
         quantiles : list[float], optional
             Quantile probabilities to mark as vertical reference lines.
-            Default ``[0.25, 0.5, 0.75]``. Each value must be in ``[0, 1]``.
+            Default ``[0.0275, 0.5, 0.975]``. Each value must be in ``[0, 1]``.
         aggregation : list[str], optional
             Extra custom dimension names to collapse into the distribution
             (added to ``sample_dims`` beyond ``["chain", "draw", "date"]``).
@@ -612,7 +612,7 @@ class DiagnosticsPlots:
         )
 
         if quantiles is None:
-            quantiles = [0.25, 0.5, 0.75]
+            quantiles = [0.0275, 0.5, 0.975]
         for q in quantiles:
             if not 0.0 <= q <= 1.0:
                 raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
@@ -638,7 +638,7 @@ class DiagnosticsPlots:
         )
 
         n_quantiles = len(quantiles)
-        line_colors = ["black"] + ["gray"] * (n_quantiles - 1)
+        line_colors = ["gray"] * n_quantiles
 
         pc = azp.plot_dist(
             ds,
