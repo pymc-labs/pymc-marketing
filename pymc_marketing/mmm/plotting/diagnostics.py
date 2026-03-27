@@ -27,6 +27,7 @@ from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting._helpers import (
+    _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
@@ -713,4 +714,91 @@ class DiagnosticsPlots:
             color=line_colors,
         )
 
+        return _extract_matplotlib_result(pc, return_as_pc)
+
+    def posterior(
+        self,
+        var_names: list[str] | str | None = None,
+        kind: str = "kde",
+        group: str = "posterior",
+        idata: az.InferenceData | None = None,
+        dims: dict[str, Any] | None = None,
+        figsize: tuple[float, float] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        visuals: dict[str, Any] | None = None,
+        aes: dict[str, Any] | None = None,
+        aes_by_visuals: dict[str, Any] | None = None,
+        **pc_kwargs,
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+        """Plot 1-D marginal KDE distributions for one or more posterior variables.
+
+        Thin wrapper around ``azp.plot_dist``.
+
+        Parameters
+        ----------
+        var_names : list[str] | str | None, optional
+            Variable(s) to plot. ``None`` plots all variables in *group*.
+        kind : str, default "kde"
+            Plot kind forwarded to ``azp.plot_dist`` (e.g. ``"kde"``, ``"hist"``).
+        group : str, default "posterior"
+            InferenceData group to draw from. Use ``"prior"`` to quickly inspect
+            the prior without calling ``prior_vs_posterior``.
+        idata : az.InferenceData, optional
+            Override instance data for this call only.
+        dims : dict[str, Any], optional
+            Coordinate filters, e.g. ``{"channel": ["tv", "radio"]}``.
+        figsize : tuple[float, float], optional
+            Figure size forwarded via ``figure_kwargs``.
+        backend : str, optional
+            Rendering backend. Non-matplotlib backends require ``return_as_pc=True``.
+        return_as_pc : bool, default False
+            If True, return the raw ``PlotCollection``.
+        visuals : dict, optional
+            Forwarded to ``azp.plot_dist``.
+        aes : dict, optional
+            Forwarded to ``azp.plot_dist`` as an explicit keyword argument.
+        aes_by_visuals : dict, optional
+            Forwarded to ``azp.plot_dist``.
+        **pc_kwargs
+            Forwarded to ``azp.plot_dist``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        Examples
+        --------
+        .. code-block:: python
+
+            fig, axes = mmm.plot.diagnostics.posterior()
+            fig, axes = mmm.plot.diagnostics.posterior(
+                var_names=["alpha"], dims={"channel": ["tv"]}
+            )
+        """
+        idata_to_use = idata if idata is not None else self._data.idata
+
+        if not hasattr(idata_to_use, group) or getattr(idata_to_use, group) is None:
+            raise ValueError(f"No {group} group found in idata. Fit the model first.")
+
+        pc_kwargs = _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+            **pc_kwargs,
+        )
+        coords = _dims_to_sel_kwargs(dims)
+
+        pc = azp.plot_dist(
+            idata_to_use,
+            kind=kind,
+            var_names=var_names,
+            group=group,
+            coords=coords,
+            visuals=visuals,
+            aes_by_visuals=aes_by_visuals,
+            backend=backend,
+            **({"aes": aes} if aes is not None else {}),
+            **pc_kwargs,
+        )
         return _extract_matplotlib_result(pc, return_as_pc)

@@ -198,6 +198,54 @@ def panel_plots(panel_data) -> DiagnosticsPlots:
     return DiagnosticsPlots(panel_data)
 
 
+@pytest.fixture(scope="module")
+def posterior_idata() -> az.InferenceData:
+    """InferenceData with posterior + prior groups for distribution plot tests."""
+    rng = np.random.default_rng(SEED)
+    n_chain, n_draw = 2, 50
+    channels = ["tv", "radio", "social"]
+    base_coords = {"chain": range(n_chain), "draw": range(n_draw)}
+    chan_coords = {**base_coords, "channel": channels}
+
+    posterior = xr.Dataset(
+        {
+            "alpha": xr.DataArray(
+                rng.normal(size=(n_chain, n_draw, len(channels))),
+                dims=("chain", "draw", "channel"),
+                coords=chan_coords,
+            ),
+            "sigma": xr.DataArray(
+                rng.normal(size=(n_chain, n_draw)),
+                dims=("chain", "draw"),
+                coords=base_coords,
+            ),
+        }
+    )
+    prior = xr.Dataset(
+        {
+            "alpha": xr.DataArray(
+                rng.normal(size=(n_chain, n_draw, len(channels))),
+                dims=("chain", "draw", "channel"),
+                coords=chan_coords,
+            ),
+            "sigma": xr.DataArray(
+                rng.normal(size=(n_chain, n_draw)),
+                dims=("chain", "draw"),
+                coords=base_coords,
+            ),
+        }
+    )
+    const = xr.Dataset(coords={"channel": channels})
+    return az.InferenceData(posterior=posterior, prior=prior, constant_data=const)
+
+
+@pytest.fixture(scope="module")
+def dist_plots(posterior_idata) -> DiagnosticsPlots:
+    """DiagnosticsPlots backed by posterior_idata (no MMMIDataWrapper validation)."""
+    wrapper = MMMIDataWrapper(posterior_idata, validate_on_init=False)
+    return DiagnosticsPlots(wrapper)
+
+
 # ============================================================================
 # Helper tests
 # ============================================================================
@@ -969,3 +1017,42 @@ def test_diagnostics_plots_importable_from_package():
     from pymc_marketing.mmm.plotting import DiagnosticsPlots as DP
 
     assert DP is DiagnosticsPlots
+
+
+# ============================================================================
+# Posterior distribution plots
+# ============================================================================
+
+
+class TestPosterior:
+    def test_returns_figure_and_axes(self, dist_plots):
+        fig, axes = dist_plots.posterior()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert len(axes) >= 1
+
+    def test_return_as_pc(self, dist_plots):
+        result = dist_plots.posterior(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_var_names_filters_variables(self, dist_plots):
+        _, axes_all = dist_plots.posterior(var_names=None)
+        _, axes_one = dist_plots.posterior(var_names=["alpha"])
+        assert len(axes_one) < len(axes_all)
+
+    def test_group_prior(self, dist_plots):
+        # group="prior" should complete without error
+        fig, _axes = dist_plots.posterior(group="prior")
+        assert isinstance(fig, Figure)
+
+    def test_dims_filters_coords(self, dist_plots):
+        _, axes_all = dist_plots.posterior(var_names=["alpha"])
+        _, axes_filtered = dist_plots.posterior(
+            var_names=["alpha"], dims={"channel": ["tv"]}
+        )
+        assert len(axes_filtered) < len(axes_all)
+
+    def test_raises_when_posterior_missing(self, dist_plots):
+        empty_idata = az.InferenceData()
+        with pytest.raises(ValueError, match="posterior"):
+            dist_plots.posterior(idata=empty_idata)
