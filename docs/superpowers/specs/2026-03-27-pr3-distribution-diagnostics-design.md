@@ -58,15 +58,13 @@ def _extract_matplotlib_result(pc, return_as_pc):
     if return_as_pc:
         return pc
     fig = pc.viz.ds["figure"].item()
-    if "plot" in pc.viz.ds:
-        axes = np.atleast_1d(np.array(pc.viz.ds["plot"].values.flat))
-    else:
-        axes = np.atleast_1d(np.array(fig.get_axes()))
+    axes = np.atleast_1d(np.array(fig.get_axes()))
     return fig, axes
 ```
 
-`residuals_distribution` (PR2) currently does the fallback extraction inline.
-PR3 updates it to use the unified helper instead.
+`fig.get_axes()` works for both `PlotCollection.wrap()`-based and
+`azp.plot_dist`-based PCs — no conditional needed. `residuals_distribution`
+(PR2) currently does this inline; PR3 updates it to use the unified helper.
 
 ---
 
