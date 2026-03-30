@@ -721,13 +721,13 @@ class DiagnosticsPlots:
     def posterior(
         self,
         var_names: list[str] | str | None = None,
-        kind: str = "kde",
         group: str = "posterior",
         idata: az.InferenceData | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
         return_as_pc: bool = False,
+        kind: str = "kde",
         visuals: dict[str, Any] | None = None,
         aes: dict[str, Any] | None = None,
         aes_by_visuals: dict[str, Any] | None = None,
@@ -741,8 +741,6 @@ class DiagnosticsPlots:
         ----------
         var_names : list[str] | str | None, optional
             Variable(s) to plot. ``None`` plots all variables in *group*.
-        kind : str, default "kde"
-            Plot kind forwarded to ``azp.plot_dist`` (e.g. ``"kde"``, ``"hist"``).
         group : str, default "posterior"
             InferenceData group to draw from. Use ``"prior"`` to quickly inspect
             the prior without calling ``prior_vs_posterior``.
@@ -756,6 +754,8 @@ class DiagnosticsPlots:
             Rendering backend. Non-matplotlib backends require ``return_as_pc=True``.
         return_as_pc : bool, default False
             If True, return the raw ``PlotCollection``.
+        kind : str, default "kde"
+            Plot kind forwarded to ``azp.plot_dist`` (e.g. ``"kde"``, ``"hist"``).
         visuals : dict, optional
             Forwarded to ``azp.plot_dist``.
         aes : dict, optional
