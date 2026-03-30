@@ -488,7 +488,7 @@ class DiagnosticsPlots:
         )
         return _extract_matplotlib_result(pc, return_as_pc)
 
-    def residuals(
+    def residuals_over_time(
         self,
         hdi_prob: float = 0.94,
         idata: az.InferenceData | None = None,
@@ -533,8 +533,8 @@ class DiagnosticsPlots:
         --------
         .. code-block:: python
 
-            fig, axes = mmm.plot.diagnostics.residuals()
-            fig, axes = mmm.plot.diagnostics.residuals(hdi_prob=0.50)
+            fig, axes = mmm.plot.diagnostics.residuals_over_time()
+            fig, axes = mmm.plot.diagnostics.residuals_over_time(hdi_prob=0.50)
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)

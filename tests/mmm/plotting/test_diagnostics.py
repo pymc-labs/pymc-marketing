@@ -724,23 +724,23 @@ class TestPriorPredictiveIdataOverride:
 
 class TestResidualsBasic:
     def test_returns_figure_and_axes(self, simple_plots):
-        fig, axes = simple_plots.residuals()
+        fig, axes = simple_plots.residuals_over_time()
         assert isinstance(fig, Figure)
         assert isinstance(axes, np.ndarray)
 
     def test_single_panel_no_extra_dims(self, simple_plots):
-        _, axes = simple_plots.residuals()
+        _, axes = simple_plots.residuals_over_time()
         assert axes.size == 1
 
     def test_return_as_pc(self, simple_plots):
-        result = simple_plots.residuals(return_as_pc=True)
+        result = simple_plots.residuals_over_time(return_as_pc=True)
         assert isinstance(result, PlotCollection)
 
 
 class TestResidualsElements:
     def test_mean_residuals_line_present(self, simple_plots, simple_data):
         """Mean residuals line y-data must match _compute_residuals().mean(chain/draw)."""
-        _, axes = simple_plots.residuals()
+        _, axes = simple_plots.residuals_over_time()
         ax = axes.flat[0]
         expected = (
             simple_plots._compute_residuals(simple_data)
@@ -754,7 +754,7 @@ class TestResidualsElements:
 
     def test_zero_hline_present(self, simple_plots):
         """A horizontal line at y=0 (reference line) must be present."""
-        _, axes = simple_plots.residuals()
+        _, axes = simple_plots.residuals_over_time()
         ax = axes.flat[0]
         # axhline creates a Line2D whose y-data is constant 0.0
         hline_y_arrays = [line.get_ydata() for line in ax.lines]
@@ -764,7 +764,7 @@ class TestResidualsElements:
 
     def test_hdi_band_present(self, simple_plots):
         """HDI fill_between band must create at least one collection in the axes."""
-        _, axes = simple_plots.residuals()
+        _, axes = simple_plots.residuals_over_time()
         ax = axes.flat[0]
         assert len(ax.collections) > 0, (
             "No HDI band found in residuals axes (expected fill_between collection)"
@@ -772,8 +772,8 @@ class TestResidualsElements:
 
     def test_narrower_hdi_prob_gives_narrower_band(self, simple_plots):
         """A 50% HDI band must be narrower than the default 94% band."""
-        _, axes_94 = simple_plots.residuals(hdi_prob=0.94)
-        _, axes_50 = simple_plots.residuals(hdi_prob=0.50)
+        _, axes_94 = simple_plots.residuals_over_time(hdi_prob=0.94)
+        _, axes_50 = simple_plots.residuals_over_time(hdi_prob=0.50)
         ax_94 = axes_94.flat[0]
         ax_50 = axes_50.flat[0]
 
@@ -787,7 +787,7 @@ class TestResidualsElements:
 
     def test_x_data_length_matches_dates(self, simple_plots):
         """All plotted lines must span the full date range (n_date=20)."""
-        _, axes = simple_plots.residuals()
+        _, axes = simple_plots.residuals_over_time()
         ax = axes.flat[0]
         n_date = 20
         for line in ax.lines:
@@ -796,23 +796,23 @@ class TestResidualsElements:
 
 class TestResidualsDims:
     def test_panel_idata_creates_multiple_panels(self, panel_plots):
-        _, axes = panel_plots.residuals()
+        _, axes = panel_plots.residuals_over_time()
         assert axes.size >= 2
 
     def test_dims_filter(self, panel_plots):
-        _, axes = panel_plots.residuals(dims={"geo": ["CA"]})
+        _, axes = panel_plots.residuals_over_time(dims={"geo": ["CA"]})
         assert axes.size == 1
 
 
 class TestResidualsCustomization:
     def test_figsize_sets_figure_dimensions(self, simple_plots):
-        fig, _ = simple_plots.residuals(figsize=(10, 4))
+        fig, _ = simple_plots.residuals_over_time(figsize=(10, 4))
         w, h = fig.get_size_inches()
         assert abs(w - 10) < 0.1 and abs(h - 4) < 0.1
 
     def test_hdi_kwargs_alpha_applied(self, simple_plots):
         """hdi_kwargs alpha must appear on the HDI collection."""
-        _, axes = simple_plots.residuals(hdi_kwargs={"alpha": 0.05})
+        _, axes = simple_plots.residuals_over_time(hdi_kwargs={"alpha": 0.05})
         ax = axes.flat[0]
         alphas = [col.get_alpha() for col in ax.collections]
         assert any(a is not None and abs(a - 0.05) < 1e-6 for a in alphas), (
@@ -821,7 +821,7 @@ class TestResidualsCustomization:
 
     def test_line_kwargs_color_applied(self, simple_plots):
         """line_kwargs color must appear on the mean residuals line."""
-        _, axes = simple_plots.residuals(line_kwargs={"color": "red"})
+        _, axes = simple_plots.residuals_over_time(line_kwargs={"color": "red"})
         ax = axes.flat[0]
         colors = [line.get_color() for line in ax.lines]
         assert any(c == "red" for c in colors), (
@@ -831,13 +831,13 @@ class TestResidualsCustomization:
 
 class TestResidualsIdataOverride:
     def test_idata_override_uses_different_data(self, simple_plots, panel_idata):
-        _, axes = simple_plots.residuals(idata=panel_idata)
+        _, axes = simple_plots.residuals_over_time(idata=panel_idata)
         assert axes.size >= 2
 
     def test_idata_override_does_not_mutate_self(
         self, simple_plots, simple_idata, panel_idata
     ):
-        simple_plots.residuals(idata=panel_idata)
+        simple_plots.residuals_over_time(idata=panel_idata)
         assert simple_plots._data.idata is simple_idata
 
 
