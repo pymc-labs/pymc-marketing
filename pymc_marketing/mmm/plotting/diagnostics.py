@@ -562,7 +562,10 @@ class DiagnosticsPlots:
 
         layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="residuals")
         pc = PlotCollection.wrap(
-            layout_ds, cols=extra_dims, backend=backend, col_wrap=1, **pc_kwargs
+            layout_ds,
+            cols=extra_dims,
+            backend=backend,
+            **{"col_wrap": 1, **(pc_kwargs or {})},
         )
 
         dates = residuals_da.coords["date"].values
@@ -625,7 +628,7 @@ class DiagnosticsPlots:
         ----------
         quantiles : list[float], optional
             Quantile probabilities to mark as vertical reference lines.
-            Default ``[0.0275, 0.5, 0.975]``. Each value must be in ``[0, 1]``.
+            Default ``[0.025, 0.5, 0.975]``. Each value must be in ``[0, 1]``.
         aggregation : list[str] or str, optional
             Extra custom dimension names to collapse into the distribution
             (added to ``sample_dims`` beyond ``["chain", "draw", "date"]``).
@@ -669,7 +672,7 @@ class DiagnosticsPlots:
         )
 
         if quantiles is None:
-            quantiles = [0.0275, 0.5, 0.975]
+            quantiles = [0.025, 0.5, 0.975]
         for q in quantiles:
             if not 0.0 <= q <= 1.0:
                 raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")

@@ -967,7 +967,7 @@ class TestResidualsDistributionElements:
         _, axes = simple_plots.residuals_distribution()
         ax = axes.flat[0]
         residuals = simple_plots._compute_residuals(simple_data)
-        expected_quantiles = np.quantile(residuals.values.ravel(), [0.0275, 0.5, 0.975])
+        expected_quantiles = np.quantile(residuals.values.ravel(), [0.025, 0.5, 0.975])
         vertical_x = sorted(
             [
                 line.get_xdata()[0]
