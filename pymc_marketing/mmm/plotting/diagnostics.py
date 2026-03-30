@@ -117,6 +117,30 @@ def _get_prior(data: MMMIDataWrapper) -> xr.Dataset:
     return data.idata.prior
 
 
+def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
+    """Return the correct idata group for prior predictive plotting.
+
+    PyMC stores observed variables in ``idata.prior_predictive`` and
+    Deterministics (such as ``y_original_scale``) in ``idata.prior``.
+    This helper selects the right group based on *original_scale*.
+
+    Parameters
+    ----------
+    data : MMMIDataWrapper
+        Wrapper holding the model's InferenceData.
+    original_scale : bool
+        If True, return ``idata.prior`` (contains ``y_original_scale``).
+        If False, return ``idata.prior_predictive`` (contains ``y``).
+
+    Returns
+    -------
+    xr.Dataset
+    """
+    if original_scale:
+        return _get_prior(data)
+    return _get_prior_predictive(data)
+
+
 class DiagnosticsPlots:
     """Time-series diagnostic plots for fitted MMM models.
 
@@ -393,10 +417,10 @@ class DiagnosticsPlots:
         Parameters
         ----------
         original_scale : bool, default True
-            If True, plots ``y_original_scale`` from prior_predictive and
-            the observed target in original units.
-            If False, plots ``y`` (internal model scale) and the observed target
-            in scaled units.
+            If True, plots ``y_original_scale`` from ``idata.prior`` (where
+            PyMC stores Deterministics) and the observed target in original units.
+            If False, plots ``y`` from ``idata.prior_predictive`` (where PyMC
+            stores observed variables) and the observed target in scaled units.
         hdi_prob : float, default 0.94
             Probability mass of the HDI band.
         idata : az.InferenceData, optional
@@ -439,12 +463,13 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = _get_prior_predictive(data)
+        pp_ds = _get_prior_for_plot(data, original_scale)
 
         var_name = "y_original_scale" if original_scale else "y"
+        group_name = "prior" if original_scale else "prior_predictive"
         if var_name not in pp_ds:
             raise ValueError(
-                f"Variable '{var_name}' not found in prior_predictive. "
+                f"Variable '{var_name}' not found in {group_name}. "
                 f"Available: {list(pp_ds.data_vars)}"
             )
 
