@@ -272,3 +272,9 @@ class TestChannelShareHdi:
         # The dataset passed to azp.plot_forest has a 'channel' coordinate, not 'x'
         pc = simple_plots.channel_share_hdi(return_as_pc=True)
         assert isinstance(pc, PlotCollection)
+
+
+def test_decomposition_plots_importable_from_package():
+    from pymc_marketing.mmm.plotting import DecompositionPlots as DP
+
+    assert DP is DecompositionPlots
