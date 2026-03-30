@@ -534,7 +534,7 @@ class TestPriorPredictiveBasic:
         assert isinstance(result, PlotCollection)
 
     def test_raises_when_y_original_scale_missing(self):
-        """original_scale=True must raise clearly when y_original_scale is absent."""
+        """original_scale=True must raise clearly when y_original_scale is absent from prior."""
         rng = np.random.default_rng(0)
         n_chain, n_draw, n_date = 2, 10, 5
         coords = {
@@ -542,12 +542,21 @@ class TestPriorPredictiveBasic:
             "draw": np.arange(n_draw),
             "date": np.arange(n_date),
         }
-        prior = xr.Dataset(
+        # prior_predictive has y (observed); prior lacks y_original_scale
+        prior_predictive = xr.Dataset(
             {
                 "y": xr.DataArray(
                     rng.normal(size=(n_chain, n_draw, n_date)),
                     dims=("chain", "draw", "date"),
                     coords=coords,
+                ),
+            }
+        )
+        prior = xr.Dataset(
+            {
+                "some_param": xr.DataArray(
+                    rng.normal(size=(n_chain, n_draw)),
+                    dims=("chain", "draw"),
                 ),
             }
         )
@@ -561,7 +570,9 @@ class TestPriorPredictiveBasic:
                 "target_scale": xr.DataArray(1.0),
             }
         )
-        idata = az.InferenceData(prior_predictive=prior, constant_data=const)
+        idata = az.InferenceData(
+            prior_predictive=prior_predictive, prior=prior, constant_data=const
+        )
         data = MMMIDataWrapper(idata, validate_on_init=False)
         plots = DiagnosticsPlots(data)
         with pytest.raises(ValueError, match="y_original_scale"):
@@ -581,7 +592,7 @@ class TestPriorPredictiveBasic:
 
     def test_error_messages_reference_prior(self):
         """prior_predictive error messages must say 'prior', not 'posterior'."""
-        with pytest.raises(ValueError, match="prior_predictive"):
+        with pytest.raises(ValueError, match="prior"):
             data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
             DiagnosticsPlots(data).prior_predictive()
 
@@ -592,7 +603,7 @@ class TestPriorPredictiveElements:
         _, axes = simple_plots.prior_predictive()
         ax = axes.flat[0]
         expected = (
-            simple_data.idata.prior_predictive["y_original_scale"]
+            simple_data.idata.prior["y_original_scale"]
             .mean(dim=("chain", "draw"))
             .values
         )
