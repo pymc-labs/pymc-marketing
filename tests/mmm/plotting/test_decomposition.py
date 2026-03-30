@@ -13,6 +13,8 @@
 #   limitations under the License.
 from __future__ import annotations
 
+import warnings
+
 import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
@@ -206,10 +208,33 @@ class TestContributionsOverTime:
         fig, _axes = panel_plots.contributions_over_time(dims={"geo": ["CA"]})
         assert isinstance(fig, Figure)
 
-    def test_unexpected_dim_warns(self, simple_plots):
-        # channel dim inside "channels" entry triggers UserWarning when summed
-        with pytest.warns(UserWarning, match="summing"):
+    def test_no_summing_warning(self, simple_plots):
+        # Multi-dim contributions (e.g. channel) are silently summed — no UserWarning
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
             simple_plots.contributions_over_time()
+        summing = [w for w in caught if "summing" in str(w.message).lower()]
+        assert summing == [], f"Unexpected 'summing' warning(s): {summing}"
+
+    def test_x_axis_is_dates_y_axis_is_contributions(self, simple_plots):
+        """dates must be on x-axis; contribution values must be on y-axis."""
+        _fig, axes = simple_plots.contributions_over_time()
+        ax = axes[0]
+        date_coords = np.arange(20)  # simple_idata uses dates = np.arange(20)
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
+        assert lines, "No data lines found in the contributions plot"
+        for line in lines:
+            xdata = line.get_xdata()
+            ydata = line.get_ydata()
+            assert np.array_equal(xdata, date_coords), (
+                f"x-axis for '{line.get_label()}' should equal date coords "
+                f"{date_coords[:3]}…, got {xdata[:3]}…"
+            )
+            assert ydata.max() > date_coords.max(), (
+                f"y-axis for '{line.get_label()}' max={ydata.max():.1f} is not "
+                "greater than the max date value — y-axis may be showing dates "
+                "instead of contributions"
+            )
 
 
 class TestWaterfall:

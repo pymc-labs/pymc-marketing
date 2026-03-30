@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import itertools
-import warnings
 from typing import Any, Literal
 
 import arviz as az
@@ -145,12 +144,6 @@ class DecompositionPlots:
             da = contributions_ds[key]
             to_sum = [d for d in da.dims if d not in keep_dims]
             if to_sum:
-                warnings.warn(
-                    f"contributions_over_time: summing over dimension(s) {to_sum} "
-                    f"for contribution '{key}'.",
-                    UserWarning,
-                    stacklevel=2,
-                )
                 da = da.sum(dim=to_sum)
             da = _select_dims(da, dims)
             reduced[key] = da
@@ -407,10 +400,10 @@ class DecompositionPlots:
 
         pc = azp.plot_forest(
             share_ds,
-            var_names=["channel_share"],
             combined=True,
             ci_kind="hdi",
             ci_probs=(0.5, hdi_prob),
+            labels=set(share_ds.dims) - set(["chain", "draw"]),
             backend=backend,
             **pc_kwargs,
         )
