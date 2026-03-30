@@ -75,7 +75,7 @@ jobs:
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: ${{ matrix.config.python-version }}
@@ -113,7 +113,7 @@ jobs:
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"
