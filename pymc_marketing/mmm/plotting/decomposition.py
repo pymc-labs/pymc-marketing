@@ -15,15 +15,23 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Literal
 
 import arviz as az
+import arviz_plots as azp
+import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.mmm.plotting._helpers import (
+    _extract_matplotlib_result,
+    _process_plot_params,
+    _select_dims,
+)
 
 
 class DecompositionPlots:
@@ -59,8 +67,137 @@ class DecompositionPlots:
         hdi_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
-        """Plot time-series contributions for selected contribution types with HDI bands."""
-        raise NotImplementedError
+        """Plot time-series contributions for selected contribution types with HDI bands.
+
+        Creates one panel per extra-dimension combination (e.g. one per geo for
+        geo-segmented models). Each panel overlays one mean line and HDI band per
+        contribution type.
+
+        Parameters
+        ----------
+        include : list of {"channels", "baseline", "controls", "seasonality"}, optional
+            Which contribution types to plot. ``None`` means all available.
+        hdi_prob : float, default 0.94
+            Probability mass for the HDI band.
+        original_scale : bool, default True
+            Whether to return contributions in original scale.
+        idata : az.InferenceData, optional
+            Override instance data for this call only.
+        dims : dict[str, Any], optional
+            Subset dimensions, e.g. ``{"geo": ["CA"]}``.
+        figsize : tuple[float, float], optional
+            Injected into ``figure_kwargs``.
+        backend : str, optional
+            Rendering backend. Non-matplotlib requires ``return_as_pc=True``.
+        return_as_pc : bool, default False
+            If True, return the ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+        line_kwargs : dict, optional
+            Extra kwargs forwarded to ``azp.visuals.line_xy`` for every mean line.
+        hdi_kwargs : dict, optional
+            Extra kwargs forwarded to ``azp.visuals.fill_between_y`` for every HDI band.
+        **pc_kwargs
+            Forwarded to ``PlotCollection.wrap()``. Use ``col_wrap`` to override the
+            default single-column layout.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+        """
+        data = (
+            MMMIDataWrapper(idata, schema=self._data.schema)
+            if idata is not None
+            else self._data
+        )
+
+        pc_kwargs = _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+            **pc_kwargs,
+        )
+
+        all_keys: set[str] = {"channels", "baseline", "controls", "seasonality"}
+        include_set: set[str] = set(include) if include is not None else all_keys
+        invalid = include_set - all_keys
+        if invalid:
+            raise ValueError(
+                f"Unknown contribution type(s): {invalid}. Valid options: {all_keys}"
+            )
+
+        contributions_ds = data.get_contributions(
+            original_scale=original_scale,
+            include_baseline="baseline" in include_set,
+            include_controls="controls" in include_set,
+            include_seasonality="seasonality" in include_set,
+        )
+        if "channels" not in include_set:
+            contributions_ds = contributions_ds.drop_vars("channels", errors="ignore")
+
+        extra_dims = list(data.custom_dims)
+        keep_dims = {"date", "chain", "draw"} | set(extra_dims)
+
+        # Collapse model-specific dims (e.g. channel, control) into the time axis
+        reduced: dict[str, xr.DataArray] = {}
+        for key in contributions_ds.data_vars:
+            da = contributions_ds[key]
+            to_sum = [d for d in da.dims if d not in keep_dims]
+            if to_sum:
+                warnings.warn(
+                    f"contributions_over_time: summing over dimension(s) {to_sum} "
+                    f"for contribution '{key}'.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                da = da.sum(dim=to_sum)
+            da = _select_dims(da, dims)
+            reduced[key] = da
+
+        if not reduced:
+            raise ValueError(
+                "No contribution data found after filtering. "
+                "Check that the model has the requested contribution types."
+            )
+
+        first_da = next(iter(reduced.values()))
+        dates = first_da.coords["date"].values
+
+        layout_ds = (
+            first_da.mean(dim=("chain", "draw"))
+            .isel(date=0, drop=True)
+            .to_dataset(name="_layout")
+        )
+        pc_kwargs.setdefault("col_wrap", 1)
+        pc = PlotCollection.wrap(
+            layout_ds,
+            cols=extra_dims,
+            backend=backend,
+            **pc_kwargs,
+        )
+
+        for i, (label, da) in enumerate(reduced.items()):
+            mean_da = da.mean(dim=("chain", "draw"))
+            hdi_da = da.azstats.hdi(hdi_prob)
+            color = f"C{i}"
+
+            pc.map(
+                azp.visuals.fill_between_y,
+                x=dates,
+                y_bottom=hdi_da.sel(ci_bound="lower"),
+                y_top=hdi_da.sel(ci_bound="upper"),
+                **{"alpha": 0.2, "color": color, **(hdi_kwargs or {})},
+            )
+            pc.map(
+                azp.visuals.line_xy,
+                x=dates,
+                y=mean_da,
+                **{"label": label, "color": color, **(line_kwargs or {})},
+            )
+
+        pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
+        pc.map(azp.visuals.labelled_y, text="Contribution", ignore_aes={"color"})
+        pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
+
+        return _extract_matplotlib_result(pc, return_as_pc)
 
     def waterfall(
         self,

@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 import xarray as xr
+from arviz_plots import PlotCollection
+from matplotlib.figure import Figure
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.decomposition import DecompositionPlots
@@ -162,3 +164,49 @@ def simple_plots(simple_data) -> DecompositionPlots:
 @pytest.fixture(scope="module")
 def panel_plots(panel_data) -> DecompositionPlots:
     return DecompositionPlots(panel_data)
+
+
+class TestContributionsOverTime:
+    def test_returns_figure_and_axes(self, simple_plots):
+        fig, axes = simple_plots.contributions_over_time()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.ndim >= 1
+
+    def test_returns_plot_collection_when_requested(self, simple_plots):
+        result = simple_plots.contributions_over_time(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_panel_model_creates_one_panel_per_geo(self, panel_plots):
+        _fig, axes = panel_plots.contributions_over_time()
+        # panel_idata has geo=["CA","NY"] — expect 2 axes
+        assert len(axes) == 2
+
+    def test_include_filters_contributions(self, simple_plots):
+        # channels only — no baseline line
+        fig, _axes = simple_plots.contributions_over_time(include=["channels"])
+        assert isinstance(fig, Figure)
+
+    def test_include_invalid_key_raises(self, simple_plots):
+        with pytest.raises((ValueError, KeyError)):
+            simple_plots.contributions_over_time(include=["invalid_key"])
+
+    def test_col_wrap_overridable(self, panel_plots):
+        # default col_wrap=1 → 2 axes stacked; col_wrap=2 → side by side (still 2 axes)
+        _fig1, axes1 = panel_plots.contributions_over_time()
+        _fig2, axes2 = panel_plots.contributions_over_time(col_wrap=2)
+        assert len(axes1) == len(axes2) == 2
+
+    def test_idata_override(self, simple_plots, simple_idata):
+        # Override with a fresh idata — should not raise
+        fig, _axes = simple_plots.contributions_over_time(idata=simple_idata)
+        assert isinstance(fig, Figure)
+
+    def test_dims_subsetting(self, panel_plots):
+        fig, _axes = panel_plots.contributions_over_time(dims={"geo": ["CA"]})
+        assert isinstance(fig, Figure)
+
+    def test_unexpected_dim_warns(self, simple_plots):
+        # channel dim inside "channels" entry triggers UserWarning when summed
+        with pytest.warns(UserWarning, match="summing"):
+            simple_plots.contributions_over_time()
