@@ -15,11 +15,14 @@
 
 from __future__ import annotations
 
+import itertools
 import warnings
 from typing import Any, Literal
 
 import arviz as az
 import arviz_plots as azp
+import matplotlib.pyplot as plt
+import numpy as np
 import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
@@ -207,8 +210,137 @@ class DecompositionPlots:
         figsize: tuple[float, float] | None = None,
         bar_kwargs: dict[str, Any] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
-        """Horizontal waterfall chart showing mean contribution per component."""
-        raise NotImplementedError
+        """Horizontal waterfall chart showing mean contribution per component.
+
+        One subplot per extra-dimension combination (e.g. per geo). Each subplot
+        shows how each contribution type (baseline, channels, controls, seasonality)
+        builds up to the total.
+
+        Parameters
+        ----------
+        original_scale : bool, default True
+            Whether to plot contributions in original scale.
+        idata : az.InferenceData, optional
+            Override instance data for this call only.
+        dims : dict[str, Any], optional
+            Subset dimensions, e.g. ``{"geo": ["CA"]}``.
+        figsize : tuple[float, float], optional
+            Passed to ``plt.subplots()``.
+        bar_kwargs : dict, optional
+            Extra kwargs forwarded to ``ax.barh()``. Cannot conflict with
+            positional arguments (``y``, ``width``, ``left``).
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]]
+        """
+        data = (
+            MMMIDataWrapper(idata, schema=self._data.schema)
+            if idata is not None
+            else self._data
+        )
+
+        contributions_ds = data.get_contributions(original_scale=original_scale)
+        extra_dims = list(data.custom_dims)
+        keep_dims = {"date", "chain", "draw"} | set(extra_dims)
+
+        # Reduce each DataArray to (chain, draw, date[, extra_dims]) then take mean
+        # Result: scalar or (extra_dims,) DataArray per contribution type
+        means: dict[str, xr.DataArray] = {}
+        for key in contributions_ds.data_vars:
+            da = contributions_ds[key]
+            to_sum = [d for d in da.dims if d not in keep_dims]
+            if to_sum:
+                da = da.sum(dim=to_sum)
+            da = _select_dims(da, dims)
+            means[key] = da.mean(dim=("chain", "draw", "date"))
+
+        # Determine subplot combos
+        if extra_dims:
+            coord_values = [
+                means[next(iter(means))].coords[d].values for d in extra_dims
+            ]
+            combos = list(itertools.product(*coord_values))
+        else:
+            combos = [()]
+
+        n_panels = len(combos)
+        fig, axes_raw = plt.subplots(
+            1, n_panels, figsize=figsize or (6 * n_panels, 4), squeeze=False
+        )
+        axes_flat = axes_raw.flatten()
+
+        reserved_keys = {"y", "width", "left"}
+        if bar_kwargs:
+            conflict = reserved_keys & set(bar_kwargs.keys())
+            if conflict:
+                raise ValueError(
+                    f"bar_kwargs keys conflict with positional bar arguments: {conflict}. "
+                    "Do not pass 'y', 'width', or 'left' in bar_kwargs."
+                )
+        safe_bar_kwargs = {"height": 0.5, **(bar_kwargs or {})}
+
+        ordered_keys = [
+            k for k in ["baseline", "channels", "controls", "seasonality"] if k in means
+        ]
+
+        for panel_idx, combo in enumerate(combos):
+            ax = axes_flat[panel_idx]
+            sel_kwargs = dict(zip(extra_dims, combo, strict=True))
+
+            # Extract scalar values using positional indexing
+            values: dict[str, float] = {}
+            for key in ordered_keys:
+                da = means[key]
+                if sel_kwargs:
+                    da = da.sel(**{k: [v] for k, v in sel_kwargs.items()}).squeeze()
+                values[key] = float(da.values)
+
+            total = sum(values.values())
+            components = [*list(values.items()), ("total", total)]
+
+            running = 0.0
+            for bar_idx, (label, val) in enumerate(components):
+                if label == "total":
+                    color = "grey"
+                    left = 0.0
+                    width = val
+                else:
+                    color = "green" if val >= 0 else "red"
+                    left = running
+                    width = val
+                    running += val
+
+                ax.barh(
+                    y=bar_idx,
+                    width=width,
+                    left=left,
+                    color=color,
+                    **safe_bar_kwargs,
+                )
+                pct = 100 * val / total if total != 0 else 0.0
+                ax.text(
+                    left + width / 2,
+                    bar_idx,
+                    f"{val:.1f} ({pct:.1f}%)",
+                    va="center",
+                    ha="center",
+                    fontsize=8,
+                )
+
+            ax.set_yticks(range(len(components)))
+            ax.set_yticklabels([c[0] for c in components])
+            title = (
+                " | ".join(f"{k}={v}" for k, v in sel_kwargs.items())
+                if sel_kwargs
+                else ""
+            )
+            if title:
+                ax.set_title(title)
+            ax.axvline(0, color="black", linewidth=0.8)
+
+        fig.tight_layout()
+        return fig, np.atleast_1d(np.array(axes_flat))
 
     def channel_share_hdi(
         self,

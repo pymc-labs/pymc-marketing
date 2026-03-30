@@ -210,3 +210,41 @@ class TestContributionsOverTime:
         # channel dim inside "channels" entry triggers UserWarning when summed
         with pytest.warns(UserWarning, match="summing"):
             simple_plots.contributions_over_time()
+
+
+class TestWaterfall:
+    def test_returns_figure_and_axes(self, simple_plots):
+        fig, axes = simple_plots.waterfall()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+    def test_single_panel_no_extra_dims(self, simple_plots):
+        _fig, axes = simple_plots.waterfall()
+        assert len(axes) == 1
+
+    def test_panel_model_one_panel_per_geo(self, panel_plots):
+        _fig, axes = panel_plots.waterfall()
+        assert len(axes) == 2
+
+    def test_dims_subsetting_reduces_panels(self, panel_plots):
+        _fig, axes = panel_plots.waterfall(dims={"geo": ["CA"]})
+        assert len(axes) == 1
+
+    def test_idata_override(self, simple_plots, simple_idata):
+        fig, _axes = simple_plots.waterfall(idata=simple_idata)
+        assert isinstance(fig, Figure)
+
+    def test_no_plt_gcf_used(self, simple_plots, monkeypatch):
+        # Ensure no plt.gcf() is called internally
+        import matplotlib.pyplot as plt_mod
+
+        original_gcf = plt_mod.gcf
+        called = []
+
+        def patched_gcf():
+            called.append(True)
+            return original_gcf()
+
+        monkeypatch.setattr(plt_mod, "gcf", patched_gcf)
+        simple_plots.waterfall()
+        assert called == [], "waterfall must not call plt.gcf()"
