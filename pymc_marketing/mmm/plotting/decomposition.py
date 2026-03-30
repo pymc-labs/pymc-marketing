@@ -352,5 +352,66 @@ class DecompositionPlots:
         return_as_pc: bool = False,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
-        """Forest plot of each channel's share of total channel contribution."""
-        raise NotImplementedError
+        """Forest plot of each channel's share of total channel contribution.
+
+        Computes each channel's contribution as a fraction of total channel
+        contribution (summed over dates), then plots the HDI for each channel.
+
+        Parameters
+        ----------
+        hdi_prob : float, default 0.94
+            HDI probability mass.
+        idata : az.InferenceData, optional
+            Override instance data for this call only.
+        dims : dict[str, Any], optional
+            Subset dimensions, e.g. ``{"geo": ["CA"]}``.
+        figsize : tuple[float, float], optional
+            Injected into ``figure_kwargs``.
+        backend : str, optional
+            Rendering backend. Non-matplotlib requires ``return_as_pc=True``.
+        return_as_pc : bool, default False
+            If True, return the ``PlotCollection``.
+        **pc_kwargs
+            Forwarded to ``azp.plot_forest()``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+        """
+        data = (
+            MMMIDataWrapper(idata, schema=self._data.schema)
+            if idata is not None
+            else self._data
+        )
+
+        pc_kwargs = _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+            **pc_kwargs,
+        )
+
+        # (chain, draw, date, channel[, extra_dims])
+        channel_contributions = data.get_channel_contributions(original_scale=True)
+        channel_contributions = _select_dims(channel_contributions, dims)
+
+        # Sum over date → (chain, draw, channel[, extra_dims])
+        summed = channel_contributions.sum(dim="date")
+
+        # Compute share per channel
+        total = summed.sum(dim="channel")
+        shares = summed / total
+        shares.name = "channel_share"
+
+        share_ds = shares.to_dataset(name="channel_share")
+
+        pc = azp.plot_forest(
+            share_ds,
+            var_names=["channel_share"],
+            combined=True,
+            ci_kind="hdi",
+            ci_probs=(0.5, hdi_prob),
+            backend=backend,
+            **pc_kwargs,
+        )
+        return _extract_matplotlib_result(pc, return_as_pc)

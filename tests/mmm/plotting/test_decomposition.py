@@ -248,3 +248,27 @@ class TestWaterfall:
         monkeypatch.setattr(plt_mod, "gcf", patched_gcf)
         simple_plots.waterfall()
         assert called == [], "waterfall must not call plt.gcf()"
+
+
+class TestChannelShareHdi:
+    def test_returns_figure_and_axes(self, simple_plots):
+        fig, axes = simple_plots.channel_share_hdi()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+    def test_returns_plot_collection_when_requested(self, simple_plots):
+        result = simple_plots.channel_share_hdi(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_idata_override(self, simple_plots, simple_idata):
+        fig, _axes = simple_plots.channel_share_hdi(idata=simple_idata)
+        assert isinstance(fig, Figure)
+
+    def test_dims_subsetting(self, panel_plots):
+        fig, _axes = panel_plots.channel_share_hdi(dims={"geo": ["CA"]})
+        assert isinstance(fig, Figure)
+
+    def test_channel_coordinate_present(self, simple_plots):
+        # The dataset passed to azp.plot_forest has a 'channel' coordinate, not 'x'
+        pc = simple_plots.channel_share_hdi(return_as_pc=True)
+        assert isinstance(pc, PlotCollection)
