@@ -44,7 +44,13 @@ def close_figures():
 
 @pytest.fixture(scope="module")
 def simple_idata() -> az.InferenceData:
-    """InferenceData with (chain, draw, date) dims — no extra dims."""
+    """InferenceData with (chain, draw, date) dims — no extra dims.
+
+    Layout mirrors real PyMC output from pm.sample_prior_predictive():
+    - prior_predictive: observed variable ``y``
+    - prior: deterministic ``y_original_scale``
+    - posterior_predictive: both ``y`` and ``y_original_scale``
+    """
     rng = np.random.default_rng(SEED)
     n_chain, n_draw, n_date = 2, 50, 20
     dates = np.arange(n_date)
@@ -65,13 +71,17 @@ def simple_idata() -> az.InferenceData:
             ),
         }
     )
-    prior = xr.Dataset(
+    prior_predictive = xr.Dataset(
         {
             "y": xr.DataArray(
                 rng.normal(size=base_shape),
                 dims=("chain", "draw", "date"),
                 coords=coords,
             ),
+        }
+    )
+    prior = xr.Dataset(
+        {
             "y_original_scale": xr.DataArray(
                 rng.normal(size=base_shape) * 100 + 500,
                 dims=("chain", "draw", "date"),
@@ -90,13 +100,22 @@ def simple_idata() -> az.InferenceData:
         }
     )
     return az.InferenceData(
-        posterior_predictive=pp, prior_predictive=prior, constant_data=const
+        posterior_predictive=pp,
+        prior_predictive=prior_predictive,
+        prior=prior,
+        constant_data=const,
     )
 
 
 @pytest.fixture(scope="module")
 def panel_idata() -> az.InferenceData:
-    """InferenceData with extra 'geo' dim — (chain, draw, date, geo)."""
+    """InferenceData with extra 'geo' dim — (chain, draw, date, geo).
+
+    Layout mirrors real PyMC output from pm.sample_prior_predictive():
+    - prior_predictive: observed variable ``y``
+    - prior: deterministic ``y_original_scale``
+    - posterior_predictive: both ``y`` and ``y_original_scale``
+    """
     rng = np.random.default_rng(SEED + 1)
     n_chain, n_draw, n_date = 2, 30, 15
     dates = np.arange(n_date)
@@ -123,13 +142,17 @@ def panel_idata() -> az.InferenceData:
             ),
         }
     )
-    prior = xr.Dataset(
+    prior_predictive = xr.Dataset(
         {
             "y": xr.DataArray(
                 rng.normal(size=base_shape),
                 dims=("chain", "draw", "date", "geo"),
                 coords=coords,
             ),
+        }
+    )
+    prior = xr.Dataset(
+        {
             "y_original_scale": xr.DataArray(
                 rng.normal(size=base_shape) * 100 + 500,
                 dims=("chain", "draw", "date", "geo"),
@@ -148,7 +171,10 @@ def panel_idata() -> az.InferenceData:
         }
     )
     return az.InferenceData(
-        posterior_predictive=pp, prior_predictive=prior, constant_data=const
+        posterior_predictive=pp,
+        prior_predictive=prior_predictive,
+        prior=prior,
+        constant_data=const,
     )
 
 
