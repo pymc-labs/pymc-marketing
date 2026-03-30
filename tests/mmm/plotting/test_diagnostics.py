@@ -26,6 +26,7 @@ from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.diagnostics import (
     DiagnosticsPlots,
     _get_posterior_predictive,
+    _get_prior,
     _get_prior_predictive,
 )
 
@@ -198,6 +199,18 @@ class TestGetPriorPredictive:
         data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
         with pytest.raises(ValueError, match="prior_predictive"):
             _get_prior_predictive(data)
+
+
+class TestGetPrior:
+    def test_returns_dataset_with_y_original_scale(self, simple_data):
+        result = _get_prior(simple_data)
+        assert isinstance(result, xr.Dataset)
+        assert "y_original_scale" in result
+
+    def test_raises_when_missing(self):
+        data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
+        with pytest.raises(ValueError, match="No prior data"):
+            _get_prior(data)
 
 
 class TestComputeResiduals:

@@ -92,6 +92,31 @@ def _get_prior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
     return data.idata.prior_predictive
 
 
+def _get_prior(data: MMMIDataWrapper) -> xr.Dataset:
+    """Return the prior group from *data*.
+
+    Parameters
+    ----------
+    data : MMMIDataWrapper
+        Wrapper holding the fitted model's InferenceData.
+
+    Returns
+    -------
+    xr.Dataset
+        The prior group.
+
+    Raises
+    ------
+    ValueError
+        If prior is absent from idata.
+    """
+    if not hasattr(data.idata, "prior") or data.idata.prior is None:
+        raise ValueError(
+            "No prior data found in idata. Run MMM.sample_prior_predictive() first."
+        )
+    return data.idata.prior
+
+
 class DiagnosticsPlots:
     """Time-series diagnostic plots for fitted MMM models.
 
@@ -170,7 +195,10 @@ class DiagnosticsPlots:
 
         layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
         pc = PlotCollection.wrap(
-            layout_ds, cols=extra_dims, backend=backend, col_wrap=1, **pc_kwargs
+            layout_ds,
+            cols=extra_dims,
+            backend=backend,
+            **{"col_wrap": 1, **(pc_kwargs or {})},
         )
 
         dates = var_da.coords["date"].values
