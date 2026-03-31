@@ -8,8 +8,26 @@ on:
     types: [published]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      should_build: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            code:
+              - ".github/workflows/pypi.yml"
+              - "pyproject.toml"
+              - "pymc_marketing/**"
+
   build:
-    if: ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref != 'automated/update-uml-diagrams') }}
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.should_build == 'true' }}
     name: build source distribution
     runs-on: ubuntu-latest
     steps:
@@ -45,6 +63,17 @@ jobs:
         with:
           name: artifact
           path: dist/*
+
+  build_status:
+    if: ${{ always() }}
+    name: build source distribution check
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build status
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.build.result) }}
+        run: exit 1
+
   test:
     permissions:
       id-token: write
