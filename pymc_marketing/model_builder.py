@@ -1038,8 +1038,6 @@ class RegressionModelBuilder(ModelBuilder):
                 idata.posterior, merge_dataset=True
             )
 
-        self.post_sample_model_transformation()
-
         if self.idata:
             self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")

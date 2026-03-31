@@ -3268,7 +3268,7 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
     assert dataset_xarray._channel.dtype == np.float32
 
     # Apply _set_xarray_data
-    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
 
     # Check that the data in the model has been converted to the original dtypes
     assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
@@ -3303,7 +3303,8 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
 
     # Apply _set_xarray_data with target
     model_with_target = mmm._set_xarray_data(
-        dataset_xarray_with_target, clone_model=True
+        dataset_xarray_with_target,
+        model=mmm.model.copy(),
     )
 
     # Check that target dtype is preserved
@@ -3382,7 +3383,7 @@ def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
     )
 
     # Apply _set_xarray_data
-    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
 
     # Check that data types are preserved
     assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
@@ -3405,7 +3406,7 @@ def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
 
     # Apply _set_xarray_data with target
     model_with_target = mmm._set_xarray_data(
-        dataset_xarray_with_target, clone_model=True
+        dataset_xarray_with_target, model=mmm.model.copy()
     )
 
     # Check that all data types are preserved
@@ -3455,7 +3456,7 @@ def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
     )
 
     # Apply _set_xarray_data
-    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
 
     # Check that channel data type is preserved
     assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
@@ -4152,8 +4153,8 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
     assert "y" in idata_pred
 
 
-def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
-    """Test that attempting to re-register calibration observations raises a duplicate name error."""
+def test_calibration_duplicate_name_warns(multi_dim_data, mock_pymc_sample):
+    """Test that re-registering calibration potentials warns and skips."""
     X, y = multi_dim_data
 
     # Create MMM model
@@ -4195,7 +4196,10 @@ def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
         name_prefix="cpt_calibration",
     )
 
-    with pytest.raises(ValueError, match="cpt_calibration"):
+    # Re-registering should warn and skip (idempotent)
+    with pytest.warns(
+        UserWarning, match="Cost-per-target potentials with name 'cpt_calibration'"
+    ):
         mmm.add_cost_per_target_calibration(
             data=spend_df,
             calibration_data=calibration_df,
@@ -4306,6 +4310,55 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
             calibration_data=calibration_df,
             name_prefix="cpt_calibration",
         )
+
+
+def test_cost_per_target_calibration_non_alphabetical_channels(
+    multi_dim_data, mock_pymc_sample
+):
+    """Regression test: add_cost_per_target_calibration should work when
+    channel_columns are not in alphabetical order.
+
+    _create_xarray_from_pandas alphabetically sorts the channel coordinate,
+    but the model coords preserve the user-provided order.  The calibration
+    method must reindex to match before comparing.
+    """
+    X, y = multi_dim_data
+
+    non_alpha_channels = ["channel_2", "channel_1", "channel_3"]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=non_alpha_channels,
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    spend_df = X.copy()
+
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1]],
+            "channel": [non_alpha_channels[0], non_alpha_channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        name_prefix="cpt_calibration",
+    )
+
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
 
 class TestAddOriginalScaleContributionVariable:
@@ -5122,8 +5175,95 @@ class TestChannelOrderingIntegration:
         """After sample_posterior_predictive, the data set into the model
         must use user-ordered channel and control coordinates."""
         mmm, df, _ = integration_model
-        mmm.sample_posterior_predictive(
-            X=df, extend_idata=False, combined=True, progressbar=False
+        idata = mmm.sample_posterior_predictive(
+            X=df,
+            extend_idata=False,
+            combined=True,
+            progressbar=False,
+            # Sample variables with channel/control dims
+            var_names=[mmm.output_var, "channel_contribution", "control_contribution"],
         )
-        assert list(mmm.new_updated_coords["channel"]) == self.CHANNELS
-        assert list(mmm.new_updated_coords["control"]) == self.CONTROLS
+        assert (
+            list(idata.coords["channel"])
+            == list(mmm.model.coords["channel"])
+            == self.CHANNELS
+        )
+        assert (
+            list(idata.coords["control"])
+            == list(mmm.model.coords["control"])
+            == self.CONTROLS
+        )
+
+
+def test_add_original_scale_contribution_variable_idempotent(multi_dim_data):
+    """Issue #2367: calling add_original_scale_contribution_variable twice
+    should not create duplicate nodes."""
+    X, y = multi_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+
+    with pytest.warns(
+        UserWarning, match=r"channel_contribution_original_scale already in the model"
+    ):
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+
+
+def test_iterative_workflow(multi_dim_data, mock_pymc_sample):
+    """Issue #2226: calling sample_posterior_predictive() multiple times should not fail."""
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    X, y = multi_dim_data
+    full_pp_sizes = {"chain": 1, "draw": 10, "date": 7, "country": 3}
+    full_cd_sizes = {"date": 7, "country": 3, "channel": 3}
+    reduced_X = X[::10]
+    reduced_y = y[::10]
+    reduced_pp_sizes = full_pp_sizes | {"date": 3}
+    reduced_cd_sizes = full_cd_sizes | {"date": 3}
+
+    # Test loses most of its meaning if these are not different
+    assert full_pp_sizes != reduced_pp_sizes
+    assert full_cd_sizes != reduced_cd_sizes
+
+    mmm.fit(X, y, chains=1, draws=10)
+    mmm.sample_posterior_predictive(X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
+
+    # Second call should succeed (not raise)
+    mmm.sample_posterior_predictive(X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
+
+    # Call with new shapes
+    mmm.sample_posterior_predictive(reduced_X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == reduced_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == reduced_cd_sizes
+
+    # Fit with new shapes
+    mmm.fit(reduced_X, reduced_y)
+    mmm.sample_posterior_predictive(reduced_X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == reduced_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == reduced_cd_sizes
+
+    # Should still work with different shapes
+    mmm.sample_posterior_predictive(X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
