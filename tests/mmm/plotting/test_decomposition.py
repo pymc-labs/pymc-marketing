@@ -323,6 +323,32 @@ class TestWaterfall:
         simple_plots.waterfall()
         assert called == [], "waterfall must not call plt.gcf()"
 
+    def test_baseline_bar_present(self, simple_plots):
+        """Waterfall must include a 'baseline' bar."""
+        _fig, axes = simple_plots.waterfall()
+        ax = axes[0]
+        ytick_labels = [t.get_text() for t in ax.get_yticklabels()]
+        assert "baseline" in ytick_labels, (
+            f"Expected 'baseline' in ytick labels, got: {ytick_labels}"
+        )
+
+    def test_bars_include_all_channels_and_controls(self, panel_plots):
+        """Each channel and each control must appear as its own bar."""
+        channels = ["tv", "radio"]
+        controls = ["price", "trend"]
+        _fig, axes = panel_plots.waterfall()
+        # one panel per geo — check the first one
+        ax = axes[0]
+        ytick_labels = [t.get_text() for t in ax.get_yticklabels()]
+        for ch in channels:
+            assert ch in ytick_labels, (
+                f"Expected channel '{ch}' in ytick labels, got: {ytick_labels}"
+            )
+        for ctrl in controls:
+            assert ctrl in ytick_labels, (
+                f"Expected control '{ctrl}' in ytick labels, got: {ytick_labels}"
+            )
+
 
 class TestChannelShareHdi:
     def test_returns_figure_and_axes(self, simple_plots):

@@ -36,6 +36,59 @@ from pymc_marketing.mmm.plotting._helpers import (
 )
 
 
+def _plot_waterfall_panel(
+    ax: Axes,
+    entries: list[tuple[str, float]],
+    bar_kwargs: dict,
+) -> None:
+    """Draw a single waterfall panel onto *ax*.
+
+    Parameters
+    ----------
+    ax : Axes
+        Matplotlib axes to draw on.
+    entries : list of (label, value)
+        Ordered contribution components. A "total" bar is appended automatically.
+    bar_kwargs : dict
+        Extra kwargs forwarded to ``ax.barh()``.
+    """
+    total = sum(v for _, v in entries)
+    components = [*entries, ("total", total)]
+
+    running = 0.0
+    for bar_idx, (label, val) in enumerate(components):
+        if label == "total":
+            color = "grey"
+            left = 0.0
+            width = val
+        else:
+            color = "green" if val >= 0 else "red"
+            left = running
+            width = val
+            running += val
+
+        ax.barh(
+            y=bar_idx,
+            width=width,
+            left=left,
+            color=color,
+            **bar_kwargs,
+        )
+        pct = 100 * val / total if total != 0 else 0.0
+        ax.text(
+            left + width / 2,
+            bar_idx,
+            f"{val:.1f} ({pct:.1f}%)",
+            va="center",
+            ha="center",
+            fontsize=8,
+        )
+
+    ax.set_yticks(range(len(components)))
+    ax.set_yticklabels([c[0] for c in components])
+    ax.axvline(0, color="black", linewidth=0.8)
+
+
 class DecompositionPlots:
     """Decomposition plots for fitted MMM models.
 
@@ -267,24 +320,48 @@ class DecompositionPlots:
 
         contributions_ds = data.get_contributions(original_scale=original_scale)
         extra_dims = list(data.custom_dims)
-        keep_dims = {"date", "chain", "draw"} | set(extra_dims)
 
-        # Reduce each DataArray to (chain, draw, date[, extra_dims]) then take mean
-        # Result: scalar or (extra_dims,) DataArray per contribution type
-        means: dict[str, xr.DataArray] = {}
-        for key in contributions_ds.data_vars:
-            da = contributions_ds[key]
-            to_sum = [d for d in da.dims if d not in keep_dims]
-            if to_sum:
-                da = da.sum(dim=to_sum)
-            da = _select_dims(da, dims)
-            means[key] = da.mean(dim=("chain", "draw", "date"))
+        # Build entries: (label, xr.DataArray) where DataArray has dims (extra_dims,) or scalar
+        entries: list[tuple[str, xr.DataArray]] = []
 
-        # Determine subplot combos
+        if "baseline" in contributions_ds:
+            bl_da = contributions_ds["baseline"]
+            # baseline has no date dim — mean over chain, draw only
+            entries.append(("baseline", bl_da.mean(dim=("chain", "draw"))))
+
+        if "channels" in contributions_ds:
+            ch_da = contributions_ds["channels"]
+            ch_da = _select_dims(ch_da, dims)
+            for ch in ch_da.coords["channel"].values:
+                entries.append(
+                    (str(ch), ch_da.sel(channel=ch).mean(dim=("chain", "draw", "date")))
+                )
+
+        if "controls" in contributions_ds:
+            ctrl_da = contributions_ds["controls"]
+            ctrl_da = _select_dims(ctrl_da, dims)
+            for ctrl in ctrl_da.coords["control"].values:
+                entries.append(
+                    (
+                        str(ctrl),
+                        ctrl_da.sel(control=ctrl).mean(dim=("chain", "draw", "date")),
+                    )
+                )
+
+        if "seasonality" in contributions_ds:
+            seas_da = contributions_ds["seasonality"]
+            seas_da = _select_dims(seas_da, dims)
+            entries.append(("seasonality", seas_da.mean(dim=("chain", "draw", "date"))))
+
+        # Apply dims filter to baseline separately (it may have extra_dims but no date/channel)
+        if entries and "baseline" in dict(entries):
+            bl_idx = next(i for i, (k, _) in enumerate(entries) if k == "baseline")
+            entries[bl_idx] = ("baseline", _select_dims(entries[bl_idx][1], dims))
+
+        # Determine panel combos from extra dims
         if extra_dims:
-            coord_values = [
-                means[next(iter(means))].coords[d].values for d in extra_dims
-            ]
+            ref_da = entries[0][1]
+            coord_values = [ref_da.coords[d].values for d in extra_dims]
             combos = list(itertools.product(*coord_values))
         else:
             combos = [()]
@@ -305,56 +382,17 @@ class DecompositionPlots:
                 )
         safe_bar_kwargs = {"height": 0.5, **(bar_kwargs or {})}
 
-        ordered_keys = [
-            k for k in ["baseline", "channels", "controls", "seasonality"] if k in means
-        ]
-
         for panel_idx, combo in enumerate(combos):
             ax = axes_flat[panel_idx]
             sel_kwargs = dict(zip(extra_dims, combo, strict=True))
 
-            # Extract scalar values using positional indexing
-            values: dict[str, float] = {}
-            for key in ordered_keys:
-                da = means[key]
+            # Extract scalar (label, float) for this panel
+            panel_entries: list[tuple[str, float]] = []
+            for label, da in entries:
                 if sel_kwargs:
                     da = da.sel(**{k: [v] for k, v in sel_kwargs.items()}).squeeze()
-                values[key] = float(da.values)
+                panel_entries.append((label, float(da.values)))
 
-            total = sum(values.values())
-            components = [*list(values.items()), ("total", total)]
-
-            running = 0.0
-            for bar_idx, (label, val) in enumerate(components):
-                if label == "total":
-                    color = "grey"
-                    left = 0.0
-                    width = val
-                else:
-                    color = "green" if val >= 0 else "red"
-                    left = running
-                    width = val
-                    running += val
-
-                ax.barh(
-                    y=bar_idx,
-                    width=width,
-                    left=left,
-                    color=color,
-                    **safe_bar_kwargs,
-                )
-                pct = 100 * val / total if total != 0 else 0.0
-                ax.text(
-                    left + width / 2,
-                    bar_idx,
-                    f"{val:.1f} ({pct:.1f}%)",
-                    va="center",
-                    ha="center",
-                    fontsize=8,
-                )
-
-            ax.set_yticks(range(len(components)))
-            ax.set_yticklabels([c[0] for c in components])
             title = (
                 " | ".join(f"{k}={v}" for k, v in sel_kwargs.items())
                 if sel_kwargs
@@ -362,7 +400,8 @@ class DecompositionPlots:
             )
             if title:
                 ax.set_title(title)
-            ax.axvline(0, color="black", linewidth=0.8)
+
+            _plot_waterfall_panel(ax, panel_entries, safe_bar_kwargs)
 
         fig.tight_layout()
         return fig, np.atleast_1d(np.array(axes_flat))
