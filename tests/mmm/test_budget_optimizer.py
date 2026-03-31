@@ -122,8 +122,8 @@ def dummy_idata(dummy_df) -> az.InferenceData:
                 ),  # dims: chain, draw, channel, date
             },
             None,
-            {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
-            48.8,
+            {"channel_1": 54.78357587906802, "channel_2": 45.21642412093198},
+            48.92,
         ),
         # set x0 manually
         (
@@ -152,8 +152,8 @@ def dummy_idata(dummy_df) -> az.InferenceData:
                 ),  # dims: chain, draw, channel, date
             },
             None,
-            {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
-            48.8,
+            {"channel_1": 54.78357587906802, "channel_2": 45.21642412093198},
+            48.92,
         ),
         # custom minimize kwargs
         (
