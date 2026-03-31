@@ -171,7 +171,7 @@ def main() -> None:
         tmp_path = tmp.name
     idata.to_netcdf(tmp_path)
     shutil.move(tmp_path, fname)
-    print(f"Done. Saved migrated model to {fname}")
+    print(f"Done. Saved migrated model to {fname}", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -208,6 +208,7 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.serialization import DeserializationContext, serialization
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -850,8 +851,6 @@ class MMM(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
-        from pymc_marketing.serialization import serialization
-
         def serialize_value(value):
             """Recursively serialize values to JSON-compatible types."""
             if isinstance(value, np.ndarray):
@@ -877,8 +876,6 @@ class MMM(RegressionModelBuilder):
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
-        from pymc_marketing.serialization import serialization
-
         attrs = super().create_idata_attrs()
         attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
@@ -932,10 +929,6 @@ class MMM(RegressionModelBuilder):
 
     def save(self, fname: str, **kwargs) -> None:
         """Save the model, including supplementary data for MuEffects."""
-        import xarray as xr
-
-        from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
-
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -974,7 +967,6 @@ class MMM(RegressionModelBuilder):
     @classmethod
     def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
         """Convert the idata attributes to the model initialization kwargs."""
-        from pymc_marketing.serialization import serialization
 
         def _deser(raw: str, fallback=None):
             data = json.loads(raw)
@@ -3139,11 +3131,6 @@ class MMM(RegressionModelBuilder):
 
         """
         if "mu_effects" in idata.attrs:
-            from pymc_marketing.serialization import (
-                DeserializationContext,
-                serialization,
-            )
-
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
             ctx = DeserializationContext(idata=idata)
             self.mu_effects = [
