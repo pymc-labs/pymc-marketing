@@ -1589,3 +1589,66 @@ def test_dict_bounds_respect_channel_ordering(fitted_mmm_shuffled_1d):
         assert lo - 1e-6 <= val <= hi + 1e-6, (
             f"{ch}={val:.4f} outside bounds [{lo}, {hi}]"
         )
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_asymmetric(mock_pymc_sample):
+    """MMM with 3 geos and 2 channels to expose dimension ordering bugs."""
+    n = 15
+    df = pd.DataFrame(
+        {
+            "date_week": pd.date_range("2023-01-01", periods=n, freq="W"),
+            "channel_1": np.linspace(0, 1, num=n),
+            "channel_2": np.linspace(0, 1, num=n),
+            "geo": ["G1", "G2", "G3"] * (n // 3),
+        }
+    )
+    y = pd.Series(np.ones(n), name="y")
+
+    mmm = MMM(
+        date_column="date_week",
+        channel_columns=["channel_1", "channel_2"],
+        dims=("geo",),
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        target_column="y",
+    )
+    mmm.build_model(X=df, y=y)
+    mmm.fit(X=df, y=y, chains=2, tune=50, draws=50, progressbar=False)
+    mmm.sample_posterior_predictive(
+        X=df, extend_idata=True, combined=True, progressbar=False
+    )
+    return mmm
+
+
+def test_optimize_budget_asymmetric_dims_no_mask(fitted_mmm_asymmetric):
+    """Regression test for #2448: n_geos != n_channels must not cause IndexError."""
+    mmm = fitted_mmm_asymmetric
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm, start_date="2023-05-01", end_date="2023-07-01"
+    )
+    optimal_budgets, _result = wrapper.optimize_budget(budget=1)
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert set(optimal_budgets.dims) == {"geo", "channel"}
+    assert optimal_budgets.sizes["geo"] == 3
+    assert optimal_budgets.sizes["channel"] == 2
+
+
+def test_optimize_budget_asymmetric_dims_with_mask(fitted_mmm_asymmetric):
+    """Regression test for #2448: user-supplied mask with swapped dim order."""
+    mmm = fitted_mmm_asymmetric
+    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        model=mmm, start_date="2023-05-01", end_date="2023-07-01"
+    )
+    budgets_to_optimize = xr.DataArray(
+        np.array([[True, True, True], [True, False, True]]),
+        dims=["channel", "geo"],
+        coords={"channel": ["channel_1", "channel_2"], "geo": ["G1", "G2", "G3"]},
+    )
+    optimal_budgets, _result = wrapper.optimize_budget(
+        budget=1, budgets_to_optimize=budgets_to_optimize
+    )
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert set(optimal_budgets.dims) == {"geo", "channel"}
+    assert optimal_budgets.sizes["geo"] == 3
+    assert optimal_budgets.sizes["channel"] == 2
