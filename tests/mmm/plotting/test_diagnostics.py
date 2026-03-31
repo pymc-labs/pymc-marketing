@@ -297,14 +297,14 @@ class TestComputeResiduals:
         result = simple_plots._compute_residuals(simple_data)
         assert {"chain", "draw", "date"}.issubset(result.dims)
 
-    def test_custom_pp_var(self, simple_plots, simple_data):
-        """pp_var parameter allows non-hardcoded variable name."""
-        result = simple_plots._compute_residuals(simple_data, pp_var="y_original_scale")
-        assert result.name == "residuals"
-
-    def test_raises_on_missing_pp_var(self, simple_plots, simple_data):
-        with pytest.raises(ValueError, match="y_nonexistent"):
-            simple_plots._compute_residuals(simple_data, pp_var="y_nonexistent")
+    def test_raises_on_missing_pp_var(self, simple_plots, simple_idata):
+        idata = simple_idata.copy()
+        idata.posterior_predictive = idata.posterior_predictive.drop_vars(
+            "y_original_scale"
+        )
+        data = MMMIDataWrapper(idata, validate_on_init=False)
+        with pytest.raises(ValueError, match="y_original_scale"):
+            simple_plots._compute_residuals(data)
 
 
 class TestDiagnosticsPlotsConstructor:

@@ -262,7 +262,6 @@ class DiagnosticsPlots:
     def _compute_residuals(
         self,
         data: MMMIDataWrapper,
-        pp_var: str = "y_original_scale",
     ) -> xr.DataArray:
         """Compute residuals as target_data - posterior predictions.
 
@@ -270,20 +269,19 @@ class DiagnosticsPlots:
         ----------
         data : MMMIDataWrapper
             Wrapper holding idata with posterior_predictive and constant_data.
-        pp_var : str, default "y_original_scale"
-            Variable in posterior_predictive to use as predictions.
 
         Returns
         -------
         xr.DataArray
-            Residuals named "residuals" with same dims as *pp_var*
+            Residuals named "residuals" with same dims as ``y_original_scale``
             (typically ``(chain, draw, date[, extra_dims])``).
 
         Raises
         ------
         ValueError
-            If *pp_var* not in posterior_predictive, or target_data not in constant_data.
+            If ``y_original_scale`` not in posterior_predictive, or target_data not in constant_data.
         """
+        pp_var = "y_original_scale"
         pp_ds = _get_posterior_predictive(data)
         if pp_var not in pp_ds:
             raise ValueError(
@@ -616,7 +614,7 @@ class DiagnosticsPlots:
         return_as_pc: bool = False,
         dist_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> PlotCollection | tuple[Figure, NDArray[Axes]]:
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Plot the posterior distribution of residuals using arviz-plots.
 
         Uses ``azp.plot_dist`` (KDE) with quantile reference lines via

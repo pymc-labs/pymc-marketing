@@ -193,14 +193,6 @@ def _extract_matplotlib_result(
     tuple[Figure, NDArray[Axes]] or PlotCollection
         Standard matplotlib tuple when ``return_as_pc=False``,
         otherwise the original ``PlotCollection``.
-
-    Notes
-    -----
-    Axes are collected via ``fig.get_axes()``, which includes every axis
-    attached to the figure — potentially including empty placeholder axes
-    created by matplotlib when ``col_wrap`` does not evenly divide the
-    number of panels. All current callers use ``col_wrap=1`` (one column
-    per panel) so no empty axes are produced in practice.
     """
     if return_as_pc:
         return pc
