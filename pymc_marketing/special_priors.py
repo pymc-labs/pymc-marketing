@@ -634,6 +634,7 @@ class MaskedPrior:
         if isinstance(value, xr.DataArray):
             try:
                 broadcasted, _ = xr.broadcast(value, self.mask)
+                broadcasted = broadcasted.transpose(*self.mask.dims)
                 return broadcasted.values.ravel()[flat_mask]
             except Exception:
                 return value

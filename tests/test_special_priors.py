@@ -188,6 +188,30 @@ def test_masked_prior_non_scalar_params_regression_2463(mu_value, param_id):
     assert np.isfinite(vals[0])  # Venezuela is active
 
 
+def test_subset_raw_parameter_dataarray_dim_order():
+    """Verify xr.DataArray params are subset in mask dim order, not broadcast dim order."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    base = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+    mp = MaskedPrior(base, mask)
+    flat_mask = mask.values.astype(bool).ravel()
+
+    value = xr.DataArray([0, 1], dims="channel")
+    result = mp._subset_raw_parameter(value, flat_mask)
+    # Active positions in (country, channel) order: (Ven,TV), (Col,TV), (Col,Radio)
+    # TV=0, Radio=1 → expected [0, 0, 1]
+    np.testing.assert_array_equal(result, [0, 0, 1])
+
+    value_country = xr.DataArray([5, 10], dims="country")
+    result_country = mp._subset_raw_parameter(value_country, flat_mask)
+    # Venezuela=5, Colombia=10 → expected [5, 10, 10]
+    np.testing.assert_array_equal(result_country, [5, 10, 10])
+
+
 def test_masked_prior_dataarray_per_channel_2d_mask():
     """DataArray param along rightmost dim with a 2D mask (migration guide pattern)."""
     coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
@@ -198,8 +222,8 @@ def test_masked_prior_dataarray_per_channel_2d_mask():
     )
     prior = Prior(
         "Normal",
-        mu=xr.DataArray([0, 1], dims="channel"),
-        sigma=10,
+        mu=xr.DataArray([0, 100], dims="channel"),
+        sigma=0.001,
         dims=("country", "channel"),
     )
 
@@ -210,6 +234,9 @@ def test_masked_prior_dataarray_per_channel_2d_mask():
     vals = result.eval()
     assert vals.shape == (2, 2)
     assert vals[0, 1] == 0.0  # (Venezuela, Radio) masked out
+    assert abs(vals[0, 0] - 0) < 1  # (Ven, TV) ≈ mu_TV = 0
+    assert abs(vals[1, 0] - 0) < 1  # (Col, TV) ≈ mu_TV = 0
+    assert abs(vals[1, 1] - 100) < 1  # (Col, Radio) ≈ mu_Radio = 100
 
 
 def test_masked_prior_dataarray_non_rightmost_dim_2d_mask():
