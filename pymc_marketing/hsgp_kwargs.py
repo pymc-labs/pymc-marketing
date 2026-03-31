@@ -94,11 +94,8 @@ class HSGPKwargs(BaseModel):
     )
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dict with ``__type__`` key."""
-        return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
-            **self.model_dump(mode="json"),
-        }
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        return self.model_dump(mode="json")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "HSGPKwargs":

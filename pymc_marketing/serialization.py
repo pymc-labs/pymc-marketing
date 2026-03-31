@@ -175,6 +175,23 @@ class TypeRegistry:
         self._registry[type_key] = _RegistryEntry(
             cls=actual_cls, serializer=serializer, deserializer=deserializer
         )
+
+        # Inject __type__ into to_dict() unless a custom serializer handles it,
+        # or the class already inherits a wrapped to_dict.
+        if serializer is None:
+            resolved = getattr(actual_cls, "to_dict", None)
+            if resolved is not None and not getattr(resolved, "_type_injected", False):
+                original_to_dict = resolved  # resolved through MRO
+
+                def _wrapped_to_dict(self, _orig=original_to_dict):
+                    type_key = (
+                        f"{self.__class__.__module__}.{self.__class__.__qualname__}"
+                    )
+                    return {"__type__": type_key, **_orig(self)}
+
+                _wrapped_to_dict._type_injected = True  # type: ignore[attr-defined]
+                actual_cls.to_dict = _wrapped_to_dict  # type: ignore[attr-defined]
+
         return actual_cls
 
     def serialize(self, obj: Serializable) -> dict[str, Any]:
@@ -254,11 +271,8 @@ class SerializableBaseModel(BaseModel):
             serialization.register(type_key, cls)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dict with ``__type__`` key via Pydantic model_dump."""
-        return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
-            **self.model_dump(mode="json"),
-        }
+        """Serialize to a dict via Pydantic model_dump. ``__type__`` is injected by the registry wrapper."""
+        return self.model_dump(mode="json")
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:

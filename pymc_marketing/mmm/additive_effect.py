@@ -250,9 +250,8 @@ class FourierEffect(MuEffect):
     date_dim_name: str = Field("date")
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dict with ``__type__`` key."""
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "fourier": self.fourier.to_dict(),
             "date_dim_name": self.date_dim_name,
         }
@@ -461,9 +460,8 @@ class LinearTrendEffect(MuEffect):
     linear_trend_first_date: Any = Field(default=None, exclude=True)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dict with ``__type__`` key."""
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "trend": self.trend.to_dict(),
             "prefix": self.prefix,
             "date_dim_name": self.date_dim_name,
@@ -597,7 +595,6 @@ class EventAdditiveEffect(MuEffect):
         ``df_events_group`` key stores the idata group path where it lives.
         """
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "prefix": self.prefix,
             "reference_date": self.reference_date,
             "date_dim_name": self.date_dim_name,

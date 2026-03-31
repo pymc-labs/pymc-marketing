@@ -293,9 +293,8 @@ class LinearTrend(BaseModel):
         return priors
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize to a dict with ``__type__`` key."""
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
         data = self.model_dump(mode="json", exclude={"priors"})
-        data["__type__"] = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
         if self.priors is not None:
             data["priors"] = {k: v.to_dict() for k, v in self.priors.items()}
         return data

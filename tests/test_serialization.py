@@ -119,10 +119,7 @@ class TestTypeRegistry:
         @reg.register
         class Foo:
             def to_dict(self):
-                return {
-                    "__type__": f"{Foo.__module__}.{Foo.__qualname__}",
-                    "x": 1,
-                }
+                return {"x": 1}
 
             @classmethod
             def from_dict(cls, data):
@@ -138,7 +135,7 @@ class TestTypeRegistry:
 
         class Bar:
             def to_dict(self):
-                return {"__type__": "custom.Bar", "y": 2}
+                return {"y": 2}
 
             @classmethod
             def from_dict(cls, data):
@@ -155,10 +152,7 @@ class TestTypeRegistry:
         @reg.register
         class Baz:
             def to_dict(self):
-                return {
-                    "__type__": f"{Baz.__module__}.{Baz.__qualname__}",
-                    "val": 99,
-                }
+                return {"val": 99}
 
             @classmethod
             def from_dict(cls, data):
@@ -181,10 +175,7 @@ class TestTypeRegistry:
                 self.val = val
 
             def to_dict(self):
-                return {
-                    "__type__": f"{Qux.__module__}.{Qux.__qualname__}",
-                    "val": self.val,
-                }
+                return {"val": self.val}
 
             @classmethod
             def from_dict(cls, data):
@@ -221,7 +212,7 @@ class TestTypeRegistry:
                 self.extra = extra
 
             def to_dict(self):
-                return {"__type__": "test.Special", "data": "x"}
+                return {"data": "x"}
 
         def custom_deser(data, context):
             return Special(extra=context.idata if context else None)
@@ -254,7 +245,7 @@ class TestTypeRegistry:
 
         class Unknown:
             def to_dict(self):
-                return {"__type__": "test.Unknown"}
+                return {}
 
         with pytest.raises((KeyError, TypeError)):
             reg.serialize(Unknown())

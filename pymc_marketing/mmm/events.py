@@ -219,7 +219,6 @@ class EventEffect(BaseModel):
     def to_dict(self) -> dict:
         """Convert the event effect to a dictionary."""
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "class": "EventEffect",
             "data": {
                 "basis": self.basis.to_dict(),

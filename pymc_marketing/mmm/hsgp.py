@@ -363,9 +363,6 @@ class HSGPBase(BaseModel):
                 result[key] = live_value.to_dict()
             else:
                 result[key] = dumped_value
-        result["__type__"] = (
-            f"{self.__class__.__module__}.{self.__class__.__qualname__}"
-        )
         return result
 
     def sample_prior(

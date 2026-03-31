@@ -763,7 +763,6 @@ class FourierBase(BaseModel):
 
         """
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "class": self.__class__.__name__,
             "data": self.model_dump(mode="json"),
         }

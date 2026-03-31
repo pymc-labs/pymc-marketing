@@ -225,7 +225,6 @@ class MediaTransformation:
 
         """
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "adstock": self.adstock.to_dict(),
             "saturation": self.saturation.to_dict(),
             "adstock_first": self.adstock_first,
@@ -298,7 +297,6 @@ class MediaConfig:
 
         """
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "name": self.name,
             "columns": self.columns,
             "media_transformation": self.media_transformation.to_dict(),
@@ -438,7 +436,6 @@ class MediaConfigList:
 
         """
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "media_configs": [config.to_dict() for config in self.media_configs],
         }
 

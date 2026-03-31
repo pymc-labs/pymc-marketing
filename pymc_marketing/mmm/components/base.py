@@ -175,7 +175,6 @@ class Transformation:
 
         """
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "prefix": self.prefix,
             "priors": {
                 key: _serialize_value(value)

@@ -124,7 +124,6 @@ class SpecialPrior(ABC):
         """Convert the SpecialPrior to a dictionary."""
         class_name = self.__class__.__name__
         data = {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "special_prior": class_name,
         }
         if self.parameters:
@@ -685,7 +684,6 @@ class MaskedPrior:
             else np.asarray(self.mask, dtype=bool).tolist()
         )
         return {
-            "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
             "class": "MaskedPrior",
             "data": {
                 "prior": self.prior.to_dict()
