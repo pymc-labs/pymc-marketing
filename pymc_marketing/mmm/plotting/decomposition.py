@@ -207,12 +207,12 @@ class DecompositionPlots:
 
         # Build flat entries: each entry has dims (chain, draw, date[, extra_dims])
         # so the rendering loop below is unchanged.
-        entries: list[tuple[str, xr.DataArray]] = []
+        entries_ds = xr.Dataset()
 
         if "channels" in contributions_ds:
             ch_da = contributions_ds["channels"]
             for ch in ch_da.coords["channel"].values:
-                entries.append((str(ch), _select_dims(ch_da.sel(channel=ch), dims)))
+                entries_ds[f"channel={ch}"] = _select_dims(ch_da.sel(channel=ch), dims)
 
         if "baseline" in contributions_ds:
             bl_da = contributions_ds["baseline"]
@@ -222,63 +222,57 @@ class DecompositionPlots:
                 if dates_coord is not None
                 else bl_da
             )
-            entries.append(("baseline", _select_dims(bl_broadcast, dims)))
+            entries_ds["baseline"] = _select_dims(bl_broadcast, dims)
 
         if "controls" in contributions_ds:
             ctrl_da = contributions_ds["controls"]
             # sum over the control dim → single time-series
-            entries.append(("controls", _select_dims(ctrl_da.sum(dim="control"), dims)))
+            entries_ds["controls"] = _select_dims(ctrl_da.sum(dim="control"), dims)
 
         if "seasonality" in contributions_ds:
             seas_da = contributions_ds["seasonality"]
-            entries.append(("seasonality", _select_dims(seas_da, dims)))
+            entries_ds["seasonality"] = _select_dims(seas_da, dims)
 
-        if not entries:
+        if not entries_ds:
             raise ValueError(
                 "No contribution data found after filtering. "
                 "Check that the model has the requested contribution types."
             )
 
-        first_da = entries[0][1]
-        dates = first_da.coords["date"].values
+        # Turn Dataset to array.
+        entries = entries_ds.to_array(dim="component").to_dataset(name="contribution")
 
-        layout_ds = (
-            first_da.mean(dim=("chain", "draw"))
-            .isel(date=0, drop=True)
-            .to_dataset(name="_layout")
-        )
         pc_kwargs.setdefault("col_wrap", 1)
         pc = PlotCollection.wrap(
-            layout_ds,
+            entries,
             cols=extra_dims,
             backend=backend,
+            aes={"color": ["component"]},
             **pc_kwargs,
         )
 
-        for i, (label, da) in enumerate(entries):
-            mean_da = da.mean(dim=("chain", "draw"))
-            hdi_da = da.azstats.hdi(hdi_prob)
-            color = f"C{i}"
+        hdi_da = entries.azstats.hdi(hdi_prob)
 
-            pc.map(
-                azp.visuals.fill_between_y,
-                x=dates,
-                y_bottom=hdi_da.sel(ci_bound="lower"),
-                y_top=hdi_da.sel(ci_bound="upper"),
-                **{"alpha": 0.2, "color": color, **(hdi_kwargs or {})},
-            )
-            pc.map(
-                azp.visuals.line_xy,
-                x=dates,
-                y=mean_da,
-                **{"label": label, "color": color, **(line_kwargs or {})},
-            )
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=entries.date,
+            y_bottom=hdi_da.sel(ci_bound="lower"),
+            y_top=hdi_da.sel(ci_bound="upper"),
+            **{"alpha": 0.2, **(hdi_kwargs or {})},
+        )
+        pc.map(
+            azp.visuals.line_xy,
+            x=entries.date,
+            y=entries.mean(dim=["draw", "chain"]),
+            **(line_kwargs or {}),
+        )
 
         pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
         pc.map(azp.visuals.labelled_y, text="Contribution", ignore_aes={"color"})
         pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
+        pc.add_legend("component")
 
-        return _extract_matplotlib_result(pc, return_as_pc)
+        return _extract_matplotlib_result(pc, return_as_pc), entries
 
     def waterfall(
         self,
@@ -324,39 +318,24 @@ class DecompositionPlots:
         # Build entries: (label, xr.DataArray) where DataArray has dims (extra_dims,) or scalar
         entries: list[tuple[str, xr.DataArray]] = []
 
-        if "baseline" in contributions_ds:
-            bl_da = contributions_ds["baseline"]
-            # baseline has no date dim — mean over chain, draw only
-            entries.append(("baseline", bl_da.mean(dim=("chain", "draw"))))
-
-        if "channels" in contributions_ds:
-            ch_da = contributions_ds["channels"]
-            ch_da = _select_dims(ch_da, dims)
-            for ch in ch_da.coords["channel"].values:
-                entries.append(
-                    (str(ch), ch_da.sel(channel=ch).mean(dim=("chain", "draw", "date")))
-                )
-
-        if "controls" in contributions_ds:
-            ctrl_da = contributions_ds["controls"]
-            ctrl_da = _select_dims(ctrl_da, dims)
-            for ctrl in ctrl_da.coords["control"].values:
-                entries.append(
-                    (
-                        str(ctrl),
-                        ctrl_da.sel(control=ctrl).mean(dim=("chain", "draw", "date")),
+        for ds_key, coord_dim in [
+            ("baseline", None),
+            ("channels", "channel"),
+            ("controls", "control"),
+            ("seasonality", None),
+        ]:
+            if ds_key not in contributions_ds:
+                continue
+            da = _select_dims(contributions_ds[ds_key], dims)
+            # mean over whichever of chain/draw/date are present (baseline has no date dim)
+            mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
+            if coord_dim is not None:
+                for val in da.coords[coord_dim].values:
+                    entries.append(
+                        (str(val), da.sel({coord_dim: val}).mean(dim=mean_dims))
                     )
-                )
-
-        if "seasonality" in contributions_ds:
-            seas_da = contributions_ds["seasonality"]
-            seas_da = _select_dims(seas_da, dims)
-            entries.append(("seasonality", seas_da.mean(dim=("chain", "draw", "date"))))
-
-        # Apply dims filter to baseline separately (it may have extra_dims but no date/channel)
-        if entries and "baseline" in dict(entries):
-            bl_idx = next(i for i, (k, _) in enumerate(entries) if k == "baseline")
-            entries[bl_idx] = ("baseline", _select_dims(entries[bl_idx][1], dims))
+            else:
+                entries.append((ds_key, da.mean(dim=mean_dims)))
 
         # Determine panel combos from extra dims
         if extra_dims:
@@ -368,7 +347,7 @@ class DecompositionPlots:
 
         n_panels = len(combos)
         fig, axes_raw = plt.subplots(
-            1, n_panels, figsize=figsize or (6 * n_panels, 4), squeeze=False
+            n_panels, 1, figsize=figsize or (6 * n_panels, 4), squeeze=False
         )
         axes_flat = axes_raw.flatten()
 
