@@ -36,59 +36,6 @@ from pymc_marketing.mmm.plotting._helpers import (
 )
 
 
-def _plot_waterfall_panel(
-    ax: Axes,
-    entries: list[tuple[str, float]],
-    bar_kwargs: dict,
-) -> None:
-    """Draw a single waterfall panel onto *ax*.
-
-    Parameters
-    ----------
-    ax : Axes
-        Matplotlib axes to draw on.
-    entries : list of (label, value)
-        Ordered contribution components. A "total" bar is appended automatically.
-    bar_kwargs : dict
-        Extra kwargs forwarded to ``ax.barh()``.
-    """
-    total = sum(v for _, v in entries)
-    components = [*entries, ("total", total)]
-
-    running = 0.0
-    for bar_idx, (label, val) in enumerate(components):
-        if label == "total":
-            color = "grey"
-            left = 0.0
-            width = val
-        else:
-            color = "green" if val >= 0 else "red"
-            left = running
-            width = val
-            running += val
-
-        ax.barh(
-            y=bar_idx,
-            width=width,
-            left=left,
-            color=color,
-            **bar_kwargs,
-        )
-        pct = 100 * val / total if total != 0 else 0.0
-        ax.text(
-            left + width / 2,
-            bar_idx,
-            f"{val:.1f} ({pct:.1f}%)",
-            va="center",
-            ha="center",
-            fontsize=8,
-        )
-
-    ax.set_yticks(range(len(components)))
-    ax.set_yticklabels([c[0] for c in components])
-    ax.axvline(0, color="black", linewidth=0.8)
-
-
 class DecompositionPlots:
     """Decomposition plots for fitted MMM models.
 
@@ -106,6 +53,59 @@ class DecompositionPlots:
 
     def __init__(self, data: MMMIDataWrapper) -> None:
         self._data = data
+
+    @staticmethod
+    def _plot_waterfall_panel(
+        ax: Axes,
+        entries: list[tuple[str, float]],
+        bar_kwargs: dict,
+    ) -> None:
+        """Draw a single waterfall panel onto *ax*.
+
+        Parameters
+        ----------
+        ax : Axes
+            Matplotlib axes to draw on.
+        entries : list of (label, value)
+            Ordered contribution components. A "total" bar is appended automatically.
+        bar_kwargs : dict
+            Extra kwargs forwarded to ``ax.barh()``.
+        """
+        total = sum(v for _, v in entries)
+        components = [*entries, ("total", total)]
+
+        running = 0.0
+        for bar_idx, (label, val) in enumerate(components):
+            if label == "total":
+                color = "grey"
+                left = 0.0
+                width = val
+            else:
+                color = "green" if val >= 0 else "red"
+                left = running
+                width = val
+                running += val
+
+            ax.barh(
+                y=bar_idx,
+                width=width,
+                left=left,
+                color=color,
+                **bar_kwargs,
+            )
+            pct = 100 * val / total if total != 0 else 0.0
+            ax.text(
+                left + width / 2,
+                bar_idx,
+                f"{val:.1f} ({pct:.1f}%)",
+                va="center",
+                ha="center",
+                fontsize=8,
+            )
+
+        ax.set_yticks(range(len(components)))
+        ax.set_yticklabels([c[0] for c in components])
+        ax.axvline(0, color="black", linewidth=0.8)
 
     def contributions_over_time(
         self,
@@ -401,7 +401,7 @@ class DecompositionPlots:
             if title:
                 ax.set_title(title)
 
-            _plot_waterfall_panel(ax, panel_entries, safe_bar_kwargs)
+            self._plot_waterfall_panel(ax, panel_entries, safe_bar_kwargs)
 
         fig.tight_layout()
         return fig, np.atleast_1d(np.array(axes_flat))
