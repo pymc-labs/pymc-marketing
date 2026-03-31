@@ -45,7 +45,7 @@ def simple_idata() -> az.InferenceData:
 
     posterior:
       channel_contribution   (chain, draw, date, channel)
-      intercept_contribution (chain, draw, date)
+      intercept_contribution (chain, draw)              -- no date dim
     constant_data:
       target_data  (date,)
       target_scale scalar
@@ -68,12 +68,11 @@ def simple_idata() -> az.InferenceData:
                 },
             ),
             "intercept_contribution": xr.DataArray(
-                rng.uniform(50, 150, size=(n_chain, n_draw, n_date)),
-                dims=("chain", "draw", "date"),
+                rng.uniform(50, 150, size=(n_chain, n_draw)),
+                dims=("chain", "draw"),
                 coords={
                     "chain": np.arange(n_chain),
                     "draw": np.arange(n_draw),
-                    "date": dates,
                 },
             ),
         }
@@ -93,11 +92,13 @@ def simple_idata() -> az.InferenceData:
 
 @pytest.fixture(scope="module")
 def panel_idata() -> az.InferenceData:
-    """idata with geo extra dim — (chain, draw, date, channel, geo) for channels.
+    """idata with geo extra dim.
 
     posterior:
-      channel_contribution   (chain, draw, date, channel, geo)
-      intercept_contribution (chain, draw, date, geo)
+      channel_contribution          (chain, draw, date, geo, channel)
+      intercept_contribution        (chain, draw, geo)              -- no date dim
+      control_contribution          (chain, draw, date, geo, control)
+      yearly_seasonality_contribution (chain, draw, date, geo)
     constant_data:
       target_data  (date, geo)
       target_scale scalar
@@ -105,6 +106,7 @@ def panel_idata() -> az.InferenceData:
     rng = np.random.default_rng(SEED + 1)
     n_chain, n_draw, n_date = 2, 30, 15
     channels = ["tv", "radio"]
+    controls = ["price", "trend"]
     geos = ["CA", "NY"]
     dates = np.arange(n_date)
 
@@ -112,19 +114,41 @@ def panel_idata() -> az.InferenceData:
         {
             "channel_contribution": xr.DataArray(
                 rng.uniform(
-                    0, 100, size=(n_chain, n_draw, n_date, len(channels), len(geos))
+                    0, 100, size=(n_chain, n_draw, n_date, len(geos), len(channels))
                 ),
-                dims=("chain", "draw", "date", "channel", "geo"),
+                dims=("chain", "draw", "date", "geo", "channel"),
                 coords={
                     "chain": np.arange(n_chain),
                     "draw": np.arange(n_draw),
                     "date": dates,
-                    "channel": channels,
                     "geo": geos,
+                    "channel": channels,
                 },
             ),
             "intercept_contribution": xr.DataArray(
-                rng.uniform(50, 150, size=(n_chain, n_draw, n_date, len(geos))),
+                rng.uniform(50, 150, size=(n_chain, n_draw, len(geos))),
+                dims=("chain", "draw", "geo"),
+                coords={
+                    "chain": np.arange(n_chain),
+                    "draw": np.arange(n_draw),
+                    "geo": geos,
+                },
+            ),
+            "control_contribution": xr.DataArray(
+                rng.uniform(
+                    -20, 20, size=(n_chain, n_draw, n_date, len(geos), len(controls))
+                ),
+                dims=("chain", "draw", "date", "geo", "control"),
+                coords={
+                    "chain": np.arange(n_chain),
+                    "draw": np.arange(n_draw),
+                    "date": dates,
+                    "geo": geos,
+                    "control": controls,
+                },
+            ),
+            "yearly_seasonality_contribution": xr.DataArray(
+                rng.uniform(-10, 10, size=(n_chain, n_draw, n_date, len(geos))),
                 dims=("chain", "draw", "date", "geo"),
                 coords={
                     "chain": np.arange(n_chain),
@@ -208,8 +232,33 @@ class TestContributionsOverTime:
         fig, _axes = panel_plots.contributions_over_time(dims={"geo": ["CA"]})
         assert isinstance(fig, Figure)
 
+    def test_each_channel_has_own_line(self, simple_plots):
+        """Each channel must produce its own labeled line."""
+        channels = ["tv", "radio", "social"]
+        _fig, axes = simple_plots.contributions_over_time(include=["channels"])
+        ax = axes[0]
+        line_labels = [
+            ln.get_label() for ln in ax.get_lines() if len(ln.get_xdata()) > 1
+        ]
+        for ch in channels:
+            assert ch in line_labels, (
+                f"Expected a line labeled '{ch}' but found: {line_labels}"
+            )
+
+    def test_baseline_is_horizontal(self, simple_plots):
+        """Baseline line must be constant across all dates (time-invariant intercept)."""
+        _fig, axes = simple_plots.contributions_over_time(include=["baseline"])
+        ax = axes[0]
+        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
+        baseline_lines = [ln for ln in lines if ln.get_label() == "baseline"]
+        assert baseline_lines, "No line labeled 'baseline' found"
+        ydata = baseline_lines[0].get_ydata()
+        assert np.allclose(ydata, ydata[0]), (
+            f"Baseline line should be horizontal (constant y), got: {ydata[:5]}…"
+        )
+
     def test_no_summing_warning(self, simple_plots):
-        # Multi-dim contributions (e.g. channel) are silently summed — no UserWarning
+        # Channels are plotted individually (not summed) — no UserWarning should be emitted
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             simple_plots.contributions_over_time()

@@ -136,25 +136,57 @@ class DecompositionPlots:
             contributions_ds = contributions_ds.drop_vars("channels", errors="ignore")
 
         extra_dims = list(data.custom_dims)
-        keep_dims = {"date", "chain", "draw"} | set(extra_dims)
 
-        # Collapse model-specific dims (e.g. channel, control) into the time axis
-        reduced: dict[str, xr.DataArray] = {}
-        for key in contributions_ds.data_vars:
-            da = contributions_ds[key]
-            to_sum = [d for d in da.dims if d not in keep_dims]
-            if to_sum:
-                da = da.sum(dim=to_sum)
-            da = _select_dims(da, dims)
-            reduced[key] = da
+        # Find date coordinate from any contribution that has a date dim.
+        # Fall back to the raw posterior coordinate so baseline-only plots work.
+        dates_coord = next(
+            (
+                contributions_ds[k].coords["date"]
+                for k in contributions_ds.data_vars
+                if "date" in contributions_ds[k].dims
+            ),
+            None,
+        )
+        if dates_coord is None:
+            posterior = data.idata.posterior
+            if "date" in posterior.coords:
+                dates_coord = posterior.coords["date"]
 
-        if not reduced:
+        # Build flat entries: each entry has dims (chain, draw, date[, extra_dims])
+        # so the rendering loop below is unchanged.
+        entries: list[tuple[str, xr.DataArray]] = []
+
+        if "channels" in contributions_ds:
+            ch_da = contributions_ds["channels"]
+            for ch in ch_da.coords["channel"].values:
+                entries.append((str(ch), _select_dims(ch_da.sel(channel=ch), dims)))
+
+        if "baseline" in contributions_ds:
+            bl_da = contributions_ds["baseline"]
+            # baseline has no date dim — broadcast it over the date axis
+            bl_broadcast = (
+                bl_da.expand_dims({"date": dates_coord})
+                if dates_coord is not None
+                else bl_da
+            )
+            entries.append(("baseline", _select_dims(bl_broadcast, dims)))
+
+        if "controls" in contributions_ds:
+            ctrl_da = contributions_ds["controls"]
+            # sum over the control dim → single time-series
+            entries.append(("controls", _select_dims(ctrl_da.sum(dim="control"), dims)))
+
+        if "seasonality" in contributions_ds:
+            seas_da = contributions_ds["seasonality"]
+            entries.append(("seasonality", _select_dims(seas_da, dims)))
+
+        if not entries:
             raise ValueError(
                 "No contribution data found after filtering. "
                 "Check that the model has the requested contribution types."
             )
 
-        first_da = next(iter(reduced.values()))
+        first_da = entries[0][1]
         dates = first_da.coords["date"].values
 
         layout_ds = (
@@ -170,7 +202,7 @@ class DecompositionPlots:
             **pc_kwargs,
         )
 
-        for i, (label, da) in enumerate(reduced.items()):
+        for i, (label, da) in enumerate(entries):
             mean_da = da.mean(dim=("chain", "draw"))
             hdi_da = da.azstats.hdi(hdi_prob)
             color = f"C{i}"
