@@ -163,6 +163,171 @@ def test_masked_prior_simple_1d():
     assert np.all(samples[..., 1] == 0)
 
 
+@pytest.mark.parametrize(
+    "mu_value, param_id",
+    [
+        ([0, 1], "list"),
+        (np.array([0, 1]), "numpy_array"),
+        (xr.DataArray([0, 1], dims="country"), "dataarray_1d"),
+    ],
+    ids=lambda x: x if isinstance(x, str) else None,
+)
+def test_masked_prior_non_scalar_params_regression_2463(mu_value, param_id):
+    """Regression test for #2463: MaskedPrior must work with non-scalar Prior params."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, False], dims=["country"], coords=coords)
+    prior = Prior("Normal", mu=mu_value, sigma=10, dims=("country",))
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2,)
+    assert vals[1] == 0.0  # Colombia is masked out
+    assert np.isfinite(vals[0])  # Venezuela is active
+
+
+def test_subset_raw_parameter_dataarray_dim_order():
+    """Verify xr.DataArray params are subset in mask dim order, not broadcast dim order."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    base = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+    mp = MaskedPrior(base, mask)
+    flat_mask = mask.values.astype(bool).ravel()
+
+    value = xr.DataArray([0, 1], dims="channel")
+    result = mp._subset_raw_parameter(value, flat_mask)
+    # Active positions in (country, channel) order: (Ven,TV), (Col,TV), (Col,Radio)
+    # TV=0, Radio=1 → expected [0, 0, 1]
+    np.testing.assert_array_equal(result, [0, 0, 1])
+
+    value_country = xr.DataArray([5, 10], dims="country")
+    result_country = mp._subset_raw_parameter(value_country, flat_mask)
+    # Venezuela=5, Colombia=10 → expected [5, 10, 10]
+    np.testing.assert_array_equal(result_country, [5, 10, 10])
+
+
+def test_masked_prior_dataarray_per_channel_2d_mask():
+    """DataArray param along rightmost dim with a 2D mask (migration guide pattern)."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior(
+        "Normal",
+        mu=xr.DataArray([0, 100], dims="channel"),
+        sigma=0.001,
+        dims=("country", "channel"),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2, 2)
+    assert vals[0, 1] == 0.0  # (Venezuela, Radio) masked out
+    assert abs(vals[0, 0] - 0) < 1  # (Ven, TV) ≈ mu_TV = 0
+    assert abs(vals[1, 0] - 0) < 1  # (Col, TV) ≈ mu_TV = 0
+    assert abs(vals[1, 1] - 100) < 1  # (Col, Radio) ≈ mu_Radio = 100
+
+
+def test_masked_prior_dataarray_non_rightmost_dim_2d_mask():
+    """DataArray param along non-rightmost dim -- only xarray broadcasting gets this right."""
+    coords = {
+        "country": ["Venezuela", "Colombia"],
+        "channel": ["TV", "Radio", "Digital"],
+    }
+    mask = xr.DataArray(
+        [[True, False, True], [True, True, False]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior(
+        "Normal",
+        mu=xr.DataArray([5, 10], dims="country"),
+        sigma=1,
+        dims=("country", "channel"),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2, 3)
+    assert vals[0, 1] == 0.0  # (Venezuela, Radio) masked
+    assert vals[1, 2] == 0.0  # (Colombia, Digital) masked
+    active_mask = mask.values
+    assert np.all(np.isfinite(vals[active_mask]))
+
+
+def test_masked_prior_2d_mask_full_shape_list():
+    """Plain list matching full mask shape with 2D dims."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior(
+        "Normal",
+        mu=[[0, 1], [2, 3]],
+        sigma=1,
+        dims=("country", "channel"),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2, 2)
+    assert vals[0, 1] == 0.0
+
+
+def test_masked_prior_nested_prior_with_array_params():
+    """Nested Prior whose inner parameters are lists must be subset via recursion."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, False], dims=["country"], coords=coords)
+    prior = Prior(
+        "Normal",
+        mu=Prior("Normal", mu=[0, 1], sigma=1, dims=("country",)),
+        sigma=1,
+        dims=("country",),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2,)
+    assert vals[1] == 0.0
+
+
+def test_masked_prior_all_active_preserves_array_param():
+    """All-True mask with array params: no subsetting, full shape preserved."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, True], dims=["country"], coords=coords)
+    prior = Prior("Normal", mu=[0, 1], sigma=10, dims=("country",))
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2,)
+    assert np.all(np.isfinite(vals))
+
+
 def test_masked_prior_with_logistic_saturation_prior_sampling():
     """Mask a saturation parameter and check zeros at masked positions in prior sampling."""
     coords = {
