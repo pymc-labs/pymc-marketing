@@ -14,10 +14,11 @@
 """Class to store and validate keyword argument for the Hilbert Space Gaussian Process (HSGP) components."""
 
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
-from pymc_extras.deserialize import register_deserialization
+
+from pymc_marketing.serialization import serialization
 
 
 class CovFunc(StrEnum):
@@ -28,6 +29,7 @@ class CovFunc(StrEnum):
     Matern32 = "matern32"
 
 
+@serialization.register
 class HSGPKwargs(BaseModel):
     """HSGP keyword arguments for the time-varying prior.
 
@@ -91,19 +93,12 @@ class HSGPKwargs(BaseModel):
         None, description="Covariance function enum (ExpQuad, Matern52, Matern32)"
     )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        return self.model_dump(mode="json")
 
-def _is_hsgp_kwargs(data) -> bool:
-    return isinstance(data, dict) and data.keys() == {
-        "m",
-        "L",
-        "eta_lam",
-        "ls_mu",
-        "ls_sigma",
-        "cov_func",
-    }
-
-
-register_deserialization(
-    is_type=_is_hsgp_kwargs,
-    deserialize=lambda data: HSGPKwargs.model_validate(data),
-)
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "HSGPKwargs":
+        """Reconstruct from a dict."""
+        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        return cls.model_validate(filtered)

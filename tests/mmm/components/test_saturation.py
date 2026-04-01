@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import inspect
 from inspect import signature
 
 import numpy as np
@@ -20,13 +21,13 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc_extras.deserialize import (
     DESERIALIZERS,
-    deserialize,
     register_deserialization,
 )
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.mmm.components.saturation import (
     SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
@@ -34,6 +35,13 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.serialization import serialization
+
+ALL_SATURATION_CLASSES: list[type[SaturationTransformation]] = [
+    cls
+    for _, cls in inspect.getmembers(saturation_module, inspect.isclass)
+    if issubclass(cls, SaturationTransformation) and cls is not SaturationTransformation
+]
 
 
 @pytest.fixture
@@ -247,7 +255,8 @@ def test_saturation_from_dict() -> None:
         },
     }
 
-    saturation = saturation_from_dict(data)
+    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
+        saturation = saturation_from_dict(data)
     assert saturation == MichaelisMentenSaturation(
         priors={
             "alpha": Prior("HalfNormal", sigma=1),
@@ -256,13 +265,17 @@ def test_saturation_from_dict() -> None:
     )
 
 
-@pytest.mark.parametrize("saturation", saturation_functions())
-def test_saturation_from_dict_without_priors(saturation) -> None:
+@pytest.mark.parametrize(
+    "lookup_name, saturation_cls",
+    list(SATURATION_TRANSFORMATIONS.items()),
+)
+def test_saturation_from_dict_without_priors(lookup_name, saturation_cls) -> None:
     data = {
-        "lookup_name": saturation.lookup_name,
+        "lookup_name": lookup_name,
     }
 
-    saturation = saturation_from_dict(data)
+    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
+        saturation = saturation_from_dict(data)
     assert saturation.default_priors == {
         k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
     }
@@ -301,7 +314,8 @@ def test_deserialization(
         },
     }
 
-    instance = deserialize(data)
+    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
+        instance = saturation_from_dict(data)
     assert isinstance(instance, LogisticSaturation)
     assert instance.prefix == "new"
 
@@ -311,20 +325,46 @@ def test_deserialization(
     assert alpha.value == 1
 
 
-def test_deserialize_new_transformation() -> None:
-    class NewSaturation(SaturationTransformation):
-        lookup_name = "new_saturation"
+class TestSaturationRoundtrips:
+    """Every SaturationTransformation subclass round-trips with all params."""
 
-        def function(self, x):
-            return x
+    @pytest.mark.parametrize(
+        "sat_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_roundtrip_all_parameters(self, sat_cls):
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in sat_cls.default_priors
+        }
+        kwargs: dict = {
+            "prefix": "custom_sat",
+            "priors": custom_priors,
+        }
 
-        default_priors = {}
+        original = sat_cls(**kwargs)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
-    data = {
-        "lookup_name": "new_saturation",
-    }
+        assert type(restored) is sat_cls
+        assert restored.prefix == "custom_sat"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
 
-    instance = deserialize(data)
-    assert isinstance(instance, NewSaturation)
 
-    SATURATION_TRANSFORMATIONS.pop("new_saturation")
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.components.saturation.LogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.TanhSaturation",
+        "pymc_marketing.mmm.components.saturation.TanhSaturationBaselined",
+        "pymc_marketing.mmm.components.saturation.HillSaturation",
+        "pymc_marketing.mmm.components.saturation.HillSaturationSigmoid",
+        "pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation",
+        "pymc_marketing.mmm.components.saturation.RootSaturation",
+        "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.NoSaturation",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

@@ -12,7 +12,6 @@
   clv
   customer_choice
   data
-  deserialize
   hsgp_kwargs
   metrics
   mlflow
@@ -24,6 +23,8 @@
   plot
   prior
   pytensor_utils
+  serialization
+  serialization_migration
   special_priors
   utils
 ```
