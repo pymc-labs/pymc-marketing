@@ -350,6 +350,97 @@ def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
     assert "posterior" in model.idata
 
 
+def test_lognormal_prior_class_key_in_yaml(tmp_path, mock_pymc_sample):
+    """Regression test for #2071 / #2439: LogNormalPrior via class: key in priors."""
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.special_priors import LogNormalPrior
+
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=100),
+            "channel_1": range(100),
+            "channel_2": range(100, 200),
+        }
+    )
+    y = pd.Series(range(100), name="y")
+
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1", "channel_2"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {
+                        "priors": {
+                            "lam": {
+                                "distribution": "Gamma",
+                                "mu": 0.5,
+                                "sigma": 1.5,
+                                "dims": ["channel"],
+                            },
+                            "beta": {
+                                "class": "pymc_marketing.special_priors.LogNormalPrior",
+                                "kwargs": {
+                                    "mean": {
+                                        "distribution": "Gamma",
+                                        "mu": 0.25,
+                                        "sigma": 1.0,
+                                        "dims": ["channel"],
+                                    },
+                                    "std": {
+                                        "distribution": "HalfNormal",
+                                        "sigma": 1.0,
+                                        "dims": ["channel"],
+                                    },
+                                    "centered": False,
+                                    "dims": ["channel"],
+                                },
+                            },
+                        }
+                    },
+                },
+                "sampler_config": {
+                    "draws": 10,
+                    "tune": 10,
+                    "chains": 1,
+                    "random_seed": 42,
+                },
+            },
+        }
+    }
+
+    config_path = tmp_path / "test_config.yml"
+    with open(config_path, "w") as f:
+        yaml.dump(config, f)
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert model is not None
+    assert hasattr(model, "saturation")
+
+    lam_prior = model.saturation.priors["lam"]
+    assert isinstance(lam_prior, Prior)
+
+    beta_prior = model.saturation.priors["beta"]
+    assert isinstance(beta_prior, LogNormalPrior)
+    assert beta_prior.centered is False
+    assert beta_prior.dims == ("channel",)
+    assert isinstance(beta_prior.parameters["mean"], Prior)
+    assert isinstance(beta_prior.parameters["std"], Prior)
+
+    model.fit(X=X, y=y)
+    assert model.idata is not None
+    assert "posterior" in model.idata
+
+
 def test_build_mmm_loads_data_from_yaml_paths(
     tmp_path, _minimal_model_config, _sample_data
 ):
