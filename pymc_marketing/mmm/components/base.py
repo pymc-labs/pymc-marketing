@@ -127,7 +127,6 @@ class Transformation:
     prefix: str
     default_priors: dict[str, Prior]
     function: Any
-    lookup_name: str
 
     def __init__(
         self,
@@ -176,7 +175,6 @@ class Transformation:
 
         """
         return {
-            "lookup_name": self.lookup_name,
             "prefix": self.prefix,
             "priors": {
                 key: _serialize_value(value)
@@ -236,7 +234,6 @@ class Transformation:
 
 
             class MyTransformation(Transformation):
-                lookup_name: str = "my_transformation"
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
                 default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
@@ -302,9 +299,6 @@ class Transformation:
 
         if not hasattr(self, "function"):
             raise NotImplementedError("function must be implemented in the subclass")
-
-        if not hasattr(self, "lookup_name"):
-            raise NotImplementedError("lookup_name must be implemented in the subclass")
 
     def _has_defaults_for_all_arguments(self) -> None:
         function_signature = signature(self.function)
@@ -679,47 +673,3 @@ def _serialize_value(value: Any) -> Any:
         return value.tolist()
 
     return value
-
-
-class DuplicatedTransformationError(Exception):
-    """Exception when a transformation is duplicated."""
-
-    def __init__(self, name: str, lookup_name: str):
-        self.name = name
-        self.lookup_name = lookup_name
-        super().__init__(f"Duplicate {name}. The name {lookup_name!r} already exists.")
-
-
-def create_registration_meta(subclasses: dict[str, Any]) -> type[type]:
-    """Create a metaclass for registering subclasses.
-
-    Parameters
-    ----------
-    subclasses : dict[str, type[Transformation]]
-        The subclasses to register.
-
-    Returns
-    -------
-    type
-        The metaclass for registering subclasses.
-
-    """
-
-    class RegistrationMeta(type):
-        def __new__(cls, name, bases, attrs):
-            new_cls = super().__new__(cls, name, bases, attrs)
-
-            if "lookup_name" not in attrs:
-                return new_cls
-
-            base_name = bases[0].__name__
-
-            lookup_name = attrs["lookup_name"]
-            if lookup_name in subclasses:
-                raise DuplicatedTransformationError(base_name, lookup_name)
-
-            subclasses[lookup_name] = new_cls
-
-            return new_cls
-
-    return RegistrationMeta

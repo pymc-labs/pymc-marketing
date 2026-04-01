@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import json
 import os
 
 import arviz as az
@@ -32,6 +33,7 @@ from pymc_marketing.mmm.components.saturation import (
 )
 from pymc_marketing.mmm.mmm import MMM, BaseMMM
 from pymc_marketing.model_builder import DifferentModelError
+from pymc_marketing.serialization import serialization
 
 seed: int = sum(map(ord, "pymc_marketing"))
 rng: np.random.Generator = np.random.default_rng(seed=seed)
@@ -1610,9 +1612,8 @@ def test_save_load_with_tvp(
             assert get_random_variable_name(free_RV) == "FlatRV"
 
 
+@serialization.register
 class CustomSaturation(SaturationTransformation):
-    lookup_name: str = "custom_saturation"
-
     def function(self, x, beta, dim: str | None = None):
         return beta * x
 
@@ -3031,3 +3032,20 @@ class TestMMMHelperMethods:
         for param_name in result[channel]["adstock_params"].keys():
             # Parameters should not have 'adstock_' prefix
             assert not param_name.startswith("adstock_")
+
+
+class TestSerializationVersion:
+    """Verify __serialization_version__ attr is written during save.
+
+    Uses simple_fitted_mmm from conftest (multidimensional MMM).
+    """
+
+    def test_idata_attrs_have_version_and_type_keys(self, simple_fitted_mmm):
+        attrs = simple_fitted_mmm.create_idata_attrs()
+
+        assert attrs["__serialization_version__"] == "1"
+
+        for key in ("adstock", "saturation", "scaling"):
+            data = json.loads(attrs[key])
+            if data is not None:
+                assert "__type__" in data, f"{key} missing __type__ key"

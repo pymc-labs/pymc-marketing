@@ -39,6 +39,8 @@ from pymc_extras.prior import (
 from pytensor.tensor import TensorVariable, as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
+from pymc_marketing.serialization import serialization
+
 
 class SpecialPrior(ABC):
     """A base class for specialized priors."""
@@ -162,6 +164,8 @@ class SpecialPrior(ABC):
             )
             raise ValueError(msg)
 
+        data = {k: v for k, v in data.items() if k != "__type__"}
+
         # Extract special keys
         centered = data.get("centered", True)
         dims = data.get("dims")
@@ -207,6 +211,7 @@ class SpecialPrior(ABC):
         )
 
 
+@serialization.register
 class LogNormalPrior(SpecialPrior):
     r"""Lognormal prior parameterized by positive-scale mean and std.
 
@@ -334,6 +339,7 @@ register_deserialization(
 )
 
 
+@serialization.register
 class LaplacePrior(SpecialPrior):
     """A Laplace prior parameterized by a location and a scale parameter.
 
@@ -404,6 +410,7 @@ register_deserialization(
 )
 
 
+@serialization.register
 class MaskedPrior:
     """Create variables from a prior over only the active entries of a boolean mask.
 
@@ -749,6 +756,7 @@ class MaskedPrior:
         MaskedPrior
             Reconstructed instance.
         """
+        data = {k: v for k, v in data.items() if k != "__type__"}
         payload = data["data"] if "data" in data else data
         prior = (
             deserialize(payload["prior"])
