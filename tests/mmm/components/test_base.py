@@ -352,7 +352,6 @@ def test_support_for_non_prior(new_transformation_class) -> None:
 
     result = instance.to_dict()
     assert result == {
-        "__type__": f"{new_transformation_class.__module__}.{new_transformation_class.__qualname__}",
         "prefix": "new",
         "priors": {"a": 1, "b": 2},
     }
@@ -387,10 +386,8 @@ def new_transformation_with_custom(new_transformation_class):
 def test_support_customer_serialization(
     new_transformation_with_custom,
 ) -> None:
-    cls = type(new_transformation_with_custom)
     result = new_transformation_with_custom.to_dict()
     assert result == {
-        "__type__": f"{cls.__module__}.{cls.__qualname__}",
         "prefix": "new",
         "priors": {
             "a": {"type": "StandardNormal", "dims": ("channel",)},
@@ -419,7 +416,6 @@ def test_serialization(new_transformation_class) -> None:
 
     result = instance.to_dict()
     assert result == {
-        "__type__": f"{new_transformation_class.__module__}.{new_transformation_class.__qualname__}",
         "prefix": "new",
         "priors": {
             "a": [1, 2, 3],
