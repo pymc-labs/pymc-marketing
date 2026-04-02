@@ -1729,6 +1729,22 @@ class MMM(RegressionModelBuilder):
                     )
                 dim_name = remaining_dims[0]
                 coords = data.coords[dim_name].values
+                coord_labels = {str(c) for c in coords}
+                provided_keys = set(scaling.value.keys())
+                missing = coord_labels - provided_keys
+                extra = provided_keys - coord_labels
+                if missing or extra:
+                    parts = []
+                    if missing:
+                        parts.append(f"missing keys: {sorted(missing)}")
+                    if extra:
+                        parts.append(f"unexpected keys: {sorted(extra)}")
+                    raise ValueError(
+                        f"Fixed scaling dict keys for dimension "
+                        f"'{dim_name}' do not match coordinate labels. "
+                        f"{'; '.join(parts)}. "
+                        f"Expected: {sorted(coord_labels)}."
+                    )
                 values = np.array([scaling.value[str(c)] for c in coords])
                 return xr.DataArray(
                     values,

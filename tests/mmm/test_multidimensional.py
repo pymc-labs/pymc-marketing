@@ -1942,6 +1942,61 @@ def test_fixed_scaling_stable_across_data_changes(multi_dim_data) -> None:
     np.testing.assert_equal(mmm1.scalers._channel.values, mmm2.scalers._channel.values)
 
 
+def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
+    """Missing labels in a dict-valued fixed scale raise a clear error."""
+    X, y = multi_dim_data
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
+        channel=VariableScaling(
+            method="fixed",
+            dims=("country",),
+            value={"channel_1": 1_000, "channel_2": 2_000},
+        ),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"missing keys.*channel_3"):
+        mmm.build_model(X, y)
+
+
+def test_fixed_scaling_dict_extra_key(multi_dim_data) -> None:
+    """Extra labels in a dict-valued fixed scale raise a clear error."""
+    X, y = multi_dim_data
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
+        channel=VariableScaling(
+            method="fixed",
+            dims=("country",),
+            value={
+                "channel_1": 1_000,
+                "channel_2": 2_000,
+                "channel_3": 3_000,
+                "channel_99": 9_000,
+            },
+        ),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"unexpected keys.*channel_99"):
+        mmm.build_model(X, y)
+
+
 def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     """Test the MultiDimensionalBudgetOptimizerWrapper functionality."""
     start_date = "2025-01-01"

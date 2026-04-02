@@ -455,8 +455,14 @@ class BaseMMM(BaseValidateMMM):
 
         channel_scale: np.ndarray | float
         if channel_scaling.method == "fixed":
-            n_channels = len(self.channel_columns)
-            channel_scale = np.full(n_channels, channel_scaling.value)
+            if isinstance(channel_scaling.value, dict):
+                channel_scale = np.array(
+                    [channel_scaling.value[c] for c in self.channel_columns],
+                    dtype=float,
+                )
+            else:
+                n_channels = len(self.channel_columns)
+                channel_scale = np.full(n_channels, channel_scaling.value)
         else:
             X_data = self.preprocessed_data["X"]
             if not isinstance(X_data, pd.DataFrame):
@@ -468,10 +474,14 @@ class BaseMMM(BaseValidateMMM):
         self.channel_scale = channel_scale
 
         target_scale: float
-        if target_scaling.method == "fixed" and isinstance(
-            target_scaling.value, (int, float)
-        ):
-            target_scale = float(target_scaling.value)
+        if target_scaling.method == "fixed":
+            if isinstance(target_scaling.value, dict):
+                raise ValueError(
+                    "Dict-valued fixed target scaling is not supported in the "
+                    "legacy MMM (single target). Use a scalar value or switch "
+                    "to the multidimensional MMM."
+                )
+            target_scale = float(target_scaling.value)  # type: ignore[arg-type]
         else:
             target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
             target_scale = float(
@@ -507,18 +517,7 @@ class BaseMMM(BaseValidateMMM):
 
         # Serialize scaling configuration
         if hasattr(self, "scaling") and self.scaling is not None:
-            attrs["scaling"] = json.dumps(
-                {
-                    "target": {
-                        "method": self.scaling.target.method,
-                        "dims": self.scaling.target.dims,
-                    },
-                    "channel": {
-                        "method": self.scaling.channel.method,
-                        "dims": self.scaling.channel.dims,
-                    },
-                }
-            )
+            attrs["scaling"] = json.dumps(self.scaling.model_dump())
         else:
             attrs["scaling"] = json.dumps(None)
 
@@ -1279,15 +1278,18 @@ class BaseMMM(BaseValidateMMM):
         if scaling_dict is None:
             return None
 
+        def _make_variable_scaling(d: dict) -> VariableScaling:
+            kwargs: dict[str, Any] = {
+                "method": d["method"],
+                "dims": tuple(d["dims"]),
+            }
+            if "value" in d and d["value"] is not None:
+                kwargs["value"] = d["value"]
+            return VariableScaling(**kwargs)
+
         return Scaling(
-            target=VariableScaling(
-                method=scaling_dict["target"]["method"],
-                dims=tuple(scaling_dict["target"]["dims"]),
-            ),
-            channel=VariableScaling(
-                method=scaling_dict["channel"]["method"],
-                dims=tuple(scaling_dict["channel"]["dims"]),
-            ),
+            target=_make_variable_scaling(scaling_dict["target"]),
+            channel=_make_variable_scaling(scaling_dict["channel"]),
         )
 
     @classmethod

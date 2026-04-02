@@ -1191,6 +1191,75 @@ class TestMMM:
         assert mmm1.target_scale == mmm2.target_scale == fixed_target
         np.testing.assert_array_equal(mmm1.channel_scale, mmm2.channel_scale)
 
+    def test_fixed_scaling_per_channel_dict(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Dict-valued fixed scaling assigns per-channel constants."""
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        channel_values = {"channel_1": 1_000.0, "channel_2": 2_000.0}
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=VariableScaling(method="fixed", dims=(), value=50_000.0),
+                channel=VariableScaling(method="fixed", dims=(), value=channel_values),
+            ),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        np.testing.assert_array_equal(mmm.channel_scale, [1_000.0, 2_000.0])
+
+    def test_fixed_scaling_dict_target_raises(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Dict-valued fixed target scaling is rejected in legacy MMM."""
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=VariableScaling(
+                    method="fixed", dims=(), value={"a": 1.0, "b": 2.0}
+                ),
+                channel=VariableScaling(method="fixed", dims=(), value=1_000.0),
+            ),
+        )
+        with pytest.raises(ValueError, match="Dict-valued fixed target scaling"):
+            mmm.build_model(X=toy_X, y=toy_y)
+
+    def test_fixed_scaling_serialization_roundtrip(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Fixed scaling survives create_idata_attrs / attrs_to_init_kwargs."""
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        scaling = Scaling(
+            target=VariableScaling(method="fixed", dims=(), value=50_000.0),
+            channel=VariableScaling(method="fixed", dims=(), value=10_000.0),
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+        )
+        mmm.build_model(X=toy_X, y=toy_y)
+
+        attrs = mmm.create_idata_attrs()
+        kwargs = MMM.attrs_to_init_kwargs(attrs)
+
+        restored_scaling = kwargs["scaling"]
+        assert restored_scaling == scaling
+        assert restored_scaling.target.value == 50_000.0
+        assert restored_scaling.channel.value == 10_000.0
+
     def test_validation_disabled(self, toy_X: pd.DataFrame, toy_y: pd.Series):
         """Test model with validation disabled."""
         mmm = MMM(
