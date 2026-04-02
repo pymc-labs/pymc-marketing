@@ -478,6 +478,7 @@ class RootSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class LogSaturation(SaturationTransformation):
     r"""Logarithmic saturation for log-log models.
 
@@ -502,8 +503,6 @@ class LogSaturation(SaturationTransformation):
         plt.show()
 
     """
-
-    lookup_name = "log_saturation"
 
     def function(self, x, beta, *, dim: str | None = None):
         """Logarithmic saturation function: beta * log(1 + x)."""
@@ -554,6 +553,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     "hill": HillSaturation,
     "hill_sigmoid": HillSaturationSigmoid,
     "root": RootSaturation,
+    "log_saturation": LogSaturation,
     "no_saturation": NoSaturation,
 }
 
