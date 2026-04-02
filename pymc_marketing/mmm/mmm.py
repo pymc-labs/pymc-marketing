@@ -17,7 +17,7 @@ import json
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -464,9 +464,7 @@ class BaseMMM(BaseValidateMMM):
                 n_channels = len(self.channel_columns)
                 channel_scale = np.full(n_channels, channel_scaling.value)
         else:
-            X_data = self.preprocessed_data["X"]
-            if not isinstance(X_data, pd.DataFrame):
-                raise TypeError("X data must be a DataFrame for scaling computation")
+            X_data = cast(pd.DataFrame, self.preprocessed_data["X"])
             channel_data = X_data[self.channel_columns].to_numpy()
             channel_scale = self._compute_scale_for_data(
                 channel_data, channel_scaling.method, axis=0
@@ -515,11 +513,7 @@ class BaseMMM(BaseValidateMMM):
         attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
         attrs["outcome_node"] = json.dumps(self.outcome_node)
 
-        # Serialize scaling configuration
-        if hasattr(self, "scaling") and self.scaling is not None:
-            attrs["scaling"] = json.dumps(self.scaling.model_dump())
-        else:
-            attrs["scaling"] = json.dumps(None)
+        attrs["scaling"] = json.dumps(self.scaling.model_dump())
 
         return attrs
 

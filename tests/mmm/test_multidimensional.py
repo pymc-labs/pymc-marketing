@@ -1942,6 +1942,31 @@ def test_fixed_scaling_stable_across_data_changes(multi_dim_data) -> None:
     np.testing.assert_equal(mmm1.scalers._channel.values, mmm2.scalers._channel.values)
 
 
+def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
+    """Dict-valued fixed scaling with multiple remaining dims is rejected."""
+    X, y = multi_dim_data
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
+        channel=VariableScaling(
+            method="fixed",
+            dims=(),
+            value={"channel_1": 1_000, "channel_2": 2_000, "channel_3": 3_000},
+        ),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"exactly one remaining dimension"):
+        mmm.build_model(X, y)
+
+
 def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
     """Missing labels in a dict-valued fixed scale raise a clear error."""
     X, y = multi_dim_data

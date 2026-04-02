@@ -114,6 +114,16 @@ class TestFixedScaling:
         assert restored == original
 
 
+class TestVariableScalingDimsValidation:
+    def test_date_dim_rejected(self):
+        with pytest.raises(ValueError, match="date"):
+            VariableScaling(method="max", dims=("date",))
+
+    def test_duplicate_dims_rejected(self):
+        with pytest.raises(ValueError, match="unique"):
+            VariableScaling(method="max", dims=("geo", "geo"))
+
+
 @pytest.mark.parametrize(
     "type_key",
     [
