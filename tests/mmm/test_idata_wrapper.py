@@ -2575,3 +2575,161 @@ def test_to_scaled_string_works_without_target_scale(idata_without_target_scale)
     # Assert
     assert isinstance(result, xr.DataArray)
     xr.testing.assert_equal(result, idata_without_target_scale.posterior.mu)
+
+
+# ============================================================================
+# Category: Log-link contribution decomposition tests
+# ============================================================================
+
+_log_rng = np.random.default_rng(seed=sum(map(ord, "log_link_tests")))
+
+
+@pytest.fixture(scope="module")
+def idata_log_link_with_all_contributions() -> az.InferenceData:
+    """InferenceData for a log-link model with controls and seasonality."""
+    dates = pd.date_range("2024-01-01", periods=20, freq="W")
+    channels = ["TV", "Radio"]
+    controls = ["price", "promotion"]
+    countries = ["US", "UK"]
+
+    n_chains, n_draws, n_dates, n_countries, n_channels = 2, 5, 20, 2, 2
+
+    channel_contrib = np.abs(
+        _log_rng.normal(
+            0.3, 0.1, size=(n_chains, n_draws, n_dates, n_countries, n_channels)
+        )
+    )
+    intercept = _log_rng.normal(
+        5.0, 0.1, size=(n_chains, n_draws, n_dates, n_countries)
+    )
+    control_contrib = _log_rng.normal(
+        0.0, 0.05, size=(n_chains, n_draws, n_dates, n_countries, 2)
+    )
+    seasonality = _log_rng.normal(
+        0.0, 0.1, size=(n_chains, n_draws, n_dates, n_countries)
+    )
+
+    mu = (
+        intercept
+        + channel_contrib.sum(axis=-1)
+        + control_contrib.sum(axis=-1)
+        + seasonality
+    )
+
+    return az.InferenceData(
+        attrs={"link": "log"},
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    _log_rng.uniform(0, 100, size=(n_dates, n_countries, n_channels)),
+                    dims=("date", "country", "channel"),
+                    coords={"date": dates, "country": countries, "channel": channels},
+                ),
+                "target_data": xr.DataArray(
+                    _log_rng.uniform(100, 1000, size=(n_dates, n_countries)),
+                    dims=("date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+                "channel_scale": xr.DataArray(
+                    _log_rng.uniform(50, 150, size=(n_countries, n_channels)),
+                    dims=("country", "channel"),
+                    coords={"country": countries, "channel": channels},
+                ),
+                "target_scale": xr.DataArray(
+                    [500.0, 550.0],
+                    dims=("country",),
+                    coords={"country": countries},
+                ),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    channel_contrib,
+                    dims=("chain", "draw", "date", "country", "channel"),
+                    coords={"date": dates, "country": countries, "channel": channels},
+                ),
+                "intercept_contribution": xr.DataArray(
+                    intercept,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+                "control_contribution": xr.DataArray(
+                    control_contrib,
+                    dims=("chain", "draw", "date", "country", "control"),
+                    coords={"date": dates, "country": countries, "control": controls},
+                ),
+                "yearly_seasonality_contribution": xr.DataArray(
+                    seasonality,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+                "mu": xr.DataArray(
+                    mu,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+            }
+        ),
+    )
+
+
+def test_log_link_contributions_only_channels_and_baseline(
+    idata_log_link_with_all_contributions,
+):
+    """Log-link get_contributions must not return controls or seasonality."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(original_scale=True)
+
+    assert isinstance(result, xr.Dataset)
+    assert "channels" in result.data_vars
+    assert "baseline" in result.data_vars
+    assert "controls" not in result.data_vars
+    assert "seasonality" not in result.data_vars
+
+
+def test_log_link_contributions_no_baseline_when_excluded(
+    idata_log_link_with_all_contributions,
+):
+    """Log-link get_contributions with include_baseline=False omits baseline."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(
+        original_scale=True,
+        include_baseline=False,
+    )
+
+    assert "channels" in result.data_vars
+    assert "baseline" not in result.data_vars
+
+
+def test_log_link_contributions_conservation(
+    idata_log_link_with_all_contributions,
+):
+    """channels.sum('channel') + baseline must equal exp(mu) * target_scale."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(original_scale=True)
+
+    posterior = idata_log_link_with_all_contributions.posterior
+    target_scale = idata_log_link_with_all_contributions.constant_data.target_scale
+    y_hat = np.exp(posterior["mu"]) * target_scale
+
+    reconstructed = result["channels"].sum(dim="channel") + result["baseline"]
+
+    xr.testing.assert_allclose(reconstructed, y_hat)
+
+
+def test_log_link_contributions_baseline_original_scale(
+    idata_log_link_with_all_contributions,
+):
+    """Baseline must be in original scale, not raw log-space."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(original_scale=True)
+
+    target_scale = idata_log_link_with_all_contributions.constant_data.target_scale
+    baseline_mean = float(result["baseline"].mean())
+    scale_mean = float(target_scale.mean())
+
+    assert baseline_mean > scale_mean * 0.1, (
+        f"Baseline mean ({baseline_mean:.1f}) is too small relative to "
+        f"target_scale ({scale_mean:.1f}); likely still in log-space."
+    )

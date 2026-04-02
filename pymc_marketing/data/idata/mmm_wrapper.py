@@ -465,8 +465,6 @@ class MMMIDataWrapper:
         if self._link == "log" and original_scale:
             return self._get_contributions_log_link(
                 include_baseline=include_baseline,
-                include_controls=include_controls,
-                include_seasonality=include_seasonality,
             )
         return self._get_contributions_identity(
             original_scale=original_scale,
@@ -545,14 +543,73 @@ class MMMIDataWrapper:
     def _get_contributions_log_link(
         self,
         include_baseline: bool = True,
-        include_controls: bool = True,
-        include_seasonality: bool = True,
     ) -> xr.Dataset:
-        """Hybrid decomposition for log-link models (always original-scale).
+        r"""Hybrid decomposition for log-link models (always original-scale).
 
-        Uses counterfactual total media lift with proportional log-space
-        channel shares so that per-channel contributions sum to the total
-        media lift.
+        For log-link (multiplicative) models the linear predictor lives in
+        log-space:
+
+        .. math::
+
+            \mu = \text{intercept} + \sum_c \text{channel}_c
+                   + \text{controls} + \text{seasonality}
+
+        so :math:`y = \exp(\mu) \times \text{target\_scale}`.
+
+        Because the components combine multiplicatively, individual control
+        and seasonality effects **cannot** be isolated in original scale
+        without a full counterfactual for each.  They are therefore folded
+        into the ``baseline`` component, which represents the predicted
+        target with all media set to zero:
+
+        .. math::
+
+            \text{baseline} = \exp(\mu - \text{media\_total\_log})
+                               \times \text{target\_scale}
+
+        Per-channel contributions are obtained by distributing the total
+        media lift (``y_hat - baseline``) proportionally to each channel's
+        share of the total log-space media contribution:
+
+        .. math::
+
+            \text{channel}_c = \text{total\_media\_lift}
+                                \times \frac{\text{channel\_contrib}_c}
+                                             {\sum_c \text{channel\_contrib}_c}
+
+        This mirrors the decomposition in
+        :meth:`~pymc_marketing.mmm.multidimensional.MMM._compute_multiplicative_contributions`.
+
+        Parameters
+        ----------
+        include_baseline : bool, default True
+            Whether to include the ``baseline`` component (all non-media
+            effects) in the returned dataset.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset always containing:
+
+            - ``channels`` : per-channel contributions in original scale
+              with dims ``(chain, draw, date, channel)`` (plus any custom
+              dims).
+
+            If *include_baseline* is True, also contains:
+
+            - ``baseline`` : non-media prediction in original scale with
+              dims ``(chain, draw, date)`` (plus any custom dims).
+
+        Notes
+        -----
+        Unlike :meth:`_get_contributions_identity`, this method does **not**
+        return separate ``controls`` or ``seasonality`` keys.  Those effects
+        are embedded in ``baseline`` and cannot be additively separated
+        without additional counterfactual evaluations.
+
+        The sum ``channels.sum("channel") + baseline`` equals
+        ``exp(mu) * target_scale`` (the full posterior prediction) for every
+        posterior draw.
         """
         posterior = self.idata.posterior
         target_scale = self.get_target_scale()
@@ -574,12 +631,6 @@ class MMMIDataWrapper:
 
         if include_baseline:
             contributions["baseline"] = y_hat_no_media
-
-        if include_controls and "control_contribution" in posterior:
-            contributions["controls"] = posterior["control_contribution"]
-
-        if include_seasonality and "yearly_seasonality_contribution" in posterior:
-            contributions["seasonality"] = posterior["yearly_seasonality_contribution"]
 
         return xr.Dataset(contributions)
 
