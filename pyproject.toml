@@ -77,6 +77,12 @@ docs = [
     "preliz>=0.20.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
+report = [
+    "nbconvert>=7.0",
+    "nbformat>=5.9",
+    "openpyxl>=3.1",
+    "plotly>=6.3.0",
+]
 test = [
     "blackjax",
     "nutpie>=0.16.7",
@@ -102,6 +108,9 @@ test = [
 
 [tool.hatch.build.targets.sdist]
 exclude = ["docs"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"pymc_marketing/mmm/report/templates" = "pymc_marketing/mmm/report/templates"
 
 [tool.hatch.version]
 path = "pymc_marketing/version.py"

@@ -63,6 +63,7 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.report import MMMReport
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.time_slice_cross_validation import (
     TimeSliceCrossValidationResult,
@@ -89,6 +90,7 @@ __all__ = [
     "LogisticSaturation",
     "MMMBuilder",
     "MMMModelBuilder",
+    "MMMReport",
     "MediaConfig",
     "MediaConfigList",
     "MediaTransformation",
