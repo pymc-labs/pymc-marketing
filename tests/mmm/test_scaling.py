@@ -46,6 +46,74 @@ class TestScalingRoundtrips:
         assert restored == original
 
 
+class TestFixedScaling:
+    def test_fixed_scalar_construction(self):
+        vs = VariableScaling(method="fixed", dims=(), value=1000.0)
+        assert vs.method == "fixed"
+        assert vs.value == 1000.0
+        assert vs.dims == ()
+
+    def test_fixed_dict_construction(self):
+        vs = VariableScaling(
+            method="fixed",
+            dims=("country",),
+            value={"US": 50_000, "UK": 30_000},
+        )
+        assert vs.method == "fixed"
+        assert vs.value == {"US": 50_000, "UK": 30_000}
+
+    def test_fixed_missing_value_raises(self):
+        with pytest.raises(ValueError, match="value is required"):
+            VariableScaling(method="fixed", dims=())
+
+    def test_fixed_zero_value_raises(self):
+        with pytest.raises(ValueError, match="must be positive"):
+            VariableScaling(method="fixed", dims=(), value=0.0)
+
+    def test_fixed_negative_value_raises(self):
+        with pytest.raises(ValueError, match="must be positive"):
+            VariableScaling(method="fixed", dims=(), value=-5.0)
+
+    def test_fixed_dict_negative_value_raises(self):
+        with pytest.raises(ValueError, match="must be positive"):
+            VariableScaling(method="fixed", dims=("geo",), value={"A": 100, "B": -1})
+
+    def test_value_forbidden_for_max(self):
+        with pytest.raises(ValueError, match="must be None"):
+            VariableScaling(method="max", dims=(), value=100.0)
+
+    def test_value_forbidden_for_mean(self):
+        with pytest.raises(ValueError, match="must be None"):
+            VariableScaling(method="mean", dims=(), value=100.0)
+
+    def test_roundtrip_fixed_scalar(self):
+        original = VariableScaling(method="fixed", dims=(), value=42.0)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+        assert restored == original
+        assert restored.value == 42.0
+
+    def test_roundtrip_fixed_dict(self):
+        original = VariableScaling(
+            method="fixed",
+            dims=("geo",),
+            value={"US": 100, "UK": 200},
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+        assert restored == original
+        assert restored.value == {"US": 100, "UK": 200}
+
+    def test_roundtrip_scaling_with_fixed(self):
+        original = Scaling(
+            target=VariableScaling(method="fixed", dims=(), value=50_000.0),
+            channel=VariableScaling(method="fixed", dims=(), value=10_000.0),
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+        assert restored == original
+
+
 @pytest.mark.parametrize(
     "type_key",
     [

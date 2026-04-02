@@ -1130,6 +1130,67 @@ class TestMMM:
         assert hasattr(mmm, "model")
         assert mmm.target_scale > 0
 
+    def test_fixed_scaling_method(self, toy_X: pd.DataFrame, toy_y: pd.Series):
+        """Fixed scaling bypasses data-derived computation."""
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        fixed_target = 50_000.0
+        fixed_channel = 10_000.0
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=VariableScaling(method="fixed", dims=(), value=fixed_target),
+                channel=VariableScaling(method="fixed", dims=(), value=fixed_channel),
+            ),
+        )
+
+        mmm.build_model(X=toy_X, y=toy_y)
+        assert hasattr(mmm, "model")
+        assert mmm.target_scale == fixed_target
+        assert np.all(mmm.channel_scale == fixed_channel)
+
+    def test_fixed_scaling_stable_across_data_changes(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """Fixed scales remain identical when the underlying data changes."""
+        from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+
+        fixed_target = 25_000.0
+        fixed_channel = 5_000.0
+        scaling = Scaling(
+            target=VariableScaling(method="fixed", dims=(), value=fixed_target),
+            channel=VariableScaling(method="fixed", dims=(), value=fixed_channel),
+        )
+
+        mmm1 = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+        )
+        mmm1.build_model(X=toy_X, y=toy_y)
+
+        toy_X_shifted = toy_X.copy()
+        toy_X_shifted["channel_1"] = toy_X_shifted["channel_1"] * 10
+        toy_y_shifted = toy_y * 3
+
+        mmm2 = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+        )
+        mmm2.build_model(X=toy_X_shifted, y=toy_y_shifted)
+
+        assert mmm1.target_scale == mmm2.target_scale == fixed_target
+        np.testing.assert_array_equal(mmm1.channel_scale, mmm2.channel_scale)
+
     def test_validation_disabled(self, toy_X: pd.DataFrame, toy_y: pd.Series):
         """Test model with validation disabled."""
         mmm = MMM(

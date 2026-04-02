@@ -450,24 +450,36 @@ class BaseMMM(BaseValidateMMM):
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
-        # Get raw data
-        X_data = self.preprocessed_data["X"]
-        if not isinstance(X_data, pd.DataFrame):
-            raise TypeError("X data must be a DataFrame for scaling computation")
+        channel_scaling = self.scaling.channel
+        target_scaling = self.scaling.target
 
-        # Use pandas/numpy efficient operations - avoid redundant .values call
-        channel_data = X_data[self.channel_columns].to_numpy()
-        target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
+        channel_scale: np.ndarray | float
+        if channel_scaling.method == "fixed":
+            n_channels = len(self.channel_columns)
+            channel_scale = np.full(n_channels, channel_scaling.value)
+        else:
+            X_data = self.preprocessed_data["X"]
+            if not isinstance(X_data, pd.DataFrame):
+                raise TypeError("X data must be a DataFrame for scaling computation")
+            channel_data = X_data[self.channel_columns].to_numpy()
+            channel_scale = self._compute_scale_for_data(
+                channel_data, channel_scaling.method, axis=0
+            )
+        self.channel_scale = channel_scale
 
-        # Compute scales based on scaling configuration
-        self.channel_scale = self._compute_scale_for_data(
-            channel_data, self.scaling.channel.method, axis=0
-        )
-        target_scale = self._compute_scale_for_data(
-            target_data, self.scaling.target.method, axis=None
-        )
-        # Ensure target_scale is a Python float (convert from numpy scalar if needed)
-        self.target_scale = float(target_scale)
+        target_scale: float
+        if target_scaling.method == "fixed" and isinstance(
+            target_scaling.value, (int, float)
+        ):
+            target_scale = float(target_scaling.value)
+        else:
+            target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
+            target_scale = float(
+                self._compute_scale_for_data(
+                    target_data, target_scaling.method, axis=None
+                )
+            )
+        self.target_scale = target_scale
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Create attributes for the inference data.

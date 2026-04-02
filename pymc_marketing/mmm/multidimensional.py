@@ -1688,19 +1688,57 @@ class MMM(RegressionModelBuilder):
         """Compute and save scaling factors for channels and target."""
         self.scalers = xr.Dataset()
 
-        channel_method = getattr(
+        self.scalers["_channel"] = self._compute_scale_for_variable(
             self.xarray_dataset["_channel"],
-            self.scaling.channel.method,
+            self.scaling.channel,
         )
-        self.scalers["_channel"] = channel_method(
-            dim=("date", *self.scaling.channel.dims)
+        self.scalers["_target"] = self._compute_scale_for_variable(
+            self.xarray_dataset["_target"],
+            self.scaling.target,
         )
 
-        target_method = getattr(
-            self.xarray_dataset["_target"],
-            self.scaling.target.method,
-        )
-        self.scalers["_target"] = target_method(dim=("date", *self.scaling.target.dims))
+    def _compute_scale_for_variable(
+        self,
+        data: xr.DataArray,
+        scaling: VariableScaling,
+    ) -> xr.DataArray:
+        """Compute or construct a scale array for a single variable.
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            The raw data variable from :attr:`xarray_dataset`.
+        scaling : VariableScaling
+            The scaling configuration for this variable.
+
+        Returns
+        -------
+        xr.DataArray
+            Scale factors with the reduction dims removed.
+        """
+        reduce_dims = ("date", *scaling.dims)
+
+        if scaling.method == "fixed":
+            remaining_dims = [d for d in data.dims if d not in reduce_dims]
+            if isinstance(scaling.value, dict):
+                if len(remaining_dims) != 1:
+                    raise ValueError(
+                        f"dict-valued fixed scaling requires exactly one "
+                        f"remaining dimension after reduction, got "
+                        f"{remaining_dims}."
+                    )
+                dim_name = remaining_dims[0]
+                coords = data.coords[dim_name].values
+                values = np.array([scaling.value[str(c)] for c in coords])
+                return xr.DataArray(
+                    values,
+                    dims=(dim_name,),
+                    coords={dim_name: coords},
+                )
+            return xr.DataArray(scaling.value)
+
+        method_fn = getattr(data, scaling.method)
+        return method_fn(dim=reduce_dims)
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.

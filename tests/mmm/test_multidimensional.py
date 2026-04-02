@@ -1817,6 +1817,131 @@ def test_scaling_dict_doesnt_mutate() -> None:
     )
 
 
+def test_fixed_scaling_scalar(multi_dim_data) -> None:
+    """Fixed scalar scaling produces a uniform scaler across all levels."""
+    X, y = multi_dim_data
+
+    fixed_channel = 5_000.0
+    fixed_target = 25_000.0
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=("country",), value=fixed_target),
+        channel=VariableScaling(method="fixed", dims=("country",), value=fixed_channel),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    assert float(mmm.scalers._target) == fixed_target
+    assert float(mmm.scalers._channel) == fixed_channel
+
+
+def test_fixed_scaling_per_country(multi_dim_data) -> None:
+    """Per-country fixed scaling assigns different target values per level."""
+    X, y = multi_dim_data
+
+    target_values = {"Venezuela": 10_000, "Colombia": 20_000, "Chile": 30_000}
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=(), value=target_values),
+        channel=VariableScaling(method="fixed", dims=("country",), value=5_000.0),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    for country in ["Venezuela", "Colombia", "Chile"]:
+        assert float(mmm.scalers._target.sel(country=country)) == target_values[country]
+    assert float(mmm.scalers._channel) == 5_000.0
+
+
+def test_fixed_scaling_per_channel(multi_dim_data) -> None:
+    """Per-channel fixed scaling assigns different values per channel."""
+    X, y = multi_dim_data
+
+    channel_values = {
+        "channel_1": 1_000,
+        "channel_2": 2_000,
+        "channel_3": 3_000,
+    }
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
+        channel=VariableScaling(
+            method="fixed", dims=("country",), value=channel_values
+        ),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    for ch in ["channel_1", "channel_2", "channel_3"]:
+        assert float(mmm.scalers._channel.sel(channel=ch)) == channel_values[ch]
+    assert float(mmm.scalers._target) == 25_000.0
+
+
+def test_fixed_scaling_stable_across_data_changes(multi_dim_data) -> None:
+    """Fixed scales are the same regardless of the data distribution."""
+    X, y = multi_dim_data
+    fixed_target = 42_000.0
+    fixed_channel = 7_000.0
+
+    scaling = Scaling(
+        target=VariableScaling(method="fixed", dims=("country",), value=fixed_target),
+        channel=VariableScaling(method="fixed", dims=("country",), value=fixed_channel),
+    )
+
+    mmm1 = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm1.build_model(X, y)
+
+    X_shifted = X.copy()
+    X_shifted["channel_1"] = X_shifted["channel_1"] * 10
+    y_shifted = y * 3
+
+    mmm2 = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm2.build_model(X_shifted, y_shifted)
+
+    np.testing.assert_equal(mmm1.scalers._target.values, mmm2.scalers._target.values)
+    np.testing.assert_equal(mmm1.scalers._channel.values, mmm2.scalers._channel.values)
+
+
 def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     """Test the MultiDimensionalBudgetOptimizerWrapper functionality."""
     start_date = "2025-01-01"
@@ -3051,7 +3176,11 @@ class TestPydanticValidation:
             scaling=scaling_dict,
         )
         assert isinstance(mmm.scaling, Scaling)
-        assert mmm.scaling.model_dump() == scaling_dict
+        dumped = mmm.scaling.model_dump()
+        assert dumped["channel"]["method"] == "max"
+        assert dumped["target"]["method"] == "max"
+        assert dumped["channel"]["dims"] == ()
+        assert dumped["target"]["dims"] == ()
 
     def test_valid_scaling_object_accepted(self):
         """Test that valid Scaling object is accepted."""
