@@ -464,7 +464,11 @@ class BaseMMM(BaseValidateMMM):
                 n_channels = len(self.channel_columns)
                 channel_scale = np.full(n_channels, channel_scaling.value)
         else:
-            X_data = cast(pd.DataFrame, self.preprocessed_data["X"])
+            X_data = self.preprocessed_data["X"]
+            if not isinstance(X_data, pd.DataFrame):
+                raise TypeError("X data must be a DataFrame for scaling computation")
+
+            X_data = cast(pd.DataFrame, X_data)
             channel_data = X_data[self.channel_columns].to_numpy()
             channel_scale = self._compute_scale_for_data(
                 channel_data, channel_scaling.method, axis=0
