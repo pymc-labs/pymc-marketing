@@ -54,7 +54,12 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.preprocessing import MaxAbsScaleChannels, MaxAbsScaleTarget
-from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+    _deserialize_variable_scaling,
+)
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.mmm.utils import (
@@ -205,20 +210,23 @@ class BaseMMM(BaseValidateMMM):
         self.validate_data = validate_data
         self.adstock_first = adstock_first
 
-        # Initialize scaling configuration similar to multidimensional MMM
         if isinstance(scaling, dict):
             scaling = scaling.copy()
 
             if "channel" not in scaling:
-                scaling["channel"] = VariableScaling(method="max", dims=())
+                scaling["channel"] = DataDerivedScaling(method="max", dims=())
             if "target" not in scaling:
-                scaling["target"] = VariableScaling(method="max", dims=())
+                scaling["target"] = DataDerivedScaling(method="max", dims=())
+
+            for key in ("channel", "target"):
+                if isinstance(scaling[key], dict):
+                    scaling[key] = _deserialize_variable_scaling(scaling[key])
 
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
-            target=VariableScaling(method="max", dims=()),
-            channel=VariableScaling(method="max", dims=()),
+            target=DataDerivedScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method="max", dims=()),
         )
 
         model_config = model_config or {}
@@ -454,7 +462,7 @@ class BaseMMM(BaseValidateMMM):
         target_scaling = self.scaling.target
 
         channel_scale: np.ndarray | float
-        if channel_scaling.method == "fixed":
+        if isinstance(channel_scaling, FixedScaling):
             if isinstance(channel_scaling.value, dict):
                 channel_scale = np.array(
                     [channel_scaling.value[c] for c in self.channel_columns],
@@ -476,14 +484,14 @@ class BaseMMM(BaseValidateMMM):
         self.channel_scale = channel_scale
 
         target_scale: float
-        if target_scaling.method == "fixed":
+        if isinstance(target_scaling, FixedScaling):
             if isinstance(target_scaling.value, dict):
                 raise ValueError(
                     "Dict-valued fixed target scaling is not supported in the "
                     "legacy MMM (single target). Use a scalar value or switch "
                     "to the multidimensional MMM."
                 )
-            target_scale = float(target_scaling.value)  # type: ignore[arg-type]
+            target_scale = float(target_scaling.value)
         else:
             target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
             target_scale = float(
@@ -517,7 +525,9 @@ class BaseMMM(BaseValidateMMM):
         attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
         attrs["outcome_node"] = json.dumps(self.outcome_node)
 
-        attrs["scaling"] = json.dumps(self.scaling.model_dump())
+        from pymc_marketing.serialization import serialization as _serialization
+
+        attrs["scaling"] = json.dumps(_serialization.serialize(self.scaling))
 
         return attrs
 
@@ -1263,6 +1273,9 @@ class BaseMMM(BaseValidateMMM):
     def _deserialize_scaling(cls, scaling_dict: dict | None) -> Scaling | None:
         """Deserialize scaling configuration from JSON.
 
+        Handles both new format (with ``__type__`` keys from the serialization
+        registry) and legacy format (flat dicts with ``method``/``dims``).
+
         Parameters
         ----------
         scaling_dict : dict | None
@@ -1276,18 +1289,14 @@ class BaseMMM(BaseValidateMMM):
         if scaling_dict is None:
             return None
 
-        def _make_variable_scaling(d: dict) -> VariableScaling:
-            kwargs: dict[str, Any] = {
-                "method": d["method"],
-                "dims": tuple(d["dims"]),
-            }
-            if "value" in d and d["value"] is not None:
-                kwargs["value"] = d["value"]
-            return VariableScaling(**kwargs)
+        if "__type__" in scaling_dict:
+            from pymc_marketing.serialization import serialization as _serialization
+
+            return _serialization.deserialize(scaling_dict)
 
         return Scaling(
-            target=_make_variable_scaling(scaling_dict["target"]),
-            channel=_make_variable_scaling(scaling_dict["channel"]),
+            target=_deserialize_variable_scaling(scaling_dict["target"]),
+            channel=_deserialize_variable_scaling(scaling_dict["channel"]),
         )
 
     @classmethod

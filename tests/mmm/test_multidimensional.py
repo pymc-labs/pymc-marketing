@@ -42,7 +42,11 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
-from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+)
 
 
 @pytest.fixture
@@ -1698,7 +1702,7 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    assert mmm.scaling.target == VariableScaling(method=method, dims=())
+    assert mmm.scaling.target == DataDerivedScaling(method=method, dims=())
     mmm.fit(X, y)
     assert mmm.xarray_dataset._target.dims == ("date", "country")
     assert mmm.scalers._target.dims == ("country",)
@@ -1812,8 +1816,8 @@ def test_scaling_dict_doesnt_mutate() -> None:
 
     assert scaling == {}
     assert mmm.scaling == Scaling(
-        target=VariableScaling(method="max", dims=dims),
-        channel=VariableScaling(method="max", dims=dims),
+        target=DataDerivedScaling(method="max", dims=dims),
+        channel=DataDerivedScaling(method="max", dims=dims),
     )
 
 
@@ -1825,8 +1829,8 @@ def test_fixed_scaling_scalar(multi_dim_data) -> None:
     fixed_target = 25_000.0
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=("country",), value=fixed_target),
-        channel=VariableScaling(method="fixed", dims=("country",), value=fixed_channel),
+        target=FixedScaling(dims=("country",), value=fixed_target),
+        channel=FixedScaling(dims=("country",), value=fixed_channel),
     )
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
@@ -1850,8 +1854,8 @@ def test_fixed_scaling_per_country(multi_dim_data) -> None:
     target_values = {"Venezuela": 10_000, "Colombia": 20_000, "Chile": 30_000}
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=(), value=target_values),
-        channel=VariableScaling(method="fixed", dims=("country",), value=5_000.0),
+        target=FixedScaling(dims=(), value=target_values),
+        channel=FixedScaling(dims=("country",), value=5_000.0),
     )
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
@@ -1880,10 +1884,8 @@ def test_fixed_scaling_per_channel(multi_dim_data) -> None:
     }
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
-        channel=VariableScaling(
-            method="fixed", dims=("country",), value=channel_values
-        ),
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=("country",), value=channel_values),
     )
     mmm = MMM(
         adstock=GeometricAdstock(l_max=2),
@@ -1908,8 +1910,8 @@ def test_fixed_scaling_stable_across_data_changes(multi_dim_data) -> None:
     fixed_channel = 7_000.0
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=("country",), value=fixed_target),
-        channel=VariableScaling(method="fixed", dims=("country",), value=fixed_channel),
+        target=FixedScaling(dims=("country",), value=fixed_target),
+        channel=FixedScaling(dims=("country",), value=fixed_channel),
     )
 
     mmm1 = MMM(
@@ -1947,9 +1949,8 @@ def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
     X, y = multi_dim_data
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
-        channel=VariableScaling(
-            method="fixed",
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(
             dims=(),
             value={"channel_1": 1_000, "channel_2": 2_000, "channel_3": 3_000},
         ),
@@ -1972,9 +1973,8 @@ def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
     X, y = multi_dim_data
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
-        channel=VariableScaling(
-            method="fixed",
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(
             dims=("country",),
             value={"channel_1": 1_000, "channel_2": 2_000},
         ),
@@ -1997,9 +1997,8 @@ def test_fixed_scaling_dict_extra_key(multi_dim_data) -> None:
     X, y = multi_dim_data
 
     scaling = Scaling(
-        target=VariableScaling(method="fixed", dims=("country",), value=25_000.0),
-        channel=VariableScaling(
-            method="fixed",
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(
             dims=("country",),
             value={
                 "channel_1": 1_000,
@@ -2122,8 +2121,8 @@ def test_add_lift_test_measurements(
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
         scaling=Scaling(
-            channel=VariableScaling(method="max", dims=channel_scaling_dims),
-            target=VariableScaling(method="max", dims=target_scaling_dims),
+            channel=DataDerivedScaling(method="max", dims=channel_scaling_dims),
+            target=DataDerivedScaling(method="max", dims=target_scaling_dims),
         ),
         dims=("country",),
     )
@@ -2608,8 +2607,8 @@ def test_make_channel_transform_multi_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method=scaling_method, dims=scaling_dims),
-            target=VariableScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method=scaling_method, dims=scaling_dims),
+            target=DataDerivedScaling(method="max", dims=()),
         ),
     )
 
@@ -2687,8 +2686,8 @@ def test_make_channel_transform_single_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method=scaling_method, dims=()),
-            target=VariableScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method=scaling_method, dims=()),
+            target=DataDerivedScaling(method="max", dims=()),
         ),
     )
 
@@ -2756,8 +2755,8 @@ def test_make_target_transform_multi_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method="max", dims=()),
-            target=VariableScaling(method=scaling_method, dims=scaling_dims),
+            channel=DataDerivedScaling(method="max", dims=()),
+            target=DataDerivedScaling(method=scaling_method, dims=scaling_dims),
         ),
     )
 
@@ -2823,8 +2822,8 @@ def test_make_target_transform_single_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method=scaling_method, dims=()),
-            target=VariableScaling(method=scaling_method, dims=()),
+            channel=DataDerivedScaling(method=scaling_method, dims=()),
+            target=DataDerivedScaling(method=scaling_method, dims=()),
         ),
     )
 
@@ -3006,8 +3005,8 @@ def test_mmm_equality():
         saturation=LogisticSaturation(),
         dims=("geo",),
         scaling=Scaling(
-            target=VariableScaling(method="mean", dims=("geo",)),  # Different method
-            channel=VariableScaling(method="max", dims=("geo",)),
+            target=DataDerivedScaling(method="mean", dims=("geo",)),  # Different method
+            channel=DataDerivedScaling(method="max", dims=("geo",)),
         ),
     )
     assert mmm1 != mmm12
@@ -3256,17 +3255,18 @@ class TestPydanticValidation:
             scaling=scaling_dict,
         )
         assert isinstance(mmm.scaling, Scaling)
-        dumped = mmm.scaling.model_dump()
-        assert dumped["channel"]["method"] == "max"
-        assert dumped["target"]["method"] == "max"
-        assert dumped["channel"]["dims"] == ()
-        assert dumped["target"]["dims"] == ()
+        assert isinstance(mmm.scaling.channel, DataDerivedScaling)
+        assert isinstance(mmm.scaling.target, DataDerivedScaling)
+        assert mmm.scaling.channel.method == "max"
+        assert mmm.scaling.target.method == "max"
+        assert mmm.scaling.channel.dims == ()
+        assert mmm.scaling.target.dims == ()
 
     def test_valid_scaling_object_accepted(self):
         """Test that valid Scaling object is accepted."""
         scaling_obj = Scaling(
-            target=VariableScaling(method="max", dims=()),
-            channel=VariableScaling(method="max", dims=()),
+            target=DataDerivedScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method="max", dims=()),
         )
         mmm = MMM(
             date_column="date",
@@ -3350,8 +3350,8 @@ class TestPydanticValidation:
             time_varying_media=True,
             dims=("country", "product"),
             scaling=Scaling(
-                target=VariableScaling(method="mean", dims=("country",)),
-                channel=VariableScaling(method="max", dims=("country", "channel")),
+                target=DataDerivedScaling(method="mean", dims=("country",)),
+                channel=DataDerivedScaling(method="max", dims=("country", "channel")),
             ),
             model_config={"intercept": Prior("Normal", mu=0, sigma=2)},
             sampler_config={"draws": 1000, "chains": 4},

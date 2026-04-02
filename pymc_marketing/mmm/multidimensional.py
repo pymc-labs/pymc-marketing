@@ -193,7 +193,13 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
-from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+    VariableScaling,
+    _deserialize_variable_scaling,
+)
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
@@ -434,15 +440,19 @@ class MMM(RegressionModelBuilder):
             scaling = deepcopy(scaling)
 
             if "channel" not in scaling:
-                scaling["channel"] = VariableScaling(method="max", dims=self.dims)
+                scaling["channel"] = DataDerivedScaling(method="max", dims=self.dims)
             if "target" not in scaling:
-                scaling["target"] = VariableScaling(method="max", dims=self.dims)
+                scaling["target"] = DataDerivedScaling(method="max", dims=self.dims)
+
+            for key in ("channel", "target"):
+                if isinstance(scaling[key], dict):
+                    scaling[key] = _deserialize_variable_scaling(scaling[key])
 
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
-            target=VariableScaling(method="max", dims=self.dims),
-            channel=VariableScaling(method="max", dims=self.dims),
+            target=DataDerivedScaling(method="max", dims=self.dims),
+            channel=DataDerivedScaling(method="max", dims=self.dims),
         )
 
         if set(self.scaling.target.dims).difference([*self.dims, "date"]):
@@ -1718,7 +1728,7 @@ class MMM(RegressionModelBuilder):
         """
         reduce_dims = ("date", *scaling.dims)
 
-        if scaling.method == "fixed":
+        if isinstance(scaling, FixedScaling):
             remaining_dims = [d for d in data.dims if d not in reduce_dims]
             if isinstance(scaling.value, dict):
                 if len(remaining_dims) != 1:

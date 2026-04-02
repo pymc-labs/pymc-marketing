@@ -13,78 +13,41 @@
 #   limitations under the License.
 """Scaling configuration for the MMM."""
 
-from typing import Literal, Self
+from abc import ABC, abstractmethod
+from typing import Any, Literal, Self
 
 from pydantic import Field, model_validator
 
-from pymc_marketing.serialization import SerializableBaseModel
+from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 
-class VariableScaling(SerializableBaseModel):
-    """How to scale a variable.
-
-    Supported methods:
-
-    - ``"max"``: scale by the absolute maximum of the data (computed at fit time).
-    - ``"mean"``: scale by the absolute mean of the data (computed at fit time).
-    - ``"fixed"``: use a user-supplied constant that stays the same across model
-      refreshes.  Requires the ``value`` parameter.
+class VariableScaling(SerializableBaseModel, ABC):
+    """Abstract base for scaling a variable.
 
     The scaling through the dimension of ``'date'`` is assumed and doesn't need
     to be specified.
 
+    Concrete subclasses:
+
+    - :class:`DataDerivedScaling` -- scale by a statistic of the data
+      (``"max"`` or ``"mean"``), computed at fit time.
+    - :class:`FixedScaling` -- use a user-supplied constant that stays the
+      same across model refreshes.
+
     Parameters
     ----------
-    method : ``"max"`` | ``"mean"`` | ``"fixed"``
-        The scaling method.
     dims : str or tuple of str
         The dimensions to perform the operation through (``"date"`` is always
         included implicitly).
-    value : float or dict[str, float] or None
-        Fixed scaling constant(s).  Required when ``method="fixed"``, forbidden
-        otherwise.  A single ``float`` applies uniformly; a ``dict`` maps
-        dimension-level labels to per-level constants (useful for the
-        multidimensional MMM).  All values must be positive.
-
-    Examples
-    --------
-    Data-derived scaling (default behaviour):
-
-    .. code-block:: python
-
-        VariableScaling(method="max", dims=())
-
-    Fixed scalar scaling for production stability:
-
-    .. code-block:: python
-
-        VariableScaling(method="fixed", dims=(), value=10_000.0)
-
-    Per-dimension fixed scaling (multidimensional MMM):
-
-    .. code-block:: python
-
-        VariableScaling(
-            method="fixed",
-            dims=("country",),
-            value={"US": 50_000, "UK": 30_000},
-        )
     """
 
-    method: Literal["max", "mean", "fixed"] = Field(
-        ..., description="The scaling method."
-    )
     dims: str | tuple[str, ...] = Field(
         ...,
         description="The dimensions to perform operation through.",
     )
-    value: float | dict[str, float] | None = Field(
-        default=None,
-        description=(
-            "Fixed scaling constant(s). Required when method='fixed', "
-            "forbidden otherwise."
-        ),
-    )
+
+    @abstractmethod
+    def _abstract_guard(self) -> None: ...
 
     @model_validator(mode="after")
     def _validate_dims(self) -> Self:
@@ -99,28 +62,111 @@ class VariableScaling(SerializableBaseModel):
 
         return self
 
+
+class DataDerivedScaling(VariableScaling):
+    """Scale by a statistic of the data, computed at fit time.
+
+    Parameters
+    ----------
+    method : ``"max"`` | ``"mean"``
+        The scaling method.
+    dims : str or tuple of str
+        The dimensions to perform the operation through (``"date"`` is always
+        included implicitly).
+
+    Examples
+    --------
+    Max-absolute scaling (default behaviour):
+
+    .. code-block:: python
+
+        DataDerivedScaling(method="max", dims=())
+
+    Mean-absolute scaling across a custom dimension:
+
+    .. code-block:: python
+
+        DataDerivedScaling(method="mean", dims=("country",))
+    """
+
+    method: Literal["max", "mean"] = Field(..., description="The scaling method.")
+
+    def _abstract_guard(self) -> None:
+        pass
+
+
+class FixedScaling(VariableScaling):
+    """Use a user-supplied constant that stays the same across model refreshes.
+
+    Parameters
+    ----------
+    dims : str or tuple of str
+        The dimensions to perform the operation through (``"date"`` is always
+        included implicitly).
+    value : float or dict[str, float]
+        Fixed scaling constant(s).  A single ``float`` applies uniformly;
+        a ``dict`` maps dimension-level labels to per-level constants (useful
+        for the multidimensional MMM).  All values must be positive.
+
+    Examples
+    --------
+    Fixed scalar scaling for production stability:
+
+    .. code-block:: python
+
+        FixedScaling(dims=(), value=10_000.0)
+
+    Per-dimension fixed scaling (multidimensional MMM):
+
+    .. code-block:: python
+
+        FixedScaling(
+            dims=("country",),
+            value={"US": 50_000, "UK": 30_000},
+        )
+    """
+
+    value: float | dict[str, float] = Field(
+        ...,
+        description="Fixed scaling constant(s). All values must be positive.",
+    )
+
+    def _abstract_guard(self) -> None:
+        pass
+
+    @property
+    def method(self) -> str:
+        """Return the scaling method name."""
+        return "fixed"
+
     @model_validator(mode="after")
-    def _validate_fixed_value(self) -> Self:
-        if self.method == "fixed":
-            if self.value is None:
-                raise ValueError("value is required when method='fixed'.")
-            if isinstance(self.value, dict):
-                for key, val in self.value.items():
-                    if val <= 0:
-                        raise ValueError(
-                            f"All fixed scaling values must be positive, "
-                            f"got {val} for key '{key}'."
-                        )
-            elif self.value <= 0:
-                raise ValueError(
-                    f"Fixed scaling value must be positive, got {self.value}."
-                )
-        else:
-            if self.value is not None:
-                raise ValueError(
-                    f"value must be None when method='{self.method}', got {self.value}."
-                )
+    def _validate_value(self) -> Self:
+        if isinstance(self.value, dict):
+            for key, val in self.value.items():
+                if val <= 0:
+                    raise ValueError(
+                        f"All fixed scaling values must be positive, "
+                        f"got {val} for key '{key}'."
+                    )
+        elif self.value <= 0:
+            raise ValueError(f"Fixed scaling value must be positive, got {self.value}.")
         return self
+
+
+def _deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
+    """Deserialize a VariableScaling from a dict, handling both legacy and new formats.
+
+    Legacy format (pre-class-split) uses a ``method`` field to discriminate.
+    New format uses the ``__type__`` key injected by the serialization registry.
+    """
+    if "__type__" in d:
+        return serialization.deserialize(d)
+
+    method = d.get("method")
+    dims = tuple(d.get("dims", ()))
+    if method == "fixed":
+        return FixedScaling(dims=dims, value=d["value"])
+    return DataDerivedScaling(method=method, dims=dims)
 
 
 class Scaling(SerializableBaseModel):
@@ -140,8 +186,8 @@ class Scaling(SerializableBaseModel):
     .. code-block:: python
 
         Scaling(
-            target=VariableScaling(method="max", dims=()),
-            channel=VariableScaling(method="max", dims=()),
+            target=DataDerivedScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method="max", dims=()),
         )
 
     Fixed scaling for stable production refreshes:
@@ -149,8 +195,8 @@ class Scaling(SerializableBaseModel):
     .. code-block:: python
 
         Scaling(
-            target=VariableScaling(method="fixed", dims=(), value=50_000.0),
-            channel=VariableScaling(method="fixed", dims=(), value=10_000.0),
+            target=FixedScaling(dims=(), value=50_000.0),
+            channel=FixedScaling(dims=(), value=10_000.0),
         )
     """
 
@@ -162,3 +208,29 @@ class Scaling(SerializableBaseModel):
         ...,
         description="The scaling for the channel variable.",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_dict_values(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            for key in ("target", "channel"):
+                val = data.get(key)
+                if isinstance(val, dict) and not isinstance(val, VariableScaling):
+                    data[key] = _deserialize_variable_scaling(val)
+        return data
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize with ``__type__`` keys on nested VariableScaling subclasses."""
+        return {
+            "target": serialization.serialize(self.target),
+            "channel": serialization.serialize(self.channel),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Reconstruct from a dict, dispatching nested VariableScaling via __type__."""
+        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        for key in ("target", "channel"):
+            if key in filtered and isinstance(filtered[key], dict):
+                filtered[key] = _deserialize_variable_scaling(filtered[key])
+        return cls.model_validate(filtered)
