@@ -4985,6 +4985,28 @@ class TestComputeMeanContributionsOverTime:
             result["intercept"].values, expected_intercept, rtol=1e-6
         )
 
+    def test_no_target_scale_dim_in_output(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Synthetic target_scale dimensions must not leak into the DataFrame."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        ts = mmm.idata.constant_data["target_scale"]
+        mmm.idata.constant_data["target_scale"] = ts.expand_dims("target_scale_dim_0")
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        leak_cols = [c for c in result.columns if "target_scale" in c]
+        assert leak_cols == [], f"Unexpected columns: {leak_cols}"
+
     def test_raises_without_idata(self) -> None:
         """Method raises ValueError before fitting."""
         mmm = MMM(

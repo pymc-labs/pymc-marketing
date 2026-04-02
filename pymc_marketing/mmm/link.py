@@ -81,11 +81,13 @@ class LinkSpec(ABC):
         mu_var: XTensorVariable,
         channel_contribution: XTensorVariable,
         target_scale: XTensorVariable,
+        output_var: str = "y",
     ) -> None:
         """Register total media contribution deterministic nodes.
 
-        Creates ``total_media_contribution_original_scale`` (and optionally
-        ``y_hat_original_scale``) as :func:`pmd.Deterministic` nodes.
+        Creates ``total_media_contribution_original_scale`` (and, for the log
+        link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
+        nodes.
         """
 
     @staticmethod
@@ -158,6 +160,7 @@ class IdentityLinkSpec(LinkSpec):
         mu_var: XTensorVariable,
         channel_contribution: XTensorVariable,
         target_scale: XTensorVariable,
+        output_var: str = "y",
     ) -> None:
         """Register additive ``total_media_contribution_original_scale``."""
         pmd.Deterministic(
@@ -211,8 +214,9 @@ class LogLinkSpec(LinkSpec):
         mu_var: XTensorVariable,
         channel_contribution: XTensorVariable,
         target_scale: XTensorVariable,
+        output_var: str = "y",
     ) -> None:
-        """Register counterfactual ``total_media_contribution_original_scale`` and ``y_hat_original_scale``."""
+        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``."""
         mu_media = channel_contribution.sum(dim="channel")
         y_hat = ptxm.exp(mu_var) * target_scale
         y_hat_no_media = ptxm.exp(mu_var - mu_media) * target_scale
@@ -223,7 +227,7 @@ class LogLinkSpec(LinkSpec):
         )
 
         pmd.Deterministic(
-            "y_hat_original_scale",
+            f"{output_var}_original_scale",
             y_hat.transpose("date", ...),
         )
 

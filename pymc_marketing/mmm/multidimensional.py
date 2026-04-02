@@ -1139,7 +1139,11 @@ class MMM(RegressionModelBuilder):
         decomposition strategy is used: the total media lift is computed
         counterfactually, and per-channel shares are allocated proportionally in
         log-space so that channel contributions sum exactly to the total media
-        lift.
+        lift.  Non-media components (controls, seasonality, intercept) are
+        likewise decomposed via proportional log-space shares of the non-media
+        baseline.
+
+        Both link types return the same set of columns.
 
         This method does **not** require
         :meth:`add_original_scale_contribution_variable` to have been called.
@@ -1156,7 +1160,7 @@ class MMM(RegressionModelBuilder):
             - One column per channel (named after channel coordinate labels)
             - One column per control variable (if present)
             - ``yearly_seasonality`` (if yearly seasonality is enabled)
-            - ``intercept`` (identity link) or ``non_media`` (log link)
+            - ``intercept``
 
         Raises
         ------
@@ -1187,7 +1191,9 @@ class MMM(RegressionModelBuilder):
         idata: az.InferenceData = cast(az.InferenceData, self.idata)
 
         posterior: xr.Dataset = idata.posterior
-        target_scale: xr.DataArray = idata.constant_data["target_scale"]
+        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
+            drop=True
+        )
 
         def _to_original_scale_mean(var_name: str) -> xr.DataArray:
             return (posterior[var_name] * target_scale).mean(dim=("chain", "draw"))
@@ -1216,11 +1222,14 @@ class MMM(RegressionModelBuilder):
 
         Layer 1: total media lift via counterfactual
         Layer 2: per-channel allocation within media via log-space proportional shares
+        Layer 3: non-media decomposition via log-space proportional shares
         """
         idata: az.InferenceData = cast(az.InferenceData, self.idata)
 
         posterior: xr.Dataset = idata.posterior
-        target_scale: xr.DataArray = idata.constant_data["target_scale"]
+        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
+            drop=True
+        )
 
         mu_total: xr.DataArray = posterior["mu"]
         channel_contrib: xr.DataArray = posterior["channel_contribution"]
@@ -1241,7 +1250,28 @@ class MMM(RegressionModelBuilder):
             share = share.fillna(0.0)
             parts[str(ch)] = total_media_lift * share
 
-        parts["non_media"] = y_hat_no_media
+        non_media_log: xr.DataArray = mu_total - media_total_log
+        non_media_log_mean: xr.DataArray = non_media_log.mean(("chain", "draw"))
+
+        def _non_media_share(component: xr.DataArray) -> xr.DataArray:
+            component_mean = component.mean(("chain", "draw"))
+            share = (component_mean / non_media_log_mean).fillna(0.0)
+            return y_hat_no_media * share
+
+        if "control_contribution" in posterior:
+            control_da: xr.DataArray = posterior["control_contribution"]
+            for ctrl in control_da.coords["control"].values:
+                ctrl_log = control_da.sel(control=ctrl).drop_vars(
+                    "control", errors="ignore"
+                )
+                parts[str(ctrl)] = _non_media_share(ctrl_log)
+
+        if "yearly_seasonality_contribution" in posterior:
+            parts["yearly_seasonality"] = _non_media_share(
+                posterior["yearly_seasonality_contribution"]
+            )
+
+        parts["intercept"] = _non_media_share(posterior["intercept_contribution"])
 
         result: xr.Dataset = xr.Dataset(parts)
         return result.to_dataframe().reset_index()
@@ -2136,6 +2166,7 @@ class MMM(RegressionModelBuilder):
                 mu_var=mu_var,
                 channel_contribution=channel_contribution,
                 target_scale=_target_scale,
+                output_var=self.output_var,
             )
 
             self.model_config["likelihood"].create_likelihood_variable(

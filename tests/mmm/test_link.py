@@ -258,17 +258,24 @@ class TestBuildModelDeterministics:
         mmm.build_model(X, y)
         assert "total_media_contribution_original_scale" in mmm.model.named_vars
 
-    def test_build_model_identity_no_yhat_original(self, mock_pymc_sample):
+    def test_build_model_identity_no_y_original_scale(self, mock_pymc_sample):
         mmm = _make_mmm(link="identity")
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
-        assert "y_hat_original_scale" not in mmm.model.named_vars
+        assert "y_original_scale" not in mmm.model.named_vars
 
-    def test_build_model_log_has_yhat_original(self, mock_pymc_sample):
+    def test_build_model_log_has_y_original_scale(self, mock_pymc_sample):
         mmm = _make_mmm(link="log")
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
-        assert "y_hat_original_scale" in mmm.model.named_vars
+        assert "y_original_scale" in mmm.model.named_vars
+
+    def test_build_model_log_y_original_scale_uses_output_var(self, mock_pymc_sample):
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        expected_name = f"{mmm.output_var}_original_scale"
+        assert expected_name in mmm.model.named_vars
 
     @pytest.mark.parametrize("link", ["identity", "log"])
     def test_build_model_has_channel_contribution(self, link, mock_pymc_sample):
@@ -309,7 +316,7 @@ class TestDecomposition:
         assert isinstance(df, pd.DataFrame)
         assert "C1" in df.columns
         assert "C2" in df.columns
-        assert "non_media" in df.columns
+        assert "intercept" in df.columns
 
     def test_log_decomposition_channels_non_negative(self, mock_pymc_sample):
         mmm = _make_mmm(link="log")
@@ -318,6 +325,18 @@ class TestDecomposition:
         df = mmm.compute_mean_contributions_over_time()
         for ch in ["C1", "C2"]:
             assert (df[ch] >= -1e-6).all(), f"Channel {ch} has negative contributions"
+
+    def test_both_links_same_columns(self, mock_pymc_sample):
+        identity_mmm = _make_mmm(link="identity")
+        X, y = _make_positive_panel()
+        identity_mmm.fit(X, y)
+        identity_df = identity_mmm.compute_mean_contributions_over_time()
+
+        log_mmm = _make_mmm(link="log")
+        log_mmm.fit(X, y)
+        log_df = log_mmm.compute_mean_contributions_over_time()
+
+        assert set(identity_df.columns) == set(log_df.columns)
 
 
 # ===========================================================================
