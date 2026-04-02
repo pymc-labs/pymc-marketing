@@ -94,6 +94,11 @@ class LinkSpec(ABC):
     ) -> None:
         """Raise if *likelihood* is incompatible with *link*.
 
+        The identity link is compatible with any likelihood because the
+        additive decomposition does not depend on the distributional form.
+        The log link requires LogNormal so that the counterfactual
+        decomposition (``exp(mu) - exp(mu - media)``) is correct.
+
         Parameters
         ----------
         link : LinkFunction
@@ -107,9 +112,11 @@ class LinkSpec(ABC):
             If the combination is known to produce incorrect downstream
             decomposition or optimisation results.
         """
+        if link == LinkFunction.IDENTITY:
+            return
+
         dist_name = likelihood.distribution
         compatible = {
-            LinkFunction.IDENTITY: {"Normal", "StudentT"},
             LinkFunction.LOG: {"LogNormal"},
         }
         allowed = compatible.get(link, set())

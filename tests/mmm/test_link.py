@@ -112,10 +112,10 @@ class TestLinkAPI:
 
     def test_link_likelihood_incompatible_raises(self, mock_pymc_sample):
         mmm = _make_mmm(
-            link="identity",
+            link="log",
             dims=None,
             model_config={
-                "likelihood": Prior("LogNormal", sigma=Prior("HalfNormal", sigma=0.5)),
+                "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=0.5)),
             },
         )
         X, y = _make_positive_panel(n_dates=4, countries=("A",))
@@ -189,26 +189,22 @@ class TestLinkSpec:
         spec = LogLinkSpec()
         spec.validate_target(np.array([0.1, 1.0, 100.0]))
 
-    def test_validate_likelihood_compat_identity_normal(self):
-        LinkSpec.validate_likelihood_compatibility(
-            LinkFunction.IDENTITY, Prior("Normal", sigma=1)
-        )
-
-    def test_validate_likelihood_compat_identity_studentt(self):
-        LinkSpec.validate_likelihood_compatibility(
-            LinkFunction.IDENTITY, Prior("StudentT", nu=3, sigma=1)
-        )
+    @pytest.mark.parametrize(
+        "likelihood",
+        [
+            Prior("Normal", sigma=1),
+            Prior("StudentT", nu=3, sigma=1),
+            Prior("LogNormal", sigma=1),
+            Prior("TruncatedNormal", sigma=1, lower=0),
+        ],
+    )
+    def test_validate_likelihood_compat_identity_accepts_any(self, likelihood):
+        LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, likelihood)
 
     def test_validate_likelihood_compat_log_lognormal(self):
         LinkSpec.validate_likelihood_compatibility(
             LinkFunction.LOG, Prior("LogNormal", sigma=1)
         )
-
-    def test_validate_likelihood_compat_identity_lognormal_raises(self):
-        with pytest.raises(ValueError, match="not compatible"):
-            LinkSpec.validate_likelihood_compatibility(
-                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
-            )
 
     def test_validate_likelihood_compat_log_normal_raises(self):
         with pytest.raises(ValueError, match="not compatible"):
