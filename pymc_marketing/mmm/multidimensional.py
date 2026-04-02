@@ -199,6 +199,7 @@ from pymc_marketing.mmm.scaling import (
     Scaling,
     VariableScaling,
     _deserialize_variable_scaling,
+    _validate_fixed_scaling_keys,
 )
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
@@ -464,6 +465,8 @@ class MMM(RegressionModelBuilder):
             raise ValueError(
                 f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
             )
+
+        _validate_fixed_scaling_keys(self.scaling.channel, channel_columns, "channel")
 
         model_config = model_config if model_config is not None else {}
         sampler_config = sampler_config

@@ -59,6 +59,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
     _deserialize_variable_scaling,
+    _validate_fixed_scaling_keys,
 )
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
@@ -228,6 +229,17 @@ class BaseMMM(BaseValidateMMM):
             target=DataDerivedScaling(method="max", dims=()),
             channel=DataDerivedScaling(method="max", dims=()),
         )
+
+        _validate_fixed_scaling_keys(self.scaling.channel, channel_columns, "channel")
+
+        if isinstance(self.scaling.target, FixedScaling) and isinstance(
+            self.scaling.target.value, dict
+        ):
+            raise ValueError(
+                "Dict-valued fixed target scaling is not supported in the "
+                "legacy MMM (single target). Use a scalar value or switch "
+                "to the multidimensional MMM."
+            )
 
         model_config = model_config or {}
         model_config = parse_model_config(
@@ -485,13 +497,7 @@ class BaseMMM(BaseValidateMMM):
 
         target_scale: float
         if isinstance(target_scaling, FixedScaling):
-            if isinstance(target_scaling.value, dict):
-                raise ValueError(
-                    "Dict-valued fixed target scaling is not supported in the "
-                    "legacy MMM (single target). Use a scalar value or switch "
-                    "to the multidimensional MMM."
-                )
-            target_scale = float(target_scaling.value)
+            target_scale = float(cast(float, target_scaling.value))
         else:
             target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
             target_scale = float(

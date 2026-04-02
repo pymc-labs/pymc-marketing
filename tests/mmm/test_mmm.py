@@ -1215,21 +1215,20 @@ class TestMMM:
     def test_fixed_scaling_dict_target_raises(
         self, toy_X: pd.DataFrame, toy_y: pd.Series
     ):
-        """Dict-valued fixed target scaling is rejected in legacy MMM."""
+        """Dict-valued fixed target scaling is rejected at init in legacy MMM."""
         from pymc_marketing.mmm.scaling import FixedScaling, Scaling
 
-        mmm = MMM(
-            date_column="date",
-            channel_columns=["channel_1", "channel_2"],
-            adstock=GeometricAdstock(l_max=4),
-            saturation=LogisticSaturation(),
-            scaling=Scaling(
-                target=FixedScaling(dims=(), value={"a": 1.0, "b": 2.0}),
-                channel=FixedScaling(dims=(), value=1_000.0),
-            ),
-        )
         with pytest.raises(ValueError, match="Dict-valued fixed target scaling"):
-            mmm.build_model(X=toy_X, y=toy_y)
+            MMM(
+                date_column="date",
+                channel_columns=["channel_1", "channel_2"],
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                scaling=Scaling(
+                    target=FixedScaling(dims=(), value={"a": 1.0, "b": 2.0}),
+                    channel=FixedScaling(dims=(), value=1_000.0),
+                ),
+            )
 
     def test_fixed_scaling_serialization_roundtrip(
         self, toy_X: pd.DataFrame, toy_y: pd.Series

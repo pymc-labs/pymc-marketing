@@ -153,6 +153,51 @@ class FixedScaling(VariableScaling):
         return self
 
 
+def _validate_fixed_scaling_keys(
+    scaling: VariableScaling,
+    valid_labels: list[str],
+    variable_name: str,
+) -> None:
+    """Check that dict-valued FixedScaling keys match the expected labels.
+
+    Parameters
+    ----------
+    scaling : VariableScaling
+        The scaling instance to validate.
+    valid_labels : list[str]
+        The expected coordinate labels (e.g. channel column names).
+    variable_name : str
+        Human-readable name for error messages (e.g. ``"channel"``).
+
+    Raises
+    ------
+    ValueError
+        If the scaling is a dict-valued :class:`FixedScaling` whose keys
+        don't match *valid_labels*.
+    """
+    if not isinstance(scaling, FixedScaling):
+        return
+    if not isinstance(scaling.value, dict):
+        return
+
+    expected = set(valid_labels)
+    provided = set(scaling.value.keys())
+    missing = expected - provided
+    extra = provided - expected
+
+    if missing or extra:
+        parts = []
+        if missing:
+            parts.append(f"missing keys: {sorted(missing)}")
+        if extra:
+            parts.append(f"unexpected keys: {sorted(extra)}")
+        raise ValueError(
+            f"Fixed scaling dict keys for {variable_name} do not match "
+            f"the expected labels. {'; '.join(parts)}. "
+            f"Expected: {sorted(expected)}."
+        )
+
+
 def _deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
     """Deserialize a VariableScaling from a dict, handling both legacy and new formats.
 
