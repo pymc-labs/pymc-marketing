@@ -1729,42 +1729,56 @@ class MMM(RegressionModelBuilder):
         reduce_dims = ("date", *scaling.dims)
 
         if isinstance(scaling, FixedScaling):
-            remaining_dims = [d for d in data.dims if d not in reduce_dims]
-            if isinstance(scaling.value, dict):
-                if len(remaining_dims) != 1:
-                    raise ValueError(
-                        f"dict-valued fixed scaling requires exactly one "
-                        f"remaining dimension after reduction, got "
-                        f"{remaining_dims}."
-                    )
-                dim_name = remaining_dims[0]
-                coords = data.coords[dim_name].values
-                coord_labels = {str(c) for c in coords}
-                provided_keys = set(scaling.value.keys())
-                missing = coord_labels - provided_keys
-                extra = provided_keys - coord_labels
-                if missing or extra:
-                    parts = []
-                    if missing:
-                        parts.append(f"missing keys: {sorted(missing)}")
-                    if extra:
-                        parts.append(f"unexpected keys: {sorted(extra)}")
-                    raise ValueError(
-                        f"Fixed scaling dict keys for dimension "
-                        f"'{dim_name}' do not match coordinate labels. "
-                        f"{'; '.join(parts)}. "
-                        f"Expected: {sorted(coord_labels)}."
-                    )
-                values = np.array([scaling.value[str(c)] for c in coords])
-                return xr.DataArray(
-                    values,
-                    dims=(dim_name,),
-                    coords={dim_name: coords},
-                )
+            scale = self._build_fixed_scale(data, scaling, reduce_dims)
+        else:
+            method_fn = getattr(data, scaling.method)
+            scale = method_fn(dim=reduce_dims)
+
+        return scale
+
+    def _build_fixed_scale(
+        self,
+        data: xr.DataArray,
+        scaling: FixedScaling,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        """Build a scale DataArray from a FixedScaling configuration."""
+        if not isinstance(scaling.value, dict):
             return xr.DataArray(scaling.value)
 
-        method_fn = getattr(data, scaling.method)
-        return method_fn(dim=reduce_dims)
+        remaining_dims = [d for d in data.dims if d not in reduce_dims]
+        if len(remaining_dims) != 1:
+            raise ValueError(
+                f"dict-valued fixed scaling requires exactly one "
+                f"remaining dimension after reduction, got "
+                f"{remaining_dims}."
+            )
+
+        dim_name = remaining_dims[0]
+        coords = data.coords[dim_name].values
+        coord_labels = {str(c) for c in coords}
+        provided_keys = set(scaling.value.keys())
+        missing = coord_labels - provided_keys
+        extra = provided_keys - coord_labels
+        if missing or extra:
+            parts = []
+            if missing:
+                parts.append(f"missing keys: {sorted(missing)}")
+            if extra:
+                parts.append(f"unexpected keys: {sorted(extra)}")
+            raise ValueError(
+                f"Fixed scaling dict keys for dimension "
+                f"'{dim_name}' do not match coordinate labels. "
+                f"{'; '.join(parts)}. "
+                f"Expected: {sorted(coord_labels)}."
+            )
+
+        values = np.array([scaling.value[str(c)] for c in coords])
+        return xr.DataArray(
+            values,
+            dims=(dim_name,),
+            coords={dim_name: coords},
+        )
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
