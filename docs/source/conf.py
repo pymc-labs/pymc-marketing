@@ -96,6 +96,12 @@ nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
+# mathjax config - ensure amsmath package is loaded
+mathjax3_config = {
+    "loader": {"load": ["[tex]/amsmath"]},
+    "tex": {"packages": {"[+]": ["amsmath"]}},
+}
+
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
 numpydoc_xref_param_type = True
