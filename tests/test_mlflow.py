@@ -478,8 +478,8 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
         nuts_sampler="pymc",
     )
 
-    assert params["adstock_name"] == "geometric"
-    assert params["saturation_name"] == "logistic"
+    assert params["adstock_name"] == "Geometric"
+    assert params["saturation_name"] == "Logistic"
 
     metric_checks(metrics, "pymc")
 
@@ -579,8 +579,8 @@ def test_autolog_multidimensional_mmm(
         nuts_sampler="pymc",
     )
 
-    assert params["adstock_name"] == "geometric"
-    assert params["saturation_name"] == "logistic"
+    assert params["adstock_name"] == "Geometric"
+    assert params["saturation_name"] == "Logistic"
 
     metric_checks(metrics, "pymc")
 

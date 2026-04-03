@@ -114,13 +114,14 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import BaseModel, Field, InstanceOf
+from pydantic import Field, InstanceOf
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
+from pymc_marketing.serialization import SerializableBaseModel
 
 
 def safe_to_datetime(
@@ -222,7 +223,7 @@ class Model(Protocol):
         """The PyMC model."""
 
 
-class MuEffect(ABC, BaseModel):
+class MuEffect(SerializableBaseModel, ABC):
     """Abstract base class for arbitrary additive mu effects.
 
     All mu_effects must inherit from this Pydantic BaseModel to ensure proper
@@ -247,6 +248,28 @@ class FourierEffect(MuEffect):
 
     fourier: InstanceOf[FourierBase]
     date_dim_name: str = Field("date")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        return {
+            "fourier": self.fourier.to_dict(),
+            "date_dim_name": self.date_dim_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "FourierEffect":
+        """Reconstruct from a dict, using registry for nested Fourier type."""
+        from pymc_marketing.serialization import serialization
+
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        fourier_data = work["fourier"]
+        if "__type__" in fourier_data:
+            fourier = serialization.deserialize(fourier_data)
+        else:
+            from pymc_extras.deserialize import deserialize
+
+            fourier = deserialize(fourier_data)
+        return cls(fourier=fourier, date_dim_name=work.get("date_dim_name", "date"))
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -434,13 +457,39 @@ class LinearTrendEffect(MuEffect):
     trend: InstanceOf[LinearTrend]
     prefix: str
     date_dim_name: str = Field("date")
+    linear_trend_first_date: Any = Field(default=None, exclude=True)
 
-    model_config = {"extra": "allow"}
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        return {
+            "trend": self.trend.to_dict(),
+            "prefix": self.prefix,
+            "date_dim_name": self.date_dim_name,
+        }
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        # Runtime-only state, not serialized. Set in create_data().
-        self.linear_trend_first_date: pd.Timestamp  # type: ignore[annotation-unchecked]
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "LinearTrendEffect":
+        """Reconstruct from a dict, using registry for nested LinearTrend."""
+        from pymc_marketing.serialization import serialization
+
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        trend_data = work["trend"]
+        if "__type__" in trend_data:
+            trend = serialization.deserialize(trend_data)
+        else:
+            from pymc_extras.deserialize import deserialize
+
+            trend_dict = trend_data.copy()
+            if trend_dict.get("priors"):
+                trend_dict["priors"] = {
+                    k: deserialize(v) for k, v in trend_dict["priors"].items()
+                }
+            trend = LinearTrend.model_validate(trend_dict)
+        return cls(
+            trend=trend,
+            prefix=work["prefix"],
+            date_dim_name=work.get("date_dim_name", "date"),
+        )
 
     def create_data(self, mmm: Model) -> None:
         """Create the required data in the model.
@@ -538,6 +587,20 @@ class EventAdditiveEffect(MuEffect):
     effect: EventEffect
     reference_date: str = "2025-01-01"
     date_dim_name: str = "date"
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict with ``__type__`` key.
+
+        The ``df_events`` DataFrame is NOT included in the dict; instead a
+        ``df_events_group`` key stores the idata group path where it lives.
+        """
+        return {
+            "prefix": self.prefix,
+            "reference_date": self.reference_date,
+            "date_dim_name": self.date_dim_name,
+            "effect": self.effect.to_dict(),
+            "df_events_group": f"supplementary_data_{self.prefix}",
+        }
 
     def model_post_init(self, context: Any, /) -> None:
         """Post initialization of the model."""
@@ -640,3 +703,55 @@ class EventAdditiveEffect(MuEffect):
             "days": days_from_reference(new_dates, self.reference_date),
         }
         pm.set_data(new_data=new_data, model=model)
+
+
+def _deserialize_event_additive_effect(
+    data: dict[str, Any],
+    context: Any,
+) -> EventAdditiveEffect:
+    from pymc_marketing.serialization import SerializationError, serialization
+
+    group_name = data["df_events_group"]
+
+    if context is None or context.idata is None:
+        raise SerializationError(
+            f"Cannot deserialize EventAdditiveEffect: no InferenceData "
+            f"provided. The df_events DataFrame is stored in idata group "
+            f"'{group_name}' and requires a DeserializationContext with idata."
+        )
+
+    try:
+        ds = context.idata[group_name]
+        df_events = ds.to_dataframe().reset_index()
+    except (KeyError, AttributeError) as e:
+        raise SerializationError(
+            f"Cannot read supplementary data group '{group_name}' from "
+            f"InferenceData: {e}"
+        ) from e
+
+    effect_data = data["effect"]
+    if "__type__" in effect_data:
+        effect = serialization.deserialize(effect_data)
+    else:
+        effect = EventEffect.from_dict(effect_data.get("data", effect_data))
+
+    return EventAdditiveEffect(
+        df_events=df_events,
+        effect=effect,
+        prefix=data["prefix"],
+        reference_date=data.get("reference_date", "2025-01-01"),
+        date_dim_name=data.get("date_dim_name", "date"),
+    )
+
+
+def _register_event_additive_effect() -> None:
+    from pymc_marketing.serialization import serialization
+
+    serialization.register(
+        f"{EventAdditiveEffect.__module__}.{EventAdditiveEffect.__qualname__}",
+        EventAdditiveEffect,
+        deserializer=_deserialize_event_additive_effect,
+    )
+
+
+_register_event_additive_effect()

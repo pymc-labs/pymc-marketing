@@ -25,6 +25,7 @@ from pydantic import ValidationError
 from pymc_extras.prior import Prior, UnknownTransformError
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm.hsgp import (
     HSGP,
     CovFunc,
@@ -35,6 +36,7 @@ from pymc_marketing.mmm.hsgp import (
     create_complexity_penalizing_prior,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.serialization import DeferredFactory, serialization
 
 
 @pytest.mark.parametrize(
@@ -181,6 +183,7 @@ def test_hsgp_to_dict() -> None:
     data = hsgp.to_dict()
 
     assert data == {
+        "__type__": "pymc_marketing.mmm.hsgp.HSGP",
         "L": 30.0,
         "m": 20,
         "ls": {
@@ -223,6 +226,7 @@ def test_hsgp_periodic_to_dict() -> None:
     data = hsgp.to_dict()
 
     assert data == {
+        "__type__": "pymc_marketing.mmm.hsgp.HSGPPeriodic",
         "m": 20,
         "period": 60.0,
         "cov_func": PeriodicCovFunc.Periodic,
@@ -248,6 +252,7 @@ def test_non_prior_parameters_still_serialize() -> None:
     data = hsgp.to_dict()
 
     assert data == {
+        "__type__": "pymc_marketing.mmm.hsgp.HSGP",
         "L": 5,
         "m": 10,
         "ls": 1,
@@ -321,6 +326,50 @@ def test_from_dict_with_non_dictionary_distribution_hspg_periodic() -> None:
     assert hsgp.X_mid is None
     assert hsgp.dims == ("time",)
     assert hsgp.transform is None
+
+
+class TestDimsNormalization:
+    """Tests for dims list-to-tuple normalization in the validator."""
+
+    @pytest.mark.parametrize(
+        "dims, expected",
+        [
+            (["time"], ("time",)),
+            (["time", "channel"], ("time", "channel")),
+            ("time", ("time",)),
+            (("time",), ("time",)),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "cls, extra_kwargs",
+        [
+            (HSGP, {"ls": 1, "eta": 1, "L": 5}),
+            (HSGPPeriodic, {"ls": 1, "scale": 1, "period": 52}),
+        ],
+    )
+    def test_dims_normalized_to_tuple(self, cls, extra_kwargs, dims, expected):
+        obj = cls(m=10, dims=dims, **extra_kwargs)
+        assert obj.dims == expected
+        assert isinstance(obj.dims, tuple)
+
+    @pytest.mark.parametrize("dims", [[], ()])
+    def test_empty_dims_raises(self, dims):
+        with pytest.raises(ValueError, match="At least one dimension is required"):
+            HSGP(m=10, dims=dims, ls=1, eta=1, L=5)
+
+    @pytest.mark.parametrize(
+        "cls, base_data, dims",
+        [
+            (HSGP, {"L": 5, "m": 10, "ls": 1, "eta": 1}, ["time"]),
+            (HSGP, {"L": 5, "m": 10, "ls": 1, "eta": 1}, ["time", "channel"]),
+            (HSGPPeriodic, {"m": 20, "period": 60.0, "ls": 1, "scale": 1}, ["time"]),
+        ],
+    )
+    def test_from_dict_with_list_dims(self, cls, base_data, dims):
+        data = {**base_data, "dims": dims}
+        obj = cls.from_dict(data)
+        assert obj.dims == tuple(dims)
+        assert isinstance(obj.dims, tuple)
 
 
 def test_hsgp_with_shared_data():
@@ -774,3 +823,186 @@ class TestVariableFactorySerialization:
         # Should not raise - serialization should handle missing to_dict gracefully
         result = hsgp.to_dict()
         assert isinstance(result, dict)
+
+
+class TestHSGPRoundtrips:
+    def test_hsgp_all_parameters(self):
+        original = HSGP(
+            m=15,
+            L=2.5,
+            eta=Prior("Exponential", lam=2.0),
+            ls=Prior("InverseGamma", alpha=3.0, beta=2.0),
+            dims=("time", "geo"),
+            centered=True,
+            drop_first=False,
+            cov_func=CovFunc.Matern52,
+            demeaned_basis=True,
+            transform="sigmoid",
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is HSGP
+        assert restored.m == 15
+        assert restored.L == 2.5
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
+        assert restored.centered is True
+        assert restored.drop_first is False
+        assert restored.cov_func == CovFunc.Matern52
+        assert restored.demeaned_basis is True
+        assert restored.transform == "sigmoid"
+        assert restored == original
+
+    def test_softplus_hsgp_all_parameters(self):
+        original = SoftPlusHSGP(
+            m=20,
+            L=3.0,
+            eta=Prior("Exponential", lam=1.0),
+            ls=2.0,
+            dims=("time", "geo"),
+            centered=True,
+            drop_first=False,
+            cov_func=CovFunc.Matern52,
+            demeaned_basis=True,
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is SoftPlusHSGP
+        assert restored.m == 20
+        assert restored.L == 3.0
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
+        assert restored.centered is True
+        assert restored.drop_first is False
+        assert restored.cov_func == CovFunc.Matern52
+        assert restored.demeaned_basis is True
+        assert restored == original
+
+    def test_hsgp_with_deferred_factory(self):
+        deferred_eta = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_eta_prior",
+            kwargs={"upper": 5.0, "mass": 0.95},
+        )
+        original = HSGP(
+            m=12,
+            L=2.0,
+            eta=deferred_eta,
+            ls=1.0,
+            dims=("time", "geo"),
+            centered=True,
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is HSGP
+        assert isinstance(restored.eta, DeferredFactory)
+        assert restored.eta.factory == deferred_eta.factory
+        assert restored.eta.kwargs == deferred_eta.kwargs
+        assert restored.m == 12
+        assert restored.L == 2.0
+        assert restored.dims == ("time", "geo")
+        assert restored.eta.resolve() is not None
+
+    def test_hsgp_with_deferred_factory_all_parameters(self):
+        deferred_eta = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_eta_prior",
+            kwargs={"upper": 5.0, "mass": 0.95},
+        )
+        deferred_ls = DeferredFactory(
+            factory="pymc_marketing.mmm.hsgp.create_constrained_inverse_gamma_prior",
+            kwargs={"upper": 30.0, "lower": 1.0, "mass": 0.9},
+        )
+        original = HSGP(
+            m=12,
+            L=2.0,
+            eta=deferred_eta,
+            ls=deferred_ls,
+            dims=("time", "geo"),
+            centered=True,
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is HSGP
+        assert isinstance(restored.eta, DeferredFactory)
+        assert isinstance(restored.ls, DeferredFactory)
+        assert restored.eta.factory == deferred_eta.factory
+        assert restored.eta.kwargs == deferred_eta.kwargs
+        assert restored.ls.factory == deferred_ls.factory
+        assert restored.ls.kwargs == deferred_ls.kwargs
+        assert restored.m == 12
+        assert restored.L == 2.0
+        assert restored.dims == ("time", "geo")
+        assert restored.centered is True
+        assert restored.eta.resolve() is not None
+        assert restored == original
+
+    def test_hsgp_periodic_all_parameters(self):
+        original = HSGPPeriodic(
+            m=15,
+            scale=Prior("Exponential", lam=1.5),
+            ls=Prior("InverseGamma", alpha=2.0, beta=1.0),
+            period=7.0,
+            dims=("time", "geo"),
+            demeaned_basis=True,
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is HSGPPeriodic
+        assert restored.m == 15
+        assert restored.period == 7.0
+        assert isinstance(restored.dims, tuple)
+        assert restored.dims == ("time", "geo")
+        assert restored.demeaned_basis is True
+        assert restored == original
+
+
+class TestHSGPKwargsRoundtrips:
+    def test_to_dict_includes_type_key(self):
+        obj = HSGPKwargs(m=200, L=None, eta_lam=1.0, ls_mu=5.0, ls_sigma=5.0)
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
+        assert data["__type__"] == expected
+
+    def test_registered_in_type_registry(self):
+        type_key = f"{HSGPKwargs.__module__}.{HSGPKwargs.__qualname__}"
+        assert type_key in serialization._registry
+
+    def test_roundtrip_all_parameters(self):
+        original = HSGPKwargs(
+            m=150,
+            L=2.5,
+            eta_lam=0.5,
+            ls_mu=3.0,
+            ls_sigma=2.0,
+            cov_func=CovFunc.Matern32,
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is HSGPKwargs
+        assert restored.m == 150
+        assert restored.L == 2.5
+        assert restored.eta_lam == 0.5
+        assert restored.ls_mu == 3.0
+        assert restored.ls_sigma == 2.0
+        assert restored.cov_func == CovFunc.Matern32
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.hsgp.HSGP",
+        "pymc_marketing.mmm.hsgp.HSGPPeriodic",
+        "pymc_marketing.mmm.hsgp.SoftPlusHSGP",
+        "pymc_marketing.hsgp_kwargs.HSGPKwargs",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_hsgp_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

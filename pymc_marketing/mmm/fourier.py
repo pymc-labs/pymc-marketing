@@ -256,7 +256,7 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -264,6 +264,7 @@ from pytensor.xtensor.type import XTensorVariable
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
+from pymc_marketing.serialization import serialization
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -781,11 +782,14 @@ class FourierBase(BaseModel):
             Deserialized Fourier seasonality
 
         """
-        data = data["data"]
-        data["prior"] = deserialize(data["prior"])
-        return cls(**data)
+        inner = data.get("data", data)
+        if "__type__" in inner:
+            inner = {k: v for k, v in inner.items() if k != "__type__"}
+        inner["prior"] = deserialize(inner["prior"])
+        return cls(**inner)
 
 
+@serialization.register
 class YearlyFourier(FourierBase):
     """Yearly fourier seasonality.
 
@@ -852,6 +856,7 @@ class YearlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@serialization.register
 class MonthlyFourier(FourierBase):
     """Monthly fourier seasonality.
 
@@ -917,6 +922,7 @@ class MonthlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@serialization.register
 class WeeklyFourier(FourierBase):
     """Weekly fourier seasonality.
 
@@ -987,30 +993,3 @@ class WeeklyFourier(FourierBase):
             The relevant period within the characteristic periodicity
         """
         return dates.dayofyear
-
-
-def _is_yearly_fourier(data: Any) -> bool:
-    return data.get("class") == "YearlyFourier"
-
-
-def _is_monthly_fourier(data: Any) -> bool:
-    return data.get("class") == "MonthlyFourier"
-
-
-def _is_weekly_fourier(data: Any) -> bool:
-    return data.get("class") == "WeeklyFourier"
-
-
-register_deserialization(
-    is_type=_is_yearly_fourier,
-    deserialize=lambda data: YearlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_monthly_fourier,
-    deserialize=lambda data: MonthlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_weekly_fourier, deserialize=lambda data: WeeklyFourier.from_dict(data)
-)
