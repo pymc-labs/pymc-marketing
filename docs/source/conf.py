@@ -96,19 +96,11 @@ nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
-# Ensure notebooks also use amsmath extension
-nb_render_markdown_format = "myst"
-
 # mathjax config - ensure amsmath package is loaded
 mathjax3_config = {
     "loader": {"load": ["[tex]/amsmath"]},
     "tex": {
         "packages": {"[+]": ["amsmath"]},
-        "inlineMath": [["\\(", "\\)"]],
-        "displayMath": [["\\[", "\\]"]],
-    },
-    "options": {
-        "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area",
     },
 }
 
