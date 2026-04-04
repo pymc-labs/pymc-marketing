@@ -99,9 +99,18 @@ myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
 # Block Plotly from injecting its own version of MathJax
-for renderer in ["notebook", "notebook_connected", "html"]:
-    if renderer in pio.renderers:
+# Set global engine defaults
+pio.full_figure_for_development = False
+
+# Disable MathJax across all possible renderers
+for renderer in pio.renderers:
+    try:
         pio.renderers[renderer].include_mathjax = False
+    except AttributeError:
+        continue
+
+# Force the default to be a renderer we just disabled
+pio.renderers.default = "notebook"
 
 # Force Sphinx to use the specific MathJax 4 version
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@4.1.1/es5/tex-mml-chtml.js"
@@ -298,3 +307,22 @@ texinfo_documents = [
         "Miscellaneous",
     )
 ]
+
+
+def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
+    """Remove Plotly's forced MathJax 2.7.5 injection from the final HTML."""
+    if "body" in context:
+        # This targets the specific CDN Plotly always uses
+        bad_script = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js"
+        context["body"] = context["body"].replace(
+            f'<script src="{bad_script}', '<script data-blocked="true"'
+        )
+
+
+def setup(app):
+    """Configure Sphinx application event handlers.
+
+    Connects the Plotly MathJax scrubbing function to the html-page-context event.
+    """
+    # Connect the scrubbing function to the html-page-context event
+    app.connect("html-page-context", scrub_plotly_mathjax)
