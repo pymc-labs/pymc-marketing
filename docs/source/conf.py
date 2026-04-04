@@ -96,17 +96,8 @@ nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
 
-# mathjax config - ensure amsmath package is available
-mathjax3_config = {
-    "tex": {
-        "packages": {"[+]": ["amsmath"]},
-        "inlineMath": [["\\(", "\\)"]],
-        "displayMath": [["\\[", "\\]"]],
-    },
-    "options": {
-        "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area",
-    },
-}
+# Force MathJax 3 instead of MathJax 2
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
 
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
