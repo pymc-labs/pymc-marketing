@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import plotly.io as pio
+
 import pymc_marketing  # isort:skip
 
 # -- General configuration ------------------------------------------------
@@ -95,6 +97,24 @@ nb_execution_excludepatterns = ["*.ipynb"]
 nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
+
+# Block Plotly from injecting its own version of MathJax
+for renderer in ["notebook", "notebook_connected", "html"]:
+    if renderer in pio.renderers:
+        pio.renderers[renderer].include_mathjax = False
+
+# This ensures Sphinx uses 4.1.1 and doesn't conflict with Plotly divs
+mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@4.1.1/es5/tex-mml-chtml.js"
+mathjax_options = {"renderActions": {"findScript": [10, "", ""]}}
+mathjax3_config = {
+    "tex": {
+        "inlineMath": [["\\(", "\\)"]],
+        "displayMath": [["\\[", "\\]"]],
+        "processEscapes": True,
+        "ignoreHtmlClass": "tex2jax_ignore|plotly-graph-div",  # Tell MathJax to ignore Plotly
+        "processHtmlClass": "tex2jax_process",
+    }
+}
 
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
