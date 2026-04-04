@@ -103,18 +103,28 @@ for renderer in ["notebook", "notebook_connected", "html"]:
     if renderer in pio.renderers:
         pio.renderers[renderer].include_mathjax = False
 
-# This ensures Sphinx uses 4.1.1 and doesn't conflict with Plotly divs
+# Force Sphinx to use the specific MathJax 4 version
 mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@4.1.1/es5/tex-mml-chtml.js"
-mathjax_options = {"renderActions": {"findScript": [10, "", ""]}}
+
+# Sphinx uses 'mathjax3_config' even for version 4.
+# We keep the config simple to avoid the AttributeError.
 mathjax3_config = {
     "tex": {
         "inlineMath": [["\\(", "\\)"]],
         "displayMath": [["\\[", "\\]"]],
         "processEscapes": True,
-        "ignoreHtmlClass": "tex2jax_ignore|plotly-graph-div",  # Tell MathJax to ignore Plotly
+        "ignoreHtmlClass": "tex2jax_ignore|plotly-graph-div",
         "processHtmlClass": "tex2jax_process",
-    }
+    },
+    "options": {
+        "processHtmlClass": "tex2jax_process",
+        "ignoreHtmlClass": "tex2jax_ignore",
+    },
 }
+
+# DO NOT set mathjax_options to a dict with 'renderActions'.
+# If you need to set script attributes, use simple strings:
+mathjax_options = {"async": "async"}
 
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
