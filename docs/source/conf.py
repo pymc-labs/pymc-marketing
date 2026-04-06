@@ -298,22 +298,3 @@ texinfo_documents = [
         "Miscellaneous",
     )
 ]
-
-
-def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
-    """Remove Plotly's forced MathJax 2.7.5 injection from the final HTML."""
-    if "body" in context:
-        # This targets the specific CDN Plotly always uses
-        bad_script = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js"
-        context["body"] = context["body"].replace(
-            f'<script src="{bad_script}', '<script data-blocked="true"'
-        )
-
-
-def setup(app):
-    """Configure Sphinx application event handlers.
-
-    Connects the Plotly MathJax scrubbing function to the html-page-context event.
-    """
-    # Connect the scrubbing function to the html-page-context event
-    app.connect("html-page-context", scrub_plotly_mathjax)
