@@ -751,11 +751,15 @@ class BudgetOptimizer(BaseModel):
             ).astype(bool)
 
             # Check if we are asking to optimize over channels that are not present in the model
-            if np.any(self.budgets_to_optimize.values > expected_mask.values):
+            if np.any((self.budgets_to_optimize > expected_mask).values):
                 raise ValueError(
                     "budgets_to_optimize mask contains True values at coordinates where the model has no "
                     "information."
                 )
+
+        self.budgets_to_optimize = self.budgets_to_optimize.transpose(
+            *self._budget_dims
+        )
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
@@ -764,7 +768,6 @@ class BudgetOptimizer(BaseModel):
         )
 
         # Fill a zero array, then set only the True positions
-        # TODO: We should be able to implement this with xtensor, once we have `.where`
         budgets_zeros = pt.zeros(self._budget_shape)
         budgets_zeros.name = "budgets_zeros"
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
@@ -996,7 +999,6 @@ class BudgetOptimizer(BaseModel):
 
         # Reconstruct the full shape for each time period
         budgets = ptx.zeros_like(budgets).expand_dims(date=num_periods, axis=0)
-        # Need to go to tensor, as we don't have `.where` yet and xtensor don't support >1D boolean indices
         repeated_budgets = budgets.values[:, bool_mask].set(
             repeated_budgets_flat.values
         )
@@ -1074,6 +1076,9 @@ class BudgetOptimizer(BaseModel):
             pymc_model=self._pymc_model,
             idata=self.mmm_model.idata,
             response_variable=response_variable,
+            frozen_deterministics=getattr(
+                self.mmm_model, "frozen_deterministics", None
+            ),
         )
 
     def _compile_objective_and_grad(self):

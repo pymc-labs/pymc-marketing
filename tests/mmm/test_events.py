@@ -31,11 +31,11 @@ from pymc_marketing.mmm.events import (
     EventEffect,
     GaussianBasis,
     HalfGaussianBasis,
-    basis_from_dict,
     days_from_reference,
 )
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.plot import plot_curve
+from pymc_marketing.serialization import serialization
 
 
 def test_gaussian_basis_plot() -> None:
@@ -126,9 +126,8 @@ def test_gaussian_basis_serialization():
 
     # Test to_dict and from_dict
     gaussian_dict = gaussian.to_dict()
-    gaussian_restored = basis_from_dict(gaussian_dict)
+    gaussian_restored = serialization.deserialize(gaussian_dict)
 
-    assert gaussian_restored.lookup_name == gaussian.lookup_name
     assert gaussian_restored.prefix == gaussian.prefix
 
 
@@ -147,7 +146,6 @@ def test_event_effect_serialization():
     effect_restored = EventEffect.from_dict(effect_dict["data"])
 
     assert effect_restored.dims == effect.dims
-    assert effect_restored.basis.lookup_name == effect.basis.lookup_name
     assert effect_restored.effect_size.to_dict() == effect.effect_size.to_dict()
 
 
@@ -300,7 +298,6 @@ def test_event_effect_serialization_roundtrip():
 
     # Compare all attributes
     assert restored_effect.dims == original_effect.dims
-    assert restored_effect.basis.lookup_name == original_effect.basis.lookup_name
     assert restored_effect.basis.prefix == original_effect.basis.prefix
     assert (
         restored_effect.effect_size.to_dict() == original_effect.effect_size.to_dict()
@@ -621,10 +618,9 @@ def test_half_gaussian_serialization():
     )
 
     d = half.to_dict()
-    restored = basis_from_dict(d)
+    restored = serialization.deserialize(d)
 
     assert isinstance(restored, HalfGaussianBasis)
-    assert restored.lookup_name == "half_gaussian"
     assert restored.mode == half.mode
     assert restored.include_event == half.include_event
 
@@ -800,11 +796,9 @@ def test_asymmetric_gaussian_basis_serialization():
 
     # Test to_dict and from_dict
     asymmetric_dict = asymmetric.to_dict()
-    asymmetric_restored = basis_from_dict(asymmetric_dict)
+    asymmetric_restored = serialization.deserialize(asymmetric_dict)
 
     assert isinstance(asymmetric_restored, AsymmetricGaussianBasis)
-    assert asymmetric_restored.lookup_name == "asymmetric_gaussian"
-    # Cast to access AsymmetricGaussianBasis specific attributes
     restored_asymmetric = cast(AsymmetricGaussianBasis, asymmetric_restored)
     assert restored_asymmetric.event_in == asymmetric.event_in
 
@@ -824,10 +818,8 @@ def test_asymmetric_gaussian_basis_serialization_roundtrip():
     asymmetric_dict = asymmetric.to_dict()
 
     # Deserialize
-    restored_asymmetric = basis_from_dict(asymmetric_dict)
+    restored_asymmetric = serialization.deserialize(asymmetric_dict)
 
-    # Compare all attributes
-    assert restored_asymmetric.lookup_name == asymmetric.lookup_name
     assert restored_asymmetric.prefix == asymmetric.prefix
     # Cast to access AsymmetricGaussianBasis specific attributes
     restored_asymmetric_specific = cast(AsymmetricGaussianBasis, restored_asymmetric)
@@ -948,3 +940,108 @@ def test_event_batch_dims():
     mmm.build_model(X, y)
     assert mmm.model["y"].dims == ("date", "geo")
     assert mmm.model["y"].eval(mode="FAST_COMPILE").shape == (n_date, 2)
+
+
+class TestBasisAndEventEffectRoundtrips:
+    @pytest.mark.parametrize(
+        "basis_cls,kwargs",
+        [
+            (
+                "GaussianBasis",
+                {
+                    "prefix": "custom_basis",
+                    "priors": {"sigma": Prior("Gamma", mu=5, sigma=2)},
+                },
+            ),
+            (
+                "HalfGaussianBasis",
+                {
+                    "mode": "before",
+                    "include_event": False,
+                    "prefix": "hg_basis",
+                    "priors": {"sigma": Prior("Gamma", mu=5, sigma=2)},
+                },
+            ),
+            (
+                "AsymmetricGaussianBasis",
+                {
+                    "event_in": "before",
+                    "prefix": "ag_basis",
+                    "priors": {
+                        "sigma_before": Prior("Gamma", mu=2, sigma=0.5),
+                        "sigma_after": Prior("Gamma", mu=5, sigma=1),
+                        "a_after": Prior("Normal", mu=0.5, sigma=0.3),
+                    },
+                },
+            ),
+        ],
+        ids=["GaussianBasis", "HalfGaussianBasis", "AsymmetricGaussianBasis"],
+    )
+    def test_basis_roundtrip_all_parameters(self, basis_cls, kwargs):
+        import pymc_marketing.mmm.events as events_mod
+
+        cls = getattr(events_mod, basis_cls)
+        original = cls(**kwargs)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is cls
+        assert restored.prefix == kwargs["prefix"]
+        for prior_name, prior in kwargs["priors"].items():
+            assert restored.function_priors[prior_name] == prior
+
+        if basis_cls == "HalfGaussianBasis":
+            assert restored.mode == kwargs["mode"]
+            assert restored.include_event == kwargs["include_event"]
+        elif basis_cls == "AsymmetricGaussianBasis":
+            assert restored.event_in == kwargs["event_in"]
+
+        assert restored == original
+
+    @pytest.mark.parametrize(
+        "basis_cls_name",
+        ["GaussianBasis", "HalfGaussianBasis", "AsymmetricGaussianBasis"],
+    )
+    def test_basis_to_dict_includes_type_key(self, basis_cls_name):
+        import pymc_marketing.mmm.events as events_mod
+
+        cls = getattr(events_mod, basis_cls_name)
+        obj = cls()
+        data = obj.to_dict()
+        assert "__type__" in data
+        expected = f"{cls.__module__}.{cls.__qualname__}"
+        assert data["__type__"] == expected
+
+    def test_event_effect_roundtrip_all_parameters(self):
+        basis = GaussianBasis(
+            prefix="ev_basis",
+            priors={"sigma": Prior("Gamma", mu=5, sigma=2)},
+        )
+        effect_size = Prior("Normal", mu=0.5, sigma=2.0)
+        original = EventEffect(
+            basis=basis,
+            effect_size=effect_size,
+            dims=("date", "event"),
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is EventEffect
+        assert type(restored.basis) is GaussianBasis
+        assert restored.dims == original.dims
+        assert restored.basis.prefix == "ev_basis"
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.events.GaussianBasis",
+        "pymc_marketing.mmm.events.HalfGaussianBasis",
+        "pymc_marketing.mmm.events.AsymmetricGaussianBasis",
+        "pymc_marketing.mmm.events.EventEffect",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_events_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

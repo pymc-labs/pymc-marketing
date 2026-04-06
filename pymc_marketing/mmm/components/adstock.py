@@ -29,9 +29,11 @@ Create a new adstock transformation:
     from pymc_extras.prior import Prior
 
 
-    class MyAdstock(AdstockTransformation):
-        lookup_name: str = "my_adstock"
+    from pymc_marketing.serialization import serialization
 
+
+    @serialization.register
+    class MyAdstock(AdstockTransformation):
         def function(self, x, alpha):
             return x * alpha
 
@@ -55,19 +57,19 @@ Plot the default priors for an adstock transformation:
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
 import xarray as xr
 from pydantic import Field, validate_call
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.base import (
     SupportedPrior,
     Transformation,
-    create_registration_meta,
 )
 from pymc_marketing.mmm.transformers import (
     ConvMode,
@@ -77,13 +79,10 @@ from pymc_marketing.mmm.transformers import (
     geometric_adstock,
     weibull_adstock,
 )
-
-ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {}
-
-AdstockRegistrationMeta: type[type] = create_registration_meta(ADSTOCK_TRANSFORMATIONS)
+from pymc_marketing.serialization import serialization
 
 
-class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta):  # type: ignore
+class AdstockTransformation(Transformation):
     """Subclass for all adstock functions.
 
     In order to use a custom saturation function, inherit from this class and define:
@@ -96,7 +95,6 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
     """
 
     prefix: str = "adstock"
-    lookup_name: str
 
     @validate_call
     def __init__(
@@ -141,6 +139,20 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
 
         return data
 
+    @classmethod
+    def from_dict(cls, data: dict) -> AdstockTransformation:
+        """Reconstruct an adstock transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop(
+            "lookup_name", None
+        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
+
+        if "priors" in data:
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
+
     def sample_curve(
         self,
         parameters: xr.Dataset,
@@ -180,6 +192,7 @@ class AdstockTransformation(Transformation, metaclass=AdstockRegistrationMeta): 
         )
 
 
+@serialization.register
 class BinomialAdstock(AdstockTransformation):
     """Wrapper around the binomial adstock function.
 
@@ -202,8 +215,6 @@ class BinomialAdstock(AdstockTransformation):
 
     """
 
-    lookup_name = "binomial"
-
     def function(self, x, alpha, *, dim: str):
         """Binomial adstock function."""
         return binomial_adstock(
@@ -218,6 +229,7 @@ class BinomialAdstock(AdstockTransformation):
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
+@serialization.register
 class GeometricAdstock(AdstockTransformation):
     """Wrapper around geometric adstock function.
 
@@ -240,8 +252,6 @@ class GeometricAdstock(AdstockTransformation):
 
     """
 
-    lookup_name = "geometric"
-
     def function(self, x, alpha, *, dim: str):
         """Geometric adstock function."""
         return geometric_adstock(
@@ -256,6 +266,7 @@ class GeometricAdstock(AdstockTransformation):
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
 
+@serialization.register
 class DelayedAdstock(AdstockTransformation):
     """Wrapper around delayed adstock function.
 
@@ -278,8 +289,6 @@ class DelayedAdstock(AdstockTransformation):
 
     """
 
-    lookup_name = "delayed"
-
     def function(self, x, alpha, theta, *, dim: str):
         """Delayed adstock function."""
         return delayed_adstock(
@@ -298,6 +307,7 @@ class DelayedAdstock(AdstockTransformation):
     }
 
 
+@serialization.register
 class WeibullPDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with PDF function.
 
@@ -320,8 +330,6 @@ class WeibullPDFAdstock(AdstockTransformation):
 
     """
 
-    lookup_name = "weibull_pdf"
-
     def function(self, x, lam, k, *, dim: str):
         """Weibull adstock function."""
         return weibull_adstock(
@@ -341,6 +349,7 @@ class WeibullPDFAdstock(AdstockTransformation):
     }
 
 
+@serialization.register
 class WeibullCDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with CDF function.
 
@@ -363,8 +372,6 @@ class WeibullCDFAdstock(AdstockTransformation):
 
     """
 
-    lookup_name = "weibull_cdf"
-
     def function(self, x, lam, k, *, dim: str):
         """Weibull adstock function."""
         return weibull_adstock(
@@ -384,10 +391,9 @@ class WeibullCDFAdstock(AdstockTransformation):
     }
 
 
+@serialization.register
 class NoAdstock(AdstockTransformation):
     """Wrapper around no adstock transformation."""
-
-    lookup_name: str = "no_adstock"
 
     def function(self, x, *, dim: str | None = None):
         """No adstock function."""
@@ -401,23 +407,45 @@ class NoAdstock(AdstockTransformation):
         return
 
 
+# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
+ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
+    "geometric": GeometricAdstock,
+    "delayed": DelayedAdstock,
+    "weibull_cdf": WeibullCDFAdstock,
+    "weibull_pdf": WeibullPDFAdstock,
+    "binomial": BinomialAdstock,
+    "no_adstock": NoAdstock,
+}
+
+
 def adstock_from_dict(data: dict) -> AdstockTransformation:
-    """Create an adstock transformation from a dictionary."""
+    """Create an adstock transformation from a dictionary.
+
+    .. deprecated:: 0.18.2
+        `adstock_from_dict` is deprecated and will be removed in 0.20.0.
+        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
+    """
+    warnings.warn(
+        "adstock_from_dict is deprecated and will be removed in 0.20.0. "
+        "Use `from pymc_marketing.serialization import serialization; "
+        "serialization.deserialize(data)` instead.",
+        FutureWarning,
+        stacklevel=2,
+    )
     data = data.copy()
-    lookup_name = data.pop("lookup_name")
-    cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
+    type_key = data.pop("__type__", None)
+    lookup_name = data.pop("lookup_name", None)
+
+    if lookup_name:
+        cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
+    elif type_key:
+        return serialization.deserialize({**data, "__type__": type_key})
+    else:
+        raise ValueError(
+            "Cannot deserialize adstock: missing both 'lookup_name' and '__type__'"
+        )
 
     if "priors" in data:
         data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
 
     return cls(**data)
-
-
-def _is_adstock(data):
-    return "lookup_name" in data and data["lookup_name"] in ADSTOCK_TRANSFORMATIONS
-
-
-register_deserialization(
-    is_type=_is_adstock,
-    deserialize=adstock_from_dict,
-)

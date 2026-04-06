@@ -37,11 +37,12 @@ msgstr ""
 #: ef79f65f90a04056aea7d2528d8dd15c of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_purchases_new_customer:4
 msgid ""
-"Adapted from equation (9) in [R53a3f7142a27-1]_, and `lifetimes` library: "
+"Adapted from equation (9) in [R53a3f7142a27-1]_, and the legacy "
+"``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328"
 msgstr ""
-"Adaptado de la ecuación (9) en [R53a3f7142a27-1]_, y la biblioteca "
-"`lifetimes`: "
+"Adaptado de la ecuación (9) en [R53a3f7142a27-1]_, y la biblioteca heredada "
+"``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328"
 
 #: 21f384f1088d48089a2cbb012ef27ee4 of
