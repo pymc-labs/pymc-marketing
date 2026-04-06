@@ -109,25 +109,22 @@ for renderer in pio.renderers:
     except AttributeError:
         continue
 
-# Sphinx uses 'mathjax3_config' even for version 4.
-# We keep the config simple to avoid the AttributeError.
+# Sphinx's mathjax_path will be handled automatically by the extension/theme.
+# This config is compatible with both MathJax 3 and 4.
 mathjax3_config = {
     "tex": {
         "inlineMath": [["\\(", "\\)"]],
         "displayMath": [["\\[", "\\]"]],
         "processEscapes": True,
+    },
+    "options": {
+        # 'ignoreHtmlClass' is the modern standard for both v3 and v4.
+        # We include 'tex2jax_ignore' for v2/v3 compatibility and
+        # 'plotly-graph-div' to stop MathJax from touching Plotly SVGs.
         "ignoreHtmlClass": "tex2jax_ignore|plotly-graph-div",
         "processHtmlClass": "tex2jax_process",
     },
-    "options": {
-        "processHtmlClass": "tex2jax_process",
-        "ignoreHtmlClass": "tex2jax_ignore",
-    },
 }
-
-# DO NOT set mathjax_options to a dict with 'renderActions'.
-# If you need to set script attributes, use simple strings:
-mathjax_options = {"async": "async"}
 
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
