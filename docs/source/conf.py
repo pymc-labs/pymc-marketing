@@ -112,9 +112,6 @@ for renderer in pio.renderers:
 # Force the default to be a renderer we just disabled
 pio.renderers.default = "notebook"
 
-# Force Sphinx to use the specific MathJax 4 version
-mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@4.1.1/es5/tex-mml-chtml.js"
-
 # Sphinx uses 'mathjax3_config' even for version 4.
 # We keep the config simple to avoid the AttributeError.
 mathjax3_config = {
