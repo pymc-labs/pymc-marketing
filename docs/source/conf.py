@@ -105,7 +105,7 @@ pio.full_figure_for_development = False
 # Disable MathJax across all possible renderers
 for renderer in pio.renderers:
     try:
-        pio.renderers[renderer].include_mathjax = False
+        pio.renderers[renderer].include_mathjax = "cdn"
     except AttributeError:
         continue
 
