@@ -109,9 +109,6 @@ for renderer in pio.renderers:
     except AttributeError:
         continue
 
-# Force the default to be a renderer we just disabled
-pio.renderers.default = "notebook"
-
 # Sphinx uses 'mathjax3_config' even for version 4.
 # We keep the config simple to avoid the AttributeError.
 mathjax3_config = {
