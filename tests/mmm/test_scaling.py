@@ -11,13 +11,18 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import numpy as np
+import pandas as pd
 import pytest
+import xarray as xr
+from pydantic import ValidationError
 
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
     Scaling,
     VariableScaling,
+    panel_channel_fixed_scaling_remaining_dims,
 )
 from pymc_marketing.serialization import serialization
 
@@ -123,6 +128,49 @@ class TestFixedScaling:
         assert restored == original
         assert restored.value == {"US": 100, "UK": 200}
 
+    def test_roundtrip_fixed_dataarray(self):
+        da = xr.DataArray(
+            [1.0, 2.0, 3.0],
+            dims="country",
+            coords={"country": ["A", "B", "C"]},
+        )
+        original = FixedScaling(dims=(), value=da)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+        assert isinstance(restored, FixedScaling)
+        assert isinstance(restored.value, xr.DataArray)
+        xr.testing.assert_equal(restored.value, da)
+
+    def test_fixed_dataarray_nan_raises(self):
+        da = xr.DataArray([1.0, np.nan], dims="x", coords={"x": [0, 1]})
+        with pytest.raises(ValueError, match="NaN"):
+            FixedScaling(dims=(), value=da)
+
+    def test_fixed_scaling_invalid_value_type_raises(self):
+        with pytest.raises(ValidationError):
+            FixedScaling(dims=(), value="nope")  # type: ignore[arg-type]
+
+    def test_from_long_dataframe(self):
+        df = pd.DataFrame(
+            {
+                "country": ["A", "A", "B", "B"],
+                "channel": ["c1", "c2", "c1", "c2"],
+                "scale": [10.0, 20.0, 30.0, 40.0],
+            }
+        )
+        fs = FixedScaling.from_long_dataframe(
+            dims=(),
+            df=df,
+            value_col="scale",
+            dim_cols=["country", "channel"],
+        )
+        assert isinstance(fs.value, xr.DataArray)
+        assert fs.value.sizes == {"country": 2, "channel": 2}
+        assert float(fs.value.sel(country="A", channel="c1")) == 10.0
+        round_data = serialization.serialize(fs)
+        restored = serialization.deserialize(round_data)
+        xr.testing.assert_equal(restored.value, fs.value)
+
     def test_roundtrip_scaling_with_fixed(self):
         original = Scaling(
             target=FixedScaling(dims=(), value=50_000.0),
@@ -180,6 +228,16 @@ class TestVariableScalingDimsValidation:
 )
 def test_scaling_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def test_panel_channel_fixed_scaling_remaining_dims():
+    assert panel_channel_fixed_scaling_remaining_dims(("country",), ("country",)) == (
+        "channel",
+    )
+    assert panel_channel_fixed_scaling_remaining_dims(("country",), ()) == (
+        "country",
+        "channel",
+    )
 
 
 def test_abstract_variable_scaling_not_registered():

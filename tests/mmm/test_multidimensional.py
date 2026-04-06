@@ -1964,8 +1964,212 @@ def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    with pytest.raises(ValueError, match=r"exactly one remaining dimension"):
+    with pytest.raises(ValueError, match=r"exactly one remaining dimension.*DataArray"):
         mmm.build_model(X, y)
+
+
+def test_fixed_scaling_dataarray_country_channel_grid(multi_dim_data) -> None:
+    """Full country × channel grid via DataArray when dict is not enough."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    channels = ["channel_1", "channel_2", "channel_3"]
+    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
+    da = xr.DataArray(
+        vals,
+        dims=("country", "channel"),
+        coords={"country": countries, "channel": channels},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    for cty in countries:
+        for ch in channels:
+            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
+                da.sel(country=cty, channel=ch)
+            )
+
+
+def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None:
+    """Per-country fixed media scale broadcasts over channel (e.g. population)."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    da = xr.DataArray(
+        [1_000.0, 2_000.0, 3_000.0],
+        dims="country",
+        coords={"country": countries},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    for cty in countries:
+        for ch in ["channel_1", "channel_2", "channel_3"]:
+            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
+                da.sel(country=cty)
+            )
+
+
+def test_fixed_scaling_dataarray_misaligned_country_raises(multi_dim_data) -> None:
+    """Mismatched country labels on fixed channel scale raise when aligning."""
+    X, y = multi_dim_data
+    da = xr.DataArray(
+        [500.0],
+        dims="country",
+        coords={"country": ["NowhereLand"]},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"NaN|align|shape"):
+        mmm.build_model(X, y)
+
+
+def test_fixed_scaling_target_dict_missing_country(multi_dim_data) -> None:
+    """Target fixed dict keys must match panel coordinates (checked at build)."""
+    X, y = multi_dim_data
+    scaling = Scaling(
+        target=FixedScaling(
+            dims=(),
+            value={"Venezuela": 10_000.0, "Colombia": 20_000.0},
+        ),
+        channel=FixedScaling(dims=("country",), value=5_000.0),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"missing keys.*Chile"):
+        mmm.build_model(X, y)
+
+
+@pytest.fixture
+def two_panel_dim_data():
+    """Minimal panel with country and product dimensions."""
+    rng = np.random.default_rng(42)
+    dates = pd.date_range("2023-01-01", periods=3)
+    countries = ["A", "B"]
+    products = ["P1", "P2"]
+    rows = []
+    for d in dates:
+        for c in countries:
+            for p in products:
+                rows.append(
+                    {
+                        "date": d,
+                        "country": c,
+                        "product": p,
+                        "ch1": float(rng.integers(50, 150)),
+                        "ch2": float(rng.integers(50, 150)),
+                    }
+                )
+    X = pd.DataFrame(rows)
+    y = pd.Series(rng.random(len(X)) * 500 + 100, name="target")
+    return X, y
+
+
+def test_fixed_scaling_dataarray_three_dims_country_product_channel(
+    two_panel_dim_data,
+) -> None:
+    """Fixed channel scale indexed by country × product × channel."""
+    X, y = two_panel_dim_data
+    countries = ["A", "B"]
+    products = ["P1", "P2"]
+    channels = ["ch1", "ch2"]
+    rng = np.random.default_rng(0)
+    vals = rng.random((2, 2, 2)) * 500 + 100.0
+    da = xr.DataArray(
+        vals,
+        dims=("country", "product", "channel"),
+        coords={"country": countries, "product": products, "channel": channels},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country", "product"), value=50_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country", "product"),
+    )
+    mmm.build_model(X, y)
+    np.testing.assert_allclose(
+        mmm.scalers._channel.values,
+        da.broadcast_like(mmm.scalers._channel).values,
+    )
+
+
+def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
+    multi_dim_data,
+) -> None:
+    """Scaling with DataArray-valued FixedScaling survives idata attrs round-trip."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    channels = ["channel_1", "channel_2", "channel_3"]
+    da = xr.DataArray(
+        np.full((3, 3), 2_000.0),
+        dims=("country", "channel"),
+        coords={"country": countries, "channel": channels},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    attrs = mmm.create_idata_attrs()
+    kwargs = MMM.attrs_to_init_kwargs(attrs)
+    restored = kwargs["scaling"]
+    assert isinstance(restored.channel, FixedScaling)
+    assert isinstance(restored.channel.value, xr.DataArray)
+    xr.testing.assert_equal(restored.channel.value, da)
 
 
 def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
