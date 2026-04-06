@@ -18,12 +18,16 @@ Recommends which marketing experiment to run — which channel, at what spend
 level, for how long — based on a fitted MMM's posterior uncertainty about
 channel response functions. The v1 scope is national-level experiments on
 multiple spend channels, analysed via Interrupted Time Series (ITS).
+
+The designer uses the MMM's own computational graph to evaluate channel
+contributions, so it automatically supports any adstock/saturation
+combination without reimplementing the transformation formulas.
 """
 
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import arviz as az
@@ -43,13 +47,63 @@ if TYPE_CHECKING:
     import matplotlib.axes
     from arviz import InferenceData
 
-_SUPPORTED_SATURATION = {"LogisticSaturation"}
-_SUPPORTED_ADSTOCK = {"GeometricAdstock"}
-
 _DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
     "assurance": 0.5,
     "cost_efficiency": 0.5,
 }
+
+
+def _build_eval_fn_from_model(
+    model: Any,
+    idata: Any,
+    n_channels: int,
+) -> Callable[[np.ndarray], np.ndarray]:
+    """Build a compiled function that evaluates channel contributions.
+
+    Uses ``extract_response_distribution`` to trace the model's graph for
+    ``channel_contribution``, replace free RVs with posterior samples,
+    and compile a fast evaluation function.
+
+    Parameters
+    ----------
+    model : pm.Model
+        The fitted PyMC model containing a ``channel_contribution`` variable.
+    idata : InferenceData
+        Posterior samples.
+    n_channels : int
+        Number of channels.
+
+    Returns
+    -------
+    Callable[[np.ndarray], np.ndarray]
+        A function ``f(spend_data) -> contributions`` where:
+        - ``spend_data`` has shape ``(T, n_channels)``
+        - ``contributions`` has shape ``(n_samples, T, n_channels)``
+    """
+    import pytensor.xtensor as ptx
+    from pytensor.compile.function import function
+    from pytensor.graph.replace import clone_replace
+
+    from pymc_marketing.pytensor_utils import extract_response_distribution
+
+    response_graph = extract_response_distribution(
+        pymc_model=model,
+        idata=idata,
+        response_variable="channel_contribution",
+    )
+
+    data_var = model["channel_data"]
+
+    dynamic_input = ptx.xtensor(
+        name="channel_data_input",
+        dtype=str(data_var.dtype),
+        shape=(None, n_channels),
+        dims=("date", "channel"),
+    )
+
+    [new_graph] = clone_replace([response_graph], replace={data_var: dynamic_input})
+    compiled = function([dynamic_input], new_graph)
+    return compiled
 
 
 class ExperimentDesigner:
@@ -58,6 +112,10 @@ class ExperimentDesigner:
     Consumes a fitted MMM and recommends which experiment to run based on
     posterior uncertainty. Supports national-level experiments analysed via
     Interrupted Time Series (ITS).
+
+    The designer uses the model's own computational graph (via
+    ``extract_response_distribution``) to evaluate channel contributions,
+    so it works with any adstock/saturation combination automatically.
 
     .. note::
 
@@ -83,8 +141,6 @@ class ExperimentDesigner:
         If the MMM has not been fitted.
     NotImplementedError
         If ``adstock_first=False`` (not supported in v1).
-    NotImplementedError
-        If the saturation or adstock type is not supported.
 
     Examples
     --------
@@ -117,44 +173,18 @@ class ExperimentDesigner:
                 "(adstock applied before saturation) is supported."
             )
 
-        sat_type = type(mmm.saturation).__name__
-        ads_type = type(mmm.adstock).__name__
-        if sat_type not in _SUPPORTED_SATURATION:
-            raise NotImplementedError(
-                f"Saturation type '{sat_type}' is not supported. "
-                f"Supported: {_SUPPORTED_SATURATION}"
-            )
-        if ads_type not in _SUPPORTED_ADSTOCK:
-            raise NotImplementedError(
-                f"Adstock type '{ads_type}' is not supported. "
-                f"Supported: {_SUPPORTED_ADSTOCK}"
-            )
-
-        posterior = mmm.idata.posterior.stack(sample=("chain", "draw"))
-        sat_var_map = mmm.saturation.variable_mapping
-        ads_var_map = mmm.adstock.variable_mapping
-
-        posterior_samples: dict[str, dict[str, np.ndarray]] = {}
-        channel_dim = self._find_channel_dim(posterior, sat_var_map)
-
         channel_columns = list(mmm.channel_columns)
-        for channel in channel_columns:
-            sel = {channel_dim: channel} if channel_dim else {}
-            posterior_samples[channel] = {
-                "lam": posterior[sat_var_map["lam"]]
-                .sel(**sel)
-                .values.astype(np.float64),
-                "beta": posterior[sat_var_map["beta"]]
-                .sel(**sel)
-                .values.astype(np.float64),
-                "alpha": posterior[ads_var_map["alpha"]]
-                .sel(**sel)
-                .values.astype(np.float64),
-            }
+        n_channels = len(channel_columns)
 
-        n_recent = min(8, len(mmm.X))
-        channel_spend = mmm.X[mmm.channel_columns].tail(n_recent).mean()
-        current_spend = {ch: float(channel_spend[ch]) for ch in channel_columns}
+        eval_fn = _build_eval_fn_from_model(mmm.model, mmm.idata, n_channels)
+
+        data_var = mmm.model["channel_data"]
+        data_values = data_var.get_value()
+        n_recent = min(8, data_values.shape[0])
+        current_spend_arr = np.mean(data_values[-n_recent:], axis=0)
+        current_spend = {
+            ch: float(current_spend_arr[i]) for i, ch in enumerate(channel_columns)
+        }
 
         residual_std, residual_autocorr = self._compute_residual_std(mmm)
 
@@ -169,12 +199,11 @@ class ExperimentDesigner:
             spend_correlation = None
 
         self._init_common(
-            saturation_type=sat_type,
-            adstock_type=ads_type,
+            eval_fn=eval_fn,
             channel_columns=channel_columns,
             l_max=int(mmm.adstock.l_max),
             normalize=bool(mmm.adstock.normalize),
-            posterior_samples=posterior_samples,
+            posterior=mmm.idata.posterior,
             current_spend=current_spend,
             residual_std=residual_std,
             residual_autocorr=residual_autocorr,
@@ -184,12 +213,11 @@ class ExperimentDesigner:
     def _init_common(
         self,
         *,
-        saturation_type: str,
-        adstock_type: str,
+        eval_fn: Callable[[np.ndarray], np.ndarray],
         channel_columns: list[str],
         l_max: int,
         normalize: bool,
-        posterior_samples: dict[str, dict[str, np.ndarray]],
+        posterior: Any,
         current_spend: dict[str, float],
         residual_std: float,
         residual_autocorr: float,
@@ -200,33 +228,26 @@ class ExperimentDesigner:
         Both ``__init__`` and ``from_idata`` funnel through this method
         so that new attributes only need to be added in one place.
         """
-        self._saturation_type = saturation_type
-        self._adstock_type = adstock_type
+        self._eval_fn = eval_fn
         self.channel_columns = channel_columns
         self.l_max = l_max
         self.normalize = normalize
-        self._posterior_samples = posterior_samples
-        self.n_draws: int = len(next(iter(posterior_samples.values()))["lam"])
+        self._posterior = posterior
+        self.n_draws: int = posterior.sizes["chain"] * posterior.sizes["draw"]
         self._current_spend = current_spend
         self._residual_std = residual_std
         self._residual_autocorr = residual_autocorr
         self._spend_correlation = spend_correlation
 
     @staticmethod
-    def _find_channel_dim(posterior: Any, sat_var_map: dict[str, str]) -> str | None:
-        """Identify the channel dimension name in the posterior."""
-        first_var = next(iter(sat_var_map.values()))
-        if first_var not in posterior:
-            return None
-        dims = list(posterior[first_var].dims)
-        dims.remove("sample")
-        if not dims:
-            return None
-        return dims[0]
-
-    @staticmethod
     def _compute_residual_std(mmm: Any) -> tuple[float, float]:
         """Compute per-week residual standard deviation and autocorrelation.
+
+        Uses ``mmm.predict(mmm.X)`` rather than posterior predictive sampling
+        because (a) ``predict`` is the public API for point predictions,
+        (b) it avoids duplicating training data that the model already holds,
+        and (c) the residual standard deviation only needs a point estimate
+        of the model fit, not the full posterior predictive distribution.
 
         Returns
         -------
@@ -285,9 +306,9 @@ class ExperimentDesigner:
     ) -> ExperimentDesigner:
         """Create an ExperimentDesigner from a saved InferenceData fixture.
 
-        This constructor is useful for demos and testing when a fitted MMM
-        object is not available. The InferenceData must contain posterior
-        samples and metadata in ``constant_data``.
+        This constructor builds a lightweight PyMC model using the
+        specified transformation classes, then compiles a graph-based
+        evaluation function — the same approach as the main constructor.
 
         Parameters
         ----------
@@ -309,35 +330,69 @@ class ExperimentDesigner:
         ExperimentDesigner
             A configured designer ready for ``recommend()``.
         """
-        if saturation not in ("logistic",):
+        import pymc as pm
+        import pymc.dims as pmd
+
+        from pymc_marketing.mmm.components.adstock import GeometricAdstock
+        from pymc_marketing.mmm.components.saturation import LogisticSaturation
+
+        _SATURATION_MAP: dict[str, type] = {"logistic": LogisticSaturation}
+        _ADSTOCK_MAP: dict[str, type] = {"geometric": GeometricAdstock}
+
+        if saturation not in _SATURATION_MAP:
             raise NotImplementedError(
-                f"Saturation '{saturation}' not supported. Use 'logistic'."
+                f"Saturation '{saturation}' not supported. "
+                f"Supported: {list(_SATURATION_MAP)}"
             )
-        if adstock not in ("geometric",):
+        if adstock not in _ADSTOCK_MAP:
             raise NotImplementedError(
-                f"Adstock '{adstock}' not supported. Use 'geometric'."
+                f"Adstock '{adstock}' not supported. Supported: {list(_ADSTOCK_MAP)}"
             )
 
         instance = cls.__new__(cls)
 
-        posterior = idata.posterior.stack(sample=("chain", "draw"))
-        channels = list(posterior["saturation_lam"].coords["channel"].values)
+        posterior = idata.posterior
+        stacked = posterior.stack(sample=("chain", "draw"))
 
-        posterior_samples: dict[str, dict[str, np.ndarray]] = {}
-        for channel in channels:
-            posterior_samples[channel] = {
-                "lam": posterior["saturation_lam"]
-                .sel(channel=channel)
-                .values.astype(np.float64),
-                "beta": posterior["saturation_beta"]
-                .sel(channel=channel)
-                .values.astype(np.float64),
-                "alpha": posterior["adstock_alpha"]
-                .sel(channel=channel)
-                .values.astype(np.float64),
-            }
+        first_param_var = next(iter(stacked.data_vars))
+        if "channel" in stacked[first_param_var].dims:
+            channels = list(stacked[first_param_var].coords["channel"].values)
+        else:
+            channels = list(stacked.coords.get("channel", []))
 
         cd = idata.constant_data
+        l_max = int(cd["l_max"].values)
+        normalize = bool(cd["normalize"].values)
+        n_channels = len(channels)
+        T_dummy = l_max + 4
+
+        adstock_obj = _ADSTOCK_MAP[adstock](l_max=l_max, normalize=normalize)
+        saturation_obj = _SATURATION_MAP[saturation]()
+
+        adstock_obj.set_dims_for_all_priors(("channel",))
+        saturation_obj.set_dims_for_all_priors(("channel",))
+
+        with pm.Model(
+            coords={
+                "channel": channels,
+                "date": np.arange(T_dummy),
+            }
+        ) as model:
+            channel_data = pmd.Data(
+                "channel_data",
+                value=np.zeros((T_dummy, n_channels)),
+                dims=("date", "channel"),
+            )
+            adstocked = adstock_obj.apply(x=channel_data, core_dim="date")
+            contribution = saturation_obj.apply(x=adstocked, core_dim="date")
+            pmd.Deterministic(
+                "channel_contribution",
+                contribution,
+                dims=("date", "channel"),
+            )
+
+        eval_fn = _build_eval_fn_from_model(model, idata, n_channels)
+
         spend = cd["current_weekly_spend"]
         current_spend = {ch: float(spend.sel(channel=ch).values) for ch in channels}
 
@@ -350,12 +405,11 @@ class ExperimentDesigner:
             spend_correlation = None
 
         instance._init_common(
-            saturation_type="LogisticSaturation",
-            adstock_type="GeometricAdstock",
+            eval_fn=eval_fn,
             channel_columns=channels,
-            l_max=int(cd["l_max"].values),
-            normalize=bool(cd["normalize"].values),
-            posterior_samples=posterior_samples,
+            l_max=l_max,
+            normalize=normalize,
+            posterior=posterior,
             current_spend=current_spend,
             residual_std=float(cd["residual_std"].values),
             residual_autocorr=(
@@ -369,112 +423,107 @@ class ExperimentDesigner:
         return instance
 
     # ------------------------------------------------------------------
-    # Saturation and adstock helpers
+    # Graph-based evaluation
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _eval_saturation(
-        x: np.ndarray | float,
-        lam: np.ndarray | float,
-        beta: np.ndarray | float,
-    ) -> np.ndarray:
-        """Evaluate the logistic saturation response in pure numpy.
-
-        Uses the same formula as
-        :func:`pymc_marketing.mmm.transformers.logistic_saturation`
-        but avoids a PyTensor round-trip so callers can pass raw arrays.
-        """
-        x = np.asarray(x)
-        lam = np.asarray(lam)
-        sat = (1.0 - np.exp(-lam * x)) / (1.0 + np.exp(-lam * x))
-        return np.asarray(beta) * sat
-
-    def _compute_steady_state_spend(
-        self,
-        x_current: float,
-        alpha_samples: np.ndarray,
-    ) -> np.ndarray:
-        """Compute steady-state adstocked spend per posterior draw.
+    def _eval_contributions(self, spend_data: np.ndarray) -> np.ndarray:
+        """Evaluate channel contributions using the compiled model graph.
 
         Parameters
         ----------
-        x_current : float
-            Current raw weekly spend (in model scale).
-        alpha_samples : np.ndarray
-            Posterior draws for adstock alpha, shape ``(n_draws,)``.
+        spend_data : np.ndarray
+            Spend time series of shape ``(T, n_channels)`` in model scale.
 
         Returns
         -------
         np.ndarray
-            Steady-state adstocked spend, shape ``(n_draws,)``.
+            Contributions of shape ``(n_samples, T, n_channels)``.
         """
-        if self.normalize:
-            return np.full_like(alpha_samples, x_current)
-        else:
-            alpha_safe = np.clip(alpha_samples, 1e-6, 1 - 1e-6)
-            S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
-            return x_current * S
+        return np.asarray(self._eval_fn(spend_data.astype(np.float64)))
 
-    def _ramp_fractions_matrix(
-        self,
-        alpha_samples: np.ndarray,
-        T_active: int,
-    ) -> np.ndarray:
-        """Compute per-draw, per-week adstock ramp fractions in [0, 1].
-
-        This is the single source of truth for ramp fraction computation.
-        Both ``_compute_ramp_fraction`` and ``plot_adstock_ramp`` delegate
-        to this method.
+    def _make_spend_array(self, T: int) -> np.ndarray:
+        """Create a baseline spend array filled with current spend.
 
         Parameters
         ----------
-        alpha_samples : np.ndarray
-            Posterior draws for adstock alpha, shape ``(n_draws,)``.
+        T : int
+            Time dimension length.
+
+        Returns
+        -------
+        np.ndarray
+            Spend array of shape ``(T, n_channels)``.
+        """
+        n_channels = len(self.channel_columns)
+        spend = np.zeros((T, n_channels))
+        for i, ch in enumerate(self.channel_columns):
+            spend[:, i] = self._current_spend[ch]
+        return spend
+
+    # ------------------------------------------------------------------
+    # Ramp fraction helpers (graph-based, adstock-agnostic)
+    # ------------------------------------------------------------------
+
+    def _steady_state_per_week_lift(self, channel: str, delta_x: float) -> np.ndarray:
+        """Per-draw steady-state per-week lift via the compiled graph.
+
+        Runs a long experiment (``4 * l_max`` treatment weeks) and returns
+        the per-week contribution difference at the last time step, where
+        adstock has fully built up regardless of the adstock type.
+
+        Parameters
+        ----------
+        channel : str
+            Channel name.
+        delta_x : float
+            Absolute weekly spend change (model scale).
+
+        Returns
+        -------
+        np.ndarray
+            Shape ``(n_draws,)``.
+        """
+        ch_idx = self.channel_columns.index(channel)
+        T_long = max(4 * self.l_max, 32)
+        T_total = self.l_max + T_long
+
+        baseline = self._make_spend_array(T_total)
+        treatment = baseline.copy()
+        treatment[self.l_max :, ch_idx] += delta_x
+
+        baseline_contrib = self._eval_contributions(baseline)
+        treatment_contrib = self._eval_contributions(treatment)
+        return treatment_contrib[:, -1, ch_idx] - baseline_contrib[:, -1, ch_idx]
+
+    def _compute_graph_ramp_fraction(
+        self,
+        predicted_lift: np.ndarray,
+        T_active: int,
+        ss_per_week: np.ndarray,
+    ) -> float:
+        """Compute ramp fraction as average per-week lift / steady-state per-week lift.
+
+        Parameters
+        ----------
+        predicted_lift : np.ndarray
+            Total cumulative lift over ``T_active`` weeks, shape ``(n_draws,)``.
         T_active : int
             Experiment duration in weeks.
+        ss_per_week : np.ndarray
+            Steady-state per-week lift, shape ``(n_draws,)``.
 
         Returns
         -------
-        np.ndarray
-            Ramp fractions, shape ``(n_draws, T_active)``, values in [0, 1].
+        float
+            Ramp fraction in ``[0, 1]``.
         """
-        alpha_safe = np.clip(alpha_samples, 1e-6, 1 - 1e-6)
-        t_arr = np.arange(T_active)
-        partial_sums = (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
-            1.0 - alpha_safe[:, None]
-        )
-        S = (1.0 - alpha_safe**self.l_max) / (1.0 - alpha_safe)
-        return partial_sums / S[:, None]
+        avg_per_week = predicted_lift / T_active
+        ramp = avg_per_week / (ss_per_week + 1e-12)
+        return float(np.clip(np.mean(ramp), 0.0, 1.0))
 
-    def _compute_adstock_ramp(
-        self,
-        alpha_samples: np.ndarray,
-        T_active: int,
-    ) -> np.ndarray:
-        """Compute adstock ramp weights for each week of the experiment.
-
-        Parameters
-        ----------
-        alpha_samples : np.ndarray
-            Posterior draws for adstock alpha, shape ``(n_draws,)``.
-        T_active : int
-            Experiment duration in weeks.
-
-        Returns
-        -------
-        np.ndarray
-            Ramp weights, shape ``(n_draws, T_active)``.
-            For normalised adstock these are fractions in [0, 1];
-            for unnormalised they are raw partial sums.
-        """
-        if self.normalize:
-            return self._ramp_fractions_matrix(alpha_samples, T_active)
-
-        alpha_safe = np.clip(alpha_samples, 1e-6, 1 - 1e-6)
-        t_arr = np.arange(T_active)
-        return (1.0 - alpha_safe[:, None] ** (t_arr[None, :] + 1)) / (
-            1.0 - alpha_safe[:, None]
-        )
+    # ------------------------------------------------------------------
+    # Lift prediction (graph-based)
+    # ------------------------------------------------------------------
 
     def _predict_lift(
         self,
@@ -483,6 +532,10 @@ class ExperimentDesigner:
         T_active: int,
     ) -> np.ndarray:
         """Predict total cumulative lift for a candidate experiment.
+
+        Constructs baseline and treatment spend time series and evaluates
+        them through the model's compiled computational graph. No manual
+        reimplementation of saturation or adstock formulas is needed.
 
         Parameters
         ----------
@@ -498,21 +551,21 @@ class ExperimentDesigner:
         np.ndarray
             Predicted total lift per posterior draw, shape ``(n_draws,)``.
         """
-        params = self._posterior_samples[channel]
-        lam = params["lam"]
-        beta = params["beta"]
-        alpha = params["alpha"]
-        x_current = self._current_spend[channel]
-        x_ss = self._compute_steady_state_spend(x_current, alpha)
-        ramp = self._compute_adstock_ramp(alpha, T_active)
+        ch_idx = self.channel_columns.index(channel)
+        T_total = self.l_max + T_active
 
-        effective_spend = x_ss[:, None] + delta_x * ramp
-        baseline = self._eval_saturation(x_ss, lam, beta)
-        weekly_lift = (
-            self._eval_saturation(effective_spend, lam[:, None], beta[:, None])
-            - baseline[:, None]
-        )
-        return weekly_lift.sum(axis=1)
+        baseline = self._make_spend_array(T_total)
+        treatment = baseline.copy()
+        treatment[self.l_max :, ch_idx] += delta_x
+
+        baseline_contrib = self._eval_contributions(baseline)
+        treatment_contrib = self._eval_contributions(treatment)
+
+        lift = (
+            treatment_contrib[:, self.l_max :, ch_idx]
+            - baseline_contrib[:, self.l_max :, ch_idx]
+        ).sum(axis=1)
+        return lift
 
     def _compute_assurance(
         self,
@@ -541,14 +594,6 @@ class ExperimentDesigner:
         per_draw_power = 1.0 - norm.cdf(z_alpha - ncp) + norm.cdf(-z_alpha - ncp)
         return float(np.mean(per_draw_power))
 
-    def _compute_ramp_fraction(self, alpha_samples: np.ndarray, T_active: int) -> float:
-        """Compute the mean adstock ramp fraction over the experiment.
-
-        This is the ratio of time-averaged lift to steady-state lift,
-        averaged over posterior draws.
-        """
-        return float(np.mean(self._ramp_fractions_matrix(alpha_samples, T_active)))
-
     # ------------------------------------------------------------------
     # Channel-level diagnostics (shared by scoring and plotting)
     # ------------------------------------------------------------------
@@ -557,16 +602,12 @@ class ExperimentDesigner:
         """Compute per-channel diagnostic metrics.
 
         Returns a dict mapping channel name to a dict with keys:
-        ``hdi_width``, ``mean_correlation``, ``gradient``, ``mean_alpha``.
+        ``hdi_width``, ``mean_correlation``, ``gradient``, ``ramp_at_lmax``.
         """
         result: dict[str, dict[str, float]] = {}
-        for ch in self.channel_columns:
-            p = self._posterior_samples[ch]
 
-            hdi_lam = az.hdi(p["lam"], hdi_prob=0.94)
-            hdi_beta = az.hdi(p["beta"], hdi_prob=0.94)
-            lam_w = float(hdi_lam[1] - hdi_lam[0])
-            beta_w = float(hdi_beta[1] - hdi_beta[0])
+        for ch in self.channel_columns:
+            hdi_width = self._compute_response_hdi_width(ch)
 
             mean_corr = 0.0
             if self._spend_correlation is not None:
@@ -578,25 +619,50 @@ class ExperimentDesigner:
                 ]
                 mean_corr = float(np.mean(others)) if others else 0.0
 
-            x_ss = self._current_spend[ch]
-            lam_mean = float(np.mean(p["lam"]))
-            beta_mean = float(np.mean(p["beta"]))
-            h = max(x_ss * 0.01, 1e-6)
-            grad = float(
-                (
-                    self._eval_saturation(x_ss + h, lam_mean, beta_mean)
-                    - self._eval_saturation(x_ss, lam_mean, beta_mean)
-                )
-                / h
-            )
+            grad = self._compute_gradient(ch)
+
+            x_current = self._current_spend[ch]
+            small_delta = 0.01 * x_current
+            if small_delta > 0:
+                ss = self._steady_state_per_week_lift(ch, small_delta)
+                lift = self._predict_lift(ch, small_delta, self.l_max)
+                ramp = float(np.clip(np.mean((lift / self.l_max) / (ss + 1e-12)), 0, 1))
+            else:
+                ramp = 0.0
 
             result[ch] = {
-                "hdi_width": lam_w * beta_w,
+                "hdi_width": hdi_width,
                 "mean_correlation": mean_corr,
                 "gradient": grad,
-                "mean_alpha": float(np.mean(p["alpha"])),
+                "ramp_at_lmax": ramp,
             }
         return result
+
+    def _compute_response_hdi_width(self, channel: str) -> float:
+        """Compute HDI width of channel contribution at current spend."""
+        ch_idx = self.channel_columns.index(channel)
+        spend = self._make_spend_array(self.l_max + 1)
+        contrib = self._eval_contributions(spend)
+        values = contrib[:, -1, ch_idx]
+        hdi = az.hdi(values, hdi_prob=0.94)
+        return float(hdi[1] - hdi[0])
+
+    def _compute_gradient(self, channel: str) -> float:
+        """Compute numerical gradient of the response function."""
+        ch_idx = self.channel_columns.index(channel)
+        x_current = self._current_spend[channel]
+        h = max(x_current * 0.01, 1e-6)
+
+        spend_lo = self._make_spend_array(self.l_max + 1)
+        spend_hi = spend_lo.copy()
+        spend_hi[:, ch_idx] += h
+
+        contrib_lo = self._eval_contributions(spend_lo)
+        contrib_hi = self._eval_contributions(spend_hi)
+
+        response_lo = float(np.mean(contrib_lo[:, -1, ch_idx]))
+        response_hi = float(np.mean(contrib_hi[:, -1, ch_idx]))
+        return (response_hi - response_lo) / h
 
     def _get_uncertainty_ranks(self) -> dict[str, int]:
         """Rank channels by posterior uncertainty (1 = most uncertain)."""
@@ -771,19 +837,15 @@ class ExperimentDesigner:
         min_snr: float,
         significance_level: float,
     ) -> list[dict[str, Any]]:
-        """Evaluate the candidate grid and return raw metric dicts.
-
-        Each dict contains all fields needed for an
-        ``ExperimentRecommendation`` except ``score`` and ``rationale``.
-        """
+        """Evaluate the candidate grid and return raw metric dicts."""
         candidate_data: list[dict[str, Any]] = []
 
         for channel in self.channel_columns:
             x_current = self._current_spend[channel]
-            alpha_samples = self._posterior_samples[channel]["alpha"]
 
             for frac in spend_changes:
                 delta_x = frac * x_current
+                ss_per_week = self._steady_state_per_week_lift(channel, delta_x)
 
                 for T in durations:
                     predicted_lift = self._predict_lift(channel, delta_x, T)
@@ -799,7 +861,9 @@ class ExperimentDesigner:
                     assurance = self._compute_assurance(
                         predicted_lift, sigma_d, significance_level
                     )
-                    ramp_frac = self._compute_ramp_fraction(alpha_samples, T)
+                    ramp_frac = self._compute_graph_ramp_fraction(
+                        predicted_lift, T, ss_per_week
+                    )
                     net_cost = delta_x * T
 
                     candidate_data.append(
@@ -824,23 +888,14 @@ class ExperimentDesigner:
 
         A channel is flagged when the posterior mean of its absolute
         contribution at current spend is less than one residual standard
-        deviation, indicating the model believes the channel has
-        negligible effect.
-
-        Returns
-        -------
-        list[str]
-            Channel names suitable for null-confirmation testing.
+        deviation.
         """
         null_candidates: list[str] = []
-        for ch in self.channel_columns:
-            params = self._posterior_samples[ch]
-            x_current = self._current_spend[ch]
-            x_ss = self._compute_steady_state_spend(x_current, params["alpha"])
-            contribution = np.abs(
-                self._eval_saturation(x_ss, params["lam"], params["beta"])
-            )
-            mean_contribution = float(np.mean(contribution))
+        spend = self._make_spend_array(self.l_max + 1)
+        contrib = self._eval_contributions(spend)
+
+        for i, ch in enumerate(self.channel_columns):
+            mean_contribution = float(np.mean(np.abs(contrib[:, -1, i])))
             if mean_contribution < self._residual_std:
                 null_candidates.append(ch)
         return null_candidates
@@ -857,8 +912,8 @@ class ExperimentDesigner:
         """Plot per-channel diagnostic summary.
 
         Shows posterior HDI width, mean spend correlation, saturation
-        gradient at current operating point, and posterior mean adstock
-        alpha for each channel.
+        gradient at current operating point, and adstock ramp fraction
+        at ``l_max`` weeks for each channel.
 
         Parameters
         ----------
@@ -887,12 +942,12 @@ class ExperimentDesigner:
         bar_colors = [colors[ch] for ch in channels]
 
         titles = [
-            "Posterior HDI Width\n(lam × beta)",
+            "Response HDI Width",
             "Mean |Spend Correlation|",
-            "Saturation Gradient\n(at operating point)",
-            "Adstock α\n(posterior mean)",
+            "Response Gradient\n(at operating point)",
+            f"Ramp @ {self.l_max}w\n(fraction of steady state)",
         ]
-        value_keys = ["hdi_width", "mean_correlation", "gradient", "mean_alpha"]
+        value_keys = ["hdi_width", "mean_correlation", "gradient", "ramp_at_lmax"]
 
         for ax_i, title, key in zip(axes, titles, value_keys, strict=True):
             vals = [metrics[ch][key] for ch in channels]
@@ -1033,13 +1088,13 @@ class ExperimentDesigner:
                 ax_ij.hist(lift, bins=50, density=True, alpha=0.6, color=color)
                 ax_ij.axvline(0, color="black", linestyle="--", linewidth=0.8)
                 ax_ij.axvspan(hdi[0], hdi[1], alpha=0.15, color=color)
-                ax_ij.set_title(f"Δ={frac * 100:+.0f}%, T={T}w", fontsize=9)
+                ax_ij.set_title(f"\u0394={frac * 100:+.0f}%, T={T}w", fontsize=9)
                 if j == 0:
                     ax_ij.set_ylabel("Density")
                 if i == n_rows - 1:
                     ax_ij.set_xlabel("Total Lift")
 
-        fig.suptitle(f"Lift Distributions — {channel}", fontsize=12, y=1.02)
+        fig.suptitle(f"Lift Distributions \u2014 {channel}", fontsize=12, y=1.02)
         fig.tight_layout()
         return fig, axes
 
@@ -1054,7 +1109,8 @@ class ExperimentDesigner:
     ) -> tuple[Figure, plt.Axes]:
         """Plot the saturation curve with posterior uncertainty.
 
-        Shows the posterior mean curve with a 94% HDI band.
+        Shows the posterior mean curve with a 94% HDI band, evaluated
+        through the model's computational graph.
 
         Parameters
         ----------
@@ -1086,23 +1142,28 @@ class ExperimentDesigner:
             fig, ax = plt.subplots(figsize=figsize)
         else:
             fig = ax.get_figure()
-        params = self._posterior_samples[channel]
 
+        ch_idx = self.channel_columns.index(channel)
         x_current = self._current_spend[channel]
         x_max = x_current * 2.5
         n_grid = 200
         x_grid = np.linspace(0, x_max, n_grid)
 
+        T_eval = self.l_max + 1
+        y_all = np.zeros((self.n_draws, n_grid))
+        for g_idx, x_val in enumerate(x_grid):
+            spend = self._make_spend_array(T_eval)
+            spend[:, ch_idx] = x_val
+            contrib = self._eval_contributions(spend)
+            y_all[:, g_idx] = contrib[:, -1, ch_idx]
+
         rng = np.random.default_rng(42)
         idx = rng.choice(self.n_draws, size=min(n_samples, self.n_draws), replace=False)
+        y_sub = y_all[idx]
 
-        y_all = self._eval_saturation(
-            x_grid[None, :], params["lam"][idx, None], params["beta"][idx, None]
-        )
-
-        y_mean = y_all.mean(axis=0)
-        y_lo = np.percentile(y_all, 3.0, axis=0)
-        y_hi = np.percentile(y_all, 97.0, axis=0)
+        y_mean = y_sub.mean(axis=0)
+        y_lo = np.percentile(y_sub, 3.0, axis=0)
+        y_hi = np.percentile(y_sub, 97.0, axis=0)
 
         ax.fill_between(x_grid, y_lo, y_hi, color=color, alpha=0.15)
         ax.plot(x_grid, y_mean, color=color, linewidth=2, label="Posterior mean")
@@ -1126,9 +1187,9 @@ class ExperimentDesigner:
                     label=f"+{frac * 100:.0f}%",
                 )
 
-        ax.set_xlabel("Adstocked Spend (model scale)")
+        ax.set_xlabel("Spend (model scale)")
         ax.set_ylabel("Response")
-        ax.set_title(f"Saturation Curve — {channel}")
+        ax.set_title(f"Saturation Curve \u2014 {channel}")
         ax.legend(fontsize=8)
 
         fig.tight_layout()
@@ -1169,10 +1230,35 @@ class ExperimentDesigner:
 
         for ch in self.channel_columns:
             c = colors[ch]
-            alpha = self._posterior_samples[ch]["alpha"]
-            ramp_matrix = self._ramp_fractions_matrix(alpha, max_weeks)
-            cumsum = np.cumsum(ramp_matrix, axis=1)
-            ramp_fracs = cumsum / weeks[None, :]
+            ch_idx = self.channel_columns.index(ch)
+            x_current = self._current_spend[ch]
+            small_delta = 0.01 * x_current
+            if small_delta <= 0:
+                continue
+
+            T_ss = max(max_weeks, 4 * self.l_max)
+            T_total = self.l_max + T_ss
+
+            baseline = self._make_spend_array(T_total)
+            treatment = baseline.copy()
+            treatment[self.l_max :, ch_idx] += small_delta
+
+            baseline_contrib = self._eval_contributions(baseline)
+            treatment_contrib = self._eval_contributions(treatment)
+
+            ss_per_week = (
+                treatment_contrib[:, -1, ch_idx] - baseline_contrib[:, -1, ch_idx]
+            )
+
+            diff = (
+                treatment_contrib[:, self.l_max : self.l_max + max_weeks, ch_idx]
+                - baseline_contrib[:, self.l_max : self.l_max + max_weeks, ch_idx]
+            )
+            cumulative_lift = np.cumsum(diff, axis=1)
+
+            avg_per_week = cumulative_lift / weeks[None, :]
+            ramp_fracs = avg_per_week / (ss_per_week[:, None] + 1e-12)
+            ramp_fracs = np.clip(ramp_fracs, 0, 1)
 
             mean_ramp = ramp_fracs.mean(axis=0)
             low = np.percentile(ramp_fracs, 5.5, axis=0)

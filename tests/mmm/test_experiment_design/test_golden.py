@@ -23,6 +23,10 @@ Do NOT update the expected values here unless you have intentionally changed
 the underlying mathematics (adstock ramp, saturation, assurance formula, or
 scoring). If a refactoring breaks these tests, it means the refactoring
 changed the numerical output and needs investigation.
+
+Note: ramp fraction values were updated when switching from the analytic
+geometric-only formula to graph-based computation that accounts for
+adstock + saturation jointly, making the metric honest for any adstock type.
 """
 
 from __future__ import annotations
@@ -148,9 +152,9 @@ class TestGoldenLiftPrediction:
     @pytest.mark.parametrize(
         "channel, expected_lift, expected_assurance, expected_snr, expected_ramp",
         [
-            ("search", 0.809327, 0.999944, 8.678206, 0.927379),
-            ("tv", 0.537842, 0.993562, 5.767141, 0.697028),
-            ("social", 0.266753, 0.780957, 2.860321, 0.837084),
+            ("search", 0.809327, 0.999944, 8.678206, 0.930221),
+            ("tv", 0.537842, 0.993562, 5.767141, 0.698281),
+            ("social", 0.266753, 0.780957, 2.860321, 0.839206),
         ],
     )
     def test_channel_lift_values(

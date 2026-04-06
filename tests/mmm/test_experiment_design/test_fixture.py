@@ -100,13 +100,12 @@ class TestFromIdataRoundTrip:
         designer = ExperimentDesigner.from_idata(synthetic_idata)
         assert designer.normalize is True
 
-    def test_posterior_samples_have_correct_shape(self, synthetic_idata):
+    def test_posterior_has_correct_draws(self, synthetic_idata):
         designer = ExperimentDesigner.from_idata(synthetic_idata)
         expected_draws = 2 * 2000  # n_chains * n_draws
-        for ch in designer.channel_columns:
-            assert len(designer._posterior_samples[ch]["lam"]) == expected_draws
-            assert len(designer._posterior_samples[ch]["beta"]) == expected_draws
-            assert len(designer._posterior_samples[ch]["alpha"]) == expected_draws
+        assert designer.n_draws == expected_draws
+        assert designer._posterior.sizes["chain"] == 2
+        assert designer._posterior.sizes["draw"] == 2000
 
     def test_netcdf_round_trip(self, synthetic_idata, tmp_path):
         path = tmp_path / "test_fixture.nc"
