@@ -25,6 +25,7 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.serialization import DeserializationContext, serialization
 
 
 @pytest.fixture(scope="function")
@@ -297,3 +298,182 @@ def test_linear_trend_effect(
     effect_predictions = idata.posterior_predictive.effect
     np.testing.assert_allclose(effect_predictions.notnull().mean().item(), 1.0)
     pd.testing.assert_index_equal(effect_predictions.date.to_index(), new_dates)
+
+
+class TestMuEffectRoundtrips:
+    @pytest.mark.parametrize(
+        "fourier_cls_name",
+        ["YearlyFourier", "MonthlyFourier", "WeeklyFourier"],
+    )
+    def test_fourier_effect_all_fourier_types(self, fourier_cls_name):
+        import pymc_marketing.mmm.fourier as fourier_mod
+
+        fourier_cls = getattr(fourier_mod, fourier_cls_name)
+        original = FourierEffect(
+            fourier=fourier_cls(
+                n_order=5,
+                prefix="custom_fourier",
+                prior=Prior("Laplace", mu=0.5, b=2.0),
+            ),
+            date_dim_name="custom_date",
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is FourierEffect
+        assert type(restored.fourier) is fourier_cls
+        assert restored.fourier.n_order == 5
+        assert restored.fourier.prefix == "custom_fourier"
+        assert restored.date_dim_name == "custom_date"
+        assert restored == original
+
+    def test_linear_trend_effect_all_parameters(self):
+        original = LinearTrendEffect(
+            trend=LinearTrend(
+                n_changepoints=8,
+                include_intercept=True,
+                priors={
+                    "delta": Prior("Laplace", mu=0, b=0.5, dims="changepoint"),
+                    "k": Prior("Normal", mu=0.1, sigma=0.1),
+                },
+            ),
+            prefix="custom_trend",
+            date_dim_name="custom_date",
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is LinearTrendEffect
+        assert restored.prefix == "custom_trend"
+        assert restored.date_dim_name == "custom_date"
+        assert type(restored.trend) is LinearTrend
+        assert restored.trend.n_changepoints == 8
+        assert restored.trend.include_intercept is True
+        assert restored == original
+
+    def test_custom_mu_effect_roundtrip(self):
+        """User-defined MuEffect subclasses auto-register and round-trip."""
+        from pymc_marketing.mmm.additive_effect import MuEffect
+
+        class UserEffect(MuEffect):
+            my_param: float = 3.14
+            my_str: str = "default"
+
+            def create_data(self, mmm):
+                pass
+
+            def create_effect(self, mmm):
+                pass
+
+            def set_data(self, mmm, model, X):
+                pass
+
+        original = UserEffect(my_param=2.71, my_str="custom_value")
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is UserEffect
+        assert restored.my_param == 2.71
+        assert restored.my_str == "custom_value"
+        assert restored == original
+
+
+class TestEventAdditiveEffectRoundtrips:
+    def test_to_dict_serializes_all_fields(self):
+        from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+        df = pd.DataFrame(
+            {
+                "name": ["event1"],
+                "start_date": ["2024-01-01"],
+                "end_date": ["2024-01-07"],
+            }
+        )
+        basis = GaussianBasis(
+            prefix="ev_basis",
+            priors={"sigma": Prior("Gamma", mu=5, sigma=2)},
+        )
+        effect = EventEffect(
+            basis=basis,
+            effect_size=Prior("Normal", mu=0.5, sigma=2.0),
+            dims="custom_events",
+        )
+        eae = EventAdditiveEffect(
+            df_events=df,
+            prefix="custom_events",
+            effect=effect,
+            reference_date="2024-06-01",
+            date_dim_name="custom_date",
+        )
+        data = eae.to_dict()
+        assert "__type__" in data
+        assert "effect" in data
+        assert "df_events_group" in data
+        assert data["df_events_group"] == "supplementary_data_custom_events"
+        assert data["prefix"] == "custom_events"
+        assert data["reference_date"] == "2024-06-01"
+        assert data["date_dim_name"] == "custom_date"
+
+    def test_roundtrip_all_parameters_with_mock_context(self):
+        import xarray as xr
+
+        from pymc_marketing.mmm.additive_effect import EventAdditiveEffect
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+
+        df = pd.DataFrame(
+            {
+                "name": ["ev1", "ev2", "ev3"],
+                "start_date": ["2024-01-01", "2024-06-01", "2024-12-01"],
+                "end_date": ["2024-01-07", "2024-06-07", "2024-12-07"],
+            }
+        )
+        basis = GaussianBasis(
+            prefix="ev_basis",
+            priors={"sigma": Prior("Gamma", mu=5, sigma=2)},
+        )
+        effect = EventEffect(
+            basis=basis,
+            effect_size=Prior("Normal", mu=0.5, sigma=2.0),
+            dims="custom_events",
+        )
+        original = EventAdditiveEffect(
+            df_events=df,
+            prefix="custom_events",
+            effect=effect,
+            reference_date="2024-06-01",
+            date_dim_name="custom_date",
+        )
+
+        data = serialization.serialize(original)
+
+        ds = xr.Dataset.from_dataframe(df.set_index("name"))
+        fake_idata_dict = {"supplementary_data_custom_events": ds}
+
+        class MockIdata:
+            def __getitem__(self, key):
+                return fake_idata_dict[key]
+
+        ctx = DeserializationContext(idata=MockIdata())
+        restored = serialization.deserialize(data, context=ctx)
+
+        assert type(restored) is EventAdditiveEffect
+        assert len(restored.df_events) == 3
+        assert restored.prefix == "custom_events"
+        assert restored.reference_date == "2024-06-01"
+        assert restored.date_dim_name == "custom_date"
+        assert type(restored.effect) is EventEffect
+        assert type(restored.effect.basis) is GaussianBasis
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.additive_effect.FourierEffect",
+        "pymc_marketing.mmm.additive_effect.LinearTrendEffect",
+        "pymc_marketing.mmm.additive_effect.EventAdditiveEffect",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_additive_effect_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"
