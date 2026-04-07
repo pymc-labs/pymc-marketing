@@ -19,7 +19,6 @@ benefits/model_deployment
 
 mmm/mmm_intro
 mmm/resources
-mmm/multiplicative_hardening_report
 :::
 
 :::{toctree}
