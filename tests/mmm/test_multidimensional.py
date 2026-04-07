@@ -2000,6 +2000,38 @@ def test_fixed_scaling_dataarray_country_channel_grid(multi_dim_data) -> None:
             )
 
 
+def test_fixed_scaling_dataarray_reversed_dims(multi_dim_data) -> None:
+    """DataArray with (channel, country) dims accepted even though data uses (country, channel)."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    channels = ["channel_1", "channel_2", "channel_3"]
+    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
+    da = xr.DataArray(
+        vals,
+        dims=("channel", "country"),
+        coords={"channel": channels, "country": countries},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    for cty in countries:
+        for ch in channels:
+            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
+                da.sel(country=cty, channel=ch)
+            )
+
+
 def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None:
     """Per-country fixed media scale broadcasts over channel (e.g. population)."""
     X, y = multi_dim_data

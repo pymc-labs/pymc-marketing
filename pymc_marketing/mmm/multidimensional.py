@@ -1859,7 +1859,7 @@ class MMM(RegressionModelBuilder):
                 "Fixed scaling DataArray produced NaNs after alignment — coordinates "
                 "likely do not match the data grid on a shared dimension."
             )
-        if tuple(aligned.sizes.items()) != tuple(template.sizes.items()):
+        if dict(aligned.sizes) != dict(template.sizes):
             raise ValueError(
                 f"Fixed scaling DataArray has shape {dict(aligned.sizes)} after "
                 f"broadcast; expected {dict(template.sizes)} matching reduced data."
