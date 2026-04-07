@@ -227,7 +227,6 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
     VariableScaling,
-    deserialize_variable_scaling,
     panel_channel_fixed_scaling_remaining_dims,
     validate_fixed_scaling_keys,
 )
@@ -474,10 +473,6 @@ class MMM(RegressionModelBuilder):
                 scaling["channel"] = DataDerivedScaling(method="max", dims=self.dims)
             if "target" not in scaling:
                 scaling["target"] = DataDerivedScaling(method="max", dims=self.dims)
-
-            for key in ("channel", "target"):
-                if isinstance(scaling[key], dict):
-                    scaling[key] = deserialize_variable_scaling(scaling[key])
 
             scaling = Scaling(**scaling)
 

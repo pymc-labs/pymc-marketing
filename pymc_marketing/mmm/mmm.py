@@ -219,10 +219,6 @@ class BaseMMM(BaseValidateMMM):
             if "target" not in scaling:
                 scaling["target"] = DataDerivedScaling(method="max", dims=())
 
-            for key in ("channel", "target"):
-                if isinstance(scaling[key], dict):
-                    scaling[key] = deserialize_variable_scaling(scaling[key])
-
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
