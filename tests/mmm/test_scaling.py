@@ -111,6 +111,10 @@ class TestFixedScaling:
         with pytest.raises(ValueError, match="must be positive"):
             FixedScaling(dims=("geo",), value={"A": 100, "B": -1})
 
+    def test_fixed_dict_nan_raises(self):
+        with pytest.raises(ValueError, match="non-NaN"):
+            FixedScaling(dims=("geo",), value={"US": float("nan")})
+
     def test_roundtrip_fixed_scalar(self):
         original = FixedScaling(dims=(), value=42.0)
         data = serialization.serialize(original)

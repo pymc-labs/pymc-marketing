@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import date, datetime
@@ -245,9 +246,9 @@ class FixedScaling(VariableScaling):
     def _validate_value(self) -> Self:
         if isinstance(self.value, dict):
             for key, val in self.value.items():
-                if val <= 0:
+                if math.isnan(val) or val <= 0:
                     raise ValueError(
-                        f"All fixed scaling values must be positive, "
+                        f"All fixed scaling values must be positive and non-NaN, "
                         f"got {val} for key '{key}'."
                     )
         elif isinstance(self.value, xr.DataArray):
