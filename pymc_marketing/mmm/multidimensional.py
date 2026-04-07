@@ -196,7 +196,6 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult
-from xarray import DataArray
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -1691,7 +1690,7 @@ class MMM(RegressionModelBuilder):
         }
 
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-            self._time_index = DataArray(
+            self._time_index = xr.DataArray(
                 np.arange(0, X[self.date_column].unique().shape[0]), dims=("date",)
             )
             self._time_resolution = (
@@ -1791,7 +1790,7 @@ class MMM(RegressionModelBuilder):
         """Build a scale DataArray from a FixedScaling configuration."""
         if isinstance(scaling.value, dict):
             return self._build_fixed_scale_from_dict(data, scaling, reduce_dims)
-        if isinstance(scaling.value, DataArray):
+        if isinstance(scaling.value, xr.DataArray):
             return self._align_fixed_scale_dataarray(data, scaling.value, reduce_dims)
         return xr.DataArray(float(scaling.value))
 
@@ -3815,7 +3814,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Parameters
         ----------
-        allocation_strategy : DataArray
+        allocation_strategy : xr.DataArray
             The allocation strategy for the channels.
         noise_level : float
             The relative level of noise to add to the data allocation.
