@@ -25,6 +25,7 @@ Covers the phased test plan:
 import numpy as np
 import pandas as pd
 import pytest
+import xarray as xr
 from pydantic import ValidationError
 from pymc_extras.prior import Prior
 
@@ -39,9 +40,6 @@ from pymc_marketing.mmm.link import (
 from pymc_marketing.mmm.multidimensional import MMM
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def _make_positive_panel(
     n_dates: int = 8,
     countries: tuple[str, ...] = ("A", "B"),
@@ -78,9 +76,6 @@ def _make_mmm(link: str = "identity", dims=("country",), **kwargs) -> MMM:
     )
 
 
-# ===========================================================================
-# Layer 1: API validation (unit tests, no fitting)
-# ===========================================================================
 class TestLinkAPI:
     """Test LinkFunction enum, LinkSpec, and MMM parameter validation."""
 
@@ -157,9 +152,6 @@ class TestLinkAPI:
             mmm.build_model(X, y)
 
 
-# ===========================================================================
-# Layer 1b: LinkSpec unit tests
-# ===========================================================================
 class TestLinkSpec:
     """Direct tests for the LinkSpec abstraction."""
 
@@ -213,9 +205,6 @@ class TestLinkSpec:
             )
 
 
-# ===========================================================================
-# Layer 2: LogSaturation component tests
-# ===========================================================================
 class TestLogSaturation:
     """Targeted tests for LogSaturation beyond the auto-discovered parametrized suite."""
 
@@ -245,9 +234,6 @@ class TestLogSaturation:
         assert sat2.to_dict() == d
 
 
-# ===========================================================================
-# Layer 3: build_model deterministics (integration, build only)
-# ===========================================================================
 class TestBuildModelDeterministics:
     """Test that build_model creates the correct deterministic variables."""
 
@@ -300,9 +286,6 @@ class TestBuildModelDeterministics:
         assert "channel_contribution_original_scale" in mmm.model.named_vars
 
 
-# ===========================================================================
-# Layer 4: Decomposition consistency (requires fit)
-# ===========================================================================
 class TestDecomposition:
     """Counterfactual decomposition consistency for both link types."""
 
@@ -398,19 +381,60 @@ class TestDecomposition:
             "Intercept counterfactual should be positive"
         )
 
-    def test_identity_all_contributions_positive(self, identity_contributions):
-        """With strictly positive synthetic data all identity-link contributions are non-negative."""
+    def test_identity_channel_contributions_non_negative(self, identity_contributions):
+        """Channel contributions are non-negative under identity link (adstock + saturation >= 0)."""
         _mmm, df = identity_contributions
-        component_cols = [c for c in df.columns if c not in ("date", "country")]
-        for col in component_cols:
-            assert (df[col] >= -1e-6).all(), (
-                f"Column {col} has unexpected negative values"
+        for ch in ["C1", "C2"]:
+            assert (df[ch] >= -1e-6).all(), (
+                f"Channel {ch} has unexpected negative values"
             )
 
+    def test_identity_dataset_returns_xr_dataset(self, mock_pymc_sample):
+        """Identity-link dataset has chain and draw dims."""
+        mmm = _make_mmm(link="identity")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y)
+        ds = mmm.compute_counterfactual_contributions_dataset()
+        assert isinstance(ds, xr.Dataset)
+        assert "chain" in ds.dims
+        assert "draw" in ds.dims
+        assert "C1" in ds.data_vars
+        assert "intercept" in ds.data_vars
 
-# ===========================================================================
-# Layer 5: __eq__ and config consistency
-# ===========================================================================
+    def test_log_dataset_returns_xr_dataset(self, mock_pymc_sample):
+        """Log-link dataset has chain and draw dims."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y)
+        ds = mmm.compute_counterfactual_contributions_dataset()
+        assert isinstance(ds, xr.Dataset)
+        assert "chain" in ds.dims
+        assert "draw" in ds.dims
+        assert "C1" in ds.data_vars
+        assert "intercept" in ds.data_vars
+
+    def test_dataset_mean_matches_dataframe(self, identity_contributions):
+        """Averaging the dataset over (chain, draw) reproduces the DataFrame output."""
+        mmm, df = identity_contributions
+        ds = mmm.compute_counterfactual_contributions_dataset()
+        df_from_ds = ds.mean(("chain", "draw")).to_dataframe().reset_index()
+
+        component_cols = [c for c in df.columns if c not in ("date", "country")]
+        for col in component_cols:
+            np.testing.assert_allclose(
+                df_from_ds[col].values,
+                df[col].values,
+                rtol=1e-6,
+            )
+
+    def test_log_dataset_has_expected_vars(self, log_contributions):
+        """Dataset variable names match the DataFrame component columns."""
+        mmm, df = log_contributions
+        ds = mmm.compute_counterfactual_contributions_dataset()
+        component_cols = {c for c in df.columns if c not in ("date", "country")}
+        assert set(ds.data_vars) == component_cols
+
+
 class TestEquality:
     """Test that link is included in equality comparison."""
 

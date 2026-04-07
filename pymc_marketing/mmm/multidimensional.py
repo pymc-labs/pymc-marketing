@@ -1131,8 +1131,130 @@ class MMM(RegressionModelBuilder):
 
         return MMMIDataWrapper.from_mmm(self)
 
+    def compute_counterfactual_contributions_dataset(self) -> xr.Dataset:
+        r"""Full-posterior counterfactual contributions as an :class:`xr.Dataset`.
+
+        For each component :math:`j` with value :math:`v_j(t)` in the
+        linear predictor, the per-draw contribution is:
+
+        .. math::
+
+            \text{contribution}_j^{(d)}(t)
+            = \text{inv}\bigl(\mu^{(d)}(t)\bigr) \cdot s
+            - \text{inv}\bigl(\mu^{(d)}(t) - v_j^{(d)}(t)\bigr) \cdot s
+
+        where :math:`\text{inv}` is the inverse link function,
+        :math:`s` is ``target_scale``, and :math:`d` indexes a
+        posterior draw.
+
+        **Identity link** (:math:`\text{inv} = \text{id}`):
+
+        .. math::
+
+            \text{contribution}_j^{(d)}(t) = v_j^{(d)}(t) \cdot s
+
+        **Log link** (:math:`\text{inv} = \exp`):
+
+        .. math::
+
+            \text{contribution}_j^{(d)}(t)
+            = \bigl[\exp\!\bigl(\mu^{(d)}(t)\bigr)
+            - \exp\!\bigl(\mu^{(d)}(t) - v_j^{(d)}(t)\bigr)\bigr] \cdot s
+
+        The returned dataset retains the full ``(chain, draw)``
+        dimensions so that downstream code can compute arbitrary
+        summaries (HDI, quantiles, etc.).
+
+        Returns
+        -------
+        xr.Dataset
+            One data variable per component (channels, controls,
+            ``yearly_seasonality``, ``intercept``).  Dimensions are
+            ``(chain, draw, date, ...)`` where ``...`` are any extra
+            model dimensions (e.g. ``geo``).
+
+        Raises
+        ------
+        ValueError
+            If the model has not been fitted (no ``idata``).
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            ds = mmm.compute_counterfactual_contributions_dataset()
+
+            # Posterior mean (same as compute_mean_contributions_over_time)
+            ds.mean(("chain", "draw"))
+
+            # 94 % HDI per component
+            import arviz as az
+
+            az.hdi(ds)
+
+        See Also
+        --------
+        compute_mean_contributions_over_time :
+            Convenience wrapper returning the posterior-mean as a
+            ``pd.DataFrame``.
+        """
+        self._validate_idata_exists()
+
+        idata: az.InferenceData = cast(az.InferenceData, self.idata)
+        posterior: xr.Dataset = idata.posterior
+        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
+            drop=True
+        )
+
+        counterfactual_fn: Callable[[xr.DataArray], xr.DataArray]
+
+        if self.link == LinkFunction.LOG:
+            mu_total: xr.DataArray = posterior["mu"]
+            y_hat_draws: xr.DataArray = np.exp(mu_total) * target_scale
+
+            def _log_counterfactual(component: xr.DataArray) -> xr.DataArray:
+                return y_hat_draws - np.exp(mu_total - component) * target_scale
+
+            counterfactual_fn = _log_counterfactual
+        else:
+
+            def _identity_counterfactual(component: xr.DataArray) -> xr.DataArray:
+                return component * target_scale
+
+            counterfactual_fn = _identity_counterfactual
+
+        parts: dict[str, xr.DataArray] = {}
+
+        channel_da: xr.DataArray = posterior["channel_contribution"]
+        for ch in channel_da.coords["channel"].values:
+            ch_comp = channel_da.sel(channel=ch).drop_vars("channel", errors="ignore")
+            parts[str(ch)] = counterfactual_fn(ch_comp)
+
+        if "control_contribution" in posterior:
+            control_da: xr.DataArray = posterior["control_contribution"]
+            for ctrl in control_da.coords["control"].values:
+                ctrl_comp = control_da.sel(control=ctrl).drop_vars(
+                    "control", errors="ignore"
+                )
+                parts[str(ctrl)] = counterfactual_fn(ctrl_comp)
+
+        if "yearly_seasonality_contribution" in posterior:
+            parts["yearly_seasonality"] = counterfactual_fn(
+                posterior["yearly_seasonality_contribution"]
+            )
+
+        parts["intercept"] = counterfactual_fn(posterior["intercept_contribution"])
+
+        return xr.Dataset(parts)
+
     def compute_mean_contributions_over_time(self) -> pd.DataFrame:
-        r"""Get the mean contribution of each component over time in original scale.
+        r"""Posterior-mean counterfactual contributions as a DataFrame.
+
+        Convenience wrapper around
+        :meth:`compute_counterfactual_contributions_dataset` that
+        averages over ``(chain, draw)`` and returns a flat
+        ``pd.DataFrame``.
 
         Each column answers a counterfactual question: *"how much would
         the predicted* :math:`\hat y(t)` *decrease if we removed this
@@ -1193,111 +1315,15 @@ class MMM(RegressionModelBuilder):
 
         See Also
         --------
+        compute_counterfactual_contributions_dataset :
+            Full posterior as an ``xr.Dataset`` (retains chain/draw dims).
         add_original_scale_contribution_variable :
             Pre-compute original-scale deterministics inside the model graph.
         MMMIDataWrapper.get_contributions :
             Full posterior contributions as an ``xr.Dataset``.
         """
-        self._validate_idata_exists()
-        return self._compute_counterfactual_contributions()
-
-    def _compute_counterfactual_contributions(self) -> pd.DataFrame:
-        r"""Per-component counterfactual decomposition (both link types).
-
-        For each component :math:`j` with value :math:`v_j(t)` in the
-        linear predictor, the contribution is defined as:
-
-        .. math::
-
-            \text{contribution}_j(t)
-            = \mathbb{E}\bigl[\text{inv}(\mu) \cdot s\bigr]
-            - \mathbb{E}\bigl[\text{inv}(\mu - v_j) \cdot s\bigr]
-
-        where :math:`\text{inv}` is the inverse link function and
-        :math:`s` is ``target_scale``.
-
-        **Identity link** (:math:`\text{inv} = \text{id}`):
-
-        .. math::
-
-            \text{contribution}_j(t) = \mathbb{E}[v_j(t)] \cdot s
-
-        The columns sum exactly to :math:`\hat y(t)` because the
-        identity link is additive.
-
-        **Log link** (:math:`\text{inv} = \exp`):
-
-        .. math::
-
-            \text{contribution}_j(t)
-            = \mathbb{E}[\exp(\mu) \cdot s]
-            - \mathbb{E}[\exp(\mu - v_j) \cdot s]
-
-        Columns sum to *more* than :math:`\hat y(t)` because
-        interaction effects are counted by every component that
-        participates in them.
-
-        Returns
-        -------
-        pd.DataFrame
-            Wide-format DataFrame with one row per observation
-            (date x extra dims).  Columns: ``date``, optional extra
-            dimensions (e.g. ``geo``), one column per channel, one per
-            control (if present), ``yearly_seasonality`` (if enabled),
-            and ``intercept``.
-        """
-        idata: az.InferenceData = cast(az.InferenceData, self.idata)
-
-        posterior: xr.Dataset = idata.posterior
-        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
-            drop=True
-        )
-
-        counterfactual_fn: Callable[[xr.DataArray], xr.DataArray]
-
-        if self.link == LinkFunction.LOG:
-            mu_total: xr.DataArray = posterior["mu"]
-            y_hat: xr.DataArray = (np.exp(mu_total) * target_scale).mean(
-                ("chain", "draw")
-            )
-
-            def _log_counterfactual(component: xr.DataArray) -> xr.DataArray:
-                return y_hat - (np.exp(mu_total - component) * target_scale).mean(
-                    ("chain", "draw")
-                )
-
-            counterfactual_fn = _log_counterfactual
-        else:
-
-            def _identity_counterfactual(component: xr.DataArray) -> xr.DataArray:
-                return (component * target_scale).mean(("chain", "draw"))
-
-            counterfactual_fn = _identity_counterfactual
-
-        parts: dict[str, xr.DataArray] = {}
-
-        channel_da: xr.DataArray = posterior["channel_contribution"]
-        for ch in channel_da.coords["channel"].values:
-            ch_comp = channel_da.sel(channel=ch).drop_vars("channel", errors="ignore")
-            parts[str(ch)] = counterfactual_fn(ch_comp)
-
-        if "control_contribution" in posterior:
-            control_da: xr.DataArray = posterior["control_contribution"]
-            for ctrl in control_da.coords["control"].values:
-                ctrl_comp = control_da.sel(control=ctrl).drop_vars(
-                    "control", errors="ignore"
-                )
-                parts[str(ctrl)] = counterfactual_fn(ctrl_comp)
-
-        if "yearly_seasonality_contribution" in posterior:
-            parts["yearly_seasonality"] = counterfactual_fn(
-                posterior["yearly_seasonality_contribution"]
-            )
-
-        parts["intercept"] = counterfactual_fn(posterior["intercept_contribution"])
-
-        result: xr.Dataset = xr.Dataset(parts)
-        return result.to_dataframe().reset_index()
+        dataset: xr.Dataset = self.compute_counterfactual_contributions_dataset()
+        return dataset.mean(("chain", "draw")).to_dataframe().reset_index()
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
