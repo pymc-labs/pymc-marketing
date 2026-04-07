@@ -304,47 +304,108 @@ class TestBuildModelDeterministics:
 # Layer 4: Decomposition consistency (requires fit)
 # ===========================================================================
 class TestDecomposition:
-    """Test that decomposition output is self-consistent for both link types."""
+    """Counterfactual decomposition consistency for both link types."""
 
-    def test_identity_decomposition_returns_dataframe(self, mock_pymc_sample):
+    @pytest.fixture()
+    def identity_contributions(self, mock_pymc_sample):
+        """Fit an identity-link MMM and return (mmm, contributions_df)."""
         mmm = _make_mmm(link="identity")
         X, y = _make_positive_panel()
         mmm.fit(X, y)
-        df = mmm.compute_mean_contributions_over_time()
+        return mmm, mmm.compute_mean_contributions_over_time()
+
+    @pytest.fixture()
+    def log_contributions(self, mock_pymc_sample):
+        """Fit a log-link MMM and return (mmm, contributions_df)."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y)
+        return mmm, mmm.compute_mean_contributions_over_time()
+
+    def test_identity_returns_dataframe_with_expected_columns(
+        self, identity_contributions
+    ):
+        """Identity-link decomposition returns a DataFrame with channel and intercept columns."""
+        _mmm, df = identity_contributions
         assert isinstance(df, pd.DataFrame)
         assert "C1" in df.columns
         assert "C2" in df.columns
         assert "intercept" in df.columns
 
-    def test_log_decomposition_returns_dataframe(self, mock_pymc_sample):
-        mmm = _make_mmm(link="log")
-        X, y = _make_positive_panel()
-        mmm.fit(X, y)
-        df = mmm.compute_mean_contributions_over_time()
+    def test_log_returns_dataframe_with_expected_columns(self, log_contributions):
+        """Log-link decomposition returns a DataFrame with channel and intercept columns."""
+        _mmm, df = log_contributions
         assert isinstance(df, pd.DataFrame)
         assert "C1" in df.columns
         assert "C2" in df.columns
         assert "intercept" in df.columns
 
-    def test_log_decomposition_channels_non_negative(self, mock_pymc_sample):
-        mmm = _make_mmm(link="log")
-        X, y = _make_positive_panel()
-        mmm.fit(X, y)
-        df = mmm.compute_mean_contributions_over_time()
+    def test_log_channel_contributions_non_negative(self, log_contributions):
+        """Channel counterfactual contributions are non-negative under log link."""
+        _mmm, df = log_contributions
         for ch in ["C1", "C2"]:
             assert (df[ch] >= -1e-6).all(), f"Channel {ch} has negative contributions"
 
-    def test_both_links_same_columns(self, mock_pymc_sample):
-        identity_mmm = _make_mmm(link="identity")
-        X, y = _make_positive_panel()
-        identity_mmm.fit(X, y)
-        identity_df = identity_mmm.compute_mean_contributions_over_time()
-
-        log_mmm = _make_mmm(link="log")
-        log_mmm.fit(X, y)
-        log_df = log_mmm.compute_mean_contributions_over_time()
-
+    def test_identity_and_log_produce_same_columns(
+        self, identity_contributions, log_contributions
+    ):
+        """Both link types produce identical column sets."""
+        _id_mmm, identity_df = identity_contributions
+        _log_mmm, log_df = log_contributions
         assert set(identity_df.columns) == set(log_df.columns)
+
+    def test_identity_counterfactual_sums_to_y_hat(self, identity_contributions):
+        """Identity-link contributions sum exactly to y_hat at every row."""
+        mmm, df = identity_contributions
+
+        component_cols = [c for c in df.columns if c not in ("date", "country")]
+        df["row_sum"] = df[component_cols].sum(axis=1)
+
+        posterior = mmm.idata.posterior
+        target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+        mu = posterior["intercept_contribution"] + posterior[
+            "channel_contribution"
+        ].sum("channel")
+        y_hat = (mu * target_scale).mean(("chain", "draw"))
+        y_hat_df = y_hat.to_dataframe(name="expected").reset_index()
+
+        merged = df.merge(y_hat_df, on=["date", "country"])
+        np.testing.assert_allclose(
+            merged["row_sum"].values, merged["expected"].values, rtol=1e-5
+        )
+
+    def test_log_counterfactual_does_not_sum_to_y_hat(self, log_contributions):
+        """Log-link counterfactuals do not sum exactly to y_hat (interaction overlap)."""
+        mmm, df = log_contributions
+
+        component_cols = [c for c in df.columns if c not in ("date", "country")]
+        df["row_sum"] = df[component_cols].sum(axis=1)
+
+        posterior = mmm.idata.posterior
+        target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+        y_hat = (np.exp(posterior["mu"]) * target_scale).mean(("chain", "draw"))
+        y_hat_df = y_hat.to_dataframe(name="expected").reset_index()
+
+        merged = df.merge(y_hat_df, on=["date", "country"])
+        assert not np.allclose(
+            merged["row_sum"].values, merged["expected"].values, rtol=1e-5
+        ), "Log-link counterfactuals should NOT sum exactly to y_hat"
+
+    def test_log_counterfactual_intercept_positive(self, log_contributions):
+        """Removing the intercept should reduce y_hat, so its counterfactual is positive."""
+        _mmm, df = log_contributions
+        assert (df["intercept"] > 0).all(), (
+            "Intercept counterfactual should be positive"
+        )
+
+    def test_identity_all_contributions_positive(self, identity_contributions):
+        """With strictly positive synthetic data all identity-link contributions are non-negative."""
+        _mmm, df = identity_contributions
+        component_cols = [c for c in df.columns if c not in ("date", "country")]
+        for col in component_cols:
+            assert (df[col] >= -1e-6).all(), (
+                f"Column {col} has unexpected negative values"
+            )
 
 
 # ===========================================================================

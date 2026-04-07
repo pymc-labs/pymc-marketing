@@ -1134,40 +1134,36 @@ class MMM(RegressionModelBuilder):
     def compute_mean_contributions_over_time(self) -> pd.DataFrame:
         r"""Get the mean contribution of each component over time in original scale.
 
-        For **identity-link** (additive) models each posterior component is
-        simply multiplied by ``target_scale`` and the resulting columns sum
-        to the predicted :math:`\hat y(t)`.
+        Each column answers a counterfactual question: *"how much would
+        the predicted* :math:`\hat y(t)` *decrease if we removed this
+        component?"*
 
-        For **log-link** (multiplicative) models a three-layer hybrid
-        decomposition translates log-space quantities into original-scale
-        dollar-like contributions that still sum to :math:`\hat y(t)`:
+        Formally, for component :math:`j` with value :math:`v_j(t)` in
+        the linear predictor:
 
-        1. **Total media lift (counterfactual).**
-           :math:`\hat y(t) - \hat y_{\text{no-media}}(t)`, where
-           :math:`\hat y_{\text{no-media}}` is the prediction with all
-           channel effects removed.
-        2. **Per-channel allocation (proportional log-share).**
-           The total media lift is split among channels proportionally to
-           each channel's fraction of the total media log-contribution.
-        3. **Non-media allocation (proportional log-share).**
-           The non-media baseline :math:`\hat y_{\text{no-media}}(t)` is
-           split among intercept, controls, and seasonality proportionally
-           to each component's fraction of the non-media log-predictor.
+        .. math::
 
-        All components sum to :math:`\hat y(t)` at every date.
+            \text{contribution}_j(t)
+            = \mathbb{E}\bigl[\text{inv}(\mu) \cdot s\bigr]
+            - \mathbb{E}\bigl[\text{inv}(\mu - v_j) \cdot s\bigr]
 
-        .. note::
-           The proportional-share steps (layers 2 and 3) divide by the
-           total media or non-media log-sum.  When that denominator is
-           near zero at some date (positive and negative log-space
-           components nearly cancel), individual attributions can show
-           large spikes.  The *sum* remains correct; the spike is a
-           limitation of splitting a multiplicative structure into
-           additive dollar amounts.  Focus on overall patterns rather
-           than isolated date-level spikes.
+        where :math:`\text{inv}` is the inverse link function and
+        :math:`s` is ``target_scale``.
+
+        For **identity-link** (additive) models this reduces to
+        :math:`\mathbb{E}[v_j] \cdot s`, and the columns sum exactly
+        to :math:`\hat y(t)`.
+
+        For **log-link** (multiplicative) models this computes a genuine
+        per-component counterfactual.  Because interaction effects are
+        counted by every component that participates in them, the columns
+        sum to *more* than :math:`\hat y(t)`.  This is an expected
+        property of per-component counterfactuals in a multiplicative
+        model, not a defect.
 
         This method does **not** require
-        :meth:`add_original_scale_contribution_variable` to have been called.
+        :meth:`add_original_scale_contribution_variable` to have been
+        called.
 
         Returns
         -------
@@ -1203,47 +1199,52 @@ class MMM(RegressionModelBuilder):
             Full posterior contributions as an ``xr.Dataset``.
         """
         self._validate_idata_exists()
-        if self.link == LinkFunction.LOG:
-            return self._compute_multiplicative_contributions()
-        return self._compute_additive_contributions()
+        return self._compute_counterfactual_contributions()
 
-    def _compute_additive_contributions(self) -> pd.DataFrame:
-        """Compute contributions using additive decomposition (identity link)."""
-        idata: az.InferenceData = cast(az.InferenceData, self.idata)
+    def _compute_counterfactual_contributions(self) -> pd.DataFrame:
+        r"""Per-component counterfactual decomposition (both link types).
 
-        posterior: xr.Dataset = idata.posterior
-        target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
-            drop=True
-        )
+        For each component :math:`j` with value :math:`v_j(t)` in the
+        linear predictor, the contribution is defined as:
 
-        def _to_original_scale_mean(var_name: str) -> xr.DataArray:
-            return (posterior[var_name] * target_scale).mean(dim=("chain", "draw"))
+        .. math::
 
-        channel_da: xr.DataArray = _to_original_scale_mean("channel_contribution")
-        parts: list[xr.Dataset] = [channel_da.to_dataset(dim="channel")]
+            \text{contribution}_j(t)
+            = \mathbb{E}\bigl[\text{inv}(\mu) \cdot s\bigr]
+            - \mathbb{E}\bigl[\text{inv}(\mu - v_j) \cdot s\bigr]
 
-        if "control_contribution" in posterior:
-            control_da: xr.DataArray = _to_original_scale_mean("control_contribution")
-            parts.append(control_da.to_dataset(dim="control"))
+        where :math:`\text{inv}` is the inverse link function and
+        :math:`s` is ``target_scale``.
 
-        if "yearly_seasonality_contribution" in posterior:
-            seasonality_da: xr.DataArray = _to_original_scale_mean(
-                "yearly_seasonality_contribution"
-            )
-            parts.append(seasonality_da.to_dataset(name="yearly_seasonality"))
+        **Identity link** (:math:`\text{inv} = \text{id}`):
 
-        intercept_da: xr.DataArray = _to_original_scale_mean("intercept_contribution")
-        parts.append(intercept_da.to_dataset(name="intercept"))
+        .. math::
 
-        merged: xr.Dataset = xr.merge(parts)
-        return merged.to_dataframe().reset_index()
+            \text{contribution}_j(t) = \mathbb{E}[v_j(t)] \cdot s
 
-    def _compute_multiplicative_contributions(self) -> pd.DataFrame:
-        """Compute contributions using hybrid decomposition (log link).
+        The columns sum exactly to :math:`\hat y(t)` because the
+        identity link is additive.
 
-        Layer 1: total media lift via counterfactual
-        Layer 2: per-channel allocation within media via log-space proportional shares
-        Layer 3: non-media decomposition via log-space proportional shares
+        **Log link** (:math:`\text{inv} = \exp`):
+
+        .. math::
+
+            \text{contribution}_j(t)
+            = \mathbb{E}[\exp(\mu) \cdot s]
+            - \mathbb{E}[\exp(\mu - v_j) \cdot s]
+
+        Columns sum to *more* than :math:`\hat y(t)` because
+        interaction effects are counted by every component that
+        participates in them.
+
+        Returns
+        -------
+        pd.DataFrame
+            Wide-format DataFrame with one row per observation
+            (date x extra dims).  Columns: ``date``, optional extra
+            dimensions (e.g. ``geo``), one column per channel, one per
+            control (if present), ``yearly_seasonality`` (if enabled),
+            and ``intercept``.
         """
         idata: az.InferenceData = cast(az.InferenceData, self.idata)
 
@@ -1252,47 +1253,48 @@ class MMM(RegressionModelBuilder):
             drop=True
         )
 
-        mu_total: xr.DataArray = posterior["mu"]
-        channel_contrib: xr.DataArray = posterior["channel_contribution"]
-        media_total_log: xr.DataArray = channel_contrib.sum(dim="channel")
+        counterfactual_fn: Callable[[xr.DataArray], xr.DataArray]
 
-        y_hat = (np.exp(mu_total) * target_scale).mean(("chain", "draw"))
-        y_hat_no_media = (np.exp(mu_total - media_total_log) * target_scale).mean(
-            ("chain", "draw")
-        )
-        total_media_lift = y_hat - y_hat_no_media
+        if self.link == LinkFunction.LOG:
+            mu_total: xr.DataArray = posterior["mu"]
+            y_hat: xr.DataArray = (np.exp(mu_total) * target_scale).mean(
+                ("chain", "draw")
+            )
+
+            def _log_counterfactual(component: xr.DataArray) -> xr.DataArray:
+                return y_hat - (np.exp(mu_total - component) * target_scale).mean(
+                    ("chain", "draw")
+                )
+
+            counterfactual_fn = _log_counterfactual
+        else:
+
+            def _identity_counterfactual(component: xr.DataArray) -> xr.DataArray:
+                return (component * target_scale).mean(("chain", "draw"))
+
+            counterfactual_fn = _identity_counterfactual
 
         parts: dict[str, xr.DataArray] = {}
-        for ch in channel_contrib.coords["channel"].values:
-            ch_log = channel_contrib.sel(channel=ch).drop_vars(
-                "channel", errors="ignore"
-            )
-            share = (ch_log / media_total_log).mean(("chain", "draw"))
-            share = share.fillna(0.0)
-            parts[str(ch)] = total_media_lift * share
 
-        non_media_log: xr.DataArray = mu_total - media_total_log
-        non_media_log_mean: xr.DataArray = non_media_log.mean(("chain", "draw"))
-
-        def _non_media_share(component: xr.DataArray) -> xr.DataArray:
-            component_mean = component.mean(("chain", "draw"))
-            share = (component_mean / non_media_log_mean).fillna(0.0)
-            return y_hat_no_media * share
+        channel_da: xr.DataArray = posterior["channel_contribution"]
+        for ch in channel_da.coords["channel"].values:
+            ch_comp = channel_da.sel(channel=ch).drop_vars("channel", errors="ignore")
+            parts[str(ch)] = counterfactual_fn(ch_comp)
 
         if "control_contribution" in posterior:
             control_da: xr.DataArray = posterior["control_contribution"]
             for ctrl in control_da.coords["control"].values:
-                ctrl_log = control_da.sel(control=ctrl).drop_vars(
+                ctrl_comp = control_da.sel(control=ctrl).drop_vars(
                     "control", errors="ignore"
                 )
-                parts[str(ctrl)] = _non_media_share(ctrl_log)
+                parts[str(ctrl)] = counterfactual_fn(ctrl_comp)
 
         if "yearly_seasonality_contribution" in posterior:
-            parts["yearly_seasonality"] = _non_media_share(
+            parts["yearly_seasonality"] = counterfactual_fn(
                 posterior["yearly_seasonality_contribution"]
             )
 
-        parts["intercept"] = _non_media_share(posterior["intercept_contribution"])
+        parts["intercept"] = counterfactual_fn(posterior["intercept_contribution"])
 
         result: xr.Dataset = xr.Dataset(parts)
         return result.to_dataframe().reset_index()
