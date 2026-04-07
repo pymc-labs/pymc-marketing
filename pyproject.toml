@@ -75,10 +75,12 @@ docs = [
     "dowhy",
     "osqp<1.0.0,>=0.6.2",
     "preliz>=0.20.0",
+    "plotly>=6.3.0",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
     "blackjax",
+    "fastprogress",
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
