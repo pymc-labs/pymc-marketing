@@ -284,12 +284,20 @@ class TestBuildModelDeterministics:
         mmm.build_model(X, y)
         assert "channel_contribution" in mmm.model.named_vars
 
-    def test_build_model_log_add_original_scale_raises(self, mock_pymc_sample):
+    def test_build_model_log_add_original_scale_succeeds(self, mock_pymc_sample):
         mmm = _make_mmm(link="log")
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
-        with pytest.raises(ValueError, match="not supported for log-link"):
-            mmm.add_original_scale_contribution_variable(["channel_contribution"])
+        mmm.add_original_scale_contribution_variable(["channel_contribution"])
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_add_original_scale_contribution_variable(self, link, mock_pymc_sample):
+        mmm = _make_mmm(link=link)
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(["channel_contribution"])
+        assert "channel_contribution_original_scale" in mmm.model.named_vars
 
 
 # ===========================================================================

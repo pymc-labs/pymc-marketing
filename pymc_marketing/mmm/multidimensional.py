@@ -1835,24 +1835,15 @@ class MMM(RegressionModelBuilder):
             raise ValueError(f"Variable {var} is not in the model")
 
     def add_original_scale_contribution_variable(self, var: list[str]) -> None:
-        """Add a pymc.dims.Deterministic variable to the model that multiplies by the scaler.
+        """Add ``pmd.Deterministic`` nodes that map model variables to original scale.
 
-        Restricted to the model parameters. Only make it possible for "_contribution" variables.
-
-        For log-link models, contributions live in log-space so the simple
-        ``variable * target_scale`` conversion is not meaningful.  This method
-        raises ``ValueError`` when called with ``link='log'`` to prevent
-        silently incorrect results.
+        For identity-link models: ``variable * target_scale``.
+        For log-link models: ``exp(variable) * target_scale``.
 
         Parameters
         ----------
         var : list[str]
             The variables to add the original scale contribution variable.
-
-        Raises
-        ------
-        ValueError
-            When called on a log-link model.
 
         Examples
         --------
@@ -1864,15 +1855,6 @@ class MMM(RegressionModelBuilder):
 
         """
         self._validate_model_was_built()
-
-        if self.link == LinkFunction.LOG:
-            raise ValueError(
-                "add_original_scale_contribution_variable is not supported for "
-                "log-link models because contributions are in log-space and "
-                "cannot be converted to original scale by simple multiplication. "
-                "Use compute_mean_contributions_over_time() instead, which "
-                "applies the correct counterfactual decomposition."
-            )
 
         target_scale = self.model["target_scale"]
         with self.model:
@@ -1888,9 +1870,9 @@ class MMM(RegressionModelBuilder):
 
                 pmd.Deterministic(
                     name,
-                    (self.model[v] * target_scale).transpose(
-                        "date", ..., missing_dims="ignore"
-                    ),
+                    self._link_spec.original_scale_transform(
+                        self.model[v], target_scale
+                    ).transpose("date", ..., missing_dims="ignore"),
                 )
 
     def fit(  # type: ignore[override]

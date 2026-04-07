@@ -76,6 +76,27 @@ class LinkSpec(ABC):
         """
 
     @abstractmethod
+    def original_scale_transform(
+        self,
+        variable: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        """Transform a model variable to the original (response) scale.
+
+        Parameters
+        ----------
+        variable : XTensorVariable
+            A model variable in the linear-predictor space.
+        target_scale : XTensorVariable
+            The target scaling factor.
+
+        Returns
+        -------
+        XTensorVariable
+            The variable expressed in original scale.
+        """
+
+    @abstractmethod
     def create_media_contribution_deterministic(
         self,
         mu_var: XTensorVariable,
@@ -155,6 +176,14 @@ class IdentityLinkSpec(LinkSpec):
     def validate_target(self, y: np.ndarray) -> None:
         """No-op: identity link accepts any target values."""
 
+    def original_scale_transform(
+        self,
+        variable: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        """Return ``variable * target_scale``."""
+        return variable * target_scale
+
     def create_media_contribution_deterministic(
         self,
         mu_var: XTensorVariable,
@@ -208,6 +237,14 @@ class LogLinkSpec(LinkSpec):
                 "link='log' (LogNormal likelihood). Found non-positive "
                 "values in the target. Consider removing or imputing zeros/negatives."
             )
+
+    def original_scale_transform(
+        self,
+        variable: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> XTensorVariable:
+        """Return ``exp(variable) * target_scale``."""
+        return ptxm.exp(variable) * target_scale
 
     def create_media_contribution_deterministic(
         self,
