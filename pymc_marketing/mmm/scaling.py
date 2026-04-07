@@ -307,6 +307,11 @@ class FixedScaling(VariableScaling):
             Column names that identify the grid (order defines ``DataArray`` dims).
         """
         s = df.set_index(list(dim_cols))[value_col]
+        if s.index.duplicated().any():
+            raise ValueError(
+                f"Duplicate coordinate rows found in columns {list(dim_cols)}. "
+                "Each coordinate combination must appear exactly once."
+            )
         da = s.to_xarray()
         ordered = da.transpose(*dim_cols)
         return cls(dims=dims, value=ordered)
@@ -440,7 +445,7 @@ class Scaling(SerializableBaseModel):
         if isinstance(data, dict):
             for key in ("target", "channel"):
                 val = data.get(key)
-                if isinstance(val, dict) and not isinstance(val, VariableScaling):
+                if isinstance(val, dict):
                     data[key] = _deserialize_variable_scaling(val)
         return data
 

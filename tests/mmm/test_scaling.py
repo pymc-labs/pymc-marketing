@@ -179,6 +179,22 @@ class TestFixedScaling:
         restored = serialization.deserialize(round_data)
         xr.testing.assert_equal(restored.value, fs.value)
 
+    def test_from_long_dataframe_duplicate_rows_raises(self):
+        df = pd.DataFrame(
+            {
+                "country": ["A", "A", "A"],
+                "channel": ["c1", "c1", "c2"],
+                "scale": [10.0, 99.0, 30.0],
+            }
+        )
+        with pytest.raises(ValueError, match="Duplicate coordinate rows"):
+            FixedScaling.from_long_dataframe(
+                dims=(),
+                df=df,
+                value_col="scale",
+                dim_cols=["country", "channel"],
+            )
+
     def test_roundtrip_scaling_with_fixed(self):
         original = Scaling(
             target=FixedScaling(dims=(), value=50_000.0),

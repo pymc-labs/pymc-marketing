@@ -509,7 +509,12 @@ class BaseMMM(BaseValidateMMM):
                     "legacy MMM. Use a scalar or dict value, or switch to "
                     "MultidimensionalMMM."
                 )
-            target_scale = float(cast(float, target_scaling.value))
+            if not isinstance(target_scaling.value, (int, float)):
+                raise TypeError(
+                    f"Expected scalar FixedScaling value for target, "
+                    f"got {type(target_scaling.value).__name__}."
+                )
+            target_scale = float(target_scaling.value)
         else:
             target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
             target_scale = float(
