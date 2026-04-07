@@ -116,7 +116,9 @@ class VariableScaling(SerializableBaseModel, ABC):
     )
 
     @abstractmethod
-    def _abstract_guard(self) -> None: ...
+    def scaling_description(self) -> str:
+        """Human-readable summary of the scaling strategy (e.g. for logging)."""
+        ...
 
     @model_validator(mode="after")
     def _validate_dims(self) -> Self:
@@ -160,8 +162,9 @@ class DataDerivedScaling(VariableScaling):
 
     method: Literal["max", "mean"] = Field(..., description="The scaling method.")
 
-    def _abstract_guard(self) -> None:
-        pass
+    def scaling_description(self) -> str:
+        """Human-readable summary of the scaling strategy."""
+        return f"data-derived ({self.method})"
 
 
 class FixedScaling(VariableScaling):
@@ -234,13 +237,14 @@ class FixedScaling(VariableScaling):
         description="Fixed scaling constant(s). All values must be positive.",
     )
 
-    def _abstract_guard(self) -> None:
-        pass
-
     @property
     def method(self) -> str:
         """Return the scaling method name."""
         return "fixed"
+
+    def scaling_description(self) -> str:
+        """Human-readable summary of the scaling strategy."""
+        return "fixed constant"
 
     @field_validator("value", mode="before")
     @classmethod
