@@ -412,6 +412,7 @@ def _plot_across_coord(
         create_legend_label = None
 
     colors = cast(Iterable[str], colors or generate_colors(n=total_size, start=0))
+    plot_kwargs = plot_kwargs or {}
 
     for color, ax, sel in zip(colors, axes_iter, selections(plot_coords), strict=False):
         ax = data.pipe(make_selection, sel=sel).pipe(
