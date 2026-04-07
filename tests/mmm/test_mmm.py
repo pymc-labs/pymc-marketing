@@ -1230,6 +1230,52 @@ class TestMMM:
                 ),
             )
 
+    def test_fixed_scaling_dataarray_channel_raises(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """DataArray-valued FixedScaling is rejected in legacy MMM."""
+        import xarray as xr
+
+        from pymc_marketing.mmm.scaling import FixedScaling, Scaling
+
+        da = xr.DataArray([1.0, 2.0], dims="channel", coords={"channel": ["a", "b"]})
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=FixedScaling(dims=(), value=50_000.0),
+                channel=FixedScaling(dims=(), value=da),
+            ),
+        )
+        mmm._generate_and_preprocess_model_data(toy_X, toy_y)
+        with pytest.raises(ValueError, match="DataArray-valued FixedScaling"):
+            mmm._compute_scales()
+
+    def test_fixed_scaling_dataarray_target_raises(
+        self, toy_X: pd.DataFrame, toy_y: pd.Series
+    ):
+        """DataArray-valued FixedScaling target is rejected in legacy MMM."""
+        import xarray as xr
+
+        from pymc_marketing.mmm.scaling import FixedScaling, Scaling
+
+        da = xr.DataArray([1.0, 2.0], dims="x", coords={"x": [0, 1]})
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=FixedScaling(dims=(), value=da),
+                channel=FixedScaling(dims=(), value=10_000.0),
+            ),
+        )
+        mmm._generate_and_preprocess_model_data(toy_X, toy_y)
+        with pytest.raises(ValueError, match="DataArray-valued FixedScaling"):
+            mmm._compute_scales()
+
     def test_fixed_scaling_serialization_roundtrip(
         self, toy_X: pd.DataFrame, toy_y: pd.Series
     ):

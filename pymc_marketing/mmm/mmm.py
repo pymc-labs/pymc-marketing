@@ -480,6 +480,12 @@ class BaseMMM(BaseValidateMMM):
                     [channel_scaling.value[c] for c in self.channel_columns],
                     dtype=float,
                 )
+            elif isinstance(channel_scaling.value, DataArray):
+                raise ValueError(
+                    "DataArray-valued FixedScaling is not supported by the "
+                    "legacy MMM. Use a scalar or dict value, or switch to "
+                    "MultidimensionalMMM."
+                )
             else:
                 n_channels = len(self.channel_columns)
                 channel_scale = np.full(n_channels, channel_scaling.value)
@@ -497,6 +503,12 @@ class BaseMMM(BaseValidateMMM):
 
         target_scale: float
         if isinstance(target_scaling, FixedScaling):
+            if isinstance(target_scaling.value, DataArray):
+                raise ValueError(
+                    "DataArray-valued FixedScaling is not supported by the "
+                    "legacy MMM. Use a scalar or dict value, or switch to "
+                    "MultidimensionalMMM."
+                )
             target_scale = float(cast(float, target_scaling.value))
         else:
             target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
