@@ -150,6 +150,10 @@ class TestFixedScaling:
         with pytest.raises(ValueError, match="NaN"):
             FixedScaling(dims=(), value=da)
 
+    def test_fixed_bool_raises(self):
+        with pytest.raises(ValidationError):
+            FixedScaling(dims=(), value=True)
+
     def test_fixed_scaling_invalid_value_type_raises(self):
         with pytest.raises(ValidationError):
             FixedScaling(dims=(), value="nope")  # type: ignore[arg-type]

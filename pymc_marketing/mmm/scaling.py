@@ -24,7 +24,7 @@ from typing import Any, Literal, Self
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
@@ -242,6 +242,15 @@ class FixedScaling(VariableScaling):
         """Return the scaling method name."""
         return "fixed"
 
+    @field_validator("value", mode="before")
+    @classmethod
+    def _reject_bool(cls, v: Any) -> Any:
+        if isinstance(v, bool):
+            raise ValueError(
+                "FixedScaling.value does not accept bool; use a numeric scalar."
+            )
+        return v
+
     @model_validator(mode="after")
     def _validate_value(self) -> Self:
         if isinstance(self.value, dict):
@@ -259,10 +268,6 @@ class FixedScaling(VariableScaling):
                 raise ValueError(
                     "All values in a fixed scaling DataArray must be positive."
                 )
-        elif isinstance(self.value, bool):
-            raise TypeError(
-                "FixedScaling.value does not accept bool; use a numeric scalar."
-            )
         elif isinstance(self.value, (int, float, np.floating, np.integer)):
             if float(self.value) <= 0:
                 raise ValueError(
