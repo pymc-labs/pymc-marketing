@@ -110,11 +110,13 @@ def build(spec: Mapping[str, Any]) -> Any:
             # Handle priors and prior differently
             if isinstance(v, dict):
                 if k == "priors":
-                    # Create a dictionary of priors
                     priors_dict = {}
                     for prior_key, prior_value in v.items():
                         if isinstance(prior_value, dict):
-                            priors_dict[prior_key] = deserialize(prior_value)
+                            if "class" in prior_value:
+                                priors_dict[prior_key] = build(prior_value)
+                            else:
+                                priors_dict[prior_key] = deserialize(prior_value)
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
@@ -139,8 +141,11 @@ def resolve(value):
 
     This is a helper function for build.
     """
-    if isinstance(value, Mapping) and "class" in value:
-        return build(value)
+    if isinstance(value, Mapping):
+        if "class" in value:
+            return build(value)
+        if "distribution" in value or "special_prior" in value:
+            return deserialize(value)
 
     if (
         isinstance(value, list)
