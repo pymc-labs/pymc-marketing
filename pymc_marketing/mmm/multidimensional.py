@@ -211,6 +211,10 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.decomposition import (
+    identity_counterfactual_component,
+    log_counterfactual_remove_component,
+)
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
@@ -1261,16 +1265,22 @@ class MMM(RegressionModelBuilder):
 
         if self.link == LinkFunction.LOG:
             mu_total: xr.DataArray = posterior["mu"]
-            y_hat_draws: xr.DataArray = np.exp(mu_total) * target_scale
 
             def _log_counterfactual(component: xr.DataArray) -> xr.DataArray:
-                return y_hat_draws - np.exp(mu_total - component) * target_scale
+                return log_counterfactual_remove_component(
+                    mu_total=mu_total,
+                    component=component,
+                    target_scale=target_scale,
+                )
 
             counterfactual_fn = _log_counterfactual
         else:
 
             def _identity_counterfactual(component: xr.DataArray) -> xr.DataArray:
-                return component * target_scale
+                return identity_counterfactual_component(
+                    component=component,
+                    target_scale=target_scale,
+                )
 
             counterfactual_fn = _identity_counterfactual
 
@@ -1372,6 +1382,43 @@ class MMM(RegressionModelBuilder):
         MMMIDataWrapper.get_contributions :
             Full posterior contributions as an ``xr.Dataset``.
         """
+        self._validate_idata_exists()
+
+        if self.link == LinkFunction.IDENTITY:
+            idata: az.InferenceData = cast(az.InferenceData, self.idata)
+            posterior: xr.Dataset = idata.posterior
+            target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
+                drop=True
+            )
+
+            parts: dict[str, xr.DataArray] = {}
+            channel_mean = (posterior["channel_contribution"] * target_scale).mean(
+                ("chain", "draw")
+            )
+            for ch in channel_mean.coords["channel"].values:
+                parts[str(ch)] = channel_mean.sel(channel=ch).drop_vars(
+                    "channel", errors="ignore"
+                )
+
+            if "control_contribution" in posterior:
+                control_mean = (posterior["control_contribution"] * target_scale).mean(
+                    ("chain", "draw")
+                )
+                for ctrl in control_mean.coords["control"].values:
+                    parts[str(ctrl)] = control_mean.sel(control=ctrl).drop_vars(
+                        "control", errors="ignore"
+                    )
+
+            if "yearly_seasonality_contribution" in posterior:
+                parts["yearly_seasonality"] = (
+                    posterior["yearly_seasonality_contribution"] * target_scale
+                ).mean(("chain", "draw"))
+
+            parts["intercept"] = (
+                posterior["intercept_contribution"] * target_scale
+            ).mean(("chain", "draw"))
+            return xr.Dataset(parts).to_dataframe().reset_index()
+
         dataset: xr.Dataset = self.compute_counterfactual_contributions_dataset()
         return dataset.mean(("chain", "draw")).to_dataframe().reset_index()
 

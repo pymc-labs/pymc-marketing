@@ -2721,15 +2721,73 @@ def test_log_link_contributions_conservation(
 def test_log_link_contributions_baseline_original_scale(
     idata_log_link_with_all_contributions,
 ):
-    """Baseline must be in original scale, not raw log-space."""
+    """Baseline equals exp(mu - media_total_log) * target_scale per draw."""
     wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
     result = wrapper.get_contributions(original_scale=True)
 
+    posterior = idata_log_link_with_all_contributions.posterior
     target_scale = idata_log_link_with_all_contributions.constant_data.target_scale
-    baseline_mean = float(result["baseline"].mean())
-    scale_mean = float(target_scale.mean())
-
-    assert baseline_mean > scale_mean * 0.1, (
-        f"Baseline mean ({baseline_mean:.1f}) is too small relative to "
-        f"target_scale ({scale_mean:.1f}); likely still in log-space."
+    media_total_log = posterior["channel_contribution"].sum(dim="channel")
+    expected_baseline = np.exp(posterior["mu"] - media_total_log) * target_scale
+    xr.testing.assert_allclose(
+        result["baseline"],
+        expected_baseline,
     )
+
+
+def test_log_link_get_contributions_warns_when_controls_or_seasonality_flags_ignored(
+    idata_log_link_with_all_contributions,
+):
+    """Warn when controls/seasonality flags are ignored for log-link original scale."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    with pytest.warns(UserWarning, match="ignored"):
+        wrapper.get_contributions(
+            original_scale=True,
+            include_controls=False,
+            include_seasonality=False,
+        )
+
+
+def test_log_link_contributions_are_finite_when_media_total_is_zero():
+    """Channel shares remain finite in zero-media edge cases."""
+    dates = pd.date_range("2024-01-01", periods=3, freq="W")
+    channels = ["TV", "Radio"]
+    channel_contrib = np.array(
+        [[[[[1.0, -1.0]], [[2.0, -2.0]], [[0.0, 0.0]]]]],
+    )
+    mu = np.array([[[[1.2], [1.3], [1.4]]]])
+
+    idata = az.InferenceData(
+        attrs={"link": "log"},
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    np.ones((3, 2)),
+                    dims=("date", "channel"),
+                    coords={"date": dates, "channel": channels},
+                ),
+                "target_scale": xr.DataArray(100.0),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    channel_contrib,
+                    dims=("chain", "draw", "date", "country", "channel"),
+                    coords={
+                        "date": dates,
+                        "country": ["US"],
+                        "channel": channels,
+                    },
+                ),
+                "mu": xr.DataArray(
+                    mu,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": ["US"]},
+                ),
+            }
+        ),
+    )
+    wrapper = MMMIDataWrapper(idata)
+    result = wrapper.get_contributions(original_scale=True)
+    assert np.isfinite(result["channels"].values).all()

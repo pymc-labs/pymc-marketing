@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any, Literal
 
 import arviz as az
@@ -23,6 +24,10 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.mmm.decomposition import (
+    original_scale_prediction_from_mu,
+    safe_proportional_share,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.multidimensional import MMM
@@ -463,6 +468,15 @@ class MMMIDataWrapper:
             If original_scale=True and target_scale is not found in constant_data
         """
         if self._link == "log" and original_scale:
+            if not include_controls or not include_seasonality:
+                warnings.warn(
+                    "For log-link models with original_scale=True, "
+                    "controls and seasonality are embedded in baseline and "
+                    "cannot be separately toggled. "
+                    "Arguments include_controls/include_seasonality are ignored.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             return self._get_contributions_log_link(
                 include_baseline=include_baseline,
             )
@@ -577,8 +591,9 @@ class MMMIDataWrapper:
                                 \times \frac{\text{channel\_contrib}_c}
                                              {\sum_c \text{channel\_contrib}_c}
 
-        This mirrors the decomposition in
-        :meth:`~pymc_marketing.mmm.multidimensional.MMM._compute_multiplicative_contributions`.
+        This uses the same log-link prediction transform as
+        :meth:`~pymc_marketing.mmm.multidimensional.MMM.compute_counterfactual_contributions_dataset`
+        via shared decomposition helpers in :mod:`pymc_marketing.mmm.decomposition`.
 
         Parameters
         ----------
@@ -618,12 +633,16 @@ class MMMIDataWrapper:
         channel_contrib = posterior["channel_contribution"]
         media_total_log = channel_contrib.sum(dim="channel")
 
-        y_hat = np.exp(mu_total) * target_scale
-        y_hat_no_media = np.exp(mu_total - media_total_log) * target_scale
+        y_hat = original_scale_prediction_from_mu(mu_total, target_scale)
+        y_hat_no_media = original_scale_prediction_from_mu(
+            mu_total - media_total_log, target_scale
+        )
         total_media_lift = y_hat - y_hat_no_media
 
-        per_channel_shares = channel_contrib / media_total_log
-        per_channel_shares = per_channel_shares.fillna(0.0)
+        per_channel_shares = safe_proportional_share(
+            numerator=channel_contrib,
+            denominator=media_total_log,
+        )
 
         contributions: dict[str, xr.DataArray] = {
             "channels": total_media_lift * per_channel_shares,

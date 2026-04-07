@@ -29,6 +29,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 _FIXED_SCALING_XARRAY_KIND = "xarray.DataArray"
+_LEGACY_VARIABLE_SCALING_TYPE = "pymc_marketing.mmm.scaling.VariableScaling"
 
 
 def panel_channel_fixed_scaling_remaining_dims(
@@ -390,6 +391,15 @@ def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
     New format uses the ``__type__`` key injected by the serialization registry.
     """
     if "__type__" in d:
+        # Backward compatibility: historical payloads may store the abstract
+        # VariableScaling class type and rely on "method" discrimination.
+        if d.get("__type__") == _LEGACY_VARIABLE_SCALING_TYPE:
+            method = d.get("method")
+            dims = tuple(d.get("dims", ()))
+            if method == "fixed":
+                value = _maybe_deserialize_fixed_scaling_value(d["value"])
+                return FixedScaling(dims=dims, value=value)
+            return DataDerivedScaling(method=method, dims=dims)
         return serialization.deserialize(d)
 
     method = d.get("method")

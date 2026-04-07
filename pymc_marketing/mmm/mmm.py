@@ -17,7 +17,7 @@ import json
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -71,6 +71,7 @@ from pymc_marketing.mmm.validating import ValidateControlColumns
 from pymc_marketing.model_builder import _handle_deprecate_pred_argument
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.serialization import serialization
 
 __all__ = ["MMM", "BaseMMM"]
 
@@ -464,40 +465,39 @@ class BaseMMM(BaseValidateMMM):
 
         return scale
 
-    def _compute_scales(self) -> None:
-        """Compute and save scaling factors for channels and target."""
+    def _resolve_channel_scale(self) -> np.ndarray | float:
+        """Resolve channel scale from configured scaling strategy."""
         channel_scaling = self.scaling.channel
-        target_scaling = self.scaling.target
 
-        channel_scale: np.ndarray | float
         if isinstance(channel_scaling, FixedScaling):
             if isinstance(channel_scaling.value, dict):
-                channel_scale = np.array(
+                return np.array(
                     [channel_scaling.value[c] for c in self.channel_columns],
                     dtype=float,
                 )
-            elif isinstance(channel_scaling.value, DataArray):
+            if isinstance(channel_scaling.value, DataArray):
                 raise ValueError(
                     "DataArray-valued FixedScaling is not supported by the "
                     "legacy MMM. Use a scalar or dict value, or switch to "
                     "MultidimensionalMMM."
                 )
-            else:
-                n_channels = len(self.channel_columns)
-                channel_scale = np.full(n_channels, channel_scaling.value)
-        else:
-            X_data = self.preprocessed_data["X"]
-            if not isinstance(X_data, pd.DataFrame):
-                raise TypeError("X data must be a DataFrame for scaling computation")
+            n_channels = len(self.channel_columns)
+            return np.full(n_channels, channel_scaling.value)
 
-            X_data = cast(pd.DataFrame, X_data)
-            channel_data = X_data[self.channel_columns].to_numpy()
-            channel_scale = self._compute_scale_for_data(
-                channel_data, channel_scaling.method, axis=0
-            )
-        self.channel_scale = channel_scale
+        X_data = self.preprocessed_data["X"]
+        if not isinstance(X_data, pd.DataFrame):
+            raise TypeError("X data must be a DataFrame for scaling computation")
 
-        target_scale: float
+        channel_data = X_data[self.channel_columns].to_numpy()
+        return self._compute_scale_for_data(
+            channel_data,
+            channel_scaling.method,
+            axis=0,
+        )
+
+    def _resolve_target_scale(self) -> float:
+        """Resolve target scale from configured scaling strategy."""
+        target_scaling = self.scaling.target
         if isinstance(target_scaling, FixedScaling):
             if isinstance(target_scaling.value, DataArray):
                 raise ValueError(
@@ -510,15 +510,21 @@ class BaseMMM(BaseValidateMMM):
                     f"Expected scalar FixedScaling value for target, "
                     f"got {type(target_scaling.value).__name__}."
                 )
-            target_scale = float(target_scaling.value)
-        else:
-            target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
-            target_scale = float(
-                self._compute_scale_for_data(
-                    target_data, target_scaling.method, axis=None
-                )
+            return float(target_scaling.value)
+
+        target_data = np.atleast_1d(np.asarray(self.preprocessed_data["y"]))
+        return float(
+            self._compute_scale_for_data(
+                target_data,
+                target_scaling.method,
+                axis=None,
             )
-        self.target_scale = target_scale
+        )
+
+    def _compute_scales(self) -> None:
+        """Compute and save scaling factors for channels and target."""
+        self.channel_scale = self._resolve_channel_scale()
+        self.target_scale = self._resolve_target_scale()
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Create attributes for the inference data.
@@ -544,9 +550,7 @@ class BaseMMM(BaseValidateMMM):
         attrs["treatment_nodes"] = json.dumps(self.treatment_nodes)
         attrs["outcome_node"] = json.dumps(self.outcome_node)
 
-        from pymc_marketing.serialization import serialization as _serialization
-
-        attrs["scaling"] = json.dumps(_serialization.serialize(self.scaling))
+        attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
 
         return attrs
 
@@ -1309,9 +1313,7 @@ class BaseMMM(BaseValidateMMM):
             return None
 
         if "__type__" in scaling_dict:
-            from pymc_marketing.serialization import serialization as _serialization
-
-            return _serialization.deserialize(scaling_dict)
+            return serialization.deserialize(scaling_dict)
 
         return Scaling(
             target=deserialize_variable_scaling(scaling_dict["target"]),
