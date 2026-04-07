@@ -219,7 +219,7 @@ This gives larger geos tighter uncertainty (smaller sigma) and smaller geos wide
 
 ## Cost-Per-Target Calibration
 
-An alternative to lift test calibration is `add_cost_per_target_calibration`, which constrains the model's cost-per-target (CPT) estimates via `pm.Potential` penalties:
+An alternative to lift test calibration is `add_cost_per_target_calibration`, which constrains the model's cost-per-target (CPT) ratio via an **observed Normal likelihood**:
 
 ```python
 import pandas as pd
@@ -227,7 +227,7 @@ import pandas as pd
 calibration_data = pd.DataFrame({
     "channel": ["tv", "social"],
     "cost_per_target": [25.0, 12.0],   # desired CPT
-    "sigma": [5.0, 3.0],               # tolerance (larger = weaker penalty)
+    "sigma": [5.0, 3.0],               # tolerance (larger = weaker constraint)
 })
 
 mmm.build_model(X, y)
@@ -238,9 +238,30 @@ mmm.add_cost_per_target_calibration(
 mmm.fit(X=X, y=y, nuts_sampler="nutpie", target_accept=0.9, random_seed=rng)
 ```
 
-The method adds a quadratic penalty: `penalty = -|cpt_mean - target|^2 / (2 * sigma^2)`, pulling the model's CPT toward the calibration target. This is useful when you have cost-efficiency benchmarks but not full lift test data.
+Internally, for each calibration row the method computes `mean(spend) / mean(contribution)` over the date dimension and adds:
+
+```
+Normal(mu=cpt_mean, sigma=sigma, observed=cost_per_target)
+```
+
+This constrains the model's CPT ratio toward the calibration target within the specified uncertainty. Useful when you have cost-efficiency benchmarks but not full lift test data.
+
+**Prerequisite**: `channel_contribution_original_scale` must exist in the model graph. Call `add_original_scale_contribution_variable` before `add_cost_per_target_calibration` if it is not already present.
 
 The `calibration_data` DataFrame requires columns: `channel`, `cost_per_target`, `sigma`, plus one column per model dimension (e.g., `geo`).
+
+### Geo-Level CPT Calibration
+
+For multidimensional models, include dimension columns:
+
+```python
+calibration_data = pd.DataFrame({
+    "channel": ["tv", "tv", "social"],
+    "geo": ["US", "UK", "US"],
+    "cost_per_target": [25.0, 30.0, 12.0],
+    "sigma": [5.0, 6.0, 3.0],
+})
+```
 
 ## Practical Guidelines
 

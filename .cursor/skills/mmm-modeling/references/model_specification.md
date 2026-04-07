@@ -31,8 +31,14 @@ mmm = MMM(
     adstock_first=True,                     # adstock before saturation
     time_varying_intercept=False,           # bool or HSGPBase
     time_varying_media=False,               # bool or HSGPBase
+    cost_per_unit=None,                     # pd.DataFrame for monetary→model unit conversion
+    dag=None,                               # causal graph string (DOT format)
+    treatment_nodes=None,                   # list[str] of treatment nodes in the DAG
+    outcome_node=None,                      # outcome node name in the DAG
 )
 ```
+
+**Reserved dim names**: `date`, `channel`, `control`, `fourier_mode` are used internally and cannot be passed as custom `dims`.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -49,8 +55,16 @@ mmm = MMM(
 | `time_varying_intercept` | `bool \| HSGPBase` | Gaussian process intercept |
 | `time_varying_media` | `bool \| HSGPBase` | Gaussian process media effects |
 | `adstock_first` | `bool` | Apply adstock before saturation (default `True`) |
+| `cost_per_unit` | `pd.DataFrame \| None` | Maps monetary spend to model units (impressions, clicks). Also settable post-fit via `mmm.set_cost_per_unit()` |
+| `dag` | `str \| None` | Causal DAG in DOT format for `CausalGraphModel` integration |
+| `treatment_nodes` | `list[str] \| None` | Treatment nodes in the causal DAG |
+| `outcome_node` | `str \| None` | Outcome node in the causal DAG |
 
 ## Adstock Transformations
+
+All adstock classes share the constructor `(l_max, normalize=True, mode=ConvMode.After, priors=None, prefix=None)`. The `mode` parameter controls alignment: `After` (default, causal), `Before`, or `Overlap`.
+
+**Best practice**: set adstock priors directly via the `priors` argument on the transformation object rather than through `model_config`. This keeps transformation-specific priors co-located with the component they belong to. Use `model_config` only for non-component parameters (intercept, controls, seasonality, likelihood).
 
 ### GeometricAdstock
 
@@ -89,7 +103,32 @@ adstock = GeometricAdstock(
 
 **Rule of thumb for `l_max`**: Set to the maximum plausible carryover duration. For weekly data, `l_max=6` (6 weeks) is typical. For daily data, use `l_max=14` or higher. Too large wastes computation; too small truncates real effects.
 
+### DelayedAdstock
+
+Adds a `theta` parameter for peak delay on top of geometric decay. Useful when the effect peaks days/weeks after exposure:
+
+```python
+from pymc_marketing.mmm import DelayedAdstock
+
+adstock = DelayedAdstock(l_max=10)
+```
+
+Default priors: `alpha ~ Beta(1, 3)`, `theta ~ HalfNormal(sigma=1)`.
+
+### Other Adstock Types
+
+| Class | Lookup | Default Priors | Notes |
+|-------|--------|----------------|-------|
+| `BinomialAdstock` | `"binomial"` | `alpha ~ Beta(1, 3)` | Binomial-based decay |
+| `WeibullPDFAdstock` | `"weibull_pdf"` | `lam ~ Gamma(mu=2, sigma=1)`, `k ~ Gamma(mu=3, sigma=1)` | Flexible shape via Weibull PDF |
+| `WeibullCDFAdstock` | `"weibull_cdf"` | `lam ~ Gamma(mu=2, sigma=2.5)`, `k ~ Gamma(mu=2, sigma=2.5)` | Flexible shape via Weibull CDF |
+| `NoAdstock` | `"no_adstock"` | (none) | Bypasses adstock entirely |
+
+All are imported from `pymc_marketing.mmm` and use the `adstock_from_dict()` factory for deserialization.
+
 ## Saturation Transformations
+
+**Best practice**: set saturation priors directly via the `priors` argument on the transformation object. The `beta` parameter on saturation classes controls the maximum reachable effect per channel -- setting it proportional to spend shares is a common, effective pattern.
 
 ### LogisticSaturation
 
@@ -177,18 +216,14 @@ The `dims` argument determines broadcasting across model dimensions and controls
 
 ## Model Config Dictionary
 
-The `model_config` dictionary maps parameter names to `Prior` objects:
+The `model_config` dictionary is for **non-component** priors (intercept, controls, seasonality, likelihood). Adstock and saturation priors should be set directly on the transformation objects via their `priors` argument (see above).
 
 ```python
-import numpy as np
 from pymc_extras.prior import Prior
 
 model_config = {
     # Intercept
     "intercept": Prior("Normal", mu=0.2, sigma=0.05),
-
-    # Channel saturation effect (informed by spend shares)
-    "saturation_beta": Prior("HalfNormal", sigma=spend_shares, dims="channel"),
 
     # Control variable coefficients
     "gamma_control": Prior("Normal", mu=0, sigma=1, dims="control"),
@@ -204,10 +239,11 @@ model_config = {
 | Config Key | Description | Default | Typical Custom Prior |
 |------------|-------------|---------|----------------------|
 | `intercept` | Baseline response | `Normal(mu=0, sigma=2, dims=self.dims)` | `Normal(mu=0.2, sigma=0.05)` |
-| `saturation_beta` | Per-channel media effect | (from saturation class) | `HalfNormal(sigma=spend_shares, dims="channel")` |
 | `gamma_control` | Control coefficients | `Normal(mu=0, sigma=2, dims=(*dims, "control"))` | `Normal(0, 1, dims="control")` |
 | `gamma_fourier` | Seasonality coefficients | `Laplace(mu=0, b=1, dims=(*dims, "fourier_mode"))` | `Laplace(0, 1)` |
 | `likelihood` | Observation noise | `Normal(sigma=HalfNormal(sigma=2))` | `TruncatedNormal(lower=0, sigma=HalfNormal(1))` |
+
+Note: `saturation_beta` can still be set via `model_config` for backward compatibility, but placing it on the saturation object via `priors={"beta": ...}` is preferred.
 
 ## Multidimensional / Hierarchical Models
 
