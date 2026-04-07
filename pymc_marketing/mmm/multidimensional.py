@@ -1132,18 +1132,39 @@ class MMM(RegressionModelBuilder):
         return MMMIDataWrapper.from_mmm(self)
 
     def compute_mean_contributions_over_time(self) -> pd.DataFrame:
-        """Get the mean contribution of each component over time in original scale.
+        r"""Get the mean contribution of each component over time in original scale.
 
-        For identity-link models, contributions are computed by multiplying each
-        posterior component by ``target_scale``.  For log-link models, a hybrid
-        decomposition strategy is used: the total media lift is computed
-        counterfactually, and per-channel shares are allocated proportionally in
-        log-space so that channel contributions sum exactly to the total media
-        lift.  Non-media components (controls, seasonality, intercept) are
-        likewise decomposed via proportional log-space shares of the non-media
-        baseline.
+        For **identity-link** (additive) models each posterior component is
+        simply multiplied by ``target_scale`` and the resulting columns sum
+        to the predicted :math:`\hat y(t)`.
 
-        Both link types return the same set of columns.
+        For **log-link** (multiplicative) models a three-layer hybrid
+        decomposition translates log-space quantities into original-scale
+        dollar-like contributions that still sum to :math:`\hat y(t)`:
+
+        1. **Total media lift (counterfactual).**
+           :math:`\hat y(t) - \hat y_{\text{no-media}}(t)`, where
+           :math:`\hat y_{\text{no-media}}` is the prediction with all
+           channel effects removed.
+        2. **Per-channel allocation (proportional log-share).**
+           The total media lift is split among channels proportionally to
+           each channel's fraction of the total media log-contribution.
+        3. **Non-media allocation (proportional log-share).**
+           The non-media baseline :math:`\hat y_{\text{no-media}}(t)` is
+           split among intercept, controls, and seasonality proportionally
+           to each component's fraction of the non-media log-predictor.
+
+        All components sum to :math:`\hat y(t)` at every date.
+
+        .. note::
+           The proportional-share steps (layers 2 and 3) divide by the
+           total media or non-media log-sum.  When that denominator is
+           near zero at some date (positive and negative log-space
+           components nearly cancel), individual attributions can show
+           large spikes.  The *sum* remains correct; the spike is a
+           limitation of splitting a multiplicative structure into
+           additive dollar amounts.  Focus on overall patterns rather
+           than isolated date-level spikes.
 
         This method does **not** require
         :meth:`add_original_scale_contribution_variable` to have been called.
