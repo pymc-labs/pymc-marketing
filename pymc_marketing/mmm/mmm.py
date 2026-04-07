@@ -58,8 +58,8 @@ from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
     Scaling,
-    _deserialize_variable_scaling,
-    _validate_fixed_scaling_keys,
+    deserialize_variable_scaling,
+    validate_fixed_scaling_keys,
 )
 from pymc_marketing.mmm.tvp import create_time_varying_gp_multiplier, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
@@ -221,7 +221,7 @@ class BaseMMM(BaseValidateMMM):
 
             for key in ("channel", "target"):
                 if isinstance(scaling[key], dict):
-                    scaling[key] = _deserialize_variable_scaling(scaling[key])
+                    scaling[key] = deserialize_variable_scaling(scaling[key])
 
             scaling = Scaling(**scaling)
 
@@ -230,7 +230,7 @@ class BaseMMM(BaseValidateMMM):
             channel=DataDerivedScaling(method="max", dims=()),
         )
 
-        _validate_fixed_scaling_keys(self.scaling.channel, channel_columns, "channel")
+        validate_fixed_scaling_keys(self.scaling.channel, channel_columns, "channel")
 
         if isinstance(self.scaling.target, FixedScaling) and isinstance(
             self.scaling.target.value, dict
@@ -1318,8 +1318,8 @@ class BaseMMM(BaseValidateMMM):
             return _serialization.deserialize(scaling_dict)
 
         return Scaling(
-            target=_deserialize_variable_scaling(scaling_dict["target"]),
-            channel=_deserialize_variable_scaling(scaling_dict["channel"]),
+            target=deserialize_variable_scaling(scaling_dict["target"]),
+            channel=deserialize_variable_scaling(scaling_dict["channel"]),
         )
 
     @classmethod

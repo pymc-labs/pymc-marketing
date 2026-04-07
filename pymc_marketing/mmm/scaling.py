@@ -126,7 +126,7 @@ class VariableScaling(SerializableBaseModel, ABC):
             self.dims = (self.dims,)
 
         if "date" in self.dims:
-            raise ValueError("dim of 'date' of is already assumed in the model.")
+            raise ValueError("dim 'date' is already assumed in the model.")
 
         if len(set(self.dims)) != len(self.dims):
             raise ValueError("dims must be unique.")
@@ -336,7 +336,7 @@ class FixedScaling(VariableScaling):
         return cls.model_validate(filtered)
 
 
-def _validate_fixed_scaling_keys(
+def validate_fixed_scaling_keys(
     scaling: VariableScaling,
     valid_labels: list[str],
     variable_name: str,
@@ -381,7 +381,7 @@ def _validate_fixed_scaling_keys(
         )
 
 
-def _deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
+def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
     """Deserialize a VariableScaling from a dict, handling both legacy and new formats.
 
     Legacy format (pre-class-split) uses a ``method`` field to discriminate.
@@ -446,7 +446,7 @@ class Scaling(SerializableBaseModel):
             for key in ("target", "channel"):
                 val = data.get(key)
                 if isinstance(val, dict):
-                    data[key] = _deserialize_variable_scaling(val)
+                    data[key] = deserialize_variable_scaling(val)
         return data
 
     def to_dict(self) -> dict[str, Any]:
@@ -462,5 +462,5 @@ class Scaling(SerializableBaseModel):
         filtered = {k: v for k, v in data.items() if k != "__type__"}
         for key in ("target", "channel"):
             if key in filtered and isinstance(filtered[key], dict):
-                filtered[key] = _deserialize_variable_scaling(filtered[key])
+                filtered[key] = deserialize_variable_scaling(filtered[key])
         return cls.model_validate(filtered)

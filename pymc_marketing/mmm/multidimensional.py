@@ -227,9 +227,9 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
     VariableScaling,
-    _deserialize_variable_scaling,
-    _validate_fixed_scaling_keys,
+    deserialize_variable_scaling,
     panel_channel_fixed_scaling_remaining_dims,
+    validate_fixed_scaling_keys,
 )
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
@@ -477,7 +477,7 @@ class MMM(RegressionModelBuilder):
 
             for key in ("channel", "target"):
                 if isinstance(scaling[key], dict):
-                    scaling[key] = _deserialize_variable_scaling(scaling[key])
+                    scaling[key] = deserialize_variable_scaling(scaling[key])
 
             scaling = Scaling(**scaling)
 
@@ -506,7 +506,7 @@ class MMM(RegressionModelBuilder):
             and len(rem_ch) == 1
             and rem_ch[0] == "channel"
         ):
-            _validate_fixed_scaling_keys(
+            validate_fixed_scaling_keys(
                 self.scaling.channel, channel_columns, "channel"
             )
 
