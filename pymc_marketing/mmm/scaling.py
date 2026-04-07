@@ -273,9 +273,11 @@ class FixedScaling(VariableScaling):
                     "All values in a fixed scaling DataArray must be positive."
                 )
         elif isinstance(self.value, (int, float, np.floating, np.integer)):
-            if float(self.value) <= 0:
+            fval = float(self.value)
+            if math.isnan(fval) or fval <= 0:
                 raise ValueError(
-                    f"Fixed scaling value must be positive, got {self.value}."
+                    f"Fixed scaling value must be positive and non-NaN, "
+                    f"got {self.value}."
                 )
         else:
             raise TypeError(
