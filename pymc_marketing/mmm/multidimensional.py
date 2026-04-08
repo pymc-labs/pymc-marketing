@@ -67,6 +67,36 @@ Multi-dimensional (panel) with dims:
     )
     mmm.fit(X, y)
 
+Fixed scaling for stable production refreshes (e.g. population per country for
+impressions) can use a scalar, a one-dimensional ``dict`` keyed by the single
+remaining coordinate after reduction, or an :class:`xarray.DataArray` that
+broadcasts to the full ``country`` × ``channel`` grid — see
+:class:`~pymc_marketing.mmm.scaling.FixedScaling`.
+
+.. code-block:: python
+
+    import xarray as xr
+    from pymc_marketing.mmm.scaling import FixedScaling, Scaling
+
+    pop_scale = xr.DataArray(
+        [1e6, 2e6],
+        dims="country",
+        coords={"country": ["A", "B"]},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=50_000.0),
+        channel=FixedScaling(dims=(), value=pop_scale),
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        dims=("country",),
+        scaling=scaling,
+    )
+    # mmm.fit(X, y)
+
 Time-varying parameters and seasonality:
 
 .. code-block:: python
@@ -166,7 +196,6 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult
-from xarray import DataArray
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -193,7 +222,14 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
-from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+    VariableScaling,
+    panel_channel_fixed_scaling_remaining_dims,
+    validate_fixed_scaling_keys,
+)
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
@@ -434,15 +470,15 @@ class MMM(RegressionModelBuilder):
             scaling = deepcopy(scaling)
 
             if "channel" not in scaling:
-                scaling["channel"] = VariableScaling(method="max", dims=self.dims)
+                scaling["channel"] = DataDerivedScaling(method="max", dims=self.dims)
             if "target" not in scaling:
-                scaling["target"] = VariableScaling(method="max", dims=self.dims)
+                scaling["target"] = DataDerivedScaling(method="max", dims=self.dims)
 
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
-            target=VariableScaling(method="max", dims=self.dims),
-            channel=VariableScaling(method="max", dims=self.dims),
+            target=DataDerivedScaling(method="max", dims=self.dims),
+            channel=DataDerivedScaling(method="max", dims=self.dims),
         )
 
         if set(self.scaling.target.dims).difference([*self.dims, "date"]):
@@ -453,6 +489,20 @@ class MMM(RegressionModelBuilder):
         if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
             raise ValueError(
                 f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
+            )
+
+        rem_ch = panel_channel_fixed_scaling_remaining_dims(
+            self.dims,
+            cast(tuple[str, ...], self.scaling.channel.dims),
+        )
+        if (
+            isinstance(self.scaling.channel, FixedScaling)
+            and isinstance(self.scaling.channel.value, dict)
+            and len(rem_ch) == 1
+            and rem_ch[0] == "channel"
+        ):
+            validate_fixed_scaling_keys(
+                self.scaling.channel, channel_columns, "channel"
             )
 
         model_config = model_config if model_config is not None else {}
@@ -1635,7 +1685,7 @@ class MMM(RegressionModelBuilder):
         }
 
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-            self._time_index = DataArray(
+            self._time_index = xr.DataArray(
                 np.arange(0, X[self.date_column].unique().shape[0]), dims=("date",)
             )
             self._time_resolution = (
@@ -1688,19 +1738,127 @@ class MMM(RegressionModelBuilder):
         """Compute and save scaling factors for channels and target."""
         self.scalers = xr.Dataset()
 
-        channel_method = getattr(
+        self.scalers["_channel"] = self._compute_scale_for_variable(
             self.xarray_dataset["_channel"],
-            self.scaling.channel.method,
+            self.scaling.channel,
         )
-        self.scalers["_channel"] = channel_method(
-            dim=("date", *self.scaling.channel.dims)
+        self.scalers["_target"] = self._compute_scale_for_variable(
+            self.xarray_dataset["_target"],
+            self.scaling.target,
         )
 
-        target_method = getattr(
-            self.xarray_dataset["_target"],
-            self.scaling.target.method,
+    def _compute_scale_for_variable(
+        self,
+        data: xr.DataArray,
+        scaling: VariableScaling,
+    ) -> xr.DataArray:
+        """Compute or construct a scale array for a single variable.
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            The raw data variable from :attr:`xarray_dataset`.
+        scaling : VariableScaling
+            The scaling configuration for this variable.
+
+        Returns
+        -------
+        xr.DataArray
+            Scale factors with the reduction dims removed.
+        """
+        reduce_dims = ("date", *scaling.dims)
+
+        if isinstance(scaling, FixedScaling):
+            scale = self._build_fixed_scale(data, scaling, reduce_dims)
+        else:
+            method_fn = getattr(data, scaling.method)
+            scale = method_fn(dim=reduce_dims)
+
+        return scale
+
+    def _build_fixed_scale(
+        self,
+        data: xr.DataArray,
+        scaling: FixedScaling,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        """Build a scale DataArray from a FixedScaling configuration."""
+        if isinstance(scaling.value, dict):
+            return self._build_fixed_scale_from_dict(data, scaling, reduce_dims)
+        if isinstance(scaling.value, xr.DataArray):
+            return self._align_fixed_scale_dataarray(data, scaling.value, reduce_dims)
+        return xr.DataArray(float(scaling.value))
+
+    def _build_fixed_scale_from_dict(
+        self,
+        data: xr.DataArray,
+        scaling: FixedScaling,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        value_map = cast(dict[str, float], scaling.value)
+        remaining_dims = [d for d in data.dims if d not in reduce_dims]
+        if len(remaining_dims) != 1:
+            raise ValueError(
+                f"dict-valued fixed scaling requires exactly one remaining dimension "
+                f"after reduction over {reduce_dims!r}; got {remaining_dims!r}. "
+                f"Use an xarray.DataArray with dims {tuple(remaining_dims)!r} for "
+                f"multi-dimensional fixed scales."
+            )
+
+        dim_name = remaining_dims[0]
+        coords = data.coords[dim_name].values
+        coord_labels = {str(c) for c in coords}
+        provided_keys = set(value_map.keys())
+        missing = coord_labels - provided_keys
+        extra = provided_keys - coord_labels
+        if missing or extra:
+            parts = []
+            if missing:
+                parts.append(f"missing keys: {sorted(missing)}")
+            if extra:
+                parts.append(f"unexpected keys: {sorted(extra)}")
+            raise ValueError(
+                f"Fixed scaling dict keys for dimension "
+                f"'{dim_name}' do not match coordinate labels. "
+                f"{'; '.join(parts)}. "
+                f"Expected: {sorted(coord_labels)}."
+            )
+
+        values = np.array([value_map[str(c)] for c in coords])
+        return xr.DataArray(
+            values,
+            dims=(dim_name,),
+            coords={dim_name: coords},
         )
-        self.scalers["_target"] = target_method(dim=("date", *self.scaling.target.dims))
+
+    def _align_fixed_scale_dataarray(
+        self,
+        data: xr.DataArray,
+        user_scale: xr.DataArray,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        """Broadcast a user-supplied scale grid to match reduced data coordinates."""
+        template = data.max(dim=reduce_dims, skipna=True).astype(float)
+        zeros = xr.zeros_like(template, dtype=float)
+        try:
+            aligned = user_scale.astype(float) + zeros
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                "Could not align fixed scaling DataArray with the data grid after "
+                f"reduction over {reduce_dims!r}. Check dimension names and coordinate "
+                f"labels. Underlying error: {e}"
+            ) from e
+        if np.isnan(np.asarray(aligned.values)).any():
+            raise ValueError(
+                "Fixed scaling DataArray produced NaNs after alignment — coordinates "
+                "likely do not match the data grid on a shared dimension."
+            )
+        if dict(aligned.sizes) != dict(template.sizes):
+            raise ValueError(
+                f"Fixed scaling DataArray has shape {dict(aligned.sizes)} after "
+                f"broadcast; expected {dict(template.sizes)} matching reduced data."
+            )
+        return aligned
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
@@ -3651,7 +3809,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Parameters
         ----------
-        allocation_strategy : DataArray
+        allocation_strategy : xr.DataArray
             The allocation strategy for the channels.
         noise_level : float
             The relative level of noise to add to the data allocation.
