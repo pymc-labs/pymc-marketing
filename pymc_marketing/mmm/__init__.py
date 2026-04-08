@@ -63,6 +63,12 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+    VariableScaling,
+)
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.time_slice_cross_validation import (
     TimeSliceCrossValidationResult,
@@ -78,8 +84,10 @@ __all__ = [
     "BaseValidateMMM",
     "BinomialAdstock",
     "CovFunc",
+    "DataDerivedScaling",
     "DelayedAdstock",
     "FancyLinearRegression",
+    "FixedScaling",
     "GeometricAdstock",
     "HSGPPeriodic",
     "HillSaturation",
@@ -99,12 +107,14 @@ __all__ = [
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
+    "Scaling",
     "SensitivityAnalysis",
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
     "TimeSliceCrossValidationResult",
     "TimeSliceCrossValidator",
+    "VariableScaling",
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
