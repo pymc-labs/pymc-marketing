@@ -193,8 +193,8 @@ from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
 with pm.Model(coords=coords) as custom_mmm:
     channel_data_ = pm.Data("channel_data", channel_scaled, dims=("date", "geo", "channel"))
-    adstocked = adstock.apply(channel_data_, dims=("geo", "channel"))
-    channel_contribution = saturation.apply(adstocked, dims=("geo", "channel"))
+    adstocked = adstock.apply(channel_data_, core_dim="date")
+    channel_contribution = saturation.apply(adstocked, core_dim="date")
     # ... add intercept, controls, seasonality, likelihood
 ```
 
