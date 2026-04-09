@@ -172,7 +172,6 @@ from packaging import version
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
-from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 # MLflow 3.0.0+ deprecated artifact_path in favor of name
@@ -1261,7 +1260,6 @@ def autolog(
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
-        MultiDimensionalMMM.fit = patch_mmm_fit(MultiDimensionalMMM.fit)
 
     def patch_clv_fit(fit):
         @wraps(fit)

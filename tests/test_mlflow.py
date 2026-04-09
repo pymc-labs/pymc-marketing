@@ -37,7 +37,6 @@ from pymc_marketing.mlflow import (
     log_sample_diagnostics,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -57,8 +56,6 @@ def setup_module():
         pm.sample = pm.sample.__wrapped__
     while hasattr(MMM.fit, "__wrapped__"):
         MMM.fit = MMM.fit.__wrapped__
-    while hasattr(MultiDimensionalMMM.fit, "__wrapped__"):
-        MultiDimensionalMMM.fit = MultiDimensionalMMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
@@ -433,7 +430,7 @@ def toy_X(generate_data) -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def toy_y(toy_X: pd.DataFrame) -> pd.Series:
-    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
+    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]), name="y")
 
 
 @pytest.fixture(scope="module")
@@ -519,8 +516,8 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
 
 
 @pytest.fixture(scope="module")
-def multidimensional_mmm() -> MultiDimensionalMMM:
-    return MultiDimensionalMMM(
+def multidimensional_mmm() -> MMM:
+    return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         target_column="y",

@@ -33,8 +33,8 @@ msgstr ""
 
 #: d9f13dabd6af427188d99d8b06387b36 of
 #: pymc_marketing.mmm.linear_regression.FancyLinearRegression:4
-msgid "See :func:`pymc_marketing.mmm.mmm.MMM` for more details."
-msgstr "Vea :func:`pymc_marketing.mmm.mmm.MMM` para más detalles."
+msgid "See :func:`pymc_marketing.mmm.MMM` for more details."
+msgstr "Vea :func:`pymc_marketing.mmm.MMM` para más detalles."
 
 #: dabc4b25473a47ce9302fd30a9194b9e of
 #: pymc_marketing.mmm.linear_regression.FancyLinearRegression

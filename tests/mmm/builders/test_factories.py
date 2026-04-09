@@ -17,7 +17,7 @@ import pytest
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.builders.factories import build, locate, resolve
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
 
