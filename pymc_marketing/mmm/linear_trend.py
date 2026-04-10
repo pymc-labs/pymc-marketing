@@ -72,8 +72,10 @@ from xarray import DataArray
 
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
+from pymc_marketing.serialization import serialization
 
 
+@serialization.register
 class LinearTrend(BaseModel):
     r"""LinearTrend class.
 
@@ -289,6 +291,25 @@ class LinearTrend(BaseModel):
             priors["k"] = Prior("Normal", mu=0, sigma=0.05)
 
         return priors
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        data = self.model_dump(mode="json", exclude={"priors"})
+        if self.priors is not None:
+            data["priors"] = {k: v.to_dict() for k, v in self.priors.items()}
+        return data
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "LinearTrend":
+        """Reconstruct from a dict."""
+        from pymc_extras.deserialize import deserialize
+
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        if "priors" in work and work["priors"] is not None:
+            work["priors"] = {k: deserialize(v) for k, v in work["priors"].items()}
+        if "dims" in work and isinstance(work["dims"], list):
+            work["dims"] = tuple(work["dims"])
+        return cls.model_validate(work)
 
     def apply(self, t: XTensorLike) -> XTensorVariable:
         """Create the linear trend for the given x values.

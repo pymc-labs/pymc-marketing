@@ -982,8 +982,10 @@ def log_mmm_configuration(mmm: MMM) -> None:
     attrs = mmm.create_idata_attrs()
     mlflow.log_params(attrs)
 
-    mlflow.log_param("adstock_name", mmm.adstock.lookup_name)
-    mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
+    adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
+    saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
+    mlflow.log_param("adstock_name", adstock_name)
+    mlflow.log_param("saturation_name", saturation_name)
 
 
 def log_error(func: Callable, file_name: str):
