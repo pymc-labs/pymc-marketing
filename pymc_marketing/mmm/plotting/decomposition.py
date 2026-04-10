@@ -347,7 +347,7 @@ class DecompositionPlots:
 
         n_panels = len(combos)
         fig, axes_raw = plt.subplots(
-            n_panels, 1, figsize=figsize or (6 * n_panels, 4), squeeze=False
+            n_panels, 1, figsize=figsize or (6, 4 * n_panels), squeeze=False
         )
         axes_flat = axes_raw.flatten()
 

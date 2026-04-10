@@ -233,26 +233,25 @@ class TestContributionsOverTime:
         assert isinstance(fig, Figure)
 
     def test_each_channel_has_own_line(self, simple_plots):
-        """Each channel must produce its own labeled line."""
+        """Each channel must produce its own separate line (not summed into one)."""
         channels = ["tv", "radio", "social"]
         _fig, axes = simple_plots.contributions_over_time(include=["channels"])
         ax = axes[0]
-        line_labels = [
-            ln.get_label() for ln in ax.get_lines() if len(ln.get_xdata()) > 1
-        ]
-        for ch in channels:
-            assert ch in line_labels, (
-                f"Expected a line labeled '{ch}' but found: {line_labels}"
-            )
+        # arviz_plots manages line labels internally; verify by line count
+        data_lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
+        assert len(data_lines) == len(channels), (
+            f"Expected {len(channels)} lines (one per channel), got {len(data_lines)}"
+        )
 
     def test_baseline_is_horizontal(self, simple_plots):
         """Baseline line must be constant across all dates (time-invariant intercept)."""
         _fig, axes = simple_plots.contributions_over_time(include=["baseline"])
         ax = axes[0]
-        lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
-        baseline_lines = [ln for ln in lines if ln.get_label() == "baseline"]
-        assert baseline_lines, "No line labeled 'baseline' found"
-        ydata = baseline_lines[0].get_ydata()
+        # arviz_plots manages line labels internally; with include=["baseline"]
+        # there is exactly one data line and it must be horizontal
+        data_lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
+        assert data_lines, "No data lines found with include=['baseline']"
+        ydata = data_lines[0].get_ydata()
         assert np.allclose(ydata, ydata[0]), (
             f"Baseline line should be horizontal (constant y), got: {ydata[:5]}…"
         )
