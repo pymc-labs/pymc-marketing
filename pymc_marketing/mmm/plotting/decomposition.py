@@ -272,7 +272,7 @@ class DecompositionPlots:
         pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
         pc.add_legend("component")
 
-        return _extract_matplotlib_result(pc, return_as_pc), entries
+        return _extract_matplotlib_result(pc, return_as_pc)
 
     def waterfall(
         self,
