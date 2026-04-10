@@ -24,6 +24,7 @@ dependencies:
   - pymc-extras>=0.9.2
   - nutpie>=0.16.7
   - blackjax>=1.2.4
+  - fastprogress
   - scikit-learn>=1.1.1
   - seaborn>=0.12.2
   - xarray
