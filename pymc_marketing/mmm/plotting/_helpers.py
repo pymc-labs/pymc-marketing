@@ -127,6 +127,44 @@ def _validate_dims(
                 )
 
 
+def _ensure_chain_draw_dims(curves: xr.DataArray) -> xr.DataArray:
+    """Ensure curves have ``(chain, draw)`` dimensions for ArviZ compatibility.
+
+    Curves from ``mmm.sample_saturation_curve()`` have a flat ``sample``
+    dimension, while ``mmm.saturation.sample_curve(params)`` returns
+    ``(chain, draw)``.  Downstream code (HDI, mean, stacking) requires
+    ``(chain, draw)`` — this function bridges the gap.
+
+    Handles three input formats:
+
+    * ``(chain, draw, ...)`` — returned as-is (copy).
+    * ``sample`` as a MultiIndex over ``(chain, draw)`` — unstacked.
+    * ``sample`` as a plain integer index — expanded to
+      ``chain=0, draw=0..N-1``.
+    """
+    if "chain" in curves.dims and "draw" in curves.dims:
+        return curves.copy()
+
+    if "sample" not in curves.dims:
+        raise ValueError(
+            "Curves must have either ('chain', 'draw') or 'sample' dimensions. "
+            f"Got: {list(curves.dims)}"
+        )
+
+    # MultiIndex sample (chain/draw are non-dim coords) — just unstack
+    if "chain" in curves.coords and "draw" in curves.coords:
+        return curves.unstack("sample")
+
+    # Plain integer sample — promote to single-chain (chain=0)
+    n_samples = curves.sizes["sample"]
+    return (
+        curves.assign_coords(chain=("sample", np.zeros(n_samples, dtype=int)))
+        .assign_coords(draw=("sample", np.arange(n_samples)))
+        .set_index(sample=["chain", "draw"])
+        .unstack("sample")
+    )
+
+
 def _process_plot_params(
     figsize: tuple[float, float] | None,
     backend: str | None,
