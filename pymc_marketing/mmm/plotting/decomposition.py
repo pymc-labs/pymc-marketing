@@ -351,13 +351,13 @@ class DecompositionPlots:
         )
         axes_flat = axes_raw.flatten()
 
-        reserved_keys = {"y", "width", "left"}
+        reserved_keys = {"y", "width", "left", "color"}
         if bar_kwargs:
             conflict = reserved_keys & set(bar_kwargs.keys())
             if conflict:
                 raise ValueError(
                     f"bar_kwargs keys conflict with positional bar arguments: {conflict}. "
-                    "Do not pass 'y', 'width', or 'left' in bar_kwargs."
+                    "Do not pass 'y', 'width', 'left', or 'color' in bar_kwargs."
                 )
         safe_bar_kwargs = {"height": 0.5, **(bar_kwargs or {})}
 
