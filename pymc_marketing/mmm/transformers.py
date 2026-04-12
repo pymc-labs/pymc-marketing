@@ -75,7 +75,6 @@ def batched_convolution(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import batched_convolution, ConvMode
-        plt.style.use('arviz-darkgrid')
         spends = np.array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
         w = np.array([0.75, 0.25, 0.125, 0.125])
         x = np.arange(-5, 6)
@@ -173,7 +172,6 @@ def binomial_adstock(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import binomial_adstock
-        plt.style.use('arviz-darkgrid')
         l_max = 12
         params = [ 0.1, 0.3, 0.5, 0.7, 0.9]
         spend = np.zeros(15)
@@ -253,7 +251,6 @@ def geometric_adstock(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import geometric_adstock
-        plt.style.use('arviz-darkgrid')
         l_max = 12
         params = [
             (0.01, False),
@@ -339,7 +336,6 @@ def delayed_adstock(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import delayed_adstock
-        plt.style.use('arviz-darkgrid')
         params = [
             (0.25, 0, False),
             (0.25, 5, False),
@@ -430,7 +426,6 @@ def weibull_adstock(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import WeibullType, weibull_adstock
-        plt.style.use('arviz-darkgrid')
 
         spend = np.zeros(50)
         spend[0] = 1
@@ -544,7 +539,6 @@ def logistic_saturation(x: XTensorLike, lam: XTensorLike = 0.5) -> XTensorVariab
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import logistic_saturation
-        plt.style.use('arviz-darkgrid')
         lam = np.array([0.25, 0.5, 1, 2, 4])
         x = np.linspace(0, 5, 100)
         ax = plt.subplot(111)
@@ -598,7 +592,6 @@ def inverse_scaled_logistic_saturation(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import inverse_scaled_logistic_saturation
-        plt.style.use('arviz-darkgrid')
         lam = np.array([0.25, 0.5, 1, 2, 4])
         x = np.linspace(0, 5, 100)
         ax = plt.subplot(111)
@@ -726,7 +719,6 @@ def tanh_saturation(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import tanh_saturation
-        plt.style.use('arviz-darkgrid')
         params = [
             (0.75, 0.25),
             (0.75, 1.5),
@@ -1213,7 +1205,6 @@ def root_saturation(
         import numpy as np
         import arviz as az
         from pymc_marketing.mmm.transformers import root_saturation
-        plt.style.use('arviz-darkgrid')
         alpha = np.array([0.1, 0.3, 0.5, 0.7])
         x = np.linspace(0, 5, 100)
         ax = plt.subplot(111)
