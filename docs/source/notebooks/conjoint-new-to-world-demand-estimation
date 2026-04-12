@@ -1,0 +1,331 @@
+# Using Conjoint Analysis to Estimate Demand for New-to-World Product Features
+
+## Overview
+
+Standard conjoint models are built to explain demand for products that already exist or are close
+to existing -- think iterative improvements like a faster processor, a larger screen, or a lower
+price. They are calibrated against real-world sales data, which grounds their estimates in
+observed customer behavior.
+
+But what happens when a product team is investing in a feature that has never existed before?
+A feature with no sales history, no competitive benchmark, and no place in the current conjoint
+design?
+
+This guide explores that problem and how to approach it using conjoint methodology -- with
+particular attention to the tradeoffs a product manager needs to understand when using survey-
+derived estimates to support high-stakes investment decisions.
+
+---
+
+## Who This Guide Is For
+
+This guide is written for product managers and decision scientists who:
+
+- Use conjoint-based demand models to inform product investment decisions
+- Work on product lines where innovation outpaces the cadence of conjoint refielding
+- Need to communicate the limitations and confidence intervals of demand estimates to
+  executive stakeholders
+- Are evaluating whether a self-service conjoint can complement or extend a core product
+  line conjoint
+
+No prior experience with PyMC or Bayesian modeling is assumed. The concepts here are
+methodology-first.
+
+---
+
+## The Core Problem: Conjoint Models Have a Scope Boundary
+
+A conjoint model is only as good as the attributes it includes. When a product team designs
+a conjoint survey, they define a finite set of features -- screen size, battery life, price,
+connectivity, and so on -- and ask respondents to make tradeoffs among them.
+
+This design works well for:
+
+- Features that are present across most products in the competitive space
+- Features where the team needs to optimize across a spectrum of levels (e.g., 8GB vs.
+  16GB vs. 32GB RAM)
+- Cannibalization and portfolio mix estimates across a known product set
+
+It works poorly for:
+
+- Features that are entirely new to the market and have no existing analog
+- Features that will only appear on one or two products in a large portfolio
+- Features where customer vocabulary and mental models do not yet exist
+
+The practical consequence is that product teams investing in breakthrough innovation often
+find themselves in a situation where the core conjoint cannot support their investment decision.
+The model does not include their feature, so it cannot estimate the demand impact of that
+feature.
+
+---
+
+## Why This Matters for Investment Decisions
+
+In most large organizations, major product investments require a demand estimate before they
+can be approved. If the conjoint model cannot produce that estimate, one of three things
+happens:
+
+1. The investment is delayed until the conjoint can be refielded -- which can take months
+2. The investment proceeds without a quantitative demand estimate -- which increases risk
+3. A workaround is used that may not meet the organization's quality bar for decision-making
+
+None of these outcomes are ideal. Option 1 slows innovation. Option 2 reduces decision
+quality. Option 3 can introduce methodological inconsistency that undermines trust in the
+demand estimation function over time.
+
+This is the problem that a well-designed self-service conjoint, combined with a principled
+method for combining its results with a core model, is meant to solve.
+
+---
+
+## Self-Service Conjoints as a Complement to Core Models
+
+A self-service conjoint is a smaller, faster, more focused survey instrument that a product
+team runs independently to measure customer preferences for a specific set of features --
+typically the features that are missing from the core model.
+
+The key advantages of self-service conjoints are:
+
+- **Speed:** A focused self-service conjoint can be designed, fielded, and analyzed in weeks
+  rather than months
+- **Specificity:** The survey can be designed around exactly the features the product team
+  cares about, rather than the full competitive space
+- **Agility:** Teams can run self-service conjoints continuously as their product evolves,
+  rather than waiting for an annual refielding cycle
+
+The key risks are:
+
+- **Calibration:** Self-service conjoints are not calibrated against observed sales data by
+  default. Without calibration, utilities derived from the survey may not translate reliably
+  into demand estimates
+- **Design quality:** Conjoint survey design is technically demanding. Poor attribute
+  selection, unbalanced profiles, or leading question framing can introduce bias that
+  invalidates the results
+- **Comparability:** Utilities from two different conjoint studies are not automatically
+  on the same scale. Combining them requires a principled method, not a simple average
+
+---
+
+## Combining Utilities Across Two Conjoint Models
+
+When a product team wants to use lift from a self-service conjoint to augment estimates from
+a core model, they are attempting to answer a specific question:
+
+> "If I add Feature X -- which is in my self-service conjoint but not my core conjoint --
+> to my product, how does that change the demand estimate?"
+
+There are several approaches to this problem in the literature, each with different tradeoffs.
+
+### Approach 1: Feature Lift via Willingness-to-Pay Translation
+
+The most accessible approach for practitioners who are not building a combined model from
+scratch is to convert the utility of the new feature into a price equivalent -- that is,
+the amount customers are willing to pay for the feature -- and then apply that as a
+price adjustment in the core model.
+
+The logic: if the core model already estimates demand as a function of price, and you can
+express the new feature as a price-equivalent value, then the core model can incorporate
+the new feature without any structural changes.
+
+**Advantages:**
+- Does not require modifying the core model
+- Produces an output (willingness-to-pay) that is intuitive for product and finance teams
+- Can be applied as a manual adjustment in existing demand tools
+
+**Limitations:**
+- Assumes the price sensitivity in the core model is transferable to the new feature context
+- Does not capture segment-level heterogeneity in preferences for the new feature
+- Is vulnerable to anchoring effects if the self-service conjoint price range differs from
+  the core conjoint price range
+
+### Approach 2: Nested Logit Model Combining Two Datasets
+
+A more rigorous approach involves treating the two conjoint datasets as inputs to a nested
+model structure -- conceptually similar to a nested logit -- where one model estimates the
+probability of choosing within a subset of products, and a second model estimates choice
+probabilities within that subset.
+
+This approach is more technically demanding but produces more coherent estimates when the
+two conjoint studies have meaningful overlap in their product sets or attribute structures.
+
+In PyMC-Marketing's framework, this type of multi-dataset model can be approached using the
+discrete choice model capabilities introduced in recent releases, which support mixed logit
+specifications that accommodate individual-level heterogeneity.
+
+**Advantages:**
+- More theoretically grounded than a manual lift adjustment
+- Can capture heterogeneous preferences across customer segments
+- Produces uncertainty estimates (confidence intervals) on the combined output, not just
+  point estimates
+
+**Limitations:**
+- Requires overlap between the two studies (e.g., a common attribute like price)
+- More complex to explain to non-technical stakeholders
+- Requires careful validation to ensure the combined model does not overfit to either
+  individual dataset
+
+### Approach 3: Augmented Feature Space via Coefficient Transfer
+
+A third approach involves using the coefficient estimates from the self-service conjoint
+to augment the feature space of the core model, without combining the underlying datasets.
+
+The practical implementation: extract the part-worth utility for the new feature from the
+self-service conjoint, convert it to a standardized scale using a common attribute (typically
+price), and add it as an additional term in the core model's demand simulation.
+
+This is conceptually similar to Approach 1 but operates at the model coefficient level
+rather than the willingness-to-pay level, which gives more flexibility when the new feature
+interacts with other attributes.
+
+---
+
+## What Product Managers Need to Evaluate Before Using Combined Estimates
+
+Before using combined conjoint estimates to support an investment decision, a product
+manager should work through the following questions with their demand science team:
+
+### Quality Bar for the Self-Service Conjoint
+
+Not all self-service conjoints are created equal. Before combining results, confirm:
+
+- Was the survey fielded with a representative sample that matches the target customer
+  segment?
+- Were the profiles properly balanced using fractional factorial or D-optimal design?
+- Has the conjoint been calibrated against any observed behavioral data (e.g., revealed
+  preference data from existing products)?
+- Has a subject matter expert reviewed the survey design and results before they are used
+  in a decision context?
+
+If the answer to any of these is no, the self-service conjoint results should be treated as
+directional only -- useful for hypothesis generation but not for high-confidence investment
+decisions.
+
+### Transparency with Stakeholders
+
+When presenting demand estimates that incorporate combined conjoint models, be explicit
+about what the estimate includes:
+
+- Identify which features in the estimate come from the core model vs. the self-service
+  conjoint
+- State the calibration status of each model
+- Include confidence intervals, not just point estimates -- this is where Bayesian approaches
+  like those in PyMC-Marketing add particular value, because uncertainty is a first-class
+  output rather than an afterthought
+- Document the combination method used and any assumptions it rests on
+
+Stakeholders who understand the methodology are more likely to use the estimates appropriately
+and less likely to over-index on point estimates that carry significant uncertainty.
+
+### Goal-Seeking Risk
+
+One underappreciated risk in self-service conjoint programs is the incentive for product
+teams to design surveys that produce favorable results. Common patterns include:
+
+- Only testing features where the product team already believes demand is strong
+- Omitting features with known negative customer reactions from the survey design
+- Selecting price ranges that make the product look more attractive than it would in a
+  realistic competitive context
+
+The mitigation is a review process that applies the same quality bar to self-service
+conjoints as to core conjoints -- ideally with sign-off from a demand science function that
+is independent of the product team.
+
+---
+
+## A Fictional Example: Demand Estimation for a New-to-World Device Feature
+
+Consider a consumer electronics company -- call it Meridian Devices -- that is evaluating
+investment in a new display technology for their tablet product line. The technology has no
+market precedent; no competitor currently offers it, and it has never appeared in Meridian's
+core tablet conjoint.
+
+The core conjoint covers the standard attribute set: screen size, processor speed, storage,
+battery life, connectivity, and price. It is calibrated against two years of historical sales
+data and is used to produce all official demand estimates for the tablet portfolio.
+
+The product team has already run a self-service conjoint focused specifically on display
+features: resolution, refresh rate, color accuracy, and the new display technology. The
+self-service conjoint was fielded with 800 respondents matched to the core tablet buyer
+profile and designed by an economist with conjoint expertise.
+
+**The question:** How does adding the new display technology to the next-generation tablet
+affect expected first-year demand?
+
+**The approach:**
+
+1. Extract the part-worth utility for the new display technology from the self-service
+   conjoint
+2. Convert it to a willingness-to-pay estimate using price as the common attribute
+   (both studies included price)
+3. Apply that willingness-to-pay as an effective price adjustment in the core model's
+   demand simulation for the next-generation tablet
+4. Run the demand simulation with and without the adjustment to isolate the impact of
+   the new feature
+5. Report the output with explicit confidence intervals, flagging that the new feature
+   estimate derives from a self-service conjoint rather than the core calibrated model
+
+**What this produces:** A demand estimate that the product team can use in their investment
+document, with transparent documentation of the methodology and its limitations. Not
+a perfect estimate -- but a principled one that is better than either ignoring the feature
+or proceeding without any quantitative basis.
+
+---
+
+## Implications for Bayesian Demand Modeling
+
+The approaches described above benefit significantly from a Bayesian framework for two
+reasons:
+
+**Uncertainty propagation:** When you combine estimates from two models, the uncertainty
+of each model compounds. A Bayesian approach naturally propagates this uncertainty through
+to the final output, producing a posterior distribution over demand rather than a single
+point estimate. This is more honest about what the data actually supports.
+
+**Prior incorporation:** For new-to-world features where historical data is limited, Bayesian
+models allow the analyst to encode prior beliefs about reasonable demand ranges based on
+analogous product launches or expert judgment. These priors can be updated as early market
+data becomes available, allowing the model to improve continuously after launch.
+
+PyMC-Marketing's discrete choice model capabilities provide a natural foundation for
+implementing the nested model approaches described in Approach 2 above.
+
+---
+
+## Summary
+
+Conjoint models are powerful tools for demand estimation, but they have a scope boundary
+defined by the attributes included at design time. When product teams invest in
+new-to-world innovation, they often find that the core conjoint cannot support their
+investment decision.
+
+Self-service conjoints offer a path to filling that gap -- but only when they are designed
+rigorously, calibrated appropriately, and combined with core model estimates using a
+principled methodology.
+
+The key principles for product managers working in this space are:
+
+- Treat self-service conjoint estimates as directional until calibrated against behavioral
+  data
+- Be explicit with stakeholders about which parts of a demand estimate come from which
+  model
+- Always report uncertainty intervals alongside point estimates
+- Establish a quality review process for self-service conjoints that is independent of the
+  product team running them
+- Use Bayesian methods where possible to propagate uncertainty through combined models
+
+The payoff for getting this right is significant: faster, more rigorous support for
+high-stakes investment decisions in innovation, without waiting months for a full conjoint
+refielding cycle.
+
+---
+
+## Further Reading
+
+- Hainmueller, J., Hopkins, D., and Yamamoto, T. (2014). "Causal Inference in Conjoint
+  Analysis: Understanding Multidimensional Choices via Stated Preference Experiments."
+  Political Analysis.
+- Orme, B. (2019). *Getting Started with Conjoint Analysis.* Research Publishers LLC.
+- Train, K. (2009). *Discrete Choice Methods with Simulation.* Cambridge University Press.
+  (Freely available at [eml.berkeley.edu/books/train1201.pdf](https://eml.berkeley.edu/books/train1201.pdf))
+- McFadden, D. (1974). "Conditional Logit Analysis of Qualitative Choice Behavior." In
+  Zarembka, P. (ed.), *Frontiers in Econometrics.* Academic Press.
