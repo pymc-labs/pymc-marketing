@@ -11,7 +11,62 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Sensitivity namespace — sensitivity analysis plots."""
+"""Sensitivity namespace — sensitivity analysis plots.
+
+:class:`SensitivityPlots` provides three methods to visualise the results of a
+sensitivity sweep run via :class:`~pymc_marketing.mmm.SensitivityAnalysis`:
+
+* :meth:`~SensitivityPlots.analysis`  — raw effect curves from the input sweep
+* :meth:`~SensitivityPlots.uplift`    — uplift relative to a baseline (with reference lines)
+* :meth:`~SensitivityPlots.marginal`  — marginal effects along the sweep
+
+The class is normally accessed through the ``mmm.plots.sensitivity`` shortcut on a
+fitted :class:`~pymc_marketing.mmm.multidimensional.MMM` instance, but it can also be constructed
+directly from any :class:`~pymc_marketing.data.idata.MMMIDataWrapper`.
+
+Examples
+--------
+
+.. code-block:: python
+
+    import numpy as np
+    from pymc_marketing.mmm.multidimensional import MMM
+
+    mmm = MMM.load("my_model.pm")
+
+    # sensitivity analysis
+    sweeps = np.linspace(0.1, 2.0, 100)
+    mmm.sensitivity.run_sweep(
+        sweep_values=sweeps,
+        var_input="channel_data",
+        var_names="channel_contribution",
+        extend_idata=True,
+    )
+
+    sp = mmm.plots.sensitivity
+    fig, axes = sp.analysis()
+
+    # uplift curve
+    ref = mmm.idata.posterior.channel_contribution.sum(["channel", "date"]).mean(
+        ["chain", "draw"]
+    )
+    mmm.sensitivity.compute_uplift_curve_respect_to_base(
+        results=mmm.idata.sensitivity_analysis["x"],
+        ref=ref,
+        extend_idata=True,
+    )
+
+    fig, axes = sp.uplift(aggregation={"sum": "channel"}, figsize=(10, 4))
+
+
+    # marginal contribution curve
+    mmm.sensitivity.compute_marginal_effects(
+        results=mmm.idata.sensitivity_analysis["uplift_curve"],
+        extend_idata=True,
+    )
+
+    fig, axes = sp.marginal(aggregation={"sum": "channel"})
+"""
 
 from __future__ import annotations
 
