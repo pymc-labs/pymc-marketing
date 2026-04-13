@@ -24,9 +24,9 @@ import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-from pymc_marketing.mmm.plotting.sensitivity import SensitivityPlots
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.mmm.plotting.sensitivity import SensitivityPlots
 
 matplotlib.use("Agg")
 
@@ -303,6 +303,20 @@ def test_mean_line_values(sensitivity_plots, simple_sa_idata):
             expected_mean.sel(channel=ch).values,
             rtol=1e-5,
         )
+
+
+def test_uplift_has_vertical_line_at_one(sensitivity_plots):
+    _, axes = sensitivity_plots.uplift()
+    ax = axes.flat[0]
+    vlines = [line for line in ax.get_lines() if list(line.get_xdata()) == [1.0, 1.0]]
+    assert vlines, "Expected a vertical reference line at x=1.0"
+
+
+def test_uplift_has_horizontal_line_at_zero(sensitivity_plots):
+    _, axes = sensitivity_plots.uplift()
+    ax = axes.flat[0]
+    hlines = [line for line in ax.get_lines() if list(line.get_ydata()) == [0.0, 0.0]]
+    assert hlines, "Expected a horizontal reference line at y=0.0"
 
 
 def test_hdi_band_values(sensitivity_plots, simple_sa_idata):

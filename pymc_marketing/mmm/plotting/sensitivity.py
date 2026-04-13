@@ -20,6 +20,7 @@ from typing import Any, Literal
 import arviz as az
 import arviz_plots as azp
 import xarray as xr
+from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -202,7 +203,7 @@ class SensitivityPlots:
                 "'uplift_curve' not found in idata.sensitivity_analysis. "
                 "Run SensitivityAnalysis.compute_uplift_curve_respect_to_base() first."
             )
-        return self._sensitivity_plot(
+        pc = self._sensitivity_plot(
             sa_da=sa_group["uplift_curve"],
             data=data,
             ylabel="Uplift",
@@ -213,11 +214,14 @@ class SensitivityPlots:
             hdi_prob=hdi_prob,
             figsize=figsize,
             backend=backend,
-            return_as_pc=return_as_pc,
+            return_as_pc=True,
             line_kwargs=line_kwargs,
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
+        azp.add_lines(pc, 1.0, orientation="vertical")
+        azp.add_lines(pc, 0.0, orientation="horizontal")
+        return _extract_matplotlib_result(pc, return_as_pc)
 
     def marginal(
         self,
@@ -393,7 +397,12 @@ class SensitivityPlots:
             xlabel = "Channel Data"
         pc.map(azp.visuals.labelled_x, text=xlabel, ignore_aes={"color"})
         pc.map(azp.visuals.labelled_y, text=ylabel, ignore_aes={"color"})
-        pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+            ignore_aes={"color"},
+        )
 
         # Step 10: Legend
         if hue_dims:
