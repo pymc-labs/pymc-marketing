@@ -110,7 +110,6 @@ def create_new_spend_data(
         import arviz as az
 
         from pymc_marketing.mmm.utils import create_new_spend_data
-        az.style.use("arviz-white")
 
         spend = np.array([1, 2])
         adstock_max_lag = 3
