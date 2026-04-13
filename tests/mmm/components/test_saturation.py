@@ -362,6 +362,7 @@ class TestSaturationRoundtrips:
         "pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation",
         "pymc_marketing.mmm.components.saturation.RootSaturation",
         "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.LogSaturation",
         "pymc_marketing.mmm.components.saturation.NoSaturation",
     ],
     ids=lambda s: s.rsplit(".", 1)[-1],

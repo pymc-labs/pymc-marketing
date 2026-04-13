@@ -85,6 +85,7 @@ from pydantic import Field, InstanceOf, validate_call
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
+from pytensor.xtensor import math as ptxm
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
@@ -478,6 +479,41 @@ class RootSaturation(SaturationTransformation):
 
 
 @serialization.register
+class LogSaturation(SaturationTransformation):
+    r"""Logarithmic saturation for log-log models.
+
+    Applies :math:`\beta \, \log(1 + x)`, mapping spend through a concave
+    logarithmic curve with diminishing returns.  When combined with
+    ``link="log"`` in the MMM, the coefficient :math:`\beta` has an
+    elasticity-like interpretation.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import LogSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = LogSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Logarithmic saturation function: beta * log(1 + x)."""
+        x = as_xtensor(x)
+        beta = as_xtensor(beta)
+        return beta * ptxm.log1p(x)
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1)}
+
+
+@serialization.register
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
 
@@ -517,6 +553,7 @@ SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
     "hill": HillSaturation,
     "hill_sigmoid": HillSaturationSigmoid,
     "root": RootSaturation,
+    "log_saturation": LogSaturation,
     "no_saturation": NoSaturation,
 }
 

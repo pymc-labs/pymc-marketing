@@ -33,11 +33,6 @@ SEED = sum(map(ord, "idata_wrapper_tests"))
 rng = np.random.default_rng(seed=SEED)
 
 
-# ============================================================================
-# Test Fixtures
-# ============================================================================
-
-
 @pytest.fixture(scope="module")
 def multidim_idata() -> az.InferenceData:
     """Create InferenceData with custom dimensions (country)."""
@@ -298,25 +293,16 @@ def fitted_mmm_with_controls(idata_with_all_contributions):
     return MockMMM(idata_with_all_contributions)
 
 
-# ============================================================================
-# Category 1: Utility Function Tests - Date Filtering
-# ============================================================================
-
-
 def test_filter_idata_by_dates_filters_all_groups(multidim_idata):
     """Test that filter_idata_by_dates filters all groups with date dimension."""
-    # Arrange
     start_date = "2024-03-01"
     end_date = "2024-06-30"
 
-    # Act
     filtered = filter_idata_by_dates(multidim_idata, start_date, end_date)
 
-    # Assert - Verify all groups with date dimension were filtered
     assert hasattr(filtered, "posterior")
     assert hasattr(filtered, "constant_data")
 
-    # Check date ranges
     filtered_dates = filtered.posterior.coords["date"].values
     assert pd.Timestamp(filtered_dates[0]) >= pd.Timestamp(start_date)
     assert pd.Timestamp(filtered_dates[-1]) <= pd.Timestamp(end_date)
@@ -329,41 +315,32 @@ def test_filter_idata_by_dates_filters_all_groups(multidim_idata):
 
 def test_filter_idata_by_dates_returns_new_instance(multidim_idata):
     """Test that filtering returns new InferenceData without modifying original."""
-    # Arrange
     # Store original size
     original_size = multidim_idata.posterior.sizes["date"]
     original_dates = multidim_idata.posterior.coords["date"].values.copy()
 
-    # Act
     filtered = filter_idata_by_dates(multidim_idata, "2024-03-01", "2024-06-30")
 
-    # Assert - Original unchanged
     assert multidim_idata.posterior.sizes["date"] == original_size
     np.testing.assert_array_equal(
         multidim_idata.posterior.coords["date"].values, original_dates
     )
 
-    # Assert - Filtered is different
     assert filtered is not multidim_idata
     assert filtered.posterior.sizes["date"] < original_size
 
 
 def test_filter_idata_by_dates_with_none_returns_original(multidim_idata):
     """Test that None dates return original InferenceData."""
-    # Arrange & Act
     result = filter_idata_by_dates(multidim_idata, None, None)
-
-    # Assert - Same object returned (no filtering needed)
     assert result is multidim_idata
 
 
 def test_filter_idata_by_dates_with_only_start_date(multidim_idata):
     """Test filtering with only start_date specified."""
-    # Arrange & Act
     start_date = "2024-03-01"
     filtered = filter_idata_by_dates(multidim_idata, start_date=start_date)
 
-    # Assert
     filtered_dates = filtered.posterior.coords["date"].values
     assert pd.Timestamp(filtered_dates[0]) >= pd.Timestamp(start_date)
 
@@ -372,96 +349,69 @@ def test_filter_idata_by_dates_with_only_start_date(multidim_idata):
     assert pd.Timestamp(filtered_dates[-1]) == pd.Timestamp(original_last)
 
 
-# ============================================================================
-# Category 2: Utility Function Tests - Dimension Filtering
-# ============================================================================
-
-
 def test_filter_idata_by_dims_filters_single_channel(multidim_idata):
     """Test filtering to a single channel."""
-    # Arrange & Act
     filtered = filter_idata_by_dims(multidim_idata, channel="TV")
-
-    # Assert - Dimension should be dropped when filtering to single value
     assert "channel" not in filtered.posterior.dims
-
-    # Other dimensions unchanged
     assert filtered.posterior.sizes["date"] == multidim_idata.posterior.sizes["date"]
 
 
 def test_filter_idata_by_dims_filters_multiple_channels(multidim_idata):
     """Test filtering to multiple channels."""
-    # Arrange & Act
     channels = ["TV", "Radio"]
     filtered = filter_idata_by_dims(multidim_idata, channel=channels)
 
-    # Assert
     assert filtered.posterior.sizes["channel"] == 2
     assert list(filtered.posterior.coords["channel"].values) == channels
 
 
 def test_filter_idata_by_dims_returns_new_instance(multidim_idata):
     """Test that dimension filtering returns new InferenceData."""
-    # Arrange
     original_channels = multidim_idata.posterior.coords["channel"].values.copy()
 
-    # Act
     filtered = filter_idata_by_dims(multidim_idata, channel="TV")
 
-    # Assert - Original unchanged
     np.testing.assert_array_equal(
         multidim_idata.posterior.coords["channel"].values, original_channels
     )
 
-    # Assert - Filtered is different
     assert filtered is not multidim_idata
 
 
 def test_filter_idata_by_dims_with_custom_dimension(multidim_idata):
     """Test filtering by custom dimension like country."""
-    # Arrange & Act
     filtered = filter_idata_by_dims(multidim_idata, country="US")
 
-    # Assert - Dimension should be dropped when filtering to single value
     assert "country" not in filtered.posterior.dims
 
 
 def test_filter_idata_by_dims_with_empty_kwargs_returns_original(multidim_idata):
     """Test that empty dim_filters returns original InferenceData."""
-    # Arrange & Act
     result = filter_idata_by_dims(multidim_idata)
 
-    # Assert - Same object returned
     assert result is multidim_idata
 
 
 def test_filter_idata_by_dims_raises_on_nonexistent_dimension(multidim_idata):
     """Test that filtering by nonexistent dimension raises ValueError."""
-    # Arrange & Act & Assert
     with pytest.raises(ValueError, match="Dimension 'nonexistent_dim' not found"):
         filter_idata_by_dims(multidim_idata, nonexistent_dim="value")
 
 
-# ============================================================================
-# Category 3: Utility Function Tests - Time Aggregation
-# ============================================================================
-
-
 def test_aggregate_idata_time_monthly_sum(multidim_idata):
     """Test monthly aggregation with sum method."""
-    # Arrange & Act
     monthly = aggregate_idata_time(multidim_idata, period="monthly", method="sum")
 
-    # Assert - Should have fewer dates (52 weeks -> ~12 months)
+    # Should have fewer dates (52 weeks -> ~12 months)
     assert monthly.posterior.sizes["date"] < multidim_idata.posterior.sizes["date"]
     assert monthly.posterior.sizes["date"] <= 12
 
-    # Assert - Other dimensions unchanged
+    # Other dimensions unchanged
     assert (
         monthly.posterior.sizes["channel"] == multidim_idata.posterior.sizes["channel"]
     )
 
-    # Assert - Coordinates preserved (except date is aggregated)
+    # Coordinates preserved (except date is aggregated)
     xr.testing.assert_equal(
         monthly.posterior.coords["channel"], multidim_idata.posterior.coords["channel"]
     )
@@ -469,38 +419,34 @@ def test_aggregate_idata_time_monthly_sum(multidim_idata):
 
 def test_aggregate_idata_time_monthly_mean(multidim_idata):
     """Test monthly aggregation with mean method."""
-    # Arrange & Act
     monthly = aggregate_idata_time(multidim_idata, period="monthly", method="mean")
 
-    # Assert - Aggregated to monthly
+    # Aggregated to monthly
     assert monthly.posterior.sizes["date"] <= 12
 
 
 def test_aggregate_idata_time_all_time_removes_date_dim(multidim_idata):
     """Test that all_time aggregation removes date dimension."""
-    # Arrange & Act
     total = aggregate_idata_time(multidim_idata, period="all_time", method="sum")
 
-    # Assert - Date dimension removed
+    # Date dimension removed
     assert "date" not in total.posterior.dims
 
-    # Assert - Other dimensions preserved
+    # Other dimensions preserved
     assert "channel" in total.posterior.dims
     assert total.posterior.sizes["channel"] == multidim_idata.posterior.sizes["channel"]
 
 
 def test_aggregate_idata_time_returns_new_instance(multidim_idata):
     """Test that aggregation returns new InferenceData."""
-    # Arrange
     original_size = multidim_idata.posterior.sizes["date"]
 
-    # Act
     aggregated = aggregate_idata_time(multidim_idata, period="monthly")
 
-    # Assert - Original unchanged
+    # Original unchanged
     assert multidim_idata.posterior.sizes["date"] == original_size
 
-    # Assert - Aggregated is different
+    # Aggregated is different
     assert aggregated is not multidim_idata
 
 
@@ -518,21 +464,13 @@ def test_aggregate_idata_time_parametrized_periods(
     multidim_idata, period, expected_max_size
 ):
     """Test aggregation with different time periods."""
-    # Arrange & Act
     aggregated = aggregate_idata_time(multidim_idata, period=period, method="sum")
 
-    # Assert
     assert aggregated.posterior.sizes["date"] <= expected_max_size
-
-
-# ============================================================================
-# Category 4: Utility Function Tests - Dimension Aggregation
-# ============================================================================
 
 
 def test_aggregate_idata_dims_combines_channels(multidim_idata):
     """Test combining multiple channels into one."""
-    # Arrange & Act
     # Note: Aggregating Facebook, Instagram, Social into "SocialMedia"
     # (We can't use "Social" as new_label since it already exists as a channel)
     combined = aggregate_idata_dims(
@@ -543,21 +481,20 @@ def test_aggregate_idata_dims_combines_channels(multidim_idata):
         method="sum",
     )
 
-    # Assert - SocialMedia channel added
+    # SocialMedia channel added
     assert "SocialMedia" in combined.posterior.coords["channel"].values
 
-    # Assert - Original channels removed
+    # Original channels removed
     assert "Facebook" not in combined.posterior.coords["channel"].values
     assert "Instagram" not in combined.posterior.coords["channel"].values
     assert "Social" not in combined.posterior.coords["channel"].values
 
-    # Assert - Other channels preserved
+    # Other channels preserved
     assert "TV" in combined.posterior.coords["channel"].values
 
 
 def test_aggregate_idata_dims_with_mean_method(multidim_idata):
     """Test dimension aggregation with mean method."""
-    # Arrange & Act
     combined = aggregate_idata_dims(
         multidim_idata,
         dim="channel",
@@ -566,16 +503,13 @@ def test_aggregate_idata_dims_with_mean_method(multidim_idata):
         method="mean",
     )
 
-    # Assert
     assert "Traditional" in combined.posterior.coords["channel"].values
 
 
 def test_aggregate_idata_dims_returns_new_instance(multidim_idata):
     """Test that dimension aggregation returns new InferenceData."""
-    # Arrange
     original_channels = multidim_idata.posterior.coords["channel"].values.copy()
 
-    # Act
     combined = aggregate_idata_dims(
         multidim_idata,
         dim="channel",
@@ -584,18 +518,17 @@ def test_aggregate_idata_dims_returns_new_instance(multidim_idata):
         method="sum",
     )
 
-    # Assert - Original unchanged
+    # Original unchanged
     np.testing.assert_array_equal(
         multidim_idata.posterior.coords["channel"].values, original_channels
     )
 
-    # Assert - Combined is different
+    # Combined is different
     assert combined is not multidim_idata
 
 
 def test_aggregate_idata_dims_raises_on_nonexistent_dimension(multidim_idata):
     """Test that aggregating nonexistent dimension raises ValueError."""
-    # Arrange & Act & Assert
     with pytest.raises(ValueError, match="Dimension 'nonexistent_dim' not found"):
         aggregate_idata_dims(
             multidim_idata,
@@ -613,7 +546,6 @@ def test_aggregate_idata_dims_raises_on_conflicting_new_label(multidim_idata):
     exists as a channel that isn't being aggregated, this should raise an error
     to prevent duplicate coordinate labels.
     """
-    # Arrange & Act & Assert
     with pytest.raises(
         ValueError, match="new_label 'TV' conflicts with existing coordinate value"
     ):
@@ -626,24 +558,16 @@ def test_aggregate_idata_dims_raises_on_conflicting_new_label(multidim_idata):
         )
 
 
-# ============================================================================
-# Category 5: Wrapper Initialization Tests
-# ============================================================================
-
-
 def test_wrapper_init_without_schema(multidim_idata):
     """Test creating wrapper without schema validation."""
-    # Arrange & Act
     wrapper = MMMIDataWrapper(multidim_idata, schema=None, validate_on_init=False)
 
-    # Assert
     assert wrapper.idata is multidim_idata
     assert wrapper.schema is None
 
 
 def test_wrapper_init_with_schema_validates(multidim_idata):
     """Test that wrapper validates on init when schema provided."""
-    # Arrange - Create schema that matches multidim_idata (has custom dims)
     schema = MMMIdataSchema.from_model_config(
         custom_dims=("country",),
         has_controls=False,
@@ -651,37 +575,25 @@ def test_wrapper_init_with_schema_validates(multidim_idata):
         time_varying=False,
     )
 
-    # Act
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=True)
 
-    # Assert - No exception raised (validation passed)
     assert wrapper.schema is schema
 
 
 def test_wrapper_init_caches_instance(multidim_idata):
     """Test that wrapper has cache for expensive operations."""
-    # Arrange & Act
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Assert
     assert hasattr(wrapper, "_cache")
     assert isinstance(wrapper._cache, dict)
 
 
-# ============================================================================
-# Category 6: Data Access Method Tests
-# ============================================================================
-
-
 def test_get_target_returns_target_data(multidim_idata):
     """Test that get_target returns observed target values."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     target = wrapper.get_target(original_scale=True)
 
-    # Assert
     assert isinstance(target, xr.DataArray)
     assert "date" in target.dims
     assert target.sizes["date"] == multidim_idata.constant_data.sizes["date"]
@@ -692,28 +604,22 @@ def test_get_target_returns_target_data(multidim_idata):
 
 def test_get_target_scaled_divides_by_target_scale(multidim_idata):
     """Test that get_target with original_scale=False returns scaled values."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     target_scaled = wrapper.get_target(original_scale=False)
     target_original = wrapper.get_target(original_scale=True)
     target_scale = multidim_idata.constant_data.target_scale
 
-    # Assert - Scaled version should equal original / scale
     expected_scaled = target_original / target_scale
     xr.testing.assert_allclose(target_scaled, expected_scaled)
 
 
 def test_get_channel_spend_returns_channel_data(multidim_idata):
     """Test that get_channel_spend returns channel spend data."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     channel_spend = wrapper.get_channel_spend()
 
-    # Assert
     assert isinstance(channel_spend, xr.DataArray)
     assert "date" in channel_spend.dims
     assert "channel" in channel_spend.dims
@@ -724,13 +630,10 @@ def test_get_channel_spend_returns_channel_data(multidim_idata):
 
 def test_get_channel_contributions_returns_dataarray(multidim_idata):
     """Test that get_channel_contributions returns DataArray with correct dims."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     channel_contrib = wrapper.get_channel_contributions(original_scale=True)
 
-    # Assert
     assert isinstance(channel_contrib, xr.DataArray)
     assert "chain" in channel_contrib.dims
     assert "draw" in channel_contrib.dims
@@ -740,14 +643,11 @@ def test_get_channel_contributions_returns_dataarray(multidim_idata):
 
 def test_get_channel_contributions_with_original_scale(multidim_idata):
     """Test that get_channel_contributions computes original scale correctly."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     channel_contrib_original = wrapper.get_channel_contributions(original_scale=True)
     channel_contrib_scaled = wrapper.get_channel_contributions(original_scale=False)
 
-    # Assert - Original scale should equal scaled * target_scale
     target_scale = multidim_idata.constant_data.target_scale
     # Align coordinates before multiplication to ensure coordinate consistency
     channel_contrib_scaled_aligned, target_scale_aligned = xr.align(
@@ -770,13 +670,10 @@ def test_get_channel_contributions_uses_existing_original_scale_variable(
     idata_with_original_scale,
 ):
     """Test that get_channel_contributions uses existing _original_scale variable."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_original_scale)
 
-    # Act
     channel_contrib = wrapper.get_channel_contributions(original_scale=True)
 
-    # Assert - Should return existing variable directly
     expected = idata_with_original_scale.posterior.channel_contribution_original_scale
     # Align both arrays before comparison to ensure coordinate consistency
     channel_contrib_aligned, expected_aligned = xr.align(
@@ -792,13 +689,10 @@ def test_get_channel_contributions_uses_existing_original_scale_variable(
 
 def test_get_contributions_returns_dataset(multidim_idata):
     """Test that get_contributions returns Dataset with contribution variables."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     contributions = wrapper.get_contributions(original_scale=True)
 
-    # Assert
     assert isinstance(contributions, xr.Dataset)
     assert "channels" in contributions
 
@@ -811,13 +705,10 @@ def test_get_contributions_uses_original_scale_variable_if_exists(
     idata_with_original_scale,
 ):
     """Test that get_contributions uses existing _original_scale variable."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_original_scale)
 
-    # Act
     contributions = wrapper.get_contributions(original_scale=True)
 
-    # Assert - Should use existing variable
     expected = idata_with_original_scale.posterior.channel_contribution_original_scale
     # Align both arrays before comparison to ensure coordinate consistency
     contributions_channel_aligned, expected_aligned = xr.align(
@@ -833,13 +724,10 @@ def test_get_contributions_uses_original_scale_variable_if_exists(
 
 def test_get_contributions_computes_original_scale_on_the_fly(multidim_idata):
     """Test that get_contributions computes original scale if needed."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     contributions = wrapper.get_contributions(original_scale=True)
 
-    # Assert - Should compute on-the-fly
     channel_contrib = multidim_idata.posterior.channel_contribution
     target_scale = multidim_idata.constant_data.target_scale
     # Align coordinates before multiplication to ensure coordinate consistency
@@ -876,10 +764,8 @@ def test_get_contributions_with_options(
     include_seasonality,
 ):
     """Test that get_contributions respects include options."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_all_contributions)
 
-    # Act
     contributions = wrapper.get_contributions(
         original_scale=True,
         include_baseline=include_baseline,
@@ -887,7 +773,6 @@ def test_get_contributions_with_options(
         include_seasonality=include_seasonality,
     )
 
-    # Assert
     assert isinstance(contributions, xr.Dataset)
     assert "channels" in contributions.data_vars  # Always included
 
@@ -914,13 +799,10 @@ def test_get_contributions_with_options(
 
 def test_to_original_scale_with_string_variable_name(multidim_idata):
     """Test to_original_scale with variable name as string."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     original_scale = wrapper.to_original_scale("channel_contribution")
 
-    # Assert
     assert isinstance(original_scale, xr.DataArray)
 
     # Should equal scaled * target_scale
@@ -945,27 +827,21 @@ def test_to_original_scale_with_string_variable_name(multidim_idata):
 
 def test_to_original_scale_with_dataarray(multidim_idata):
     """Test to_original_scale with DataArray."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
     scaled_data = multidim_idata.posterior.channel_contribution
 
-    # Act
     original_scale = wrapper.to_original_scale(scaled_data)
 
-    # Assert
     expected = scaled_data * multidim_idata.constant_data.target_scale
     xr.testing.assert_allclose(original_scale, expected)
 
 
 def test_to_original_scale_uses_existing_variable_if_present(idata_with_original_scale):
     """Test that to_original_scale returns existing _original_scale variable."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_original_scale)
 
-    # Act
     original_scale = wrapper.to_original_scale("channel_contribution")
 
-    # Assert - Should return existing variable, not compute
     xr.testing.assert_equal(
         original_scale,
         idata_with_original_scale.posterior.channel_contribution_original_scale,
@@ -974,13 +850,10 @@ def test_to_original_scale_uses_existing_variable_if_present(idata_with_original
 
 def test_to_original_scale_with_original_scale_variable_name(idata_with_original_scale):
     """Test to_original_scale with _original_scale variable name returns as-is."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_original_scale)
 
-    # Act
     original_scale = wrapper.to_original_scale("channel_contribution_original_scale")
 
-    # Assert - Should return variable directly without transformation
     xr.testing.assert_equal(
         original_scale,
         idata_with_original_scale.posterior.channel_contribution_original_scale,
@@ -989,13 +862,10 @@ def test_to_original_scale_with_original_scale_variable_name(idata_with_original
 
 def test_to_scaled_with_original_scale_variable_name(idata_with_original_scale):
     """Test to_scaled with _original_scale variable name."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_original_scale)
 
-    # Act
     scaled = wrapper.to_scaled("channel_contribution_original_scale")
 
-    # Assert - Should return base scaled variable
     xr.testing.assert_equal(
         scaled, idata_with_original_scale.posterior.channel_contribution
     )
@@ -1003,13 +873,10 @@ def test_to_scaled_with_original_scale_variable_name(idata_with_original_scale):
 
 def test_to_scaled_with_scaled_variable_name(idata_with_original_scale):
     """Test to_scaled with scaled variable name."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_original_scale)
 
-    # Act
     scaled = wrapper.to_scaled("channel_contribution")
 
-    # Assert - Should return base scaled variable
     xr.testing.assert_equal(
         scaled, idata_with_original_scale.posterior.channel_contribution
     )
@@ -1017,7 +884,6 @@ def test_to_scaled_with_scaled_variable_name(idata_with_original_scale):
 
 def test_to_scaled_with_dataarray(multidim_idata):
     """Test to_scaled with DataArray."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
     # Create original scale data
@@ -1026,10 +892,8 @@ def test_to_scaled_with_dataarray(multidim_idata):
         * multidim_idata.constant_data.target_scale
     )
 
-    # Act
     scaled = wrapper.to_scaled(original_data)
 
-    # Assert
     target_scale = multidim_idata.constant_data.target_scale
     # Align coordinates before division to ensure coordinate consistency
     original_data_aligned, target_scale_aligned = xr.align(
@@ -1053,17 +917,13 @@ def test_to_scaled_with_dataarray(multidim_idata):
 
 def test_filter_dates_delegates_to_utility(multidim_idata):
     """Test that filter_dates delegates to standalone utility."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     filtered_wrapper = wrapper.filter_dates("2024-03-01", "2024-06-30")
 
-    # Assert - Returns new wrapper
     assert isinstance(filtered_wrapper, MMMIDataWrapper)
     assert filtered_wrapper is not wrapper
 
-    # Assert - idata is filtered
     assert (
         filtered_wrapper.idata.posterior.sizes["date"]
         < wrapper.idata.posterior.sizes["date"]
@@ -1072,41 +932,32 @@ def test_filter_dates_delegates_to_utility(multidim_idata):
 
 def test_filter_dates_preserves_schema(multidim_idata, basic_schema):
     """Test that filter_dates preserves schema in new wrapper."""
-    # Arrange
     wrapper = MMMIDataWrapper(
         multidim_idata, schema=basic_schema, validate_on_init=False
     )
 
-    # Act
     filtered_wrapper = wrapper.filter_dates("2024-03-01", "2024-06-30")
 
-    # Assert
     assert filtered_wrapper.schema is basic_schema
 
 
 def test_filter_dates_no_validation_on_filtered_wrapper(multidim_idata, basic_schema):
     """Test that filtered wrapper doesn't re-validate on init."""
-    # Arrange
     wrapper = MMMIDataWrapper(
         multidim_idata, schema=basic_schema, validate_on_init=False
     )
 
-    # Act - Should not raise even if filtered idata doesn't match schema
     filtered_wrapper = wrapper.filter_dates("2024-03-01", "2024-06-30")
 
-    # Assert - New wrapper created without validation
     assert filtered_wrapper is not wrapper
 
 
 def test_filter_dims_delegates_to_utility(multidim_idata):
     """Test that filter_dims delegates to standalone utility."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     filtered_wrapper = wrapper.filter_dims(channel="TV")
 
-    # Assert
     assert isinstance(filtered_wrapper, MMMIDataWrapper)
     assert filtered_wrapper is not wrapper
     # Dimension should be dropped when filtering to single value
@@ -1115,13 +966,10 @@ def test_filter_dims_delegates_to_utility(multidim_idata):
 
 def test_filter_dims_with_multiple_filters(multidim_idata):
     """Test filtering by multiple dimensions simultaneously."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     filtered_wrapper = wrapper.filter_dims(channel="TV", country="US")
 
-    # Assert - Both dimensions should be dropped when filtering to single values
     assert "channel" not in filtered_wrapper.idata.posterior.dims
     assert "country" not in filtered_wrapper.idata.posterior.dims
 
@@ -1150,7 +998,6 @@ def test_filter_dims_schema_nullification(
     multidim_idata, dim_filters, expect_schema_none
 ):
     """Test that filter_dims nullifies schema only when a dimension is dropped."""
-    # Arrange - Create schema matching multidim_idata (has custom dims)
     schema = MMMIdataSchema.from_model_config(
         custom_dims=("country",),
         has_controls=False,
@@ -1159,10 +1006,8 @@ def test_filter_dims_schema_nullification(
     )
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
 
-    # Act
     filtered = wrapper.filter_dims(**dim_filters)
 
-    # Assert
     if expect_schema_none:
         assert filtered.schema is None
     else:
@@ -1176,13 +1021,10 @@ def test_filter_dims_schema_nullification(
 
 def test_aggregate_time_delegates_to_utility(multidim_idata):
     """Test that aggregate_time delegates to standalone utility."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     monthly_wrapper = wrapper.aggregate_time(period="monthly", method="sum")
 
-    # Assert
     assert isinstance(monthly_wrapper, MMMIDataWrapper)
     assert monthly_wrapper is not wrapper
     assert monthly_wrapper.idata.posterior.sizes["date"] <= 12
@@ -1190,7 +1032,6 @@ def test_aggregate_time_delegates_to_utility(multidim_idata):
 
 def test_aggregate_time_all_time_sets_schema_none(multidim_idata):
     """Test that all_time aggregation sets schema=None."""
-    # Arrange - Use schema that matches multidim_idata (has custom dims)
     schema = MMMIdataSchema.from_model_config(
         custom_dims=("country",),
         has_controls=False,
@@ -1199,20 +1040,16 @@ def test_aggregate_time_all_time_sets_schema_none(multidim_idata):
     )
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
 
-    # Act
     total_wrapper = wrapper.aggregate_time(period="all_time", method="sum")
 
-    # Assert - Schema set to None (date dimension removed)
     assert total_wrapper.schema is None
     assert "date" not in total_wrapper.idata.posterior.dims
 
 
 def test_aggregate_dims_delegates_to_utility(multidim_idata):
     """Test that aggregate_dims delegates to standalone utility."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     combined_wrapper = wrapper.aggregate_dims(
         dim="channel",
         values=["Facebook", "Instagram"],
@@ -1220,7 +1057,6 @@ def test_aggregate_dims_delegates_to_utility(multidim_idata):
         method="sum",
     )
 
-    # Assert
     assert isinstance(combined_wrapper, MMMIDataWrapper)
     assert combined_wrapper is not wrapper
     assert "SocialCombined" in combined_wrapper.idata.posterior.coords["channel"].values
@@ -1233,13 +1069,10 @@ def test_aggregate_dims_delegates_to_utility(multidim_idata):
 
 def test_compute_posterior_summary_returns_dataframe(multidim_idata):
     """Test that compute_posterior_summary returns DataFrame."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     summary = wrapper.compute_posterior_summary("channel_contribution", hdi_prob=0.94)
 
-    # Assert
     assert isinstance(summary, pd.DataFrame)
 
     # Should have standard arviz.summary columns
@@ -1251,15 +1084,12 @@ def test_compute_posterior_summary_returns_dataframe(multidim_idata):
 
 def test_compute_posterior_summary_with_original_scale(multidim_idata):
     """Test compute_posterior_summary with original_scale=True."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     summary = wrapper.compute_posterior_summary(
         "channel_contribution", original_scale=True
     )
 
-    # Assert - Values should be larger (unscaled)
     assert isinstance(summary, pd.DataFrame)
     # Mean should be approximately equal to scaled mean * target_scale
     # (This is a basic sanity check, exact values depend on data)
@@ -1272,7 +1102,6 @@ def test_compute_posterior_summary_with_original_scale(multidim_idata):
 
 def test_validate_returns_error_list(multidim_idata):
     """Test that validate returns list of validation errors."""
-    # Arrange - Use schema that matches multidim_idata (has custom dims)
     schema = MMMIdataSchema.from_model_config(
         custom_dims=("country",),
         has_controls=False,
@@ -1281,10 +1110,8 @@ def test_validate_returns_error_list(multidim_idata):
     )
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
 
-    # Act
     errors = wrapper.validate()
 
-    # Assert
     assert isinstance(errors, list)
     # For valid idata, should be empty
     assert errors == []
@@ -1292,7 +1119,6 @@ def test_validate_returns_error_list(multidim_idata):
 
 def test_validate_or_raise_raises_on_error(multidim_idata):
     """Test that validate_or_raise raises ValueError on validation failure."""
-    # Arrange - Create schema that won't match idata (wrong dims)
     schema = MMMIdataSchema.from_model_config(
         custom_dims=("nonexistent_dim",),  # Wrong dims
         has_controls=False,
@@ -1301,14 +1127,12 @@ def test_validate_or_raise_raises_on_error(multidim_idata):
     )
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="idata validation failed"):
         wrapper.validate_or_raise()
 
 
 def test_validate_or_raise_silent_on_success(multidim_idata):
     """Test that validate_or_raise returns None on success."""
-    # Arrange - Create schema that matches idata
     schema = MMMIdataSchema.from_model_config(
         custom_dims=("country",),
         has_controls=False,
@@ -1317,19 +1141,15 @@ def test_validate_or_raise_silent_on_success(multidim_idata):
     )
     wrapper = MMMIDataWrapper(multidim_idata, schema=schema, validate_on_init=False)
 
-    # Act
     result = wrapper.validate_or_raise()
 
-    # Assert
     assert result is None
 
 
 def test_validate_or_raise_raises_when_no_schema(multidim_idata):
     """Test that validate_or_raise raises when schema is None."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata, schema=None)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="No schema provided"):
         wrapper.validate_or_raise()
 
@@ -1341,26 +1161,20 @@ def test_validate_or_raise_raises_when_no_schema(multidim_idata):
 
 def test_dates_property_returns_datetimeindex(multidim_idata):
     """Test that dates property returns pandas DatetimeIndex."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     dates = wrapper.dates
 
-    # Assert
     assert isinstance(dates, pd.DatetimeIndex)
     assert len(dates) == multidim_idata.constant_data.sizes["date"]
 
 
 def test_channels_property_returns_list(multidim_idata):
     """Test that channels property returns list."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     channels = wrapper.channels
 
-    # Assert
     assert isinstance(channels, list)
     assert len(channels) == multidim_idata.constant_data.sizes["channel"]
     assert channels == multidim_idata.constant_data.coords["channel"].values.tolist()
@@ -1368,13 +1182,10 @@ def test_channels_property_returns_list(multidim_idata):
 
 def test_custom_dims_property_returns_custom_dimensions(multidim_idata):
     """Test that custom_dims property returns custom dimension names."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     custom_dims = wrapper.custom_dims
 
-    # Assert
     assert isinstance(custom_dims, list)
 
     # Should include custom dims like "country", but not standard ones
@@ -1390,21 +1201,17 @@ def test_custom_dims_property_returns_custom_dimensions(multidim_idata):
 
 def test_mmm_data_property_returns_wrapper(fitted_mmm):
     """Test that MMM.data property returns wrapper."""
-    # Arrange & Act
     wrapper = fitted_mmm.data
 
-    # Assert
     assert isinstance(wrapper, MMMIDataWrapper)
     assert wrapper.idata is fitted_mmm.idata
 
 
 def test_mmm_data_property_returns_fresh_wrapper(fitted_mmm):
     """Test that .data property returns fresh wrapper on each access."""
-    # Arrange & Act
     wrapper1 = fitted_mmm.data
     wrapper2 = fitted_mmm.data
 
-    # Assert - Different instances returned (no caching)
     assert wrapper1 is not wrapper2
 
     # But both wrap the same idata
@@ -1413,10 +1220,8 @@ def test_mmm_data_property_returns_fresh_wrapper(fitted_mmm):
 
 def test_mmm_data_property_creates_schema_from_config(fitted_mmm_with_controls):
     """Test that .data creates schema from model config."""
-    # Arrange & Act
     wrapper = fitted_mmm_with_controls.data
 
-    # Assert - Schema created with appropriate config
     assert wrapper.schema is not None
 
     # Schema should reflect model config (has_controls=True)
@@ -1428,10 +1233,8 @@ def test_mmm_data_property_creates_schema_from_config(fitted_mmm_with_controls):
 
 def test_mmm_data_property_does_not_validate_on_every_access(fitted_mmm):
     """Test that .data property doesn't validate on every access."""
-    # Arrange & Act
     wrapper = fitted_mmm.data
 
-    # Assert - validate_on_init was False (no exception raised)
     # We can't directly check the init parameter, but if validation
     # happened every time, this would be slow/fail on invalid data
     assert wrapper is not None
@@ -1502,7 +1305,6 @@ def test_compare_coords_detects_aggregated_labels(multidim_idata):
 
 def test_filter_idata_by_dates_preserves_groups_without_date_dim():
     """Test that groups without date dimension are preserved unchanged."""
-    # Arrange - Create idata with a group that has no date dimension
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1526,10 +1328,8 @@ def test_filter_idata_by_dates_preserves_groups_without_date_dim():
         ),
     )
 
-    # Act
     filtered = filter_idata_by_dates(idata, "2024-02-01", "2024-03-01")
 
-    # Assert - sample_stats preserved unchanged
     assert hasattr(filtered, "sample_stats")
     assert "date" not in filtered.sample_stats.dims
     xr.testing.assert_equal(filtered.sample_stats.lp, idata.sample_stats.lp)
@@ -1537,7 +1337,6 @@ def test_filter_idata_by_dates_preserves_groups_without_date_dim():
 
 def test_aggregate_idata_time_all_time_mean_method():
     """Test all_time aggregation with mean method."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1552,10 +1351,8 @@ def test_aggregate_idata_time_all_time_mean_method():
         ),
     )
 
-    # Act
     aggregated = aggregate_idata_time(idata, period="all_time", method="mean")
 
-    # Assert - date dimension removed
     assert "date" not in aggregated.posterior.dims
 
     # Mean of 5s should be 5
@@ -1564,7 +1361,6 @@ def test_aggregate_idata_time_all_time_mean_method():
 
 def test_aggregate_idata_time_all_time_preserves_groups_without_date():
     """Test that all_time aggregation preserves groups without date dimension."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1587,16 +1383,13 @@ def test_aggregate_idata_time_all_time_preserves_groups_without_date():
         ),
     )
 
-    # Act
     aggregated = aggregate_idata_time(idata, period="all_time", method="sum")
 
-    # Assert - sample_stats preserved unchanged
     xr.testing.assert_equal(aggregated.sample_stats.lp, idata.sample_stats.lp)
 
 
 def test_aggregate_idata_time_all_time_unknown_method_raises():
     """Test that unknown aggregation method raises ValueError for all_time."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1611,14 +1404,12 @@ def test_aggregate_idata_time_all_time_unknown_method_raises():
         ),
     )
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Unknown aggregation method"):
         aggregate_idata_time(idata, period="all_time", method="invalid")
 
 
 def test_aggregate_idata_time_periodic_preserves_groups_without_date():
     """Test that periodic aggregation preserves groups without date dimension."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
 
     idata = az.InferenceData(
@@ -1641,16 +1432,13 @@ def test_aggregate_idata_time_periodic_preserves_groups_without_date():
         ),
     )
 
-    # Act
     aggregated = aggregate_idata_time(idata, period="monthly", method="sum")
 
-    # Assert - sample_stats preserved unchanged
     xr.testing.assert_equal(aggregated.sample_stats.lp, idata.sample_stats.lp)
 
 
 def test_aggregate_idata_time_periodic_unknown_method_raises():
     """Test that unknown aggregation method raises ValueError for periodic."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
 
     idata = az.InferenceData(
@@ -1665,14 +1453,12 @@ def test_aggregate_idata_time_periodic_unknown_method_raises():
         ),
     )
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Unknown aggregation method"):
         aggregate_idata_time(idata, period="monthly", method="invalid")
 
 
 def test_aggregate_idata_dims_unknown_method_raises():
     """Test that unknown aggregation method raises ValueError in aggregate_idata_dims."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
@@ -1688,7 +1474,6 @@ def test_aggregate_idata_dims_unknown_method_raises():
         ),
     )
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Unknown aggregation method"):
         aggregate_idata_dims(
             idata,
@@ -1701,7 +1486,6 @@ def test_aggregate_idata_dims_unknown_method_raises():
 
 def test_aggregate_idata_dims_all_values_aggregated():
     """Test aggregating all values in a dimension (no other_values)."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
@@ -1717,7 +1501,6 @@ def test_aggregate_idata_dims_all_values_aggregated():
         ),
     )
 
-    # Act - Aggregate ALL channels into one
     combined = aggregate_idata_dims(
         idata,
         dim="channel",
@@ -1726,7 +1509,6 @@ def test_aggregate_idata_dims_all_values_aggregated():
         method="sum",
     )
 
-    # Assert - Only "All" channel should exist
     assert list(combined.posterior.coords["channel"].values) == ["All"]
     assert combined.posterior.sizes["channel"] == 1
 
@@ -1735,13 +1517,11 @@ def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim
     multidim_idata,
 ):
     """Test that variables without the aggregated dimension keep their original dims."""
-    # Arrange - Add a variable with only ('date',) dims to the existing fixture
     idata = multidim_idata
 
     # Sanity check - dayofyear should have only ('date',) dims before aggregation
     assert idata.constant_data.dayofyear.dims == ("date",)
 
-    # Act - Aggregate US and UK into combined_region
     aggregated = aggregate_idata_dims(
         idata,
         dim="country",
@@ -1750,7 +1530,6 @@ def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim
         method="sum",
     )
 
-    # Assert - dayofyear should STILL have only ('date',) dims, NOT ('country', 'date')
     assert aggregated.constant_data.dayofyear.dims == ("date",), (
         f"Expected dayofyear dims to be ('date',), "
         f"but got {aggregated.constant_data.dayofyear.dims}. "
@@ -1766,7 +1545,6 @@ def test_aggregate_idata_dims_preserves_dims_of_variables_without_aggregated_dim
 
 def test_get_target_raises_when_target_data_missing():
     """Test that get_target raises when constant_data/target_data is missing."""
-    # Arrange - Create idata without constant_data/target_data
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1783,14 +1561,12 @@ def test_get_target_raises_when_target_data_missing():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Target data not found in constant_data"):
         wrapper.get_target()
 
 
 def test_get_channel_spend_raises_when_channel_data_missing():
     """Test that get_channel_spend raises when channel_data is missing."""
-    # Arrange - Create idata without constant_data/channel_data
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -1807,17 +1583,14 @@ def test_get_channel_spend_raises_when_channel_data_missing():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Channel data not found in constant_data"):
         wrapper.get_channel_spend()
 
 
 def test_get_contributions_baseline_scaled(idata_with_all_contributions):
     """Test get_contributions with baseline in scaled space (original_scale=False)."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_all_contributions)
 
-    # Act
     contributions = wrapper.get_contributions(
         original_scale=False,
         include_baseline=True,
@@ -1825,7 +1598,6 @@ def test_get_contributions_baseline_scaled(idata_with_all_contributions):
         include_seasonality=False,
     )
 
-    # Assert
     assert "baseline" in contributions
     # Baseline should be the raw value (not multiplied by target_scale)
     xr.testing.assert_equal(
@@ -1836,7 +1608,6 @@ def test_get_contributions_baseline_scaled(idata_with_all_contributions):
 
 def test_get_contributions_controls_with_original_scale_variable():
     """Test get_contributions uses existing control_contribution_original_scale."""
-    # Arrange - Create idata with control_contribution_original_scale
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
     controls = ["price"]
@@ -1878,7 +1649,6 @@ def test_get_contributions_controls_with_original_scale_variable():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act
     contributions = wrapper.get_contributions(
         original_scale=True,
         include_baseline=False,
@@ -1886,7 +1656,6 @@ def test_get_contributions_controls_with_original_scale_variable():
         include_seasonality=False,
     )
 
-    # Assert - Should use existing original scale variable
     # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
     np.testing.assert_array_equal(
         contributions["controls"].values,
@@ -1896,10 +1665,8 @@ def test_get_contributions_controls_with_original_scale_variable():
 
 def test_get_contributions_controls_scaled(idata_with_all_contributions):
     """Test get_contributions with controls in scaled space (original_scale=False)."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_all_contributions)
 
-    # Act
     contributions = wrapper.get_contributions(
         original_scale=False,
         include_baseline=False,
@@ -1907,7 +1674,6 @@ def test_get_contributions_controls_scaled(idata_with_all_contributions):
         include_seasonality=False,
     )
 
-    # Assert
     assert "controls" in contributions
     # Control should be the raw value (not multiplied by target_scale)
     # Compare values directly since xr.testing.assert_equal is strict about coordinate objects
@@ -1919,7 +1685,6 @@ def test_get_contributions_controls_scaled(idata_with_all_contributions):
 
 def test_get_contributions_seasonality_with_original_scale_variable():
     """Test get_contributions uses existing yearly_seasonality_contribution_original_scale."""
-    # Arrange - Create idata with yearly_seasonality_contribution_original_scale
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
@@ -1957,7 +1722,6 @@ def test_get_contributions_seasonality_with_original_scale_variable():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act
     contributions = wrapper.get_contributions(
         original_scale=True,
         include_baseline=False,
@@ -1965,7 +1729,6 @@ def test_get_contributions_seasonality_with_original_scale_variable():
         include_seasonality=True,
     )
 
-    # Assert - Should use existing original scale variable
     xr.testing.assert_equal(
         contributions["seasonality"],
         idata.posterior.yearly_seasonality_contribution_original_scale,
@@ -1974,10 +1737,8 @@ def test_get_contributions_seasonality_with_original_scale_variable():
 
 def test_get_contributions_seasonality_scaled(idata_with_all_contributions):
     """Test get_contributions with seasonality in scaled space (original_scale=False)."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_with_all_contributions)
 
-    # Act
     contributions = wrapper.get_contributions(
         original_scale=False,
         include_baseline=False,
@@ -1985,7 +1746,6 @@ def test_get_contributions_seasonality_scaled(idata_with_all_contributions):
         include_seasonality=True,
     )
 
-    # Assert
     assert "seasonality" in contributions
     # Seasonality should be the raw value (not multiplied by target_scale)
     xr.testing.assert_equal(
@@ -1996,7 +1756,6 @@ def test_get_contributions_seasonality_scaled(idata_with_all_contributions):
 
 def test_to_original_scale_raises_when_original_scale_var_not_found():
     """Test to_original_scale raises when _original_scale variable doesn't exist."""
-    # Arrange - Create idata without the _original_scale variable
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2018,14 +1777,12 @@ def test_to_original_scale_raises_when_original_scale_var_not_found():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert - Request a var that ends with _original_scale but doesn't exist
     with pytest.raises(ValueError, match="not found in posterior"):
         wrapper.to_original_scale("nonexistent_original_scale")
 
 
 def test_to_original_scale_raises_when_var_not_found():
     """Test to_original_scale raises when variable doesn't exist."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2047,14 +1804,12 @@ def test_to_original_scale_raises_when_var_not_found():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
         wrapper.to_original_scale("nonexistent")
 
 
 def test_to_scaled_raises_when_base_var_not_found():
     """Test to_scaled raises when base variable for _original_scale doesn't exist."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2077,14 +1832,12 @@ def test_to_scaled_raises_when_base_var_not_found():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert - Looking for base var 'nonexistent' which doesn't exist
     with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
         wrapper.to_scaled("nonexistent_original_scale")
 
 
 def test_to_scaled_raises_when_var_not_found():
     """Test to_scaled raises when variable doesn't exist."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2106,14 +1859,12 @@ def test_to_scaled_raises_when_var_not_found():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
         wrapper.to_scaled("nonexistent")
 
 
 def test_compute_posterior_summary_scaled_raises_when_var_not_found():
     """Test compute_posterior_summary with original_scale=False raises when var not found."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2135,24 +1886,20 @@ def test_compute_posterior_summary_scaled_raises_when_var_not_found():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Variable 'nonexistent' not found"):
         wrapper.compute_posterior_summary("nonexistent", original_scale=False)
 
 
 def test_compute_posterior_summary_scaled_returns_dataframe(multidim_idata):
     """Test compute_posterior_summary with original_scale=False returns DataFrame."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act - Request summary in scaled space (not original scale)
     summary = wrapper.compute_posterior_summary(
         "channel_contribution",
         hdi_prob=0.94,
         original_scale=False,
     )
 
-    # Assert
     assert isinstance(summary, pd.DataFrame)
     assert "mean" in summary.columns
     assert "sd" in summary.columns
@@ -2160,7 +1907,6 @@ def test_compute_posterior_summary_scaled_returns_dataframe(multidim_idata):
 
 def test_validate_raises_when_no_schema():
     """Test validate raises when no schema provided."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2177,14 +1923,12 @@ def test_validate_raises_when_no_schema():
 
     wrapper = MMMIDataWrapper(idata, schema=None)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="No schema provided"):
         wrapper.validate()
 
 
 def test_dates_property_from_posterior_when_no_constant_data():
     """Test dates property falls back to posterior when constant_data missing."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2201,10 +1945,8 @@ def test_dates_property_from_posterior_when_no_constant_data():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act
     result_dates = wrapper.dates
 
-    # Assert
     assert isinstance(result_dates, pd.DatetimeIndex)
     assert len(result_dates) == 10
     np.testing.assert_array_equal(result_dates, dates)
@@ -2212,7 +1954,6 @@ def test_dates_property_from_posterior_when_no_constant_data():
 
 def test_dates_property_raises_when_no_date_coord():
     """Test dates property raises when no date coordinate found."""
-    # Arrange - Create idata with no date dimension
     idata = az.InferenceData(
         sample_stats=xr.Dataset(
             {
@@ -2226,14 +1967,12 @@ def test_dates_property_raises_when_no_date_coord():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Could not find date coordinate"):
         _ = wrapper.dates
 
 
 def test_channels_property_from_posterior_when_no_constant_data():
     """Test channels property falls back to posterior when constant_data missing."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio", "Facebook"]
 
@@ -2251,17 +1990,14 @@ def test_channels_property_from_posterior_when_no_constant_data():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act
     result_channels = wrapper.channels
 
-    # Assert
     assert isinstance(result_channels, list)
     assert result_channels == channels
 
 
 def test_channels_property_raises_when_no_channel_coord():
     """Test channels property raises when no channel coordinate found."""
-    # Arrange - Create idata with no channel dimension (neither constant_data nor posterior)
     idata = az.InferenceData(
         sample_stats=xr.Dataset(
             {
@@ -2275,14 +2011,12 @@ def test_channels_property_raises_when_no_channel_coord():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Could not find channel coordinate"):
         _ = wrapper.channels
 
 
 def test_custom_dims_returns_empty_when_no_constant_data():
     """Test custom_dims returns empty list when no constant_data."""
-    # Arrange
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2299,34 +2033,26 @@ def test_custom_dims_returns_empty_when_no_constant_data():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act
     custom_dims = wrapper.custom_dims
 
-    # Assert
     assert custom_dims == []
 
 
 def test_filter_dates_wrapper_returns_self_when_none(multidim_idata):
     """Test filter_dates wrapper method returns self when both dates are None."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     result = wrapper.filter_dates(None, None)
 
-    # Assert - Same wrapper returned
     assert result is wrapper
 
 
 def test_filter_dims_wrapper_returns_self_when_no_filters(multidim_idata):
     """Test filter_dims wrapper method returns self when no filters provided."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     result = wrapper.filter_dims()
 
-    # Assert - Same wrapper returned
     assert result is wrapper
 
 
@@ -2337,20 +2063,16 @@ def test_filter_dims_wrapper_returns_self_when_no_filters(multidim_idata):
 
 def test_get_channel_scale_returns_scale_array(multidim_idata):
     """Test that get_channel_scale returns channel scale DataArray."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     channel_scale = wrapper.get_channel_scale()
 
-    # Assert
     assert isinstance(channel_scale, xr.DataArray)
     xr.testing.assert_equal(channel_scale, multidim_idata.constant_data.channel_scale)
 
 
 def test_get_channel_scale_raises_when_missing():
     """Test that get_channel_scale raises when channel_scale is missing."""
-    # Arrange - Create idata without channel_scale
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2377,27 +2099,22 @@ def test_get_channel_scale_raises_when_missing():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="channel_scale not found in constant_data"):
         wrapper.get_channel_scale()
 
 
 def test_get_target_scale_returns_scale_array(multidim_idata):
     """Test that get_target_scale returns target scale DataArray."""
-    # Arrange
     wrapper = MMMIDataWrapper(multidim_idata)
 
-    # Act
     target_scale = wrapper.get_target_scale()
 
-    # Assert
     assert isinstance(target_scale, xr.DataArray)
     xr.testing.assert_equal(target_scale, multidim_idata.constant_data.target_scale)
 
 
 def test_get_target_scale_raises_when_missing():
     """Test that get_target_scale raises when target_scale is missing."""
-    # Arrange - Create idata without target_scale
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
     idata = az.InferenceData(
@@ -2424,7 +2141,6 @@ def test_get_target_scale_raises_when_missing():
 
     wrapper = MMMIDataWrapper(idata)
 
-    # Act & Assert
     with pytest.raises(ValueError, match="target_scale not found in constant_data"):
         wrapper.get_target_scale()
 
@@ -2477,10 +2193,8 @@ def test_get_target_scaled_raises_valueerror_when_target_scale_missing(
     idata_without_target_scale,
 ):
     """Test that get_target raises ValueError (not AttributeError) when target_scale is missing."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
 
-    # Act & Assert - Should raise ValueError with helpful message
     with pytest.raises(ValueError, match="target_scale not found in constant_data"):
         wrapper.get_target(original_scale=False)
 
@@ -2489,13 +2203,10 @@ def test_get_target_original_scale_works_without_target_scale(
     idata_without_target_scale,
 ):
     """Test that get_target with original_scale=True works even without target_scale."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
 
-    # Act - Should work since we don't need target_scale for original_scale=True
     result = wrapper.get_target(original_scale=True)
 
-    # Assert
     assert isinstance(result, xr.DataArray)
 
 
@@ -2503,10 +2214,8 @@ def test_get_contributions_raises_valueerror_when_target_scale_missing(
     idata_without_target_scale,
 ):
     """Test that get_contributions raises ValueError when target_scale is missing and needed."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
 
-    # Act & Assert - Should raise ValueError with helpful message
     with pytest.raises(ValueError, match="target_scale not found in constant_data"):
         wrapper.get_contributions(original_scale=True)
 
@@ -2515,13 +2224,10 @@ def test_get_contributions_scaled_works_without_target_scale(
     idata_without_target_scale,
 ):
     """Test that get_contributions with original_scale=False works without target_scale."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
 
-    # Act - Should work since we don't need target_scale for original_scale=False
     result = wrapper.get_contributions(original_scale=False)
 
-    # Assert
     assert isinstance(result, xr.Dataset)
     assert "channel" in result
 
@@ -2530,10 +2236,8 @@ def test_to_original_scale_raises_valueerror_when_target_scale_missing(
     idata_without_target_scale,
 ):
     """Test that to_original_scale raises ValueError (not AttributeError) when target_scale missing."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
 
-    # Act & Assert - Should raise ValueError with helpful message
     with pytest.raises(ValueError, match="target_scale not found in constant_data"):
         wrapper.to_original_scale("mu")
 
@@ -2542,11 +2246,9 @@ def test_to_original_scale_dataarray_raises_valueerror_when_target_scale_missing
     idata_without_target_scale,
 ):
     """Test that to_original_scale with DataArray raises ValueError when target_scale missing."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
     data = idata_without_target_scale.posterior.mu
 
-    # Act & Assert - Should raise ValueError with helpful message
     with pytest.raises(ValueError, match="target_scale not found in constant_data"):
         wrapper.to_original_scale(data)
 
@@ -2555,23 +2257,185 @@ def test_to_scaled_dataarray_raises_valueerror_when_target_scale_missing(
     idata_without_target_scale,
 ):
     """Test that to_scaled with DataArray raises ValueError when target_scale missing."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
     data = idata_without_target_scale.posterior.mu
 
-    # Act & Assert - Should raise ValueError with helpful message
     with pytest.raises(ValueError, match="target_scale not found in constant_data"):
         wrapper.to_scaled(data)
 
 
 def test_to_scaled_string_works_without_target_scale(idata_without_target_scale):
     """Test that to_scaled with string variable works without target_scale."""
-    # Arrange
     wrapper = MMMIDataWrapper(idata_without_target_scale)
 
-    # Act - Should work since we're just returning the posterior variable
     result = wrapper.to_scaled("mu")
 
-    # Assert
     assert isinstance(result, xr.DataArray)
     xr.testing.assert_equal(result, idata_without_target_scale.posterior.mu)
+
+
+_log_rng = np.random.default_rng(seed=sum(map(ord, "log_link_tests")))
+
+
+@pytest.fixture(scope="module")
+def idata_log_link_with_all_contributions() -> az.InferenceData:
+    """InferenceData for a log-link model with controls and seasonality."""
+    dates = pd.date_range("2024-01-01", periods=20, freq="W")
+    channels = ["TV", "Radio"]
+    controls = ["price", "promotion"]
+    countries = ["US", "UK"]
+
+    n_chains, n_draws, n_dates, n_countries, n_channels = 2, 5, 20, 2, 2
+
+    channel_contrib = np.abs(
+        _log_rng.normal(
+            0.3, 0.1, size=(n_chains, n_draws, n_dates, n_countries, n_channels)
+        )
+    )
+    intercept = _log_rng.normal(
+        5.0, 0.1, size=(n_chains, n_draws, n_dates, n_countries)
+    )
+    control_contrib = _log_rng.normal(
+        0.0, 0.05, size=(n_chains, n_draws, n_dates, n_countries, 2)
+    )
+    seasonality = _log_rng.normal(
+        0.0, 0.1, size=(n_chains, n_draws, n_dates, n_countries)
+    )
+
+    mu = (
+        intercept
+        + channel_contrib.sum(axis=-1)
+        + control_contrib.sum(axis=-1)
+        + seasonality
+    )
+
+    return az.InferenceData(
+        attrs={"link": "log"},
+        constant_data=xr.Dataset(
+            {
+                "channel_data": xr.DataArray(
+                    _log_rng.uniform(0, 100, size=(n_dates, n_countries, n_channels)),
+                    dims=("date", "country", "channel"),
+                    coords={"date": dates, "country": countries, "channel": channels},
+                ),
+                "target_data": xr.DataArray(
+                    _log_rng.uniform(100, 1000, size=(n_dates, n_countries)),
+                    dims=("date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+                "channel_scale": xr.DataArray(
+                    _log_rng.uniform(50, 150, size=(n_countries, n_channels)),
+                    dims=("country", "channel"),
+                    coords={"country": countries, "channel": channels},
+                ),
+                "target_scale": xr.DataArray(
+                    [500.0, 550.0],
+                    dims=("country",),
+                    coords={"country": countries},
+                ),
+            }
+        ),
+        posterior=xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    channel_contrib,
+                    dims=("chain", "draw", "date", "country", "channel"),
+                    coords={"date": dates, "country": countries, "channel": channels},
+                ),
+                "intercept_contribution": xr.DataArray(
+                    intercept,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+                "control_contribution": xr.DataArray(
+                    control_contrib,
+                    dims=("chain", "draw", "date", "country", "control"),
+                    coords={"date": dates, "country": countries, "control": controls},
+                ),
+                "yearly_seasonality_contribution": xr.DataArray(
+                    seasonality,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+                "mu": xr.DataArray(
+                    mu,
+                    dims=("chain", "draw", "date", "country"),
+                    coords={"date": dates, "country": countries},
+                ),
+            }
+        ),
+    )
+
+
+def test_log_link_contributions_only_channels_and_baseline(
+    idata_log_link_with_all_contributions,
+):
+    """Log-link get_contributions must not return controls or seasonality."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(original_scale=True)
+
+    assert isinstance(result, xr.Dataset)
+    assert "channels" in result.data_vars
+    assert "baseline" in result.data_vars
+    assert "controls" not in result.data_vars
+    assert "seasonality" not in result.data_vars
+
+
+def test_log_link_contributions_no_baseline_when_excluded(
+    idata_log_link_with_all_contributions,
+):
+    """Log-link get_contributions with include_baseline=False omits baseline."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(
+        original_scale=True,
+        include_baseline=False,
+    )
+
+    assert "channels" in result.data_vars
+    assert "baseline" not in result.data_vars
+
+
+def test_log_link_contributions_conservation(
+    idata_log_link_with_all_contributions,
+):
+    """channels.sum('channel') + baseline must equal exp(mu) * target_scale."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(original_scale=True)
+
+    posterior = idata_log_link_with_all_contributions.posterior
+    target_scale = idata_log_link_with_all_contributions.constant_data.target_scale
+    y_hat = np.exp(posterior["mu"]) * target_scale
+
+    reconstructed = result["channels"].sum(dim="channel") + result["baseline"]
+
+    xr.testing.assert_allclose(reconstructed, y_hat)
+
+
+def test_log_link_contributions_baseline_original_scale(
+    idata_log_link_with_all_contributions,
+):
+    """Baseline equals exp(mu - media_total_log) * target_scale per draw."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    result = wrapper.get_contributions(original_scale=True)
+
+    posterior = idata_log_link_with_all_contributions.posterior
+    target_scale = idata_log_link_with_all_contributions.constant_data.target_scale
+    media_total_log = posterior["channel_contribution"].sum(dim="channel")
+    expected_baseline = np.exp(posterior["mu"] - media_total_log) * target_scale
+    xr.testing.assert_allclose(
+        result["baseline"],
+        expected_baseline,
+    )
+
+
+def test_log_link_get_contributions_warns_when_controls_or_seasonality_flags_ignored(
+    idata_log_link_with_all_contributions,
+):
+    """Warn when controls/seasonality flags are ignored for log-link original scale."""
+    wrapper = MMMIDataWrapper(idata_log_link_with_all_contributions)
+    with pytest.warns(UserWarning, match="ignored"):
+        wrapper.get_contributions(
+            original_scale=True,
+            include_controls=False,
+            include_seasonality=False,
+        )

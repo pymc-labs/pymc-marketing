@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any, Literal
 
 import arviz as az
@@ -23,6 +24,10 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.mmm.decomposition import (
+    original_scale_prediction_from_mu,
+    safe_proportional_share,
+)
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.multidimensional import MMM
@@ -395,6 +400,12 @@ class MMMIDataWrapper:
 
     # ==================== Contribution Access ====================
 
+    @property
+    def _link(self) -> str:
+        """Detect the link function from idata attributes, defaulting to 'identity'."""
+        attrs = getattr(self.idata, "attrs", {})
+        return attrs.get("link", "identity")
+
     def get_channel_contributions(self, original_scale: bool = True) -> xr.DataArray:
         """Get channel contribution posterior samples.
 
@@ -419,7 +430,6 @@ class MMMIDataWrapper:
             include_controls=False,
             include_seasonality=False,
         )
-        # Extract from Dataset - xarray preserves coordinate structure
         return contributions["channels"]
 
     def get_contributions(
@@ -430,6 +440,11 @@ class MMMIDataWrapper:
         include_seasonality: bool = True,
     ) -> xr.Dataset:
         """Get all contribution variables in a single dataset.
+
+        For identity-link models, contributions are computed by multiplying
+        log-space values by ``target_scale``.  For log-link models, a hybrid
+        decomposition is used: counterfactual total media lift with
+        proportional log-space channel shares.
 
         Parameters
         ----------
@@ -452,27 +467,48 @@ class MMMIDataWrapper:
         ValueError
             If original_scale=True and target_scale is not found in constant_data
         """
-        contributions = {}
+        if self._link == "log" and original_scale:
+            if not include_controls or not include_seasonality:
+                warnings.warn(
+                    "For log-link models with original_scale=True, "
+                    "controls and seasonality are embedded in baseline and "
+                    "cannot be separately toggled. "
+                    "Arguments include_controls/include_seasonality are ignored.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            return self._get_contributions_log_link(
+                include_baseline=include_baseline,
+            )
+        return self._get_contributions_identity(
+            original_scale=original_scale,
+            include_baseline=include_baseline,
+            include_controls=include_controls,
+            include_seasonality=include_seasonality,
+        )
 
-        # Channel contributions
-        # Channels variables - use "channels" (plural) as key to avoid xarray
-        # dimension/key name conflict (a key matching a dimension name gets
-        # promoted to a coordinate instead of staying as a data variable)
+    def _get_contributions_identity(
+        self,
+        original_scale: bool = True,
+        include_baseline: bool = True,
+        include_controls: bool = True,
+        include_seasonality: bool = True,
+    ) -> xr.Dataset:
+        """Additive decomposition for identity-link models."""
+        contributions: dict[str, xr.DataArray] = {}
+
         if original_scale:
             if "channel_contribution_original_scale" in self.idata.posterior:
                 contributions["channels"] = (
                     self.idata.posterior.channel_contribution_original_scale
                 )
             else:
-                # Compute on-the-fly
                 channel_contrib = self.idata.posterior.channel_contribution
                 target_scale = self.get_target_scale()
-                # xarray automatically handles broadcasting when dimensions match
                 contributions["channels"] = channel_contrib * target_scale
         else:
             contributions["channels"] = self.idata.posterior.channel_contribution
 
-        # Baseline/intercept
         if include_baseline:
             for var in ["intercept_contribution", "intercept_baseline"]:
                 if var in self.idata.posterior:
@@ -484,9 +520,6 @@ class MMMIDataWrapper:
                         contributions["baseline"] = baseline
                     break
 
-        # Control variables - use "controls" (plural) as key to avoid xarray
-        # dimension/key name conflict (a key matching a dimension name gets
-        # promoted to a coordinate instead of staying as a data variable)
         if include_controls and "control_contribution" in self.idata.posterior:
             control = self.idata.posterior.control_contribution
             if original_scale:
@@ -500,7 +533,6 @@ class MMMIDataWrapper:
             else:
                 contributions["controls"] = control
 
-        # Seasonality
         if (
             include_seasonality
             and "yearly_seasonality_contribution" in self.idata.posterior
@@ -519,6 +551,105 @@ class MMMIDataWrapper:
                     contributions["seasonality"] = seasonality * target_scale
             else:
                 contributions["seasonality"] = seasonality
+
+        return xr.Dataset(contributions)
+
+    def _get_contributions_log_link(
+        self,
+        include_baseline: bool = True,
+    ) -> xr.Dataset:
+        r"""Hybrid decomposition for log-link models (always original-scale).
+
+        For log-link (multiplicative) models the linear predictor lives in
+        log-space:
+
+        .. math::
+
+            \mu = \text{intercept} + \sum_c \text{channel}_c
+                   + \text{controls} + \text{seasonality}
+
+        so :math:`y = \exp(\mu) \times \text{target\_scale}`.
+
+        Because the components combine multiplicatively, individual control
+        and seasonality effects **cannot** be isolated in original scale
+        without a full counterfactual for each.  They are therefore folded
+        into the ``baseline`` component, which represents the predicted
+        target with all media set to zero:
+
+        .. math::
+
+            \text{baseline} = \exp(\mu - \text{media\_total\_log})
+                               \times \text{target\_scale}
+
+        Per-channel contributions are obtained by distributing the total
+        media lift (``y_hat - baseline``) proportionally to each channel's
+        share of the total log-space media contribution:
+
+        .. math::
+
+            \text{channel}_c = \text{total\_media\_lift}
+                                \times \frac{\text{channel\_contrib}_c}
+                                             {\sum_c \text{channel\_contrib}_c}
+
+        This uses the same log-link prediction transform as
+        :meth:`~pymc_marketing.mmm.multidimensional.MMM.compute_counterfactual_contributions_dataset`
+        via shared decomposition helpers in :mod:`pymc_marketing.mmm.decomposition`.
+
+        Parameters
+        ----------
+        include_baseline : bool, default True
+            Whether to include the ``baseline`` component (all non-media
+            effects) in the returned dataset.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset always containing:
+
+            - ``channels`` : per-channel contributions in original scale
+              with dims ``(chain, draw, date, channel)`` (plus any custom
+              dims).
+
+            If *include_baseline* is True, also contains:
+
+            - ``baseline`` : non-media prediction in original scale with
+              dims ``(chain, draw, date)`` (plus any custom dims).
+
+        Notes
+        -----
+        Unlike :meth:`_get_contributions_identity`, this method does **not**
+        return separate ``controls`` or ``seasonality`` keys.  Those effects
+        are embedded in ``baseline`` and cannot be additively separated
+        without additional counterfactual evaluations.
+
+        The sum ``channels.sum("channel") + baseline`` equals
+        ``exp(mu) * target_scale`` (the full posterior prediction) for every
+        posterior draw.
+        """
+        posterior = self.idata.posterior
+        target_scale = self.get_target_scale()
+
+        mu_total = posterior["mu"]
+        channel_contrib = posterior["channel_contribution"]
+        media_total_log = channel_contrib.sum(dim="channel")
+
+        y_hat = original_scale_prediction_from_mu(mu_total, target_scale)
+        y_hat_no_media = original_scale_prediction_from_mu(
+            mu_total - media_total_log, target_scale
+        )
+        total_media_lift = y_hat - y_hat_no_media
+
+        per_channel_shares = safe_proportional_share(
+            numerator=channel_contrib,
+            denominator=media_total_log,
+        )
+
+        contributions: dict[str, xr.DataArray] = {
+            "channels": total_media_lift * per_channel_shares,
+        }
+
+        if include_baseline:
+            contributions["baseline"] = y_hat_no_media
 
         return xr.Dataset(contributions)
 
