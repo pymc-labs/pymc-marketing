@@ -2544,13 +2544,15 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled saturation curves with dimensions:
-            - Simple model: (x, channel, sample)
-            - Panel model: (x, *custom_dims, channel, sample)
+            - Simple model: (chain, draw, x, channel)
+            - Panel model: (chain, draw, x, *custom_dims, channel)
 
-            The "sample" dimension indexes the posterior samples used.
-            The "x" coordinate represents spend levels in scaled space (consistent
-            with max_value). Y-values are in original scale when original_scale=True,
-            otherwise in scaled space.
+            When subsampling (``num_samples`` < total posterior draws), the
+            ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
+            When all samples are used, the original chain/draw structure from
+            the posterior is preserved. The "x" coordinate represents spend
+            levels in scaled space (consistent with max_value). Y-values are
+            in original scale when original_scale=True, otherwise in scaled space.
 
         Raises
         ------
@@ -2564,8 +2566,8 @@ class MMM(RegressionModelBuilder):
         Sample curves with default parameters (original scale):
 
         >>> curves = mmm.sample_saturation_curve()
-        >>> curves.dims
-        ('sample', 'x', 'channel')
+        >>> set(curves.dims) >= {"chain", "draw", "x"}
+        True
 
         Sample curves using all posterior samples:
 
@@ -2596,9 +2598,10 @@ class MMM(RegressionModelBuilder):
           the model operates internally. This matches the pattern of other MMM methods.
         - For panel models, curves are generated for each combination of custom
           dimensions (e.g., each country) and channel.
-        - The returned array includes a "sample" dimension for uncertainty
-          quantification. Use `.mean(dim='sample')` for point estimates and
-          `.quantile()` for credible intervals.
+        - The returned array includes "chain" and "draw" dimensions for
+          uncertainty quantification, consistent with the ArviZ convention.
+          Use ``.mean(dim=["chain", "draw"])`` for point estimates and
+          ``.quantile()`` for credible intervals.
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples, otherwise all samples are used.
         """
@@ -2625,9 +2628,6 @@ class MMM(RegressionModelBuilder):
             max_value=max_value,
             num_points=num_points,
         )
-
-        # Flatten chain and draw dimensions to sample dimension
-        curve = curve.stack(sample=("chain", "draw"))
 
         # Convert to original scale if requested
         if original_scale:
@@ -2687,10 +2687,12 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled adstock curves with dimensions:
-            - Simple model: (time since exposure, channel, sample)
-            - Panel model: (time since exposure, *custom_dims, channel, sample)
+            - Simple model: (chain, draw, time since exposure, channel)
+            - Panel model: (chain, draw, time since exposure, *custom_dims, channel)
 
-            The "sample" dimension indexes the posterior samples used.
+            When subsampling (``num_samples`` < total posterior draws), the
+            ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
+            When all samples are used, the original chain/draw structure is preserved.
             The "time since exposure" coordinate represents time periods from 0
             to l_max (the maximum lag for the adstock transformation).
 
@@ -2706,8 +2708,8 @@ class MMM(RegressionModelBuilder):
         Sample curves with default parameters:
 
         >>> curves = mmm.sample_adstock_curve()
-        >>> curves.dims
-        ('sample', 'time since exposure', 'channel')
+        >>> set(curves.dims) >= {"chain", "draw", "time since exposure"}
+        True
 
         Sample curves using all posterior samples:
 
@@ -2731,9 +2733,10 @@ class MMM(RegressionModelBuilder):
           diminishing returns.
         - For panel models, curves are generated for each combination of custom
           dimensions (e.g., each country) and channel.
-        - The returned array includes a "sample" dimension for uncertainty
-          quantification. Use `.mean(dim='sample')` for point estimates and
-          `.quantile()` for credible intervals.
+        - The returned array includes "chain" and "draw" dimensions for
+          uncertainty quantification, consistent with the ArviZ convention.
+          Use ``.mean(dim=["chain", "draw"])`` for point estimates and
+          ``.quantile()`` for credible intervals.
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples.
         """
@@ -2759,9 +2762,6 @@ class MMM(RegressionModelBuilder):
             parameters=parameters,
             amount=amount,
         )
-
-        # Flatten chain and draw dimensions to sample dimension
-        curve = curve.stack(sample=("chain", "draw"))
 
         return curve
 
