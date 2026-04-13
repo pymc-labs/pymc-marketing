@@ -369,8 +369,10 @@ def subsample_draws(
     Returns
     -------
     xr.Dataset
-        Either the original *dataset* (when no subsampling is needed) or
-        a new Dataset whose chain/draw dimensions have shape ``(1, num_samples)``.
+        When ``num_samples`` is ``None`` or >= total draws, returns *dataset*
+        unchanged (preserving its original chain/draw structure).
+        When subsampling occurs, returns a new Dataset with shape
+        ``(chain=1, draw=num_samples)``.
 
     Examples
     --------
