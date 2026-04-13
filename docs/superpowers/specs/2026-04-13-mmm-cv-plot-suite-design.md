@@ -189,13 +189,10 @@ shading distinguishes values within other dimensions (e.g. channel) via
 ### API change
 
 Old: `MMMPlotSuite.param_stability(results, parameter, dims)`
-New: `MMMCVPlotSuite.param_stability(results, var_names, dims, combined, shade_label, figsize, figure_kwargs, backend, return_as_pc, **forest_kwargs)`
+New: `MMMCVPlotSuite.param_stability(results, var_names, dims, figsize, figure_kwargs, backend, return_as_pc, **pc_kwargs)`
 
 Changes:
 - `parameter: list[str]` → `var_names: list[str]` (consistent with arviz naming)
-- No `**pc_kwargs` — replaced by `figure_kwargs` since `plot_forest` handles
-  layout internally; `figsize` is merged into `figure_kwargs`.
-- `shade_label` exposed to let callers shade by a dimension (e.g. `"channel"`).
 - Single figure always — old code looped per dim value calling `plt.show()`.
 - Returns `tuple[Figure, NDArray[Axes]]` — old code sometimes returned bare `Axes`.
 
@@ -207,13 +204,11 @@ def param_stability(
     results: az.InferenceData,
     var_names: list[str],
     dims: dict[str, Any] | None = None,
-    combined: bool = True,
-    shade_label: str | None = None,
     figsize: tuple[float, float] | None = None,
     figure_kwargs: dict[str, Any] | None = None,
     backend: str | None = None,
     return_as_pc: bool = False,
-    **forest_kwargs,
+    **pc_kwargs,
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
 ```
 
@@ -232,10 +227,8 @@ Raise `ValueError` if:
 posterior = results.posterior
 if dims:
     posterior = _select_dims(posterior, dims)
-# Move "cv" to the end so it appears as the innermost loop in the plot;
-# other named dims (e.g. "channel") come before it.
-non_sample_dims = [d for d in posterior.dims if d not in {"chain", "draw"}]
-posterior = posterior.transpose("chain", "draw", *non_sample_dims[:-1], "cv")
+# Move "channel" and "cv" to the end so it appears as the innermost loop in the plot;
+posterior = posterior.transpose(..., "channel", "cv")
 # Rebuild a minimal InferenceData for plot_forest
 idata_for_plot = az.InferenceData(posterior=posterior)
 
@@ -254,10 +247,10 @@ pc = azp.plot_forest(
     var_names=var_names,
     aes={"color": ["cv"]},
     figure_kwargs=fig_kw,
-    combined=combined,
-    shade_label=shade_label,
+    combined=True,
+    shade_label="channel",
     backend=backend,
-    **forest_kwargs,
+    **pc_kwargs,
 )
 return _extract_matplotlib_result(pc, return_as_pc)
 ```
