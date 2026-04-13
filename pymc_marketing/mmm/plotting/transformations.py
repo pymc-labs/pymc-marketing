@@ -11,7 +11,78 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Transformations namespace — saturation scatter and curve plots."""
+"""Transformations namespace — saturation scatter and curve plots.
+
+This module exposes :class:`TransformationPlots`, which produces two
+complementary visualisations for channel saturation analysis:
+
+* :meth:`~TransformationPlots.saturation_scatterplot` — one panel per channel
+  showing observed spend vs. mean posterior contribution.
+* :meth:`~TransformationPlots.saturation_curves` — extends the scatter with
+  posterior sample curves and an HDI band.
+
+Examples
+--------
+Build the helper from a fitted model and draw the basic scatter plot:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm.plotting.transformations import TransformationPlots
+
+    tp = TransformationPlots(mmm.data)
+    fig, axes = tp.saturation_scatterplot()
+
+Filter to a single geo dimension:
+
+.. code-block:: python
+
+    fig, axes = tp.saturation_scatterplot(dims={"geo": "geo_a"})
+
+Pass a date-filtered ``InferenceData`` without rebuilding the helper:
+
+.. code-block:: python
+
+    from pymc_marketing.data.idata import filter_idata_by_dates
+
+    filtered = filter_idata_by_dates(
+        mmm.idata, start_date="2023-01-01", end_date="2024-01-02"
+    )
+    fig, axes = tp.saturation_scatterplot(idata=filtered)
+
+Customise visual elements via ``scatter_kwargs``:
+
+.. code-block:: python
+
+    fig, axes = tp.saturation_scatterplot(
+        figsize=(20, 6), scatter_kwargs={"alpha": 0.5}
+    )
+
+Overlay saturation curves in original (un-scaled) space:
+
+.. code-block:: python
+
+    curves = mmm.sample_saturation_curve(max_value=2)  # original scale
+    fig, axes = tp.saturation_curves(curves=curves)
+
+Plot in scaled space by matching ``original_scale=False`` to the curve source:
+
+.. code-block:: python
+
+    scaled_curves = mmm.sample_saturation_curve(max_value=2, original_scale=False)
+    fig, axes = tp.saturation_curves(curves=scaled_curves, original_scale=False)
+
+Fine-tune every visual layer independently:
+
+.. code-block:: python
+
+    fig, axes = tp.saturation_curves(
+        curves=curves,
+        scatter_kwargs={"alpha": 0.4},
+        hdi_kwargs={"alpha": 0.1},
+        mean_curve_kwargs={"linestyle": "--"},
+        sample_curves_kwargs={"linestyle": ":", "alpha": 0.5},
+    )
+"""
 
 from __future__ import annotations
 
