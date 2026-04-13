@@ -182,17 +182,21 @@ No for loops, no raw matplotlib calls.
 ### What it renders
 
 A single forest plot comparing parameter posterior distributions across all CV
-folds, using `arviz_plots.plot_forest` with one DataTree per fold.
+folds. Folds are colored differently via `aes={"color": ["cv"]}`. Alternating
+shading distinguishes values within other dimensions (e.g. channel) via
+`shade_label`.
 
 ### API change
 
 Old: `MMMPlotSuite.param_stability(results, parameter, dims)`
-New: `MMMCVPlotSuite.param_stability(results, var_names, dims, combined, figsize, backend, return_as_pc, **pc_kwargs)`
+New: `MMMCVPlotSuite.param_stability(results, var_names, dims, combined, shade_label, figsize, figure_kwargs, backend, return_as_pc, **forest_kwargs)`
 
 Changes:
 - `parameter: list[str]` → `var_names: list[str]` (consistent with arviz naming)
-- Single figure — old code looped per dim value calling `plt.show()`, producing
-  multiple figures. New code produces one figure with all information.
+- No `**pc_kwargs` — replaced by `figure_kwargs` since `plot_forest` handles
+  layout internally; `figsize` is merged into `figure_kwargs`.
+- `shade_label` exposed to let callers shade by a dimension (e.g. `"channel"`).
+- Single figure always — old code looped per dim value calling `plt.show()`.
 - Returns `tuple[Figure, NDArray[Axes]]` — old code sometimes returned bare `Axes`.
 
 ### Signature
@@ -204,10 +208,12 @@ def param_stability(
     var_names: list[str],
     dims: dict[str, Any] | None = None,
     combined: bool = True,
+    shade_label: str | None = None,
     figsize: tuple[float, float] | None = None,
+    figure_kwargs: dict[str, Any] | None = None,
     backend: str | None = None,
     return_as_pc: bool = False,
-    **pc_kwargs,
+    **forest_kwargs,
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
 ```
 
@@ -221,28 +227,46 @@ Raise `ValueError` if:
 ### Implementation
 
 ```python
-pc_kwargs = _process_plot_params(figsize, backend, return_as_pc, **pc_kwargs)
-cv_labels = list(results.posterior.coords["cv"].values)
+# 1. Transpose posterior so dimension order reads well in the forest plot
+#    (sample dims first, then the labelled dims ending with "cv")
+posterior = results.posterior
+if dims:
+    posterior = _select_dims(posterior, dims)
+# Move "cv" to the end so it appears as the innermost loop in the plot;
+# other named dims (e.g. "channel") come before it.
+non_sample_dims = [d for d in posterior.dims if d not in {"chain", "draw"}]
+posterior = posterior.transpose("chain", "draw", *non_sample_dims[:-1], "cv")
+# Rebuild a minimal InferenceData for plot_forest
+idata_for_plot = az.InferenceData(posterior=posterior)
 
-dt_dict: dict[str, DataTree] = {}
-for lbl in cv_labels:
-    fold_ds = results.posterior.sel(cv=lbl, drop=True)
-    if dims:
-        fold_ds = _select_dims(fold_ds, dims)
-    dt_dict[str(lbl)] = az.InferenceData(posterior=fold_ds).to_datatree()
+# 2. Merge figure_kwargs: defaults + user overrides + optional figsize
+fig_kw: dict[str, Any] = {
+    "width_ratios": [1, 2],
+    "layout": "none",
+    **(figure_kwargs or {}),
+}
+if figsize is not None:
+    fig_kw["figsize"] = figsize
 
+# 3. Call plot_forest
 pc = azp.plot_forest(
-    dt_dict,
+    idata_for_plot.to_datatree(),
     var_names=var_names,
+    aes={"color": ["cv"]},
+    figure_kwargs=fig_kw,
     combined=combined,
+    shade_label=shade_label,
     backend=backend,
-    **pc_kwargs,
+    **forest_kwargs,
 )
 return _extract_matplotlib_result(pc, return_as_pc)
 ```
 
-`_select_dims` filters each fold's Dataset before it becomes a DataTree, so
-`dims` narrows which coordinate values are shown in the forest plot.
+No manual iteration over cv_labels. The `cv` dimension is treated as a regular
+coordinate; `plot_forest` handles faceting and coloring via `aes={"color": ["cv"]}`.
+
+`dims` narrows which coordinate values appear (e.g. `{"channel": ["tv"]}`)
+before the transpose step.
 
 ### Returns
 
