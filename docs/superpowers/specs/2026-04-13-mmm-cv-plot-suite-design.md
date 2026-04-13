@@ -108,28 +108,37 @@ Raise `ValueError` if:
    d. From `pp = results.posterior_predictive["y_original_scale"].sel(cv=lbl)`:
       - `y_train_fold = pp.where(train_mask)` — NaN outside train window
       - `y_test_fold = pp.where(test_mask)` — NaN outside test window
-4. Stack folds back along `cv`: `y_train_da` and `y_test_da` each have dims
-   `(cv, chain, draw, date, ...)`. The `cv` coordinate must use `str(lbl)` for
-   all labels so that `pc.viz.ds["plot"].sel(cv=str(lbl))` works in the
-   post-processing step.
-5. Apply `_select_dims` for any user-supplied `dims` (on both DataArrays).
-6. Build `split_ds = xr.Dataset({"train": y_train_da, "test": y_test_da})`.
+   e. Build `y_obs_fold` — observed actuals (no chain/draw) for this fold by
+      combining `y_train` and `y_test` from metadata, aligned to the full date
+      coordinate. Shape: `(date, ...)`.
+   f. Record `train_end = train_dates.max()` for this fold.
+4. Stack all folds along `cv`:
+   - `y_train_da`, `y_test_da`: dims `(cv, chain, draw, date, ...)`
+   - `y_obs_da`: dims `(cv, date, ...)`
+   - `train_end_da`: `xr.DataArray` with dims `(cv,)` — one train-end date per fold.
+5. Apply `_select_dims` for any user-supplied `dims` (on `y_train_da`, `y_test_da`,
+   and `y_obs_da`).
+6. Determine `custom_dims` — extra dims beyond `(cv, chain, draw, date)` from the
+   posterior predictive.
+7. Build `split_ds = xr.Dataset({"train": y_train_da, "test": y_test_da})`.
 
 ### PlotCollection rendering
 
 ```python
 pc_kwargs = _process_plot_params(figsize, backend, return_as_pc, **pc_kwargs)
-cols = pc_kwargs.pop("cols", ["cv"])
+rows = pc_kwargs.pop("rows", [*custom_dims, "cv"])  # one row per (custom_dim..., fold)
+cols = pc_kwargs.pop("cols", [])
 
 pc = PlotCollection.grid(
     split_ds,
+    rows=rows,
     cols=cols,
     aes={"color": ["__variable__"]},  # train → blue, test → orange
     backend=backend,
     **pc_kwargs,
 )
 
-# HDI bands (one per variable per panel, colored by __variable__)
+# HDI bands — colored by __variable__
 hdi_ds = split_ds.azstats.hdi(hdi_prob)
 date_da = split_ds["train"].coords["date"]
 pc.map(
@@ -140,27 +149,27 @@ pc.map(
     alpha=0.3,
     **(hdi_kwargs or {}),
 )
+
+# Observed actuals — single black line per panel; y_obs_da has (cv, date, ...)
+# which PlotCollection subsets correctly per panel without needing chain/draw
+pc.map(azp.visuals.line_xy, x=date_da, y=y_obs_da, color="black", linewidth=1.5)
+
+# Train-end vertical boundary — per-fold via DataArray; add_lines accepts
+# a DataArray with a 'cv' dimension and places the correct value in each panel
+azp.add_lines(
+    pc,
+    train_end_da,
+    orientation="vertical",
+    color="green",
+    linestyle="--",
+    linewidth=2,
+    alpha=0.9,
+)
+
 pc.add_legend("__variable__")
 ```
 
-### Post-processing (per-fold matplotlib)
-
-After building the PC, iterate over folds to add observed actuals and the
-train-end boundary. These require per-fold x-values and cannot be expressed
-as a single scalar for `azp.add_lines`.
-
-```python
-for cv_label in cv_labels:
-    ax = pc.viz.ds["plot"].sel(cv=str(cv_label)).item()
-    # Observed actuals (black line, train then test)
-    ax.plot(train_dates, y_train_vals, color="black", linewidth=1.5, label="observed")
-    ax.plot(test_dates, y_test_vals, color="black", linewidth=1.5)
-    # Train-end boundary
-    ax.axvline(train_end_date, color="green", linestyle="--", linewidth=2, alpha=0.9, label="train end")
-```
-
-`y_train_vals` and `y_test_vals` are the observed series from `cv_metadata`,
-aligned to the fold's dates.
+No for loops, no raw matplotlib calls.
 
 ### Returns
 
