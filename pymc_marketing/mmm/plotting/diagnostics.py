@@ -11,7 +11,81 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Diagnostics namespace — posterior/prior predictive and residual plots."""
+"""Diagnostics namespace — posterior/prior predictive and residual plots.
+
+This module exposes :class:`DiagnosticsPlots`, which is the entry point for all
+time-series diagnostic plots on a fitted MMM model.  It is accessed via
+``mmm.plot.diagnostics`` (a :class:`DiagnosticsPlots` instance backed by the
+model's :class:`~pymc_marketing.data.idata.MMMIDataWrapper`).
+
+Examples
+--------
+Construct the plotter directly from the model's data wrapper:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
+
+    dp = DiagnosticsPlots(mmm.data)
+
+**Posterior predictive** — overlay posterior mean, HDI band, and observed target:
+
+.. code-block:: python
+
+    fig, axes = dp.posterior_predictive()
+
+    # Scaled units, narrower HDI, two columns per row
+    fig, axes = dp.posterior_predictive(original_scale=False, hdi_prob=0.8, col_wrap=2)
+
+**Prior predictive** — same layout drawn from the prior:
+
+.. code-block:: python
+
+    fig, axes = dp.prior_predictive()
+
+    fig, axes = dp.prior_predictive(original_scale=False, hdi_prob=0.8, col_wrap=2)
+
+**Residuals over time** — mean residual line with HDI band and a zero reference:
+
+.. code-block:: python
+
+    fig, axes = dp.residuals_over_time()
+
+    # Subset to one geo, custom styling
+    fig, axes = dp.residuals_over_time(
+        hdi_prob=0.8,
+        dims={"geo": "geo_a"},
+        line_kwargs={"color": "red", "linestyle": "-."},
+        hdi_kwargs={"color": "red"},
+    )
+
+**Residuals distribution** — KDE of the posterior residual distribution:
+
+.. code-block:: python
+
+    fig, axes = dp.residuals_distribution(figsize=(8, 4))
+
+    # Custom quantile markers, collapse geo into one distribution
+    fig, axes = dp.residuals_distribution(
+        figsize=(8, 4),
+        quantiles=[0.1, 0.5, 0.9],
+        aggregation="geo",
+    )
+
+**Posterior** — 1-D marginal KDE for selected variables:
+
+.. code-block:: python
+
+    fig, axes = dp.posterior(["saturation_lam", "adstock_alpha"], figsize=(10, 8))
+
+**Prior vs posterior** — overlaid prior and posterior KDEs:
+
+.. code-block:: python
+
+    fig, axes = dp.prior_vs_posterior(
+        ["saturation_lam", "adstock_alpha"], figsize=(10, 8)
+    )
+"""
 
 from __future__ import annotations
 
