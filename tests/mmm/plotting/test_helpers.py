@@ -211,6 +211,30 @@ class TestExtractMatplotlibResult:
         _, axes = _extract_matplotlib_result(multi_panel_pc, return_as_pc=False)
         assert axes.size == 2
 
+    def test_no_plot_key_in_viz_ds_returns_axes_from_figure(self):
+        import arviz as az
+        import arviz_plots as azp
+
+        rng = np.random.default_rng(42)
+        idata = az.InferenceData(
+            posterior=xr.Dataset(
+                {
+                    "x": xr.DataArray(
+                        rng.normal(size=(2, 50)),
+                        dims=("chain", "draw"),
+                        coords={"chain": [0, 1], "draw": range(50)},
+                    )
+                }
+            )
+        )
+        pc = azp.plot_dist(idata, backend="matplotlib")
+        assert "plot" not in pc.viz.ds
+        fig, axes = _extract_matplotlib_result(pc, return_as_pc=False)
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert len(axes) >= 1
+        assert all(isinstance(a, Axes) for a in axes)
+
 
 class TestPublicAPI:
     def test_all_helpers_importable_from_helpers_module(self):
