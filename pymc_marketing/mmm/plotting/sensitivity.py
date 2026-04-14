@@ -274,7 +274,9 @@ class SensitivityPlots:
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
-        azp.add_lines(pc, 1.0, orientation="vertical")
+        azp.add_lines(
+            pc, 1.0, orientation="vertical", visuals={"ref_line": {"zorder": 2}}
+        )
         azp.add_lines(pc, 0.0, orientation="horizontal")
         return _extract_matplotlib_result(pc, return_as_pc)
 
