@@ -100,95 +100,17 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.data.idata.utils import (
+    get_posterior_predictive,
+    get_prior,
+    get_prior_predictive,
+)
 from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
 )
-
-
-def _get_posterior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
-    """Return the posterior_predictive group from *data*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the fitted model's InferenceData.
-
-    Returns
-    -------
-    xr.Dataset
-        The posterior_predictive group.
-
-    Raises
-    ------
-    ValueError
-        If posterior_predictive is absent from idata.
-    """
-    if (
-        not hasattr(data.idata, "posterior_predictive")
-        or data.idata.posterior_predictive is None
-    ):
-        raise ValueError(
-            "No posterior_predictive data found in idata. "
-            "Run MMM.sample_posterior_predictive() first."
-        )
-    return data.idata.posterior_predictive
-
-
-def _get_prior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
-    """Return the prior_predictive group from *data*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the fitted model's InferenceData.
-
-    Returns
-    -------
-    xr.Dataset
-        The prior_predictive group.
-
-    Raises
-    ------
-    ValueError
-        If prior_predictive is absent from idata.
-    """
-    if (
-        not hasattr(data.idata, "prior_predictive")
-        or data.idata.prior_predictive is None
-    ):
-        raise ValueError(
-            "No prior_predictive data found in idata. "
-            "Run MMM.sample_prior_predictive() first."
-        )
-    return data.idata.prior_predictive
-
-
-def _get_prior(data: MMMIDataWrapper) -> xr.Dataset:
-    """Return the prior group from *data*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the fitted model's InferenceData.
-
-    Returns
-    -------
-    xr.Dataset
-        The prior group.
-
-    Raises
-    ------
-    ValueError
-        If prior is absent from idata.
-    """
-    if not hasattr(data.idata, "prior") or data.idata.prior is None:
-        raise ValueError(
-            "No prior data found in idata. Run MMM.sample_prior_predictive() first."
-        )
-    return data.idata.prior
 
 
 def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
@@ -211,8 +133,8 @@ def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Datas
     xr.Dataset
     """
     if original_scale:
-        return _get_prior(data)
-    return _get_prior_predictive(data)
+        return get_prior(data.idata)
+    return get_prior_predictive(data.idata)
 
 
 class DiagnosticsPlots:
@@ -356,7 +278,7 @@ class DiagnosticsPlots:
             If ``y_original_scale`` not in posterior_predictive, or target_data not in constant_data.
         """
         pp_var = "y_original_scale"
-        pp_ds = _get_posterior_predictive(data)
+        pp_ds = get_posterior_predictive(data.idata)
         if pp_var not in pp_ds:
             raise ValueError(
                 f"Variable '{pp_var}' not found in posterior_predictive. "
@@ -444,7 +366,7 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = _get_posterior_predictive(data)
+        pp_ds = get_posterior_predictive(data.idata)
 
         var_name = "y_original_scale" if original_scale else "y"
         if var_name not in pp_ds:
