@@ -344,6 +344,83 @@ def aggregate_idata_dims(
     return az.InferenceData(**aggregated_groups)
 
 
+def get_posterior_predictive(idata: az.InferenceData) -> xr.Dataset:
+    """Return the posterior_predictive group from *idata*.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        InferenceData object holding the fitted model results.
+
+    Returns
+    -------
+    xr.Dataset
+        The posterior_predictive group.
+
+    Raises
+    ------
+    ValueError
+        If posterior_predictive is absent from idata.
+    """
+    if not hasattr(idata, "posterior_predictive") or idata.posterior_predictive is None:
+        raise ValueError(
+            "No posterior_predictive data found in idata. "
+            "Run MMM.sample_posterior_predictive() first."
+        )
+    return idata.posterior_predictive
+
+
+def get_prior_predictive(idata: az.InferenceData) -> xr.Dataset:
+    """Return the prior_predictive group from *idata*.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        InferenceData object holding the fitted model results.
+
+    Returns
+    -------
+    xr.Dataset
+        The prior_predictive group.
+
+    Raises
+    ------
+    ValueError
+        If prior_predictive is absent from idata.
+    """
+    if not hasattr(idata, "prior_predictive") or idata.prior_predictive is None:
+        raise ValueError(
+            "No prior_predictive data found in idata. "
+            "Run MMM.sample_prior_predictive() first."
+        )
+    return idata.prior_predictive
+
+
+def get_prior(idata: az.InferenceData) -> xr.Dataset:
+    """Return the prior group from *idata*.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        InferenceData object holding the fitted model results.
+
+    Returns
+    -------
+    xr.Dataset
+        The prior group.
+
+    Raises
+    ------
+    ValueError
+        If prior is absent from idata.
+    """
+    if not hasattr(idata, "prior") or idata.prior is None:
+        raise ValueError(
+            "No prior data found in idata. Run MMM.sample_prior_predictive() first."
+        )
+    return idata.prior
+
+
 def subsample_draws(
     dataset: xr.Dataset,
     *,
@@ -369,8 +446,10 @@ def subsample_draws(
     Returns
     -------
     xr.Dataset
-        Either the original *dataset* (when no subsampling is needed) or
-        a new Dataset whose chain/draw dimensions have shape ``(1, num_samples)``.
+        When ``num_samples`` is ``None`` or >= total draws, returns *dataset*
+        unchanged (preserving its original chain/draw structure).
+        When subsampling occurs, returns a new Dataset with shape
+        ``(chain=1, draw=num_samples)``.
 
     Examples
     --------

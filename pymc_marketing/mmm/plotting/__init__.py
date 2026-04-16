@@ -11,6 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Version of the package."""
+"""MMM plotting package — namespace-based plot suite."""
 
-__version__ = "0.19.3"
+from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
+from pymc_marketing.mmm.plotting.transformations import TransformationPlots
+
+__all__ = ["DiagnosticsPlots", "TransformationPlots"]
