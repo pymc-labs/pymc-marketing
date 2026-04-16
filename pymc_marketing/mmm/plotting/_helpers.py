@@ -213,6 +213,51 @@ def _process_plot_params(
     return pc_kwargs
 
 
+def _apply_aggregation(
+    da: xr.DataArray,
+    aggregation: dict[str, str | list[str]] | None,
+) -> xr.DataArray:
+    """Apply a single aggregation operation to *da*.
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        Data to aggregate.
+    aggregation : dict or None
+        A mapping with exactly one entry: ``{op: dim_spec}`` where *op*
+        is ``"sum"`` or ``"mean"`` and *dim_spec* is a dimension name or
+        list of dimension names.  ``None`` or an empty dict is a no-op.
+
+    Returns
+    -------
+    xr.DataArray
+        Aggregated data, or *da* unchanged when *aggregation* is falsy.
+
+    Raises
+    ------
+    ValueError
+        If *aggregation* contains more than one entry or an unsupported
+        operation.
+    """
+    if not aggregation:
+        return da
+
+    if len(aggregation) > 1:
+        raise ValueError(
+            f"Only a single aggregation operation is supported, "
+            f"got {len(aggregation)}: {list(aggregation)}."
+        )
+
+    op, dim_spec = next(iter(aggregation.items()))
+    dims_list = [dim_spec] if isinstance(dim_spec, str) else list(dim_spec)
+
+    if op == "sum":
+        return da.sum(dim=dims_list)
+    if op == "mean":
+        return da.mean(dim=dims_list)
+    raise ValueError(f"Unknown aggregation operation '{op}'. Supported: 'sum', 'mean'.")
+
+
 def _extract_matplotlib_result(
     pc: PlotCollection,
     return_as_pc: bool,

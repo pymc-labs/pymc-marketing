@@ -78,6 +78,7 @@ from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting._helpers import (
+    _apply_aggregation,
     _ensure_chain_draw_dims,
     _extract_matplotlib_result,
     _process_plot_params,
@@ -285,7 +286,23 @@ class SensitivityPlots:
                 channel_scale = data.get_channel_spend().sum("date")
             else:
                 channel_scale = data.get_channel_data().sum("date")
-            ref_x = channel_scale
+
+            # If channel dimension was aggregated away, aggregate channel_scale too
+            if aggregation:
+                # Apply aggregation to sa_da_for_check to match _sensitivity_plot's processing
+                sa_da_for_check = _apply_aggregation(
+                    sa_group["uplift_curve"], aggregation
+                )
+                if (
+                    "channel" in channel_scale.dims
+                    and "channel" not in sa_da_for_check.dims
+                ):
+                    channel_scale = channel_scale.sum("channel")
+
+            # A scalar DataArray carries a name that azp.add_lines would try to
+            # match against the dataset's data_vars.  Convert to a plain float
+            # so it is treated as a broadcast scalar instead.
+            ref_x = float(channel_scale) if channel_scale.ndim == 0 else channel_scale
 
         azp.add_lines(
             pc, ref_x, orientation="vertical", visuals={"ref_line": {"zorder": 2}}
@@ -401,18 +418,7 @@ class SensitivityPlots:
         )
 
         # Step 1: Apply aggregation
-        if aggregation:
-            for op, dim_spec in aggregation.items():
-                dims_list = [dim_spec] if isinstance(dim_spec, str) else list(dim_spec)
-                if op == "sum":
-                    sa_da = sa_da.sum(dim=dims_list)
-                elif op == "mean":
-                    sa_da = sa_da.mean(dim=dims_list)
-                else:
-                    raise ValueError(
-                        f"Unknown aggregation operation '{op}'. "
-                        "Supported operations: 'sum', 'mean'."
-                    )
+        sa_da = _apply_aggregation(sa_da, aggregation)
 
         # Step 2: Apply dimension filtering
         sa_da = _select_dims(sa_da, dims)

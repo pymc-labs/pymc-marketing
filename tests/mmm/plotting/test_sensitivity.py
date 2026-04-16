@@ -274,6 +274,38 @@ def test_uplift_has_horizontal_line_at_zero(sensitivity_plots):
     assert hlines, "Expected a horizontal reference line at y=0.0"
 
 
+def test_uplift_absolute_aggregated_channel_ref_line(
+    sensitivity_plots, simple_sa_idata
+):
+    """Regression: uplift(x_sweep_axis='absolute', aggregation={'sum': 'channel'})
+    must place the vertical reference line at total spend (sum over all channels),
+    not at per-channel spend.  Before the fix, ref_x retained a per-channel
+    DataArray while the PlotCollection had no channel dimension, causing
+    mismatched / erroneous reference lines.
+    """
+    channel_spend = simple_sa_idata.constant_data.channel_spend  # (date, channel)
+    expected_ref_x = float(channel_spend.sum(["date", "channel"]))
+
+    _, axes = sensitivity_plots.uplift(
+        x_sweep_axis="absolute",
+        apply_cost_per_unit=True,
+        aggregation={"sum": "channel"},
+    )
+    ax = axes.flat[0]
+    vlines = [
+        line
+        for line in ax.get_lines()
+        if len(line.get_xdata()) == 2
+        and np.isclose(line.get_xdata()[0], expected_ref_x, rtol=1e-4)
+        and np.isclose(line.get_xdata()[1], expected_ref_x, rtol=1e-4)
+    ]
+    assert vlines, (
+        f"Expected a vertical reference line at x≈{expected_ref_x:.1f} "
+        "(sum of all channel spend), but none found. "
+        "ref_x was likely not aggregated over channels."
+    )
+
+
 def test_hdi_band_values(sensitivity_plots, simple_sa_idata):
     n_channels = 3
 
