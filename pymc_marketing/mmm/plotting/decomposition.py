@@ -339,7 +339,17 @@ class DecompositionPlots:
 
         # Determine panel combos from extra dims
         if extra_dims:
-            ref_da = entries[0][1]
+            # Find an entry that has all extra dimensions
+            ref_da = None
+            for _, da in entries:
+                if all(d in da.coords for d in extra_dims):
+                    ref_da = da
+                    break
+
+            if ref_da is None:
+                # Fallback: use constant_data coordinates
+                ref_da = data.idata.constant_data
+
             coord_values = [ref_da.coords[d].values for d in extra_dims]
             combos = list(itertools.product(*coord_values))
         else:
@@ -369,7 +379,10 @@ class DecompositionPlots:
             panel_entries: list[tuple[str, float]] = []
             for label, da in entries:
                 if sel_kwargs:
-                    da = da.sel(**{k: [v] for k, v in sel_kwargs.items()}).squeeze()
+                    # Only select dimensions that exist in this DataArray
+                    sel_dims = {k: [v] for k, v in sel_kwargs.items() if k in da.dims}
+                    if sel_dims:
+                        da = da.sel(**sel_dims).squeeze()
                 panel_entries.append((label, float(da.values)))
 
             title = (
