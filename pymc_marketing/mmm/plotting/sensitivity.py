@@ -258,6 +258,13 @@ class SensitivityPlots:
                 "'uplift_curve' not found in idata.sensitivity_analysis. "
                 "Run SensitivityAnalysis.compute_uplift_curve_respect_to_base() first."
             )
+        # Validate backend compatibility before calling _sensitivity_plot
+        _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+        )
+
         pc = self._sensitivity_plot(
             sa_da=sa_group["uplift_curve"],
             data=data,
@@ -274,8 +281,19 @@ class SensitivityPlots:
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
+        # Add reference lines at appropriate positions
+        if x_sweep_axis == "relative":
+            ref_x = 1.0
+        else:
+            # In absolute mode, baseline is at total spend/data (multiplier=1.0)
+            if apply_cost_per_unit:
+                channel_scale = data.get_channel_spend().sum("date")
+            else:
+                channel_scale = data.get_channel_data().sum("date")
+            ref_x = channel_scale
+
         azp.add_lines(
-            pc, 1.0, orientation="vertical", visuals={"ref_line": {"zorder": 2}}
+            pc, ref_x, orientation="vertical", visuals={"ref_line": {"zorder": 2}}
         )
         azp.add_lines(pc, 0.0, orientation="horizontal")
         return _extract_matplotlib_result(pc, return_as_pc)
@@ -395,6 +413,11 @@ class SensitivityPlots:
                     sa_da = sa_da.sum(dim=dims_list)
                 elif op == "mean":
                     sa_da = sa_da.mean(dim=dims_list)
+                else:
+                    raise ValueError(
+                        f"Unknown aggregation operation '{op}'. "
+                        "Supported operations: 'sum', 'mean'."
+                    )
 
         # Step 2: Apply dimension filtering
         sa_da = _select_dims(sa_da, dims)
@@ -418,6 +441,11 @@ class SensitivityPlots:
                 channel_scale = data.get_channel_spend().sum("date")
             else:
                 channel_scale = data.get_channel_data().sum("date")
+
+            # If channel dimension was aggregated away, aggregate channel_scale too
+            if "channel" in channel_scale.dims and "channel" not in sa_da.dims:
+                channel_scale = channel_scale.sum("channel")
+
             sweep_x = sweep_coords * channel_scale
 
         # Step 6: Build PlotCollection
