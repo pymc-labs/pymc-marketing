@@ -29,11 +29,6 @@ Examples
 
 .. code-block:: python
 
-    import numpy as np
-    from pymc_marketing.mmm.multidimensional import MMM
-
-    mmm = MMM.load("my_model.pm")
-
     # sensitivity analysis
     sweeps = np.linspace(0.1, 2.0, 100)
     mmm.sensitivity.run_sweep(

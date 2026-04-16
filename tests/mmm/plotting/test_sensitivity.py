@@ -33,11 +33,6 @@ matplotlib.use("Agg")
 SEED = sum(map(ord, "SensitivityPlots tests"))
 
 
-# ============================================================================
-# Fixtures
-# ============================================================================
-
-
 @pytest.fixture(autouse=True)
 def close_figures():
     """Close all matplotlib figures after each test to prevent memory warnings."""
@@ -108,11 +103,6 @@ def sensitivity_plots(simple_sa_idata) -> SensitivityPlots:
     return SensitivityPlots(data)
 
 
-# ============================================================================
-# Return type tests
-# ============================================================================
-
-
 def test_analysis_returns_tuple(sensitivity_plots):
     fig, axes = sensitivity_plots.analysis()
     assert isinstance(fig, Figure)
@@ -123,11 +113,6 @@ def test_analysis_returns_tuple(sensitivity_plots):
 def test_analysis_return_as_pc(sensitivity_plots):
     result = sensitivity_plots.analysis(return_as_pc=True)
     assert isinstance(result, PlotCollection)
-
-
-# ============================================================================
-# Key resolution tests
-# ============================================================================
 
 
 def test_uplift_reads_correct_key(sensitivity_plots):
@@ -166,11 +151,6 @@ def test_missing_key_raises(simple_sa_idata):
         plots.marginal()
 
 
-# ============================================================================
-# Dimension filtering tests
-# ============================================================================
-
-
 def test_dims_filtering(sensitivity_plots):
     # Without filtering: 3 channels as hue → 3 mean lines in the single panel
     _, axes_full = sensitivity_plots.analysis()
@@ -181,11 +161,6 @@ def test_dims_filtering(sensitivity_plots):
     lines_filtered = axes_filtered.flat[0].get_lines()
 
     assert len(lines_filtered) < len(lines_full)
-
-
-# ============================================================================
-# Aggregation tests
-# ============================================================================
 
 
 def test_aggregation_str(sensitivity_plots):
@@ -200,11 +175,6 @@ def test_aggregation_list(sensitivity_plots):
     _, axes_str = sensitivity_plots.analysis(aggregation={"sum": "channel"})
     _, axes_list = sensitivity_plots.analysis(aggregation={"sum": ["channel"]})
     assert len(axes_str.flat[0].get_lines()) == len(axes_list.flat[0].get_lines())
-
-
-# ============================================================================
-# idata override test
-# ============================================================================
 
 
 def test_idata_override(sensitivity_plots, simple_sa_idata):
@@ -233,11 +203,6 @@ def test_idata_override(sensitivity_plots, simple_sa_idata):
     assert sensitivity_plots._data.idata is simple_sa_idata
 
 
-# ============================================================================
-# Sweep x-axis tests
-# ============================================================================
-
-
 def test_sweep_x_values_relative(sensitivity_plots):
     sweep_coords = np.linspace(0.5, 1.5, 11)
     _, axes = sensitivity_plots.analysis(x_sweep_axis="relative")
@@ -263,11 +228,6 @@ def test_x_sweep_axis_absolute(sensitivity_plots, simple_sa_idata):
         np.testing.assert_allclose(lines[i].get_xdata(), expected_x, rtol=1e-4)
 
 
-# ============================================================================
-# Layout tests
-# ============================================================================
-
-
 def test_custom_rows_cols_in_pc_kwargs(sensitivity_plots):
     # cols=["channel"] makes channel a panel dimension → 3 panels, no hue
     _, axes = sensitivity_plots.analysis(cols=["channel"])
@@ -280,11 +240,6 @@ def test_n_lines_equals_hue_cardinality(sensitivity_plots):
     ax = axes.flat[0]
     lines = ax.get_lines()
     assert len(lines) == 3
-
-
-# ============================================================================
-# Data value tests
-# ============================================================================
 
 
 def test_mean_line_values(sensitivity_plots, simple_sa_idata):
