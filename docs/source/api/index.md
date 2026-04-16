@@ -8,6 +8,7 @@
   :toctree: generated/
 
   bass
+  bidder
   causal_utils
   clv
   customer_choice
@@ -26,5 +27,7 @@
   serialization
   serialization_migration
   special_priors
+  types
+  user_priors
   utils
 ```
