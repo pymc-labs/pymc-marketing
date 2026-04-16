@@ -23,12 +23,12 @@ from arviz_plots import PlotCollection
 from matplotlib.figure import Figure
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.mmm.plotting.diagnostics import (
-    DiagnosticsPlots,
-    _get_posterior_predictive,
-    _get_prior,
-    _get_prior_predictive,
+from pymc_marketing.data.idata.utils import (
+    get_posterior_predictive,
+    get_prior,
+    get_prior_predictive,
 )
+from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
 
 matplotlib.use("Agg")
 
@@ -246,45 +246,37 @@ def dist_plots(posterior_idata) -> DiagnosticsPlots:
     return DiagnosticsPlots(wrapper)
 
 
-# ============================================================================
-# Helper tests
-# ============================================================================
-
-
 class TestGetPosteriorPredictive:
     def test_returns_dataset_with_y(self, simple_data):
-        result = _get_posterior_predictive(simple_data)
+        result = get_posterior_predictive(simple_data.idata)
         assert isinstance(result, xr.Dataset)
         assert "y" in result
 
     def test_raises_when_missing(self):
-        data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
         with pytest.raises(ValueError, match="posterior_predictive"):
-            _get_posterior_predictive(data)
+            get_posterior_predictive(az.InferenceData())
 
 
 class TestGetPriorPredictive:
     def test_returns_dataset_with_y(self, simple_data):
-        result = _get_prior_predictive(simple_data)
+        result = get_prior_predictive(simple_data.idata)
         assert isinstance(result, xr.Dataset)
         assert "y" in result
 
     def test_raises_when_missing(self):
-        data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
         with pytest.raises(ValueError, match="prior_predictive"):
-            _get_prior_predictive(data)
+            get_prior_predictive(az.InferenceData())
 
 
 class TestGetPrior:
     def test_returns_dataset_with_y_original_scale(self, simple_data):
-        result = _get_prior(simple_data)
+        result = get_prior(simple_data.idata)
         assert isinstance(result, xr.Dataset)
         assert "y_original_scale" in result
 
     def test_raises_when_missing(self):
-        data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
         with pytest.raises(ValueError, match="No prior data"):
-            _get_prior(data)
+            get_prior(az.InferenceData())
 
 
 class TestComputeResiduals:
@@ -311,11 +303,6 @@ class TestDiagnosticsPlotsConstructor:
     def test_stores_data(self, simple_data):
         plots = DiagnosticsPlots(simple_data)
         assert plots._data is simple_data
-
-
-# ============================================================================
-# posterior_predictive tests
-# ============================================================================
 
 
 class TestPosteriorPredictiveBasic:
@@ -562,11 +549,6 @@ class TestPosteriorPredictiveIdataOverride:
         assert simple_plots._data.idata is simple_idata
 
 
-# ============================================================================
-# prior_predictive tests
-# ============================================================================
-
-
 class TestPriorPredictiveBasic:
     def test_returns_figure_and_axes(self, simple_plots):
         fig, axes = simple_plots.prior_predictive()
@@ -765,11 +747,6 @@ class TestPriorPredictiveIdataOverride:
         assert simple_plots._data.idata is simple_idata
 
 
-# ============================================================================
-# residuals tests
-# ============================================================================
-
-
 class TestResidualsBasic:
     def test_returns_figure_and_axes(self, simple_plots):
         fig, axes = simple_plots.residuals_over_time()
@@ -889,11 +866,6 @@ class TestResidualsIdataOverride:
         assert simple_plots._data.idata is simple_idata
 
 
-# ============================================================================
-# residuals_distribution tests
-# ============================================================================
-
-
 class TestResidualsDistributionBasic:
     def test_returns_figure_and_axes(self, simple_plots):
         fig, axes = simple_plots.residuals_distribution()
@@ -1007,21 +979,11 @@ class TestResidualsDistributionIdataOverride:
         assert simple_plots._data.idata is simple_idata
 
 
-# ============================================================================
-# Package-level import test
-# ============================================================================
-
-
 def test_diagnostics_plots_importable_from_package():
     """DiagnosticsPlots must be importable from pymc_marketing.mmm.plotting."""
     from pymc_marketing.mmm.plotting import DiagnosticsPlots as DP
 
     assert DP is DiagnosticsPlots
-
-
-# ============================================================================
-# Posterior distribution plots
-# ============================================================================
 
 
 class TestPosterior:

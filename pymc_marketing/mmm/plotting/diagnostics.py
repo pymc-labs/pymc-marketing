@@ -11,7 +11,81 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Diagnostics namespace — posterior/prior predictive and residual plots."""
+"""Diagnostics namespace — posterior/prior predictive and residual plots.
+
+This module exposes :class:`DiagnosticsPlots`, which is the entry point for all
+time-series diagnostic plots on a fitted MMM model.  It is accessed via
+``mmm.plot.diagnostics`` (a :class:`DiagnosticsPlots` instance backed by the
+model's :class:`~pymc_marketing.data.idata.MMMIDataWrapper`).
+
+Examples
+--------
+Construct the plotter directly from the model's data wrapper:
+
+.. code-block:: python
+
+    from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
+
+    dp = DiagnosticsPlots(mmm.data)
+
+**Posterior predictive** — overlay posterior mean, HDI band, and observed target:
+
+.. code-block:: python
+
+    fig, axes = dp.posterior_predictive()
+
+    # Scaled units, narrower HDI, two columns per row
+    fig, axes = dp.posterior_predictive(original_scale=False, hdi_prob=0.8, col_wrap=2)
+
+**Prior predictive** — same layout drawn from the prior:
+
+.. code-block:: python
+
+    fig, axes = dp.prior_predictive()
+
+    fig, axes = dp.prior_predictive(original_scale=False, hdi_prob=0.8, col_wrap=2)
+
+**Residuals over time** — mean residual line with HDI band and a zero reference:
+
+.. code-block:: python
+
+    fig, axes = dp.residuals_over_time()
+
+    # Subset to one geo, custom styling
+    fig, axes = dp.residuals_over_time(
+        hdi_prob=0.8,
+        dims={"geo": "geo_a"},
+        line_kwargs={"color": "red", "linestyle": "-."},
+        hdi_kwargs={"color": "red"},
+    )
+
+**Residuals distribution** — KDE of the posterior residual distribution:
+
+.. code-block:: python
+
+    fig, axes = dp.residuals_distribution(figsize=(8, 4))
+
+    # Custom quantile markers, collapse geo into one distribution
+    fig, axes = dp.residuals_distribution(
+        figsize=(8, 4),
+        quantiles=[0.1, 0.5, 0.9],
+        aggregation="geo",
+    )
+
+**Posterior** — 1-D marginal KDE for selected variables:
+
+.. code-block:: python
+
+    fig, axes = dp.posterior(["saturation_lam", "adstock_alpha"], figsize=(10, 8))
+
+**Prior vs posterior** — overlaid prior and posterior KDEs:
+
+.. code-block:: python
+
+    fig, axes = dp.prior_vs_posterior(
+        ["saturation_lam", "adstock_alpha"], figsize=(10, 8)
+    )
+"""
 
 from __future__ import annotations
 
@@ -26,95 +100,17 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.data.idata.utils import (
+    get_posterior_predictive,
+    get_prior,
+    get_prior_predictive,
+)
 from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
 )
-
-
-def _get_posterior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
-    """Return the posterior_predictive group from *data*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the fitted model's InferenceData.
-
-    Returns
-    -------
-    xr.Dataset
-        The posterior_predictive group.
-
-    Raises
-    ------
-    ValueError
-        If posterior_predictive is absent from idata.
-    """
-    if (
-        not hasattr(data.idata, "posterior_predictive")
-        or data.idata.posterior_predictive is None
-    ):
-        raise ValueError(
-            "No posterior_predictive data found in idata. "
-            "Run MMM.sample_posterior_predictive() first."
-        )
-    return data.idata.posterior_predictive
-
-
-def _get_prior_predictive(data: MMMIDataWrapper) -> xr.Dataset:
-    """Return the prior_predictive group from *data*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the fitted model's InferenceData.
-
-    Returns
-    -------
-    xr.Dataset
-        The prior_predictive group.
-
-    Raises
-    ------
-    ValueError
-        If prior_predictive is absent from idata.
-    """
-    if (
-        not hasattr(data.idata, "prior_predictive")
-        or data.idata.prior_predictive is None
-    ):
-        raise ValueError(
-            "No prior_predictive data found in idata. "
-            "Run MMM.sample_prior_predictive() first."
-        )
-    return data.idata.prior_predictive
-
-
-def _get_prior(data: MMMIDataWrapper) -> xr.Dataset:
-    """Return the prior group from *data*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the fitted model's InferenceData.
-
-    Returns
-    -------
-    xr.Dataset
-        The prior group.
-
-    Raises
-    ------
-    ValueError
-        If prior is absent from idata.
-    """
-    if not hasattr(data.idata, "prior") or data.idata.prior is None:
-        raise ValueError(
-            "No prior data found in idata. Run MMM.sample_prior_predictive() first."
-        )
-    return data.idata.prior
 
 
 def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
@@ -137,8 +133,8 @@ def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Datas
     xr.Dataset
     """
     if original_scale:
-        return _get_prior(data)
-    return _get_prior_predictive(data)
+        return get_prior(data.idata)
+    return get_prior_predictive(data.idata)
 
 
 class DiagnosticsPlots:
@@ -282,7 +278,7 @@ class DiagnosticsPlots:
             If ``y_original_scale`` not in posterior_predictive, or target_data not in constant_data.
         """
         pp_var = "y_original_scale"
-        pp_ds = _get_posterior_predictive(data)
+        pp_ds = get_posterior_predictive(data.idata)
         if pp_var not in pp_ds:
             raise ValueError(
                 f"Variable '{pp_var}' not found in posterior_predictive. "
@@ -370,7 +366,7 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = _get_posterior_predictive(data)
+        pp_ds = get_posterior_predictive(data.idata)
 
         var_name = "y_original_scale" if original_scale else "y"
         if var_name not in pp_ds:
