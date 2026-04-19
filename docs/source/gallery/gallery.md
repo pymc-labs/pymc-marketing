@@ -307,7 +307,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Consideration Set Mixed Logit
-:img-top: ../gallery/images/mixed_logit.png
+:img-top: ../gallery/images/consideration_set_model.png
 :link: ../notebooks/customer_choice/consideration_set_logit.html
 :::
 ::::
