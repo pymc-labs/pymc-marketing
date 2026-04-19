@@ -25,9 +25,9 @@ seed = sum(map(ord, "ConsiderationSet"))
 rng = np.random.default_rng(seed)
 
 
-def _generate_hiring_data(n=50, random_consideration=False):
+def _generate_hiring_data(n=50, random_consideration=False, seed=42):
     """Generate synthetic hiring data with consideration instruments."""
-    np.random.seed(42)
+    local_rng = np.random.default_rng(seed)
 
     TRUE_ALPHA = np.array([0.6, 1.1, 0.0])
     TRUE_B_AGE = -0.9
@@ -40,20 +40,20 @@ def _generate_hiring_data(n=50, random_consideration=False):
     Z_MEANS = np.array([Z_GRAD_MEAN, Z_WHITE_MEAN, Z_YOUNG_MEAN])
 
     TRUE_SIGMA_CONSIDER = 1.5 if random_consideration else 0.0
-    eta = np.random.normal(0, max(TRUE_SIGMA_CONSIDER, 1e-10), size=n)
+    eta = local_rng.normal(0, max(TRUE_SIGMA_CONSIDER, 1e-10), size=n)
 
     rows = []
     for i in range(n):
-        age_A = np.random.uniform(22, 60)
-        age_B = np.random.uniform(22, 60)
-        age_C = np.random.uniform(22, 60)
-        exp_A = np.random.uniform(0, 30)
-        exp_B = np.random.uniform(0, 30)
-        exp_C = np.random.uniform(0, 30)
+        age_A = local_rng.uniform(22, 60)
+        age_B = local_rng.uniform(22, 60)
+        age_C = local_rng.uniform(22, 60)
+        exp_A = local_rng.uniform(0, 30)
+        exp_B = local_rng.uniform(0, 30)
+        exp_C = local_rng.uniform(0, 30)
 
-        is_college_grad = np.random.beta(2, 3)
-        is_white = float(np.random.binomial(1, 0.65))
-        is_under_40 = float(np.random.binomial(1, 0.55))
+        is_college_grad = local_rng.beta(2, 3)
+        is_white = float(local_rng.binomial(1, 0.65))
+        is_under_40 = float(local_rng.binomial(1, 0.55))
         z_raw = np.array([is_college_grad, is_white, is_under_40])
         z_tilde = z_raw - Z_MEANS
 
@@ -74,7 +74,7 @@ def _generate_hiring_data(n=50, random_consideration=False):
         U_adj = U_adj - U_adj.max()
         exp_u = np.exp(U_adj)
         p = exp_u / exp_u.sum()
-        choice = np.random.choice(["Firm A", "Firm B", "Firm C"], p=p)
+        choice = local_rng.choice(["Firm A", "Firm B", "Firm C"], p=p)
 
         rows.append(
             {
@@ -585,3 +585,97 @@ class TestConsiderationSetMixedLogitStability:
         assert "prior_predictive" in prior.groups()
         p_vals = prior["prior"]["p"].values
         assert not np.any(np.isnan(p_vals))
+
+
+class TestConsiderationSetMixedLogitValidation:
+    """Negative tests for input validation."""
+
+    def test_z_tilde_wrong_rank_1d_raises(self, hiring_df, utility_equations):
+        with pytest.raises(ValueError, match=r"2-D.*3-D"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={"Z_tilde": np.zeros(50)},
+            )
+
+    def test_z_tilde_wrong_rank_4d_raises(self, hiring_df, utility_equations):
+        with pytest.raises(ValueError, match=r"2-D.*3-D"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={"Z_tilde": np.zeros((50, 3, 2, 1))},
+            )
+
+    def test_z_instrument_names_length_mismatch_raises(
+        self, hiring_df, utility_equations
+    ):
+        n = len(hiring_df)
+        Z_multi = rng.standard_normal((n, 3, 2))
+        with pytest.raises(ValueError, match="z_instrument_names"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={
+                    "Z_tilde": Z_multi,
+                    "z_instrument_names": ["only_one"],  # K_z=2, names=1
+                },
+            )
+
+    def test_missing_Z_tilde_key_raises(self, hiring_df, utility_equations):
+        with pytest.raises(ValueError, match="Z_tilde"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={"wrong_key": np.zeros((50, 3))},
+            )
+
+    def test_dim_switch_2d_to_3d_after_build_raises(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
+        """Switching from 2-D to 3-D Z_tilde on an already-built model must fail."""
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={"Z_tilde": Z_tilde},
+        )
+        model.build_model()
+
+        n = len(hiring_df)
+        Z_3d = rng.standard_normal((n, 3, 2))
+        with pytest.raises(ValueError, match="dimensionality"):
+            model.sample_posterior_predictive(
+                consideration_instruments={"Z_tilde": Z_3d}
+            )
+
+    def test_dim_switch_3d_to_2d_after_build_raises(
+        self, hiring_df, Z_tilde, utility_equations
+    ):
+        """Switching from 3-D to 2-D Z_tilde on an already-built model must fail."""
+        n = len(hiring_df)
+        Z_3d = rng.standard_normal((n, 3, 2))
+        model = ConsiderationSetMixedLogit(
+            choice_df=hiring_df,
+            utility_equations=utility_equations,
+            depvar="choice",
+            covariates=["age", "exp"],
+            consideration_instruments={
+                "Z_tilde": Z_3d,
+                "z_instrument_names": ["inst_A", "inst_B"],
+            },
+        )
+        model.build_model()
+
+        with pytest.raises(ValueError, match="dimensionality"):
+            model.sample_posterior_predictive(
+                consideration_instruments={"Z_tilde": Z_tilde}
+            )

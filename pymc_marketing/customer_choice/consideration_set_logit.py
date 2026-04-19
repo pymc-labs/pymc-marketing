@@ -14,6 +14,7 @@
 """Consideration Set Mixed Logit with optional random consideration intercepts."""
 
 import json
+from typing import TypedDict
 
 import arviz as az
 import numpy as np
@@ -24,6 +25,25 @@ from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
 from pymc_marketing.customer_choice.mixed_logit import MixedLogit
+
+
+class _ConsiderationInstrumentsRequired(TypedDict):
+    Z_tilde: np.ndarray
+
+
+class ConsiderationInstruments(_ConsiderationInstrumentsRequired, total=False):
+    """Typed dict for consideration instrument inputs.
+
+    Attributes
+    ----------
+    Z_tilde : np.ndarray
+        Mean-centred instruments, shape (N, J) or (N, J, K_z). Required.
+    z_instrument_names : list[str]
+        Names for the K_z instrument dimensions. Length must equal K_z.
+        Optional; defaults to ``["z_0", "z_1", ...]``.
+    """
+
+    z_instrument_names: list[str]
 
 
 class ConsiderationSetMixedLogit(MixedLogit):
@@ -55,12 +75,12 @@ class ConsiderationSetMixedLogit(MixedLogit):
         Name of the dependent variable column.
     covariates : list of str
         Base covariate names (e.g., ['price', 'time']).
-    consideration_instruments : dict
-        Must contain 'Z_tilde': np.ndarray of shape (N, J) for a single
-        instrument per alternative, or (N, J, K_z) for multiple
-        instruments per alternative. Mean-centring is the caller's
-        responsibility. At z_tilde = 0, pi = sigmoid(0) = 0.5.
-        Optionally contains 'z_instrument_names': list of str of
+    consideration_instruments : ConsiderationInstruments
+        TypedDict that must contain ``'Z_tilde'``: np.ndarray of shape
+        (N, J) for a single instrument per alternative, or (N, J, K_z)
+        for multiple instruments per alternative. Mean-centring is the
+        caller's responsibility. At ``z_tilde = 0``, ``pi = sigmoid(0) = 0.5``.
+        Optionally contains ``'z_instrument_names'``: list of str of
         length K_z for labelling the instrument dimensions.
     consideration_intercept : bool, optional
         If True, adds alternative-specific intercepts gamma_0j to the
@@ -120,7 +140,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         utility_equations: list[str],
         depvar: str,
         covariates: list[str],
-        consideration_instruments: dict,
+        consideration_instruments: ConsiderationInstruments,
         consideration_intercept: bool = False,
         random_consideration: bool = False,
         model_config: dict | None = None,
@@ -350,19 +370,52 @@ class ConsiderationSetMixedLogit(MixedLogit):
         return model
 
     def _update_consideration_instruments(
-        self, consideration_instruments: dict
+        self, consideration_instruments: ConsiderationInstruments
     ) -> None:
         """Update consideration instruments and refresh internal state.
 
         Parameters
         ----------
-        consideration_instruments : dict
+        consideration_instruments : ConsiderationInstruments
             Must contain 'Z_tilde' key. May contain 'z_instrument_names'.
+
+        Raises
+        ------
+        ValueError
+            If Z_tilde is not 2-D or 3-D, z_instrument_names length mismatches
+            K_z, or the new dimensionality is incompatible with an already-built
+            model.
         """
-        self.consideration_instruments = consideration_instruments
         Z = consideration_instruments["Z_tilde"]
-        self._multi_instrument = Z.ndim == 3
-        if self._multi_instrument:
+
+        if Z.ndim not in (2, 3):
+            raise ValueError(
+                f"Z_tilde must be 2-D (N, J) or 3-D (N, J, K_z), got {Z.ndim}-D."
+            )
+
+        new_multi = Z.ndim == 3
+
+        if new_multi:
+            k_z = Z.shape[2]
+            names = consideration_instruments.get("z_instrument_names")
+            if names is not None and len(names) != k_z:
+                raise ValueError(
+                    f"z_instrument_names has {len(names)} entries but Z_tilde has "
+                    f"{k_z} instrument(s) along axis 2."
+                )
+
+        if hasattr(self, "model") and self._multi_instrument != new_multi:
+            old_dim = "3-D" if self._multi_instrument else "2-D"
+            new_dim = "3-D" if new_multi else "2-D"
+            raise ValueError(
+                f"Cannot switch Z_tilde dimensionality after model has been built "
+                f"(built with {old_dim}, new array is {new_dim}). "
+                "Rebuild the model with the new dimensionality."
+            )
+
+        self.consideration_instruments = consideration_instruments
+        self._multi_instrument = new_multi
+        if new_multi:
             self._n_z_instruments = Z.shape[2]
             self._z_instrument_names = consideration_instruments.get(
                 "z_instrument_names",
@@ -375,7 +428,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
     def sample_posterior_predictive(  # type: ignore[override]  # consideration_instruments param extends parent signature
         self,
         choice_df: pd.DataFrame | None = None,
-        consideration_instruments: dict | None = None,
+        consideration_instruments: ConsiderationInstruments | None = None,
         extend_idata: bool = True,
         **kwargs,
     ) -> az.InferenceData:
@@ -388,7 +441,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             When provided, ``consideration_instruments`` must also be
             supplied with a Z_tilde whose first dimension matches the
             new DataFrame.
-        consideration_instruments : dict, optional
+        consideration_instruments : ConsiderationInstruments, optional
             New consideration instruments. If None, uses training instruments.
         extend_idata : bool, optional
             Whether to add to self.idata.
@@ -444,7 +497,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         self,
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
-        new_consideration_instruments: dict | None = None,
+        new_consideration_instruments: ConsiderationInstruments | None = None,
         fit_kwargs: dict | None = None,
     ) -> az.InferenceData:
         """Apply intervention, optionally updating consideration instruments.
@@ -455,7 +508,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             New dataset reflecting changes.
         new_utility_equations : list[str] or None
             Updated utility specifications (triggers refit if provided).
-        new_consideration_instruments : dict or None
+        new_consideration_instruments : ConsiderationInstruments or None
             Updated consideration instruments. If None, reuses current.
             When ``new_choice_df`` has a different number of rows from
             the training data, this must be provided with matching shape.
