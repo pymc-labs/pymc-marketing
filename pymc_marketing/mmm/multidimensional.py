@@ -182,7 +182,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Self, cast
 
 import arviz as az
 import numpy as np
@@ -586,6 +586,41 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
 
+    def add_mu_effect(
+        self: Self,
+        mu_effect: MuEffect,
+    ) -> Self:
+        """Include MuEffect in model.
+
+        Parameters
+        ----------
+        mu_effect : MuEffect
+            Any MuEffect Protocol to include in the model.
+
+        Returns
+        -------
+        The instance for chaining.
+
+        Examples
+        --------
+        Add LinearTrend to the MMM.
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import MMM, LinearTrend
+            from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+            mmm = MMM(...).add_mu_effect(
+                LinearTrendEffect(
+                    trend=LinearTrend(n_changepoints=10),
+                    prefix="linear_trend",
+                )
+            )
+
+        """
+        self.mu_effects.append(mu_effect)
+        return self
+
     def __eq__(self, other: object) -> bool:
         """Compare two MMM instances for equivalence.
 
@@ -859,11 +894,11 @@ class MMM(RegressionModelBuilder):
     def _data_setter(self, X, y=None): ...
 
     def add_events(
-        self,
+        self: Self,
         df_events: pd.DataFrame,
         prefix: str,
         effect: EventEffect,
-    ) -> None:
+    ) -> Self:
         """Add event effects to the model.
 
         This must be called before building the model.
@@ -879,6 +914,10 @@ class MMM(RegressionModelBuilder):
             The prefix to use for the event effect and associated variables.
         effect : EventEffect
             The event effect to apply.
+
+        Returns
+        -------
+        The instance for chaining.
 
         Raises
         ------
@@ -897,6 +936,8 @@ class MMM(RegressionModelBuilder):
             effect=effect,
         )
         self.mu_effects.append(event_effect)
+
+        return self
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
