@@ -5,7 +5,7 @@ requires = ["hatchling<2", "hatch-fancy-pypi-readme"]
 [project]
 name = "pymc-marketing"
 description = "Marketing Statistical Models in PyMC"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { file = "LICENSE" }
 dynamic = ["version", "readme"]
 maintainers = [{ name = "PyMC Labs", email = "info@pymc-labs.com" }]
@@ -13,9 +13,9 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: Apache Software License",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
@@ -26,6 +26,7 @@ classifiers = [
 
 dependencies = [
     "arviz>=0.13.0,<1.0.0",
+    "arviz-plots[matplotlib]>=1.0.0,<2.0",
     "matplotlib>=3.5.1",
     "narwhals",
     "numpy>=2.0",
@@ -85,7 +86,7 @@ test = [
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
-    "jax",
+    "jax<0.10.0",
     "graphviz>=0.20.1",
     "papermill",
     "polars>=1.0.0",

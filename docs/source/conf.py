@@ -91,6 +91,16 @@ locale_dirs = ["../../locales"]
 # exclude method pages from toctree to make pages lighter and build faster
 remove_from_toctrees = ["**/classmethods/*"]
 
+# matplotlib plot directive configuration
+# plot_pre_code runs before every .. plot:: block; replaces the default
+# "import numpy as np / from matplotlib import pyplot as plt" preamble.
+plot_pre_code = (
+    "import numpy as np\n"
+    "import arviz  # registers arviz styles with matplotlib\n"
+    "from matplotlib import pyplot as plt\n"
+    "plt.style.use('arviz-darkgrid')\n"
+)
+
 # myst config
 nb_execution_mode = "auto"
 nb_execution_excludepatterns = ["*.ipynb"]
