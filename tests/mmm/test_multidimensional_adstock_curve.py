@@ -48,15 +48,16 @@ def test_sample_adstock_curve_has_correct_dims(fitted_mmm, request):
 
     Note: The dimensions depend on how the adstock transformation's
     priors are configured. With default priors without channel dims,
-    the output will be (time since exposure, sample). With channel-specific
+    the output will be (chain, draw, time since exposure). With channel-specific
     priors, it would include a channel dimension.
     """
     mmm = request.getfixturevalue(fitted_mmm)
     # Act
     curves = mmm.sample_adstock_curve()
 
-    # Assert - should have sample and time since exposure dims at minimum
-    assert "sample" in curves.dims
+    # Assert - should have chain, draw, and time since exposure dims at minimum
+    assert "chain" in curves.dims
+    assert "draw" in curves.dims
     assert "time since exposure" in curves.dims
 
 
@@ -81,8 +82,9 @@ def test_sample_adstock_curve_num_samples_controls_shape(fitted_mmm, request):
     # Act
     curves = mmm.sample_adstock_curve(num_samples=num_samples)
 
-    # Assert - should have exactly num_samples
-    assert curves.sizes["sample"] == num_samples
+    # Assert - when subsampled, chain=1 and draw=num_samples
+    assert curves.sizes["chain"] == 1
+    assert curves.sizes["draw"] == num_samples
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -101,7 +103,7 @@ def test_sample_adstock_curve_uses_all_samples_when_num_samples_exceeds_total(
     total_available = (
         mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
     )
-    assert curves.sizes["sample"] == total_available
+    assert curves.sizes["chain"] * curves.sizes["draw"] == total_available
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -117,7 +119,7 @@ def test_sample_adstock_curve_uses_all_samples_when_num_samples_is_none(
     total_available = (
         mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
     )
-    assert curves.sizes["sample"] == total_available
+    assert curves.sizes["chain"] * curves.sizes["draw"] == total_available
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -186,7 +188,8 @@ def test_sample_adstock_curve_random_state_with_generator(fitted_mmm, request):
     curves = mmm.sample_adstock_curve(num_samples=num_samples, random_state=rng)
 
     # Assert
-    assert curves.sizes["sample"] == num_samples
+    assert curves.sizes["chain"] == 1
+    assert curves.sizes["draw"] == num_samples
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -298,7 +301,7 @@ def test_sample_adstock_curve_curves_decay_over_time(fitted_mmm, request):
     curves = mmm.sample_adstock_curve()
 
     # Assert - Check that mean curve shows decay behavior
-    mean_curve = curves.mean(dim="sample")
+    mean_curve = curves.mean(dim=["chain", "draw"])
 
     # First value (time 0) should be higher than last value (time l_max-1)
     # This is the characteristic decay of adstock effects
@@ -321,8 +324,8 @@ def test_sample_adstock_curve_amount_scales_linearly(fitted_mmm, request):
 
     # Assert - 2x amount should give approximately 2x values
     # Use mean across samples for simpler comparison
-    mean_1x = curves_1x.mean(dim="sample")
-    mean_2x = curves_2x.mean(dim="sample")
+    mean_1x = curves_1x.mean(dim=["chain", "draw"])
+    mean_2x = curves_2x.mean(dim=["chain", "draw"])
 
     # Check approximate 2x relationship (within 10% tolerance for numerical stability)
     ratio = mean_2x / mean_1x
@@ -334,7 +337,7 @@ def test_sample_adstock_curve_works(fitted_mmm, request):
     """Test that model curves can be sampled.
 
     Note: The adstock transformation's sample_curve returns
-    (time since exposure, sample) dimensions. Custom dimensions
+    (chain, draw, time since exposure) dimensions. Custom dimensions
     (like country) would only appear if the adstock priors were
     configured with those dimensions.
     """
@@ -342,12 +345,13 @@ def test_sample_adstock_curve_works(fitted_mmm, request):
     # Act
     curves = mmm.sample_adstock_curve()
 
-    # Assert - Should have time since exposure and sample dimensions
+    # Assert - Should have time since exposure, chain, and draw dimensions
     assert "time since exposure" in curves.dims
-    assert "sample" in curves.dims
+    assert "chain" in curves.dims
+    assert "draw" in curves.dims
     # Should be a valid DataArray with values
     assert curves.sizes["time since exposure"] > 0
-    assert curves.sizes["sample"] > 0
+    assert curves.sizes["draw"] > 0
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -372,11 +376,11 @@ def test_sample_adstock_curve_can_be_used_for_plotting(fitted_mmm, request):
     curves = mmm.sample_adstock_curve()
 
     # Assert - These operations should work without error
-    mean_curves = curves.mean(dim="sample")
+    mean_curves = curves.mean(dim=["chain", "draw"])
     assert isinstance(mean_curves, xr.DataArray)
 
-    lower = curves.quantile(0.05, dim="sample")
-    upper = curves.quantile(0.95, dim="sample")
+    lower = curves.quantile(0.05, dim=["chain", "draw"])
+    upper = curves.quantile(0.95, dim=["chain", "draw"])
     assert isinstance(lower, xr.DataArray)
     assert isinstance(upper, xr.DataArray)
 

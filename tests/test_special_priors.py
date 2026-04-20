@@ -17,6 +17,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor import function
 
@@ -876,3 +877,59 @@ def test_mmm_with_special_prior_save_load_round_trip(tmp_path, mock_pymc_sample)
     # Verify prior parameters match
     assert mmm_loaded.saturation.priors["lam"] == mmm.saturation.priors["lam"]
     assert mmm_loaded.saturation.priors["beta"] == mmm.saturation.priors["beta"]
+
+
+def test_xarray_dataarray_deserializer_registered():
+    da = xr.DataArray([1.0, 2.0], dims=["channel"], coords={"channel": ["a", "b"]})
+    result = deserialize(da.to_dict())
+    assert isinstance(result, xr.DataArray)
+    xr.testing.assert_equal(result, da)
+
+
+def test_lognormal_prior_roundtrip_with_dataarray_params():
+    coords = {"country": ["ES", "IT"], "channel": ["search", "social"]}
+    mean = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]], dims=["country", "channel"], coords=coords
+    )
+    std = xr.DataArray(
+        [[0.5, 0.5], [0.5, 0.5]], dims=["country", "channel"], coords=coords
+    )
+    prior = LogNormalPrior(mean=mean, std=std, dims=("country", "channel"))
+    restored = LogNormalPrior.from_dict(prior.to_dict())
+    assert isinstance(restored.parameters["mean"], xr.DataArray)
+    assert isinstance(restored.parameters["std"], xr.DataArray)
+    xr.testing.assert_equal(restored.parameters["mean"], mean)
+    xr.testing.assert_equal(restored.parameters["std"], std)
+    assert restored.dims == prior.dims
+
+
+def test_lognormal_prior_roundtrip_non_centered():
+    coords = {"country": ["ES", "IT"], "channel": ["search", "social"]}
+    mean = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]], dims=["country", "channel"], coords=coords
+    )
+    std = xr.DataArray(
+        [[0.5, 0.5], [0.5, 0.5]], dims=["country", "channel"], coords=coords
+    )
+    prior = LogNormalPrior(
+        mean=mean, std=std, dims=("country", "channel"), centered=False
+    )
+    restored = LogNormalPrior.from_dict(prior.to_dict())
+    assert not restored.centered
+    xr.testing.assert_equal(restored.parameters["mean"], mean)
+    xr.testing.assert_equal(restored.parameters["std"], std)
+
+
+def test_lognormal_prior_roundtrip_via_deserialize():
+    coords = {"country": ["ES", "IT"], "channel": ["search", "social"]}
+    mean = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]], dims=["country", "channel"], coords=coords
+    )
+    std = xr.DataArray(
+        [[0.5, 0.5], [0.5, 0.5]], dims=["country", "channel"], coords=coords
+    )
+    prior = LogNormalPrior(mean=mean, std=std, dims=("country", "channel"))
+    restored = deserialize(prior.to_dict())
+    assert isinstance(restored, LogNormalPrior)
+    xr.testing.assert_equal(restored.parameters["mean"], mean)
+    xr.testing.assert_equal(restored.parameters["std"], std)

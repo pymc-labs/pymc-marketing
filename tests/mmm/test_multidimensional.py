@@ -297,24 +297,26 @@ def test_save_load_equality_with_all_effects(mock_pymc_sample):
     )
 
     # Create MMM with time-varying effects
-    mmm = MMM(
-        date_column="date",
-        channel_columns=["channel_1", "channel_2"],
-        target_column="target",
-        adstock=GeometricAdstock(l_max=8),
-        saturation=LogisticSaturation(),
-        time_varying_intercept=True,
-        time_varying_media=True,
-    )
-
-    # Add MuEffects
-    mmm.mu_effects.append(
-        FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
-    )
-    mmm.mu_effects.append(
-        LinearTrendEffect(
-            trend=LinearTrend(n_changepoints=5),
-            prefix="trend",
+    mmm = (
+        MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            time_varying_media=True,
+        )
+        .add_mu_effect(
+            FourierEffect(
+                fourier=YearlyFourier(n_order=3, prefix="yearly"),
+            ),
+        )
+        .add_mu_effect(
+            LinearTrendEffect(
+                trend=LinearTrend(n_changepoints=5),
+                prefix="trend",
+            )
         )
     )
 
@@ -560,20 +562,22 @@ class TestSerializationIntegration:
         )
 
         X, y = minimal_fit_data
-        mmm = self._base_mmm()
-        mmm.mu_effects.append(
-            FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
+        mmm = (
+            self._base_mmm()
+            .add_mu_effect(
+                FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
+            )
+            .add_events(
+                df_events,
+                prefix="promos",
+                effect=EventEffect(
+                    basis=GaussianBasis(),
+                    effect_size=Prior("Normal"),
+                    dims=("promos",),
+                ),
+            )
+            .add_mu_effect(_TestCustomEffect(my_param=42.0))
         )
-        mmm.add_events(
-            df_events,
-            prefix="promos",
-            effect=EventEffect(
-                basis=GaussianBasis(),
-                effect_size=Prior("Normal"),
-                dims=("promos",),
-            ),
-        )
-        mmm.mu_effects.append(_TestCustomEffect(my_param=42.0))
         mmm.fit(X, y)
 
         fname = tmp_path / "mu_effects_model.nc"
@@ -3707,7 +3711,7 @@ def test_mmm_linear_trend_different_dimensions_original_scale(
 
     # Create the wrapper
     trend_effect = LinearTrendEffect(trend=trend, prefix="trend")
-    mmm.mu_effects.append(trend_effect)
+    mmm.add_mu_effect(trend_effect)
 
     mmm.build_model(X, y)
 
