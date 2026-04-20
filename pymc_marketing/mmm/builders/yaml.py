@@ -152,7 +152,7 @@ def build_mmm_from_yaml(
     # 3 -- effects (preserve order)
     for eff_spec in cfg.effects or []:
         effect = build(eff_spec.model_dump(by_alias=True))
-        model.mu_effects.append(effect)
+        model.add_mu_effect(effect)
 
     # 4 -- build PyMC graph (must precede idata loading)
     model.build_model(X, y)
