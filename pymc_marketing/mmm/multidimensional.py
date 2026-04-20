@@ -1949,7 +1949,10 @@ class MMM(RegressionModelBuilder):
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
 
-    def add_original_scale_contribution_variable(self, var: list[str]) -> None:
+    def add_original_scale_contribution_variable(
+        self: Self,
+        var: list[str],
+    ) -> Self:
         """Add a pymc.dims.Deterministic variable to the model that multiplies by the scaler.
 
         Restricted to the model parameters. Only make it possible for "_contribution" variables.
@@ -1987,6 +1990,8 @@ class MMM(RegressionModelBuilder):
                         "date", ..., missing_dims="ignore"
                     ),
                 )
+
+        return self
 
     def fit(  # type: ignore[override]
         self,
@@ -2955,11 +2960,11 @@ class MMM(RegressionModelBuilder):
         return target_transform
 
     def add_lift_test_measurements(
-        self,
+        self: Self,
         df_lift_test: pd.DataFrame,
         dist: type[pmd.DimDistribution] = pmd.Gamma,
         name: str = "lift_measurements",
-    ) -> None:
+    ) -> Self:
         """Add lift tests to the model.
 
         The model for the difference of a channel's saturation curve is created
@@ -3099,12 +3104,14 @@ class MMM(RegressionModelBuilder):
             name=name,
         )
 
+        return self
+
     def add_cost_per_target_calibration(
-        self,
+        self: Self,
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
-    ) -> None:
+    ) -> Self:
         """Calibrate cost-per-target using an observed Normal likelihood.
 
         This computes cost-per-target as
@@ -3167,7 +3174,7 @@ class MMM(RegressionModelBuilder):
                 UserWarning,
                 stacklevel=2,
             )
-            return
+            return self
 
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
@@ -3219,6 +3226,8 @@ class MMM(RegressionModelBuilder):
             target_value=self.model["channel_contribution_original_scale"],
             name_prefix=name_prefix,
         )
+
+        return self
 
     def create_fit_data(
         self,
