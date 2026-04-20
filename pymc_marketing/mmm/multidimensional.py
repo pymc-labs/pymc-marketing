@@ -182,7 +182,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Self, cast
 
 import arviz as az
 import numpy as np
@@ -586,6 +586,41 @@ class MMM(RegressionModelBuilder):
 
         self.mu_effects: list[MuEffect] = []
 
+    def add_mu_effect(
+        self: Self,
+        mu_effect: MuEffect,
+    ) -> Self:
+        """Include MuEffect in model.
+
+        Parameters
+        ----------
+        mu_effect : MuEffect
+            Any MuEffect Protocol to include in the model.
+
+        Returns
+        -------
+        The instance for chaining.
+
+        Examples
+        --------
+        Add LinearTrend to the MMM.
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import MMM, LinearTrend
+            from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+            mmm = MMM(...).add_mu_effect(
+                LinearTrendEffect(
+                    trend=LinearTrend(n_changepoints=10),
+                    prefix="linear_trend",
+                )
+            )
+
+        """
+        self.mu_effects.append(mu_effect)
+        return self
+
     def __eq__(self, other: object) -> bool:
         """Compare two MMM instances for equivalence.
 
@@ -859,11 +894,11 @@ class MMM(RegressionModelBuilder):
     def _data_setter(self, X, y=None): ...
 
     def add_events(
-        self,
+        self: Self,
         df_events: pd.DataFrame,
         prefix: str,
         effect: EventEffect,
-    ) -> None:
+    ) -> Self:
         """Add event effects to the model.
 
         This must be called before building the model.
@@ -879,6 +914,10 @@ class MMM(RegressionModelBuilder):
             The prefix to use for the event effect and associated variables.
         effect : EventEffect
             The event effect to apply.
+
+        Returns
+        -------
+        The instance for chaining.
 
         Raises
         ------
@@ -897,6 +936,8 @@ class MMM(RegressionModelBuilder):
             effect=effect,
         )
         self.mu_effects.append(event_effect)
+
+        return self
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
@@ -1908,7 +1949,10 @@ class MMM(RegressionModelBuilder):
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
 
-    def add_original_scale_contribution_variable(self, var: list[str]) -> None:
+    def add_original_scale_contribution_variable(
+        self: Self,
+        var: list[str],
+    ) -> Self:
         """Add a pymc.dims.Deterministic variable to the model that multiplies by the scaler.
 
         Restricted to the model parameters. Only make it possible for "_contribution" variables.
@@ -1946,6 +1990,8 @@ class MMM(RegressionModelBuilder):
                         "date", ..., missing_dims="ignore"
                     ),
                 )
+
+        return self
 
     def fit(  # type: ignore[override]
         self,
@@ -2914,11 +2960,11 @@ class MMM(RegressionModelBuilder):
         return target_transform
 
     def add_lift_test_measurements(
-        self,
+        self: Self,
         df_lift_test: pd.DataFrame,
         dist: type[pmd.DimDistribution] = pmd.Gamma,
         name: str = "lift_measurements",
-    ) -> None:
+    ) -> Self:
         """Add lift tests to the model.
 
         The model for the difference of a channel's saturation curve is created
@@ -3058,12 +3104,14 @@ class MMM(RegressionModelBuilder):
             name=name,
         )
 
+        return self
+
     def add_cost_per_target_calibration(
-        self,
+        self: Self,
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
-    ) -> None:
+    ) -> Self:
         """Calibrate cost-per-target using an observed Normal likelihood.
 
         This computes cost-per-target as
@@ -3126,7 +3174,7 @@ class MMM(RegressionModelBuilder):
                 UserWarning,
                 stacklevel=2,
             )
-            return
+            return self
 
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
@@ -3178,6 +3226,8 @@ class MMM(RegressionModelBuilder):
             target_value=self.model["channel_contribution_original_scale"],
             name_prefix=name_prefix,
         )
+
+        return self
 
     def create_fit_data(
         self,
