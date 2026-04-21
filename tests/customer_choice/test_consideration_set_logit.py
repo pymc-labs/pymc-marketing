@@ -21,9 +21,6 @@ from pymc_marketing.customer_choice.consideration_set_logit import (
     ConsiderationSetMixedLogit,
 )
 
-seed = sum(map(ord, "ConsiderationSet"))
-rng = np.random.default_rng(seed)
-
 
 def _generate_hiring_data(n=50, random_consideration=False, seed=42):
     """Generate synthetic hiring data with consideration instruments."""
@@ -432,7 +429,8 @@ class TestConsiderationSetMixedLogitInference:
     def test_apply_intervention_multi_instrument(self, hiring_df, utility_equations):
         """Apply intervention with multi-instrument Z_tilde."""
         n = len(hiring_df)
-        Z_multi = rng.standard_normal((n, 3, 2))
+        local_rng = np.random.default_rng(0)
+        Z_multi = local_rng.standard_normal((n, 3, 2))
         z_names = ["inst_A", "inst_B"]
 
         model = ConsiderationSetMixedLogit(
@@ -474,10 +472,10 @@ class TestConsiderationSetMixedLogitInference:
     ):
         """Apply intervention with new utility equations (triggers refit).
 
-        The refit branch builds a fresh model and runs full MCMC, so we
-        pass equations with the same covariates but a different formula
-        structure (e.g., swapped covariate assignment) to exercise the
-        ``new_utility_equations is not None`` code path.
+        The refit branch builds a fresh model and runs full MCMC. We wire
+        each firm's utility to a *different* firm's age column, which gives
+        a design matrix that patsy cannot canonicalise back to the
+        baseline (unlike additive-term reordering).
         """
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
@@ -496,11 +494,14 @@ class TestConsiderationSetMixedLogitInference:
             },
         )
 
-        # Same structure but swap age and exp (different utility spec)
+        baseline_X = model.X.copy()
+
+        # Cross-firm age assignment: genuinely different design-matrix
+        # values, same shape.
         new_equations = [
-            "Firm A ~ exp_A + age_A",
-            "Firm B ~ exp_B + age_B",
-            "Firm C ~ exp_C + age_C",
+            "Firm A ~ age_B + exp_A",
+            "Firm B ~ age_C + exp_B",
+            "Firm C ~ age_A + exp_C",
         ]
 
         idata_cf = model.apply_intervention(
@@ -518,14 +519,22 @@ class TestConsiderationSetMixedLogitInference:
         assert "posterior" in idata_cf.groups()
         assert "p" in idata_cf["posterior_predictive"]
         assert hasattr(model, "intervention_idata")
+        # Confirm the refit actually rebuilt the design matrix.
+        assert not np.allclose(model.X, baseline_X)
 
 
 class TestConsiderationSetMixedLogitStability:
-    def test_extreme_z_tilde_no_nan(self, hiring_df, utility_equations):
-        """Large negative Z_tilde (unavailable alternatives) should not cause NaN."""
+    @pytest.mark.parametrize("z_value", [-10.0, -50.0])
+    def test_extreme_z_tilde_no_nan(self, hiring_df, utility_equations, z_value):
+        """Large-magnitude Z_tilde should not cause NaN.
+
+        Exercises the ``log_pi = log_odds - softplus(log_odds)`` identity used
+        in place of ``log(sigmoid(x) + eps)``. The ``z = -50`` case in
+        particular catches regressions that reintroduce the naive formulation.
+        """
         n = len(hiring_df)
         Z_extreme = np.zeros((n, 3))
-        Z_extreme[:, 2] = -10.0  # Firm C effectively unavailable
+        Z_extreme[:, 2] = z_value  # Firm C effectively unavailable
 
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
@@ -559,8 +568,9 @@ class TestConsiderationSetMixedLogitStability:
     def test_multi_instrument_z_tilde(self, hiring_df, utility_equations):
         """Test Z_tilde with shape (N, J, K_z) for multiple instruments."""
         n = len(hiring_df)
+        local_rng = np.random.default_rng(0)
         # 3 alternatives, 2 instruments each
-        Z_multi = rng.standard_normal((n, 3, 2))
+        Z_multi = local_rng.standard_normal((n, 3, 2))
 
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
@@ -614,7 +624,8 @@ class TestConsiderationSetMixedLogitValidation:
         self, hiring_df, utility_equations
     ):
         n = len(hiring_df)
-        Z_multi = rng.standard_normal((n, 3, 2))
+        local_rng = np.random.default_rng(0)
+        Z_multi = local_rng.standard_normal((n, 3, 2))
         with pytest.raises(ValueError, match="z_instrument_names"):
             ConsiderationSetMixedLogit(
                 choice_df=hiring_df,
@@ -651,7 +662,8 @@ class TestConsiderationSetMixedLogitValidation:
         model.build_model()
 
         n = len(hiring_df)
-        Z_3d = rng.standard_normal((n, 3, 2))
+        local_rng = np.random.default_rng(0)
+        Z_3d = local_rng.standard_normal((n, 3, 2))
         with pytest.raises(ValueError, match="dimensionality"):
             model.sample_posterior_predictive(
                 consideration_instruments={"Z_tilde": Z_3d}
@@ -662,7 +674,8 @@ class TestConsiderationSetMixedLogitValidation:
     ):
         """Switching from 3-D to 2-D Z_tilde on an already-built model must fail."""
         n = len(hiring_df)
-        Z_3d = rng.standard_normal((n, 3, 2))
+        local_rng = np.random.default_rng(0)
+        Z_3d = local_rng.standard_normal((n, 3, 2))
         model = ConsiderationSetMixedLogit(
             choice_df=hiring_df,
             utility_equations=utility_equations,
@@ -678,4 +691,41 @@ class TestConsiderationSetMixedLogitValidation:
         with pytest.raises(ValueError, match="dimensionality"):
             model.sample_posterior_predictive(
                 consideration_instruments={"Z_tilde": Z_tilde}
+            )
+
+    def test_z_tilde_row_count_mismatch_raises(self, hiring_df, utility_equations):
+        """Z_tilde.shape[0] must match len(choice_df)."""
+        n = len(hiring_df)
+        with pytest.raises(ValueError, match="rows"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={"Z_tilde": np.zeros((n + 5, 3))},
+            )
+
+    def test_z_tilde_alt_count_mismatch_raises(self, hiring_df, utility_equations):
+        """Z_tilde.shape[1] must match the number of alternatives."""
+        n = len(hiring_df)
+        with pytest.raises(ValueError, match="alternatives"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                # 3 utility equations but only 2 alternatives along axis 1
+                consideration_instruments={"Z_tilde": np.zeros((n, 2))},
+            )
+
+    def test_z_tilde_non_numeric_dtype_raises(self, hiring_df, utility_equations):
+        """Non-numeric Z_tilde must be rejected with a clear error."""
+        n = len(hiring_df)
+        with pytest.raises(ValueError, match="numeric"):
+            ConsiderationSetMixedLogit(
+                choice_df=hiring_df,
+                utility_equations=utility_equations,
+                depvar="choice",
+                covariates=["age", "exp"],
+                consideration_instruments={"Z_tilde": np.full((n, 3), "a")},
             )

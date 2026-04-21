@@ -159,7 +159,11 @@ class ConsiderationSetMixedLogit(MixedLogit):
                 "with a mean-centred (N, J) or (N, J, K_z) array."
             )
 
-        self._update_consideration_instruments(consideration_instruments)
+        self._update_consideration_instruments(
+            consideration_instruments,
+            expected_n_rows=len(choice_df),
+            expected_n_alts=len(utility_equations),
+        )
 
         super().__init__(
             choice_df=choice_df,
@@ -370,7 +374,10 @@ class ConsiderationSetMixedLogit(MixedLogit):
         return model
 
     def _update_consideration_instruments(
-        self, consideration_instruments: ConsiderationInstruments
+        self,
+        consideration_instruments: ConsiderationInstruments,
+        expected_n_rows: int | None = None,
+        expected_n_alts: int | None = None,
     ) -> None:
         """Update consideration instruments and refresh internal state.
 
@@ -378,19 +385,37 @@ class ConsiderationSetMixedLogit(MixedLogit):
         ----------
         consideration_instruments : ConsiderationInstruments
             Must contain 'Z_tilde' key. May contain 'z_instrument_names'.
+        expected_n_rows : int, optional
+            If provided, ``Z_tilde.shape[0]`` must equal this value.
+        expected_n_alts : int, optional
+            If provided, ``Z_tilde.shape[1]`` must equal this value.
 
         Raises
         ------
         ValueError
-            If Z_tilde is not 2-D or 3-D, z_instrument_names length mismatches
-            K_z, or the new dimensionality is incompatible with an already-built
-            model.
+            If Z_tilde is not numeric, not 2-D or 3-D, has a mismatched row or
+            alternative count, z_instrument_names length mismatches K_z, or the
+            new dimensionality is incompatible with an already-built model.
         """
         Z = consideration_instruments["Z_tilde"]
+
+        if not np.issubdtype(Z.dtype, np.number):
+            raise ValueError(f"Z_tilde must be numeric, got dtype {Z.dtype}.")
 
         if Z.ndim not in (2, 3):
             raise ValueError(
                 f"Z_tilde must be 2-D (N, J) or 3-D (N, J, K_z), got {Z.ndim}-D."
+            )
+
+        if expected_n_rows is not None and Z.shape[0] != expected_n_rows:
+            raise ValueError(
+                f"Z_tilde has {Z.shape[0]} rows but choice_df has {expected_n_rows}."
+            )
+
+        if expected_n_alts is not None and Z.shape[1] != expected_n_alts:
+            raise ValueError(
+                f"Z_tilde has {Z.shape[1]} alternatives along axis 1 but the "
+                f"model has {expected_n_alts} alternatives."
             )
 
         new_multi = Z.ndim == 3
@@ -425,6 +450,28 @@ class ConsiderationSetMixedLogit(MixedLogit):
             self._n_z_instruments = 1
             self._z_instrument_names = None
 
+    def _build_prediction_data_dict(
+        self,
+        new_X: np.ndarray | None,
+        new_F: np.ndarray | None,
+        new_y: np.ndarray | None,
+    ) -> dict[str, np.ndarray]:
+        """Assemble the ``pm.set_data`` payload for prediction/intervention.
+
+        The ``Z`` entry is always included (the current
+        ``consideration_instruments['Z_tilde']``). ``X``, ``y`` and the
+        optional ``W`` fixed-covariate block are included only when a new
+        design matrix is provided.
+        """
+        data_dict: dict[str, np.ndarray] = {}
+        if new_X is not None and new_y is not None:
+            data_dict["X"] = new_X
+            data_dict["y"] = new_y
+            if new_F is not None and len(new_F) > 0:
+                data_dict["W"] = new_F
+        data_dict["Z"] = self.consideration_instruments["Z_tilde"]
+        return data_dict
+
     def sample_posterior_predictive(  # type: ignore[override]  # consideration_instruments param extends parent signature
         self,
         choice_df: pd.DataFrame | None = None,
@@ -454,7 +501,14 @@ class ConsiderationSetMixedLogit(MixedLogit):
             Posterior predictive samples.
         """
         if consideration_instruments is not None:
-            self._update_consideration_instruments(consideration_instruments)
+            expected_rows = (
+                len(choice_df) if choice_df is not None else len(self.choice_df)
+            )
+            self._update_consideration_instruments(
+                consideration_instruments,
+                expected_n_rows=expected_rows,
+                expected_n_alts=len(self.utility_equations),
+            )
 
         # Build the data dict for pm.set_data — we always update Z when
         # either the choice_df or the instruments change.
@@ -471,14 +525,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
                 new_X, new_F, new_y = None, None, None
 
             with self.model:
-                data_dict = {}
-                if new_X is not None and new_y is not None:
-                    data_dict["X"] = new_X
-                    data_dict["y"] = new_y
-                    if new_F is not None and len(new_F) > 0:
-                        data_dict["W"] = new_F
-                data_dict["Z"] = self.consideration_instruments["Z_tilde"]
-                pm.set_data(data_dict)
+                pm.set_data(self._build_prediction_data_dict(new_X, new_F, new_y))
 
         if self.idata is None:
             raise RuntimeError("self.idata must be initialized before extending")
@@ -499,6 +546,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         new_utility_equations: list[str] | None = None,
         new_consideration_instruments: ConsiderationInstruments | None = None,
         fit_kwargs: dict | None = None,
+        random_seed: int | None = None,
     ) -> az.InferenceData:
         """Apply intervention, optionally updating consideration instruments.
 
@@ -514,14 +562,28 @@ class ConsiderationSetMixedLogit(MixedLogit):
             the training data, this must be provided with matching shape.
         fit_kwargs : dict or None
             Keyword arguments for sampling if refitting.
+        random_seed : int, optional
+            Random seed for posterior-predictive sampling in the no-refit
+            branch. When ``new_utility_equations`` is provided (refit
+            branch), the seed passed in ``fit_kwargs`` governs sampling.
 
         Returns
         -------
         az.InferenceData
             Posterior or predictive distribution under intervention.
         """
+        if not hasattr(self, "model") or self.idata is None:
+            raise RuntimeError(
+                "apply_intervention requires a fitted model. "
+                "Call .fit() before applying an intervention."
+            )
+
         if new_consideration_instruments is not None:
-            self._update_consideration_instruments(new_consideration_instruments)
+            self._update_consideration_instruments(
+                new_consideration_instruments,
+                expected_n_rows=len(new_choice_df),
+                expected_n_alts=len(self.utility_equations),
+            )
 
         if fit_kwargs is None:
             fit_kwargs = {
@@ -530,27 +592,20 @@ class ConsiderationSetMixedLogit(MixedLogit):
                 "idata_kwargs": {"log_likelihood": True},
             }
 
-        if not hasattr(self, "model"):
-            self.sample()
-
         if new_utility_equations is None:
             new_X, new_F, new_y = self.preprocess_model_data(
                 new_choice_df, self.utility_equations
             )
 
             with self.model:
-                data_dict = {"X": new_X, "y": new_y}
-                if new_F is not None:
-                    data_dict["W"] = new_F
-                data_dict["Z"] = self.consideration_instruments["Z_tilde"]
-                pm.set_data(data_dict)
+                pm.set_data(self._build_prediction_data_dict(new_X, new_F, new_y))
 
                 idata_new_policy = pm.sample_posterior_predictive(
                     self.idata,
                     var_names=["p", "likelihood"],
                     return_inferencedata=True,
                     extend_inferencedata=False,
-                    random_seed=100,  # TODO: inherit from sampler_config or accept as param
+                    random_seed=random_seed,
                 )
 
             self.intervention_idata = idata_new_policy
