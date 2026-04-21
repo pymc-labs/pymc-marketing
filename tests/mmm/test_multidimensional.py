@@ -208,6 +208,46 @@ def test_save_load_equality(fit_mmm: MMM):
     os.remove(file)
 
 
+def test_save_original_scale_vars_stored_in_attrs(fit_mmm: MMM, tmp_path):
+    """save() persists original_scale_vars in idata.attrs."""
+    fit_mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    file = str(tmp_path / "test.nc")
+    fit_mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "original_scale_vars" in loaded.idata.attrs
+    import json
+
+    stored = json.loads(loaded.idata.attrs["original_scale_vars"])
+    assert "channel_contribution" in stored
+
+
+def test_save_load_restores_original_scale_deterministic(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    """save/load round-trip preserves *_original_scale Deterministics in named_vars.
+
+    add_original_scale_contribution_variable is called before fit() so the variable
+    is captured in idata.posterior; save() persists the base names in idata.attrs;
+    load() re-adds the Deterministic to the rebuilt model graph.
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.fit(X, y)
+
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+    file = str(tmp_path / "test.nc")
+    mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
+
+
 def test_save_load_equality_with_all_effects(mock_pymc_sample):
     """Test save/load roundtrip with all MuEffects and HSGP time-varying effects.
 

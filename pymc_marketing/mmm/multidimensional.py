@@ -1031,6 +1031,16 @@ class MMM(RegressionModelBuilder):
                     )
                     self.idata.add_groups({group_name: ds})
 
+        # Persist the base names of any *_original_scale Deterministics so they
+        # can be faithfully re-added by build_from_idata on load.
+        suffix = "_original_scale"
+        original_scale_vars = [
+            name[: -len(suffix)]
+            for name in self.model.named_vars
+            if name.endswith(suffix)
+        ]
+        self.idata.attrs["original_scale_vars"] = json.dumps(original_scale_vars)
+
         super().save(fname, **kwargs)
 
     @classmethod
@@ -3391,6 +3401,33 @@ class MMM(RegressionModelBuilder):
         y = dataset[self.target_column]
 
         self.build_model(X, y)  # type: ignore
+
+        # Re-add any *_original_scale Deterministics that were present when the
+        # model was saved.  These are added by add_original_scale_contribution_variable
+        # but the PyMC model graph is not serialized, so build_model does not know
+        # to recreate them.
+        #
+        # Primary path  : read the explicit list stored by save() in idata.attrs.
+        # Fallback path : infer from idata.posterior for models saved before this
+        #                 fix (original_scale_vars attr absent).
+        suffix = "_original_scale"
+        if "original_scale_vars" in idata.attrs:
+            vars_to_restore = [
+                v
+                for v in json.loads(idata.attrs["original_scale_vars"])
+                if v in self.model.named_vars
+            ]
+        elif hasattr(idata, "posterior"):
+            vars_to_restore = [
+                v[: -len(suffix)]
+                for v in idata.posterior.data_vars
+                if v.endswith(suffix) and v[: -len(suffix)] in self.model.named_vars
+            ]
+        else:
+            vars_to_restore = []
+
+        if vars_to_restore:
+            self.add_original_scale_contribution_variable(var=vars_to_restore)
 
     def set_cost_per_unit(
         self,
