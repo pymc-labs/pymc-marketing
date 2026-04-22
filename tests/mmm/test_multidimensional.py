@@ -248,6 +248,42 @@ def test_save_load_restores_original_scale_deterministic(
     assert "channel_contribution_original_scale" in loaded.model.named_vars
 
 
+def test_build_from_idata_fallback_infers_original_scale_from_posterior(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    """Fallback path restores *_original_scale Deterministics from idata.posterior.
+
+    Simulates loading a model artifact saved *before* the fix, i.e. idata has
+    channel_contribution_original_scale in posterior but no original_scale_vars
+    attr.  build_from_idata() must infer the variable from posterior and still
+    re-add the Deterministic to the model graph.
+    """
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.fit(X, y)
+
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+    file = str(tmp_path / "test.nc")
+    mmm.save(file)
+
+    # Simulate a pre-fix artifact by stripping the attr before loading.
+    loaded_idata = az.from_netcdf(file)
+    assert "original_scale_vars" in loaded_idata.attrs
+    del loaded_idata.attrs["original_scale_vars"]
+    assert "original_scale_vars" not in loaded_idata.attrs
+
+    stripped_file = str(tmp_path / "test_stripped.nc")
+    loaded_idata.to_netcdf(stripped_file)
+
+    loaded = MMM.load(stripped_file)
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
+
+
 def test_save_load_equality_with_all_effects(mock_pymc_sample):
     """Test save/load roundtrip with all MuEffects and HSGP time-varying effects.
 
