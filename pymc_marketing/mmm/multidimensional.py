@@ -3392,6 +3392,34 @@ class MMM(RegressionModelBuilder):
 
         self.build_model(X, y)  # type: ignore
 
+        self._restore_original_scale_variables(idata)
+
+    def _restore_original_scale_variables(self, idata: az.InferenceData) -> None:
+        """Re-create ``_original_scale`` deterministics that were present before save.
+
+        During :meth:`build_model`, only ``total_media_contribution_original_scale``
+        is created automatically.  Any other ``*_original_scale`` variables added by
+        the user via :meth:`add_original_scale_contribution_variable` are lost on
+        load because ``build_model`` does not create them.  This method inspects the
+        posterior for such variables and restores them.
+        """
+        if not hasattr(idata, "posterior"):
+            return
+
+        suffix = "_original_scale"
+        base_vars_to_restore: list[str] = []
+        for var_name in idata.posterior.data_vars:
+            if not var_name.endswith(suffix):
+                continue
+            if var_name in self.model.named_vars:
+                continue
+            base = var_name.removesuffix(suffix)
+            if base in self.model.named_vars or base == self.output_var:
+                base_vars_to_restore.append(base)
+
+        if base_vars_to_restore:
+            self.add_original_scale_contribution_variable(base_vars_to_restore)
+
     def set_cost_per_unit(
         self,
         cost_per_unit: pd.DataFrame,

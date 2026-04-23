@@ -166,6 +166,67 @@ def test_save_load(fit_mmm: MMM):
     os.remove(file)
 
 
+def test_save_load_preserves_original_scale_variables(simple_mmm_data, tmp_path):
+    """Regression test for https://github.com/pymc-labs/pymc-marketing/issues/2467.
+
+    After save/load, ``_original_scale`` variables added via
+    ``add_original_scale_contribution_variable`` must still be present in
+    ``model.named_vars`` so that ``sample_posterior_predictive`` can resolve them.
+    """
+    import warnings
+
+    from tests.mmm.conftest import rng
+
+    X = simple_mmm_data["X"]
+    y = simple_mmm_data["y"]
+
+    mmm = MMM(
+        channel_columns=[
+            "channel_1",
+            "channel_2",
+            "channel_3",
+        ],
+        date_column="date",
+        target_column="target",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+    )
+
+    original_scale_vars = [
+        "channel_contribution",
+        "intercept_contribution",
+        mmm.output_var,
+    ]
+    mmm.build_model(X=X, y=y)
+    mmm.add_original_scale_contribution_variable(var=original_scale_vars)
+    mmm._set_xarray_data(mmm.xarray_dataset, model=mmm.model)
+
+    with mmm.model:
+        idata = pm.sample_prior_predictive(random_seed=rng)
+    fit_data = mmm.create_fit_data(X, y)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The group fit_data is not defined in the InferenceData scheme",
+        )
+        idata.add_groups({"posterior": idata.prior, "fit_data": fit_data})
+    mmm.idata = idata
+    mmm.set_idata_attrs(idata=idata)
+
+    expected_vars = {f"{v}_original_scale" for v in original_scale_vars}
+    assert expected_vars.issubset(mmm.model.named_vars.keys())
+
+    file = tmp_path / "model.nc"
+    mmm.save(str(file))
+
+    loaded = MMM.load(str(file))
+
+    assert expected_vars.issubset(loaded.model.named_vars.keys()), (
+        f"Missing after load: {expected_vars - set(loaded.model.named_vars.keys())}"
+    )
+
+
 def test_save_load_equality(fit_mmm: MMM):
     """Test that save/load produces an equivalent MMM instance.
 
