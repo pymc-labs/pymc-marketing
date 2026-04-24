@@ -116,6 +116,137 @@ def generate_saturated_data(
     return data
 
 
+def generate_maxdiff_data(
+    n_respondents: int = 200,
+    n_items: int = 20,
+    n_tasks_per_resp: int = 12,
+    subset_size: int = 4,
+    true_utilities: np.ndarray | None = None,
+    sigma_respondent: float = 0.6,
+    items: list[str] | None = None,
+    random_seed: np.random.Generator | int | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """Generate synthetic MaxDiff (best-worst scaling) data.
+
+    Simulates a MaxDiff survey where each respondent sees ``n_tasks_per_resp``
+    tasks, each showing a random ``subset_size`` of items drawn uniformly from
+    the full pool of ``n_items``. The respondent picks the best and worst items
+    from the subset according to the Louviere sequential best-worst model.
+
+    Parameters
+    ----------
+    n_respondents : int, default 200
+        Number of respondents.
+    n_items : int, default 20
+        Full item pool size.
+    n_tasks_per_resp : int, default 12
+        Tasks shown per respondent.
+    subset_size : int, default 4
+        Items shown per task (must be ``<= n_items``).
+    true_utilities : np.ndarray, optional
+        Ground-truth item utilities of length ``n_items``. If None, drawn
+        from ``Normal(0, 1)``. The last item's utility is shifted to 0 to
+        match the default identification constraint.
+    sigma_respondent : float, default 0.6
+        Scale of per-respondent item-level deviations. Set to 0 for a
+        homogeneous-preferences population.
+    items : list[str], optional
+        Item names (length ``n_items``). Defaults to ``["item_0", ...]``.
+    random_seed : np.random.Generator or int, optional
+        Random state for reproducibility.
+
+    Returns
+    -------
+    task_df : pd.DataFrame
+        Long-format data with columns ``respondent_id``, ``task_id``,
+        ``item_id``, ``is_best``, ``is_worst``. One row per shown item per task.
+    ground_truth : dict
+        ``{"utilities": (n_items,), "respondent_utilities": (R, I),
+        "sigma_respondent": float, "items": list[str]}``. ``utilities`` is
+        the population-level ground truth (with last item shifted to 0);
+        ``respondent_utilities`` holds the per-respondent values used to
+        simulate each respondent's picks.
+
+    Notes
+    -----
+    Subsets are drawn uniformly without replacement. Real MaxDiff studies
+    use balanced designs (BIBD) for efficiency; this generator trades that
+    for simplicity and is adequate for parameter-recovery testing.
+    """
+    rng: np.random.Generator = (
+        random_seed
+        if isinstance(random_seed, np.random.Generator)
+        else np.random.default_rng(random_seed)
+    )
+
+    if subset_size > n_items:
+        raise ValueError(
+            f"subset_size ({subset_size}) cannot exceed n_items ({n_items})."
+        )
+    if subset_size < 2:
+        raise ValueError(
+            "subset_size must be at least 2 (need distinct best and worst)."
+        )
+
+    if items is None:
+        items = [f"item_{i}" for i in range(n_items)]
+    if len(items) != n_items:
+        raise ValueError(f"items has length {len(items)} but n_items is {n_items}.")
+
+    if true_utilities is None:
+        true_utilities = rng.normal(0, 1, size=n_items)
+    true_utilities = np.asarray(true_utilities, dtype=float)
+    # Identification: shift so the reference (last) item is at 0.
+    true_utilities = true_utilities - true_utilities[-1]
+
+    respondent_utilities = true_utilities[None, :] + sigma_respondent * rng.normal(
+        size=(n_respondents, n_items)
+    )
+
+    records = []
+    for r in range(n_respondents):
+        for task in range(n_tasks_per_resp):
+            subset = rng.choice(n_items, size=subset_size, replace=False)
+            u = respondent_utilities[r, subset]
+
+            # Sequential best then worst from remaining.
+            p_best = _softmax_1d(u)
+            best_local = int(rng.choice(subset_size, p=p_best))
+            remaining = np.ones(subset_size, dtype=bool)
+            remaining[best_local] = False
+            u_worst = -u
+            u_worst[~remaining] = -np.inf
+            p_worst = _softmax_1d(u_worst)
+            worst_local = int(rng.choice(subset_size, p=p_worst))
+
+            for local_pos, item_idx in enumerate(subset):
+                records.append(
+                    {
+                        "respondent_id": f"r{r}",
+                        "task_id": task,
+                        "item_id": items[item_idx],
+                        "is_best": int(local_pos == best_local),
+                        "is_worst": int(local_pos == worst_local),
+                    }
+                )
+
+    task_df = pd.DataFrame(records)
+    ground_truth = {
+        "utilities": true_utilities,
+        "respondent_utilities": respondent_utilities,
+        "sigma_respondent": sigma_respondent,
+        "items": items,
+    }
+    return task_df, ground_truth
+
+
+def _softmax_1d(x: np.ndarray) -> np.ndarray:
+    """Numerically stable 1-D softmax used by the synthetic MaxDiff generator."""
+    x_shift = x - np.max(x)
+    exp = np.exp(x_shift)
+    return exp / exp.sum()
+
+
 def generate_unsaturated_data(
     total_sales_before: list[int],
     total_sales_after: list[int],
