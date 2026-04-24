@@ -13,29 +13,6 @@
 #   limitations under the License.
 """Utility functions for PyMC-Marketing."""
 
-import warnings
-from pathlib import Path
+from pymc_marketing.data.idata.utils import from_netcdf, idata_from_zarr, idata_to_zarr
 
-import arviz as az
-
-
-def from_netcdf(filepath: str | Path) -> az.InferenceData:
-    """Load inference data from a netcdf file without `fit_data` group warnings.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        The path to the netcdf file.
-
-    Returns
-    -------
-    az.InferenceData
-        The inference data.
-    """
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message=r"fit_data group is not defined in the InferenceData scheme",
-        )
-        return az.from_netcdf(filepath)
+__all__ = ["from_netcdf", "idata_from_zarr", "idata_to_zarr"]

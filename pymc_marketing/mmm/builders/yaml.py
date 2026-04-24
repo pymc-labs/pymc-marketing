@@ -21,10 +21,10 @@ from pathlib import Path
 
 import pandas as pd
 
+from pymc_marketing.data.idata.utils import from_netcdf
 from pymc_marketing.mmm.builders.factories import build, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.multidimensional import MMM
-from pymc_marketing.utils import from_netcdf
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:

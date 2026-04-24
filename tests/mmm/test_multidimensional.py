@@ -166,6 +166,22 @@ def test_save_load(fit_mmm: MMM):
     os.remove(file)
 
 
+def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path):
+    """Roundtrip via MMM.save() / MMM.load() using a .zarr store.
+
+    arviz.InferenceData.to_zarr() / from_zarr() only support zarr<3.
+    Passing a path ending in .zarr dispatches to the xarray-native Zarr
+    backend, which works with zarr>=3, bypassing the ArviZ version guard.
+    """
+    store = tmp_path / "model.zarr"
+
+    fit_mmm.save(str(store))
+    loaded = MMM.load(str(store))
+
+    assert isinstance(loaded, MMM)
+    assert loaded == fit_mmm
+
+
 def test_save_load_equality(fit_mmm: MMM):
     """Test that save/load produces an equivalent MMM instance.
 
