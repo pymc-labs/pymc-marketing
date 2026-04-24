@@ -28,15 +28,6 @@ from numpy.random import Generator, RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
 
-# ---------------------------------------------------------------------------
-# InferenceData I/O helpers
-# ---------------------------------------------------------------------------
-# arviz<1.0 InferenceData.to_zarr() / from_zarr() hard-error on zarr>=3.
-# arviz>=1.0 resolves this by replacing InferenceData with xr.DataTree and
-# defining:
-#   from_zarr = functools.partial(open_datatree, engine="zarr")
-# We replicate that pattern here so it works today without upgrading ArviZ.
-
 
 def from_netcdf(filepath: str | Path) -> az.InferenceData:
     """Load InferenceData from a NetCDF file, suppressing ``fit_data`` warnings.
@@ -62,6 +53,8 @@ def from_netcdf(filepath: str | Path) -> az.InferenceData:
 def idata_to_zarr(idata: az.InferenceData, store: str | Path) -> None:
     """Save an InferenceData to a Zarr store.
 
+    TODO: Remove this shim once we require ``arviz>=1.0``.
+
     Works with zarr>=3, which is not supported by
     ``arviz.InferenceData.to_zarr()``. Mirrors the approach taken by
     arviz>=1.0: ``idata.to_datatree().to_zarr(store)``.
@@ -81,6 +74,8 @@ _open_datatree_zarr = functools.partial(xr.open_datatree, engine="zarr")
 
 def idata_from_zarr(store: str | Path) -> az.InferenceData:
     """Load an InferenceData from a Zarr store.
+
+    TODO: Remove this shim once we require ``arviz>=1.0``.
 
     Counterpart to :func:`idata_to_zarr`. Works with zarr>=3. Mirrors the
     approach taken by arviz>=1.0, where ``from_zarr`` is

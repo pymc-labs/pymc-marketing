@@ -169,6 +169,8 @@ def test_save_load(fit_mmm: MMM):
 def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path):
     """Roundtrip via MMM.save() / MMM.load() using a .zarr store.
 
+    TODO: Remove this coverage once we require ``arviz>=1.0``.
+
     arviz.InferenceData.to_zarr() / from_zarr() only support zarr<3.
     Passing a path ending in .zarr dispatches to the xarray-native Zarr
     backend, which works with zarr>=3, bypassing the ArviZ version guard.
