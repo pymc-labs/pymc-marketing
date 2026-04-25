@@ -831,10 +831,16 @@ class TestPartWorthsRecovery:
             target_accept=0.9,
             nuts_sampler="pymc",
         )
-        post_mean = (
-            model.idata["posterior"]["beta_feat"].mean(dim=("chain", "draw")).values
+        # Compare item utilities, not raw coefficients
+        post_U_mean = (
+            model.idata["posterior"]["U_item_pop"].mean(dim=("chain", "draw")).values
         )
-        rho, _ = spearmanr(post_mean, gt["betas"])
+        true_U = gt["X"] @ gt["betas"]  # True item utilities
+        # Center both (identification is up to shift)
+        true_U_centered = true_U - true_U.mean()
+        post_U_centered = post_U_mean - post_U_mean.mean()
+
+        rho, _ = spearmanr(post_U_centered, true_U_centered)
         assert rho >= 0.85, f"Spearman rank-correlation too low: {rho}"
 
 
