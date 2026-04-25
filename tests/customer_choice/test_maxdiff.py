@@ -995,3 +995,361 @@ class TestScoreNewItems:
         )
         with pytest.raises(RuntimeError, match="fitted model"):
             model.score_new_items(new_item)
+
+
+# ---------------------------------------------------------------------------
+# Synthetic data generators — validation paths
+# ---------------------------------------------------------------------------
+
+
+class TestGenerateMaxdiffData:
+    """Branch coverage for generate_maxdiff_data validation."""
+
+    def test_subset_size_too_small_raises(self):
+        with pytest.raises(ValueError, match="at least 2"):
+            generate_maxdiff_data(n_items=5, subset_size=1)
+
+    def test_subset_size_exceeds_items_raises(self):
+        with pytest.raises(ValueError, match="cannot exceed"):
+            generate_maxdiff_data(n_items=4, subset_size=5)
+
+    def test_items_length_mismatch_raises(self):
+        with pytest.raises(ValueError, match="length"):
+            generate_maxdiff_data(
+                n_items=4,
+                subset_size=2,
+                items=["a", "b"],  # only 2, but n_items=4
+            )
+
+    def test_custom_items_and_utilities(self):
+        """Custom items list and true_utilities are threaded through correctly."""
+        items = ["alpha", "beta", "gamma", "delta"]
+        true_u = np.array([1.0, 0.5, -0.5, 0.0])
+        task_df, gt = generate_maxdiff_data(
+            n_respondents=3,
+            n_items=4,
+            subset_size=2,
+            items=items,
+            true_utilities=true_u,
+            random_seed=0,
+        )
+        assert gt["items"] == items
+        # Reference (last) item pinned to 0.
+        assert gt["utilities"][-1] == pytest.approx(0.0)
+        assert set(task_df["item_id"].unique()) <= set(items)
+
+    def test_item_correlation_diagonal_returns_eye(self):
+        """Without item_correlation, ground_truth['item_correlation'] is identity."""
+        _task_df, gt = generate_maxdiff_data(
+            n_respondents=4, n_items=3, subset_size=2, random_seed=0
+        )
+        np.testing.assert_array_equal(gt["item_correlation"], np.eye(3))
+
+    def test_item_correlation_stored_in_ground_truth(self):
+        """Supplied item_correlation must be echoed back in ground_truth."""
+        corr = np.array([[1.0, 0.8, -0.4], [0.8, 1.0, -0.3], [-0.4, -0.3, 1.0]])
+        _task_df, gt = generate_maxdiff_data(
+            n_respondents=5,
+            n_items=3,
+            subset_size=2,
+            item_correlation=corr,
+            random_seed=1,
+        )
+        np.testing.assert_allclose(gt["item_correlation"], corr)
+
+    def test_item_correlation_produces_correlated_utilities(self):
+        """Strong off-diagonal correlations should be visible in respondent utilities."""
+        # 3 items: item_0 and item_1 highly correlated, item_2 independent.
+        corr = np.array([[1.0, 0.95, 0.0], [0.95, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        _task_df, gt = generate_maxdiff_data(
+            n_respondents=2000,
+            n_items=3,
+            subset_size=2,
+            sigma_respondent=1.0,
+            item_correlation=corr,
+            random_seed=42,
+        )
+        devs = gt["respondent_utilities"] - gt["utilities"][None, :]
+        empirical_corr = np.corrcoef(devs.T)
+        # item_0 ↔ item_1 should be strongly positive
+        assert empirical_corr[0, 1] > 0.85
+        # item_0 ↔ item_2 should be near zero
+        assert abs(empirical_corr[0, 2]) < 0.15
+
+    def test_item_correlation_wrong_shape_raises(self):
+        with pytest.raises(ValueError, match="shape"):
+            generate_maxdiff_data(
+                n_items=3,
+                subset_size=2,
+                item_correlation=np.eye(4),  # wrong size
+            )
+
+    def test_item_correlation_nonsymmetric_raises(self):
+        bad = np.array([[1.0, 0.5, 0.0], [0.3, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        with pytest.raises(ValueError, match="symmetric"):
+            generate_maxdiff_data(n_items=3, subset_size=2, item_correlation=bad)
+
+    def test_item_correlation_diagonal_not_one_raises(self):
+        bad = np.array([[2.0, 0.5, 0.0], [0.5, 1.0, 0.0], [0.0, 0.0, 1.0]])
+        with pytest.raises(ValueError, match="ones on the diagonal"):
+            generate_maxdiff_data(n_items=3, subset_size=2, item_correlation=bad)
+
+    def test_item_correlation_not_psd_raises(self):
+        # Invalid correlation matrix: not PSD
+        bad = np.array([[1.0, 0.9, 0.9], [0.9, 1.0, -0.9], [0.9, -0.9, 1.0]])
+        with pytest.raises(ValueError, match="positive semi-definite"):
+            generate_maxdiff_data(n_items=3, subset_size=2, item_correlation=bad)
+
+
+class TestGenerateMaxdiffConjointData:
+    """Branch coverage for generate_maxdiff_conjoint_data validation paths."""
+
+    def test_subset_size_too_small_raises(self):
+        with pytest.raises(ValueError, match=">= 2"):
+            generate_maxdiff_conjoint_data(n_items=5, subset_size=1)
+
+    def test_subset_size_exceeds_auto_items_raises(self):
+        """subset_size > n_items when item_attributes is None must raise."""
+        with pytest.raises(ValueError, match="cannot exceed"):
+            generate_maxdiff_conjoint_data(n_items=3, subset_size=5)
+
+    def test_subset_size_exceeds_provided_attrs_raises(self):
+        """subset_size > len(item_attributes) when attrs are supplied must raise."""
+        attrs = pd.DataFrame(
+            {"brand": ["A", "B"], "price": [0.2, 0.8], "quality": [0.1, -0.1]},
+            index=pd.Index(["item_0", "item_1"], name="item_id"),
+        )
+        with pytest.raises(ValueError, match="cannot exceed"):
+            generate_maxdiff_conjoint_data(
+                item_attributes=attrs,
+                utility_formula="~ 0 + C(brand) + price + quality",
+                subset_size=5,
+            )
+
+    def test_items_inferred_from_provided_attrs(self):
+        """When item_attributes is given and items=None, items come from the index."""
+        attrs = pd.DataFrame(
+            {
+                "brand": ["A", "B", "C"],
+                "price": [0.2, 0.5, 0.8],
+                "quality": [0.1, 0.0, -0.1],
+            },
+            index=pd.Index(["x", "y", "z"], name="item_id"),
+        )
+        task_df, _, gt = generate_maxdiff_conjoint_data(
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            subset_size=2,
+            n_respondents=3,
+            n_tasks_per_resp=2,
+            random_seed=1,
+        )
+        assert gt["items"] == ["x", "y", "z"]
+        assert set(task_df["item_id"].unique()) <= {"x", "y", "z"}
+
+    def test_true_betas_unknown_key_raises(self):
+        """true_betas referencing a non-existent feature must raise."""
+        with pytest.raises(ValueError, match="not in expanded features"):
+            generate_maxdiff_conjoint_data(
+                n_items=4,
+                subset_size=2,
+                true_betas={"not_a_feature": 1.0},
+                random_seed=0,
+            )
+
+    def test_true_betas_override_applied(self):
+        """true_betas entries must overwrite the drawn population betas."""
+        _task_df, _, gt = generate_maxdiff_conjoint_data(
+            n_items=4,
+            subset_size=2,
+            n_respondents=3,
+            n_tasks_per_resp=2,
+            true_betas={"price": -2.0, "quality": 3.0},
+            random_seed=0,
+        )
+        price_idx = gt["feature_names"].index("price")
+        quality_idx = gt["feature_names"].index("quality")
+        assert gt["betas"][price_idx] == pytest.approx(-2.0)
+        assert gt["betas"][quality_idx] == pytest.approx(3.0)
+
+    def test_random_attributes_unknown_raises(self):
+        """random_attributes containing an unknown feature name must raise."""
+        with pytest.raises(ValueError, match="not in expanded features"):
+            generate_maxdiff_conjoint_data(
+                n_items=4,
+                subset_size=2,
+                random_attributes=["no_such_feature"],
+                random_seed=0,
+            )
+
+    def test_random_attributes_subset_respected(self):
+        """Only the named random_attributes columns should receive respondent noise."""
+        _task_df, _, gt = generate_maxdiff_conjoint_data(
+            n_items=6,
+            subset_size=2,
+            n_respondents=5,
+            n_tasks_per_resp=2,
+            random_attributes=["price"],
+            random_seed=2,
+        )
+        assert gt["random_attributes"] == ["price"]
+        price_idx = gt["feature_names"].index("price")
+        # Population beta must differ from at least one respondent on price.
+        pop_price = gt["betas"][price_idx]
+        resp_prices = gt["respondent_betas"][:, price_idx]
+        assert not np.all(resp_prices == pop_price)
+
+
+# ---------------------------------------------------------------------------
+# MaxDiffMixedLogit.sample — convenience wrapper
+# ---------------------------------------------------------------------------
+
+
+class TestSampleConvenienceWrapper:
+    def test_sample_runs_and_populates_idata(self, small_maxdiff):
+        """sample() must run prior predictive, fit, and posterior predictive."""
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        result = model.sample(
+            fit_kwargs=FAST_FIT_KWARGS,
+            sample_prior_predictive_kwargs={"samples": 5},
+        )
+        # sample() returns self for chaining.
+        assert result is model
+        assert model.idata is not None
+        assert "prior_predictive" in model.idata.groups()
+        assert "posterior" in model.idata.groups()
+        assert "posterior_predictive" in model.idata.groups()
+
+    def test_sample_builds_model_if_needed(self, small_maxdiff):
+        """sample() must build the model automatically when not yet built."""
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        assert not hasattr(model, "model")
+        model.sample(
+            fit_kwargs=FAST_FIT_KWARGS,
+            sample_prior_predictive_kwargs={"samples": 5},
+        )
+        assert hasattr(model, "model")
+
+
+# ---------------------------------------------------------------------------
+# Full LKJ covariance (HB-MaxDiff)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def full_cov_fixture():
+    """Small 4-item MaxDiff design for full-covariance tests."""
+    return _small_maxdiff_df(
+        n_respondents=5, n_items=4, n_tasks_per_resp=4, subset_size=3
+    )
+
+
+@pytest.fixture
+def fitted_full_cov_model(full_cov_fixture):
+    """Fitted full-covariance model."""
+    task_df, items, _ = full_cov_fixture
+    model = MaxDiffMixedLogit(
+        task_df=task_df, items=items, random_intercepts=True, full_covariance=True
+    )
+    model.fit(random_seed=42, **FAST_FIT_KWARGS)
+    return task_df, items, model
+
+
+class TestFullCovariance:
+    def test_build_smoke(self, full_cov_fixture):
+        """Model builds and all expected variables/coords are present."""
+        task_df, items, _ = full_cov_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df, items=items, random_intercepts=True, full_covariance=True
+        )
+        model.build_model()
+
+        named = model.model.named_vars
+        for var in ("chol_cov", "chol_L", "corr_matrix", "item_stds"):
+            assert var in named, f"expected '{var}' in named_vars"
+
+        assert "items_bis" in model.coords
+        assert list(model.coords["items_bis"]) == items
+
+    def test_logp_finite(self, full_cov_fixture):
+        """Log-probability at the initial point must be finite."""
+        task_df, items, _ = full_cov_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df, items=items, random_intercepts=True, full_covariance=True
+        )
+        model.build_model()
+        logp_fn = model.model.compile_logp()
+        logp_val = float(logp_fn(model.model.initial_point()))
+        assert np.isfinite(logp_val)
+
+    def test_partworths_raises(self, full_cov_fixture):
+        """full_covariance=True in part-worths mode must raise ValueError."""
+        task_df, items, _ = full_cov_fixture
+        attrs = pd.DataFrame({"price": np.linspace(0, 1, len(items))}, index=items)
+        with pytest.raises(ValueError, match="part-worths mode"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=items,
+                item_attributes=attrs,
+                utility_formula="~ 0 + price",
+                full_covariance=True,
+            )
+
+    def test_no_random_intercepts_raises(self, full_cov_fixture):
+        """full_covariance=True without random_intercepts must raise ValueError."""
+        task_df, items, _ = full_cov_fixture
+        with pytest.raises(ValueError, match="random_intercepts=True"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=items,
+                random_intercepts=False,
+                full_covariance=True,
+            )
+
+    def test_save_load_roundtrip(self, fitted_full_cov_model, tmp_path):
+        """full_covariance and lkj_eta must survive a save/load cycle."""
+        _task_df, _items, model = fitted_full_cov_model
+        path = tmp_path / "full_cov_model.nc"
+        model.save(str(path))
+
+        loaded = MaxDiffMixedLogit.load(str(path))
+        assert loaded.full_covariance is True
+        assert loaded.lkj_eta == pytest.approx(2.0)
+
+    def test_new_respondent_population_draw_shape(self, fitted_full_cov_model):
+        """Population draws for new respondents must have shape (C, D, n_new, I)."""
+        _task_df, items, model = fitted_full_cov_model
+        posterior = model.idata["posterior"]
+        rng = np.random.default_rng(0)
+        n_new = 3
+        draws = model._draw_new_respondent_utilities(posterior, n_new=n_new, rng=rng)
+        n_chains = posterior.sizes["chain"]
+        n_draws = posterior.sizes["draw"]
+        n_items = len(items)
+        assert draws.shape == (n_chains, n_draws, n_new, n_items)
+
+    def test_new_respondent_uses_chol_L(self, fitted_full_cov_model):
+        """Full-covariance draws must use chol_L, producing cross-item correlation."""
+        _task_df, items, model = fitted_full_cov_model
+        posterior = model.idata["posterior"]
+        assert "chol_L" in posterior
+
+        rng = np.random.default_rng(7)
+        draws = model._draw_new_respondent_utilities(posterior, n_new=20, rng=rng)
+        # Cross-item covariance of draws should not be exactly diagonal —
+        # verify at least one off-diagonal element has non-trivial magnitude.
+        # Flatten chain/draw into one axis: (C*D*20, I)
+        flat = draws.reshape(-1, len(items))
+        cov = np.cov(flat, rowvar=False)
+        off_diag = cov[np.triu_indices(len(items), k=1)]
+        # At least one off-diagonal covariance should be non-negligible
+        assert np.any(np.abs(off_diag) > 1e-6)
+
+    def test_items_bis_coord_absent_when_diagonal(self, full_cov_fixture):
+        """Default diagonal model must NOT have an items_bis coord."""
+        task_df, items, _ = full_cov_fixture
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        model.build_model()
+        assert "items_bis" not in model.coords

@@ -124,6 +124,7 @@ def generate_maxdiff_data(
     subset_size: int = 4,
     true_utilities: np.ndarray | None = None,
     sigma_respondent: float = 0.6,
+    item_correlation: np.ndarray | None = None,
     items: list[str] | None = None,
     random_seed: np.random.Generator | int | None = None,
 ) -> tuple[pd.DataFrame, dict]:
@@ -149,8 +150,17 @@ def generate_maxdiff_data(
         from ``Normal(0, 1)``. The last item's utility is shifted to 0 to
         match the default identification constraint.
     sigma_respondent : float, default 0.6
-        Scale of per-respondent item-level deviations. Set to 0 for a
-        homogeneous-preferences population.
+        Scale of per-respondent item-level deviations (standard deviation).
+        Set to 0 for a homogeneous-preferences population.
+    item_correlation : np.ndarray, optional
+        Shape ``(n_items, n_items)`` correlation matrix for the
+        per-respondent utility deviations. Must be symmetric, positive
+        semi-definite, with ones on the diagonal. When supplied, respondent
+        deviations are drawn from
+        ``MVNormal(0, diag(σ) @ item_correlation @ diag(σ))``; otherwise
+        deviations are drawn independently (diagonal covariance). Use this
+        to generate correlated ground truth for validating
+        ``MaxDiffMixedLogit(full_covariance=True)`` recovery.
     items : list[str], optional
         Item names (length ``n_items``). Defaults to ``["item_0", ...]``.
     random_seed : np.random.Generator or int, optional
@@ -162,17 +172,24 @@ def generate_maxdiff_data(
         Long-format data with columns ``respondent_id``, ``task_id``,
         ``item_id``, ``is_best``, ``is_worst``. One row per shown item per task.
     ground_truth : dict
-        ``{"utilities": (n_items,), "respondent_utilities": (R, I),
-        "sigma_respondent": float, "items": list[str]}``. ``utilities`` is
-        the population-level ground truth (with last item shifted to 0);
-        ``respondent_utilities`` holds the per-respondent values used to
-        simulate each respondent's picks.
+        ``{"utilities", "respondent_utilities", "sigma_respondent",
+        "item_correlation", "items"}``.
+        ``utilities`` is the population-level ground truth (reference item
+        at 0); ``respondent_utilities`` holds per-respondent values used for
+        simulation; ``item_correlation`` is the ``(n_items, n_items)``
+        correlation matrix used — ``np.eye(n_items)`` when ``item_correlation``
+        was not supplied.
 
     Notes
     -----
     Subsets are drawn uniformly without replacement. Real MaxDiff studies
     use balanced designs (BIBD) for efficiency; this generator trades that
     for simplicity and is adequate for parameter-recovery testing.
+
+    To verify that ``MaxDiffMixedLogit(full_covariance=True)`` recovers the
+    latent correlation structure, generate data with a non-identity
+    ``item_correlation`` and compare the posterior mean of ``corr_matrix``
+    against ``ground_truth["item_correlation"]``.
     """
     rng: np.random.Generator = (
         random_seed
@@ -200,9 +217,33 @@ def generate_maxdiff_data(
     # Identification: shift so the reference (last) item is at 0.
     true_utilities = true_utilities - true_utilities[-1]
 
-    respondent_utilities = true_utilities[None, :] + sigma_respondent * rng.normal(
-        size=(n_respondents, n_items)
-    )
+    if item_correlation is not None:
+        item_correlation = np.asarray(item_correlation, dtype=float)
+        if item_correlation.shape != (n_items, n_items):
+            raise ValueError(
+                f"item_correlation must have shape ({n_items}, {n_items}), "
+                f"got {item_correlation.shape}."
+            )
+        if not np.allclose(item_correlation, item_correlation.T, atol=1e-8):
+            raise ValueError("item_correlation must be symmetric.")
+        if not np.allclose(np.diag(item_correlation), 1.0, atol=1e-8):
+            raise ValueError("item_correlation must have ones on the diagonal.")
+        eigvals = np.linalg.eigvalsh(item_correlation)
+        if eigvals.min() < -1e-8:
+            raise ValueError(
+                "item_correlation must be positive semi-definite "
+                f"(minimum eigenvalue: {eigvals.min():.4g})."
+            )
+        sigma = sigma_respondent * np.ones(n_items)
+        cov = (sigma[:, None] * sigma[None, :]) * item_correlation
+        deviations = rng.multivariate_normal(
+            mean=np.zeros(n_items), cov=cov, size=n_respondents
+        )
+    else:
+        item_correlation = np.eye(n_items)
+        deviations = sigma_respondent * rng.normal(size=(n_respondents, n_items))
+
+    respondent_utilities = true_utilities[None, :] + deviations
 
     records = []
     for r in range(n_respondents):
@@ -236,6 +277,7 @@ def generate_maxdiff_data(
         "utilities": true_utilities,
         "respondent_utilities": respondent_utilities,
         "sigma_respondent": sigma_respondent,
+        "item_correlation": item_correlation,
         "items": items,
     }
     return task_df, ground_truth

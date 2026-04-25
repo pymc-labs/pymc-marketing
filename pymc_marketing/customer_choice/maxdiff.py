@@ -349,10 +349,37 @@ class MaxDiffMixedLogit(ModelBuilder):
     ignored — identification comes from the no-intercept formula
     (``~ 0 + ...``) and respondent heterogeneity is controlled by
     ``random_attributes``.
+
+    .. rubric:: Posterior predictive limitations
+
+    The Louviere best-worst likelihood is **sequential**: worst is drawn from
+    the remaining items *after* the best has been removed. In the PyMC graph
+    this is implemented by masking the best position out of the worst-pick
+    softmax using ``best_pos`` as a ``pm.Data`` node.
+
+    :meth:`sample_posterior_predictive` therefore produces a **partially
+    conditioned** joint:
+
+    * ``best_pick`` is sampled correctly from ``softmax(U)``.
+    * ``worst_pick`` is sampled from ``softmax(-U \\ {observed_best})``,
+      i.e. it is still conditioned on the *observed* best position, not on
+      the freshly sampled ``best_pick``.
+
+    This makes the joint ``(best_pick, worst_pick)`` draws **incoherent for
+    generative use** — the two picks may designate the same position.
+    :meth:`sample_posterior_predictive` remains valid for **in-sample
+    posterior predictive checks**: verifying that the model's worst-pick
+    distribution is consistent with the data, given that the best pick was
+    what was actually recorded.
+
+    For any **counterfactual or out-of-sample** simulation use
+    :meth:`predict_choices` (or :meth:`apply_intervention`), which samples
+    the joint ``(best, worst)`` generatively — best first, then worst
+    conditioned on the *sampled* best — producing a coherent joint draw.
     """
 
     _model_type = "MaxDiff Mixed Logit"
-    version = "0.2.0"
+    version = "0.3.0"
 
     def __init__(
         self,
@@ -371,6 +398,8 @@ class MaxDiffMixedLogit(ModelBuilder):
         item_attributes: pd.DataFrame | None = None,
         utility_formula: str | None = None,
         random_attributes: list[str] | None = None,
+        full_covariance: bool = False,
+        lkj_eta: float = 2.0,
     ):
         self.task_df = task_df
         self.items = list(items)
@@ -422,6 +451,20 @@ class MaxDiffMixedLogit(ModelBuilder):
             raise ValueError(
                 f"reference_item '{self.reference_item}' is not in the item pool."
             )
+
+        if full_covariance and self._is_partworths:
+            raise ValueError(
+                "full_covariance is not supported in part-worths mode. "
+                "Item correlations are already structured through the design matrix X. "
+                "Use random_attributes for respondent-level variation."
+            )
+        if full_covariance and not self.random_intercepts:
+            raise ValueError(
+                "full_covariance=True requires random_intercepts=True. "
+                "There are no per-respondent effects to correlate."
+            )
+        self.full_covariance = full_covariance
+        self.lkj_eta = lkj_eta
 
         model_config = model_config or {}
         model_config = parse_model_config(model_config)
@@ -758,6 +801,10 @@ class MaxDiffMixedLogit(ModelBuilder):
             self.coords["features"] = self.feature_names
             if self.random_attributes:
                 self.coords["random_features"] = self.random_attributes
+        if self.full_covariance and self.random_intercepts:
+            # LKJ Cholesky and correlation matrices are (I, I); PyMC requires
+            # two distinct dim names for each axis.
+            self.coords["items_bis"] = self.items
         return arrays
 
     def build_model(self, **kwargs) -> None:
@@ -850,6 +897,46 @@ class MaxDiffMixedLogit(ModelBuilder):
         )
 
         if self.random_intercepts:
+            if self.full_covariance:
+                # Full LKJ Cholesky covariance: Σ = L L^T where
+                # L ~ LKJCholeskyCov(eta, sd_dist=HalfNormal(sigma)).
+                # compute_corr=True unpacks to (chol, corr, stds).
+                sd_sigma = self.model_config["sigma_item"].parameters.get("sigma", 1.0)
+                n_items = len(self.items)
+                chol, corr, stds = pm.LKJCholeskyCov(
+                    "chol_cov",
+                    n=n_items,
+                    eta=self.lkj_eta,
+                    sd_dist=pm.HalfNormal.dist(sigma=sd_sigma, shape=n_items),
+                    compute_corr=True,
+                )
+                # Store full (I, I) matrices as named Deterministics so they
+                # appear in the posterior and are accessible for new-respondent
+                # population draws via _draw_new_respondent_utilities.
+                chol_L = pm.Deterministic("chol_L", chol, dims=("items", "items_bis"))
+                pm.Deterministic("corr_matrix", corr, dims=("items", "items_bis"))
+                pm.Deterministic("item_stds", stds, dims="items")
+
+                z_item = self.model_config["z_item"].create_variable("z_item")
+                if self.non_centered:
+                    # Non-centered reparameterisation: β_r = μ + L z_r
+                    # pt.dot(z_item, chol_L.T): (R, I) @ (I, I) → (R, I)
+                    beta_item_r = pm.Deterministic(
+                        "beta_item_r",
+                        beta_item[None, :] + pt.dot(z_item, chol_L.T),
+                        dims=("respondents", "items"),
+                    )
+                else:
+                    # Centered: β_r ~ MVNormal(β, chol=L)
+                    beta_item_r = pm.MvNormal(
+                        "beta_item_r",
+                        mu=beta_item,
+                        chol=chol_L,
+                        dims=("respondents", "items"),
+                    )
+                return beta_item_r[resp_idx[:, None], item_idx]
+
+            # Diagonal (v0.1/v0.2) path — independent per-item scales.
             sigma_item = self.model_config["sigma_item"].create_variable("sigma_item")
             if self.non_centered:
                 z_item = self.model_config["z_item"].create_variable("z_item")
@@ -928,6 +1015,8 @@ class MaxDiffMixedLogit(ModelBuilder):
         attrs["random_intercepts"] = json.dumps(self.random_intercepts)
         attrs["reference_item"] = json.dumps(self.reference_item)
         attrs["non_centered"] = json.dumps(self.non_centered)
+        attrs["full_covariance"] = json.dumps(self.full_covariance)
+        attrs["lkj_eta"] = json.dumps(self.lkj_eta)
         attrs["utility_formula"] = json.dumps(self.utility_formula)
         attrs["random_attributes"] = json.dumps(self.random_attributes)
         if self._is_partworths and self.item_attributes is not None:
@@ -968,6 +1057,8 @@ class MaxDiffMixedLogit(ModelBuilder):
             "random_intercepts": json.loads(attrs["random_intercepts"]),
             "reference_item": json.loads(attrs["reference_item"]),
             "non_centered": json.loads(attrs["non_centered"]),
+            "full_covariance": json.loads(attrs.get("full_covariance", "false")),
+            "lkj_eta": json.loads(attrs.get("lkj_eta", "2.0")),
             "utility_formula": json.loads(attrs.get("utility_formula", "null")),
             "random_attributes": json.loads(attrs.get("random_attributes", "[]")),
             "item_attributes": item_attributes,
@@ -1072,10 +1163,19 @@ class MaxDiffMixedLogit(ModelBuilder):
     ) -> az.InferenceData:
         """Sample from the posterior predictive distribution.
 
-        When ``task_df`` is provided, the model's data containers are updated
-        via ``pm.set_data`` before sampling. ``worst_pick`` is drawn conditional
-        on the observed ``best_pos`` — for fully generative counterfactual
-        simulation use :meth:`predict_choices`.
+        Appropriate for **in-sample posterior predictive checks** on training
+        data. When ``task_df`` is provided the model data containers are
+        updated via ``pm.set_data`` before sampling.
+
+        .. warning::
+
+            Due to the sequential best-worst likelihood, ``worst_pick`` is
+            conditioned on the *observed* best position, not on the sampled
+            ``best_pick``. The joint draw is therefore incoherent for
+            generative or counterfactual use. See the class-level
+            *Posterior predictive limitations* note for details, and use
+            :meth:`predict_choices` / :meth:`apply_intervention` instead for
+            any out-of-sample or counterfactual simulation.
         """
         if task_df is not None:
             arrays = self.preprocess_model_data(task_df)
@@ -1373,8 +1473,19 @@ class MaxDiffMixedLogit(ModelBuilder):
             return beta_full @ self.X.T
 
         beta_item_post = posterior["beta_item"].values  # (C, D, I)
-        sigma_item_post = posterior["sigma_item"].values  # (C, D, I)
         n_chains, n_draws, n_items = beta_item_post.shape
+
+        if self.full_covariance:
+            # chol_L stored as Deterministic (C, D, I, I) lower-triangular.
+            chol_L_post = posterior["chol_L"].values  # (C, D, I, I)
+            z = rng.standard_normal((n_chains, n_draws, n_new, n_items))
+            # Vectorised MVN draw: β_r = β + L z_r
+            # "cdij,cdrj->cdri": for each (c,d), L @ z[r,:] for every new r.
+            return beta_item_post[:, :, None, :] + np.einsum(
+                "cdij,cdrj->cdri", chol_L_post, z
+            )
+
+        sigma_item_post = posterior["sigma_item"].values  # (C, D, I)
         eps = rng.standard_normal((n_chains, n_draws, n_new, n_items))
         return beta_item_post[:, :, None, :] + eps * sigma_item_post[:, :, None, :]
 
