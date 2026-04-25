@@ -40,7 +40,10 @@ from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
-NEG_INF = -1e9
+# True negative infinity is safe as a mask sentinel: the k≥2 validation
+# guarantees at least one unmasked position per task, so softmax always has a
+# finite max to subtract.  exp(-inf) == 0 in both NumPy and PyTensor.
+NEG_INF = float("-inf")
 
 
 def _softmax_stable(x: np.ndarray, axis: int = -1) -> np.ndarray:
@@ -205,6 +208,9 @@ def prepare_maxdiff_data(
     worst_pos = np.empty(n_tasks, dtype=np.int64)
     resp_idx = np.empty(n_tasks, dtype=np.int64)
 
+    # NOTE: this Python-side loop is O(n_tasks * k_max). For surveys with
+    # >100k tasks it becomes a bottleneck; a vectorised groupby.apply approach
+    # would be faster but adds complexity. Acceptable for typical study sizes.
     for t, (key, group) in enumerate(grouped):
         resp_key, _ = key
         resp_idx[t] = respondent_to_idx[resp_key]
@@ -569,6 +575,17 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "auto-generated when both are absent)."
             )
         # Both absent: auto-generate position-based dummy flags.
+        # The assignment is row-order dependent (first row → best, last → worst)
+        # and the flags are ignored by predict_choices anyway, but warn so
+        # callers aren't surprised if they inspect the returned frame.
+        warnings.warn(
+            f"Neither '{self.best_col}' nor '{self.worst_col}' found in task_df. "
+            "Dummy flags have been generated based on row order within each task "
+            "(first row = best, last row = worst). These flags are not used "
+            "during prediction but will appear in the returned DataFrame.",
+            UserWarning,
+            stacklevel=3,
+        )
         df = task_df.copy()
         g = df.groupby([self.respondent_id, self.task_id], sort=False).cumcount()
         sizes = df.groupby([self.respondent_id, self.task_id], sort=False)[

@@ -889,10 +889,11 @@ class TestApplyIntervention:
         assert model.intervention_idata is result
 
     def test_auto_generates_dummy_flags(self, fitted_intercept_model):
-        """Calling without is_best/is_worst columns must succeed."""
+        """Calling without is_best/is_worst columns must succeed and warn."""
         task_df, _items, model = fitted_intercept_model
         df_no_flags = task_df.drop(columns=["is_best", "is_worst"])
-        result = model.apply_intervention(df_no_flags, random_seed=0)
+        with pytest.warns(UserWarning, match="Dummy flags"):
+            result = model.apply_intervention(df_no_flags, random_seed=0)
         assert "best_pick" in result
 
     def test_partial_flags_raises(self, fitted_intercept_model):
