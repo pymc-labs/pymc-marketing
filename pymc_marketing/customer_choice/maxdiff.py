@@ -317,6 +317,15 @@ class MaxDiffMixedLogit(ModelBuilder):
         as population-level fixed effects. Only meaningful in part-worths mode;
         ignored otherwise. Defaults to an empty list (pure fixed part-worths).
 
+        .. note::
+
+            Other customer-choice models in this package use Wilkinson pipe
+            notation ``"~ covariate | random_covariate"`` to declare random
+            coefficients. MaxDiff deliberately diverges: there is no
+            per-alternative equation structure here (the same attributes
+            describe every item), so the pipe formula is ambiguous. An
+            explicit list is cleaner and less error-prone.
+
     Notes
     -----
     Input format example::
@@ -480,16 +489,208 @@ class MaxDiffMixedLogit(ModelBuilder):
             patsy.dmatrix(self._design_info, new_attrs, return_type="matrix")
         )
 
+    def _ensure_best_worst_flags(self, task_df: pd.DataFrame) -> pd.DataFrame:
+        """Return ``task_df`` with ``is_best`` / ``is_worst`` columns guaranteed.
+
+        When **both** flag columns are absent, dummy flags are auto-generated
+        (first item in each task marked best, last marked worst). This satisfies
+        the :func:`prepare_maxdiff_data` column-presence check while keeping
+        the flags out of the prediction logic.
+
+        Parameters
+        ----------
+        task_df : pd.DataFrame
+            Task design frame, possibly without ``is_best`` / ``is_worst``.
+
+        Returns
+        -------
+        pd.DataFrame
+            A copy of ``task_df`` with both flag columns present.
+
+        Raises
+        ------
+        ValueError
+            If exactly one of the two flag columns is present (partial labelling
+            is ambiguous and likely a caller mistake).
+        """
+        has_best = self.best_col in task_df.columns
+        has_worst = self.worst_col in task_df.columns
+        if has_best and has_worst:
+            return task_df
+        if has_best != has_worst:
+            present = self.best_col if has_best else self.worst_col
+            absent = self.worst_col if has_best else self.best_col
+            raise ValueError(
+                f"Column '{present}' is present but '{absent}' is absent. "
+                "Provide both flag columns or omit both (dummy flags are "
+                "auto-generated when both are absent)."
+            )
+        # Both absent: auto-generate position-based dummy flags.
+        df = task_df.copy()
+        g = df.groupby([self.respondent_id, self.task_id], sort=False).cumcount()
+        sizes = df.groupby([self.respondent_id, self.task_id], sort=False)[
+            self.item_col
+        ].transform("size")
+        df[self.best_col] = (g == 0).astype(int)
+        df[self.worst_col] = (g == sizes - 1).astype(int)
+        return df
+
+    def apply_intervention(
+        self,
+        new_task_df: pd.DataFrame,
+        random_seed: RandomState | None = None,
+        new_respondents: Literal["error", "population"] = "error",
+        draw_batch_size: int | None = None,
+    ) -> xr.Dataset:
+        """Simulate choices under a counterfactual task design.
+
+        Wraps :meth:`predict_choices` with two conveniences:
+
+        1. Dummy ``is_best`` / ``is_worst`` columns are auto-generated when
+           both are absent from ``new_task_df`` (they are unused during
+           prediction — only the item layout matters).
+        2. The result is stored as ``self.intervention_idata`` for downstream
+           comparison, matching the convention in the other customer-choice
+           models.
+
+        This is the **Type 1** intervention (observable attribute / assortment
+        change). All items in ``new_task_df`` must already be in the trained
+        pool. To score *new* items outside the training pool use
+        :meth:`score_new_items` (part-worths mode only).
+
+        Parameters
+        ----------
+        new_task_df : pd.DataFrame
+            Counterfactual task design. Must contain ``respondent_id``,
+            ``task_id``, and ``item_id`` columns. ``is_best`` / ``is_worst``
+            are optional — dummy flags are auto-added when both are absent.
+        random_seed : RandomState, optional
+            Passed to :meth:`predict_choices`.
+        new_respondents : {"error", "population"}, default "error"
+            Passed to :meth:`predict_choices`.
+        draw_batch_size : int, optional
+            Passed to :meth:`predict_choices`.
+
+        Returns
+        -------
+        xr.Dataset
+            Dataset from :meth:`predict_choices` with ``best_pick``,
+            ``worst_pick``, ``p_best``, and ``p_worst``.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been fitted yet.
+        """
+        if self.idata is None:
+            raise RuntimeError(
+                "apply_intervention requires a fitted model. Call .fit() first."
+            )
+        new_task_df = self._ensure_best_worst_flags(new_task_df)
+        result = self.predict_choices(
+            new_task_df,
+            random_seed=random_seed,
+            new_respondents=new_respondents,
+            draw_batch_size=draw_batch_size,
+        )
+        self.intervention_idata = result
+        return result
+
+    def score_new_items(
+        self,
+        new_item_attributes: pd.DataFrame,
+    ) -> xr.Dataset:
+        """Compute posterior share-of-preference after introducing new items.
+
+        Part-worths mode only. Each row of ``new_item_attributes`` is a
+        hypothetical SKU not seen during training. The fitted patsy formula
+        is applied via :meth:`transform_attributes` to obtain design vectors
+        for the new items; utilities follow from the posterior of
+        ``beta_feat``. The share-of-preference is computed over the *extended*
+        pool (training items first, new items appended).
+
+        This is the **Type 2** intervention (market-structure change — adding
+        new items to the competitive set).
+
+        Parameters
+        ----------
+        new_item_attributes : pd.DataFrame
+            One row per new item, indexed by a unique item name, with the
+            same attribute columns as the training ``item_attributes``. Item
+            names must not overlap with the training pool.
+
+        Returns
+        -------
+        xr.Dataset
+            Variables ``u_item`` and ``share_of_preference``, both of shape
+            ``(chain, draw, items)``, where the ``items`` coordinate covers
+            training items followed by new items. The result is also stored
+            as ``self.intervention_idata``.
+
+        Raises
+        ------
+        RuntimeError
+            If called on a non-part-worths model or before fitting.
+        ValueError
+            If any new item name overlaps with the training pool.
+        """
+        if not self._is_partworths:
+            raise RuntimeError(
+                "score_new_items is only available in part-worths mode "
+                "(item_attributes + utility_formula must be set at __init__)."
+            )
+        if self.idata is None:
+            raise RuntimeError(
+                "score_new_items requires a fitted model. Call .fit() first."
+            )
+        overlap = set(new_item_attributes.index) & set(self.items)
+        if overlap:
+            raise ValueError(
+                f"new_item_attributes contains item(s) already in the training "
+                f"pool: {sorted(overlap)}. Use distinct names for new items."
+            )
+
+        X_new = self.transform_attributes(new_item_attributes)  # (N, P)
+        if self.X is None:  # pragma: no cover — guarded by _is_partworths
+            raise RuntimeError("self.X is unexpectedly None in part-worths mode.")
+        X_all = np.vstack([self.X, X_new])  # (I + N, P)
+        all_items = list(self.items) + list(new_item_attributes.index)
+
+        posterior = self.idata["posterior"]
+        beta_feat_vals = posterior["beta_feat"].values  # (C, D, P)
+        # (C, D, I+N) — softmax is location-invariant so centering is unnecessary.
+        U_all = np.einsum("cdp,ip->cdi", beta_feat_vals, X_all)
+        U_shift = U_all - U_all.max(axis=-1, keepdims=True)
+        exp_u = np.exp(U_shift)
+        shares = exp_u / exp_u.sum(axis=-1, keepdims=True)
+
+        result = xr.Dataset(
+            {
+                "u_item": (("chain", "draw", "items"), U_all),
+                "share_of_preference": (("chain", "draw", "items"), shares),
+            },
+            coords={
+                "chain": posterior["chain"].values,
+                "draw": posterior["draw"].values,
+                "items": all_items,
+            },
+        )
+        self.intervention_idata = result
+        return result
+
     @property
     def default_model_config(self) -> dict:
-        """Default priors for item utilities and respondent heterogeneity."""
-        cfg: dict[str, Prior] = {
-            "beta_item_": Prior("Normal", mu=0, sigma=2, dims="items"),
-            "sigma_item": Prior("HalfNormal", sigma=1, dims="items"),
-            "z_item": Prior("Normal", mu=0, sigma=1, dims=("respondents", "items")),
-        }
+        """Default priors — returns only the priors used by the active mode.
+
+        Part-worths mode uses ``beta_feat`` (and optionally ``sigma_feat``,
+        ``z_feat`` for random attributes). Item-intercept mode uses
+        ``beta_item_``, and optionally ``sigma_item`` / ``z_item`` when
+        ``random_intercepts=True``.
+        """
         if self._is_partworths:
-            cfg["beta_feat"] = Prior("Normal", mu=0, sigma=1, dims="features")
+            cfg: dict[str, Prior] = {
+                "beta_feat": Prior("Normal", mu=0, sigma=1, dims="features"),
+            }
             if self.random_attributes:
                 cfg["sigma_feat"] = Prior("HalfNormal", sigma=1, dims="random_features")
                 cfg["z_feat"] = Prior(
@@ -498,7 +699,12 @@ class MaxDiffMixedLogit(ModelBuilder):
                     sigma=1,
                     dims=("respondents", "random_features"),
                 )
-        return cfg
+            return cfg
+        return {
+            "beta_item_": Prior("Normal", mu=0, sigma=2, dims="items"),
+            "sigma_item": Prior("HalfNormal", sigma=1, dims="items"),
+            "z_item": Prior("Normal", mu=0, sigma=1, dims=("respondents", "items")),
+        }
 
     @property
     def default_sampler_config(self) -> dict:

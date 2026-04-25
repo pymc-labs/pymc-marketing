@@ -295,6 +295,30 @@ class TestSerializableConfig:
         assert "sigma_item" not in config
         assert "z_item" not in config
 
+    def test_default_config_intercept_mode_no_stale_keys(self, small_maxdiff):
+        """Item-intercept default config must not contain part-worths keys."""
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        cfg = model.default_model_config
+        assert "beta_item_" in cfg
+        assert "beta_feat" not in cfg
+        assert "sigma_feat" not in cfg
+
+    def test_default_config_partworths_mode_no_stale_keys(self, partworths_fixture):
+        """Part-worths default config must not contain intercept-mode keys."""
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+        )
+        cfg = model.default_model_config
+        assert "beta_feat" in cfg
+        assert "beta_item_" not in cfg
+        assert "sigma_item" not in cfg
+        assert "z_item" not in cfg
+
 
 # ---------------------------------------------------------------------------
 # Prior predictive / save-load / fit-dependent tests
@@ -812,3 +836,156 @@ class TestPartWorthsRecovery:
         )
         rho, _ = spearmanr(post_mean, gt["betas"])
         assert rho >= 0.85, f"Spearman rank-correlation too low: {rho}"
+
+
+# ---------------------------------------------------------------------------
+# apply_intervention and score_new_items
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fitted_intercept_model(small_maxdiff):
+    """Fitted item-intercept model for intervention tests."""
+    task_df, items, _ = small_maxdiff
+    model = MaxDiffMixedLogit(task_df=task_df, items=items)
+    model.fit(random_seed=42, **FAST_FIT_KWARGS)
+    return task_df, items, model
+
+
+@pytest.fixture
+def fitted_partworths_model(partworths_fixture):
+    """Fitted part-worths model for intervention tests."""
+    task_df, attrs, gt = partworths_fixture
+    model = MaxDiffMixedLogit(
+        task_df=task_df,
+        items=gt["items"],
+        item_attributes=attrs,
+        utility_formula="~ 0 + C(brand) + price + quality",
+    )
+    model.fit(random_seed=42, **FAST_FIT_KWARGS)
+    return task_df, attrs, gt, model
+
+
+class TestApplyIntervention:
+    def test_returns_xr_dataset(self, fitted_intercept_model):
+        """apply_intervention must return an xr.Dataset from predict_choices."""
+        import xarray as xr
+
+        task_df, _items, model = fitted_intercept_model
+        result = model.apply_intervention(task_df, random_seed=0)
+        assert isinstance(result, xr.Dataset)
+        assert "best_pick" in result
+        assert "worst_pick" in result
+
+    def test_stored_as_intervention_idata(self, fitted_intercept_model):
+        task_df, _items, model = fitted_intercept_model
+        result = model.apply_intervention(task_df, random_seed=0)
+        assert model.intervention_idata is result
+
+    def test_auto_generates_dummy_flags(self, fitted_intercept_model):
+        """Calling without is_best/is_worst columns must succeed."""
+        task_df, _items, model = fitted_intercept_model
+        df_no_flags = task_df.drop(columns=["is_best", "is_worst"])
+        result = model.apply_intervention(df_no_flags, random_seed=0)
+        assert "best_pick" in result
+
+    def test_partial_flags_raises(self, fitted_intercept_model):
+        """Having exactly one flag column should raise a clear ValueError."""
+        task_df, _items, model = fitted_intercept_model
+        df_one_flag = task_df.drop(columns=["is_worst"])
+        with pytest.raises(ValueError, match="absent"):
+            model.apply_intervention(df_one_flag, random_seed=0)
+
+    def test_raises_before_fit(self, small_maxdiff):
+        """apply_intervention without fit must raise RuntimeError."""
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        with pytest.raises(RuntimeError, match="fitted model"):
+            model.apply_intervention(task_df, random_seed=0)
+
+    def test_output_shape_matches_predict_choices(self, fitted_intercept_model):
+        """apply_intervention output shape must match predict_choices directly."""
+        task_df, _items, model = fitted_intercept_model
+        ds_direct = model.predict_choices(task_df, random_seed=99)
+        ds_ai = model.apply_intervention(task_df, random_seed=99)
+        assert ds_ai["best_pick"].shape == ds_direct["best_pick"].shape
+        np.testing.assert_array_equal(
+            ds_ai["best_pick"].values, ds_direct["best_pick"].values
+        )
+
+
+class TestScoreNewItems:
+    def test_returns_xr_dataset_with_extended_items(self, fitted_partworths_model):
+        """score_new_items must include training items + new items in coord."""
+        import xarray as xr
+
+        _task_df, _attrs, gt, model = fitted_partworths_model
+        new_item = pd.DataFrame(
+            [{"brand": "B", "price": 0.10, "quality": 0.0}],
+            index=pd.Index(["item_NEW"], name="item_id"),
+        )
+        result = model.score_new_items(new_item)
+        assert isinstance(result, xr.Dataset)
+        assert "share_of_preference" in result
+        assert "u_item" in result
+        all_items = list(result.coords["items"].values)
+        assert "item_NEW" in all_items
+        # All training items must come first.
+        assert all_items[: len(gt["items"])] == list(gt["items"])
+
+    def test_shares_sum_to_one(self, fitted_partworths_model):
+        """Per-draw shares over the extended pool must sum to 1."""
+        _task_df, _attrs, _gt, model = fitted_partworths_model
+        new_item = pd.DataFrame(
+            [{"brand": "A", "price": 0.5, "quality": 0.5}],
+            index=pd.Index(["item_NEW"], name="item_id"),
+        )
+        result = model.score_new_items(new_item)
+        np.testing.assert_allclose(
+            result["share_of_preference"].sum(dim="items").values,
+            1.0,
+            atol=1e-10,
+        )
+
+    def test_stored_as_intervention_idata(self, fitted_partworths_model):
+        _task_df, _attrs, _gt, model = fitted_partworths_model
+        new_item = pd.DataFrame(
+            [{"brand": "C", "price": 0.2, "quality": -0.5}],
+            index=pd.Index(["item_NEW"], name="item_id"),
+        )
+        result = model.score_new_items(new_item)
+        assert model.intervention_idata is result
+
+    def test_requires_partworths_mode(self, fitted_intercept_model):
+        _task_df, _items, model = fitted_intercept_model
+        new_item = pd.DataFrame(
+            [{"brand": "A", "price": 0.5}],
+            index=pd.Index(["item_NEW"], name="item_id"),
+        )
+        with pytest.raises(RuntimeError, match="part-worths mode"):
+            model.score_new_items(new_item)
+
+    def test_raises_on_name_overlap(self, fitted_partworths_model):
+        _task_df, _attrs, gt, model = fitted_partworths_model
+        # Use an existing training item name.
+        overlap_item = pd.DataFrame(
+            [{"brand": "A", "price": 0.5, "quality": 0.0}],
+            index=pd.Index([gt["items"][0]], name="item_id"),
+        )
+        with pytest.raises(ValueError, match="training pool"):
+            model.score_new_items(overlap_item)
+
+    def test_raises_before_fit(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+        )
+        new_item = pd.DataFrame(
+            [{"brand": "B", "price": 0.1, "quality": 0.0}],
+            index=pd.Index(["item_NEW"], name="item_id"),
+        )
+        with pytest.raises(RuntimeError, match="fitted model"):
+            model.score_new_items(new_item)
