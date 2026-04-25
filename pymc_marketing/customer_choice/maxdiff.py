@@ -24,11 +24,12 @@ HB-MaxDiff). The reference item's utility is pinned to zero for identification.
 
 import json
 import warnings
-from typing import Any, Self, TypedDict
+from typing import Any, Literal, Self, TypedDict
 
 import arviz as az
 import numpy as np
 import pandas as pd
+import patsy
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
@@ -49,15 +50,26 @@ def _softmax_stable(x: np.ndarray, axis: int = -1) -> np.ndarray:
     return exp / np.sum(exp, axis=axis, keepdims=True)
 
 
+def _sample_categorical_from_u(p: np.ndarray, u: np.ndarray) -> np.ndarray:
+    """Sample a category index from ``p`` using pre-drawn uniforms ``u``.
+
+    ``p`` has shape ``(..., K)``; ``u`` has shape ``(...)`` matching the leading
+    batch of ``p``. Returns an integer array of shape ``(...)``. Splitting the
+    uniform draw from the categorical-lookup logic lets us pre-allocate the
+    full uniform tensor and slice it across draw batches, guaranteeing
+    bit-identical output regardless of ``draw_batch_size``.
+    """
+    cumulative = np.cumsum(p, axis=-1)
+    return np.sum(cumulative < u[..., None], axis=-1).astype(np.int64)
+
+
 def _sample_categorical(p: np.ndarray, rng: np.random.Generator) -> np.ndarray:
     """Sample a category index per leading batch from a probability array.
 
     ``p`` has shape ``(..., K)``; the return has shape ``(...)``.
     """
-    cumulative = np.cumsum(p, axis=-1)
-    # Draw one uniform per leading-batch cell
-    u = rng.random(cumulative.shape[:-1])
-    return np.sum(cumulative < u[..., None], axis=-1).astype(np.int64)
+    u = rng.random(p.shape[:-1])
+    return _sample_categorical_from_u(p, u)
 
 
 class MaxDiffArrays(TypedDict):
@@ -142,7 +154,8 @@ def prepare_maxdiff_data(
     ------
     ValueError
         If a task lacks exactly one best or worst pick, best == worst within a
-        task, items repeat within a task, or any item is outside the pool.
+        task, items repeat within a task, a task shows fewer than 2 items, or
+        any item is outside the pool.
     """
     required = {respondent_id, task_id, item_col, best_col, worst_col}
     missing = required - set(task_df.columns)
@@ -173,7 +186,18 @@ def prepare_maxdiff_data(
     if n_tasks == 0:
         raise ValueError("task_df contains no tasks.")
 
-    k_max = grouped.size().max()
+    sizes = grouped.size()
+    too_small = sizes[sizes < 2]
+    if len(too_small) > 0:
+        example_key = too_small.index[0]
+        example_k = int(too_small.iloc[0])
+        raise ValueError(
+            "Every (respondent, task) must show at least 2 items for "
+            f"best-worst scaling. Found {len(too_small)} task(s) with <2 items, "
+            f"e.g. {example_key!r} with {example_k} item(s)."
+        )
+
+    k_max = sizes.max()
 
     item_idx = np.full((n_tasks, k_max), ref_idx, dtype=np.int64)
     mask = np.zeros((n_tasks, k_max), dtype=bool)
@@ -275,6 +299,23 @@ class MaxDiffMixedLogit(ModelBuilder):
         Arguments passed to ``pm.sample``.
     non_centered : bool, default True
         Non-centered parameterisation for the respondent-level deviations.
+    item_attributes : pd.DataFrame, optional
+        One row per item, with the item name as the index and one column per
+        attribute. When provided together with ``utility_formula``, switches
+        the model into **part-worths mode**: utilities become
+        :math:`U_i = X_i^\\top \\beta_{\\mathrm{feat}}` where :math:`X` is the
+        patsy-expanded design matrix. Extrapolates naturally to new items via
+        their attributes. Must cover every item in ``items``.
+    utility_formula : str, optional
+        Patsy formula describing the attribute contribution to utility,
+        e.g. ``"~ 0 + C(brand) + price + quality"``. Required iff
+        ``item_attributes`` is given. Use a leading ``0 +`` (no intercept) so
+        the model is identified without a reference item.
+    random_attributes : list[str], optional
+        Names of patsy-expanded feature columns that should vary across
+        respondents (respondent part-worths). Remaining features are treated
+        as population-level fixed effects. Only meaningful in part-worths mode;
+        ignored otherwise. Defaults to an empty list (pure fixed part-worths).
 
     Notes
     -----
@@ -290,14 +331,19 @@ class MaxDiffMixedLogit(ModelBuilder):
 
     Each ``(respondent_id, task_id)`` group must contain exactly one row with
     ``is_best == 1`` and one with ``is_worst == 1``, and the two must differ.
-    Subset sizes may vary across tasks; they are padded to ``K_max`` internally.
+    Each task must show **at least two items**. Subset sizes may vary across
+    tasks; they are padded to ``K_max`` internally.
 
-    The default reference item is ``items[-1]``. Only item-utility *contrasts*
-    against the reference are identified; absolute levels are not.
+    In the default (item-intercept) mode only item-utility *contrasts*
+    against the reference item are identified; absolute levels are not.
+    In part-worths mode ``reference_item`` / ``random_intercepts`` are
+    ignored — identification comes from the no-intercept formula
+    (``~ 0 + ...``) and respondent heterogeneity is controlled by
+    ``random_attributes``.
     """
 
     _model_type = "MaxDiff Mixed Logit"
-    version = "0.1.0"
+    version = "0.2.0"
 
     def __init__(
         self,
@@ -313,6 +359,9 @@ class MaxDiffMixedLogit(ModelBuilder):
         model_config: dict | None = None,
         sampler_config: dict | None = None,
         non_centered: bool = True,
+        item_attributes: pd.DataFrame | None = None,
+        utility_formula: str | None = None,
+        random_attributes: list[str] | None = None,
     ):
         self.task_df = task_df
         self.items = list(items)
@@ -327,6 +376,39 @@ class MaxDiffMixedLogit(ModelBuilder):
         )
         self.non_centered = non_centered
 
+        # Part-worths configuration. Both-or-neither: item_attributes and
+        # utility_formula must be provided together, or both omitted.
+        has_attrs = item_attributes is not None
+        has_formula = utility_formula is not None
+        if has_attrs != has_formula:
+            raise ValueError(
+                "item_attributes and utility_formula must be provided together "
+                "(or both omitted). Got item_attributes="
+                f"{'set' if has_attrs else 'None'}, utility_formula="
+                f"{'set' if has_formula else 'None'}."
+            )
+
+        self._is_partworths = has_attrs
+        self.utility_formula = utility_formula
+        self.item_attributes = item_attributes
+        self.random_attributes: list[str] = list(random_attributes or [])
+
+        if self._is_partworths:
+            # In part-worths mode identification comes from the ``0 +`` in the
+            # patsy formula, not a reference item; and per-respondent variation
+            # is driven by ``random_attributes``, not ``random_intercepts``.
+            self.random_intercepts = False
+            self._prepare_design_matrix()
+        else:
+            self.X: np.ndarray | None = None
+            self.feature_names: list[str] = []
+            self._design_info: Any = None
+            if self.random_attributes:
+                raise ValueError(
+                    "random_attributes is only valid when item_attributes and "
+                    "utility_formula are supplied (part-worths mode)."
+                )
+
         if self.reference_item not in self.items:
             raise ValueError(
                 f"reference_item '{self.reference_item}' is not in the item pool."
@@ -337,14 +419,86 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
+    def _prepare_design_matrix(self) -> None:
+        """Align ``item_attributes`` to ``self.items`` and build ``self.X``.
+
+        Populates ``self.X`` (``(n_items, n_features)``), ``self.feature_names``,
+        and ``self._design_info`` so new-item extrapolation is possible by
+        re-applying the saved ``DesignInfo`` to fresh attribute rows.
+        """
+        attrs = self.item_attributes
+        if not isinstance(attrs, pd.DataFrame):
+            raise TypeError(
+                "item_attributes must be a pandas DataFrame indexed by item name."
+            )
+        missing = set(self.items) - set(attrs.index)
+        if missing:
+            raise ValueError(
+                f"item_attributes is missing rows for {len(missing)} item(s): "
+                f"{sorted(missing)[:5]}{'...' if len(missing) > 5 else ''}."
+            )
+        aligned = attrs.loc[self.items]
+        design = patsy.dmatrix(self.utility_formula, aligned, return_type="matrix")
+        self._design_info = design.design_info
+        self.X = np.asarray(design, dtype=float)
+        self.feature_names = list(design.design_info.column_names)
+
+        unknown = [rc for rc in self.random_attributes if rc not in self.feature_names]
+        if unknown:
+            raise ValueError(
+                f"random_attributes {unknown} not found in expanded feature "
+                f"names {self.feature_names}. Names must match exactly — "
+                "patsy expands categoricals into multiple columns "
+                "(e.g. 'C(brand)[T.B]')."
+            )
+
+    def transform_attributes(self, new_attrs: pd.DataFrame) -> np.ndarray:
+        """Apply the fitted patsy formula to a new attribute frame.
+
+        Use this to score hypothetical items that were not in the training
+        pool. Returns a ``(n_rows, n_features)`` numpy array whose columns
+        align with ``self.feature_names`` — multiplying by a posterior draw of
+        ``beta_feat`` gives the posterior of the new items' utilities.
+
+        Parameters
+        ----------
+        new_attrs : pd.DataFrame
+            One row per hypothetical item, with the same attribute columns as
+            the training ``item_attributes``.
+
+        Raises
+        ------
+        RuntimeError
+            If called on a non-part-worths model (no design info to apply).
+        """
+        if not self._is_partworths:
+            raise RuntimeError(
+                "transform_attributes is only available in part-worths mode "
+                "(item_attributes + utility_formula must be set at __init__)."
+            )
+        return np.asarray(
+            patsy.dmatrix(self._design_info, new_attrs, return_type="matrix")
+        )
+
     @property
     def default_model_config(self) -> dict:
         """Default priors for item utilities and respondent heterogeneity."""
-        return {
+        cfg: dict[str, Prior] = {
             "beta_item_": Prior("Normal", mu=0, sigma=2, dims="items"),
             "sigma_item": Prior("HalfNormal", sigma=1, dims="items"),
             "z_item": Prior("Normal", mu=0, sigma=1, dims=("respondents", "items")),
         }
+        if self._is_partworths:
+            cfg["beta_feat"] = Prior("Normal", mu=0, sigma=1, dims="features")
+            if self.random_attributes:
+                cfg["sigma_feat"] = Prior("HalfNormal", sigma=1, dims="random_features")
+                cfg["z_feat"] = Prior(
+                    "Normal",
+                    mu=0,
+                    sigma=1,
+                    dims=("respondents", "random_features"),
+                )
+        return cfg
 
     @property
     def default_sampler_config(self) -> dict:
@@ -361,12 +515,17 @@ class MaxDiffMixedLogit(ModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, int | float | dict]:
-        result: dict[str, int | float | dict] = {
-            "beta_item_": self.model_config["beta_item_"].to_dict(),
-        }
-        if self.random_intercepts:
-            result["sigma_item"] = self.model_config["sigma_item"].to_dict()
-            result["z_item"] = self.model_config["z_item"].to_dict()
+        result: dict[str, int | float | dict] = {}
+        if self._is_partworths:
+            result["beta_feat"] = self.model_config["beta_feat"].to_dict()
+            if self.random_attributes:
+                result["sigma_feat"] = self.model_config["sigma_feat"].to_dict()
+                result["z_feat"] = self.model_config["z_feat"].to_dict()
+        else:
+            result["beta_item_"] = self.model_config["beta_item_"].to_dict()
+            if self.random_intercepts:
+                result["sigma_item"] = self.model_config["sigma_item"].to_dict()
+                result["z_item"] = self.model_config["z_item"].to_dict()
         return result
 
     def preprocess_model_data(self, task_df: pd.DataFrame) -> MaxDiffArrays:
@@ -389,6 +548,10 @@ class MaxDiffMixedLogit(ModelBuilder):
             "tasks": list(range(arrays["n_tasks"])),
             "positions": list(range(arrays["k_max"])),
         }
+        if self._is_partworths:
+            self.coords["features"] = self.feature_names
+            if self.random_attributes:
+                self.coords["random_features"] = self.random_attributes
         return arrays
 
     def build_model(self, **kwargs) -> None:
@@ -414,11 +577,10 @@ class MaxDiffMixedLogit(ModelBuilder):
         Returns
         -------
         pm.Model
-            Model with ``beta_item``, optional ``beta_item_r``, and two
-            observed ``Categorical`` likelihoods ``best_pick`` / ``worst_pick``.
+            Model with ``beta_item``/``beta_item_r`` (intercept mode) or
+            ``beta_feat``/``U_item_r`` (part-worths mode) plus two observed
+            ``Categorical`` likelihoods ``best_pick`` / ``worst_pick``.
         """
-        ref_idx = self.items.index(self.reference_item)
-
         with pm.Model(coords=self.coords) as model:
             item_idx = pm.Data(
                 "item_idx", arrays["item_idx"], dims=("tasks", "positions")
@@ -428,32 +590,10 @@ class MaxDiffMixedLogit(ModelBuilder):
             worst_pos = pm.Data("worst_pos", arrays["worst_pos"], dims="tasks")
             resp_idx = pm.Data("resp_idx", arrays["resp_idx"], dims="tasks")
 
-            beta_item_ = self.model_config["beta_item_"].create_variable("beta_item_")
-            beta_item = pm.Deterministic(
-                "beta_item", pt.set_subtensor(beta_item_[ref_idx], 0.0), dims="items"
-            )
-
-            if self.random_intercepts:
-                sigma_item = self.model_config["sigma_item"].create_variable(
-                    "sigma_item"
-                )
-                if self.non_centered:
-                    z_item = self.model_config["z_item"].create_variable("z_item")
-                    beta_item_r = pm.Deterministic(
-                        "beta_item_r",
-                        beta_item[None, :] + z_item * sigma_item[None, :],
-                        dims=("respondents", "items"),
-                    )
-                else:
-                    beta_item_r = pm.Normal(
-                        "beta_item_r",
-                        mu=beta_item[None, :],
-                        sigma=sigma_item[None, :],
-                        dims=("respondents", "items"),
-                    )
-                U = beta_item_r[resp_idx[:, None], item_idx]
+            if self._is_partworths:
+                U = self._build_partworths_utility(arrays, resp_idx, item_idx)
             else:
-                U = beta_item[item_idx]
+                U = self._build_intercept_utility(arrays, resp_idx, item_idx)
 
             U = pm.Deterministic("U", U, dims=("tasks", "positions"))
 
@@ -486,6 +626,88 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         return model
 
+    def _build_intercept_utility(
+        self, arrays: MaxDiffArrays, resp_idx: Any, item_idx: Any
+    ) -> Any:
+        """Item-intercept utility path (v0.1 behaviour).
+
+        Returns a ``(tasks, positions)`` tensor of per-task per-position
+        utilities. The reference item is pinned to 0 for identification;
+        respondents may additionally draw item-level deviations when
+        ``random_intercepts=True``.
+        """
+        ref_idx = self.items.index(self.reference_item)
+
+        beta_item_ = self.model_config["beta_item_"].create_variable("beta_item_")
+        beta_item = pm.Deterministic(
+            "beta_item", pt.set_subtensor(beta_item_[ref_idx], 0.0), dims="items"
+        )
+
+        if self.random_intercepts:
+            sigma_item = self.model_config["sigma_item"].create_variable("sigma_item")
+            if self.non_centered:
+                z_item = self.model_config["z_item"].create_variable("z_item")
+                beta_item_r = pm.Deterministic(
+                    "beta_item_r",
+                    beta_item[None, :] + z_item * sigma_item[None, :],
+                    dims=("respondents", "items"),
+                )
+            else:
+                beta_item_r = pm.Normal(
+                    "beta_item_r",
+                    mu=beta_item[None, :],
+                    sigma=sigma_item[None, :],
+                    dims=("respondents", "items"),
+                )
+            return beta_item_r[resp_idx[:, None], item_idx]
+
+        return beta_item[item_idx]
+
+    def _build_partworths_utility(
+        self, arrays: MaxDiffArrays, resp_idx: Any, item_idx: Any
+    ) -> Any:
+        """Part-worths utility path: ``U_i = X_i^T @ beta_feat``.
+
+        With ``random_attributes`` non-empty, respondents additionally draw
+        deviations on the specified feature columns via a non-centered
+        parameterisation, giving per-respondent per-item utilities
+        ``U_item_r``. Stored as ``pm.Data('X', ...)`` so the design matrix
+        can be swapped via ``pm.set_data`` for within-pool predictions.
+        """
+        n_respondents = len(self.coords["respondents"])
+
+        X_data = pm.Data("X", self.X, dims=("items", "features"))
+        beta_feat = self.model_config["beta_feat"].create_variable("beta_feat")
+
+        U_item_pop_raw = pt.dot(X_data, beta_feat)
+        U_item_pop = pm.Deterministic(
+            "U_item_pop", U_item_pop_raw - pt.mean(U_item_pop_raw), dims="items"
+        )
+
+        if not self.random_attributes:
+            return U_item_pop[item_idx]
+
+        rc_idx = np.array(
+            [self.feature_names.index(rc) for rc in self.random_attributes],
+            dtype=np.int64,
+        )
+        sigma_feat = self.model_config["sigma_feat"].create_variable("sigma_feat")
+        z_feat = self.model_config["z_feat"].create_variable("z_feat")
+
+        # Per-respondent deviation on the random-feature subset only.
+        # dev has shape (respondents, features) with zeros outside rc columns,
+        # so beta_full_r = beta_feat + dev is (respondents, features).
+        dev = pt.zeros((n_respondents, len(self.feature_names)))
+        dev = pt.set_subtensor(dev[:, rc_idx], z_feat * sigma_feat[None, :])
+        beta_full_r = beta_feat[None, :] + dev  # (R, P)
+        U_item_r = pm.Deterministic(
+            "U_item_r",
+            pt.dot(beta_full_r, X_data.T),
+            dims=("respondents", "items"),
+        )
+        U_item_r_centered = U_item_r - pt.mean(U_item_r, axis=1, keepdims=True)
+        return U_item_r_centered[resp_idx[:, None], item_idx]
+
     def create_idata_attrs(self) -> dict[str, str]:
         """Serialise init kwargs so the model can be reloaded from idata."""
         attrs = super().create_idata_attrs()
@@ -500,11 +722,35 @@ class MaxDiffMixedLogit(ModelBuilder):
         attrs["random_intercepts"] = json.dumps(self.random_intercepts)
         attrs["reference_item"] = json.dumps(self.reference_item)
         attrs["non_centered"] = json.dumps(self.non_centered)
+        attrs["utility_formula"] = json.dumps(self.utility_formula)
+        attrs["random_attributes"] = json.dumps(self.random_attributes)
+        if self._is_partworths and self.item_attributes is not None:
+            # Persist item_attributes aligned to self.items so the design
+            # matrix can be rebuilt on load via the same patsy formula.
+            aligned = self.item_attributes.loc[self.items]
+            attrs["item_attributes"] = json.dumps(
+                {
+                    "columns": list(aligned.columns),
+                    "index": list(aligned.index),
+                    "index_name": aligned.index.name,
+                    "data": aligned.to_dict(orient="list"),
+                }
+            )
+        else:
+            attrs["item_attributes"] = json.dumps(None)
         return attrs
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
         """Rehydrate init kwargs from serialised idata attrs."""
+        item_attributes_raw = json.loads(attrs.get("item_attributes", "null"))
+        if item_attributes_raw is None:
+            item_attributes = None
+        else:
+            item_attributes = pd.DataFrame(
+                item_attributes_raw["data"], index=item_attributes_raw["index"]
+            )[item_attributes_raw["columns"]]
+            item_attributes.index.name = item_attributes_raw.get("index_name")
         return {
             "task_df": pd.DataFrame(),  # replaced by build_from_idata
             "items": json.loads(attrs["items"]),
@@ -516,6 +762,9 @@ class MaxDiffMixedLogit(ModelBuilder):
             "random_intercepts": json.loads(attrs["random_intercepts"]),
             "reference_item": json.loads(attrs["reference_item"]),
             "non_centered": json.loads(attrs["non_centered"]),
+            "utility_formula": json.loads(attrs.get("utility_formula", "null")),
+            "random_attributes": json.loads(attrs.get("random_attributes", "[]")),
+            "item_attributes": item_attributes,
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
             ),
@@ -654,6 +903,8 @@ class MaxDiffMixedLogit(ModelBuilder):
         self,
         task_df: pd.DataFrame,
         random_seed: RandomState | None = None,
+        new_respondents: Literal["error", "population"] = "error",
+        draw_batch_size: int | None = None,
     ) -> xr.Dataset:
         """Fully generative (best, worst) simulation under a new task design.
 
@@ -675,7 +926,28 @@ class MaxDiffMixedLogit(ModelBuilder):
             New long-format task data. ``is_best`` / ``is_worst`` columns may
             be dummy values; they are ignored for prediction.
         random_seed : RandomState, optional
-            Seed for the numpy Generator used to sample best and worst.
+            Seed for the numpy Generator used for new-respondent population
+            draws and for sampling best / worst. The full output is
+            deterministic given this seed, regardless of ``draw_batch_size``.
+        new_respondents : {"error", "population"}, default "error"
+            How to handle respondents in ``task_df`` that were not in the
+            training data, when ``random_intercepts=True``:
+
+            * ``"error"`` (default): raise ``ValueError``.
+            * ``"population"``: for each unknown respondent, draw a fresh
+              respondent-level utility vector from the fitted population
+              distribution ``Normal(beta_item, sigma_item)`` per posterior
+              sample. This is the standard mixed-logit extrapolation to a
+              brand-new customer.
+
+            Ignored when ``random_intercepts=False`` (no respondent-level
+            parameters exist).
+        draw_batch_size : int, optional
+            If provided, compute the per-task utilities in chunks of this many
+            posterior draws rather than materializing the full
+            ``(chain, draw, tasks, positions)`` tensor at once. Lowers peak
+            memory linearly at the cost of a small Python-level loop. Output
+            is bit-identical to the unbatched path for a given ``random_seed``.
 
         Returns
         -------
@@ -683,12 +955,6 @@ class MaxDiffMixedLogit(ModelBuilder):
             ``posterior_predictive``-shaped dataset with ``best_pick`` and
             ``worst_pick`` variables of shape ``(chain, draw, tasks)`` and
             ``p_best`` / ``p_worst`` of shape ``(chain, draw, tasks, positions)``.
-
-        Notes
-        -----
-        Respondents in ``task_df`` must be a subset of the training
-        respondents when ``random_intercepts=True``; posterior draws of
-        ``beta_item_r`` are indexed by training respondent.
         """
         if self.idata is None:
             raise RuntimeError(
@@ -707,77 +973,69 @@ class MaxDiffMixedLogit(ModelBuilder):
         )
 
         posterior = self.idata["posterior"]
-        if self.random_intercepts:
-            training_respondents = list(self.coords["respondents"])
-            resp_name_to_training_idx = {
-                r: i for i, r in enumerate(training_respondents)
-            }
-            try:
-                pred_resp_training_idx = np.array(
-                    [
-                        resp_name_to_training_idx[r]
-                        for r in arrays["respondent_to_idx"].keys()
-                    ],
-                    dtype=np.int64,
-                )
-            except KeyError as e:
-                raise ValueError(
-                    f"Respondent {e.args[0]!r} in task_df was not in the "
-                    "training data. predict_choices with random_intercepts=True "
-                    "requires known respondents."
-                ) from e
-            # beta_item_r: (chain, draw, respondents, items)
-            beta_r = posterior["beta_item_r"].values
-            # Map prediction-time resp_idx (into arrays respondents) to
-            # training respondent index.
-            training_resp_per_task = pred_resp_training_idx[arrays["resp_idx"]]
-            # Gather U: (chain, draw, T, K_max)
-            # beta_r[..., training_resp_per_task, :] -> (chain, draw, T, I)
-            U_respondent = beta_r[:, :, training_resp_per_task, :]
-            # item_idx: (T, K_max); need (chain, draw, T, K_max).
-            U = np.take_along_axis(
-                U_respondent,
-                np.broadcast_to(
-                    arrays["item_idx"][None, None, :, :],
-                    U_respondent.shape[:2] + arrays["item_idx"].shape,
-                ),
-                axis=-1,
-            )
-        else:
-            # beta_item: (chain, draw, items)
-            beta = posterior["beta_item"].values
-            U = beta[:, :, arrays["item_idx"]]
-
-        chain, draw, T, k_max = U.shape
-        mask = arrays["mask"]
-
-        U_best_masked = np.where(mask[None, None, :, :], U, NEG_INF)
-        p_best = _softmax_stable(U_best_masked, axis=-1)
-
         rng = (
             random_seed
             if isinstance(random_seed, np.random.Generator)
             else np.random.default_rng(random_seed)
         )
-        best_samples = _sample_categorical(p_best, rng)  # (chain, draw, T)
 
-        U_worst_signflip = np.where(mask[None, None, :, :], -U, NEG_INF)
-        rows = np.arange(T)
-        # Zero-out sampled best position: indices (chain, draw, T) -> positions
-        flat_tasks = np.broadcast_to(rows[None, None, :], (chain, draw, T))
-        chain_idx = np.arange(chain)[:, None, None]
-        draw_idx = np.arange(draw)[None, :, None]
-        U_worst_masked = U_worst_signflip.copy()
-        U_worst_masked[chain_idx, draw_idx, flat_tasks, best_samples] = NEG_INF
-        p_worst = _softmax_stable(U_worst_masked, axis=-1)
-        worst_samples = _sample_categorical(p_worst, rng)
+        # Resolve the per-respondent or population beta tensor aligned with
+        # ``arrays["respondent_to_idx"]`` so downstream indexing via
+        # ``resp_idx`` is direct. Population draws for unknown respondents
+        # happen once, up-front, so batched output matches unbatched exactly.
+        pred_beta_r, beta_pop = self._resolve_predict_beta(
+            posterior, arrays, new_respondents, rng
+        )
 
-        result = xr.Dataset(
+        n_chains = posterior.sizes["chain"]
+        n_draws = posterior.sizes["draw"]
+        T = arrays["n_tasks"]
+        k_max = arrays["k_max"]
+
+        # Pre-draw all categorical uniforms so batched and unbatched paths
+        # produce identical output given the same seed.
+        u_best_full = rng.random((n_chains, n_draws, T))
+        u_worst_full = rng.random((n_chains, n_draws, T))
+
+        if draw_batch_size is None or draw_batch_size >= n_draws:
+            batch_slices: list[slice] = [slice(0, n_draws)]
+        else:
+            batch_slices = [
+                slice(s, min(s + draw_batch_size, n_draws))
+                for s in range(0, n_draws, draw_batch_size)
+            ]
+
+        best_all = np.empty((n_chains, n_draws, T), dtype=np.int64)
+        worst_all = np.empty((n_chains, n_draws, T), dtype=np.int64)
+        p_best_all = np.empty((n_chains, n_draws, T, k_max), dtype=np.float64)
+        p_worst_all = np.empty((n_chains, n_draws, T, k_max), dtype=np.float64)
+
+        for sl in batch_slices:
+            if pred_beta_r is not None:
+                beta_slice = pred_beta_r[:, sl, :, :]
+            elif beta_pop is not None:
+                beta_slice = beta_pop[:, sl, :]
+            else:  # pragma: no cover - guarded by _resolve_predict_beta
+                raise RuntimeError(
+                    "_resolve_predict_beta must return exactly one non-None tensor."
+                )
+            bb, wb, pb, pw = self._predict_choices_batch(
+                beta_slice,
+                arrays,
+                u_best_full[:, sl, :],
+                u_worst_full[:, sl, :],
+            )
+            best_all[:, sl] = bb
+            worst_all[:, sl] = wb
+            p_best_all[:, sl] = pb
+            p_worst_all[:, sl] = pw
+
+        return xr.Dataset(
             {
-                "best_pick": (("chain", "draw", "tasks"), best_samples),
-                "worst_pick": (("chain", "draw", "tasks"), worst_samples),
-                "p_best": (("chain", "draw", "tasks", "positions"), p_best),
-                "p_worst": (("chain", "draw", "tasks", "positions"), p_worst),
+                "best_pick": (("chain", "draw", "tasks"), best_all),
+                "worst_pick": (("chain", "draw", "tasks"), worst_all),
+                "p_best": (("chain", "draw", "tasks", "positions"), p_best_all),
+                "p_worst": (("chain", "draw", "tasks", "positions"), p_worst_all),
             },
             coords={
                 "chain": posterior["chain"].values,
@@ -786,7 +1044,176 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "positions": np.arange(k_max),
             },
         )
-        return result
+
+    @property
+    def _has_respondent_variation(self) -> bool:
+        """True iff the model has per-respondent utility parameters."""
+        if self._is_partworths:
+            return bool(self.random_attributes)
+        return self.random_intercepts
+
+    def _resolve_predict_beta(
+        self,
+        posterior: xr.Dataset,
+        arrays: MaxDiffArrays,
+        new_respondents: Literal["error", "population"],
+        rng: np.random.Generator,
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """Assemble the per-prediction utility tensor aligned with pred respondents.
+
+        Returns ``(pred_beta_r, None)`` of shape ``(chain, draw, n_pred, n_items)``
+        when the model has per-respondent variation, or ``(None, beta_pop)`` of
+        shape ``(chain, draw, n_items)`` otherwise. Works for both item-intercept
+        and part-worths modes; unknown respondents are either rejected or drawn
+        from the fitted population distribution.
+        """
+        # Population utilities used both as the fall-through in
+        # random-intercept-free models and as the mean of the population
+        # distribution when drawing utilities for new respondents.
+        if self._is_partworths:
+            pop_key = "U_item_pop"
+            per_resp_key = "U_item_r"
+        else:
+            pop_key = "beta_item"
+            per_resp_key = "beta_item_r"
+
+        if not self._has_respondent_variation:
+            return None, posterior[pop_key].values
+
+        training_respondents = list(self.coords["respondents"])
+        resp_name_to_training_idx = {r: i for i, r in enumerate(training_respondents)}
+
+        pred_respondents = list(arrays["respondent_to_idx"].keys())
+        unknown_mask = np.array(
+            [r not in resp_name_to_training_idx for r in pred_respondents]
+        )
+        n_unknown = int(unknown_mask.sum())
+
+        if n_unknown > 0 and new_respondents == "error":
+            example = pred_respondents[int(np.argmax(unknown_mask))]
+            raise ValueError(
+                f"{n_unknown} respondent(s) in task_df were not in the "
+                f"training data (e.g. {example!r}). Pass "
+                "new_respondents='population' to draw their utilities from "
+                "the fitted population distribution, or restrict task_df to "
+                "training respondents."
+            )
+
+        beta_r_train = posterior[per_resp_key].values  # (C, D, R_train, I)
+        n_chains, n_draws, _, n_items = beta_r_train.shape
+        n_pred = len(pred_respondents)
+
+        pred_beta_r = np.empty(
+            (n_chains, n_draws, n_pred, n_items), dtype=beta_r_train.dtype
+        )
+
+        known_positions = np.where(~unknown_mask)[0]
+        if known_positions.size > 0:
+            known_train_idx = np.array(
+                [
+                    resp_name_to_training_idx[pred_respondents[p]]
+                    for p in known_positions
+                ],
+                dtype=np.int64,
+            )
+            pred_beta_r[:, :, known_positions, :] = beta_r_train[
+                :, :, known_train_idx, :
+            ]
+
+        if n_unknown > 0:
+            unknown_positions = np.where(unknown_mask)[0]
+            pred_beta_r[:, :, unknown_positions, :] = (
+                self._draw_new_respondent_utilities(posterior, n_unknown, rng)
+            )
+
+        return pred_beta_r, None
+
+    def _draw_new_respondent_utilities(
+        self,
+        posterior: xr.Dataset,
+        n_new: int,
+        rng: np.random.Generator,
+    ) -> np.ndarray:
+        """Draw fresh per-item utility vectors for ``n_new`` new respondents.
+
+        In intercept mode the draws come from ``Normal(beta_item, sigma_item)``.
+        In part-worths mode we draw fresh respondent-specific coefficients from
+        ``Normal(beta_feat_rc, sigma_feat)`` on the random-feature subset, hold
+        fixed features at their population value, then map to per-item utility
+        via the stored design matrix ``self.X``.
+
+        Returns an array of shape ``(chain, draw, n_new, n_items)``.
+        """
+        if self._is_partworths:
+            beta_feat = posterior["beta_feat"].values  # (C, D, P)
+            sigma_feat = posterior["sigma_feat"].values  # (C, D, P_rc)
+            n_chains, n_draws, n_features = beta_feat.shape
+            n_items = len(self.items)
+            rc_idx = np.array(
+                [self.feature_names.index(rc) for rc in self.random_attributes],
+                dtype=np.int64,
+            )
+            eps = rng.standard_normal((n_chains, n_draws, n_new, len(rc_idx)))
+            beta_full = np.broadcast_to(
+                beta_feat[:, :, None, :],
+                (n_chains, n_draws, n_new, n_features),
+            ).copy()
+            beta_full[:, :, :, rc_idx] += eps * sigma_feat[:, :, None, :]
+            # (C, D, n_new, P) @ (P, I) -> (C, D, n_new, I).
+            # Part-worths mode guarantees self.X was populated by
+            # _prepare_design_matrix during __init__.
+            if self.X is None:  # pragma: no cover - guarded by _is_partworths
+                raise RuntimeError("self.X is unexpectedly None in part-worths mode.")
+            return beta_full @ self.X.T
+
+        beta_item_post = posterior["beta_item"].values  # (C, D, I)
+        sigma_item_post = posterior["sigma_item"].values  # (C, D, I)
+        n_chains, n_draws, n_items = beta_item_post.shape
+        eps = rng.standard_normal((n_chains, n_draws, n_new, n_items))
+        return beta_item_post[:, :, None, :] + eps * sigma_item_post[:, :, None, :]
+
+    def _predict_choices_batch(
+        self,
+        beta_slice: np.ndarray,
+        arrays: MaxDiffArrays,
+        u_best: np.ndarray,
+        u_worst: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Compute (best, worst, p_best, p_worst) for one slice of posterior draws.
+
+        ``beta_slice`` is either ``(C, D_b, n_pred, I)`` (random intercepts) or
+        ``(C, D_b, I)`` (population only). ``u_best`` / ``u_worst`` are
+        pre-drawn uniforms of shape ``(C, D_b, T)``. Returns arrays of shape
+        ``(C, D_b, T)`` for samples and ``(C, D_b, T, K_max)`` for probabilities.
+        """
+        item_idx = arrays["item_idx"]  # (T, K_max)
+        resp_idx = arrays["resp_idx"]  # (T,)
+        mask = arrays["mask"]  # (T, K_max)
+        T = item_idx.shape[0]
+
+        if beta_slice.ndim == 4:
+            # Fancy-index directly to (C, D_b, T, K_max) — avoids the larger
+            # (C, D_b, T, I) intermediate that the v0.1 path materialized.
+            U = beta_slice[:, :, resp_idx[:, None], item_idx]
+        else:
+            U = beta_slice[:, :, item_idx]  # (C, D_b, T, K_max)
+
+        mask_bcast = mask[None, None, :, :]
+        U_best_masked = np.where(mask_bcast, U, NEG_INF)
+        p_best = _softmax_stable(U_best_masked, axis=-1)
+        best_samples = _sample_categorical_from_u(p_best, u_best)
+
+        chain, draw_b = U.shape[:2]
+        U_worst_signflip = np.where(mask_bcast, -U, NEG_INF)
+        chain_idx = np.arange(chain)[:, None, None]
+        draw_idx = np.arange(draw_b)[None, :, None]
+        flat_tasks = np.broadcast_to(np.arange(T)[None, None, :], (chain, draw_b, T))
+        U_worst_masked = U_worst_signflip.copy()
+        U_worst_masked[chain_idx, draw_idx, flat_tasks, best_samples] = NEG_INF
+        p_worst = _softmax_stable(U_worst_masked, axis=-1)
+        worst_samples = _sample_categorical_from_u(p_worst, u_worst)
+
+        return best_samples, worst_samples, p_best, p_worst
 
     def sample(
         self,

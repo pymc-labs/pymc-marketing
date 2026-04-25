@@ -22,7 +22,10 @@ from pymc_marketing.customer_choice.maxdiff import (
     MaxDiffMixedLogit,
     prepare_maxdiff_data,
 )
-from pymc_marketing.customer_choice.synthetic_data import generate_maxdiff_data
+from pymc_marketing.customer_choice.synthetic_data import (
+    generate_maxdiff_conjoint_data,
+    generate_maxdiff_data,
+)
 
 
 def _small_maxdiff_df(
@@ -423,4 +426,389 @@ class TestParametricRecovery:
             model.idata["posterior"]["beta_item"].mean(dim=("chain", "draw")).values
         )
         rho, _ = spearmanr(post_mean, true_utilities)
+        assert rho >= 0.85, f"Spearman rank-correlation too low: {rho}"
+
+
+# ---------------------------------------------------------------------------
+# v0.2 additions: single-item-task guard, batched predict, new respondents
+# ---------------------------------------------------------------------------
+
+
+class TestSingleItemTaskValidation:
+    def test_validation_single_item_task(self):
+        """Tasks with fewer than 2 items must be rejected up front."""
+        task_df = pd.DataFrame(
+            [
+                # r0 task 0 is a *valid* 2-item task
+                {
+                    "respondent_id": "r0",
+                    "task_id": 0,
+                    "item_id": "a",
+                    "is_best": 1,
+                    "is_worst": 0,
+                },
+                {
+                    "respondent_id": "r0",
+                    "task_id": 0,
+                    "item_id": "b",
+                    "is_best": 0,
+                    "is_worst": 1,
+                },
+                # r0 task 1 has only one item — undefined for best-worst scaling
+                {
+                    "respondent_id": "r0",
+                    "task_id": 1,
+                    "item_id": "a",
+                    "is_best": 1,
+                    "is_worst": 1,
+                },
+            ]
+        )
+        with pytest.raises(ValueError, match="at least 2 items"):
+            prepare_maxdiff_data(task_df, items=["a", "b"])
+
+
+class TestPredictChoicesBatched:
+    def test_batched_equivalence(self, small_maxdiff):
+        """draw_batch_size must not change the output for a fixed seed."""
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+
+        ds_full = model.predict_choices(task_df, random_seed=7)
+        ds_batched = model.predict_choices(task_df, random_seed=7, draw_batch_size=11)
+        np.testing.assert_array_equal(
+            ds_full["best_pick"].values, ds_batched["best_pick"].values
+        )
+        np.testing.assert_array_equal(
+            ds_full["worst_pick"].values, ds_batched["worst_pick"].values
+        )
+        np.testing.assert_allclose(
+            ds_full["p_best"].values, ds_batched["p_best"].values
+        )
+        np.testing.assert_allclose(
+            ds_full["p_worst"].values, ds_batched["p_worst"].values
+        )
+
+
+class TestPredictChoicesNewRespondents:
+    @pytest.fixture
+    def fitted_model(self, small_maxdiff):
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        return task_df, items, model
+
+    def test_unknown_respondent_error_default(self, fitted_model):
+        task_df, _items, model = fitted_model
+        new_df = task_df.copy()
+        new_df["respondent_id"] = new_df["respondent_id"].astype(str) + "_new"
+        with pytest.raises(ValueError, match="new_respondents='population'"):
+            model.predict_choices(new_df, random_seed=0)
+
+    def test_unknown_respondent_population(self, fitted_model):
+        task_df, _items, model = fitted_model
+        new_df = task_df.copy()
+        new_df["respondent_id"] = new_df["respondent_id"].astype(str) + "_new"
+        ds = model.predict_choices(new_df, random_seed=0, new_respondents="population")
+        n_tasks = len(new_df.groupby(["respondent_id", "task_id"]))
+        chains = FAST_FIT_KWARGS["chains"]
+        draws = FAST_FIT_KWARGS["draws"]
+        assert ds["best_pick"].shape == (chains, draws, n_tasks)
+        # Each row of p_best must still sum to 1 across positions.
+        np.testing.assert_allclose(
+            ds["p_best"].sum(dim="positions").values, 1.0, atol=1e-10
+        )
+
+    def test_population_ignored_when_no_random_intercepts(self, small_maxdiff):
+        """With random_intercepts=False, unknown respondents are trivially ok."""
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items, random_intercepts=False)
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        new_df = task_df.copy()
+        new_df["respondent_id"] = new_df["respondent_id"].astype(str) + "_new"
+        # No error, and "population" is a no-op.
+        ds = model.predict_choices(new_df, random_seed=0, new_respondents="population")
+        assert "best_pick" in ds
+
+
+# ---------------------------------------------------------------------------
+# Part-worths (conjoint-style) MaxDiff
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def partworths_fixture():
+    """A tiny part-worths dataset for fast build/logp/fit tests."""
+    task_df, attrs, gt = generate_maxdiff_conjoint_data(
+        n_respondents=6,
+        n_items=6,
+        n_tasks_per_resp=4,
+        subset_size=3,
+        sigma_respondent=0.3,
+        random_seed=0,
+    )
+    return task_df, attrs, gt
+
+
+class TestPartWorthsBuild:
+    def test_build_model_smoke(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+        )
+        model.build_model()
+        rv_names = [v.name for v in model.model.unobserved_RVs]
+        assert "beta_feat" in rv_names
+        assert "U_item_pop" in rv_names
+        # No item intercepts in part-worths mode.
+        assert "beta_item" not in rv_names
+        assert "features" in model.coords
+        # random_features absent when random_attributes is empty.
+        assert "random_features" not in model.coords
+
+    def test_random_attributes_adds_per_respondent(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.build_model()
+        rv_names = [v.name for v in model.model.unobserved_RVs]
+        assert {"beta_feat", "sigma_feat", "z_feat", "U_item_r"}.issubset(rv_names)
+        assert model.coords["random_features"] == ["price"]
+
+    def test_logp_finite(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.build_model()
+        logp = model.model.compile_logp()(model.model.initial_point())
+        assert np.isfinite(float(logp))
+
+    def test_item_attributes_missing_row_raises(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        # Drop the last item from attrs but keep it in items.
+        bad_attrs = attrs.iloc[:-1]
+        with pytest.raises(ValueError, match="missing rows"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=gt["items"],
+                item_attributes=bad_attrs,
+                utility_formula="~ 0 + C(brand) + price + quality",
+            )
+
+    def test_formula_both_or_neither(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        with pytest.raises(ValueError, match="both"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=gt["items"],
+                item_attributes=attrs,
+                utility_formula=None,
+            )
+        with pytest.raises(ValueError, match="both"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=gt["items"],
+                item_attributes=None,
+                utility_formula="~ 0 + C(brand) + price + quality",
+            )
+
+    def test_random_attributes_requires_partworths(self, small_maxdiff):
+        task_df, items, _ = small_maxdiff
+        with pytest.raises(ValueError, match="part-worths"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=items,
+                random_attributes=["price"],
+            )
+
+    def test_random_attributes_unknown_feature(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        with pytest.raises(ValueError, match="not found in expanded feature"):
+            MaxDiffMixedLogit(
+                task_df=task_df,
+                items=gt["items"],
+                item_attributes=attrs,
+                utility_formula="~ 0 + C(brand) + price + quality",
+                random_attributes=["not_a_feature"],
+            )
+
+    def test_transform_attributes_round_trips_existing(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+        )
+        # Re-applying the formula to the original frame must reproduce model.X.
+        X_round = model.transform_attributes(attrs.loc[gt["items"]])
+        np.testing.assert_allclose(X_round, model.X)
+
+    def test_transform_attributes_new_row(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+        )
+        new_row = pd.DataFrame(
+            [{"brand": "B", "price": 0.42, "quality": 1.5}],
+            index=pd.Index(["item_NEW"], name="item_id"),
+        )
+        X_new = model.transform_attributes(new_row)
+        assert X_new.shape == (1, len(model.feature_names))
+        # Reproduces what we'd get by passing the brand level explicitly.
+        assert "C(brand)[B]" in model.feature_names
+        b_col = model.feature_names.index("C(brand)[B]")
+        price_col = model.feature_names.index("price")
+        quality_col = model.feature_names.index("quality")
+        assert X_new[0, b_col] == 1.0
+        np.testing.assert_allclose(X_new[0, price_col], 0.42)
+        np.testing.assert_allclose(X_new[0, quality_col], 1.5)
+
+    def test_transform_attributes_requires_partworths(self, small_maxdiff):
+        task_df, items, _ = small_maxdiff
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        with pytest.raises(RuntimeError, match="part-worths mode"):
+            model.transform_attributes(pd.DataFrame({"brand": ["A"]}))
+
+
+class TestPartWorthsPosterior:
+    def test_posterior_predictive_shapes(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        pp = model.sample_posterior_predictive(random_seed=42)
+        n_tasks = model.arrays["n_tasks"]
+        assert pp["posterior_predictive"]["best_pick"].shape == (
+            FAST_FIT_KWARGS["chains"],
+            FAST_FIT_KWARGS["draws"],
+            n_tasks,
+        )
+
+    def test_predict_choices_shapes(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        ds = model.predict_choices(task_df, random_seed=0)
+        n_tasks = model.arrays["n_tasks"]
+        k_max = model.arrays["k_max"]
+        assert ds["best_pick"].shape == (
+            FAST_FIT_KWARGS["chains"],
+            FAST_FIT_KWARGS["draws"],
+            n_tasks,
+        )
+        assert ds["p_best"].shape == (
+            FAST_FIT_KWARGS["chains"],
+            FAST_FIT_KWARGS["draws"],
+            n_tasks,
+            k_max,
+        )
+        # Each task's p_best must sum to 1 across positions.
+        np.testing.assert_allclose(
+            ds["p_best"].sum(dim="positions").values, 1.0, atol=1e-10
+        )
+
+    def test_predict_choices_new_respondent_population(self, partworths_fixture):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        new_df = task_df.copy()
+        new_df["respondent_id"] = new_df["respondent_id"].astype(str) + "_new"
+        with pytest.raises(ValueError):
+            model.predict_choices(new_df, random_seed=0)
+        ds = model.predict_choices(new_df, random_seed=0, new_respondents="population")
+        assert "best_pick" in ds
+
+
+class TestPartWorthsSaveLoad:
+    def test_save_load_roundtrip(self, partworths_fixture, tmp_path):
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        path = tmp_path / "maxdiff_partworths.nc"
+        model.save(str(path))
+        reloaded = MaxDiffMixedLogit.load(str(path))
+        assert reloaded.utility_formula == model.utility_formula
+        assert reloaded.random_attributes == model.random_attributes
+        assert reloaded.feature_names == model.feature_names
+        # item_attributes rehydrated with same index and columns
+        pd.testing.assert_frame_equal(
+            reloaded.item_attributes.loc[model.items],
+            model.item_attributes.loc[model.items],
+            check_dtype=False,
+        )
+
+
+@pytest.mark.slow
+class TestPartWorthsRecovery:
+    def test_partworths_rank_correlation_recovered(self):
+        """Population part-worths should be rank-recovered from synthetic data."""
+        task_df, attrs, gt = generate_maxdiff_conjoint_data(
+            n_respondents=150,
+            n_items=10,
+            n_tasks_per_resp=12,
+            subset_size=4,
+            sigma_respondent=0.3,
+            random_attributes=["price", "quality"],
+            random_seed=7,
+        )
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price", "quality"],
+        )
+        model.fit(
+            random_seed=42,
+            draws=500,
+            tune=500,
+            chains=2,
+            target_accept=0.9,
+            nuts_sampler="pymc",
+        )
+        post_mean = (
+            model.idata["posterior"]["beta_feat"].mean(dim=("chain", "draw")).values
+        )
+        rho, _ = spearmanr(post_mean, gt["betas"])
         assert rho >= 0.85, f"Spearman rank-correlation too low: {rho}"
