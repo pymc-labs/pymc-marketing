@@ -990,8 +990,15 @@ class MaxDiffMixedLogit(ModelBuilder):
         beta_feat = self.model_config["beta_feat"].create_variable("beta_feat")
 
         U_item_pop_raw = pt.dot(X_data, beta_feat)
+        # Save the population mean as a shared scalar so that both U_item_pop
+        # and U_item_r are shifted by the *same* constant.  This preserves the
+        # clean decomposition  U_item_r[r] = U_item_pop + respondent_deviation[r]
+        # where E[respondent_deviation] ≈ 0 over a balanced design.
+        # Using per-respondent centering instead would subtract a different
+        # constant for every r, breaking the population/respondent scale parity.
+        pop_shift = pt.mean(U_item_pop_raw)
         U_item_pop = pm.Deterministic(
-            "U_item_pop", U_item_pop_raw - pt.mean(U_item_pop_raw), dims="items"
+            "U_item_pop", U_item_pop_raw - pop_shift, dims="items"
         )
 
         if not self.random_attributes:
@@ -1010,13 +1017,14 @@ class MaxDiffMixedLogit(ModelBuilder):
         dev = pt.zeros((n_respondents, len(self.feature_names)))
         dev = pt.set_subtensor(dev[:, rc_idx], z_feat * sigma_feat[None, :])
         beta_full_r = beta_feat[None, :] + dev  # (R, P)
+        # Apply the same population shift so U_item_r[r] and U_item_pop live on
+        # the same scale: U_item_r[r, i] = U_item_pop[i] + X[i,rc]@z_feat[r]*sigma.
         U_item_r = pm.Deterministic(
             "U_item_r",
-            pt.dot(beta_full_r, X_data.T),
+            pt.dot(beta_full_r, X_data.T) - pop_shift,
             dims=("respondents", "items"),
         )
-        U_item_r_centered = U_item_r - pt.mean(U_item_r, axis=1, keepdims=True)
-        return U_item_r_centered[resp_idx[:, None], item_idx]
+        return U_item_r[resp_idx[:, None], item_idx]
 
     def create_idata_attrs(self) -> dict[str, str]:
         """Serialise init kwargs so the model can be reloaded from idata."""
