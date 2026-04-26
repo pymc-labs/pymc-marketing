@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import functools
-import warnings
 from pathlib import Path
 from typing import Literal
 
@@ -29,28 +28,11 @@ from numpy.random import Generator, RandomState
 from pymc_marketing.data.idata.schema import Frequency
 
 
-def from_netcdf(filepath: str | Path) -> az.InferenceData:
-    """Load InferenceData from a NetCDF file, suppressing ``fit_data`` warnings.
-
-    Parameters
-    ----------
-    filepath : str or Path
-        Path to the NetCDF file.
-
-    Returns
-    -------
-    az.InferenceData
-    """
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message=r"fit_data group is not defined in the InferenceData scheme",
-        )
-        return az.from_netcdf(filepath)
-
-
-def idata_to_zarr(idata: az.InferenceData, store: str | Path) -> None:
+def idata_to_zarr(
+    idata: az.InferenceData,
+    store: str | Path,
+    groups: list[str] | None = None,
+) -> None:
     """Save an InferenceData to a Zarr store.
 
     TODO: Remove this shim once we require ``arviz>=1.0``.
@@ -65,7 +47,16 @@ def idata_to_zarr(idata: az.InferenceData, store: str | Path) -> None:
         The inference data to save.
     store : str or Path
         Path to the Zarr store directory.
+    groups : list of str, optional
+        Groups to save. If None, all groups are saved.
     """
+    if groups is not None:
+        filtered_idata = az.InferenceData(
+            **{group: getattr(idata, group) for group in groups if group in idata}
+        )
+        filtered_idata.attrs = idata.attrs.copy()
+        idata = filtered_idata
+
     idata.to_datatree().to_zarr(store)
 
 

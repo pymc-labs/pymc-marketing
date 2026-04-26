@@ -31,7 +31,7 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.data.idata.utils import from_netcdf, idata_from_zarr, idata_to_zarr
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -500,7 +500,7 @@ class ModelIO:
         if filepath.suffix == ".zarr" or filepath.is_dir():
             idata = idata_from_zarr(filepath)
         else:
-            idata = from_netcdf(filepath)
+            idata = az.from_netcdf(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)

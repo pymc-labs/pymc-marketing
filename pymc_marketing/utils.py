@@ -13,6 +13,6 @@
 #   limitations under the License.
 """Utility functions for PyMC-Marketing."""
 
-from pymc_marketing.data.idata.utils import from_netcdf, idata_from_zarr, idata_to_zarr
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 
-__all__ = ["from_netcdf", "idata_from_zarr", "idata_to_zarr"]
+__all__ = ["idata_from_zarr", "idata_to_zarr"]

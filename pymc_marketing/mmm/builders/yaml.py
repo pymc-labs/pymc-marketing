@@ -19,9 +19,9 @@ import os
 import warnings
 from pathlib import Path
 
+import arviz as az
 import pandas as pd
 
-from pymc_marketing.data.idata.utils import from_netcdf
 from pymc_marketing.mmm.builders.factories import build, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.multidimensional import MMM
@@ -169,6 +169,6 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
-            model.idata = from_netcdf(idata_path)
+            model.idata = az.from_netcdf(str(idata_path))
 
     return model
