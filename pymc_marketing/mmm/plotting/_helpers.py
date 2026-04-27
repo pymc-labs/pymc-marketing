@@ -82,8 +82,12 @@ def _select_dims[XarrayT: (xr.Dataset, xr.DataArray)](
     if not dims:
         return data
 
-    _validate_dims(data, dims)
-    sel_kwargs = _dims_to_sel_kwargs(dims)
+    filtered_dims = {k: v for k, v in dims.items() if k in data.dims}
+    if not filtered_dims:
+        return data
+
+    _validate_dims(data, filtered_dims)
+    sel_kwargs = _dims_to_sel_kwargs(filtered_dims)
     return data.sel(**sel_kwargs)
 
 

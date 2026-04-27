@@ -399,6 +399,13 @@ class TestWaterfall:
         assert isinstance(fig, Figure)
         assert len(axes) == 2
 
+        fig, axes = plots.waterfall(dims={"geo": ["CA"]})
+        assert isinstance(fig, Figure)
+        assert len(axes) == 1
+
+        fig, axes = plots.contributions_over_time(dims={"geo": ["CA"]})
+        assert isinstance(fig, Figure)
+
 
 class TestChannelShareHdi:
     def test_returns_figure_and_axes(self, simple_plots):
