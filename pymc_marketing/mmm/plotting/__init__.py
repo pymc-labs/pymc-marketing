@@ -15,6 +15,12 @@
 
 from pymc_marketing.mmm.plotting.decomposition import DecompositionPlots
 from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
+from pymc_marketing.mmm.plotting.sensitivity import SensitivityPlots
 from pymc_marketing.mmm.plotting.transformations import TransformationPlots
 
-__all__ = ["DecompositionPlots", "DiagnosticsPlots", "TransformationPlots"]
+__all__ = [
+    "DecompositionPlots",
+    "DiagnosticsPlots",
+    "SensitivityPlots",
+    "TransformationPlots",
+]
