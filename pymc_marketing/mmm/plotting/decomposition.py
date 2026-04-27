@@ -212,7 +212,9 @@ class DecompositionPlots:
         if "channels" in contributions_ds:
             ch_da = contributions_ds["channels"]
             for ch in ch_da.coords["channel"].values:
-                entries_ds[f"channel={ch}"] = _select_dims(ch_da.sel(channel=ch), dims)
+                entries_ds[f"channel={ch}"] = _select_dims(
+                    ch_da.sel(channel=ch), dims, allow_missing=True
+                )
 
         if "baseline" in contributions_ds:
             bl_da = contributions_ds["baseline"]
@@ -222,16 +224,20 @@ class DecompositionPlots:
                 if dates_coord is not None
                 else bl_da
             )
-            entries_ds["baseline"] = _select_dims(bl_broadcast, dims)
+            entries_ds["baseline"] = _select_dims(
+                bl_broadcast, dims, allow_missing=True
+            )
 
         if "controls" in contributions_ds:
             ctrl_da = contributions_ds["controls"]
             # sum over the control dim → single time-series
-            entries_ds["controls"] = _select_dims(ctrl_da.sum(dim="control"), dims)
+            entries_ds["controls"] = _select_dims(
+                ctrl_da.sum(dim="control"), dims, allow_missing=True
+            )
 
         if "seasonality" in contributions_ds:
             seas_da = contributions_ds["seasonality"]
-            entries_ds["seasonality"] = _select_dims(seas_da, dims)
+            entries_ds["seasonality"] = _select_dims(seas_da, dims, allow_missing=True)
 
         if not entries_ds:
             raise ValueError(
@@ -326,7 +332,7 @@ class DecompositionPlots:
         ]:
             if ds_key not in contributions_ds:
                 continue
-            da = _select_dims(contributions_ds[ds_key], dims)
+            da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
             # mean over whichever of chain/draw/date are present (baseline has no date dim)
             mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
             if coord_dim is not None:

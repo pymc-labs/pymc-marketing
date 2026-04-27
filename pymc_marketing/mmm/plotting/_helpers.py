@@ -56,6 +56,7 @@ def _dims_to_sel_kwargs(
 def _select_dims[XarrayT: (xr.Dataset, xr.DataArray)](
     data: XarrayT,
     dims: dict[str, Any] | None,
+    allow_missing: bool = False,
 ) -> XarrayT:
     """Validate dimension filters and apply ``.sel()`` in one step.
 
@@ -65,6 +66,10 @@ def _select_dims[XarrayT: (xr.Dataset, xr.DataArray)](
         The xarray object to filter.
     dims : dict or None
         Dimension name → value(s).  ``None`` or empty is a no-op.
+    allow_missing : bool, default False
+        If True, silently ignore dimension keys in *dims* that are not
+        present in *data*.  If False (default), raise ValueError for
+        unknown dimensions.
 
     Returns
     -------
@@ -76,15 +81,19 @@ def _select_dims[XarrayT: (xr.Dataset, xr.DataArray)](
     Raises
     ------
     ValueError
-        If a key in *dims* is not a dimension of *data*, or a value
-        is not present in the corresponding coordinate.
+        If a key in *dims* is not a dimension of *data* (when
+        ``allow_missing=False``), or a value is not present in the
+        corresponding coordinate.
     """
     if not dims:
         return data
 
-    filtered_dims = {k: v for k, v in dims.items() if k in data.dims}
-    if not filtered_dims:
-        return data
+    if allow_missing:
+        filtered_dims = {k: v for k, v in dims.items() if k in data.dims}
+        if not filtered_dims:
+            return data
+    else:
+        filtered_dims = dims
 
     _validate_dims(data, filtered_dims)
     sel_kwargs = _dims_to_sel_kwargs(filtered_dims)
