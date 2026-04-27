@@ -348,6 +348,64 @@ class TestWaterfall:
                 f"Expected control '{ctrl}' in ytick labels, got: {ytick_labels}"
             )
 
+    def test_shared_intercept_across_geos(self):
+        """Waterfall should work when intercept lacks geo dim but channels have it."""
+        rng = np.random.default_rng(SEED + 2)
+        n_chain, n_draw, n_date = 2, 30, 15
+        channels = ["tv", "radio"]
+        geos = ["CA", "NY"]
+        dates = np.arange(n_date)
+
+        posterior = xr.Dataset(
+            {
+                "channel_contribution": xr.DataArray(
+                    rng.uniform(
+                        0, 100, size=(n_chain, n_draw, n_date, len(geos), len(channels))
+                    ),
+                    dims=("chain", "draw", "date", "geo", "channel"),
+                    coords={
+                        "chain": np.arange(n_chain),
+                        "draw": np.arange(n_draw),
+                        "date": dates,
+                        "geo": geos,
+                        "channel": channels,
+                    },
+                ),
+                "intercept_contribution": xr.DataArray(
+                    rng.uniform(50, 150, size=(n_chain, n_draw)),
+                    dims=("chain", "draw"),
+                    coords={
+                        "chain": np.arange(n_chain),
+                        "draw": np.arange(n_draw),
+                    },
+                ),
+            }
+        )
+        const = xr.Dataset(
+            {
+                "target_data": xr.DataArray(
+                    rng.normal(500, 50, size=(n_date, len(geos))),
+                    dims=("date", "geo"),
+                    coords={"date": dates, "geo": geos},
+                ),
+                "target_scale": xr.DataArray(1000.0),
+            }
+        )
+        idata = az.InferenceData(posterior=posterior, constant_data=const)
+        data = MMMIDataWrapper(idata, validate_on_init=False)
+        plots = DecompositionPlots(data)
+
+        fig, axes = plots.waterfall()
+        assert isinstance(fig, Figure)
+        assert len(axes) == 2
+
+        fig, axes = plots.waterfall(dims={"geo": ["CA"]})
+        assert isinstance(fig, Figure)
+        assert len(axes) == 1
+
+        fig, axes = plots.contributions_over_time(dims={"geo": ["CA"]})
+        assert isinstance(fig, Figure)
+
 
 class TestChannelShareHdi:
     def test_returns_figure_and_axes(self, simple_plots):
