@@ -13,6 +13,7 @@
 #   limitations under the License.
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import arviz as az
 import numpy as np
@@ -164,6 +165,26 @@ def test_save_load(fit_mmm: MMM):
     assert isinstance(loaded, MMM)
 
     os.remove(file)
+
+
+@pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
+def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path, path_factory):
+    """Roundtrip via MMM.save() / MMM.load() using a .zarr store.
+
+    TODO: Remove this coverage once we require ``arviz>=1.0``.
+
+    arviz.InferenceData.to_zarr() / from_zarr() only support zarr<3.
+    Passing a path ending in .zarr dispatches to the xarray-native Zarr
+    backend, which works with zarr>=3, bypassing the ArviZ version guard.
+    """
+    store = tmp_path / "model.zarr"
+    path_arg = path_factory(store)
+
+    fit_mmm.save(path_arg)
+    loaded = MMM.load(path_arg)
+
+    assert isinstance(loaded, MMM)
+    assert loaded == fit_mmm
 
 
 def test_save_load_equality(fit_mmm: MMM):
