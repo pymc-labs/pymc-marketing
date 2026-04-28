@@ -140,6 +140,44 @@ def _validate_dims(
                 )
 
 
+def _ensure_chain_draw_dims(curves: xr.DataArray) -> xr.DataArray:
+    """Ensure curves have ``(chain, draw)`` dimensions for ArviZ compatibility.
+
+    Curves from ``mmm.sample_saturation_curve()`` have a flat ``sample``
+    dimension, while ``mmm.saturation.sample_curve(params)`` returns
+    ``(chain, draw)``.  Downstream code (HDI, mean, stacking) requires
+    ``(chain, draw)`` — this function bridges the gap.
+
+    Handles three input formats:
+
+    * ``(chain, draw, ...)`` — returned as-is (copy).
+    * ``sample`` as a MultiIndex over ``(chain, draw)`` — unstacked.
+    * ``sample`` as a plain integer index — expanded to
+      ``chain=0, draw=0..N-1``.
+    """
+    if "chain" in curves.dims and "draw" in curves.dims:
+        return curves.copy()
+
+    if "sample" not in curves.dims:
+        raise ValueError(
+            "Curves must have either ('chain', 'draw') or 'sample' dimensions. "
+            f"Got: {list(curves.dims)}"
+        )
+
+    # MultiIndex sample (chain/draw are non-dim coords) — just unstack
+    if "chain" in curves.coords and "draw" in curves.coords:
+        return curves.unstack("sample")
+
+    # Plain integer sample — promote to single-chain (chain=0)
+    n_samples = curves.sizes["sample"]
+    return (
+        curves.assign_coords(chain=("sample", np.zeros(n_samples, dtype=int)))
+        .assign_coords(draw=("sample", np.arange(n_samples)))
+        .set_index(sample=["chain", "draw"])
+        .unstack("sample")
+    )
+
+
 def _process_plot_params(
     figsize: tuple[float, float] | None,
     backend: str | None,
@@ -186,6 +224,51 @@ def _process_plot_params(
         pc_kwargs["figure_kwargs"] = fig_kwargs
 
     return pc_kwargs
+
+
+def _apply_aggregation(
+    da: xr.DataArray,
+    aggregation: dict[str, str | list[str]] | None,
+) -> xr.DataArray:
+    """Apply a single aggregation operation to *da*.
+
+    Parameters
+    ----------
+    da : xr.DataArray
+        Data to aggregate.
+    aggregation : dict or None
+        A mapping with exactly one entry: ``{op: dim_spec}`` where *op*
+        is ``"sum"`` or ``"mean"`` and *dim_spec* is a dimension name or
+        list of dimension names.  ``None`` or an empty dict is a no-op.
+
+    Returns
+    -------
+    xr.DataArray
+        Aggregated data, or *da* unchanged when *aggregation* is falsy.
+
+    Raises
+    ------
+    ValueError
+        If *aggregation* contains more than one entry or an unsupported
+        operation.
+    """
+    if not aggregation:
+        return da
+
+    if len(aggregation) > 1:
+        raise ValueError(
+            f"Only a single aggregation operation is supported, "
+            f"got {len(aggregation)}: {list(aggregation)}."
+        )
+
+    op, dim_spec = next(iter(aggregation.items()))
+    dims_list = [dim_spec] if isinstance(dim_spec, str) else list(dim_spec)
+
+    if op == "sum":
+        return da.sum(dim=dims_list)
+    if op == "mean":
+        return da.mean(dim=dims_list)
+    raise ValueError(f"Unknown aggregation operation '{op}'. Supported: 'sum', 'mean'.")
 
 
 def _extract_matplotlib_result(
