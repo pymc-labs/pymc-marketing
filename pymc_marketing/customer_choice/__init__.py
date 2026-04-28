@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Customer Choice module."""
 
+from pymc_marketing.customer_choice.bayesian_blp import BayesianBLP
 from pymc_marketing.customer_choice.consideration_set_logit import (
     ConsiderationSetMixedLogit,
 )
@@ -21,13 +22,16 @@ from pymc_marketing.customer_choice.mv_its import (
     plot_product,
 )
 from pymc_marketing.customer_choice.synthetic_data import (
+    generate_blp_panel,
     generate_saturated_data,
     generate_unsaturated_data,
 )
 
 __all__ = [
     "MVITS",
+    "BayesianBLP",
     "ConsiderationSetMixedLogit",
+    "generate_blp_panel",
     "generate_saturated_data",
     "generate_unsaturated_data",
     "plot_product",
