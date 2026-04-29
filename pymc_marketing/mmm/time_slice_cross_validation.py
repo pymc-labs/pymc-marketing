@@ -31,7 +31,7 @@ import xarray as xr
 from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
-from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.types import MMMBuilder
 
 
@@ -103,7 +103,7 @@ class TimeSliceCrossValidator:
     See Also
     --------
     pymc_marketing.mmm.MMM : The Media Mix Model class.
-    pymc_marketing.mmm.plot.MMMPlotSuite : Plotting utilities for CV results.
+    pymc_marketing.mmm.plotting.cv.MMMCVPlotSuite : Plotting utilities for CV results.
 
     Notes
     -----
@@ -175,11 +175,10 @@ class TimeSliceCrossValidator:
         self.sampler_config = sampler_config
 
     @property
-    def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+    def plot(self) -> MMMCVPlotSuite:
+        """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
-        self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        return MMMCVPlotSuite(self.cv_idata)
 
     def _validate_model_was_built(self) -> None:
         """Validate that at least one CV run has produced results.
@@ -194,7 +193,7 @@ class TimeSliceCrossValidator:
             )
         last_result = self._cv_results[-1]
         if hasattr(last_result, "idata") and last_result.idata is not None:
-            # make idata accessible for plotting helpers
+            # make idata accessible for compatibility
             self.idata = last_result.idata
 
     def _validate_idata_exists(self) -> None:
@@ -330,7 +329,7 @@ class TimeSliceCrossValidator:
                 cv_idata = az.InferenceData(**combined_kwargs)
                 # persist for plot helpers
                 self.cv_idata = cv_idata
-        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
+        # Also expose the last fold's idata (if any) for compatibility
         if results:
             last = results[-1]
             if hasattr(last, "idata") and last.idata is not None:
