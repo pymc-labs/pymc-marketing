@@ -241,6 +241,82 @@ def _read_fold_meta(
     return meta["X_train"], meta["y_train"], meta["X_test"], meta["y_test"]
 
 
+def _build_predictions_arrays(
+    cv_data: az.InferenceData,
+    pp: xr.DataArray,
+) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
+    """Build stacked train/test/observed/train-end arrays across all CV folds.
+
+    Parameters
+    ----------
+    cv_data : az.InferenceData
+        Full CV InferenceData (already validated by the caller).
+    pp : xr.DataArray
+        ``posterior_predictive["y_original_scale"]`` with dims
+        ``(cv, chain, draw, date, ...)``.
+
+    Returns
+    -------
+    y_train_da : xr.DataArray  — (cv, chain, draw, date, ...) NaN outside train window
+    y_test_da  : xr.DataArray  — (cv, chain, draw, date, ...) NaN outside test window
+    y_obs_da   : xr.DataArray  — (cv, date) observed actuals aligned to full date coord
+    train_end_da : xr.DataArray — (cv,) last training date per fold
+    """
+    cv_labels = _extract_cv_labels(cv_data)
+    full_dates = pp.coords["date"].values
+
+    y_train_list: list[xr.DataArray] = []
+    y_test_list: list[xr.DataArray] = []
+    y_obs_list: list[xr.DataArray] = []
+    train_end_list: list[Any] = []
+
+    for lbl in cv_labels:
+        X_train, y_train, X_test, y_test = _read_fold_meta(cv_data, lbl)
+
+        train_dates = pd.DatetimeIndex(X_train["date"].values)
+        test_dates = (
+            pd.DatetimeIndex(X_test["date"].values)
+            if X_test is not None and len(X_test) > 0
+            else pd.DatetimeIndex([])
+        )
+
+        train_mask = xr.DataArray(
+            np.isin(full_dates, train_dates.values),
+            dims=["date"],
+            coords={"date": full_dates},
+        )
+        test_mask = xr.DataArray(
+            np.isin(full_dates, test_dates.values),
+            dims=["date"],
+            coords={"date": full_dates},
+        )
+
+        pp_fold = pp.sel(cv=lbl)
+        y_train_list.append(pp_fold.where(train_mask))
+        y_test_list.append(pp_fold.where(test_mask))
+
+        date_to_y: dict[Any, float] = {}
+        for d, y in zip(X_train["date"].values, np.asarray(y_train)):
+            date_to_y[d] = float(y)
+        if X_test is not None and len(X_test) > 0:
+            for d, y in zip(X_test["date"].values, np.asarray(y_test)):
+                date_to_y[d] = float(y)
+        y_obs_arr = np.array([date_to_y.get(d, np.nan) for d in full_dates])
+        y_obs_list.append(
+            xr.DataArray(y_obs_arr, dims=["date"], coords={"date": full_dates})
+        )
+        train_end_list.append(train_dates.max())
+
+    cv_coord = xr.DataArray(cv_labels, dims=["cv"], name="cv")
+    y_train_da = xr.concat(y_train_list, dim=cv_coord).assign_coords(cv=cv_labels)
+    y_test_da = xr.concat(y_test_list, dim=cv_coord).assign_coords(cv=cv_labels)
+    y_obs_da = xr.concat(y_obs_list, dim=cv_coord).assign_coords(cv=cv_labels)
+    train_end_da = xr.DataArray(
+        train_end_list, dims=["cv"], coords={"cv": cv_labels}
+    )
+    return y_train_da, y_test_da, y_obs_da, train_end_da
+
+
 # ── Main class ────────────────────────────────────────────────────────────────
 
 
@@ -422,59 +498,9 @@ def predictions(
             "cv_data must have posterior_predictive['y_original_scale']."
         )
 
-    cv_labels = _extract_cv_labels(data)
     pp = data.posterior_predictive["y_original_scale"]
-    full_dates = pp.coords["date"].values
-
-    y_train_list: list[xr.DataArray] = []
-    y_test_list: list[xr.DataArray] = []
-    y_obs_list: list[xr.DataArray] = []
-    train_end_list: list[Any] = []
-
-    for lbl in cv_labels:
-        X_train, y_train, X_test, y_test = _read_fold_meta(data, lbl)
-
-        train_dates = pd.DatetimeIndex(X_train["date"].values)
-        test_dates = (
-            pd.DatetimeIndex(X_test["date"].values)
-            if X_test is not None and len(X_test) > 0
-            else pd.DatetimeIndex([])
-        )
-
-        train_mask = xr.DataArray(
-            np.isin(full_dates, train_dates.values),
-            dims=["date"],
-            coords={"date": full_dates},
-        )
-        test_mask = xr.DataArray(
-            np.isin(full_dates, test_dates.values),
-            dims=["date"],
-            coords={"date": full_dates},
-        )
-
-        pp_fold = pp.sel(cv=lbl)
-        y_train_list.append(pp_fold.where(train_mask))
-        y_test_list.append(pp_fold.where(test_mask))
-
-        # Align observed actuals to the full date coordinate
-        date_to_y: dict[Any, float] = {}
-        for d, y in zip(X_train["date"].values, np.asarray(y_train)):
-            date_to_y[d] = float(y)
-        if X_test is not None and len(X_test) > 0:
-            for d, y in zip(X_test["date"].values, np.asarray(y_test)):
-                date_to_y[d] = float(y)
-        y_obs_arr = np.array([date_to_y.get(d, np.nan) for d in full_dates])
-        y_obs_list.append(
-            xr.DataArray(y_obs_arr, dims=["date"], coords={"date": full_dates})
-        )
-        train_end_list.append(train_dates.max())
-
-    cv_coord = xr.DataArray(cv_labels, dims=["cv"], name="cv")
-    y_train_da = xr.concat(y_train_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    y_test_da = xr.concat(y_test_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    y_obs_da = xr.concat(y_obs_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    train_end_da = xr.DataArray(
-        train_end_list, dims=["cv"], coords={"cv": cv_labels}
+    y_train_da, y_test_da, y_obs_da, train_end_da = _build_predictions_arrays(
+        data, pp
     )
 
     if dims:
@@ -1083,6 +1109,7 @@ Spec requirements → plan coverage:
 | Spec requirement | Task |
 |---|---|
 | `MMMCVPlotSuite.__init__` validates type + cv_metadata | Task 1 |
+| `_build_predictions_arrays` helper (fold-loop factored out of `predictions`) | Task 1 |
 | `predictions()` — HDI bands, observed line, vline per fold | Task 2 |
 | `predictions()` — per-call `cv_data` override + re-validation | Task 2 |
 | `predictions()` — validation raises for missing pp + cv_metadata | Task 2 |
