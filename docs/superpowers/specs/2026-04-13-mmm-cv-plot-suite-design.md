@@ -8,7 +8,7 @@
 
 ## Overview
 
-Introduces `MMMCVPlotSuite`: a stateless, standalone class that provides
+Introduces `MMMCVPlotSuite`: a standalone class that provides
 PlotCollection-based plotting for cross-validation results produced by
 `TimeSliceCrossValidator.run()`.
 
@@ -23,7 +23,7 @@ implementations. All raw-matplotlib code in the old methods is replaced.
 | File | Change |
 |------|--------|
 | `pymc_marketing/mmm/plotting/cv.py` | **New** — `MMMCVPlotSuite` class |
-| `pymc_marketing/mmm/time_slice_cross_validation.py` | Simplify `.plot` property to return `MMMCVPlotSuite()` |
+| `pymc_marketing/mmm/time_slice_cross_validation.py` | Update `.plot` property to return `MMMCVPlotSuite(self.cv_idata)` |
 | `pymc_marketing/mmm/plotting/__init__.py` | Export `MMMCVPlotSuite` |
 | `tests/mmm/plotting/test_cv.py` | **New** — full test suite |
 
@@ -33,13 +33,16 @@ implementations. All raw-matplotlib code in the old methods is replaced.
 
 ```
 MMMCVPlotSuite
-  ├── predictions(results, ...)   — HDI bands, observed line, train-end vline
-  ├── param_stability(results, ...)  — arviz_plots.plot_forest via DataTree dict
-  └── crps(results, ...)          — scalar CRPS line chart per fold
+  ├── __init__(cv_data)              — validates and stores self.cv_data
+  ├── predictions(cv_data=None, ...)   — HDI bands, observed line, train-end vline
+  ├── param_stability(cv_data=None, ...)  — arviz_plots.plot_forest via DataTree dict
+  └── crps(cv_data=None, ...)          — scalar CRPS line chart per fold
 ```
 
-No `__init__` — all data arrives via `results: az.InferenceData` on each method.
-No `self._data`, no stored state.
+Follows the same pattern as `DecompositionPlots`, `DiagnosticsPlots`, etc.:
+- `__init__` accepts `cv_data`, runs `_validate_cv_results` (type check + `cv_metadata` presence), and stores it as `self.cv_data`.
+- Each method accepts `cv_data: az.InferenceData | None = None`.  When `None`, the method uses `self.cv_data`.  When provided, it overrides for that call only and `_validate_cv_results` is re-run on the override.
+- Additional method-specific validation (e.g. checking `posterior_predictive["y_original_scale"]` or the `cv` coordinate) happens inside each method, after `_validate_cv_results`.
 
 ---
 
@@ -50,12 +53,24 @@ No `self._data`, no stored state.
 class TimeSliceCrossValidator:
     @property
     def plot(self) -> MMMCVPlotSuite:
-        return MMMCVPlotSuite()
+        self._validate_model_was_built()
+        return MMMCVPlotSuite(self.cv_idata)
 ```
 
-The old property called `_validate_model_was_built()` and `_validate_idata_exists()`.
-These validations move into each method (which validates `results` at call time).
-The property itself becomes a zero-argument factory — no validation, no state.
+The old property also called `_validate_idata_exists()`.  That check is subsumed by
+`MMMCVPlotSuite.__init__`, which runs `_validate_cv_results` on the passed InferenceData.
+`_validate_model_was_built()` is kept in the property because `self.cv_idata` does not exist
+before `run()` has been called.
+
+---
+
+## Class Initialization
+
+```python
+def __init__(self, cv_data: az.InferenceData) -> None:
+```
+
+Calls `_validate_cv_results(cv_data)` and stores `self.cv_data = cv_data`.
 
 ---
 
@@ -70,14 +85,14 @@ vertical green dashed line at the train/test boundary.
 ### API name change
 
 Old: `MMMPlotSuite.cv_predictions(results, dims)`
-New: `MMMCVPlotSuite.predictions(results, dims, hdi_prob, figsize, backend, return_as_pc, hdi_kwargs, **pc_kwargs)`
+New: `MMMCVPlotSuite.predictions(cv_data, dims, hdi_prob, figsize, backend, return_as_pc, hdi_kwargs, **pc_kwargs)`
 
 ### Signature
 
 ```python
 def predictions(
     self,
-    results: az.InferenceData,
+    cv_data: az.InferenceData | None = None,
     dims: dict[str, Any] | None = None,
     hdi_prob: float = 0.94,
     figsize: tuple[float, float] | None = None,
@@ -88,24 +103,27 @@ def predictions(
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
 ```
 
+`cv_data=None` uses `self.cv_data`.  If an override is provided, `_validate_cv_results`
+is called on it before use.
+
 ### Input validation
 
-Raise `TypeError` if `results` is not `az.InferenceData`.
+Raise `TypeError` if the resolved `cv_data` is not `az.InferenceData`.
 Raise `ValueError` if:
 - `cv_metadata` group absent or has no `"metadata"` variable
 - `posterior_predictive["y_original_scale"]` absent
 
 ### Data preparation
 
-1. Extract `cv_labels` from `results.cv_metadata.coords["cv"].values`.
-2. Extract the full date coordinate from `results.posterior_predictive["y_original_scale"]`.
+1. Extract `cv_labels` from `cv_data.cv_metadata.coords["cv"].values`.
+2. Extract the full date coordinate from `cv_data.posterior_predictive["y_original_scale"]`.
 3. For each fold `lbl`:
    a. Read `X_train`, `y_train`, `X_test`, `y_test` from `cv_metadata["metadata"].sel(cv=lbl).item()`.
    b. Compute `train_dates` and `test_dates` as `pd.DatetimeIndex` from `X_train["date"]` / `X_test["date"]`.
    c. Build a boolean mask over the full date coordinate:
       - `train_mask`: True where date ∈ `train_dates`
       - `test_mask`: True where date ∈ `test_dates`
-   d. From `pp = results.posterior_predictive["y_original_scale"].sel(cv=lbl)`:
+   d. From `pp = cv_data.posterior_predictive["y_original_scale"].sel(cv=lbl)`:
       - `y_train_fold = pp.where(train_mask)` — NaN outside train window
       - `y_test_fold = pp.where(test_mask)` — NaN outside test window
    e. Build `y_obs_fold` — observed actuals (no chain/draw) for this fold by
@@ -189,7 +207,7 @@ shading distinguishes values within other dimensions (e.g. channel) via
 ### API change
 
 Old: `MMMPlotSuite.param_stability(results, parameter, dims)`
-New: `MMMCVPlotSuite.param_stability(results, var_names, dims, figsize, figure_kwargs, backend, return_as_pc, **pc_kwargs)`
+New: `MMMCVPlotSuite.param_stability(cv_data, var_names, dims, figsize, figure_kwargs, backend, return_as_pc, **pc_kwargs)`
 
 Changes:
 - `parameter: list[str]` → `var_names: list[str]` (consistent with arviz naming)
@@ -201,8 +219,8 @@ Changes:
 ```python
 def param_stability(
     self,
-    results: az.InferenceData,
-    var_names: list[str],
+    cv_data: az.InferenceData | None = None,
+    var_names: list[str] | None = None,
     dims: dict[str, Any] | None = None,
     figsize: tuple[float, float] | None = None,
     figure_kwargs: dict[str, Any] | None = None,
@@ -212,19 +230,22 @@ def param_stability(
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
 ```
 
+`cv_data=None` uses `self.cv_data`.  If an override is provided, `_validate_cv_results`
+is called on it before use.
+
 ### Input validation
 
-Raise `TypeError` if `results` is not `az.InferenceData`.
+Raise `TypeError` if the resolved `cv_data` is not `az.InferenceData`.
 Raise `ValueError` if:
-- `results` has no `posterior` group (`not hasattr(results, "posterior")`)
-- No `"cv"` coordinate found in `results.posterior`
+- `cv_data` has no `posterior` group (`not hasattr(cv_data, "posterior")`)
+- No `"cv"` coordinate found in `cv_data.posterior`
 
 ### Implementation
 
 ```python
 # 1. Transpose posterior so dimension order reads well in the forest plot
 #    (sample dims first, then the labelled dims ending with "cv")
-posterior = results.posterior
+posterior = cv_data.posterior
 if dims:
     posterior = _select_dims(posterior, dims)
 # Move "channel" and "cv" to the end so it appears as the innermost loop in the plot;
@@ -277,14 +298,14 @@ colored lines on a single panel. X-axis = fold index, Y-axis = CRPS score.
 ### API name change
 
 Old: `MMMPlotSuite.cv_crps(results, dims)`
-New: `MMMCVPlotSuite.crps(results, dims, figsize, backend, return_as_pc, line_kwargs, **pc_kwargs)`
+New: `MMMCVPlotSuite.crps(cv_data, dims, figsize, backend, return_as_pc, line_kwargs, **pc_kwargs)`
 
 ### Signature
 
 ```python
 def crps(
     self,
-    results: az.InferenceData,
+    cv_data: az.InferenceData | None = None,
     dims: dict[str, Any] | None = None,
     figsize: tuple[float, float] | None = None,
     backend: str | None = None,
@@ -294,9 +315,12 @@ def crps(
 ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
 ```
 
+`cv_data=None` uses `self.cv_data`.  If an override is provided, `_validate_cv_results`
+is called on it before use.
+
 ### Input validation
 
-Raise `TypeError` if `results` is not `az.InferenceData`.
+Raise `TypeError` if the resolved `cv_data` is not `az.InferenceData`.
 Raise `ValueError` if:
 - `cv_metadata` group absent
 - `posterior_predictive["y_original_scale"]` absent
@@ -306,15 +330,14 @@ Raise `ValueError` if:
 The computation is identical to the old `cv_crps` logic:
 
 1. Extract `cv_labels`.
-2. Define `_pred_matrix_for_rows(results, cv_label, rows_df) → np.ndarray` (shape `(n_samples, n_rows)`) — builds a prediction matrix by selecting `posterior_predictive["y_original_scale"].sel(cv=cv_label)` stacked over `(chain, draw)` and indexing by date.
+2. Define `_pred_matrix_for_rows(cv_data, cv_label, rows_df) → np.ndarray` (shape `(n_samples, n_rows)`) — builds a prediction matrix by selecting `posterior_predictive["y_original_scale"].sel(cv=cv_label)` stacked over `(chain, draw)` and indexing by date.
 3. Define `_filter_rows_and_y(df, y, indexers) → (filtered_df, y_arr)` — filters `X_train`/`X_test` rows matching the `dims` coordinate filters.
 4. For each fold:
    - Read `X_train`, `y_train`, `X_test`, `y_test` from `cv_metadata`.
-   - Apply `_filter_rows_and_y` using `dims` indexers.
-   - Compute `crps(y_true=y_train_arr, y_pred=y_pred_train)` from `pymc_marketing.metrics`.
-   - Append to `crps_train_list` / `crps_test_list` (NaN on failure).
+   - Use `_crps_for_split` for both train and test splits (NaN on failure or empty set).
+   - Append to `crps_train_list` / `crps_test_list`.
 
-Both helpers are module-level functions in `cv.py`.
+All helpers are module-level functions in `cv.py`.
 
 ### PlotCollection rendering
 
@@ -347,28 +370,29 @@ ensures `pc.map` loops over train/test with different colors.
 
 | Helper | Purpose |
 |--------|---------|
-| `_validate_cv_results(results)` | Type check + group presence validation; raises `TypeError`/`ValueError` |
-| `_extract_cv_labels(results)` | Returns `list[str]` of fold labels from `cv_metadata.coords["cv"]` |
-| `_read_fold_meta(results, cv_label)` | Returns `(X_train, y_train, X_test, y_test)` from `cv_metadata` |
-| `_pred_matrix_for_rows(results, cv_label, rows_df)` | Builds `(n_samples, n_rows)` prediction matrix for CRPS |
+| `_validate_cv_results(cv_data)` | Shared base validation called at `__init__` and on any per-call override. Raises `TypeError` if `cv_data` is not `az.InferenceData`. Raises `ValueError` if the `cv_metadata` group is absent — this is the minimum required for any of the three methods to function. Method-specific checks (e.g. `posterior_predictive["y_original_scale"]` for `predictions`/`crps`, `posterior` + `cv` coord for `param_stability`) are performed inside each method, not here. |
+| `_extract_cv_labels(cv_data)` | Returns `list[str]` of fold labels from `cv_metadata.coords["cv"]` |
+| `_read_fold_meta(cv_data, cv_label)` | Returns `(X_train, y_train, X_test, y_test)` from `cv_metadata` |
+| `_pred_matrix_for_rows(cv_data, cv_label, rows_df)` | Builds `(n_samples, n_rows)` prediction matrix for CRPS |
 | `_filter_rows_and_y(df, y, indexers)` | Filters DataFrame rows by column values; used in `crps()` |
+| `_crps_for_split(cv_data, cv_label, X, y, dim_indexers)` | Computes mean CRPS for one fold/split; returns NaN on failure or empty set |
 
 ---
 
 ## Standard Parameters
 
-All three methods accept the standard suite:
+All three methods share this parameter set:
 
 | Parameter | Purpose |
 |-----------|---------|
+| `cv_data` | `az.InferenceData \| None` — override stored `self.cv_data` for this call only |
 | `dims` | Filter to specific coordinate values (applied via `_select_dims`) |
 | `figsize` | Injected into `figure_kwargs` via `_process_plot_params` |
 | `backend` | `"matplotlib"` (default), `"plotly"`, `"bokeh"` |
 | `return_as_pc` | Return `PlotCollection` instead of `(Figure, NDArray[Axes])` |
 | `**pc_kwargs` | Forwarded to `PlotCollection.grid/wrap()` for layout control |
 
-**No `idata` override parameter** — unlike other namespace classes, `MMMCVPlotSuite`
-is stateless and receives all data via `results`. There is nothing to override.
+When `cv_data` is not `None`, `_validate_cv_results` is called on it before proceeding.
 
 ---
 
@@ -395,7 +419,10 @@ is stateless and receives all data via `results`. There is nothing to override.
     - Fold 1: train dates 0–24, test dates 25–29  (step=5)
     - Fold 2: train dates 0–29, test dates — (degenerate, should not crash)
   - `cv_metadata.coords["cv"]`: `["fold_0", "fold_1", "fold_2"]`
-- `cv_plot` — `MMMCVPlotSuite()` instance
+- `cv_plot` — `MMMCVPlotSuite(cv_results_idata)` instance (initialized with the fixture)
+
+All method calls use `cv_plot.<method>()` with no `cv_data` argument (uses `self.cv_data`).
+Override tests call `cv_plot.<method>(cv_data=some_other_idata)` to test the override path.
 
 ### Test cases
 
