@@ -192,3 +192,13 @@ class TestPredictions:
         single_date = pd.Timestamp("2024-01-05")
         fig, _axes = cv_plot.predictions(dims={"date": [single_date]})
         assert isinstance(fig, Figure)
+
+    def test_split_line_present(self, cv_plot):
+        _fig, axes = cv_plot.predictions()
+        ax = axes[0]
+        dashed_lines = [
+            line for line in ax.lines if line.get_linestyle() in ("--", "dashed")
+        ]
+        assert len(dashed_lines) >= 1, (
+            "Expected at least one dashed vertical split line"
+        )

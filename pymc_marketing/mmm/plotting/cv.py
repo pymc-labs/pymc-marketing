@@ -265,10 +265,14 @@ class MMMCVPlotSuite:
             pc,
             train_end_da,
             orientation="vertical",
-            color="green",
-            linestyle="--",
-            linewidth=2,
-            alpha=0.9,
+            visuals={
+                "ref_line": {
+                    "color": "green",
+                    "linestyle": "--",
+                    "linewidth": 2,
+                    "alpha": 0.9,
+                }
+            },
         )
 
         pc.add_legend("__variable__")
