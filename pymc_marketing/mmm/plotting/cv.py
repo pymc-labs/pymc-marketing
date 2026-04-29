@@ -18,17 +18,17 @@ from __future__ import annotations
 from typing import Any
 
 import arviz as az
-import arviz_plots as azp  # noqa: F401
+import arviz_plots as azp
 import numpy as np
 import pandas as pd
 import xarray as xr
-from arviz_plots import PlotCollection  # noqa: F401
-from matplotlib.axes import Axes  # noqa: F401
-from matplotlib.figure import Figure  # noqa: F401
-from numpy.typing import NDArray  # noqa: F401
+from arviz_plots import PlotCollection
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from numpy.typing import NDArray
 
 from pymc_marketing.metrics import crps as _crps_score  # noqa: F401
-from pymc_marketing.mmm.plotting._helpers import (  # noqa: F401
+from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
@@ -160,9 +160,120 @@ class MMMCVPlotSuite:
         _validate_cv_results(cv_data)
         self.cv_data = cv_data
 
-    def predictions(self, *args, **kwargs):
-        """Plot posterior-predictive train/test predictions across CV folds."""
-        raise NotImplementedError
+    def predictions(
+        self,
+        cv_data: az.InferenceData | None = None,
+        dims: dict[str, Any] | None = None,
+        hdi_prob: float = 0.94,
+        figsize: tuple[float, float] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        hdi_kwargs: dict[str, Any] | None = None,
+        **pc_kwargs,
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+        """Posterior predictive HDI bands per CV fold.
+
+        For each fold: blue HDI band over train dates, orange HDI band over test
+        dates, black observed line, and a green dashed vertical boundary at the
+        train/test split.
+
+        Parameters
+        ----------
+        cv_data : az.InferenceData or None
+            Override the stored ``self.cv_data`` for this call only.
+            ``_validate_cv_results`` is re-run on the override.
+        dims : dict or None
+            Filter coordinate values before rendering
+            (e.g. ``{"geo": ["North"]}``).
+        hdi_prob : float
+            HDI probability mass (default 0.94).
+        figsize : tuple or None
+            Figure size in inches; injected into ``figure_kwargs``.
+        backend : str or None
+            PlotCollection backend (``"matplotlib"`` / ``"plotly"`` / ``"bokeh"``).
+            Non-matplotlib requires ``return_as_pc=True``.
+        return_as_pc : bool
+            Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+        hdi_kwargs : dict or None
+            Extra kwargs forwarded to ``azp.visuals.fill_between_y``.
+        **pc_kwargs
+            Forwarded to ``PlotCollection.grid()``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+        """
+        data = cv_data if cv_data is not None else self.cv_data
+        if cv_data is not None:
+            _validate_cv_results(data)
+
+        if not hasattr(data, "cv_metadata") or "metadata" not in data.cv_metadata:
+            raise ValueError(
+                "cv_data must have a cv_metadata group containing a 'metadata' variable."
+            )
+        if (
+            not hasattr(data, "posterior_predictive")
+            or "y_original_scale" not in data.posterior_predictive
+        ):
+            raise ValueError(
+                "cv_data must have posterior_predictive['y_original_scale']."
+            )
+
+        pp = data.posterior_predictive["y_original_scale"]
+        y_train_da, y_test_da, y_obs_da, train_end_da = _build_predictions_arrays(
+            data, pp
+        )
+
+        if dims:
+            y_train_da = _select_dims(y_train_da, dims)
+            y_test_da = _select_dims(y_test_da, dims)
+            y_obs_da = _select_dims(y_obs_da, dims)
+
+        standard_dims = {"cv", "chain", "draw", "date"}
+        custom_dims = [d for d in y_train_da.dims if d not in standard_dims]
+
+        split_ds = xr.Dataset({"train": y_train_da, "test": y_test_da})
+
+        pc_kwargs = _process_plot_params(figsize, backend, return_as_pc, **pc_kwargs)
+        rows = pc_kwargs.pop("rows", [*custom_dims, "cv"])
+        cols = pc_kwargs.pop("cols", [])
+
+        pc = PlotCollection.grid(
+            split_ds,
+            rows=rows,
+            cols=cols,
+            aes={"color": ["__variable__"]},
+            backend=backend,
+            **pc_kwargs,
+        )
+
+        hdi_ds = split_ds.azstats.hdi(hdi_prob)
+        date_da = split_ds["train"].coords["date"]
+
+        pc.map(
+            azp.visuals.fill_between_y,
+            x=date_da,
+            y_bottom=hdi_ds.sel(ci_bound="lower"),
+            y_top=hdi_ds.sel(ci_bound="upper"),
+            alpha=0.3,
+            **(hdi_kwargs or {}),
+        )
+
+        pc.map(azp.visuals.line_xy, x=date_da, y=y_obs_da, color="black", linewidth=1.5)
+
+        azp.add_lines(
+            pc,
+            train_end_da,
+            orientation="vertical",
+            color="green",
+            linestyle="--",
+            linewidth=2,
+            alpha=0.9,
+        )
+
+        pc.add_legend("__variable__")
+
+        return _extract_matplotlib_result(pc, return_as_pc)
 
     def param_stability(self, *args, **kwargs):
         """Plot parameter stability (forest plot) across CV folds."""

@@ -20,6 +20,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
+from arviz_plots import PlotCollection
+from matplotlib.figure import Figure
 
 SEED = 42
 
@@ -141,3 +143,52 @@ class TestInit:
         bad = az.InferenceData(posterior=xr.Dataset())
         with pytest.raises(ValueError, match="cv_metadata"):
             MMMCVPlotSuite(bad)
+
+
+class TestPredictions:
+    def test_returns_tuple(self, cv_plot):
+        result = cv_plot.predictions()
+        assert isinstance(result, tuple) and len(result) == 2
+        fig, axes = result
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+    def test_return_as_pc(self, cv_plot):
+        result = cv_plot.predictions(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_n_axes_equals_n_folds(self, cv_plot):
+        _fig, axes = cv_plot.predictions()
+        # 3 folds → at least 3 axes (one per fold panel)
+        assert len(axes) >= 3
+
+    def test_train_test_colors_differ(self, cv_plot):
+        _fig, axes = cv_plot.predictions()
+        ax = axes[0]
+        colors = set()
+        for coll in ax.collections:
+            fc = coll.get_facecolor()
+            if fc is not None and len(fc) > 0:
+                colors.add(tuple(np.round(fc[0][:3], 2)))
+        assert len(colors) >= 2, "Expected at least two fill colors (train/test)"
+
+    def test_missing_cv_metadata_raises(self, cv_plot, cv_results_idata):
+        bad = az.InferenceData(
+            posterior_predictive=cv_results_idata.posterior_predictive
+        )
+        # bad has no cv_metadata — _validate_cv_results raises ValueError
+        with pytest.raises((TypeError, ValueError)):
+            cv_plot.predictions(cv_data=bad)
+
+    def test_missing_posterior_predictive_raises(self, cv_plot, cv_results_idata):
+        bad = az.InferenceData(cv_metadata=cv_results_idata.cv_metadata)
+        with pytest.raises(ValueError, match="posterior_predictive"):
+            cv_plot.predictions(cv_data=bad)
+
+    def test_dims_filtering(self, cv_plot):
+        import pandas as pd
+
+        # Filter to a single date — date dim becomes size-1, plot still renders
+        single_date = pd.Timestamp("2024-01-05")
+        fig, _axes = cv_plot.predictions(dims={"date": [single_date]})
+        assert isinstance(fig, Figure)
