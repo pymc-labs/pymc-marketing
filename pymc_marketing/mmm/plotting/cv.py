@@ -104,7 +104,7 @@ def _build_predictions_arrays(
         train_dates = pd.DatetimeIndex(X_train["date"].values)
         test_dates = (
             pd.DatetimeIndex(X_test["date"].values)
-            if X_test is not None and len(X_test) > 0
+            if len(X_test) > 0
             else pd.DatetimeIndex([])
         )
 
@@ -124,10 +124,10 @@ def _build_predictions_arrays(
         y_test_list.append(pp_fold.where(test_mask))
 
         date_to_y: dict[Any, float] = {}
-        for d, y in zip(X_train["date"].values, np.asarray(y_train), strict=False):
+        for d, y in zip(X_train["date"].values, np.asarray(y_train), strict=True):
             date_to_y[d] = float(y)
-        if X_test is not None and len(X_test) > 0:
-            for d, y in zip(X_test["date"].values, np.asarray(y_test), strict=False):
+        if len(X_test) > 0:
+            for d, y in zip(X_test["date"].values, np.asarray(y_test), strict=True):
                 date_to_y[d] = float(y)
         y_obs_arr = np.array([date_to_y.get(d, np.nan) for d in full_dates])
         y_obs_list.append(
