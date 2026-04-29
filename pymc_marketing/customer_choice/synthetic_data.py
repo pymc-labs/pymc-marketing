@@ -210,11 +210,14 @@ def generate_blp_panel(
     -------
     df : pd.DataFrame
         Long-format panel with columns
-        ``["region", "market", "product", "share", "n", "price",
+        ``["region", "market", "period", "product", "share", "n", "price",
         "x_0", ..., "x_{K-1}", "z_0", ..., "z_{L-1}"]``. The outside good
         appears once per market with ``price`` and all characteristics /
-        instruments set to zero. ``market`` is a global integer; ``region``
-        is a string label.
+        instruments set to zero. ``market`` is a global integer;
+        ``period`` is the integer time index within a region (0..T-1);
+        ``region`` is a string label. Pass ``time_col="period"`` to
+        :class:`pymc_marketing.customer_choice.BayesianBLP` to make the
+        time dimension first-class for counterfactuals.
     truth : dict, optional
         Returned only when ``return_truth=True``. Contains the population
         and per-cell parameters that generated the panel — useful for
@@ -337,6 +340,7 @@ def generate_blp_panel(
                 row = {
                     "region": f"r{r}",
                     "market": market_idx,
+                    "period": int(t),
                     "product": "outside" if is_outside else f"prod_{j_idx - 1}",
                     "share": float(obs_shares[r, t, j_idx]),
                     "n": int(market_size),
