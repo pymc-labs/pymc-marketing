@@ -279,9 +279,86 @@ class MMMCVPlotSuite:
 
         return _extract_matplotlib_result(pc, return_as_pc)
 
-    def param_stability(self, *args, **kwargs):
-        """Plot parameter stability (forest plot) across CV folds."""
-        raise NotImplementedError
+    def param_stability(
+        self,
+        cv_data: az.InferenceData | None = None,
+        var_names: list[str] | None = None,
+        dims: dict[str, Any] | None = None,
+        figsize: tuple[float, float] | None = None,
+        figure_kwargs: dict[str, Any] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        **pc_kwargs,
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+        """Forest plot comparing parameter posteriors across all CV folds.
+
+        Parameters
+        ----------
+        cv_data : az.InferenceData or None
+            Override the stored ``self.cv_data`` for this call only.
+        var_names : list[str] or None
+            Variables to include (passed directly to ``azp.plot_forest``).
+        dims : dict or None
+            Filter coordinate values before plotting
+            (e.g. ``{"channel": ["tv"]}``).
+        figsize : tuple or None
+            Figure size in inches; takes precedence over ``figure_kwargs["figsize"]``.
+        figure_kwargs : dict or None
+            Extra kwargs for the figure constructor; merged with defaults.
+        backend : str or None
+            PlotCollection backend.
+        return_as_pc : bool
+            Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+        **pc_kwargs
+            Forwarded to ``azp.plot_forest()``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+        """
+        data = cv_data if cv_data is not None else self.cv_data
+        if cv_data is not None:
+            _validate_cv_results(data)
+
+        if not hasattr(data, "posterior"):
+            raise ValueError("cv_data has no 'posterior' group.")
+        if "cv" not in data.posterior.coords:
+            raise ValueError(
+                "No 'cv' coordinate found in cv_data.posterior. "
+                "Ensure the InferenceData was produced by TimeSliceCrossValidator.run()."
+            )
+
+        posterior = data.posterior
+        if dims:
+            posterior = _select_dims(posterior, dims)
+
+        # Move labelled dims to the end so the forest plot reads naturally.
+        # Guard: only include dims that actually exist after optional filtering.
+        dims_to_end = [d for d in ("channel", "cv") if d in posterior.dims]
+        if dims_to_end:
+            posterior = posterior.transpose(..., *dims_to_end)
+
+        idata_for_plot = az.InferenceData(posterior=posterior)
+
+        fig_kw: dict[str, Any] = {
+            "width_ratios": [1, 2],
+            "layout": "none",
+            **(figure_kwargs or {}),
+        }
+        if figsize is not None:
+            fig_kw["figsize"] = figsize
+
+        pc = azp.plot_forest(
+            idata_for_plot.to_datatree(),
+            var_names=var_names,
+            aes={"color": ["cv"]},
+            figure_kwargs=fig_kw,
+            combined=True,
+            shade_label="channel",
+            backend=backend,
+            **pc_kwargs,
+        )
+        return _extract_matplotlib_result(pc, return_as_pc)
 
     def crps(self, *args, **kwargs):
         """Plot CRPS scores per fold for out-of-sample evaluation."""

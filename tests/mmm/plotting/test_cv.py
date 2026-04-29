@@ -202,3 +202,44 @@ class TestPredictions:
         assert len(dashed_lines) >= 1, (
             "Expected at least one dashed vertical split line"
         )
+
+
+class TestParamStability:
+    def test_returns_tuple(self, cv_plot):
+        fig, axes = cv_plot.param_stability()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+    def test_return_as_pc(self, cv_plot):
+        result = cv_plot.param_stability(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_var_names(self, cv_plot):
+        # Should run without error when restricting to known variable
+        fig, _axes = cv_plot.param_stability(var_names=["beta_channel"])
+        assert isinstance(fig, Figure)
+
+    def test_dims_filtering(self, cv_plot):
+        # Filter posterior to a single channel before plotting
+        fig, _axes = cv_plot.param_stability(dims={"channel": ["tv"]})
+        assert isinstance(fig, Figure)
+
+    def test_no_cv_coord_raises(self, cv_results_idata):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        # Strip cv coordinate from posterior
+        posterior = cv_results_idata.posterior.isel(cv=0, drop=True)
+        bad = az.InferenceData(
+            posterior=posterior,
+            cv_metadata=cv_results_idata.cv_metadata,
+        )
+        suite = MMMCVPlotSuite(bad)
+        with pytest.raises(ValueError, match="cv"):
+            suite.param_stability()
+
+    def test_single_figure(self, cv_plot):
+        import matplotlib.pyplot as plt
+
+        plt.close("all")
+        cv_plot.param_stability()
+        assert len(plt.get_fignums()) == 1
