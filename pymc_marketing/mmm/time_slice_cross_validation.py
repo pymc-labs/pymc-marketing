@@ -185,7 +185,7 @@ class TimeSliceCrossValidator:
 
         Ensures `self._cv_results` exists and is non-empty. If an
         InferenceData is present on the last result, expose it as
-        `self.idata` for compatibility with the MMMPlotSuite API.
+        `self.idata` for backward compatibility.
         """
         if not hasattr(self, "_cv_results") or not self._cv_results:
             raise ValueError(
@@ -195,13 +195,6 @@ class TimeSliceCrossValidator:
         if hasattr(last_result, "idata") and last_result.idata is not None:
             # make idata accessible for compatibility
             self.idata = last_result.idata
-
-    def _validate_idata_exists(self) -> None:
-        """Validate that `self.idata` is present and not None."""
-        if not hasattr(self, "idata") or self.idata is None:
-            raise ValueError(
-                "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
-            )
 
     def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
         """Build a cv_metadata Dataset that stores per-fold metadata.
