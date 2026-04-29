@@ -274,7 +274,20 @@ class TestCRPS:
         with pytest.raises((TypeError, ValueError)):
             cv_plot.crps(cv_data=bad)
 
-    def test_nan_tolerant(self, cv_plot):
-        # fold_2 has an empty test set → test CRPS is NaN; rendering must not crash
+    def test_nan_tolerant(self, cv_plot, cv_results_idata):
+        # fold_2 has an empty test set → test CRPS must be NaN
+        from pymc_marketing.mmm.plotting.cv import (
+            _crps_for_split,
+            _extract_cv_labels,
+            _read_fold_meta,
+        )
+
+        cv_labels = _extract_cv_labels(cv_results_idata)
+        _, _, X_test, y_test = _read_fold_meta(
+            cv_results_idata, cv_labels[-1]
+        )  # fold_2
+        result = _crps_for_split(cv_results_idata, cv_labels[-1], X_test, y_test, {})
+        assert np.isnan(result), "fold_2 test CRPS must be NaN (empty test set)"
+        # And rendering must not crash
         fig, _axes = cv_plot.crps()
         assert isinstance(fig, Figure)

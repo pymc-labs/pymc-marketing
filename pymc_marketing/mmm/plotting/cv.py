@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import arviz as az
@@ -178,8 +179,8 @@ def _pred_matrix_for_rows(
 
 
 def _filter_rows_and_y(
-    df: pd.DataFrame,
-    y: pd.Series,
+    df: pd.DataFrame | None,
+    y: pd.Series | None,
     indexers: dict[str, Any],
 ) -> tuple[pd.DataFrame, np.ndarray]:
     """Filter DataFrame rows by column equality, return aligned y array.
@@ -221,7 +222,12 @@ def _crps_for_split(
             return float(np.nan)
         pred_mat = _pred_matrix_for_rows(cv_data, cv_label, X_filtered)
         return float(_crps_score(y_true=y_arr, y_pred=pred_mat))
-    except Exception:
+    except Exception as exc:
+        warnings.warn(
+            f"CRPS computation failed for fold '{cv_label}': {exc}",
+            UserWarning,
+            stacklevel=3,
+        )
         return float(np.nan)
 
 
@@ -404,7 +410,7 @@ class MMMCVPlotSuite:
 
         if not hasattr(data, "posterior"):
             raise ValueError("cv_data has no 'posterior' group.")
-        if "cv" not in data.posterior.coords:
+        if "cv" not in data.posterior.dims:
             raise ValueError(
                 "No 'cv' coordinate found in cv_data.posterior. "
                 "Ensure the InferenceData was produced by TimeSliceCrossValidator.run()."
