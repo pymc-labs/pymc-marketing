@@ -157,6 +157,84 @@ def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
     assert isinstance(mmm.prior_predictive, xr.Dataset)
 
 
+class TestMultidimMMMEdgeCases:
+    @staticmethod
+    def _build_basic_mmm() -> MMM:
+        return MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=10),
+            saturation=LogisticSaturation(),
+        )
+
+    def test_single_row_dataframe(self, simple_mmm_data):
+        """Single-row inputs should still build a numerically valid model."""
+        X = simple_mmm_data["X"].head(1).copy()
+        y = simple_mmm_data["y"].head(1).copy()
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert int(mmm.xarray_dataset.sizes["date"]) == 1
+        assert np.isfinite(np.asarray(mmm.scalers["_channel"].values)).all()
+        assert np.isfinite(np.asarray(mmm.scalers["_target"].values)).all()
+
+    @pytest.mark.parametrize(
+        "zero_columns",
+        [["channel_1"], ["channel_1", "channel_2"]],
+    )
+    def test_all_zeros_in_channel_does_not_silently_divide_by_zero(
+        self, simple_mmm_data, zero_columns
+    ):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        for column in zero_columns:
+            X[column] = 0.0
+
+        mmm = self._build_basic_mmm()
+        mmm.build_model(X, y)
+
+        channel_scales = np.asarray(mmm.scalers["_channel"].values)
+        assert np.isfinite(channel_scales).all()
+        for column in zero_columns:
+            col_idx = mmm.channel_columns.index(column)
+            assert channel_scales[col_idx] == pytest.approx(0.0)
+
+    def test_target_all_zeros_with_max_scaling(self, simple_mmm_data):
+        """Document current max-scaling behavior for all-zero targets."""
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        y[:] = 0.0
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert np.asarray(mmm.scalers["_target"].values).item() == pytest.approx(0.0)
+
+    def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        X.loc[X.index[0], "channel_1"] = np.nan
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert np.isfinite(np.asarray(mmm.scalers["_channel"].values)).all()
+        assert np.isfinite(np.asarray(mmm.scalers["_target"].values)).all()
+
+    def test_mismatched_X_y_lengths_raises_clear_error(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].to_numpy()[:-1]
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(
+            (TypeError, ValueError),
+            match=r"y length must match X|cannot concatenate object",
+        ):
+            mmm.build_model(X, y)
+
+
 def test_save_load(fit_mmm: MMM):
     file = "test.nc"
     fit_mmm.save(file)

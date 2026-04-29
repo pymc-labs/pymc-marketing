@@ -57,7 +57,10 @@ from pymc_marketing.mmm.media_transformation import (
     MediaConfigList,
     MediaTransformation,
 )
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.multidimensional import (
+    MMM,
+    MultiDimensionalBudgetOptimizerWrapper,
+)
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -99,6 +102,7 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "MultiDimensionalBudgetOptimizerWrapper",
     "NoAdstock",
     "NoSaturation",
     "PeriodicCovFunc",

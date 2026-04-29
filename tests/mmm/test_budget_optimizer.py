@@ -261,6 +261,13 @@ def test_allocate_budget(
     expected_response,
     mmm_wrapper,
 ):
+    """Regression test for the post-migration optimization target.
+
+    The old MMM tests optimized ``total_contribution`` (scaled and including
+    non-media effects such as intercept). The multidimensional path now
+    optimizes ``total_media_contribution_original_scale`` (media-only, original
+    units), so the expected allocation/response values intentionally differ.
+    """
     match = "Using default equality constraint"
     with pytest.warns(UserWarning, match=match):
         optimizer = BudgetOptimizer(
@@ -282,6 +289,17 @@ def test_allocate_budget(
         expected_optimal, abs=1e-12
     )
     assert -optimization_res.fun == pytest.approx(expected_response, abs=1e-2, rel=1e-2)
+
+
+def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
+    """An unknown ``response_variable`` must raise a clear error listing the
+    posterior variables available on the wrapped model."""
+    with pytest.raises(ValueError, match=r"response_variable.*does_not_exist"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="does_not_exist",
+        )
 
 
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
@@ -777,7 +795,7 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
         pmd.Data("channel_data", X, dims=("date", "channel"))
         beta = pmd.Normal("beta", 0.0, 1.0, dims="channel")
         mu = (train_model["channel_data"] * beta).sum(dim="channel")
-        pmd.Deterministic("total_contribution", mu.sum(), dims=())
+        pmd.Deterministic("total_media_contribution_original_scale", mu.sum(), dims=())
         pmd.Deterministic(
             "channel_contribution",
             train_model["channel_data"] * beta,
