@@ -27,7 +27,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
-from pymc_marketing.metrics import crps as _crps_score  # noqa: F401
+from pymc_marketing.metrics import crps as _crps_score
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _process_plot_params,
@@ -141,6 +141,88 @@ def _build_predictions_arrays(
     y_obs_da = xr.concat(y_obs_list, dim=cv_coord).assign_coords(cv=cv_labels)
     train_end_da = xr.DataArray(train_end_list, dims=["cv"], coords={"cv": cv_labels})
     return y_train_da, y_test_da, y_obs_da, train_end_da
+
+
+def _pred_matrix_for_rows(
+    cv_data: az.InferenceData,
+    cv_label: str,
+    rows_df: pd.DataFrame,
+) -> np.ndarray:
+    """Build (n_samples, n_rows) prediction matrix for CRPS computation.
+
+    Selects posterior_predictive['y_original_scale'] for the given CV fold,
+    stacks (chain, draw) → sample, then iterates over rows in rows_df
+    matching each row's 'date' value to the 'date' coordinate.
+
+    Returns
+    -------
+    np.ndarray, shape (n_samples, n_rows)
+    """
+    da = cv_data.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+    da_s = da.stack(sample=("chain", "draw"))
+    if da_s.dims[0] != "sample":
+        da_s = da_s.transpose("sample", ...)
+
+    n_samples = int(da_s.sizes["sample"])
+    n_rows = len(rows_df)
+    mat = np.empty((n_samples, n_rows))
+
+    for j, (_, row) in enumerate(rows_df.iterrows()):
+        date_val = row["date"]
+        arr = np.squeeze(da_s.sel(date=date_val).values)
+        if arr.ndim == 0:
+            arr = arr.reshape(n_samples)
+        mat[:, j] = arr[:n_samples]
+
+    return mat
+
+
+def _filter_rows_and_y(
+    df: pd.DataFrame,
+    y: pd.Series,
+    indexers: dict[str, Any],
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """Filter DataFrame rows by column equality, return aligned y array.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Feature DataFrame (X_train or X_test).
+    y : pd.Series
+        Target Series aligned to df by position.
+    indexers : dict
+        Column-name → value filters to apply.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, np.ndarray]
+        Filtered DataFrame and corresponding y values.
+    """
+    if df is None or len(df) == 0:
+        return pd.DataFrame(), np.array([])
+    mask = np.ones(len(df), dtype=bool)
+    for col, val in indexers.items():
+        if col in df.columns:
+            mask &= df[col] == val
+    return df[mask].reset_index(drop=True), np.asarray(y)[mask]
+
+
+def _crps_for_split(
+    cv_data: az.InferenceData,
+    cv_label: str,
+    X: pd.DataFrame,
+    y: pd.Series,
+    dim_indexers: dict[str, Any],
+) -> float:
+    """Compute mean CRPS for one fold/split. Returns np.nan on failure or empty set."""
+    try:
+        X_filtered, y_arr = _filter_rows_and_y(X, y, dim_indexers)
+        if len(X_filtered) == 0:
+            return float(np.nan)
+        pred_mat = _pred_matrix_for_rows(cv_data, cv_label, X_filtered)
+        return float(_crps_score(y_true=y_arr, y_pred=pred_mat))
+    except Exception:
+        return float(np.nan)
 
 
 # ── Main class ────────────────────────────────────────────────────────────────
@@ -360,6 +442,84 @@ class MMMCVPlotSuite:
         )
         return _extract_matplotlib_result(pc, return_as_pc)
 
-    def crps(self, *args, **kwargs):
-        """Plot CRPS scores per fold for out-of-sample evaluation."""
-        raise NotImplementedError
+    def crps(
+        self,
+        cv_data: az.InferenceData | None = None,
+        dims: dict[str, Any] | None = None,
+        figsize: tuple[float, float] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        line_kwargs: dict[str, Any] | None = None,
+        **pc_kwargs,
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+        """Line chart of mean CRPS per fold for train and test splits.
+
+        Parameters
+        ----------
+        cv_data : az.InferenceData or None
+            Override the stored ``self.cv_data`` for this call only.
+        dims : dict or None
+            Column-value filters applied when selecting rows for CRPS computation
+            (e.g. ``{"channel": "tv"}``).
+        figsize : tuple or None
+            Figure size in inches.
+        backend : str or None
+            PlotCollection backend.
+        return_as_pc : bool
+            Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+        line_kwargs : dict or None
+            Extra kwargs forwarded to ``azp.visuals.line_xy``.
+        **pc_kwargs
+            Forwarded to ``PlotCollection.wrap()``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+        """
+        data = cv_data if cv_data is not None else self.cv_data
+        if cv_data is not None:
+            _validate_cv_results(data)
+
+        if not hasattr(data, "cv_metadata"):
+            raise ValueError("cv_data must have a 'cv_metadata' group.")
+        if (
+            not hasattr(data, "posterior_predictive")
+            or "y_original_scale" not in data.posterior_predictive
+        ):
+            raise ValueError(
+                "cv_data must have posterior_predictive['y_original_scale']."
+            )
+
+        cv_labels = _extract_cv_labels(data)
+        dim_indexers = dims or {}
+        crps_train_list: list[float] = []
+        crps_test_list: list[float] = []
+
+        for lbl in cv_labels:
+            X_train, y_train, X_test, y_test = _read_fold_meta(data, lbl)
+            crps_train_list.append(
+                _crps_for_split(data, lbl, X_train, y_train, dim_indexers)
+            )
+            crps_test_list.append(
+                _crps_for_split(data, lbl, X_test, y_test, dim_indexers)
+            )
+
+        crps_da = xr.DataArray(
+            np.stack([np.array(crps_train_list), np.array(crps_test_list)]),
+            dims=["split", "cv"],
+            coords={"split": ["train", "test"], "cv": cv_labels},
+        )
+        crps_ds = crps_da.to_dataset(name="crps")
+
+        pc_kwargs = _process_plot_params(figsize, backend, return_as_pc, **pc_kwargs)
+        pc = PlotCollection.wrap(
+            crps_ds, aes={"color": ["split"]}, backend=backend, **pc_kwargs
+        )
+
+        cv_x = xr.DataArray(
+            np.arange(len(cv_labels)), dims=["cv"], coords={"cv": cv_labels}
+        )
+        pc.map(azp.visuals.line_xy, x=cv_x, y=crps_ds["crps"], **(line_kwargs or {}))
+        pc.add_legend("split")
+
+        return _extract_matplotlib_result(pc, return_as_pc)

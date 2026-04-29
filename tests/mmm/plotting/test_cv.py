@@ -243,3 +243,38 @@ class TestParamStability:
         plt.close("all")
         cv_plot.param_stability()
         assert len(plt.get_fignums()) == 1
+
+
+class TestCRPS:
+    def test_returns_tuple(self, cv_plot):
+        fig, axes = cv_plot.crps()
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+
+    def test_return_as_pc(self, cv_plot):
+        result = cv_plot.crps(return_as_pc=True)
+        assert isinstance(result, PlotCollection)
+
+    def test_line_count(self, cv_plot):
+        # Exactly 2 lines on the single panel (train + test)
+        _fig, axes = cv_plot.crps()
+        ax = axes[0]
+        assert len(ax.lines) == 2
+
+    def test_train_test_colors_differ(self, cv_plot):
+        _fig, axes = cv_plot.crps()
+        ax = axes[0]
+        colors = {line.get_color() for line in ax.lines}
+        assert len(colors) >= 2, "Expected train and test lines in distinct colors"
+
+    def test_missing_cv_metadata_raises(self, cv_plot, cv_results_idata):
+        bad = az.InferenceData(
+            posterior_predictive=cv_results_idata.posterior_predictive
+        )
+        with pytest.raises((TypeError, ValueError)):
+            cv_plot.crps(cv_data=bad)
+
+    def test_nan_tolerant(self, cv_plot):
+        # fold_2 has an empty test set → test CRPS is NaN; rendering must not crash
+        fig, _axes = cv_plot.crps()
+        assert isinstance(fig, Figure)
