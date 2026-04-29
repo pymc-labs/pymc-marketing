@@ -18,9 +18,21 @@ from __future__ import annotations
 from typing import Any
 
 import arviz as az
+import arviz_plots as azp  # noqa: F401
 import numpy as np
 import pandas as pd
 import xarray as xr
+from arviz_plots import PlotCollection  # noqa: F401
+from matplotlib.axes import Axes  # noqa: F401
+from matplotlib.figure import Figure  # noqa: F401
+from numpy.typing import NDArray  # noqa: F401
+
+from pymc_marketing.metrics import crps as _crps_score  # noqa: F401
+from pymc_marketing.mmm.plotting._helpers import (  # noqa: F401
+    _extract_matplotlib_result,
+    _process_plot_params,
+    _select_dims,
+)
 
 # ── Shared base validation ────────────────────────────────────────────────────
 
