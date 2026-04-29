@@ -178,6 +178,10 @@ class TimeSliceCrossValidator:
     def plot(self) -> MMMCVPlotSuite:
         """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
+        if not hasattr(self, "cv_idata"):
+            raise ValueError(
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() completed successfully."
+            )
         return MMMCVPlotSuite(self.cv_idata)
 
     def _validate_model_was_built(self) -> None:
