@@ -22,6 +22,8 @@ The existing `budget_allocation_roas` and `allocated_contribution_by_channel_ove
 | File | Action |
 |---|---|
 | `pymc_marketing/mmm/plotting/budget.py` | **New** — `BudgetPlots` class |
+| `pymc_marketing/mmm/plotting/_helpers.py` | Add `_plot_timeseries_channel` shared helper |
+| `pymc_marketing/mmm/plotting/decomposition.py` | Refactor `contributions_over_time` to use shared helper |
 | `pymc_marketing/mmm/plotting/__init__.py` | Add `BudgetPlots` import and export |
 | `pymc_marketing/mmm/plot.py` | Add `budget` property to `MMMPlotSuite` |
 | `tests/mmm/plotting/test_budget.py` | **New** — unit tests |
@@ -94,11 +96,60 @@ def contribution_over_time(
 2. Find contribution variable: first var whose name contains `"channel_contribution"`.
 3. Apply optional dim filtering via `_select_dims`.
 4. Compute extra dims (all except `channel`, `date`, `sample`) for panel faceting.
-5. Build `PlotCollection.wrap(..., aes={"color": ["channel"]}, cols=extra_dims, ...)`.
-6. Plot HDI band (`fill_between_y`) using `azstats.hdi(hdi_prob, dim="sample")`.
-7. Plot mean line (`line_xy`) using `.mean(dim="sample")`.
-8. Label axes, add channel legend.
-9. Return: `_extract_matplotlib_result(pc, return_as_pc)`.
+5. Delegate rendering to shared helper `_plot_timeseries_channel` (see below).
+6. Return: `_extract_matplotlib_result(pc, return_as_pc)`.
+
+---
+
+## Shared Helper: `_plot_timeseries_channel` (in `_helpers.py`)
+
+Extracts the identical rendering loop used by both `BudgetPlots.contribution_over_time`
+and `DecompositionPlots.contributions_over_time`.
+
+```python
+def _plot_timeseries_channel(
+    ds: xr.Dataset,
+    sample_dims: list[str],
+    color_dim: str,
+    extra_dims: list[str],
+    hdi_prob: float,
+    backend: str | None,
+    line_kwargs: dict | None,
+    hdi_kwargs: dict | None,
+    **pc_kwargs,
+) -> PlotCollection:
+    """Render a time-series Dataset as one line+HDI band per `color_dim` value.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Data with dims (sample_dims..., date, color_dim[, extra_dims...]).
+    sample_dims : list[str]
+        Dimensions to reduce for HDI/mean (e.g. ["chain", "draw"] or ["sample"]).
+    color_dim : str
+        Dimension mapped to colour aesthetic (e.g. "channel" or "component").
+    extra_dims : list[str]
+        Additional dimensions used to create facet panels (e.g. ["geo"]).
+    hdi_prob : float
+        HDI probability mass.
+    backend : str or None
+        Rendering backend.
+    line_kwargs, hdi_kwargs : dict or None
+        Extra kwargs forwarded to line/HDI visuals.
+    **pc_kwargs
+        Forwarded to PlotCollection.wrap().
+    """
+```
+
+**Callers:**
+
+| Caller | `sample_dims` | `color_dim` |
+|---|---|---|
+| `DecompositionPlots.contributions_over_time` | `["chain", "draw"]` | `"component"` |
+| `BudgetPlots.contribution_over_time` | `["sample"]` | `"channel"` |
+
+`DecompositionPlots.contributions_over_time` is refactored to call this helper instead of
+inlining the rendering loop. No change in its public API or behaviour.
 
 ---
 
