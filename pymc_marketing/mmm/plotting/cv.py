@@ -25,6 +25,7 @@ import matplotlib.dates as mdates
 import numpy as np
 import pandas as pd
 import xarray as xr
+from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -363,21 +364,26 @@ class MMMCVPlotSuite:
 
         pc.map(azp.visuals.line_xy, x=date_da, y=y_obs_da, color="black", linewidth=1.5)
 
-        azp.add_lines(
-            pc,
-            train_end_da,
-            orientation="vertical",
-            visuals={
-                "ref_line": {
-                    "color": "green",
-                    "linestyle": "--",
-                    "linewidth": 2,
-                    "alpha": 0.9,
-                }
-            },
-        )
+        _vline_kw: dict[str, Any] = {
+            "color": "green",
+            "linestyle": "--",
+            "linewidth": 2,
+            "alpha": 0.9,
+        }
+        _plot_da = pc.viz["plot"]
+        _cv_pos = _plot_da.dims.index("cv")
+        for _idx in np.ndindex(*_plot_da.shape):
+            _ax = _plot_da.values[_idx]
+            _cv_lbl = str(_plot_da.coords["cv"].values[_idx[_cv_pos]])
+            _ax.axvline(x=float(train_end_da.sel(cv=_cv_lbl).item()), **_vline_kw)
 
         pc.add_legend("__variable__")
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+            ignore_aes={"color"},
+        )
 
         return _extract_matplotlib_result(pc, return_as_pc)
 
@@ -569,5 +575,11 @@ class MMMCVPlotSuite:
         )
         pc.map(azp.visuals.line_xy, x=cv_x, y=crps_ds["crps"], **(line_kwargs or {}))
         pc.add_legend("split")
+        pc.map(
+            azp.visuals.labelled_title,
+            subset_info=True,
+            labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+            ignore_aes={"color"},
+        )
 
         return _extract_matplotlib_result(pc, return_as_pc)

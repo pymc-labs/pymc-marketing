@@ -195,13 +195,29 @@ class TestPredictions:
 
     def test_split_line_present(self, cv_plot):
         _fig, axes = cv_plot.predictions()
-        ax = axes[0]
-        dashed_lines = [
-            line for line in ax.lines if line.get_linestyle() in ("--", "dashed")
-        ]
-        assert len(dashed_lines) >= 1, (
-            "Expected at least one dashed vertical split line"
-        )
+        for ax in axes:
+            dashed_lines = [
+                line for line in ax.lines if line.get_linestyle() in ("--", "dashed")
+            ]
+            assert len(dashed_lines) == 1, (
+                "Expected exactly one dashed vertical split line per subplot"
+            )
+
+    def test_subplot_titles_contain_fold(self, cv_plot):
+        _fig, axes = cv_plot.predictions()
+        titles = [ax.get_title() for ax in axes]
+        for lbl in ("fold_0", "fold_1", "fold_2"):
+            assert any(lbl in t for t in titles), f"No subplot title contains '{lbl}'"
+
+    def test_subplot_titles_geo(self, cv_results_idata_geo):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        _fig, axes = suite.predictions()
+        titles = [ax.get_title() for ax in axes]
+        assert any("geo_a" in t for t in titles), "No title contains 'geo_a'"
+        assert any("geo_b" in t for t in titles), "No title contains 'geo_b'"
+        assert any("fold_0" in t for t in titles), "No title contains 'fold_0'"
 
     def test_figure_renders_without_overflow(self, cv_plot):
         """Saving the figure must not raise OverflowError.
@@ -358,6 +374,23 @@ class TestCRPS:
         _fig, axes = cv_plot.crps()
         colors = {ax.lines[0].get_color() for ax in axes}
         assert len(colors) == 2, "Expected train and test panels in distinct colors"
+
+    def test_subplot_titles(self, cv_plot):
+        _fig, axes = cv_plot.crps()
+        titles = [ax.get_title() for ax in axes]
+        assert any("train" in t for t in titles), "No subplot title contains 'train'"
+        assert any("test" in t for t in titles), "No subplot title contains 'test'"
+
+    def test_subplot_titles_geo(self, cv_results_idata_geo):
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        _fig, axes = suite.crps()
+        titles = [ax.get_title() for ax in axes]
+        assert any("geo_a" in t for t in titles), "No title contains 'geo_a'"
+        assert any("geo_b" in t for t in titles), "No title contains 'geo_b'"
+        assert any("train" in t for t in titles), "No title contains 'train'"
+        assert any("test" in t for t in titles), "No title contains 'test'"
 
     def test_missing_cv_metadata_raises(self, cv_plot, cv_results_idata):
         bad = az.InferenceData(
