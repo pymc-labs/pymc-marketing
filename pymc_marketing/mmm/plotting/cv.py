@@ -262,6 +262,7 @@ class MMMCVPlotSuite:
     def __init__(self, cv_data: az.InferenceData) -> None:
         _validate_cv_results(cv_data)
         self.cv_data = cv_data
+        self.idata: az.InferenceData | None = None
 
     def predictions(
         self,

@@ -182,7 +182,9 @@ class TimeSliceCrossValidator:
             raise ValueError(
                 "cv_idata is not available. Ensure TimeSliceCrossValidator.run() completed successfully."
             )
-        return MMMCVPlotSuite(self.cv_idata)
+        suite = MMMCVPlotSuite(self.cv_idata)
+        suite.idata = self._cv_results[-1].idata
+        return suite
 
     def _validate_model_was_built(self) -> None:
         """Validate that at least one CV run has produced results.
