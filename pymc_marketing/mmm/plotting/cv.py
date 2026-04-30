@@ -15,11 +15,13 @@
 
 from __future__ import annotations
 
+import itertools
 import warnings
 from typing import Any
 
 import arviz as az
 import arviz_plots as azp
+import matplotlib.dates as mdates
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -97,7 +99,7 @@ def _build_predictions_arrays(
     y_train_list: list[xr.DataArray] = []
     y_test_list: list[xr.DataArray] = []
     y_obs_list: list[xr.DataArray] = []
-    train_end_list: list[Any] = []
+    train_end_list: list[float] = []
 
     for lbl in cv_labels:
         X_train, y_train, X_test, y_test = _read_fold_meta(cv_data, lbl)
@@ -134,7 +136,7 @@ def _build_predictions_arrays(
         y_obs_list.append(
             xr.DataArray(y_obs_arr, dims=["date"], coords={"date": full_dates})
         )
-        train_end_list.append(train_dates.max())
+        train_end_list.append(mdates.date2num(train_dates.max()))
 
     cv_coord = xr.DataArray(cv_labels, dims=["cv"], name="cv")
     y_train_da = xr.concat(y_train_list, dim=cv_coord).assign_coords(cv=cv_labels)
@@ -153,13 +155,22 @@ def _pred_matrix_for_rows(
 
     Selects posterior_predictive['y_original_scale'] for the given CV fold,
     stacks (chain, draw) → sample, then iterates over rows in rows_df
-    matching each row's 'date' value to the 'date' coordinate.
+    matching each row's coordinates to the array dimensions.  Extra dimensions
+    beyond (chain, draw, date) — e.g. 'geo' in multidimensional models — are
+    selected via the matching column in rows_df so the result is always 1-D
+    (n_samples,) per observation.
 
     Returns
     -------
     np.ndarray, shape (n_samples, n_rows)
     """
     da = cv_data.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+
+    # Identify dimensions beyond the sample and date dims; these must be
+    # matched against columns in rows_df for correct scalar selection.
+    base_dims = {"chain", "draw", "date"}
+    extra_dims = [d for d in da.dims if d not in base_dims]
+
     da_s = da.stack(sample=("chain", "draw"))
     if da_s.dims[0] != "sample":
         da_s = da_s.transpose("sample", ...)
@@ -169,8 +180,11 @@ def _pred_matrix_for_rows(
     mat = np.empty((n_samples, n_rows))
 
     for j, (_, row) in enumerate(rows_df.iterrows()):
-        date_val = row["date"]
-        arr = np.squeeze(da_s.sel(date=date_val).values)
+        sel_kwargs: dict[str, Any] = {"date": row["date"]}
+        for dim in extra_dims:
+            if dim in row.index:
+                sel_kwargs[dim] = row[dim]
+        arr = np.squeeze(da_s.sel(**sel_kwargs).values)
         if arr.ndim == 0:
             arr = arr.reshape(n_samples)
         mat[:, j] = arr[:n_samples]
@@ -460,13 +474,19 @@ class MMMCVPlotSuite:
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Line chart of mean CRPS per fold for train and test splits.
 
+        Renders an n×2 grid: left column = train CRPS, right column = test CRPS,
+        one row per Cartesian combination of extra dimensions in
+        ``y_original_scale`` (e.g. one row per geo). When no extra dimensions
+        are present the result is a 1×2 grid.
+
         Parameters
         ----------
         cv_data : az.InferenceData or None
             Override the stored ``self.cv_data`` for this call only.
         dims : dict or None
-            Column-value filters applied when selecting rows for CRPS computation
-            (e.g. ``{"channel": "tv"}``).
+            Filters which coordinate values of extra dimensions appear as rows
+            (e.g. ``{"geo": ["geo_b"]}`` → only geo_b row).
+            Non-extra-dim keys are silently ignored.
         figsize : tuple or None
             Figure size in inches.
         backend : str or None
@@ -476,7 +496,7 @@ class MMMCVPlotSuite:
         line_kwargs : dict or None
             Extra kwargs forwarded to ``azp.visuals.line_xy``.
         **pc_kwargs
-            Forwarded to ``PlotCollection.wrap()``.
+            Forwarded to ``PlotCollection.grid()``.
 
         Returns
         -------
@@ -496,30 +516,52 @@ class MMMCVPlotSuite:
                 "cv_data must have posterior_predictive['y_original_scale']."
             )
 
+        pp = data.posterior_predictive["y_original_scale"]
         cv_labels = _extract_cv_labels(data)
-        dim_indexers = dims or {}
-        crps_train_list: list[float] = []
-        crps_test_list: list[float] = []
 
-        for lbl in cv_labels:
-            X_train, y_train, X_test, y_test = _read_fold_meta(data, lbl)
-            crps_train_list.append(
-                _crps_for_split(data, lbl, X_train, y_train, dim_indexers)
-            )
-            crps_test_list.append(
-                _crps_for_split(data, lbl, X_test, y_test, dim_indexers)
-            )
+        base_dims = {"cv", "chain", "draw", "date"}
+        extra_dims = [d for d in pp.dims if d not in base_dims]
 
+        combo_coords: dict[str, list[Any]] = {
+            d: (list(dims[d]) if dims and d in dims else list(pp.coords[d].values))
+            for d in extra_dims
+        }
+        combos = list(itertools.product(*combo_coords.values()))
+        combo_shape = [len(v) for v in combo_coords.values()]
+        data_arr = np.full((2, *combo_shape, len(cv_labels)), np.nan)
+
+        for flat_idx, combo in enumerate(combos):
+            dim_indexers = dict(zip(extra_dims, combo, strict=True))
+            multi_idx = (
+                tuple(np.unravel_index(flat_idx, combo_shape)) if combo_shape else ()
+            )
+            for fold_idx, lbl in enumerate(cv_labels):
+                X_train, y_train, X_test, y_test = _read_fold_meta(data, lbl)
+                data_arr[(0, *multi_idx, fold_idx)] = _crps_for_split(  # type: ignore[index]
+                    data, lbl, X_train, y_train, dim_indexers
+                )
+                data_arr[(1, *multi_idx, fold_idx)] = _crps_for_split(  # type: ignore[index]
+                    data, lbl, X_test, y_test, dim_indexers
+                )
+
+        coords: dict[str, Any] = {
+            "split": ["train", "test"],
+            **combo_coords,
+            "cv": cv_labels,
+        }
         crps_da = xr.DataArray(
-            np.stack([np.array(crps_train_list), np.array(crps_test_list)]),
-            dims=["split", "cv"],
-            coords={"split": ["train", "test"], "cv": cv_labels},
+            data_arr, dims=["split", *extra_dims, "cv"], coords=coords
         )
         crps_ds = crps_da.to_dataset(name="crps")
 
         pc_kwargs = _process_plot_params(figsize, backend, return_as_pc, **pc_kwargs)
-        pc = PlotCollection.wrap(
-            crps_ds, aes={"color": ["split"]}, backend=backend, **pc_kwargs
+        pc = PlotCollection.grid(
+            crps_ds,
+            rows=[*extra_dims],
+            cols=["split"],
+            aes={"color": ["split"]},
+            backend=backend,
+            **pc_kwargs,
         )
 
         cv_x = xr.DataArray(

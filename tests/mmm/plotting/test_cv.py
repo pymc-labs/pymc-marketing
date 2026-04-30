@@ -203,6 +203,19 @@ class TestPredictions:
             "Expected at least one dashed vertical split line"
         )
 
+    def test_figure_renders_without_overflow(self, cv_plot):
+        """Saving the figure must not raise OverflowError.
+
+        Regression: azp.add_lines used to receive datetime64[ns] values which
+        set the x-axis limits to nanosecond timestamps (~1.7e18), causing
+        matplotlib's AutoDateLocator to overflow when formatting date ticks.
+        """
+        import io
+
+        fig, _axes = cv_plot.predictions()
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png")
+
 
 class TestParamStability:
     def test_returns_tuple(self, cv_plot):
@@ -245,6 +258,85 @@ class TestParamStability:
         assert len(plt.get_fignums()) == 1
 
 
+@pytest.fixture(scope="module")
+def cv_results_idata_geo():
+    """az.InferenceData with an extra 'geo' dimension in y_original_scale.
+
+    Mirrors a real multidimensional MMM where the model is fit per geo.
+    Used to reproduce the CRPS all-NaN bug.
+    """
+    rng = np.random.default_rng(7)
+    dates = pd.date_range("2024-01-01", periods=20, freq="D")
+    cv_labels = ["fold_0", "fold_1"]
+    geos = ["geo_a", "geo_b"]
+    n_chains, n_draws = 2, 10
+
+    posterior_ds = xr.Dataset(
+        {
+            "beta_channel": xr.DataArray(
+                rng.normal(size=(2, n_chains, n_draws, 1)),
+                dims=["cv", "chain", "draw", "channel"],
+                coords={
+                    "cv": cv_labels,
+                    "chain": np.arange(n_chains),
+                    "draw": np.arange(n_draws),
+                    "channel": ["tv"],
+                },
+            )
+        }
+    )
+
+    pp_ds = xr.Dataset(
+        {
+            "y_original_scale": xr.DataArray(
+                rng.normal(100, 10, size=(2, n_chains, n_draws, 20, 2)),
+                dims=["cv", "chain", "draw", "date", "geo"],
+                coords={
+                    "cv": cv_labels,
+                    "chain": np.arange(n_chains),
+                    "draw": np.arange(n_draws),
+                    "date": dates,
+                    "geo": geos,
+                },
+            )
+        }
+    )
+
+    # X_train / X_test rows include a 'geo' column — one row per (date, geo) combo
+    fold_specs = [(15, 15), (20, 20)]
+    meta_arr = np.empty(2, dtype=object)
+    for i, (train_end, test_start) in enumerate(fold_specs):
+        rows_train = [(d, g) for d in dates[:train_end] for g in geos]
+        X_train = pd.DataFrame(
+            {"date": [r[0] for r in rows_train], "geo": [r[1] for r in rows_train]}
+        )
+        y_train = pd.Series(rng.normal(100, 10, size=len(rows_train)), name="y")
+        if test_start < 20:
+            rows_test = [(d, g) for d in dates[test_start:] for g in geos]
+            X_test = pd.DataFrame(
+                {"date": [r[0] for r in rows_test], "geo": [r[1] for r in rows_test]}
+            )
+            y_test = pd.Series(rng.normal(100, 10, size=len(rows_test)), name="y")
+        else:
+            X_test = pd.DataFrame(
+                {"date": pd.DatetimeIndex([]), "geo": pd.Series([], dtype=str)}
+            )
+            y_test = pd.Series([], name="y", dtype=float)
+        meta_arr[i] = {
+            "X_train": X_train,
+            "y_train": y_train,
+            "X_test": X_test,
+            "y_test": y_test,
+        }
+
+    cv_metadata_ds = xr.Dataset(
+        {"metadata": xr.DataArray(meta_arr, dims=["cv"], coords={"cv": cv_labels})}
+    )
+    return az.InferenceData(
+        posterior=posterior_ds, posterior_predictive=pp_ds, cv_metadata=cv_metadata_ds
+    )
+
+
 class TestCRPS:
     def test_returns_tuple(self, cv_plot):
         fig, axes = cv_plot.crps()
@@ -256,16 +348,16 @@ class TestCRPS:
         assert isinstance(result, PlotCollection)
 
     def test_line_count(self, cv_plot):
-        # Exactly 2 lines on the single panel (train + test)
+        # 1x2 grid: left panel = train, right panel = test; one line each
         _fig, axes = cv_plot.crps()
-        ax = axes[0]
-        assert len(ax.lines) == 2
+        assert len(axes) == 2
+        assert len(axes[0].lines) == 1
+        assert len(axes[1].lines) == 1
 
     def test_train_test_colors_differ(self, cv_plot):
         _fig, axes = cv_plot.crps()
-        ax = axes[0]
-        colors = {line.get_color() for line in ax.lines}
-        assert len(colors) >= 2, "Expected train and test lines in distinct colors"
+        colors = {ax.lines[0].get_color() for ax in axes}
+        assert len(colors) == 2, "Expected train and test panels in distinct colors"
 
     def test_missing_cv_metadata_raises(self, cv_plot, cv_results_idata):
         bad = az.InferenceData(
@@ -291,3 +383,30 @@ class TestCRPS:
         # And rendering must not crash
         fig, _axes = cv_plot.crps()
         assert isinstance(fig, Figure)
+
+    def test_crps_multidim_geo_no_nan(self, cv_results_idata_geo):
+        """crps() must produce finite values for multidimensional models.
+
+        2 geos x 2 splits = 4 panels; each panel must have exactly one line
+        and at least one finite CRPS value (fold_1 test is legitimately NaN
+        because it has no test rows, but fold_0 test is finite).
+
+        Regression: _pred_matrix_for_rows only selected by 'date', returning a
+        2-D array (n_samples, n_geo) per observation. This caused every CRPS
+        computation to fail silently, leaving all scores as NaN.
+        """
+        import warnings
+
+        from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+
+        suite = MMMCVPlotSuite(cv_results_idata_geo)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            _fig, axes = suite.crps()  # must not warn about failed CRPS
+        assert len(axes) == 4, "Expected 2 geos x 2 splits = 4 panels"
+        for ax in axes:
+            assert len(ax.lines) == 1
+            y_vals = ax.lines[0].get_ydata()
+            assert np.any(np.isfinite(y_vals)), (
+                "CRPS panel contains only NaN — CRPS computation failed"
+            )
