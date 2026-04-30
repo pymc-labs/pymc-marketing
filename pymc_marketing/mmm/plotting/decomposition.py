@@ -31,6 +31,7 @@ from numpy.typing import NDArray
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
+    _plot_timeseries_channel,
     _process_plot_params,
     _select_dims,
 )
@@ -248,35 +249,17 @@ class DecompositionPlots:
         # Turn Dataset to array.
         entries = entries_ds.to_array(dim="component").to_dataset(name="contribution")
 
-        pc_kwargs.setdefault("col_wrap", 1)
-        pc = PlotCollection.wrap(
+        pc = _plot_timeseries_channel(
             entries,
-            cols=extra_dims,
+            sample_dims=["chain", "draw"],
+            color_dim="component",
+            extra_dims=extra_dims,
+            hdi_prob=hdi_prob,
             backend=backend,
-            aes={"color": ["component"]},
+            line_kwargs=line_kwargs,
+            hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
-
-        hdi_da = entries.azstats.hdi(hdi_prob)
-
-        pc.map(
-            azp.visuals.fill_between_y,
-            x=entries.date,
-            y_bottom=hdi_da.sel(ci_bound="lower"),
-            y_top=hdi_da.sel(ci_bound="upper"),
-            **{"alpha": 0.2, **(hdi_kwargs or {})},
-        )
-        pc.map(
-            azp.visuals.line_xy,
-            x=entries.date,
-            y=entries.mean(dim=["draw", "chain"]),
-            **(line_kwargs or {}),
-        )
-
-        pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
-        pc.map(azp.visuals.labelled_y, text="Contribution", ignore_aes={"color"})
-        pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
-        pc.add_legend("component")
 
         return _extract_matplotlib_result(pc, return_as_pc)
 
