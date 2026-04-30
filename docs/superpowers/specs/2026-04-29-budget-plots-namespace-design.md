@@ -64,10 +64,9 @@ def allocation_roas(
    ```
 3. Apply optional dim filtering: `_select_dims(roas_da, dims)`.
 4. Normalize sample dims: `_ensure_chain_draw_dims(roas_da)` → `(chain, draw, channel, ...)`.
-5. Convert to datatree: `convert_to_datatree(roas_da)`.
-6. Plot: `azp.plot_forest(roa_dt, ci_kind="hdi", ci_probs=(0.5, hdi_prob), backend=backend, **pc_kwargs)`.
-7. Add break-even reference: `azp.add_lines(pc, 1.0, orientation="vertical")`.
-8. Return: `_extract_matplotlib_result(pc, return_as_pc)`.
+5. Plot: `azp.plot_forest(roas_da.to_dataset(), ci_kind="hdi", ci_probs=(0.5, hdi_prob), backend=backend, **pc_kwargs)`.
+6. Add break-even reference: `azp.add_lines(pc, 1.0, orientation="vertical")`.
+7. Return: `_extract_matplotlib_result(pc, return_as_pc)`.
 
 **What the plot shows:**
 One row per channel; x-axis is ROAS; thick bar = 50% HDI, thin bar = `hdi_prob` HDI; point = median; vertical line at x=1 marks break-even (ROAS < 1 means money-losing channel at this allocation).
