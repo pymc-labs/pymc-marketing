@@ -121,9 +121,6 @@ def close_figures():
     plt.close("all")
 
 
-# ── __init__ ──────────────────────────────────────────────────────────────────
-
-
 class TestInit:
     def test_stores_cv_data(self, cv_results_idata):
         from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
