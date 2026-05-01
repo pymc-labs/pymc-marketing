@@ -3954,6 +3954,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         var_names = [
             self.output_var,
             "channel_contribution",
+            "channel_contribution_original_scale",
             "total_media_contribution_original_scale",
         ]
         if additional_var_names is not None:

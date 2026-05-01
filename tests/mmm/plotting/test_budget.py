@@ -341,18 +341,3 @@ class TestContributionOverTime:
             simple_contribution_samples, figsize=(10, 4)
         )
         assert isinstance(fig, Figure)
-
-
-class TestImports:
-    def test_budget_plots_importable_from_plotting_package(self):
-        from pymc_marketing.mmm.plotting import BudgetPlots
-
-        assert callable(BudgetPlots)
-
-    def test_mmmplotsuite_has_budget_property(self):
-        from pymc_marketing.mmm.plot import MMMPlotSuite
-        from pymc_marketing.mmm.plotting.budget import BudgetPlots
-
-        suite = MMMPlotSuite.__new__(MMMPlotSuite)
-        budget = suite.budget
-        assert isinstance(budget, BudgetPlots)

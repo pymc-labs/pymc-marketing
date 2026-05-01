@@ -186,7 +186,7 @@ Notes
 import itertools
 import warnings
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import Any, Literal, cast
 
 import arviz as az
 import matplotlib.pyplot as plt
@@ -202,9 +202,6 @@ from numpy.typing import NDArray
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.metrics import crps
 from pymc_marketing.mmm.utils import build_contributions
-
-if TYPE_CHECKING:
-    from pymc_marketing.mmm.plotting.budget import BudgetPlots
 
 __all__ = ["MMMPlotSuite"]
 
@@ -2435,13 +2432,6 @@ class MMMPlotSuite:
         # Note: channel_contribution, additional_dims, and additional_combinations
         # are not used by saturation_scatterplot, so we don't pass them
         return self.saturation_scatterplot(original_scale=original_scale, **kwargs)
-
-    @property
-    def budget(self) -> "BudgetPlots":
-        """Access budget allocation plots."""
-        from pymc_marketing.mmm.plotting.budget import BudgetPlots
-
-        return BudgetPlots()
 
     def budget_allocation(
         self,

@@ -121,6 +121,7 @@ class BudgetPlots:
             combined=True,
             ci_kind="hdi",
             ci_probs=(0.5, hdi_prob),
+            labels=set(roas_da.dims) - set(["chain", "draw"]),
             backend=backend,
             **pc_kwargs,
         )
@@ -192,7 +193,9 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        contrib_var = next(v for v in samples.data_vars if "channel_contribution" in v)
+        contrib_var = next(
+            v for v in samples.data_vars if "channel_contribution_original_scale" in v
+        )
         da = _select_dims(samples[contrib_var], dims)
 
         extra_dims = [
