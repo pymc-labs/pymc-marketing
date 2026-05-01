@@ -43,7 +43,7 @@ from pymc_marketing.version import __version__
 # True negative infinity is safe as a mask sentinel: the k≥2 validation
 # guarantees at least one unmasked position per task, so softmax always has a
 # finite max to subtract.  exp(-inf) == 0 in both NumPy and PyTensor.
-NEG_INF = float("-inf")
+NEG_INF = -np.inf
 
 
 def _softmax_stable(x: np.ndarray, axis: int = -1) -> np.ndarray:
@@ -63,7 +63,9 @@ def _sample_categorical_from_u(p: np.ndarray, u: np.ndarray) -> np.ndarray:
     bit-identical output regardless of ``draw_batch_size``.
     """
     cumulative = np.cumsum(p, axis=-1)
-    return np.sum(cumulative < u[..., None], axis=-1).astype(np.int64)
+    return np.clip(
+        np.sum(cumulative < u[..., None], axis=-1), 0, p.shape[-1] - 1
+    ).astype(np.int64)
 
 
 def _sample_categorical(p: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -164,6 +166,15 @@ def prepare_maxdiff_data(
     missing = required - set(task_df.columns)
     if missing:
         raise ValueError(f"task_df is missing required columns: {sorted(missing)}")
+
+    if len(set(items)) != len(items):
+        seen: set = set()
+        dupes: list = []
+        for x in items:
+            if x in seen:
+                dupes.append(x)
+            seen.add(x)
+        raise ValueError(f"items must be unique; duplicates: {sorted(set(dupes))}")
 
     if reference_item is None:
         reference_item = items[-1]
@@ -409,6 +420,16 @@ class MaxDiffMixedLogit(ModelBuilder):
     ):
         self.task_df = task_df
         self.items = list(items)
+        if len(set(self.items)) != len(self.items):
+            seen_init: set = set()
+            dupes_init: list = []
+            for x in self.items:
+                if x in seen_init:
+                    dupes_init.append(x)
+                seen_init.add(x)
+            raise ValueError(
+                f"items must be unique; duplicates: {sorted(set(dupes_init))}"
+            )
         self.respondent_id = respondent_id
         self.task_id = task_id
         self.item_col = item_col
@@ -453,7 +474,7 @@ class MaxDiffMixedLogit(ModelBuilder):
                     "utility_formula are supplied (part-worths mode)."
                 )
 
-        if self.reference_item not in self.items:
+        if not self._is_partworths and self.reference_item not in self.items:
             raise ValueError(
                 f"reference_item '{self.reference_item}' is not in the item pool."
             )
@@ -464,7 +485,7 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "Item correlations are already structured through the design matrix X. "
                 "Use random_attributes for respondent-level variation."
             )
-        if full_covariance and not self.random_intercepts:
+        if full_covariance and not random_intercepts:
             raise ValueError(
                 "full_covariance=True requires random_intercepts=True. "
                 "There are no per-respondent effects to correlate."
@@ -580,9 +601,10 @@ class MaxDiffMixedLogit(ModelBuilder):
         # callers aren't surprised if they inspect the returned frame.
         warnings.warn(
             f"Neither '{self.best_col}' nor '{self.worst_col}' found in task_df. "
-            "Dummy flags have been generated based on row order within each task "
-            "(first row = best, last row = worst). These flags are not used "
-            "during prediction but will appear in the returned DataFrame.",
+            "Dummy flags have been auto-generated (the assignment is arbitrary and "
+            "depends on the current row order within each task group). These flags "
+            "are not used during prediction but satisfy the data validator. "
+            "Provide explicit flag columns if true best/worst labels are needed.",
             UserWarning,
             stacklevel=3,
         )
@@ -653,7 +675,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             new_respondents=new_respondents,
             draw_batch_size=draw_batch_size,
         )
-        self.intervention_idata = result
+        self.intervention_idata = az.InferenceData(posterior_predictive=result)
         return result
 
     def score_new_items(
@@ -735,7 +757,7 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "items": all_items,
             },
         )
-        self.intervention_idata = result
+        self.intervention_idata = az.InferenceData(posterior_predictive=result)
         return result
 
     @property
@@ -1203,7 +1225,22 @@ class MaxDiffMixedLogit(ModelBuilder):
             any out-of-sample or counterfactual simulation.
         """
         if task_df is not None:
+            # Capture trained dimensions before preprocess_model_data overwrites self.arrays
+            trained_k_max = self.arrays["k_max"]
+            trained_n_tasks = self.arrays["n_tasks"]
             arrays = self.preprocess_model_data(task_df)
+            if arrays["k_max"] != trained_k_max:
+                raise ValueError(
+                    f"task_df has k_max={arrays['k_max']} but the trained model "
+                    f"expects k_max={trained_k_max}. The data containers "
+                    "cannot be updated with a different maximum subset size."
+                )
+            if arrays["n_tasks"] != trained_n_tasks:
+                raise ValueError(
+                    f"task_df has {arrays['n_tasks']} tasks but the trained model "
+                    f"has {trained_n_tasks} tasks. The data containers "
+                    "cannot be updated with a different number of tasks."
+                )
             with self.model:
                 pm.set_data(
                     {
@@ -1276,9 +1313,18 @@ class MaxDiffMixedLogit(ModelBuilder):
         draw_batch_size : int, optional
             If provided, compute the per-task utilities in chunks of this many
             posterior draws rather than materializing the full
-            ``(chain, draw, tasks, positions)`` tensor at once. Lowers peak
-            memory linearly at the cost of a small Python-level loop. Output
-            is bit-identical to the unbatched path for a given ``random_seed``.
+            ``(chain, draw, tasks, positions)`` tensor at once.
+
+            .. note::
+                The per-respondent utility tensor ``pred_beta_r`` of shape
+                ``(chains, draws, n_respondents, items)`` is always fully
+                allocated before batching. ``draw_batch_size`` reduces only
+                the per-task softmax tensor ``(chains, draw_batch, tasks,
+                k_max)``. For large studies, peak memory is dominated by the
+                per-respondent tensor, not by the per-task tensor.
+
+            Output is bit-identical to the unbatched path for a given
+            ``random_seed``.
 
         Returns
         -------
@@ -1495,7 +1541,12 @@ class MaxDiffMixedLogit(ModelBuilder):
             # _prepare_design_matrix during __init__.
             if self.X is None:  # pragma: no cover - guarded by _is_partworths
                 raise RuntimeError("self.X is unexpectedly None in part-worths mode.")
-            return beta_full @ self.X.T
+            raw = beta_full @ self.X.T  # (C, D, n_new, I)
+            # Apply the same population-mean shift used in _build_partworths_utility
+            # so new-respondent draws live on the same scale as U_item_r.
+            # pop_shift = mean_over_items(beta_feat @ X.T), shape (C, D).
+            pop_shift = (beta_feat @ self.X.T).mean(axis=-1)  # (C, D)
+            return raw - pop_shift[:, :, None, None]
 
         beta_item_post = posterior["beta_item"].values  # (C, D, I)
         n_chains, n_draws, n_items = beta_item_post.shape
@@ -1542,6 +1593,7 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         mask_bcast = mask[None, None, :, :]
         U_best_masked = np.where(mask_bcast, U, NEG_INF)
+        # _softmax_stable is intentionally numpy — beta_slice is already a realized array
         p_best = _softmax_stable(U_best_masked, axis=-1)
         best_samples = _sample_categorical_from_u(p_best, u_best)
 

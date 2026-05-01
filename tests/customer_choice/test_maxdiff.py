@@ -13,9 +13,12 @@
 #   limitations under the License.
 """Unit and parametric-recovery tests for MaxDiffMixedLogit."""
 
+import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
+import xarray as xr
 from scipy.stats import spearmanr
 
 from pymc_marketing.customer_choice.maxdiff import (
@@ -178,6 +181,12 @@ class TestPrepareMaxDiffData:
         with pytest.raises(ValueError, match="missing required columns"):
             prepare_maxdiff_data(df, items=items)
 
+    def test_duplicate_items_raises(self, small_maxdiff):
+        task_df, items, _ = small_maxdiff
+        dup_items = [*items, items[0]]
+        with pytest.raises(ValueError, match="duplicates"):
+            prepare_maxdiff_data(task_df, items=dup_items)
+
 
 # ---------------------------------------------------------------------------
 # Build / logp / config
@@ -205,9 +214,13 @@ class TestBuildModel:
         for d in ("beta_item", "U", "p_best", "p_worst", "beta_item_r"):
             assert d in det_names
 
-    def test_reference_item_pinned_at_zero(self, small_maxdiff):
-        import pymc as pm
+    def test_init_duplicate_items_raises(self, small_maxdiff):
+        task_df, items, _ = small_maxdiff
+        dup_items = [*items, items[0]]
+        with pytest.raises(ValueError, match="duplicates"):
+            MaxDiffMixedLogit(task_df=task_df, items=dup_items)
 
+    def test_reference_item_pinned_at_zero(self, small_maxdiff):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         model.build_model()
@@ -226,8 +239,6 @@ class TestBuildModel:
         assert np.isfinite(logp_val)
 
     def test_reference_item_custom(self, small_maxdiff):
-        import pymc as pm
-
         task_df, items, _ = small_maxdiff
         custom_ref = items[0]
         model = MaxDiffMixedLogit(
@@ -360,6 +371,16 @@ class TestSaveLoadRoundtrip:
         for col in ("respondent_id", "task_id", "item_id", "is_best", "is_worst"):
             assert col in loaded.task_df.columns
 
+    def test_task_id_dtype_preserved(self, small_maxdiff, tmp_path):
+        task_df, items, _ = small_maxdiff
+        original_dtype = task_df["task_id"].dtype
+        model = MaxDiffMixedLogit(task_df=task_df, items=items)
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        path = tmp_path / "maxdiff_dtype.nc"
+        model.save(str(path))
+        loaded = MaxDiffMixedLogit.load(str(path))
+        assert loaded.task_df["task_id"].dtype == original_dtype
+
 
 class TestPosteriorPredictive:
     def test_posterior_predictive_shapes(self, small_maxdiff):
@@ -379,6 +400,53 @@ class TestPosteriorPredictive:
         draws = FAST_FIT_KWARGS["draws"]
         assert pp["best_pick"].shape == (chains, draws, n_tasks)
         assert pp["worst_pick"].shape == (chains, draws, n_tasks)
+
+    def test_shape_mismatch_k_max_raises(self):
+        # Train on subset_size=3 (k_max=3), then predict with subset_size=5 (k_max=5)
+        task_df_train, items, _ = _small_maxdiff_df(
+            n_respondents=4, n_items=5, n_tasks_per_resp=3, subset_size=3
+        )
+        model = MaxDiffMixedLogit(task_df=task_df_train, items=items)
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        assert model.arrays["k_max"] == 3
+
+        # Build a task_df where every task shows all 5 items → k_max=5
+        rng = np.random.default_rng(99)
+        rows = []
+        for r in range(2):
+            for t in range(2):
+                perm = rng.permutation(len(items))
+                for local_pos, idx in enumerate(perm):
+                    rows.append(
+                        {
+                            "respondent_id": f"r{r}",
+                            "task_id": t,
+                            "item_id": items[idx],
+                            "is_best": int(local_pos == 0),
+                            "is_worst": int(local_pos == len(items) - 1),
+                        }
+                    )
+        big_task_df = pd.DataFrame(rows)
+        with pytest.raises(ValueError, match="k_max"):
+            model.sample_posterior_predictive(task_df=big_task_df)
+
+    def test_shape_mismatch_n_tasks_raises(self):
+        # Train on 3 tasks per respondent, then predict with 2 tasks per respondent
+        task_df_train, items, _ = _small_maxdiff_df(
+            n_respondents=4, n_items=5, n_tasks_per_resp=3, subset_size=3
+        )
+        model = MaxDiffMixedLogit(task_df=task_df_train, items=items)
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+
+        task_df_fewer, _, _ = _small_maxdiff_df(
+            n_respondents=4, n_items=5, n_tasks_per_resp=2, subset_size=3, seed=1
+        )
+        assert (
+            task_df_fewer.groupby(["respondent_id", "task_id"]).ngroups
+            != model.arrays["n_tasks"]
+        )
+        with pytest.raises(ValueError, match="tasks"):
+            model.sample_posterior_predictive(task_df=task_df_fewer)
 
 
 class TestPredictChoices:
@@ -777,6 +845,25 @@ class TestPartWorthsPosterior:
         ds = model.predict_choices(new_df, random_seed=0, new_respondents="population")
         assert "best_pick" in ds
 
+    def test_new_respondent_draws_centered_like_population(self, partworths_fixture):
+        """New-respondent utility draws must be on the same scale as U_item_pop."""
+        task_df, attrs, gt = partworths_fixture
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=gt["items"],
+            item_attributes=attrs,
+            utility_formula="~ 0 + C(brand) + price + quality",
+            random_attributes=["price"],
+        )
+        model.fit(random_seed=42, **FAST_FIT_KWARGS)
+        posterior = model.idata["posterior"]
+        rng = np.random.default_rng(0)
+        draws = model._draw_new_respondent_utilities(posterior, n_new=50, rng=rng)
+        # Mean over new respondents and items should be close to mean of U_item_pop
+        u_pop_mean = float(posterior["U_item_pop"].mean().values)
+        draws_mean = float(draws.mean())
+        assert abs(draws_mean - u_pop_mean) < 0.5
+
 
 class TestPartWorthsSaveLoad:
     def test_save_load_roundtrip(self, partworths_fixture, tmp_path):
@@ -875,8 +962,6 @@ def fitted_partworths_model(partworths_fixture):
 class TestApplyIntervention:
     def test_returns_xr_dataset(self, fitted_intercept_model):
         """apply_intervention must return an xr.Dataset from predict_choices."""
-        import xarray as xr
-
         task_df, _items, model = fitted_intercept_model
         result = model.apply_intervention(task_df, random_seed=0)
         assert isinstance(result, xr.Dataset)
@@ -886,7 +971,9 @@ class TestApplyIntervention:
     def test_stored_as_intervention_idata(self, fitted_intercept_model):
         task_df, _items, model = fitted_intercept_model
         result = model.apply_intervention(task_df, random_seed=0)
-        assert model.intervention_idata is result
+        assert isinstance(result, xr.Dataset)
+        assert isinstance(model.intervention_idata, az.InferenceData)
+        assert "posterior_predictive" in model.intervention_idata.groups()
 
     def test_auto_generates_dummy_flags(self, fitted_intercept_model):
         """Calling without is_best/is_worst columns must succeed and warn."""
@@ -924,8 +1011,6 @@ class TestApplyIntervention:
 class TestScoreNewItems:
     def test_returns_xr_dataset_with_extended_items(self, fitted_partworths_model):
         """score_new_items must include training items + new items in coord."""
-        import xarray as xr
-
         _task_df, _attrs, gt, model = fitted_partworths_model
         new_item = pd.DataFrame(
             [{"brand": "B", "price": 0.10, "quality": 0.0}],
@@ -961,7 +1046,9 @@ class TestScoreNewItems:
             index=pd.Index(["item_NEW"], name="item_id"),
         )
         result = model.score_new_items(new_item)
-        assert model.intervention_idata is result
+        assert isinstance(result, xr.Dataset)
+        assert isinstance(model.intervention_idata, az.InferenceData)
+        assert "posterior_predictive" in model.intervention_idata.groups()
 
     def test_requires_partworths_mode(self, fitted_intercept_model):
         _task_df, _items, model = fitted_intercept_model
@@ -1354,3 +1441,40 @@ class TestFullCovariance:
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         model.build_model()
         assert "items_bis" not in model.coords
+
+    @pytest.mark.slow
+    def test_correlation_matrix_recovered(self):
+        """Posterior mean of corr_matrix should be close to the ground truth."""
+        corr_true = np.array(
+            [
+                [1.0, 0.8, 0.0, 0.0],
+                [0.8, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, 0.5],
+                [0.0, 0.0, 0.5, 1.0],
+            ]
+        )
+        task_df, ground_truth = generate_maxdiff_data(
+            n_respondents=300,
+            n_items=4,
+            subset_size=3,
+            sigma_respondent=1.0,
+            item_correlation=corr_true,
+            random_seed=7,
+        )
+        model = MaxDiffMixedLogit(
+            task_df=task_df,
+            items=ground_truth["items"],
+            full_covariance=True,
+        )
+        model.fit(
+            draws=500,
+            tune=500,
+            chains=2,
+            target_accept=0.9,
+            nuts_sampler="pymc",
+            random_seed=7,
+        )
+        corr_post = (
+            model.idata["posterior"]["corr_matrix"].mean(("chain", "draw")).values
+        )
+        assert np.linalg.norm(corr_post - corr_true) < 0.3
