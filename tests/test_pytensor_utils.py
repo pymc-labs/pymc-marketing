@@ -128,6 +128,10 @@ def test_extract_response_distribution_vs_sample_response(
     print(f"End date: {end_date}")
     print(f"Number of periods: {(end_date - start_date) // 7}")
 
+    fitted_multidim_mmm.add_original_scale_contribution_variable(
+        ["channel_contribution"]
+    )
+
     # Wrap the model in MultiDimensionalBudgetOptimizerWrapper
     optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
         model=fitted_multidim_mmm,

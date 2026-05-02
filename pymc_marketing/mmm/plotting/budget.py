@@ -180,7 +180,7 @@ class BudgetPlots:
                 raise ValueError(
                     f"Expected '{dim}' dimension in samples, but none found."
                 )
-        if not any("channel_contribution" in v for v in samples.data_vars):
+        if "channel_contribution_original_scale" not in samples.data_vars:
             raise ValueError(
                 "Expected a variable containing 'channel_contribution' in samples, "
                 "but none found."
