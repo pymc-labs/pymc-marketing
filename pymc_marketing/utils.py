@@ -18,9 +18,17 @@ from pathlib import Path
 
 import arviz as az
 
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
+
+__all__ = ["from_netcdf", "idata_from_zarr", "idata_to_zarr"]
+
 
 def from_netcdf(filepath: str | Path) -> az.InferenceData:
-    """Load inference data from a netcdf file without `fit_data` group warnings.
+    """Load inference data from a netcdf file without ``fit_data`` group warnings.
+
+    .. deprecated::
+        ``from_netcdf`` will be removed in a future release.
+        Use ``arviz.from_netcdf`` directly instead.
 
     Parameters
     ----------
@@ -32,6 +40,12 @@ def from_netcdf(filepath: str | Path) -> az.InferenceData:
     az.InferenceData
         The inference data.
     """
+    warnings.warn(
+        "pymc_marketing.utils.from_netcdf is deprecated and will be removed "
+        "in a future release. Use arviz.from_netcdf directly instead.",
+        FutureWarning,
+        stacklevel=2,
+    )
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",

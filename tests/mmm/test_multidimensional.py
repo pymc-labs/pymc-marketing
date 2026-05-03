@@ -13,6 +13,7 @@
 #   limitations under the License.
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import arviz as az
 import numpy as np
@@ -166,6 +167,26 @@ def test_save_load(fit_mmm: MMM):
     os.remove(file)
 
 
+@pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
+def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path, path_factory):
+    """Roundtrip via MMM.save() / MMM.load() using a .zarr store.
+
+    TODO: Remove this coverage once we require ``arviz>=1.0``.
+
+    arviz.InferenceData.to_zarr() / from_zarr() only support zarr<3.
+    Passing a path ending in .zarr dispatches to the xarray-native Zarr
+    backend, which works with zarr>=3, bypassing the ArviZ version guard.
+    """
+    store = tmp_path / "model.zarr"
+    path_arg = path_factory(store)
+
+    fit_mmm.save(path_arg)
+    loaded = MMM.load(path_arg)
+
+    assert isinstance(loaded, MMM)
+    assert loaded == fit_mmm
+
+
 def test_save_load_equality(fit_mmm: MMM):
     """Test that save/load produces an equivalent MMM instance.
 
@@ -206,6 +227,82 @@ def test_save_load_equality(fit_mmm: MMM):
     import os
 
     os.remove(file)
+
+
+def test_save_original_scale_vars_stored_in_attrs(fit_mmm: MMM, tmp_path):
+    """save() persists original_scale_vars in idata.attrs."""
+    fit_mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    file = str(tmp_path / "test.nc")
+    fit_mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "original_scale_vars" in loaded.idata.attrs
+    import json
+
+    stored = json.loads(loaded.idata.attrs["original_scale_vars"])
+    assert "channel_contribution" in stored
+
+
+def test_save_load_restores_original_scale_deterministic(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    """save/load round-trip preserves *_original_scale Deterministics in named_vars.
+
+    add_original_scale_contribution_variable is called before fit() so the variable
+    is captured in idata.posterior; save() persists the base names in idata.attrs;
+    load() re-adds the Deterministic to the rebuilt model graph.
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.fit(X, y)
+
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+    file = str(tmp_path / "test.nc")
+    mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
+
+
+def test_build_from_idata_fallback_infers_original_scale_from_posterior(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    """Fallback path restores *_original_scale Deterministics from idata.posterior.
+
+    Simulates loading a model artifact saved *before* the fix, i.e. idata has
+    channel_contribution_original_scale in posterior but no original_scale_vars
+    attr.  build_from_idata() must infer the variable from posterior and still
+    re-add the Deterministic to the model graph.
+    """
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.fit(X, y)
+
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+    file = str(tmp_path / "test.nc")
+    mmm.save(file)
+
+    # Simulate a pre-fix artifact by stripping the attr before loading.
+    loaded_idata = az.from_netcdf(file)
+    assert "original_scale_vars" in loaded_idata.attrs
+    del loaded_idata.attrs["original_scale_vars"]
+    assert "original_scale_vars" not in loaded_idata.attrs
+
+    stripped_file = str(tmp_path / "test_stripped.nc")
+    loaded_idata.to_netcdf(stripped_file)
+
+    loaded = MMM.load(stripped_file)
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
 
 
 def test_save_load_equality_with_all_effects(mock_pymc_sample):
