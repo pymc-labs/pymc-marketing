@@ -1139,6 +1139,8 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
     """Test that total spend is the same with and without time distribution patterns."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up common parameters
     num_periods = 4
     total_budget = 100
@@ -1268,6 +1270,8 @@ def test_time_distribution_with_carryover_total_spend_preserved(
     """Test that total spend is preserved when using both carryover and time distribution patterns."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up common parameters
     num_periods = 4
     total_budget = 100
@@ -1356,6 +1360,8 @@ def test_budget_distribution_carryover_interaction_issue(
 ):
     """Test that budget distribution and carryover interaction preserves total spend correctly."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
 
     # Set up a simple scenario
     num_periods = 4
