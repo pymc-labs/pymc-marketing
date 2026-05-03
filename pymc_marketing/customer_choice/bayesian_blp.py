@@ -667,7 +667,7 @@ class BayesianBLP(ModelBuilder):
         U_max = pt.maximum(U.max(axis=1, keepdims=True), 0.0)
         eU = pt.exp(U - U_max)
         e0 = pt.exp(-U_max[:, 0, :])
-        denom = e0 + eU.sum(axis=1)
+        denom = pt.maximum(e0 + eU.sum(axis=1), 1e-30)
         s_inside_per_draw = eU / denom[:, None, :]
         s_outside_per_draw = e0 / denom
         s_inside = pm.Deterministic(
@@ -1049,7 +1049,7 @@ class BayesianBLP(ModelBuilder):
         U_max = np.maximum(U.max(axis=2, keepdims=True), 0.0)
         eU = np.exp(U - U_max)
         e0 = np.exp(-U_max[:, :, 0, :])
-        denom = e0 + eU.sum(axis=2)
+        denom = np.maximum(e0 + eU.sum(axis=2), 1e-30)
         s_inside_per_draw = eU / denom[:, :, None, :]
         s_outside_per_draw = e0 / denom
 
@@ -1128,7 +1128,8 @@ class BayesianBLP(ModelBuilder):
         diag_add = weighted.mean(axis=-1)
         j_idx = np.arange(self._J)
         ds_dp[:, :, j_idx, j_idx] += diag_add
-        elast = ds_dp * self._price[None, :, None, :] / s_agg[:, :, :, None]
+        s_agg_safe = np.maximum(s_agg, 1e-30)
+        elast = ds_dp * self._price[None, :, None, :] / s_agg_safe[:, :, :, None]
 
         coords: dict[str, Any] = {
             "market": list(self._markets),
