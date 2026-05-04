@@ -607,3 +607,158 @@ class TestTimeCol:
         )
         new = m._resolve_price_change({"prod_0": 0.10}, periods=[])
         np.testing.assert_array_equal(new, m._price)
+
+
+@pytest.fixture(scope="session")
+def fitted_blp_time(blp_panel_multi_region):
+    """A multi-region BayesianBLP with time_col set, for period/region tests."""
+    df, truth = blp_panel_multi_region
+    model = BayesianBLP(
+        market_data=df,
+        characteristics=truth["characteristic_cols"],
+        instruments=truth["instrument_cols"],
+        region_col="region",
+        time_col="period",
+        random_coef_on=["price"],
+        n_mc_draws=50,
+        random_seed=0,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model.fit(
+            nuts_sampler="numpyro",
+            draws=100,
+            tune=100,
+            chains=2,
+            progressbar=False,
+            random_seed=0,
+        )
+    return model, truth
+
+
+class TestElasticitiesFiltering:
+    def test_period_filter_reduces_markets(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e_all = model.elasticities(n_samples=30)
+        e_sub = model.elasticities(periods=[0, 1], n_samples=30)
+        assert e_sub.sizes["market"] < e_all.sizes["market"]
+
+    def test_region_filter_reduces_markets(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e_all = model.elasticities(n_samples=30)
+        e_sub = model.elasticities(regions=["r0"], n_samples=30)
+        assert e_sub.sizes["market"] < e_all.sizes["market"]
+
+    def test_period_and_region_filter_combined(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e = model.elasticities(periods=[0], regions=["r0"], n_samples=30)
+        assert e.sizes["market"] == 1
+
+    def test_filtered_elasticities_have_correct_coords(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e = model.elasticities(periods=[0, 1], n_samples=30)
+        period_vals = e.coords["period"].values
+        assert all(p in [0, 1] for p in period_vals)
+
+    def test_samples_mode_with_filter(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e = model.elasticities(at="samples", periods=[0], n_samples=20)
+        assert e.dims == ("sample", "market", "share", "price")
+        assert e.sizes["sample"] == 20
+
+
+class TestCounterfactualFiltering:
+    def test_period_scoped_counterfactual(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        target = model._inside_products[0]
+        baseline = model.counterfactual_shares(price_change=None, n_samples=30)
+        shocked = model.counterfactual_shares(
+            price_change={target: 0.10}, periods=[0], n_samples=30
+        )
+        base_s = baseline["s_inside"].mean(dim="sample").values
+        shock_s = shocked["s_inside"].mean(dim="sample").values
+        delta = shock_s - base_s
+        # Only period-0 markets should show a change
+        period_mask = np.array(model._period_idx) == 0
+        assert np.abs(delta[period_mask, 0]).max() > 0
+        np.testing.assert_allclose(delta[~period_mask, 0], 0.0, atol=1e-12)
+
+    def test_region_scoped_counterfactual(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        target = model._inside_products[0]
+        baseline = model.counterfactual_shares(price_change=None, n_samples=30)
+        shocked = model.counterfactual_shares(
+            price_change={target: 0.10}, regions=["r0"], n_samples=30
+        )
+        base_s = baseline["s_inside"].mean(dim="sample").values
+        shock_s = shocked["s_inside"].mean(dim="sample").values
+        delta = shock_s - base_s
+        r0_mask = np.array(model._region_idx) == 0
+        assert np.abs(delta[r0_mask, 0]).max() > 0
+        np.testing.assert_allclose(delta[~r0_mask, 0], 0.0, atol=1e-12)
+
+    def test_no_change_reproduces_baseline(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        cf = model.counterfactual_shares(price_change=None, n_samples=30)
+        assert "s_inside" in cf
+        assert "s_outside" in cf
+        s_in = cf["s_inside"].mean(dim="sample").values
+        assert s_in.shape == (model._M, model._J)
+        assert not np.isnan(s_in).any()
+
+
+class TestNumericalStability:
+    def test_batch_shares_extreme_params_no_nan(self, blp_panel_small):
+        """Verify _batch_shares doesn't produce NaN with extreme parameters."""
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        rng = np.random.default_rng(0)
+        S = 5
+        alpha_M = rng.normal(0, 100, (S, model._M))
+        beta_M = rng.normal(0, 100, (S, model._M, model._K))
+        xi_M = rng.normal(0, 100, (S, model._M, model._J))
+        sigma_M = np.abs(rng.normal(0, 100, (S, 1)))
+        s_in, s_agg, s_out, s_out_agg, _ = model._batch_shares(
+            alpha_M, beta_M, xi_M, sigma_M, model._price
+        )
+        assert not np.isnan(s_in).any()
+        assert not np.isnan(s_agg).any()
+        assert not np.isnan(s_out).any()
+        assert not np.isnan(s_out_agg).any()
+
+    def test_elasticities_extreme_params_no_nan(self, blp_panel_small):
+        """Verify elasticities are finite even with extreme share values."""
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        rng = np.random.default_rng(0)
+        S = 5
+        alpha_M = rng.normal(0, 100, (S, model._M))
+        beta_M = rng.normal(0, 100, (S, model._M, model._K))
+        xi_M = rng.normal(0, 100, (S, model._M, model._J))
+        sigma_M = np.abs(rng.normal(0, 100, (S, 1)))
+        s_per_draw, s_agg, _, _, alpha_per_draw = model._batch_shares(
+            alpha_M, beta_M, xi_M, sigma_M, model._price
+        )
+        R_eff = s_per_draw.shape[-1]
+        weighted = alpha_per_draw[:, :, None, :] * s_per_draw
+        ds_dp = -np.einsum("smjr,smkr->smjk", weighted, s_per_draw) / R_eff
+        diag_add = weighted.mean(axis=-1)
+        j_idx = np.arange(model._J)
+        ds_dp[:, :, j_idx, j_idx] += diag_add
+        s_agg_safe = np.maximum(s_agg, 1e-30)
+        elast = ds_dp * model._price[None, :, None, :] / s_agg_safe[:, :, :, None]
+        assert not np.isnan(elast).any()
