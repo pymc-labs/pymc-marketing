@@ -291,7 +291,8 @@ class CLVModel(ModelBuilder):
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
         """Create the initialization kwargs from an InferenceData object."""
         kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        kwargs["data"] = idata.fit_data.to_dataframe()
+        if "fit_data" in idata:
+            kwargs["data"] = idata.fit_data.to_dataframe()
 
         return kwargs
 
@@ -308,12 +309,9 @@ class CLVModel(ModelBuilder):
 
         model.idata = idata
         model._rename_posterior_variables()
+        model.data = idata.fit_data.to_dataframe()
 
-        # Extract data from fit_data group if it exists
-        if hasattr(idata, "fit_data"):
-            model.data = idata.fit_data.to_dataframe()
-
-        model.build_model()  # type: ignore
+        model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
             msg = (
                 "The model id in the InferenceData does not match the model id. "

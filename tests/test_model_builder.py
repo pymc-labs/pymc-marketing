@@ -1259,7 +1259,7 @@ def test_load_from_idata_without_fit_data_warns(fitted_regression_model_instance
     idata = fitted_regression_model_instance.idata.copy()
     assert "fit_data" in idata
     del idata.fit_data
-    with pytest.warns(UserWarning, match="Run build_model() with training data"):
+    with pytest.warns(UserWarning, match="fit_data used for training"):
         model = RegressionModelBuilderTest.load_from_idata(idata)
     assert isinstance(model, RegressionModelBuilderTest)
     assert model.idata is idata

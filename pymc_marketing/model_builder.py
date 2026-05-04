@@ -448,7 +448,7 @@ class ModelIO:
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
         """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
 
-        This method must be overridden in child classes if data is needed as a keyword argument.
+        This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
@@ -549,7 +549,10 @@ class ModelIO:
 
         model.idata = idata
         if "fit_data" in idata:
-            model.build_from_idata(idata)
+            # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
+            built = model.build_from_idata(idata)
+            if built is not None:
+                model = built
         else:
             warnings.warn(
                 "The loaded model does not include fit_data used for training. "
