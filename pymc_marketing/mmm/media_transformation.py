@@ -85,7 +85,9 @@ Apply the media transformation to media data in PyMC model:
         media_data = pm.Data(
             "media_data", df.loc[:, media_columns].to_numpy(), dims=("date", "media")
         )
-        transformed_media_data = media_configs(media_data)
+        transformed_media_data = media_configs(
+            media_data, core_dim="date", media_dim="media"
+        )
 
 """
 
@@ -95,9 +97,9 @@ from dataclasses import dataclass
 from typing import cast
 
 import pymc as pm
-import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.deserialize import register_deserialization
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
@@ -107,8 +109,10 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     saturation_from_dict,
 )
+from pymc_marketing.serialization import serialization
 
 
+@serialization.register
 @dataclass
 class MediaTransformation:
     """Wrapper for applying adstock and saturation transformation to media data.
@@ -165,17 +169,17 @@ class MediaTransformation:
                 f"Saturation dimensions {self.saturation.combined_dims} are not a subset of {self.dims}"
             )
 
-    def __call__(self, x):
+    def __call__(self, x, dim: str | None = None):
         """Apply adstock and saturation transformation to media data.
 
         Parameters
         ----------
-        x : pt.TensorLike
+        x : XTensorLike
             The media data to transform.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The transformed media data.
 
         Examples
@@ -209,7 +213,7 @@ class MediaTransformation:
                 )
 
         """
-        return self.second.apply(self.first.apply(x, self.dims), self.dims)
+        return self.second.apply(self.first.apply(x, core_dim=dim), core_dim=dim)
 
     def to_dict(self) -> dict:
         """Convert the media transformation to a dictionary.
@@ -242,29 +246,28 @@ class MediaTransformation:
             The media transformation created from the dictionary.
 
         """
+        adstock_data = data["adstock"]
+        saturation_data = data["saturation"]
+
+        if "__type__" in adstock_data:
+            adstock = serialization.deserialize(adstock_data)
+        else:
+            adstock = adstock_from_dict(adstock_data)
+
+        if "__type__" in saturation_data:
+            saturation = serialization.deserialize(saturation_data)
+        else:
+            saturation = saturation_from_dict(saturation_data)
+
         return cls(
-            adstock=adstock_from_dict(data["adstock"]),
-            saturation=saturation_from_dict(data["saturation"]),
+            adstock=adstock,
+            saturation=saturation,
             adstock_first=data["adstock_first"],
             dims=data.get("dims"),
         )
 
 
-def _is_media_transformation(data):
-    return (
-        isinstance(data, dict)
-        and "adstock" in data
-        and "saturation" in data
-        and "adstock_first" in data
-    )
-
-
-register_deserialization(
-    is_type=_is_media_transformation,
-    deserialize=MediaTransformation.from_dict,
-)
-
-
+@serialization.register
 @dataclass
 class MediaConfig:
     """Configuration for a media transformation to certain media channels.
@@ -323,16 +326,7 @@ class MediaConfig:
         )
 
 
-def _is_media_config(data):
-    return (
-        isinstance(data, dict)
-        and "name" in data
-        and "columns" in data
-        and "media_transformation" in data
-        and _is_media_transformation(data["media_transformation"])
-    )
-
-
+@serialization.register
 class MediaConfigList:
     """Wrapper for a list of media configurations to apply to media data.
 
@@ -432,25 +426,28 @@ class MediaConfigList:
             result.extend(config.columns)
         return result
 
-    def to_dict(self) -> list[dict]:
+    def to_dict(self) -> dict:
         """Convert the media configuration list to a dictionary.
 
         Returns
         -------
-        list[dict]
-            The media configuration list as a dictionary.
+        dict
+            The media configuration list as a dictionary with ``__type__`` key.
 
         """
-        return [config.to_dict() for config in self.media_configs]
+        return {
+            "media_configs": [config.to_dict() for config in self.media_configs],
+        }
 
     @classmethod
-    def from_dict(cls, data: list[dict]) -> MediaConfigList:
+    def from_dict(cls, data: dict | list) -> MediaConfigList:
         """Create a media configuration list from a dictionary.
 
         Parameters
         ----------
-        data : list[dict]
-            The data to create the media configuration list from.
+        data : dict | list
+            The data to create the media configuration list from. Supports
+            both the new dict format (with ``__type__``) and legacy list format.
 
         Returns
         -------
@@ -458,9 +455,12 @@ class MediaConfigList:
             The media configuration list created from the dictionary.
 
         """
-        return cls([MediaConfig.from_dict(config) for config in data])
+        if isinstance(data, list):
+            return cls([MediaConfig.from_dict(config) for config in data])
+        configs = data.get("media_configs", [])
+        return cls([MediaConfig.from_dict(config) for config in configs])
 
-    def __call__(self, x) -> pt.TensorVariable:
+    def __call__(self, x, *, core_dim: str, media_dim: str) -> XTensorVariable:
         """Apply media transformation to media data.
 
         Assumes that the columns in the data correspond to the media channels
@@ -468,15 +468,20 @@ class MediaConfigList:
 
         Parameters
         ----------
-        x : pt.TensorLike
+        x : XTensorLike
             The media data to transform.
+        core_dim : str
+            The dimension along which to apply the transformation (e.g. "date").
+        media_dim : str
+            The dimension indexing media channels (e.g. "channel" or "media").
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The transformed media data.
 
         """
+        x = ptx.as_xtensor(x)
         model = pm.modelcontext(None)
 
         transformed_data = []
@@ -487,7 +492,9 @@ class MediaConfigList:
             model.add_coord(config.name, config.columns)
             end_idx = start_idx + len(config.columns)
 
-            media_data = x[:, start_idx:end_idx]
+            media_data = x.isel({media_dim: slice(start_idx, end_idx)}).rename(
+                {media_dim: config.name}
+            )
 
             adstock = config.media_transformation.adstock
             saturation = config.media_transformation.saturation
@@ -495,20 +502,12 @@ class MediaConfigList:
             saturation.prefix = f"{config.name}_{saturation.prefix}"
 
             media_transformation_data = config.media_transformation(
-                media_data,
-            )
+                media_data, dim=core_dim
+            ).rename({config.name: media_dim})
             transformed_data.append(media_transformation_data)
 
             start_idx = end_idx
 
-        return pt.concatenate(transformed_data, axis=1)
-
-
-def _is_media_config_list(data):
-    return isinstance(data, list) and all(_is_media_config(config) for config in data)
-
-
-register_deserialization(
-    is_type=_is_media_config_list,
-    deserialize=MediaConfigList.from_dict,
-)
+        return ptx.concat(transformed_data, dim=media_dim).transpose(
+            core_dim, media_dim
+        )

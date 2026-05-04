@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import tempfile
+from pathlib import Path
 
 import arviz as az
 import graphviz
@@ -27,6 +28,7 @@ import pytest
 import xarray as xr
 from rich.table import Table
 
+from pymc_marketing.data.idata.utils import idata_from_zarr
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_builder import (
     DifferentModelError,
@@ -608,32 +610,32 @@ def test_save_with_kwargs(fitted_regression_model_instance):
         temp.close()
 
 
-def test_save_with_kwargs_integration(fitted_regression_model_instance):
+@pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
+@pytest.mark.parametrize("suffix", [".nc", ".zarr"], ids=["netcdf", "zarr"])
+def test_save_with_kwargs_integration(
+    fitted_regression_model_instance, tmp_path, path_factory, suffix
+):
     """Test save function with actual kwargs (integration test)"""
 
-    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-    temp_path = temp.name
-    temp.close()
+    file_path = tmp_path / f"model_results{suffix}"
+    path_arg = path_factory(file_path)
 
-    try:
-        # Test with specific groups - this tests that kwargs are passed through
-        fitted_regression_model_instance.save(temp_path, groups=["posterior"])
+    # Test with specific groups - this tests that kwargs are passed through
+    fitted_regression_model_instance.save(path_arg, groups=["posterior"])
 
-        # Verify file was created successfully
-        assert os.path.exists(temp_path)
+    # Verify file was created successfully
+    assert file_path.exists()
 
-        # Verify we can read the file and it contains the expected groups
-        from pymc_marketing.utils import from_netcdf
+    # Verify we can read the file and it contains the expected groups
+    if suffix == ".zarr":
+        loaded_idata = idata_from_zarr(path_arg)
+    else:
+        loaded_idata = az.from_netcdf(str(file_path))
 
-        loaded_idata = from_netcdf(temp_path)
-        assert "posterior" in loaded_idata.groups()
-        # Should only have posterior since we specified groups=["posterior"]
-        assert "fit_data" not in loaded_idata.groups()
-
-    finally:
-        # Clean up
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+    assert loaded_idata is not None
+    assert "posterior" in loaded_idata.groups()
+    # Should only have posterior since we specified groups=["posterior"]
+    assert "fit_data" not in loaded_idata.groups()
 
 
 def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
@@ -1298,3 +1300,109 @@ def test_predict_posterior_keyerror_output_var_missing():
     model.sample_posterior_predictive = lambda *a, **k: {"not_output": np.ones(3)}
     with pytest.raises(KeyError):
         model.predict_posterior(pd.DataFrame({"input": [1, 2, 3]}))
+
+
+class TestJsonDefaultRegistryDispatch:
+    """Verify _json_default tries serialization.serialize() before duck-typing."""
+
+    def test_registered_type_serialized_via_registry(self):
+        """A type registered in TypeRegistry should serialize with __type__ key."""
+        from pymc_marketing.serialization import serialization
+
+        @serialization.register
+        class _DummyRegistered:
+            def to_dict(self):
+                return {
+                    "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+                    "value": 42,
+                }
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls()
+
+        class FakeModel:
+            _model_type = "test"
+            version = "0.0.1"
+            sampler_config = {}
+            id = "test123"
+
+            @property
+            def _serializable_model_config(self):
+                return {"component": _DummyRegistered()}
+
+        model = FakeModel()
+        attrs = ModelIO.create_idata_attrs(model)
+        config = json.loads(attrs["model_config"])
+        assert "__type__" in config["component"]
+
+    def test_unregistered_type_falls_through(self):
+        """An unregistered type with to_dict() still works via duck-typing fallback."""
+
+        class _UnregisteredWithToDict:
+            def to_dict(self):
+                return {"value": 99}
+
+        class FakeModel:
+            _model_type = "test"
+            version = "0.0.1"
+            sampler_config = {}
+            id = "test123"
+
+            @property
+            def _serializable_model_config(self):
+                return {"component": _UnregisteredWithToDict()}
+
+        model = FakeModel()
+        attrs = ModelIO.create_idata_attrs(model)
+        config = json.loads(attrs["model_config"])
+        assert config["component"] == {"value": 99}
+        assert "__type__" not in config["component"]
+
+
+class TestModelConfigFormattingTypeDetection:
+    """Verify _model_config_formatting routes __type__ dicts through serialization."""
+
+    def test_type_key_deserialized_via_registry(self):
+        """A dict with __type__ key should be deserialized via serialization."""
+        from pymc_marketing.serialization import serialization
+
+        @serialization.register
+        class _DummyConfigType:
+            def __init__(self, value=42):
+                self.value = value
+
+            def to_dict(self):
+                return {
+                    "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+                    "value": self.value,
+                }
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls(value=data.get("value", 42))
+
+        model_config = {
+            "component": {
+                "__type__": f"{_DummyConfigType.__module__}.{_DummyConfigType.__qualname__}",
+                "value": 42,
+            }
+        }
+        result = ModelIO._model_config_formatting(model_config)
+        assert isinstance(result["component"], _DummyConfigType)
+        assert result["component"].value == 42
+
+    def test_legacy_dict_without_type_key_unchanged(self):
+        """A dict without __type__ follows the existing list->tuple/array heuristic."""
+        model_config = {
+            "intercept": {"mu": 0, "sigma": 1, "dims": ["date"]},
+        }
+        result = ModelIO._model_config_formatting(model_config)
+        assert isinstance(result["intercept"]["dims"], tuple)
+        assert result["intercept"]["dims"] == ("date",)
+
+    def test_plain_scalars_unchanged(self):
+        """Non-dict values pass through unchanged."""
+        model_config = {"n_obs": 100, "name": "test"}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result == {"n_obs": 100, "name": "test"}

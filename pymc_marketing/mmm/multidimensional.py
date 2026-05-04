@@ -67,6 +67,36 @@ Multi-dimensional (panel) with dims:
     )
     mmm.fit(X, y)
 
+Fixed scaling for stable production refreshes (e.g. population per country for
+impressions) can use a scalar, a one-dimensional ``dict`` keyed by the single
+remaining coordinate after reduction, or an :class:`xarray.DataArray` that
+broadcasts to the full ``country`` × ``channel`` grid — see
+:class:`~pymc_marketing.mmm.scaling.FixedScaling`.
+
+.. code-block:: python
+
+    import xarray as xr
+    from pymc_marketing.mmm.scaling import FixedScaling, Scaling
+
+    pop_scale = xr.DataArray(
+        [1e6, 2e6],
+        dims="country",
+        coords={"country": ["A", "B"]},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=50_000.0),
+        channel=FixedScaling(dims=(), value=pop_scale),
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        dims=("country",),
+        scaling=scaling,
+    )
+    # mmm.fit(X, y)
+
 Time-varying parameters and seasonality:
 
 .. code-block:: python
@@ -152,21 +182,19 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from functools import singledispatch
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Self, cast
 
 import arviz as az
 import numpy as np
-import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
 import xarray as xr
-from pydantic import Field, InstanceOf, StrictBool, validate_call
-from pymc.model.fgraph import clone_model as cm
+from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.util import RandomState
-from pymc_extras.deserialize import deserialize
-from pymc_extras.prior import Prior, create_dim_handler
+from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -180,25 +208,28 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.causal import CausalGraphModel
-from pymc_marketing.mmm.components.adstock import (
-    AdstockTransformation,
-    adstock_from_dict,
-)
-from pymc_marketing.mmm.components.saturation import (
-    SaturationTransformation,
-    saturation_from_dict,
-)
+from pymc_marketing.mmm.components.adstock import AdstockTransformation
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
+from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.events import EventEffect
 from pymc_marketing.mmm.fourier import YearlyFourier
-from pymc_marketing.mmm.hsgp import HSGPBase, hsgp_from_dict
+from pymc_marketing.mmm.hsgp import HSGPBase
 from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
-    add_cost_per_target_potentials,
+    add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
-from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+    VariableScaling,
+    panel_channel_fixed_scaling_remaining_dims,
+    validate_fixed_scaling_keys,
+)
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.tvp import create_hsgp_from_config, infer_time_index
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
@@ -212,6 +243,7 @@ from pymc_marketing.model_builder import (
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
+from pymc_marketing.serialization import DeserializationContext, serialization
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -227,144 +259,6 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
-
-
-@singledispatch
-def _serialize_mu_effect(effect: MuEffect) -> dict[str, Any]:
-    """Serialize a MuEffect to JSON-compatible dict.
-
-    Default implementation uses Pydantic's model_dump for unknown types.
-    Register new types with: @_serialize_mu_effect.register(YourEffect)
-    """
-    # Check if the effect has model_dump (Pydantic BaseModel)
-    if not hasattr(effect, "model_dump"):
-        raise TypeError(
-            f"Cannot serialize MuEffect of type '{effect.__class__.__name__}': "
-            f"MuEffect subclasses must inherit from pydantic.BaseModel. "
-            f"Update your custom effect class to inherit from MuEffect (which is now a BaseModel). "
-            f"See pymc_marketing.mmm.additive_effect.MuEffect for the new base class definition."
-        )
-
-    return {
-        "class": effect.__class__.__name__,
-        **effect.model_dump(mode="json"),
-    }
-
-
-def _deserialize_mu_effect(data: dict[str, Any]) -> MuEffect:
-    """Deserialize a MuEffect from dict using class name."""
-    class_name = data.get("class")
-    if class_name not in _MUEFFECT_DESERIALIZERS:
-        raise ValueError(
-            f"Unknown MuEffect class: {class_name}. "
-            f"Registered types: {list(_MUEFFECT_DESERIALIZERS.keys())}"
-        )
-    return _MUEFFECT_DESERIALIZERS[class_name](data)
-
-
-# Deserialization registry: maps class name -> deserializer function
-_MUEFFECT_DESERIALIZERS: dict[str, Callable[[dict[str, Any]], MuEffect]] = {}
-
-
-# Register serializers/deserializers at module load
-# Imports are inside function to avoid circular dependencies
-def _register_mu_effect_handlers():
-    """Register all known MuEffect serialization handlers."""
-    from pymc_marketing.mmm import fourier as fourier_module
-    from pymc_marketing.mmm.additive_effect import (
-        EventAdditiveEffect,
-        FourierEffect,
-        LinearTrendEffect,
-    )
-    from pymc_marketing.mmm.linear_trend import LinearTrend
-
-    # FourierEffect
-    @_serialize_mu_effect.register(FourierEffect)
-    def _(effect: FourierEffect) -> dict[str, Any]:
-        return {
-            "class": "FourierEffect",
-            "fourier": effect.fourier.to_dict(),
-            "date_dim_name": effect.date_dim_name,
-        }
-
-    def _deser_fourier(data: dict[str, Any]) -> FourierEffect:
-        # Get Fourier class from module by name and use its from_dict method
-        fourier_data = data["fourier"]
-        fourier_class_name = fourier_data.get("class")
-        fourier_class = getattr(fourier_module, fourier_class_name, None)
-        if fourier_class is None:
-            raise ValueError(
-                f"Unknown Fourier class: {fourier_class_name}. "
-                f"Not found in pymc_marketing.mmm.fourier module."
-            )
-
-        fourier = fourier_class.from_dict(fourier_data)
-        return FourierEffect(
-            fourier=fourier,
-            date_dim_name=data.get("date_dim_name", "date"),
-        )
-
-    # LinearTrendEffect
-    @_serialize_mu_effect.register(LinearTrendEffect)
-    def _(effect: LinearTrendEffect) -> dict[str, Any]:
-        # Serialize trend data, handling priors separately
-        trend_data = effect.trend.model_dump(mode="json", exclude={"priors"})
-        # Manually serialize priors using Prior.to_dict()
-        if effect.trend.priors is not None:
-            trend_data["priors"] = {
-                key: prior.to_dict() for key, prior in effect.trend.priors.items()
-            }
-        return {
-            "class": "LinearTrendEffect",
-            "trend": trend_data,
-            "prefix": effect.prefix,
-            "date_dim_name": effect.date_dim_name,
-        }
-
-    def _deser_linear_trend(data: dict[str, Any]) -> LinearTrendEffect:
-        # Deserialize priors separately using generic deserialize()
-        # to support both Prior and SpecialPrior (e.g., LogNormalPrior)
-        trend_data = data["trend"].copy()
-        if "priors" in trend_data and trend_data["priors"] is not None:
-            trend_data["priors"] = {
-                key: deserialize(prior_dict)
-                for key, prior_dict in trend_data["priors"].items()
-            }
-        return LinearTrendEffect(
-            trend=LinearTrend.model_validate(trend_data),
-            prefix=data["prefix"],
-            date_dim_name=data.get("date_dim_name", "date"),
-        )
-
-    # EventAdditiveEffect
-    @_serialize_mu_effect.register(EventAdditiveEffect)
-    def _(effect: EventAdditiveEffect) -> dict[str, Any]:
-        result = {
-            "class": "EventAdditiveEffect",
-            **effect.model_dump(mode="json", exclude={"df_events", "effect"}),
-        }
-        result["event_names"] = effect.df_events["name"].tolist()
-        return result
-
-    def _deser_event(data: dict[str, Any]) -> EventAdditiveEffect:
-        raise ValueError(
-            "EventAdditiveEffect deserialization not supported: "
-            "requires original df_events DataFrame. "
-            f"Event names in saved model: {data.get('event_names', [])}"
-        )
-
-    # Populate deserialization registry
-    _MUEFFECT_DESERIALIZERS.update(
-        {
-            "FourierEffect": _deser_fourier,
-            "LinearTrendEffect": _deser_linear_trend,
-            "EventAdditiveEffect": _deser_event,
-        }
-    )
-
-
-# Register handlers at module load
-_register_mu_effect_handlers()
 
 
 class MMM(RegressionModelBuilder):
@@ -576,15 +470,15 @@ class MMM(RegressionModelBuilder):
             scaling = deepcopy(scaling)
 
             if "channel" not in scaling:
-                scaling["channel"] = VariableScaling(method="max", dims=self.dims)
+                scaling["channel"] = DataDerivedScaling(method="max", dims=self.dims)
             if "target" not in scaling:
-                scaling["target"] = VariableScaling(method="max", dims=self.dims)
+                scaling["target"] = DataDerivedScaling(method="max", dims=self.dims)
 
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
-            target=VariableScaling(method="max", dims=self.dims),
-            channel=VariableScaling(method="max", dims=self.dims),
+            target=DataDerivedScaling(method="max", dims=self.dims),
+            channel=DataDerivedScaling(method="max", dims=self.dims),
         )
 
         if set(self.scaling.target.dims).difference([*self.dims, "date"]):
@@ -595,6 +489,20 @@ class MMM(RegressionModelBuilder):
         if set(self.scaling.channel.dims).difference([*self.dims, "channel", "date"]):
             raise ValueError(
                 f"Channel scaling dims {self.scaling.channel.dims} must contain {self.dims}, 'channel', and 'date'"
+            )
+
+        rem_ch = panel_channel_fixed_scaling_remaining_dims(
+            self.dims,
+            cast(tuple[str, ...], self.scaling.channel.dims),
+        )
+        if (
+            isinstance(self.scaling.channel, FixedScaling)
+            and isinstance(self.scaling.channel.value, dict)
+            and len(rem_ch) == 1
+            and rem_ch[0] == "channel"
+        ):
+            validate_fixed_scaling_keys(
+                self.scaling.channel, channel_columns, "channel"
             )
 
         model_config = model_config if model_config is not None else {}
@@ -677,6 +585,41 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+
+    def add_mu_effect(
+        self: Self,
+        mu_effect: MuEffect,
+    ) -> Self:
+        """Include MuEffect in model.
+
+        Parameters
+        ----------
+        mu_effect : MuEffect
+            Any MuEffect Protocol to include in the model.
+
+        Returns
+        -------
+        The instance for chaining.
+
+        Examples
+        --------
+        Add LinearTrend to the MMM.
+
+        .. code-block:: python
+
+            from pymc_marketing.mmm import MMM, LinearTrend
+            from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+
+            mmm = MMM(...).add_mu_effect(
+                LinearTrendEffect(
+                    trend=LinearTrend(n_changepoints=10),
+                    prefix="linear_trend",
+                )
+            )
+
+        """
+        self.mu_effects.append(mu_effect)
+        return self
 
     def __eq__(self, other: object) -> bool:
         """Compare two MMM instances for equivalence.
@@ -951,11 +894,11 @@ class MMM(RegressionModelBuilder):
     def _data_setter(self, X, y=None): ...
 
     def add_events(
-        self,
+        self: Self,
         df_events: pd.DataFrame,
         prefix: str,
         effect: EventEffect,
-    ) -> None:
+    ) -> Self:
         """Add event effects to the model.
 
         This must be called before building the model.
@@ -971,6 +914,10 @@ class MMM(RegressionModelBuilder):
             The prefix to use for the event effect and associated variables.
         effect : EventEffect
             The event effect to apply.
+
+        Returns
+        -------
+        The instance for chaining.
 
         Raises
         ------
@@ -990,6 +937,8 @@ class MMM(RegressionModelBuilder):
         )
         self.mu_effects.append(event_effect)
 
+        return self
+
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
         def serialize_value(value):
@@ -1000,13 +949,13 @@ class MMM(RegressionModelBuilder):
                 return {k: serialize_value(v) for k, v in value.items()}
             elif isinstance(value, (list, tuple)):
                 return [serialize_value(v) for v in value]
-            elif hasattr(value, "to_dict"):
-                # Handle any object with a to_dict method (Prior, SpecialPrior, etc.)
-                return value.to_dict()
-            elif hasattr(value, "model_dump"):
-                # Handle Pydantic models
-                return value.model_dump()
             else:
+                try:
+                    return serialization.serialize(value)
+                except (KeyError, TypeError):
+                    pass
+                if hasattr(value, "to_dict"):
+                    return value.to_dict()
                 return value
 
         serializable_config = {}
@@ -1018,38 +967,34 @@ class MMM(RegressionModelBuilder):
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
         attrs = super().create_idata_attrs()
+        attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
-        attrs["adstock"] = json.dumps(self.adstock.to_dict())
-        attrs["saturation"] = json.dumps(self.saturation.to_dict())
+        attrs["adstock"] = json.dumps(serialization.serialize(self.adstock))
+        attrs["saturation"] = json.dumps(serialization.serialize(self.saturation))
         attrs["adstock_first"] = json.dumps(self.adstock_first)
         attrs["control_columns"] = json.dumps(self.control_columns)
         attrs["channel_columns"] = json.dumps(self.channel_columns)
         attrs["yearly_seasonality"] = json.dumps(self.yearly_seasonality)
         attrs["time_varying_intercept"] = json.dumps(
-            self.time_varying_intercept
-            if not isinstance(self.time_varying_intercept, HSGPBase)
-            else {
-                **self.time_varying_intercept.to_dict(),
-                **{"hsgp_class": self.time_varying_intercept.__class__.__name__},
-            }
+            serialization.serialize(self.time_varying_intercept)
+            if isinstance(self.time_varying_intercept, HSGPBase)
+            else self.time_varying_intercept
         )
         attrs["time_varying_media"] = json.dumps(
-            self.time_varying_media
-            if not isinstance(self.time_varying_media, HSGPBase)
-            else {
-                **self.time_varying_media.to_dict(),
-                **{"hsgp_class": self.time_varying_media.__class__.__name__},
-            }
+            serialization.serialize(self.time_varying_media)
+            if isinstance(self.time_varying_media, HSGPBase)
+            else self.time_varying_media
         )
         attrs["target_column"] = self.target_column
-        attrs["scaling"] = json.dumps(self.scaling.model_dump(mode="json"))
+        attrs["scaling"] = json.dumps(serialization.serialize(self.scaling))
         attrs["dag"] = json.dumps(getattr(self, "dag", None))
         attrs["treatment_nodes"] = json.dumps(getattr(self, "treatment_nodes", None))
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
-        # Serialize mu_effects
-        mu_effects_list = [_serialize_mu_effect(effect) for effect in self.mu_effects]
+        mu_effects_list = [
+            serialization.serialize(effect) for effect in self.mu_effects
+        ]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
         if self._cost_per_unit_input is not None:
@@ -1072,44 +1017,68 @@ class MMM(RegressionModelBuilder):
 
         return attrs
 
+    def save(self, fname: str, **kwargs) -> None:
+        """Save the model, including supplementary data for MuEffects."""
+        if self.idata is None or "posterior" not in self.idata:
+            raise RuntimeError("The model hasn't been fit yet, call .fit() first")
+
+        for effect in self.mu_effects:
+            if isinstance(effect, EventAdditiveEffect):
+                group_name = f"supplementary_data_{effect.prefix}"
+                if not hasattr(self.idata, group_name):
+                    ds = xr.Dataset.from_dataframe(
+                        effect.df_events.reset_index(drop=True)
+                    )
+                    self.idata.add_groups({group_name: ds})
+
+        # Persist the base names of any *_original_scale Deterministics so they
+        # can be faithfully re-added by build_from_idata on load.
+        suffix = "_original_scale"
+        original_scale_vars = [
+            name[: -len(suffix)]
+            for name in self.model.named_vars
+            if name.endswith(suffix)
+        ]
+        self.idata.attrs["original_scale_vars"] = json.dumps(original_scale_vars)
+
+        super().save(fname, **kwargs)
+
     @classmethod
-    def _model_config_formatting(cls, model_config: dict) -> dict:
-        """Format the model configuration.
+    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> MMM:
+        """Load from InferenceData, auto-migrating old formats."""
+        from pymc_marketing.serialization_migration import (
+            CURRENT_VERSION,
+            migrate_idata,
+        )
 
-        Because of json serialization, model_config values that were originally tuples
-        or numpy are being encoded as lists. This function converts them back to tuples
-        and numpy arrays to ensure correct id encoding.
+        version = int(idata.attrs.get("__serialization_version__", "0"))
+        if version < CURRENT_VERSION:
+            warnings.warn(
+                f"Loading a model saved with serialization format v{version}. "
+                f"Migrating to v{CURRENT_VERSION}. Re-save the model to avoid "
+                "this warning in the future.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            migrate_idata(idata)
 
-        Parameters
-        ----------
-        model_config : dict
-            The model configuration to format.
-
-        Returns
-        -------
-        dict
-            The formatted model configuration.
-
-        """
-
-        def format_nested_dict(d: dict) -> dict:
-            for key, value in d.items():
-                if isinstance(value, dict):
-                    d[key] = format_nested_dict(value)
-                elif isinstance(value, list):
-                    # Check if the key is "dims" to convert it to tuple
-                    if key == "dims":
-                        d[key] = tuple(value)
-                    # Convert all other lists to numpy arrays
-                    else:
-                        d[key] = np.array(value)
-            return d
-
-        return format_nested_dict(model_config.copy())
+        return super().load_from_idata(idata, check=check)  # type: ignore[return-value]
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs: dict[str, str]) -> dict[str, Any]:
         """Convert the idata attributes to the model initialization kwargs."""
+
+        def _deser(raw: str, fallback=None):
+            data = json.loads(raw)
+            if isinstance(data, dict) and "__type__" in data:
+                return serialization.deserialize(data)
+            return fallback if fallback is not None else data
+
+        tvi_raw = attrs.get("time_varying_intercept", "false")
+        tvm_raw = attrs.get("time_varying_media", "false")
+        tvi_data = json.loads(tvi_raw)
+        tvm_data = json.loads(tvm_raw)
+
         return {
             "model_config": cls._model_config_formatting(
                 json.loads(attrs["model_config"])
@@ -1117,20 +1086,24 @@ class MMM(RegressionModelBuilder):
             "date_column": attrs["date_column"],
             "control_columns": json.loads(attrs["control_columns"]),
             "channel_columns": json.loads(attrs["channel_columns"]),
-            "adstock": adstock_from_dict(json.loads(attrs["adstock"])),
-            "saturation": saturation_from_dict(json.loads(attrs["saturation"])),
+            "adstock": _deser(attrs["adstock"]),
+            "saturation": _deser(attrs["saturation"]),
             "adstock_first": json.loads(attrs.get("adstock_first", "true")),
             "yearly_seasonality": json.loads(attrs["yearly_seasonality"]),
-            "time_varying_intercept": hsgp_from_dict(
-                json.loads(attrs.get("time_varying_intercept", "false"))
+            "time_varying_intercept": (
+                serialization.deserialize(tvi_data)
+                if isinstance(tvi_data, dict) and "__type__" in tvi_data
+                else tvi_data
             ),
             "target_column": attrs["target_column"],
-            "time_varying_media": hsgp_from_dict(
-                json.loads(attrs.get("time_varying_media", "false"))
+            "time_varying_media": (
+                serialization.deserialize(tvm_data)
+                if isinstance(tvm_data, dict) and "__type__" in tvm_data
+                else tvm_data
             ),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "dims": tuple(json.loads(attrs.get("dims", "[]"))),
-            "scaling": json.loads(attrs.get("scaling", "null")),
+            "scaling": _deser(attrs.get("scaling", "null")),
             "dag": json.loads(attrs.get("dag", "null")),
             "treatment_nodes": json.loads(attrs.get("treatment_nodes", "null")),
             "outcome_node": json.loads(attrs.get("outcome_node", "null")),
@@ -1146,7 +1119,10 @@ class MMM(RegressionModelBuilder):
         """Use the MMMPlotSuite to plot the results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        data = self.data
+        # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
+        # However the schema is not very flexiable and the plot suite is (too) flexiable.
+        return MMMPlotSuite(data=data)
 
     @property
     def plot_interactive(self):  # type: ignore[no-any-return]
@@ -1240,6 +1216,78 @@ class MMM(RegressionModelBuilder):
         self._validate_idata_exists()
 
         return MMMIDataWrapper.from_mmm(self)
+
+    def compute_mean_contributions_over_time(self) -> pd.DataFrame:
+        """Get the mean contribution of each component over time in original scale.
+
+        Extracts channel, control, seasonality, and intercept contributions from
+        the posterior, computes the mean over MCMC samples (chain and draw), and
+        converts to original scale by multiplying by the target scaler stored in
+        ``idata.constant_data["target_scale"]``.
+
+        This method does **not** require
+        :meth:`add_original_scale_contribution_variable` to have been called.
+
+        Returns
+        -------
+        pd.DataFrame
+            Wide-format DataFrame with one row per observation (date x extra
+            dims).  Columns include:
+
+            - ``date`` -- date coordinate
+            - Extra dimension columns (e.g. ``geo``) when the model is
+              multidimensional
+            - One column per channel (named after channel coordinate labels)
+            - One column per control variable (if present)
+            - ``yearly_seasonality`` (if yearly seasonality is enabled)
+            - ``intercept``
+
+        Raises
+        ------
+        ValueError
+            If the model has not been fitted (no ``idata``).
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mmm.fit(X, y)
+            contributions_df = mmm.compute_mean_contributions_over_time()
+
+        See Also
+        --------
+        add_original_scale_contribution_variable :
+            Pre-compute original-scale deterministics inside the model graph.
+        MMMIDataWrapper.get_contributions :
+            Full posterior contributions as an ``xr.Dataset``.
+        """
+        self._validate_idata_exists()
+        idata: az.InferenceData = cast(az.InferenceData, self.idata)
+
+        posterior: xr.Dataset = idata.posterior
+        target_scale: xr.DataArray = idata.constant_data["target_scale"]
+
+        def _to_original_scale_mean(var_name: str) -> xr.DataArray:
+            return (posterior[var_name] * target_scale).mean(dim=("chain", "draw"))
+
+        channel_da: xr.DataArray = _to_original_scale_mean("channel_contribution")
+        parts: list[xr.Dataset] = [channel_da.to_dataset(dim="channel")]
+
+        if "control_contribution" in posterior:
+            control_da: xr.DataArray = _to_original_scale_mean("control_contribution")
+            parts.append(control_da.to_dataset(dim="control"))
+
+        if "yearly_seasonality_contribution" in posterior:
+            seasonality_da: xr.DataArray = _to_original_scale_mean(
+                "yearly_seasonality_contribution"
+            )
+            parts.append(seasonality_da.to_dataset(name="yearly_seasonality"))
+
+        intercept_da: xr.DataArray = _to_original_scale_mean("intercept_contribution")
+        parts.append(intercept_da.to_dataset(name="intercept"))
+
+        merged: xr.Dataset = xr.merge(parts)
+        return merged.to_dataframe().reset_index()
 
     @property
     def summary(self) -> Any:  # type: ignore[no-any-return]
@@ -1341,9 +1389,17 @@ class MMM(RegressionModelBuilder):
             **self.saturation.model_config,
         }
 
-    def post_sample_model_transformation(self) -> None:
-        """Post-sample model transformation in order to store the HSGP state from fit."""
-        names = []
+    @property
+    def frozen_deterministics(self) -> list[str]:
+        """Deterministic variables that must be frozen at posterior values.
+
+        These are Deterministics whose computation involves a reduction over
+        a dimension (e.g. date) whose size may change during out-of-sample
+        evaluation.  Recomputing them with a different dimension size would
+        give wrong results; instead their posterior values should be
+        substituted directly.
+        """
+        names: list[str] = []
         if self.time_varying_intercept:
             names.extend(
                 SoftPlusHSGP.deterministics_to_replace("intercept_latent_process")
@@ -1354,10 +1410,7 @@ class MMM(RegressionModelBuilder):
                     "media_temporal_latent_multiplier"
                 )
             )
-        if not names:
-            return
-
-        self.model = deterministics_to_flat(self.model, names=names)
+        return names
 
     def _validate_idata_exists(self) -> None:
         """Validate that the idata exists."""
@@ -1541,10 +1594,16 @@ class MMM(RegressionModelBuilder):
         # Convert to xarray, renaming date_column to "date" for internal consistency
         df_long = df_long.rename(columns={date_column: "date"})
         if valid_dims:
-            return df_long.set_index(
+            ds = df_long.set_index(
                 ["date", *valid_dims, metric_coordinate_name]
             ).to_xarray()
-        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+        else:
+            ds = df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+
+        # .to_xarray() alphabetically sorts coordinates; restore the
+        # user-provided ordering so downstream code (pm.set_data,
+        # coordinate comparisons, etc.) sees a consistent order.
+        return ds.reindex({metric_coordinate_name: valid_metrics})
 
     def _create_xarray_from_pandas(
         self,
@@ -1611,6 +1670,19 @@ class MMM(RegressionModelBuilder):
                 metric_coordinate_name=metric_coordinate_name,
             )
 
+    def _reindex_dataset_to_user_order(self, dataset: xr.Dataset) -> xr.Dataset:
+        """Restore user-provided coordinate ordering after xr.merge.
+
+        ``xr.merge`` alphabetically sorts coordinates. This method restores
+        the original user-provided ordering for channel and control
+        coordinates, which is critical because ``pm.set_data`` performs
+        positional (not label-based) assignment.
+        """
+        dataset = dataset.reindex(channel=self.channel_columns)
+        if self.control_columns is not None:
+            dataset = dataset.reindex(control=self.control_columns)
+        return dataset
+
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame,  # type: ignore
@@ -1654,6 +1726,7 @@ class MMM(RegressionModelBuilder):
             dataarrays.append(control_dataarray)
 
         self.xarray_dataset = xr.merge(dataarrays).fillna(0)
+        self.xarray_dataset = self._reindex_dataset_to_user_order(self.xarray_dataset)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
 
@@ -1663,17 +1736,18 @@ class MMM(RegressionModelBuilder):
         }
 
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-            self._time_index = np.arange(0, X[self.date_column].unique().shape[0])
-            self._time_index_mid = X[self.date_column].unique().shape[0] // 2
+            self._time_index = xr.DataArray(
+                np.arange(0, X[self.date_column].unique().shape[0]), dims=("date",)
+            )
             self._time_resolution = (
                 X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
             ).days
 
     def forward_pass(
         self,
-        x: pt.TensorVariable | npt.NDArray[np.float64],
+        x: XTensorLike,
         dims: tuple[str, ...],
-    ) -> pt.TensorVariable:
+    ) -> XTensorVariable:
         """Transform channel input into target contributions of each channel.
 
         This method handles the ordering of the adstock and saturation
@@ -1685,7 +1759,7 @@ class MMM(RegressionModelBuilder):
 
         Parameters
         ----------
-        x : pt.TensorVariable | npt.NDArray[np.float64]
+        x : XTensorLike
             The channel input which could be spends or impressions
 
         Returns
@@ -1709,25 +1783,133 @@ class MMM(RegressionModelBuilder):
             else (self.saturation, self.adstock)
         )
 
-        return second.apply(x=first.apply(x=x, dims=dims), dims=dims)
+        return second.apply(x=first.apply(x=x, core_dim="date"), core_dim="date")
 
     def _compute_scales(self) -> None:
         """Compute and save scaling factors for channels and target."""
         self.scalers = xr.Dataset()
 
-        channel_method = getattr(
+        self.scalers["_channel"] = self._compute_scale_for_variable(
             self.xarray_dataset["_channel"],
-            self.scaling.channel.method,
+            self.scaling.channel,
         )
-        self.scalers["_channel"] = channel_method(
-            dim=("date", *self.scaling.channel.dims)
+        self.scalers["_target"] = self._compute_scale_for_variable(
+            self.xarray_dataset["_target"],
+            self.scaling.target,
         )
 
-        target_method = getattr(
-            self.xarray_dataset["_target"],
-            self.scaling.target.method,
+    def _compute_scale_for_variable(
+        self,
+        data: xr.DataArray,
+        scaling: VariableScaling,
+    ) -> xr.DataArray:
+        """Compute or construct a scale array for a single variable.
+
+        Parameters
+        ----------
+        data : xr.DataArray
+            The raw data variable from :attr:`xarray_dataset`.
+        scaling : VariableScaling
+            The scaling configuration for this variable.
+
+        Returns
+        -------
+        xr.DataArray
+            Scale factors with the reduction dims removed.
+        """
+        reduce_dims = ("date", *scaling.dims)
+
+        if isinstance(scaling, FixedScaling):
+            scale = self._build_fixed_scale(data, scaling, reduce_dims)
+        else:
+            method_fn = getattr(data, scaling.method)
+            scale = method_fn(dim=reduce_dims)
+
+        return scale
+
+    def _build_fixed_scale(
+        self,
+        data: xr.DataArray,
+        scaling: FixedScaling,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        """Build a scale DataArray from a FixedScaling configuration."""
+        if isinstance(scaling.value, dict):
+            return self._build_fixed_scale_from_dict(data, scaling, reduce_dims)
+        if isinstance(scaling.value, xr.DataArray):
+            return self._align_fixed_scale_dataarray(data, scaling.value, reduce_dims)
+        return xr.DataArray(float(scaling.value))
+
+    def _build_fixed_scale_from_dict(
+        self,
+        data: xr.DataArray,
+        scaling: FixedScaling,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        value_map = cast(dict[str, float], scaling.value)
+        remaining_dims = [d for d in data.dims if d not in reduce_dims]
+        if len(remaining_dims) != 1:
+            raise ValueError(
+                f"dict-valued fixed scaling requires exactly one remaining dimension "
+                f"after reduction over {reduce_dims!r}; got {remaining_dims!r}. "
+                f"Use an xarray.DataArray with dims {tuple(remaining_dims)!r} for "
+                f"multi-dimensional fixed scales."
+            )
+
+        dim_name = remaining_dims[0]
+        coords = data.coords[dim_name].values
+        coord_labels = {str(c) for c in coords}
+        provided_keys = set(value_map.keys())
+        missing = coord_labels - provided_keys
+        extra = provided_keys - coord_labels
+        if missing or extra:
+            parts = []
+            if missing:
+                parts.append(f"missing keys: {sorted(missing)}")
+            if extra:
+                parts.append(f"unexpected keys: {sorted(extra)}")
+            raise ValueError(
+                f"Fixed scaling dict keys for dimension "
+                f"'{dim_name}' do not match coordinate labels. "
+                f"{'; '.join(parts)}. "
+                f"Expected: {sorted(coord_labels)}."
+            )
+
+        values = np.array([value_map[str(c)] for c in coords])
+        return xr.DataArray(
+            values,
+            dims=(dim_name,),
+            coords={dim_name: coords},
         )
-        self.scalers["_target"] = target_method(dim=("date", *self.scaling.target.dims))
+
+    def _align_fixed_scale_dataarray(
+        self,
+        data: xr.DataArray,
+        user_scale: xr.DataArray,
+        reduce_dims: tuple[str, ...],
+    ) -> xr.DataArray:
+        """Broadcast a user-supplied scale grid to match reduced data coordinates."""
+        template = data.max(dim=reduce_dims, skipna=True).astype(float)
+        zeros = xr.zeros_like(template, dtype=float)
+        try:
+            aligned = user_scale.astype(float) + zeros
+        except (ValueError, TypeError) as e:
+            raise ValueError(
+                "Could not align fixed scaling DataArray with the data grid after "
+                f"reduction over {reduce_dims!r}. Check dimension names and coordinate "
+                f"labels. Underlying error: {e}"
+            ) from e
+        if np.isnan(np.asarray(aligned.values)).any():
+            raise ValueError(
+                "Fixed scaling DataArray produced NaNs after alignment — coordinates "
+                "likely do not match the data grid on a shared dimension."
+            )
+        if dict(aligned.sizes) != dict(template.sizes):
+            raise ValueError(
+                f"Fixed scaling DataArray has shape {dict(aligned.sizes)} after "
+                f"broadcast; expected {dict(template.sizes)} matching reduced data."
+            )
+        return aligned
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
@@ -1777,8 +1959,11 @@ class MMM(RegressionModelBuilder):
         if var not in self.model.named_vars:
             raise ValueError(f"Variable {var} is not in the model")
 
-    def add_original_scale_contribution_variable(self, var: list[str]) -> None:
-        """Add a pm.Deterministic variable to the model that multiplies by the scaler.
+    def add_original_scale_contribution_variable(
+        self: Self,
+        var: list[str],
+    ) -> Self:
+        """Add a pymc.dims.Deterministic variable to the model that multiplies by the scaler.
 
         Restricted to the model parameters. Only make it possible for "_contribution" variables.
 
@@ -1797,42 +1982,26 @@ class MMM(RegressionModelBuilder):
 
         """
         self._validate_model_was_built()
-        target_dims = self.scalers._target.dims
+        target_scale = self.model["target_scale"]
         with self.model:
             for v in var:
                 self._validate_contribution_variable(v)
-                var_dims = self.model.named_vars_to_dims.get(v, ())
-                mmm_dims_order = ("date", *self.dims)
+                name = f"{v}_original_scale"
+                if name in self.model.named_vars:
+                    warnings.warn(
+                        f"{name} already in the model, skipping.",
+                        stacklevel=2,
+                    )
+                    continue
 
-                if v == "channel_contribution":
-                    mmm_dims_order += ("channel",)
-                elif v == "control_contribution":
-                    mmm_dims_order += ("control",)
-                elif v == "fourier_contribution":
-                    mmm_dims_order += ("fourier_mode",)
-                elif v == "yearly_seasonality_contribution":
-                    pass  # Only has date dim
-                elif v == "intercept_contribution":
-                    pass  # Only has date dim
-
-                deterministic_dims = tuple(
-                    [
-                        dim
-                        for dim in mmm_dims_order
-                        if dim in set(target_dims).union(var_dims)
-                    ]
-                )
-                dim_handler = create_dim_handler(deterministic_dims)
-
-                pm.Deterministic(
-                    name=v + "_original_scale",
-                    var=dim_handler(self.model[v], var_dims)
-                    * dim_handler(
-                        self.model["target_scale"],
-                        target_dims,
+                pmd.Deterministic(
+                    name,
+                    (self.model[v] * target_scale).transpose(
+                        "date", ..., missing_dims="ignore"
                     ),
-                    dims=deterministic_dims,
                 )
+
+        return self
 
     def fit(  # type: ignore[override]
         self,
@@ -1946,236 +2115,153 @@ class MMM(RegressionModelBuilder):
         with pm.Model(
             coords=self.model_coords,
         ) as self.model:
-            _channel_scale = pm.Data(
-                "channel_scale",
-                self.scalers._channel.values,
-                dims=self.scalers._channel.dims,
-            )
-            _target_scale = pm.Data(
-                "target_scale",
-                self.scalers._target,
-                dims=self.scalers._target.dims,
-            )
+            _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
+            _target_scale = pmd.Data("target_scale", self.scalers._target)
 
-            _channel_data = pm.Data(
-                name="channel_data",
-                value=self.xarray_dataset._channel.transpose(
-                    "date", *self.dims, "channel"
-                ).values,
-                dims=("date", *self.dims, "channel"),
-            )
+            _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
 
-            _target = pm.Data(
-                name="target_data",
-                value=(
-                    self.xarray_dataset._target.transpose("date", *self.dims).values
-                ),
-                dims=("date", *self.dims),
-            )
+            _target = pmd.Data("target_data", self.xarray_dataset._target)
 
             # Scale `channel_data` and `target`
-            channel_dim_handler = create_dim_handler(("date", *self.dims, "channel"))
-            channel_data_ = _channel_data / channel_dim_handler(
-                _channel_scale,
-                self.scalers._channel.dims,
+            channel_data_ = _channel_data / _channel_scale
+            channel_data_ = pmd.math.switch(
+                pmd.math.isnan(channel_data_), 0.0, channel_data_
             )
-            channel_data_ = pt.switch(pt.isnan(channel_data_), 0.0, channel_data_)
             channel_data_.name = "channel_data_scaled"
-            channel_data_.dims = ("date", *self.dims, "channel")
 
-            target_dim_handler = create_dim_handler(("date", *self.dims))
-
-            target_data_scaled = _target / target_dim_handler(
-                _target_scale, self.scalers._target.dims
-            )
+            target_data_scaled = _target / _target_scale
             target_data_scaled.name = "target_scaled"
-            target_data_scaled.dims = ("date", *self.dims)
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:
                 mu_effect.create_data(self)
 
-            if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-                time_index = pm.Data(
-                    name="time_index",
-                    value=self._time_index,
-                    dims="date",
-                )
+            if self.time_varying_intercept or self.time_varying_media:
+                time_index = pmd.Data("time_index", self._time_index)
 
             # Add intercept logic
-            if (
-                isinstance(self.time_varying_intercept, bool)
-                and self.time_varying_intercept
-            ):
+            if self.time_varying_intercept:
                 intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline"
+                    "intercept_baseline", xdist=True
                 )
 
-                intercept_latent_process = create_hsgp_from_config(
-                    X=time_index,
-                    dims=("date", *self.dims),
-                    config=self.model_config["intercept_tvp_config"],
-                ).create_variable("intercept_latent_process")
+                if isinstance(self.time_varying_intercept, HSGPBase):
+                    # Register internal time index and build latent process
+                    self.time_varying_intercept.register_data(time_index)
+                    intercept_latent_process = (
+                        self.time_varying_intercept.create_variable(
+                            "intercept_latent_process", xdist=True
+                        )
+                    )
+                else:
+                    intercept_latent_process = create_hsgp_from_config(
+                        X=time_index,
+                        dims=("date", *self.dims),
+                        config=self.model_config["intercept_tvp_config"],
+                    ).create_variable("intercept_latent_process", xdist=True)
 
-                intercept = pm.Deterministic(
-                    name="intercept_contribution",
-                    var=intercept_baseline[None, ...] * intercept_latent_process,
-                    dims=("date", *self.dims),
+                intercept = pmd.Deterministic(
+                    "intercept_contribution",
+                    (intercept_baseline * intercept_latent_process).transpose(
+                        "date", ...
+                    ),
                 )
 
-            elif isinstance(self.time_varying_intercept, HSGPBase):
-                intercept_baseline = self.model_config["intercept"].create_variable(
-                    "intercept_baseline"
-                )
-
-                # Register internal time index and build latent process
-                self.time_varying_intercept.register_data(time_index)
-                intercept_latent_process = self.time_varying_intercept.create_variable(
-                    "intercept_latent_process"
-                )
-
-                intercept = pm.Deterministic(
-                    name="intercept_contribution",
-                    var=intercept_baseline[None, ...] * intercept_latent_process,
-                    dims=("date", *self.dims),
-                )
             else:
                 intercept = self.model_config["intercept"].create_variable(
-                    name="intercept_contribution"
+                    name="intercept_contribution", xdist=True
                 )
 
             # Add media logic
-            if isinstance(self.time_varying_media, bool) and self.time_varying_media:
-                baseline_channel_contribution = pm.Deterministic(
-                    name="baseline_channel_contribution",
-                    var=self.forward_pass(
-                        x=channel_data_, dims=(*self.dims, "channel")
-                    ),
-                    dims=("date", *self.dims, "channel"),
+            if self.time_varying_media:
+                baseline_channel_contribution = pmd.Deterministic(
+                    "baseline_channel_contribution",
+                    (
+                        self.forward_pass(x=channel_data_, dims=(*self.dims, "channel"))
+                    ).transpose("date", ...),
                 )
 
-                media_latent_process = create_hsgp_from_config(
-                    X=time_index,
-                    dims=("date", *self.dims),
-                    config=self.model_config["media_tvp_config"],
-                ).create_variable("media_temporal_latent_multiplier")
-
-                channel_contribution = pm.Deterministic(
-                    name="channel_contribution",
-                    var=baseline_channel_contribution * media_latent_process[..., None],
-                    dims=("date", *self.dims, "channel"),
-                )
-            elif isinstance(self.time_varying_media, HSGPBase):
-                baseline_channel_contribution = self.forward_pass(
-                    x=channel_data_, dims=(*self.dims, "channel")
-                )
-                baseline_channel_contribution.name = "baseline_channel_contribution"
-                baseline_channel_contribution.dims = (
-                    "date",
-                    *self.dims,
-                    "channel",
-                )
-
-                # Register internal time index and build latent process
-                self.time_varying_media.register_data(time_index)
-                media_latent_process = self.time_varying_media.create_variable(
-                    "media_temporal_latent_multiplier"
-                )
-
-                # Determine broadcasting over channel axis
-                media_dims = pm.modelcontext(None).named_vars_to_dims[
-                    media_latent_process.name
-                ]
-                if "channel" in media_dims:
-                    media_broadcast = media_latent_process
+                if isinstance(self.time_varying_media, HSGPBase):
+                    # Register internal time index and build latent process
+                    self.time_varying_media.register_data(time_index)
+                    media_latent_process = self.time_varying_media.create_variable(
+                        "media_temporal_latent_multiplier", xdist=True
+                    )
                 else:
-                    media_broadcast = media_latent_process[..., None]
+                    media_latent_process = create_hsgp_from_config(
+                        X=time_index,
+                        dims=("date", *self.dims),
+                        config=self.model_config["media_tvp_config"],
+                    ).create_variable("media_temporal_latent_multiplier", xdist=True)
 
-                channel_contribution = pm.Deterministic(
-                    name="channel_contribution",
-                    var=baseline_channel_contribution * media_broadcast,
-                    dims=("date", *self.dims, "channel"),
+                channel_contribution = (
+                    baseline_channel_contribution * media_latent_process
                 )
             else:
-                channel_contribution = pm.Deterministic(
-                    name="channel_contribution",
-                    var=self.forward_pass(
-                        x=channel_data_, dims=(*self.dims, "channel")
-                    ),
-                    dims=("date", *self.dims, "channel"),
+                channel_contribution = self.forward_pass(
+                    x=channel_data_, dims=(*self.dims, "channel")
                 )
 
-            dim_handler = create_dim_handler(("date", *self.dims))
-            pm.Deterministic(
-                name="total_media_contribution_original_scale",
-                var=(
-                    channel_contribution.sum(axis=-1)
-                    * dim_handler(_target_scale, self.scalers._target.dims)
-                ).sum(),
-                dims=(),
+            channel_contribution = pmd.Deterministic(
+                "channel_contribution",
+                channel_contribution.transpose("date", ...),
+            )
+
+            pmd.Deterministic(
+                "total_media_contribution_original_scale",
+                (channel_contribution.sum(dim="date") * _target_scale).sum(),
             )
 
             # Add other contributions and likelihood
-            mu_var = intercept + channel_contribution.sum(axis=-1)
+            mu_var = intercept + channel_contribution.sum(dim="channel")
 
             if self.control_columns is not None and len(self.control_columns) > 0:
                 gamma_control = self.model_config["gamma_control"].create_variable(
-                    name="gamma_control"
+                    name="gamma_control", xdist=True
                 )
 
-                control_data_ = pm.Data(
-                    name="control_data",
-                    value=self.xarray_dataset._control.transpose(
-                        "date", *self.dims, "control"
-                    ).values,
-                    dims=("date", *self.dims, "control"),
+                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
+
+                control_contribution = pmd.Deterministic(
+                    "control_contribution",
+                    control_data_ * gamma_control,
                 )
 
-                control_contribution = pm.Deterministic(
-                    name="control_contribution",
-                    var=control_data_ * gamma_control,
-                    dims=("date", *self.dims, "control"),
-                )
-
-                mu_var += control_contribution.sum(axis=-1)
+                mu_var += control_contribution.sum(dim="control")
 
             if self.yearly_seasonality is not None:
-                dayofyear = pm.Data(
-                    name="dayofyear",
-                    value=pd.to_datetime(
-                        self.model_coords["date"]
-                    ).dayofyear.to_numpy(),
+                dayofyear = pmd.Data(
+                    "dayofyear",
+                    pd.to_datetime(self.model_coords["date"]).dayofyear.to_numpy(),
                     dims="date",
                 )
 
-                def create_deterministic(x: pt.TensorVariable) -> None:
-                    pm.Deterministic(
-                        "fourier_contribution",
-                        x,
-                        dims=("date", *self.yearly_fourier.prior.dims),
-                    )
-
-                yearly_seasonality_contribution = pm.Deterministic(
-                    name="yearly_seasonality_contribution",
-                    var=self.yearly_fourier.apply(
-                        dayofyear, result_callback=create_deterministic
+                # Fourier doesn't work with XTensorVariable / DataArray dayofyear yet
+                fourier_dim = self.yearly_fourier.prefix
+                fourier_contributions = pmd.Deterministic(
+                    "fourier_contribution",
+                    self.yearly_fourier.apply(dayofyear, sum=False).transpose(
+                        "date", ..., fourier_dim
                     ),
-                    dims=("date", *self.dims),
                 )
+
+                yearly_seasonality_contribution = pmd.Deterministic(
+                    "yearly_seasonality_contribution",
+                    fourier_contributions.sum(dim=fourier_dim),
+                )
+
                 mu_var += yearly_seasonality_contribution
 
             for mu_effect in self.mu_effects:
                 mu_var += mu_effect.create_effect(self)
 
             mu_var.name = "mu"
-            mu_var.dims = ("date", *self.dims)
-
-            self.model_config["likelihood"].dims = ("date", *self.dims)
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
                 observed=target_data_scaled,
+                xdist=True,
             )
 
     def _validate_date_overlap_with_include_last_observations(
@@ -2300,28 +2386,31 @@ class MMM(RegressionModelBuilder):
             ).to_dataset()
 
         dataarrays.append(y_xarray)
-        return xr.merge(dataarrays, join="outer", compat="no_conflicts").fillna(0)
+        result = xr.merge(dataarrays, join="outer", compat="no_conflicts").fillna(0)
+        return self._reindex_dataset_to_user_order(result)
 
     def _set_xarray_data(
         self,
         dataset_xarray: xr.Dataset,
+        *,
+        model: pm.Model,
         clone_model: bool = True,
     ) -> pm.Model:
-        """Set xarray data into the model.
+        """Set xarray data into the model (inplace).
 
         Parameters
         ----------
         dataset_xarray : xr.Dataset
             Input data for channels and other variables.
-        clone_model : bool, optional
-            Whether to clone the model. Defaults to True.
+        model : pm.Model
+            The model to set data on.
+            If you don't want to mutate the original model, call model.copy() before passing it.
 
         Returns
         -------
-        None
+        pm.Model
+            The model with updated data.
         """
-        model = cm(self.model) if clone_model else self.model
-
         # Get channel data and handle dtype conversion
         channel_values = dataset_xarray._channel.transpose(
             "date", *self.dims, "channel"
@@ -2363,12 +2452,7 @@ class MMM(RegressionModelBuilder):
             else:
                 data["target_data"] = target_values
 
-        self.new_updated_data = data
-        self.new_updated_coords = coords
-        self.new_updated_model = model
-
-        with model:
-            pm.set_data(data, coords=coords)
+        pm.set_data(data, coords=coords, model=model)
 
         return model
 
@@ -2414,25 +2498,35 @@ class MMM(RegressionModelBuilder):
             X=X,
             include_last_observations=include_last_observations,
         )
+        if names := self.frozen_deterministics:
+            # This always clone
+            model = deterministics_to_flat(self.model, names=names)
+        elif clone_model:
+            model = self.model.copy()
         model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
-            clone_model=clone_model,
+            model=model,
         )
 
         for mu_effect in self.mu_effects:
             mu_effect.set_data(self, model, dataset_xarray)
 
-        with model:
-            # Sample from posterior predictive
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, **sample_posterior_predictive_kwargs
-            )
+        # Sample from posterior predictive
+        post_pred = pm.sample_posterior_predictive(
+            self.idata,
+            model=model,
+            **sample_posterior_predictive_kwargs,
+        )
 
-            if extend_idata and self.idata is not None:
-                self.idata.add_groups(
-                    posterior_predictive=post_pred.posterior_predictive,
-                    posterior_predictive_constant_data=post_pred.constant_data,
-                )  # type: ignore
+        if extend_idata and self.idata is not None:
+            if hasattr(self.idata, "posterior_predictive"):
+                del self.idata.posterior_predictive
+            if hasattr(self.idata, "posterior_predictive_constant_data"):
+                del self.idata.posterior_predictive_constant_data
+            self.idata.add_groups(
+                posterior_predictive=post_pred.posterior_predictive,
+                posterior_predictive_constant_data=post_pred.constant_data,
+            )
 
         group = "posterior_predictive"
         posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
@@ -2445,7 +2539,7 @@ class MMM(RegressionModelBuilder):
 
         return posterior_predictive_samples
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_saturation_curve(
         self,
         max_value: float = Field(
@@ -2506,13 +2600,15 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled saturation curves with dimensions:
-            - Simple model: (x, channel, sample)
-            - Panel model: (x, *custom_dims, channel, sample)
+            - Simple model: (chain, draw, x, channel)
+            - Panel model: (chain, draw, x, *custom_dims, channel)
 
-            The "sample" dimension indexes the posterior samples used.
-            The "x" coordinate represents spend levels in scaled space (consistent
-            with max_value). Y-values are in original scale when original_scale=True,
-            otherwise in scaled space.
+            When subsampling (``num_samples`` < total posterior draws), the
+            ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
+            When all samples are used, the original chain/draw structure from
+            the posterior is preserved. The "x" coordinate represents spend
+            levels in scaled space (consistent with max_value). Y-values are
+            in original scale when original_scale=True, otherwise in scaled space.
 
         Raises
         ------
@@ -2526,8 +2622,8 @@ class MMM(RegressionModelBuilder):
         Sample curves with default parameters (original scale):
 
         >>> curves = mmm.sample_saturation_curve()
-        >>> curves.dims
-        ('sample', 'x', 'channel')
+        >>> set(curves.dims) >= {"chain", "draw", "x"}
+        True
 
         Sample curves using all posterior samples:
 
@@ -2558,9 +2654,10 @@ class MMM(RegressionModelBuilder):
           the model operates internally. This matches the pattern of other MMM methods.
         - For panel models, curves are generated for each combination of custom
           dimensions (e.g., each country) and channel.
-        - The returned array includes a "sample" dimension for uncertainty
-          quantification. Use `.mean(dim='sample')` for point estimates and
-          `.quantile()` for credible intervals.
+        - The returned array includes "chain" and "draw" dimensions for
+          uncertainty quantification, consistent with the ArviZ convention.
+          Use ``.mean(dim=["chain", "draw"])`` for point estimates and
+          ``.quantile()`` for credible intervals.
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples, otherwise all samples are used.
         """
@@ -2588,9 +2685,6 @@ class MMM(RegressionModelBuilder):
             num_points=num_points,
         )
 
-        # Flatten chain and draw dimensions to sample dimension
-        curve = curve.stack(sample=("chain", "draw"))
-
         # Convert to original scale if requested
         if original_scale:
             # Scale y values (contribution) to original target units
@@ -2603,7 +2697,7 @@ class MMM(RegressionModelBuilder):
 
         return curve
 
-    @validate_call(config={"arbitrary_types_allowed": True})
+    @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_adstock_curve(
         self,
         amount: float = Field(
@@ -2649,10 +2743,12 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled adstock curves with dimensions:
-            - Simple model: (time since exposure, channel, sample)
-            - Panel model: (time since exposure, *custom_dims, channel, sample)
+            - Simple model: (chain, draw, time since exposure, channel)
+            - Panel model: (chain, draw, time since exposure, *custom_dims, channel)
 
-            The "sample" dimension indexes the posterior samples used.
+            When subsampling (``num_samples`` < total posterior draws), the
+            ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
+            When all samples are used, the original chain/draw structure is preserved.
             The "time since exposure" coordinate represents time periods from 0
             to l_max (the maximum lag for the adstock transformation).
 
@@ -2668,8 +2764,8 @@ class MMM(RegressionModelBuilder):
         Sample curves with default parameters:
 
         >>> curves = mmm.sample_adstock_curve()
-        >>> curves.dims
-        ('sample', 'time since exposure', 'channel')
+        >>> set(curves.dims) >= {"chain", "draw", "time since exposure"}
+        True
 
         Sample curves using all posterior samples:
 
@@ -2693,9 +2789,10 @@ class MMM(RegressionModelBuilder):
           diminishing returns.
         - For panel models, curves are generated for each combination of custom
           dimensions (e.g., each country) and channel.
-        - The returned array includes a "sample" dimension for uncertainty
-          quantification. Use `.mean(dim='sample')` for point estimates and
-          `.quantile()` for credible intervals.
+        - The returned array includes "chain" and "draw" dimensions for
+          uncertainty quantification, consistent with the ArviZ convention.
+          Use ``.mean(dim=["chain", "draw"])`` for point estimates and
+          ``.quantile()`` for credible intervals.
         - Posterior samples are drawn randomly without replacement when num_samples
           is less than the total available samples.
         """
@@ -2721,9 +2818,6 @@ class MMM(RegressionModelBuilder):
             parameters=parameters,
             amount=amount,
         )
-
-        # Flatten chain and draw dimensions to sample dimension
-        curve = curve.stack(sample=("chain", "draw"))
 
         return curve
 
@@ -2752,7 +2846,9 @@ class MMM(RegressionModelBuilder):
         """
         # Provide the underlying PyMC model, the model's inference data, and dims
         return SensitivityAnalysis(
-            pymc_model=self.model, idata=self.idata, dims=self.dims
+            pymc_model=self.model,
+            idata=self.idata,
+            dims=self.dims,
         )
 
     @property
@@ -2874,11 +2970,11 @@ class MMM(RegressionModelBuilder):
         return target_transform
 
     def add_lift_test_measurements(
-        self,
+        self: Self,
         df_lift_test: pd.DataFrame,
-        dist: type[pm.Distribution] = pm.Gamma,
+        dist: type[pmd.DimDistribution] = pmd.Gamma,
         name: str = "lift_measurements",
-    ) -> None:
+    ) -> Self:
         """Add lift tests to the model.
 
         The model for the difference of a channel's saturation curve is created
@@ -2907,8 +3003,8 @@ class MMM(RegressionModelBuilder):
                 * `delta_x`: change in x axis value of the lift test.
                 * `delta_y`: change in y axis value of the lift test.
                 * `sigma`: standard deviation of the lift test.
-        dist : pm.Distribution, optional
-            The distribution to use for the likelihood, by default pm.Gamma
+        dist : pymc.dims.DimDistribution, optional
+            The distribution to use for the likelihood, by default pymc.dims.Gamma
         name : str, optional
             The name of the likelihood of the lift test contribution(s),
             by default "lift_measurements". Name change required if calling
@@ -3018,19 +3114,21 @@ class MMM(RegressionModelBuilder):
             name=name,
         )
 
+        return self
+
     def add_cost_per_target_calibration(
-        self,
+        self: Self,
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
-    ) -> None:
-        """Calibrate cost-per-target using constraints via ``pm.Potential``.
+    ) -> Self:
+        """Calibrate cost-per-target using an observed Normal likelihood.
 
-        This adds a deterministic ``cpt_variable_name`` computed as
-        ``channel_data_spend / channel_contribution_original_scale`` and creates
-        per-row penalty terms based on ``calibration_data`` using a quadratic penalty:
+        This computes cost-per-target as
+        ``mean(spend) / mean(contribution)`` over the date dimension and adds
+        an observed ``Normal`` likelihood for each calibration row:
 
-        ``penalty = - |cpt_mean - target|^2 / (2 * sigma^2)``.
+        ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
 
         Parameters
         ----------
@@ -3078,6 +3176,16 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
 
+        # Check for existing potentials with the same name_prefix
+        if name_prefix in self.model.named_vars:
+            warnings.warn(
+                f"Cost-per-target potentials with name '{name_prefix}' already exist. "
+                "Skipping to avoid duplicates.",
+                UserWarning,
+                stacklevel=2,
+            )
+            return self
+
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
             raise KeyError("'channel' column missing in calibration_data")
@@ -3086,6 +3194,8 @@ class MMM(RegressionModelBuilder):
                 raise KeyError(
                     f"The {dim} column is required in calibration_data to map to model dims."
                 )
+
+        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
 
         # Prepare spend data as xarray (original units)
         spend_ds = (
@@ -3096,27 +3206,14 @@ class MMM(RegressionModelBuilder):
                 metric_list=self.channel_columns,
                 metric_coordinate_name="channel",
             )
-            .transpose("date", *self.dims, "channel")
+            .transpose(*channel_data_dims)
             .fillna(0)
         )
 
-        spend_array = spend_ds._channel
-        # Compute expected shape from the model
-        channel_data_dims = self.model.named_vars_to_dims["channel_data"]
-        expected_shape = tuple(len(self.model.coords[dim]) for dim in channel_data_dims)
-
-        # Align spend array to the models dim order
-        spend_aligned = spend_array.transpose(*channel_data_dims)
-
-        # Now the check will fail when a coord (e.g., a country) is missing
-        if spend_aligned.shape != expected_shape:
-            raise ValueError(
-                "Spend data shape does not match channel data dims in the model: "
-                f"expected {expected_shape}, got {spend_aligned.shape}"
-            )
+        spend_xarray = spend_ds._channel
 
         for dim in channel_data_dims:
-            spend_labels = np.asarray(spend_aligned.coords[dim].values)
+            spend_labels = np.asarray(spend_xarray.coords[dim].values)
             model_labels = np.asarray(self.model.coords[dim])
             if not np.array_equal(spend_labels, model_labels):
                 raise ValueError(
@@ -3124,10 +3221,7 @@ class MMM(RegressionModelBuilder):
                     f"expected {model_labels.tolist()}, got {spend_labels.tolist()}"
                 )
 
-        spend_tensor = pt.as_tensor_variable(spend_aligned.values)
-
         with self.model:
-            # Ensure original-scale contribution exists
             if "channel_contribution_original_scale" not in self.model.named_vars:
                 raise ValueError(
                     "`channel_contribution_original_scale` is not in the model."
@@ -3135,17 +3229,15 @@ class MMM(RegressionModelBuilder):
                     "`add_original_scale_contribution_variable` before adding the cost-per-target calibration."
                 )
 
-            denom = pt.clip(
-                self.model["channel_contribution_original_scale"], 1e-12, np.inf
-            )
-            cpt_tensor = spend_tensor / denom
-
-        add_cost_per_target_potentials(
+        add_cost_per_target_observations(
             calibration_df=calibration_data,
             model=self.model,
-            cpt_value=cpt_tensor,
+            cost_value=as_xtensor(spend_xarray),
+            target_value=self.model["channel_contribution_original_scale"],
             name_prefix=name_prefix,
         )
+
+        return self
 
     def create_fit_data(
         self,
@@ -3290,18 +3382,13 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
-        # Restore mu_effects from idata attrs if present
         if "mu_effects" in idata.attrs:
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
-            self.mu_effects = []
-            for effect_data in mu_effects_data:
-                try:
-                    effect = _deserialize_mu_effect(effect_data)
-                    self.mu_effects.append(effect)
-                except Exception as e:
-                    # Log warning but continue - don't fail the load for unsupported effects
-                    # Catches ValueError, KeyError, AttributeError, pydantic.ValidationError, etc.
-                    warnings.warn(f"Could not deserialize mu_effect: {e}", stacklevel=2)
+            ctx = DeserializationContext(idata=idata)
+            self.mu_effects = [
+                serialization.deserialize(effect_data, context=ctx)
+                for effect_data in mu_effects_data
+            ]
 
         dataset = idata.fit_data.to_dataframe()
 
@@ -3314,6 +3401,33 @@ class MMM(RegressionModelBuilder):
         y = dataset[self.target_column]
 
         self.build_model(X, y)  # type: ignore
+
+        # Re-add any *_original_scale Deterministics that were present when the
+        # model was saved.  These are added by add_original_scale_contribution_variable
+        # but the PyMC model graph is not serialized, so build_model does not know
+        # to recreate them.
+        #
+        # Primary path  : read the explicit list stored by save() in idata.attrs.
+        # Fallback path : infer from idata.posterior for models saved before this
+        #                 fix (original_scale_vars attr absent).
+        suffix = "_original_scale"
+        if "original_scale_vars" in idata.attrs:
+            vars_to_restore = [
+                v
+                for v in json.loads(idata.attrs["original_scale_vars"])
+                if v in self.model.named_vars
+            ]
+        elif hasattr(idata, "posterior"):
+            vars_to_restore = [
+                v[: -len(suffix)]
+                for v in idata.posterior.data_vars
+                if v.endswith(suffix) and v[: -len(suffix)] in self.model.named_vars
+            ]
+        else:
+            vars_to_restore = []
+
+        if vars_to_restore:
+            self.add_original_scale_contribution_variable(var=vars_to_restore)
 
     def set_cost_per_unit(
         self,
@@ -3426,9 +3540,12 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             model=self.model_class,
             start_date=start_date,
             end_date=end_date,
-            include_carryover=False,
+            include_carryover=True,
         )
-        self.num_periods = len(self.zero_data[self.model_class.date_column].unique())
+        self.num_periods = (
+            len(self.zero_data[self.model_class.date_column].unique())
+            - self.adstock.l_max
+        )
         self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
@@ -3459,7 +3576,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Use the model's method to set data
         pymc_model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
-            clone_model=True,  # Ensure we work on a clone
+            model=self.model.copy(),
         )
 
         # Use the model's mu_effects and set data using the model instance
@@ -3514,7 +3631,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_bounds: xr.DataArray | None = None,
         response_variable: str = "total_media_contribution_original_scale",
         utility_function: UtilityFunctionType = average_response,
-        constraints: Sequence[dict[str, Any]] = (),
+        constraints: Sequence[Constraint] = (),
         default_constraints: bool = True,
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
@@ -3537,16 +3654,23 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Response variable to optimize.
         utility_function : UtilityFunctionType
             Utility function to maximize.
-        constraints : Sequence[dict[str, Any]]
-            Custom constraints for the optimizer.
+        constraints : Sequence[Constraint]
+            Custom constraints for the optimizer. Each element must be an instance of
+            :class:`~pymc_marketing.mmm.constraints.Constraint`.
         default_constraints : bool
             Whether to add default constraints.
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
         budget_distribution_over_period : xr.DataArray | None
-            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
-            where date dimension has length num_periods. Values along date dimension should sum to 1 for
-            each combination of other dimensions. If None, budget is distributed evenly across periods.
+            Fixed temporal distribution of each budget cell across periods.
+            Must have dims ``("date", *budget_dims)`` where ``"date"``
+            has length ``num_periods``. Values must sum to 1 along
+            ``"date"`` for every combination of the remaining dims
+            (i.e., ``budget_distribution_over_period.sum(dim="date")``
+            must be all ones). Each value is the fraction of that
+            cell's total budget assigned to the corresponding period.
+            If None, budget is distributed uniformly
+            (``1 / num_periods`` per period).
         cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
             Cost per unit conversion factors for the **optimization period**.
             Converts budgets from monetary units (e.g., dollars) to the
@@ -3772,7 +3896,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Parameters
         ----------
-        allocation_strategy : DataArray
+        allocation_strategy : xr.DataArray
             The allocation strategy for the channels.
         noise_level : float
             The relative level of noise to add to the data allocation.
@@ -3783,9 +3907,14 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         include_carryover : bool
             Whether to include carryover effects.
         budget_distribution_over_period : xr.DataArray | None
-            Distribution factors for budget allocation over time. Should have dims ("date", *budget_dims)
-            where date dimension has length num_periods. Values along date dimension should sum to 1 for
-            each combination of other dimensions. If provided, multiplies the noise values by this distribution.
+            Fixed temporal distribution of each budget cell across periods.
+            Must have dims ``("date", *budget_dims)`` where ``"date"``
+            has length ``num_periods``. Values must sum to 1 along
+            ``"date"`` for every combination of the remaining dims
+            (i.e., ``budget_distribution_over_period.sum(dim="date")``
+            must be all ones). If provided, multiplies the allocation
+            by this distribution to create the per-period spending
+            pattern.
 
         Returns
         -------

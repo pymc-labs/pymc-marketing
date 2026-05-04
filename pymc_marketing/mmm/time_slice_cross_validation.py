@@ -19,9 +19,10 @@ The validator does not retain a fitted MMM instance; models may be
 constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
+import copy
 from collections.abc import Generator
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, overload
 
 import arviz as az
 import numpy as np
@@ -30,7 +31,7 @@ import xarray as xr
 from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
-from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.types import MMMBuilder
 
 
@@ -58,6 +59,7 @@ class TimeSliceCrossValidationResult:
     X_test: pd.DataFrame
     y_test: pd.Series
     idata: az.InferenceData
+    mmm: MMMBuilder | None = None
 
 
 class TimeSliceCrossValidator:
@@ -101,7 +103,7 @@ class TimeSliceCrossValidator:
     See Also
     --------
     pymc_marketing.mmm.MMM : The Media Mix Model class.
-    pymc_marketing.mmm.plot.MMMPlotSuite : Plotting utilities for CV results.
+    pymc_marketing.mmm.plotting.cv.MMMCVPlotSuite : Plotting utilities for CV results.
 
     Notes
     -----
@@ -122,6 +124,16 @@ class TimeSliceCrossValidator:
     ...     step_size=5,
     ... )
     >>> combined_idata = cv.run(X, y, yaml_path="model_config.yml")
+
+    Passing an MMM instance directly (``build_model`` is called in-place
+    per fold, each fold receives a deep copy):
+
+    >>> cv = TimeSliceCrossValidator(
+    ...     n_init=100,
+    ...     forecast_horizon=10,
+    ...     date_column="date",
+    ... )
+    >>> combined_idata = cv.run(X, y, mmm=mmm)
 
     With custom sampler configuration:
 
@@ -163,18 +175,21 @@ class TimeSliceCrossValidator:
         self.sampler_config = sampler_config
 
     @property
-    def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+    def plot(self) -> MMMCVPlotSuite:
+        """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
-        self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        if not hasattr(self, "cv_idata"):
+            raise ValueError(
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() completed successfully."
+            )
+        return MMMCVPlotSuite(self.cv_idata)
 
     def _validate_model_was_built(self) -> None:
         """Validate that at least one CV run has produced results.
 
         Ensures `self._cv_results` exists and is non-empty. If an
         InferenceData is present on the last result, expose it as
-        `self.idata` for compatibility with the MMMPlotSuite API.
+        `self.idata` for backward compatibility.
         """
         if not hasattr(self, "_cv_results") or not self._cv_results:
             raise ValueError(
@@ -182,15 +197,8 @@ class TimeSliceCrossValidator:
             )
         last_result = self._cv_results[-1]
         if hasattr(last_result, "idata") and last_result.idata is not None:
-            # make idata accessible for plotting helpers
+            # make idata accessible for compatibility
             self.idata = last_result.idata
-
-    def _validate_idata_exists(self) -> None:
-        """Validate that `self.idata` is present and not None."""
-        if not hasattr(self, "idata") or self.idata is None:
-            raise ValueError(
-                "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
-            )
 
     def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
         """Build a cv_metadata Dataset that stores per-fold metadata.
@@ -318,7 +326,7 @@ class TimeSliceCrossValidator:
                 cv_idata = az.InferenceData(**combined_kwargs)
                 # persist for plot helpers
                 self.cv_idata = cv_idata
-        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
+        # Also expose the last fold's idata (if any) for compatibility
         if results:
             last = results[-1]
             if hasattr(last, "idata") and last.idata is not None:
@@ -365,11 +373,72 @@ class TimeSliceCrossValidator:
             # Set the sampler config on the model prior to fitting
             mmm.sampler_config = effective_sampler_config
 
-        _ = mmm.fit(
-            X,
-            y,
-            progressbar=True,
-        )
+        _ = mmm.fit(X, y)
+        return mmm
+
+    def _prepare_fold_model(
+        self,
+        mmm: Any,
+        X_train: pd.DataFrame,
+        original_scale_vars: list[str] | None = None,
+        df_lift_test: pd.DataFrame | None = None,
+        lift_test_date_column: str | None = None,
+    ) -> Any:
+        """Prepare a fold-local MMM before fitting.
+
+        Parameters
+        ----------
+        mmm : object
+            Fold-local MMM instance.
+        X_train : pd.DataFrame
+            Training feature matrix for this fold.
+        original_scale_vars : list[str], optional
+            Contribution variables to register in original scale via
+            ``add_original_scale_contribution_variable`` before fitting.
+        df_lift_test : pd.DataFrame, optional
+            Lift test measurements. If provided, they are filtered to
+            observations available up to the end of the training window.
+        lift_test_date_column : str, optional
+            Date column in ``df_lift_test`` used for leakage-safe filtering.
+
+        Returns
+        -------
+        object
+            Prepared MMM instance.
+
+        Raises
+        ------
+        ValueError
+            If lift tests are provided without a date column configuration,
+            if the date column is missing from ``df_lift_test``, or if no
+            fold-eligible lift rows remain after filtering.
+        """
+        if original_scale_vars is not None:
+            mmm.add_original_scale_contribution_variable(var=original_scale_vars)
+
+        if df_lift_test is not None:
+            if lift_test_date_column is None:
+                raise ValueError(
+                    "`lift_test_date_column` is required when `df_lift_test` is provided."
+                )
+            if lift_test_date_column not in df_lift_test.columns:
+                raise ValueError(
+                    f"`lift_test_date_column` ('{lift_test_date_column}') "
+                    "must be a column in `df_lift_test`."
+                )
+
+            train_end = pd.to_datetime(X_train[self.date_column]).max()
+            lift_dates = pd.to_datetime(df_lift_test[lift_test_date_column])
+            fold_lift_df = df_lift_test.loc[lift_dates <= train_end].copy()
+
+            if fold_lift_df.empty:
+                raise ValueError(
+                    "No lift test rows available for the fold after filtering by "
+                    f"`{lift_test_date_column}` <= train end ({train_end})."
+                )
+
+            mmm.add_lift_test_measurements(df_lift_test=fold_lift_df)
+
         return mmm
 
     def _time_slice_step(
@@ -526,6 +595,36 @@ class TimeSliceCrossValidator:
 
             yield train_idx, test_idx
 
+    @overload
+    def run(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sampler_config: dict[str, Any] | None = ...,
+        yaml_path: str | None = ...,
+        mmm: MMMBuilder | None = ...,
+        model_names: list[str] | None = ...,
+        original_scale_vars: list[str] | None = ...,
+        df_lift_test: pd.DataFrame | None = ...,
+        lift_test_date_column: str | None = ...,
+        return_models: Literal[False] = ...,
+    ) -> az.InferenceData: ...
+
+    @overload
+    def run(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+        sampler_config: dict[str, Any] | None = ...,
+        yaml_path: str | None = ...,
+        mmm: MMMBuilder | None = ...,
+        model_names: list[str] | None = ...,
+        original_scale_vars: list[str] | None = ...,
+        df_lift_test: pd.DataFrame | None = ...,
+        lift_test_date_column: str | None = ...,
+        return_models: Literal[True] = ...,
+    ) -> tuple[az.InferenceData, list[MMMBuilder]]: ...
+
     def run(
         self,
         X: pd.DataFrame,
@@ -534,7 +633,11 @@ class TimeSliceCrossValidator:
         yaml_path: str | None = None,
         mmm: MMMBuilder | None = None,
         model_names: list[str] | None = None,
-    ) -> az.InferenceData:
+        original_scale_vars: list[str] | None = None,
+        df_lift_test: pd.DataFrame | None = None,
+        lift_test_date_column: str | None = None,
+        return_models: bool = False,
+    ) -> az.InferenceData | tuple[az.InferenceData, list[MMMBuilder]]:
         """Run the complete time-slice cross-validation loop.
 
         Executes cross-validation by iterating through all folds, fitting a model
@@ -555,20 +658,43 @@ class TimeSliceCrossValidator:
             Path to a YAML configuration file for building the MMM model per fold.
             Mutually exclusive with ``mmm``.
         mmm : object, optional
-            An object with a ``build_model(X, y)`` method that returns a fitted
-            MMM instance. Mutually exclusive with ``yaml_path``.
+            An MMM instance or a builder/factory object with a
+            ``build_model(X, y)`` method.  If ``build_model`` returns a new
+            model object (factory pattern), that object is used for the fold.
+            If it returns ``None`` (in-place pattern, as with the library's
+            ``MMM`` class), the instance itself is used after deep-copying.
+            Mutually exclusive with ``yaml_path``.
         model_names : list of str, optional
             Names to assign to each CV fold in the combined InferenceData.
             If provided, length must match the number of splits. If not provided,
             names are generated from each model's ``_model_name`` attribute or
             as ``'Iteration {i}'``.
+        original_scale_vars : list of str, optional
+            Contribution variables to register with
+            ``add_original_scale_contribution_variable(var=...)`` on each
+            fold-local model after build and before fit.
+        df_lift_test : pd.DataFrame, optional
+            Lift-test measurements to apply on each fold-local model.
+            Rows are filtered leakage-safely per fold using
+            ``lift_test_date_column`` and the fold training end date.
+        lift_test_date_column : str, optional
+            Name of the date column in ``df_lift_test``. Required when
+            ``df_lift_test`` is provided.
+        return_models : bool, optional
+            If ``True``, return the fitted MMM instances for each fold
+            alongside the combined InferenceData. Default is ``False``.
 
         Returns
         -------
         arviz.InferenceData
             Combined InferenceData where each fold is concatenated along a new
             coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
-            train/test data.
+            train/test data. Returned when ``return_models`` is ``False``
+            (the default).
+        tuple[arviz.InferenceData, list[MMMBuilder]]
+            A tuple of the combined InferenceData and a list of fitted MMM
+            instances (one per fold). Returned when ``return_models`` is
+            ``True``.
 
         Raises
         ------
@@ -596,12 +722,42 @@ class TimeSliceCrossValidator:
         ... )
         >>> combined_idata = cv.run(X, y, yaml_path="model_config.yml")
 
+        Using an MMM instance directly:
+
+        >>> cv = TimeSliceCrossValidator(
+        ...     n_init=100, forecast_horizon=10, date_column="date"
+        ... )
+        >>> combined_idata = cv.run(
+        ...     X,
+        ...     y,
+        ...     mmm=mmm,
+        ...     original_scale_vars=[
+        ...         "channel_contribution",
+        ...         "fourier_contribution",
+        ...         "intercept_contribution",
+        ...     ],
+        ... )
+
+        Using leakage-safe lift tests in CV:
+
+        >>> combined_idata = cv.run(
+        ...     X,
+        ...     y,
+        ...     mmm=mmm,
+        ...     df_lift_test=df_lift_test,
+        ...     lift_test_date_column="date",
+        ... )
+
         Using a model builder object:
 
         >>> cv = TimeSliceCrossValidator(
         ...     n_init=100, forecast_horizon=10, date_column="date"
         ... )
         >>> combined_idata = cv.run(X, y, mmm=mmm_builder)
+
+        Returning fitted models alongside the combined InferenceData:
+
+        >>> combined_idata, models = cv.run(X, y, mmm=mmm, return_models=True)
         """
         # Upfront validation of model_names length
         n_splits = self.get_n_splits(X, y)
@@ -621,17 +777,31 @@ class TimeSliceCrossValidator:
             X_test, y_test = X.iloc[test_idx], y.iloc[test_idx]
 
             # Optionally (re)build the model from yaml using the training fold
+            fold_mmm: Any
             if yaml_path is not None:
                 fold_mmm = build_mmm_from_yaml(
                     config_path=yaml_path, X=X_train, y=y_train
                 )
             elif mmm is not None:
-                # use provided mmm instance (do not store it on self)
-                fold_mmm = mmm.build_model(X_train, y_train)
+                # Deep-copy so fitted state does not leak between folds.
+                fold_mmm = copy.deepcopy(mmm)
+                built = fold_mmm.build_model(X_train, y_train)
+                # If build_model returns a new object (builder/factory pattern),
+                # use it; otherwise the model was built in-place (MMM pattern).
+                if built is not None:
+                    fold_mmm = built
             else:
                 raise ValueError(
                     "Either provide an `mmm` instance to run(...) or a `yaml_path` to build the model per-fold."
                 )
+
+            fold_mmm = self._prepare_fold_model(
+                fold_mmm,
+                X_train=X_train,
+                original_scale_vars=original_scale_vars,
+                df_lift_test=df_lift_test,
+                lift_test_date_column=lift_test_date_column,
+            )
 
             # determine name for this fold
             if user_model_names is not None:
@@ -658,6 +828,8 @@ class TimeSliceCrossValidator:
                 y_test,
                 sampler_config=sampler_config,
             )
+            if return_models:
+                result.mmm = fold_mmm
             results.append(result)
         # Persist results on the instance so plotting helpers can access them
         self._cv_results = results
@@ -665,5 +837,9 @@ class TimeSliceCrossValidator:
         # datasets along a new coordinate named 'cv' where each label is the
         # fold name determined above.
         cv_idata = self._combine_idata(results, model_name_labels)
+
+        if return_models:
+            models = [r.mmm for r in results]
+            return cv_idata, models
 
         return cv_idata

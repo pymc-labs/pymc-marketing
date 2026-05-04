@@ -13,13 +13,23 @@
 #   limitations under the License.
 """Class to store and validate keyword argument for the Hilbert Space Gaussian Process (HSGP) components."""
 
-from typing import Annotated
+from enum import StrEnum
+from typing import Annotated, Any
 
-import pymc as pm
-from pydantic import BaseModel, Field, InstanceOf
-from pymc_extras.deserialize import register_deserialization
+from pydantic import BaseModel, Field
+
+from pymc_marketing.serialization import serialization
 
 
+class CovFunc(StrEnum):
+    """Supported covariance functions for the HSGP model."""
+
+    ExpQuad = "expquad"
+    Matern52 = "matern52"
+    Matern32 = "matern32"
+
+
+@serialization.register
 class HSGPKwargs(BaseModel):
     """HSGP keyword arguments for the time-varying prior.
 
@@ -51,8 +61,9 @@ class HSGPKwargs(BaseModel):
         Mean of the inverse gamma prior for the lengthscale. Default is 5.
     ls_sigma : float
         Standard deviation of the inverse gamma prior for the lengthscale. Default is 5.
-    cov_func : ~pymc.gp.cov.Covariance, optional
-        Gaussian process Covariance function. By default it is None.
+    cov_func : CovFunc, optional
+        Covariance function enum. Supported values: ``ExpQuad``, ``Matern52``, ``Matern32``.
+        By default it is None (resolved to ``Matern52`` at model-build time).
     """  # noqa E501
 
     m: int = Field(200, description="Number of basis functions")
@@ -69,32 +80,25 @@ class HSGPKwargs(BaseModel):
         ]
         | None
     ) = None
-    eta_lam: float = Field(1, gt=0, description="Exponential prior for the variance")
+    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance")
     ls_mu: float = Field(
-        5, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
+        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
     )
     ls_sigma: float = Field(
-        5,
+        5.0,
         gt=0,
         description="Standard deviation of the inverse gamma prior for the lengthscale",
     )
-    cov_func: InstanceOf[pm.gp.cov.Covariance] | str | None = Field(
-        None, description="Gaussian process Covariance function"
+    cov_func: CovFunc | None = Field(
+        None, description="Covariance function enum (ExpQuad, Matern52, Matern32)"
     )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        return self.model_dump(mode="json")
 
-def _is_hsgp_kwargs(data) -> bool:
-    return isinstance(data, dict) and data.keys() == {
-        "m",
-        "L",
-        "eta_lam",
-        "ls_mu",
-        "ls_sigma",
-        "cov_func",
-    }
-
-
-register_deserialization(
-    is_type=_is_hsgp_kwargs,
-    deserialize=lambda data: HSGPKwargs.model_validate(data),
-)
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "HSGPKwargs":
+        """Reconstruct from a dict."""
+        filtered = {k: v for k, v in data.items() if k != "__type__"}
+        return cls.model_validate(filtered)

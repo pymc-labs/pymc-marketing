@@ -1,0 +1,24 @@
+# effects accidentally indented under model (should be top-level)
+model:
+  class: pymc_marketing.mmm.multidimensional.MMM
+  kwargs:
+    date_column: "date"
+    channel_columns:
+      - channel_1
+      - channel_2
+    target_column: "y"
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 4}
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs: {}
+  effects:
+    - class: pymc_marketing.mmm.additive_effect.LinearTrendEffect
+      kwargs:
+        trend:
+          class: pymc_marketing.mmm.LinearTrend
+          kwargs:
+            n_changepoints: 2
+            include_intercept: false
+        prefix: "trend"

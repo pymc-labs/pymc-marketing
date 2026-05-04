@@ -48,15 +48,16 @@ def test_sample_saturation_curve_has_correct_dims(fitted_mmm, request):
 
     Note: The dimensions depend on how the saturation transformation's
     priors are configured. With default priors without channel dims,
-    the output will be (x, sample). With channel-specific priors,
+    the output will be (chain, draw, x). With channel-specific priors,
     it would include a channel dimension.
     """
     mmm = request.getfixturevalue(fitted_mmm)
     # Act
     curves = mmm.sample_saturation_curve(num_points=100)
 
-    # Assert - should have sample and x dims at minimum
-    assert "sample" in curves.dims
+    # Assert - should have chain, draw, and x dims at minimum
+    assert "chain" in curves.dims
+    assert "draw" in curves.dims
     assert "x" in curves.dims
     # Verify the expected shape
     assert curves.sizes["x"] == 100
@@ -97,8 +98,9 @@ def test_sample_saturation_curve_num_samples_controls_shape(fitted_mmm, request)
     # Act
     curves = mmm.sample_saturation_curve(num_samples=num_samples)
 
-    # Assert - should have exactly num_samples
-    assert curves.sizes["sample"] == num_samples
+    # Assert - when subsampled, chain=1 and draw=num_samples
+    assert curves.sizes["chain"] == 1
+    assert curves.sizes["draw"] == num_samples
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -118,7 +120,7 @@ def test_sample_saturation_curve_uses_all_samples_when_num_samples_exceeds_total
     total_available = (
         mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
     )
-    assert curves.sizes["sample"] == total_available
+    assert curves.sizes["chain"] * curves.sizes["draw"] == total_available
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -134,7 +136,7 @@ def test_sample_saturation_curve_uses_all_samples_when_num_samples_is_none(
     total_available = (
         mmm.idata.posterior.sizes["chain"] * mmm.idata.posterior.sizes["draw"]
     )
-    assert curves.sizes["sample"] == total_available
+    assert curves.sizes["chain"] * curves.sizes["draw"] == total_available
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -205,7 +207,8 @@ def test_sample_saturation_curve_random_state_with_generator(fitted_mmm, request
     curves = mmm.sample_saturation_curve(num_samples=num_samples, random_state=rng)
 
     # Assert
-    assert curves.sizes["sample"] == num_samples
+    assert curves.sizes["chain"] == 1
+    assert curves.sizes["draw"] == num_samples
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -298,8 +301,8 @@ def test_sample_saturation_curve_original_scale_uses_target_scale(fitted_mmm, re
 
     # Assert - y values should be scaled by target_scale
     # Take mean across samples for simpler comparison
-    mean_scaled = curves_scaled.mean(dim="sample")
-    mean_original = curves_original.mean(dim="sample")
+    mean_scaled = curves_scaled.mean(dim=["chain", "draw"])
+    mean_original = curves_original.mean(dim=["chain", "draw"])
 
     # Original should be roughly scaled * target_scale
     # (Broadcasting makes exact comparison complex, so check magnitude)
@@ -414,10 +417,10 @@ def test_sample_saturation_curve_curves_are_monotonic_increasing(fitted_mmm, req
     curves = mmm.sample_saturation_curve(num_points=100, original_scale=False)
 
     # Assert - Check monotonicity for mean curve
-    mean_curve = curves.mean(dim="sample")
+    mean_curve = curves.mean(dim=["chain", "draw"])
 
     # Values should be non-decreasing along x dimension
-    diffs = np.diff(mean_curve.values, axis=0)
+    diffs = mean_curve.diff(dim="x")
     assert np.all(diffs >= -1e-6)  # Allow tiny numerical errors
 
 
@@ -437,10 +440,10 @@ def test_sample_saturation_curve_with_very_large_max_value(fitted_mmm, request):
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_has_x_and_sample_dims(fitted_mmm, request):
-    """Test that output has required x and sample dimensions.
+def test_sample_saturation_curve_has_x_and_chain_draw_dims(fitted_mmm, request):
+    """Test that output has required x, chain, and draw dimensions.
 
-    Note: The saturation transformation's sample_curve returns (x, sample)
+    Note: The saturation transformation's sample_curve returns (chain, draw, x)
     dimensions. Channel/custom dimensions depend on how the saturation
     priors are configured.
     """
@@ -448,16 +451,17 @@ def test_sample_saturation_curve_has_x_and_sample_dims(fitted_mmm, request):
     # Act
     curves = mmm.sample_saturation_curve()
 
-    # Assert - Should always have x and sample dimensions
+    # Assert - Should always have chain, draw, and x dimensions
     assert "x" in curves.dims
-    assert "sample" in curves.dims
+    assert "chain" in curves.dims
+    assert "draw" in curves.dims
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
 def test_sample_saturation_curve_works(fitted_mmm, request):
     """Test that model curves can be sampled.
 
-    Note: The saturation transformation's sample_curve returns (x, sample)
+    Note: The saturation transformation's sample_curve returns (chain, draw, x)
     dimensions. Custom dimensions (like country) would only appear if
     the saturation priors were configured with those dimensions.
     """
@@ -465,12 +469,13 @@ def test_sample_saturation_curve_works(fitted_mmm, request):
     # Act
     curves = mmm.sample_saturation_curve()
 
-    # Assert - Should have x and sample dimensions
+    # Assert - Should have chain, draw, and x dimensions
     assert "x" in curves.dims
-    assert "sample" in curves.dims
+    assert "chain" in curves.dims
+    assert "draw" in curves.dims
     # Should be a valid DataArray with values
     assert curves.sizes["x"] > 0
-    assert curves.sizes["sample"] > 0
+    assert curves.sizes["draw"] > 0
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
@@ -507,11 +512,11 @@ def test_sample_saturation_curve_can_be_used_for_plotting(fitted_mmm, request):
     curves = mmm.sample_saturation_curve()
 
     # Assert - These operations should work without error
-    mean_curves = curves.mean(dim="sample")
+    mean_curves = curves.mean(dim=["chain", "draw"])
     assert isinstance(mean_curves, xr.DataArray)
 
-    lower = curves.quantile(0.05, dim="sample")
-    upper = curves.quantile(0.95, dim="sample")
+    lower = curves.quantile(0.05, dim=["chain", "draw"])
+    upper = curves.quantile(0.95, dim=["chain", "draw"])
     assert isinstance(lower, xr.DataArray)
     assert isinstance(upper, xr.DataArray)
 

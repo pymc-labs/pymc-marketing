@@ -17,12 +17,15 @@ from enum import StrEnum
 from typing import NamedTuple
 
 import numpy as np
-import numpy.typing as npt
-import pymc as pm
 import pytensor.tensor as pt
-from numpy.lib.array_utils import normalize_axis_index
-from pymc.distributions.dist_math import check_parameters
-from pytensor.tensor.variable import TensorVariable
+import pytensor.xtensor as ptx
+from pymc.dims import Weibull
+from pymc.logprob.utils import CheckParameterValue
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
+
+from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.mmm.utils import cdf, density
 
 
 class ConvMode(StrEnum):
@@ -40,12 +43,29 @@ class WeibullType(StrEnum):
     CDF = "CDF"
 
 
+def _check_alpha(
+    alpha,
+    *,
+    alpha_check_op=CheckParameterValue(
+        msg="0 < alpha <= 1", can_be_replaced_by_ninf=False
+    ),
+):
+    alpha = as_xtensor(alpha)
+    alpha_tensor = alpha.values
+    checked_alpha_tensor = alpha_check_op(
+        alpha_tensor, ((alpha_tensor >= 0) & (alpha_tensor <= 1)).all()
+    )
+    return as_xtensor(checked_alpha_tensor, dims=alpha.dims)
+
+
 def batched_convolution(
     x,
     w,
-    axis: int = 0,
+    *,
+    dim: str,
+    kernel_dim: str,
     mode: ConvMode | str = ConvMode.After,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Apply a 1D convolution in a vectorized way across multiple batch dimensions.
 
     .. plot::
@@ -53,20 +73,22 @@ def batched_convolution(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import batched_convolution, ConvMode
-        plt.style.use('arviz-darkgrid')
-        spends = np.array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
-        w = np.array([0.75, 0.25, 0.125, 0.125])
+        spends_np = np.array([0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], dtype=float)
+        w_np = np.array([0.75, 0.25, 0.125, 0.125])
+        spends = ptx.as_xtensor(pt.as_tensor_variable(spends_np), dims=('time',))
+        w = ptx.as_xtensor(pt.as_tensor_variable(w_np), dims=('time_kernel',))
         x = np.arange(-5, 6)
         ax = plt.subplot(111)
         for mode in [ConvMode.Before, ConvMode.Overlap, ConvMode.After]:
-            y = batched_convolution(spends, w, mode=mode).eval()
+            y = batched_convolution(spends, w, dim='time', kernel_dim='time_kernel', mode=mode).eval()
             suffix = "\n(default)" if mode == ConvMode.After else ""
             plt.plot(x, y, label=f'{mode.value}{suffix}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
-        plt.title(f"1 spend at time 0 and {w = }", fontsize=14)
+        plt.title("1 spend at time 0 and w = [0.75, 0.25, 0.125, 0.125]", fontsize=14)
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
@@ -77,10 +99,11 @@ def batched_convolution(
     x : tensor_like
         The array to convolve.
     w : tensor_like
-        The weight of the convolution. The last axis of ``w`` determines the number of steps
-        to use in the convolution.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
+        The weight of the convolution.
+    dim: str
+        The dimension of the x input along which to perform the convolution.
+    kernel_dim: str
+        The dimension of the w input along with to perform the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -93,48 +116,47 @@ def batched_convolution(
 
     Returns
     -------
-    y : tensor_like
-        The result of convolving ``x`` with ``w`` along the desired axis. The shape of the
+    y : XTensorVariable
+        The result of convolving ``x`` with ``w`` along the desired dims. The shape of the
         result will match the shape of ``x`` up to broadcasting with ``w``. The convolved
         axis will show the results of left padding zeros to ``x`` while applying the
-        convolutions.
+        convolutions. `x_dim` will be present in the returned output.
 
     """
     # We move the axis to the last dimension of the array so that it's easier to
     # reason about parameter broadcasting. We will move the axis back at the end
-    x = pt.as_tensor(x)
-    w = pt.as_tensor(w)
+    x = ptx.as_xtensor(x)
+    w = ptx.as_xtensor(w)
 
-    axis = normalize_axis_index(axis, x.ndim)
-    x = pt.moveaxis(x, axis, -1)
-    x_batch_shape = tuple(x.shape)[:-1]
-    lags = w.shape[-1]
+    lags = w.sizes[kernel_dim]
 
     if mode == ConvMode.After:
-        zeros = pt.zeros((*x_batch_shape, lags - 1), dtype=x.dtype)
-        padded_x = pt.join(-1, zeros, x)
+        zeros = ptx.as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+        padded_x = ptx.concat([zeros, x], dim=dim)
     elif mode == ConvMode.Before:
-        zeros = pt.zeros((*x_batch_shape, lags - 1), dtype=x.dtype)
-        padded_x = pt.join(-1, x, zeros)
+        zeros = ptx.as_xtensor(pt.zeros(lags - 1, dtype=x.dtype), dims=(dim,))
+        padded_x = ptx.concat([x, zeros], dim=dim)
     elif mode == ConvMode.Overlap:
-        zeros_left = pt.zeros((*x_batch_shape, lags // 2), dtype=x.dtype)
-        zeros_right = pt.zeros((*x_batch_shape, (lags - 1) // 2), dtype=x.dtype)
-        padded_x = pt.join(-1, zeros_left, x, zeros_right)
+        zeros_left = ptx.as_xtensor(pt.zeros(lags // 2, dtype=x.dtype), dims=(dim,))
+        zeros_right = ptx.as_xtensor(
+            pt.zeros((lags - 1) // 2, dtype=x.dtype), dims=(dim,)
+        )
+        padded_x = ptx.concat([zeros_left, x, zeros_right], dim=dim)
     else:
         raise ValueError(f"Wrong Mode: {mode}, expected one of {', '.join(ConvMode)}")
 
-    conv = pt.signal.convolve1d(padded_x, w, mode="valid")
-    return pt.moveaxis(conv, -1, axis + conv.ndim - x.ndim)
+    return ptx.signal.convolve1d(padded_x, w, dims=(dim, kernel_dim), mode="valid")
 
 
 def binomial_adstock(
-    x,
-    alpha: float = 0.5,
+    x: XTensorLike,
+    alpha: XTensorLike = 0.5,
+    *,
     l_max: int = 12,
     normalize: bool = False,
-    axis: int = 0,
     mode: ConvMode = ConvMode.After,
-) -> TensorVariable:
+    dim: str,
+) -> XTensorVariable:
     R"""Binomial adstock transformation.
 
     Binomial adstock assumes that the effect of one unit of spend
@@ -151,17 +173,17 @@ def binomial_adstock(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import binomial_adstock
-        plt.style.use('arviz-darkgrid')
         l_max = 12
         params = [ 0.1, 0.3, 0.5, 0.7, 0.9]
-        spend = np.zeros(15)
-        spend[0] = 1
+        spend_np = np.zeros(15); spend_np[0] = 1
+        spend = ptx.as_xtensor(pt.as_tensor_variable(spend_np), dims=('time',))
         ax = plt.subplot(111)
-        x = np.arange(len(spend))
+        x = np.arange(len(spend_np))
         for a in params:
-            y = binomial_adstock(spend, alpha=a, l_max=l_max).eval()
+            y = binomial_adstock(spend, alpha=a, l_max=l_max, dim='time').eval()
             plt.plot(x, y, label=f'alpha = {a}')
         plt.xlabel('time since spend', fontsize=12)
         plt.title(f'Binomial Adstock with l_max = {l_max}', fontsize=14)
@@ -199,24 +221,26 @@ def binomial_adstock(
         Transformed tensor.
 
     """
-    alpha = check_parameters(
-        alpha, [pt.gt(alpha, 0), pt.le(alpha, 1)], msg="0 < alpha <= 1"
-    )
-    rescaled_alpha = pt.as_tensor(1 / alpha - 1)[..., None]
-    lag_tensor = pt.as_tensor(l_max + 1)[..., None]
-    w = pt.power(1 - pt.arange(l_max, dtype=x.dtype) / lag_tensor, rescaled_alpha)
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    kernel_dim = f"{dim}_kernel"
+    x = as_xtensor(x)
+    alpha = _check_alpha(as_xtensor(alpha))
+
+    rescaled_alpha = 1 / alpha - 1
+    lags = ptx.as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(kernel_dim,))
+    w = ptx.math.power(1 - (lags / (l_max + 1)), rescaled_alpha)
+    w = w / w.sum(dim=kernel_dim) if normalize else w
+    return batched_convolution(x, w, mode=mode, dim=dim, kernel_dim=kernel_dim)
 
 
 def geometric_adstock(
-    x,
-    alpha: float = 0.0,
+    x: XTensorLike,
+    alpha: XTensorLike = 0.0,
     l_max: int = 12,
+    *,
+    dim: str,
     normalize: bool = False,
-    axis: int = 0,
     mode: ConvMode = ConvMode.After,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Geometric adstock transformation.
 
     Adstock with geometric decay assumes advertising effect peaks at the same
@@ -229,9 +253,9 @@ def geometric_adstock(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import geometric_adstock
-        plt.style.use('arviz-darkgrid')
         l_max = 12
         params = [
             (0.01, False),
@@ -240,12 +264,12 @@ def geometric_adstock(
             (0.5, True),
             (0.9, True),
         ]
-        spend = np.zeros(15)
-        spend[0] = 1
+        spend_np = np.zeros(15); spend_np[0] = 1
+        spend = ptx.as_xtensor(pt.as_tensor_variable(spend_np), dims=('time',))
         ax = plt.subplot(111)
-        x = np.arange(len(spend))
+        x = np.arange(len(spend_np))
         for a, normalize in params:
-            y = geometric_adstock(spend, alpha=a, l_max=l_max, normalize=normalize).eval()
+            y = geometric_adstock(spend, alpha=a, l_max=l_max, normalize=normalize, dim='time').eval()
             plt.plot(x, y, label=f'alpha = {a}\nnormalize = {normalize}')
         plt.xlabel('time since spend', fontsize=12)
         plt.title(f'Geometric Adstock with l_max = {l_max}', fontsize=14)
@@ -265,8 +289,6 @@ def geometric_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -288,24 +310,25 @@ def geometric_adstock(
        with carryover and shape effects." (2017).
 
     """
-    alpha = check_parameters(
-        alpha, [pt.ge(alpha, 0), pt.le(alpha, 1)], msg="0 <= alpha <= 1"
-    )
-
-    w = pt.power(pt.as_tensor(alpha)[..., None], pt.arange(l_max, dtype=x.dtype))
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    kernel_dim = f"{dim}_kernel"
+    x = as_xtensor(x)
+    alpha = _check_alpha(as_xtensor(alpha))
+    lags = ptx.as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(kernel_dim,))
+    w = ptx.math.power(alpha, lags)
+    w = w / w.sum(dim=kernel_dim) if normalize else w
+    return batched_convolution(x, w, dim=dim, kernel_dim=kernel_dim, mode=mode)
 
 
 def delayed_adstock(
-    x,
-    alpha: float = 0.0,
-    theta: int = 0,
+    x: XTensorLike,
+    alpha: XTensorLike = 0.0,
+    theta: XTensorLike = 0,
+    *,
     l_max: int = 12,
     normalize: bool = False,
-    axis: int = 0,
+    dim: str,
     mode: ConvMode = ConvMode.After,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Delayed adstock transformation.
 
     This transformation is similar to geometric adstock transformation, but it
@@ -316,21 +339,21 @@ def delayed_adstock(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import delayed_adstock
-        plt.style.use('arviz-darkgrid')
         params = [
             (0.25, 0, False),
             (0.25, 5, False),
             (0.75, 5, False),
             (0.75, 5, True)
         ]
-        spend = np.zeros(15)
-        spend[0] = 1
-        x = np.arange(len(spend))
+        spend_np = np.zeros(15); spend_np[0] = 1
+        spend = ptx.as_xtensor(pt.as_tensor_variable(spend_np), dims=('time',))
+        x = np.arange(len(spend_np))
         ax = plt.subplot(111)
         for a, t, normalize in params:
-            y = delayed_adstock(spend, alpha=a, theta=t, normalize=normalize).eval()
+            y = delayed_adstock(spend, alpha=a, theta=t, normalize=normalize, dim='time').eval()
             plt.plot(x, y, label=f'alpha = {a}\ntheta = {t}\nnormalize = {normalize}')
         plt.xlabel('time since spend', fontsize=12)
         plt.ylabel('f(time since spend)', fontsize=12)
@@ -374,24 +397,29 @@ def delayed_adstock(
        with carryover and shape effects." (2017).
 
     """
-    w = pt.power(
-        pt.as_tensor(alpha)[..., None],
-        (pt.arange(l_max, dtype=x.dtype) - pt.as_tensor(theta)[..., None]) ** 2,
+    kernel_dim = f"{dim}_kernel"
+    alpha = _check_alpha(as_xtensor(alpha))
+    theta = as_xtensor(theta)
+    lags = as_xtensor(pt.arange(l_max, dtype=x.dtype), dims=(kernel_dim,))
+    w = ptx.math.power(
+        alpha,
+        (lags - theta) ** 2,
     )
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    w = w / w.sum(dim=kernel_dim) if normalize else w
+    return batched_convolution(x, w, dim=dim, kernel_dim=kernel_dim, mode=mode)
 
 
 def weibull_adstock(
     x,
     lam=1,
     k=1,
+    *,
     l_max: int = 12,
-    axis: int = 0,
+    dim: str,
     mode: ConvMode = ConvMode.After,
     type: WeibullType | str = WeibullType.PDF,
     normalize: bool = False,
-) -> TensorVariable:
+) -> XTensorVariable:
     R"""Weibull Adstocking Transformation.
 
     This transformation is similar to geometric adstock transformation but has more
@@ -402,12 +430,12 @@ def weibull_adstock(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import WeibullType, weibull_adstock
-        plt.style.use('arviz-darkgrid')
 
-        spend = np.zeros(50)
-        spend[0] = 1
+        spend_np = np.zeros(50); spend_np[0] = 1
+        spend = ptx.as_xtensor(pt.as_tensor_variable(spend_np), dims=('time',))
 
         shapes = [0.5, 1., 1.5, 5.]
         scales = [10, 20, 40]
@@ -424,11 +452,11 @@ def weibull_adstock(
             for i, shape in enumerate(shapes):
                 for j, scale in enumerate(scales):
                     adstock = weibull_adstock(
-                        spend, lam=scale, k=shape, type=mode, l_max=len(spend)
+                        spend, lam=scale, k=shape, type=mode, l_max=len(spend_np), dim='time'
                     ).eval()
 
                     axes[i, m].plot(
-                        np.arange(len(spend)),
+                        np.arange(len(spend_np)),
                         adstock,
                         label=f"Scale={scale}",
                         linestyle="-",
@@ -478,29 +506,28 @@ def weibull_adstock(
         Transformed tensor based on Weibull adstock transformation.
 
     """
-    lam = pt.as_tensor(lam)[..., None]
-    k = pt.as_tensor(k)[..., None]
-    t = pt.arange(l_max, dtype=x.dtype) + 1
+    kernel_dim = f"{dim}_kernel"
+    lam = as_xtensor(lam)
+    k = as_xtensor(k)
+    t = as_xtensor(pt.arange(l_max, dtype=x.dtype) + 1, dims=(kernel_dim,))
 
     if type == WeibullType.PDF:
-        w = pt.exp(pm.Weibull.logp(t, k, lam))
-        w = (w - pt.min(w, axis=-1)[..., None]) / (
-            pt.max(w, axis=-1)[..., None] - pt.min(w, axis=-1)[..., None]
+        w = density(Weibull, value=t, alpha=k, beta=lam)
+        w = (w - w.min(dim=kernel_dim)) / (
+            w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
         )
     elif type == WeibullType.CDF:
-        w = 1 - pt.exp(pm.Weibull.logcdf(t, k, lam))
-        shape = (*w.shape[:-1], w.shape[-1] + 1)
-        padded_w = pt.ones(shape, dtype=w.dtype)
-        padded_w = pt.set_subtensor(padded_w[..., 1:], w)
-        w = pt.cumprod(padded_w, axis=-1)
+        w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
+        padded_w = ptx.concat([1, w], dim=kernel_dim)
+        w = padded_w.cumprod(dim=kernel_dim)
     else:
         raise ValueError(f"Wrong WeibullType: {type}, expected of WeibullType")
 
-    w = w / pt.sum(w, axis=-1, keepdims=True) if normalize else w
-    return batched_convolution(x, w, axis=axis, mode=mode)
+    w = w / w.sum(dim=kernel_dim) if normalize else w
+    return batched_convolution(x, w, dim=dim, kernel_dim=kernel_dim, mode=mode)
 
 
-def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
+def logistic_saturation(x: XTensorLike, lam: XTensorLike = 0.5) -> XTensorVariable:
     r"""Logistic saturation transformation.
 
     .. math::
@@ -517,15 +544,16 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import logistic_saturation
-        plt.style.use('arviz-darkgrid')
         lam = np.array([0.25, 0.5, 1, 2, 4])
-        x = np.linspace(0, 5, 100)
+        x_np = np.linspace(0, 5, 100)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         ax = plt.subplot(111)
         for l in lam:
             y = logistic_saturation(x, lam=l).eval()
-            plt.plot(x, y, label=f'lam = {l}')
+            plt.plot(x_np, y, label=f'lam = {l}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
         box = ax.get_position()
@@ -547,14 +575,16 @@ def logistic_saturation(x, lam: npt.NDArray | float = 0.5) -> TensorVariable:
         Transformed tensor.
 
     """
-    return (1 - pt.exp(-lam * x)) / (1 + pt.exp(-lam * x))
+    x = as_xtensor(x)
+    lam = as_xtensor(lam)
+    return (1 - ptx.math.exp(-lam * x)) / (1 + ptx.math.exp(-lam * x))
 
 
 def inverse_scaled_logistic_saturation(
     x,
-    lam: npt.NDArray | float = 0.5,
-    eps: float = np.log(3),
-) -> TensorVariable:
+    lam: XTensorLike = 0.5,
+    eps: XTensorLike = np.log(3),
+) -> XTensorVariable:
     r"""Inverse scaled logistic saturation transformation.
 
     It offers a more intuitive alternative to logistic_saturation,
@@ -569,15 +599,16 @@ def inverse_scaled_logistic_saturation(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import inverse_scaled_logistic_saturation
-        plt.style.use('arviz-darkgrid')
         lam = np.array([0.25, 0.5, 1, 2, 4])
-        x = np.linspace(0, 5, 100)
+        x_np = np.linspace(0, 5, 100)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         ax = plt.subplot(111)
         for l in lam:
             y = inverse_scaled_logistic_saturation(x, lam=l).eval()
-            plt.plot(x, y, label=f'lam = {l}')
+            plt.plot(x_np, y, label=f'lam = {l}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
         box = ax.get_position()
@@ -608,22 +639,22 @@ class TanhSaturationParameters(NamedTuple):
 
     Parameters
     ----------
-    b : pt.TensorLike
+    b : XTensorLike
         Saturation
-    c : pt.TensorLike
+    c : XTensorLike
         Customer Aquisition Cost at 0.
 
     """
 
-    b: pt.TensorLike
-    c: pt.TensorLike
+    b: XTensorLike
+    c: XTensorLike
 
-    def baseline(self, x0: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+    def baseline(self, x0: XTensorLike) -> "TanhSaturationBaselinedParameters":
         """Change the parameterization to baselined at :math:`x_0`.
 
         Parameters
         ----------
-        x0 : pt.TensorLike
+        x0 : XTensorLike
             Baseline spend.
 
         Returns
@@ -643,18 +674,18 @@ class TanhSaturationBaselinedParameters(NamedTuple):
 
     Parameters
     ----------
-    x0 : pt.TensorLike
+    x0 : XTensorLike
         Baseline spend.
-    gain : pt.TensorLike
+    gain : XTensorLike
         ROAS at :math:`x_0`.
-    r : pt.TensorLike
+    r : XTensorLike
         Overspend Fraction.
 
     """
 
-    x0: pt.TensorLike
-    gain: pt.TensorLike
-    r: pt.TensorLike
+    x0: XTensorLike
+    gain: XTensorLike
+    r: XTensorLike
 
     def debaseline(self) -> TanhSaturationParameters:
         """Change the parameterization to baselined to be classic saturation and cac.
@@ -666,20 +697,20 @@ class TanhSaturationBaselinedParameters(NamedTuple):
 
         """
         saturation = (self.gain * self.x0) / self.r
-        cac = self.r / (self.gain * pt.arctanh(self.r))
+        cac = self.r / (self.gain * ptx.math.arctanh(self.r))
         return TanhSaturationParameters(saturation, cac)
 
-    def rebaseline(self, x1: pt.TensorLike) -> "TanhSaturationBaselinedParameters":
+    def rebaseline(self, x1: XTensorLike) -> "TanhSaturationBaselinedParameters":
         """Change the parameterization to baselined at :math:`x_1`."""
         params = self.debaseline()
         return params.baseline(x1)
 
 
 def tanh_saturation(
-    x: pt.TensorLike,
-    b: pt.TensorLike = 0.5,
-    c: pt.TensorLike = 0.5,
-) -> TensorVariable:
+    x: XTensorLike,
+    b: XTensorLike = 0.5,
+    c: XTensorLike = 0.5,
+) -> XTensorVariable:
     R"""Tanh saturation transformation.
 
     .. math::
@@ -697,9 +728,9 @@ def tanh_saturation(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import tanh_saturation
-        plt.style.use('arviz-darkgrid')
         params = [
             (0.75, 0.25),
             (0.75, 1.5),
@@ -707,17 +738,17 @@ def tanh_saturation(
             (1, 1),
             (1, 1.5),
         ]
-        x = np.linspace(0, 5, 100)
+        x_np = np.linspace(0, 5, 100)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         ax = plt.subplot(111)
         for b, c in params:
             y = tanh_saturation(x, b=b, c=c).eval()
-            plt.plot(x, y, label=f'b = {b}\nc = {c}')
+            plt.plot(x_np, y, label=f'b = {b}\nc = {c}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        # plt.legend()
         plt.show()
 
     Parameters
@@ -742,15 +773,18 @@ def tanh_saturation(
     See https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/ # noqa: E501
 
     """  # noqa: E501
-    return b * pt.tanh(x / (b * c))
+    x = as_xtensor(x)
+    b = as_xtensor(b)
+    c = as_xtensor(c)
+    return b * ptx.math.tanh(x / (b * c))
 
 
 def tanh_saturation_baselined(
-    x: pt.TensorLike,
-    x0: pt.TensorLike,
-    gain: pt.TensorLike = 0.5,
-    r: pt.TensorLike = 0.5,
-) -> TensorVariable:
+    x: XTensorLike,
+    x0: XTensorLike,
+    gain: XTensorLike = 0.5,
+    r: XTensorLike = 0.5,
+) -> XTensorVariable:
     r"""Baselined Tanh Saturation.
 
     This parameterization that is easier than :func:`tanh_saturation`
@@ -819,7 +853,8 @@ def tanh_saturation_baselined(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import (
             tanh_saturation_baselined,
             tanh_saturation,
@@ -832,21 +867,24 @@ def tanh_saturation_baselined(
 
         params = TanhSaturationBaselinedParameters(x_baseline, gain, overspend_fraction)
 
-        x = np.linspace(0, 1000)
+        x_np = np.linspace(0, 1000)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         y = tanh_saturation_baselined(x, *params).eval()
 
         saturation, cac0 = params.debaseline()
         cac0 = cac0.eval()
-        saturated_ref = tanh_saturation(x_baseline, saturation, cac0).eval()
+        saturated_ref = tanh_saturation(
+            ptx.as_xtensor(pt.as_tensor_variable(float(x_baseline)), dims=()), saturation, cac0
+        ).eval()
 
-        plt.plot(x, y);
+        plt.plot(x_np, y);
         plt.axvline(x_baseline, linestyle="dashed", color="red", label="baseline")
-        plt.plot(x, x * gain, linestyle="dashed", label="gain (slope)");
+        plt.plot(x_np, x_np * gain, linestyle="dashed", label="gain (slope)");
         plt.axhline(saturated_ref, linestyle="dashed", label="f(reference)")
-        plt.plot(x, x / cac0, linestyle="dotted", label="1/cac (slope)");
+        plt.plot(x_np, x_np / cac0, linestyle="dotted", label="1/cac (slope)");
         plt.axhline(saturation, linestyle="dotted", label="saturation")
-        plt.fill_between(x, saturated_ref, saturation, alpha=0.1, label="underspend fraction")
-        plt.fill_between(x, saturated_ref, alpha=0.1, label="overspend fraction")
+        plt.fill_between(x_np, saturated_ref, saturation, alpha=0.1, label="underspend fraction")
+        plt.fill_between(x_np, saturated_ref, alpha=0.1, label="overspend fraction")
         plt.legend()
         plt.show()
 
@@ -894,14 +932,17 @@ def tanh_saturation_baselined(
     Developed by Max Kochurov and Aziz Al-Maeeni doing innovative work in `PyMC Labs <pymc-labs.com>`_.
 
     """
-    return gain * x0 * pt.tanh(x * pt.arctanh(r) / x0) / r
+    x = as_xtensor(x)
+    x0 = as_xtensor(x0)
+    r = as_xtensor(r)
+    return gain * x0 * ptx.math.tanh(x * ptx.math.arctanh(r) / x0) / r
 
 
 def michaelis_menten(
-    x: float | np.ndarray | npt.NDArray,
-    alpha: float | np.ndarray | npt.NDArray,
-    lam: float | np.ndarray | npt.NDArray,
-) -> float | TensorVariable:
+    x: XTensorLike,
+    alpha: XTensorLike,
+    lam: XTensorLike,
+) -> XTensorVariable:
     r"""Evaluate the Michaelis-Menten function for given values of x, alpha, and lambda.
 
     .. math::
@@ -917,14 +958,17 @@ def michaelis_menten(
 
         import numpy as np
         import matplotlib.pyplot as plt
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import michaelis_menten
 
-        x = np.linspace(0, 100, 500)
+        x_np = np.linspace(0, 100, 500)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         alpha = 10
         lam = 50
-        y = michaelis_menten(x, alpha, lam)
+        y = michaelis_menten(x, alpha, lam).eval()
 
-        plt.plot(x, y)
+        plt.plot(x_np, y)
         plt.xlabel('Spend/Impressions (x)')
         plt.ylabel('Contribution (y)')
         plt.title('Michaelis-Menten Function')
@@ -935,17 +979,20 @@ def michaelis_menten(
 
         import numpy as np
         import matplotlib.pyplot as plt
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import michaelis_menten
 
-        x = np.linspace(0, 100, 500)
+        x_np = np.linspace(0, 100, 500)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         alpha_values = [5, 10, 15]  # Different values of alpha
         lam_values = [25, 50, 75]  # Different values of lam
 
         # Plot varying lam
         plt.figure(figsize=(8, 6))
         for lam in lam_values:
-            y = michaelis_menten(x, alpha_values[0], lam)
-            plt.plot(x, y, label=f"lam={lam}")
+            y = michaelis_menten(x, alpha_values[0], lam).eval()
+            plt.plot(x_np, y, label=f"lam={lam}")
         plt.xlabel('Spend/Impressions (x)')
         plt.ylabel('Contribution (y)')
         plt.title('Michaelis-Menten Function (Varying lam)')
@@ -955,8 +1002,8 @@ def michaelis_menten(
         # Plot varying alpha
         plt.figure(figsize=(8, 6))
         for alpha in alpha_values:
-            y = michaelis_menten(x, alpha, lam_values[0])
-            plt.plot(x, y, label=f"alpha={alpha}")
+            y = michaelis_menten(x, alpha, lam_values[0]).eval()
+            plt.plot(x_np, y, label=f"alpha={alpha}")
         plt.xlabel('Spend/Impressions (x)')
         plt.ylabel('Contribution (y)')
         plt.title('Michaelis-Menten Function (Varying alpha)')
@@ -980,12 +1027,15 @@ def michaelis_menten(
         The value of the Michaelis-Menten function given the parameters.
 
     """
+    x = as_xtensor(x)
+    lam = as_xtensor(lam)
+    alpha = as_xtensor(alpha)
     return alpha * x / (lam + x)
 
 
 def hill_function(
-    x: pt.TensorLike, slope: pt.TensorLike, kappa: pt.TensorLike
-) -> TensorVariable:
+    x: XTensorLike, slope: XTensorLike, kappa: XTensorLike
+) -> XTensorVariable:
     r"""Hill Function.
 
     .. math::
@@ -1003,15 +1053,18 @@ def hill_function(
 
         import numpy as np
         import matplotlib.pyplot as plt
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import hill_function
-        x = np.linspace(0, 10, 100)
+        x_np = np.linspace(0, 10, 100)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         # Varying slope
         slopes = [0.3, 0.7, 1.2]
         fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, slope in enumerate(slopes):
             plt.subplot(1, 3, i+1)
             y = hill_function(x, slope, 2).eval()
-            plt.plot(x, y)
+            plt.plot(x_np, y)
             plt.xlabel('x')
             plt.title(f'Slope = {slope}')
         plt.subplot(1,3,1)
@@ -1024,7 +1077,7 @@ def hill_function(
         for i, kappa in enumerate(kappas):
             plt.subplot(1, 3, i+1)
             y = hill_function(x, 1, kappa).eval()
-            plt.plot(x, y)
+            plt.plot(x_np, y)
             plt.xlabel('x')
             plt.title(f'Kappa = {kappa}')
         plt.subplot(1,3,1)
@@ -1034,17 +1087,17 @@ def hill_function(
 
     Parameters
     ----------
-    x : float or array-like
+    x : XTensorLike
         The independent variable, typically representing the concentration of a
         substrate or the intensity of a stimulus.
-    slope : float
+    slope : XTensorLike
         The slope of the hill. Must be non-positive.
-    kappa : float
+    kappa : XTensorLike
         The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
 
     Returns
     -------
-    float
+    XTensorVariable
         The value of the Hill function given the parameters.
 
     References
@@ -1052,17 +1105,20 @@ def hill_function(
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
 
     """  # noqa: E501
-    return pt.as_tensor_variable(
-        1 - pt.power(kappa, slope) / (pt.power(kappa, slope) + pt.power(x, slope))
+    x = as_xtensor(x)
+    slope = as_xtensor(slope)
+    kappa = as_xtensor(kappa)
+    return 1 - ptx.math.power(kappa, slope) / (
+        ptx.math.power(kappa, slope) + ptx.math.power(x, slope)
     )
 
 
 def hill_saturation_sigmoid(
-    x: pt.TensorLike,
-    sigma: pt.TensorLike,
-    beta: pt.TensorLike,
-    lam: pt.TensorLike,
-) -> TensorVariable:
+    x: XTensorLike,
+    sigma: XTensorLike,
+    beta: XTensorLike,
+    lam: XTensorLike,
+) -> XTensorVariable:
     r"""Hill Saturation Sigmoid Function.
 
     .. math::
@@ -1087,15 +1143,18 @@ def hill_saturation_sigmoid(
 
         import numpy as np
         import matplotlib.pyplot as plt
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import hill_saturation_sigmoid
-        x = np.linspace(0, 10, 100)
+        x_np = np.linspace(0, 10, 100)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         # Varying sigma
         sigmas = [0.5, 1, 1.5]
         fig, axes = plt.subplots(1, 3, figsize=(12, 4), sharey=True)
         for i, sigma in enumerate(sigmas):
             plt.subplot(1, 3, i+1)
             y = hill_saturation_sigmoid(x, sigma, 2, 5).eval()
-            plt.plot(x, y)
+            plt.plot(x_np, y)
             plt.xlabel('x')
             plt.title(f'Sigma = {sigma}')
         plt.subplot(1,3,1)
@@ -1108,7 +1167,7 @@ def hill_saturation_sigmoid(
         for i, beta in enumerate(betas):
             plt.subplot(1, 3, i+1)
             y = hill_saturation_sigmoid(x, 1, beta, 5).eval()
-            plt.plot(x, y)
+            plt.plot(x_np, y)
             plt.xlabel('x')
             plt.title(f'Beta = {beta}')
         plt.subplot(1,3,1)
@@ -1121,7 +1180,7 @@ def hill_saturation_sigmoid(
         for i, lam in enumerate(lams):
             plt.subplot(1, 3, i+1)
             y = hill_saturation_sigmoid(x, 1, 2, lam).eval()
-            plt.plot(x, y)
+            plt.plot(x_np, y)
             plt.xlabel('x')
             plt.title(f'Lambda = {lam}')
         plt.subplot(1,3,1)
@@ -1149,13 +1208,19 @@ def hill_saturation_sigmoid(
         The value of the Hill saturation sigmoid function for each input value of x.
 
     """
-    return sigma / (1 + pt.exp(-beta * (x - lam))) - sigma / (1 + pt.exp(beta * lam))
+    x = as_xtensor(x)
+    sigma = as_xtensor(sigma)
+    beta = as_xtensor(beta)
+    lam = as_xtensor(lam)
+    return sigma / (1 + ptx.math.exp(-beta * (x - lam))) - sigma / (
+        1 + ptx.math.exp(beta * lam)
+    )
 
 
 def root_saturation(
-    x: pt.TensorLike,
-    alpha: pt.TensorLike,
-) -> pt.TensorVariable:
+    x: XTensorLike,
+    alpha: XTensorLike,
+) -> XTensorVariable:
     r"""Root saturation transformation.
 
     .. math::
@@ -1166,15 +1231,16 @@ def root_saturation(
 
         import matplotlib.pyplot as plt
         import numpy as np
-        import arviz as az
+        import pytensor.tensor as pt
+        import pytensor.xtensor as ptx
         from pymc_marketing.mmm.transformers import root_saturation
-        plt.style.use('arviz-darkgrid')
         alpha = np.array([0.1, 0.3, 0.5, 0.7])
-        x = np.linspace(0, 5, 100)
+        x_np = np.linspace(0, 5, 100)
+        x = ptx.as_xtensor(pt.as_tensor_variable(x_np), dims=('x',))
         ax = plt.subplot(111)
         for a in alpha:
-            y = root_saturation(x, alpha=a)
-            plt.plot(x, y, label=f'alpha = {a}')
+            y = root_saturation(x, alpha=a).eval()
+            plt.plot(x_np, y, label=f'alpha = {a}')
         plt.xlabel('spend', fontsize=12)
         plt.ylabel('f(spend)', fontsize=12)
         box = ax.get_position()
@@ -1195,4 +1261,6 @@ def root_saturation(
         Transformed tensor.
 
     """
-    return pt.as_tensor_variable(x**alpha)
+    x = as_xtensor(x)
+    alpha = as_xtensor(alpha)
+    return x**alpha

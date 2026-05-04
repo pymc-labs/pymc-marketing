@@ -27,7 +27,7 @@ jobs:
       should_test: ${{ steps.filter.outputs.code }}
     steps:
       - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -45,7 +45,7 @@ jobs:
       fail-fast: false
       matrix:
         linker: [cvm, numba]
-        config: [ {python-version: "3.11", oldest-pymc: false}, {python-version: "3.13", oldest-pymc: true} ]
+        config: [ {python-version: "3.12", oldest-pymc: false}, {python-version: "3.14", oldest-pymc: true}]
         group: [1, 2, 3, 4, 5, 6]
     env:
       PYTENSOR_FLAGS: linker=${{ matrix.linker }}
@@ -75,7 +75,7 @@ jobs:
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: ${{ matrix.config.python-version }}
@@ -113,7 +113,7 @@ jobs:
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }} # use token for more robust uploads
           name: "test_slow"

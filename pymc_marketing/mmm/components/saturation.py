@@ -28,9 +28,11 @@ Create a new saturation transformation:
     from pymc_extras.prior import Prior
 
 
-    class InfiniteReturns(SaturationTransformation):
-        lookup_name: str = "infinite_returns"
+    from pymc_marketing.serialization import serialization
 
+
+    @serialization.register
+    class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
             return b * x
 
@@ -74,18 +76,18 @@ for saturation parameter of logistic saturation.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
-import pytensor.tensor as pt
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
-    create_registration_meta,
 )
 from pymc_marketing.mmm.transformers import (
     hill_function,
@@ -97,13 +99,10 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
-
-SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
-
-SaturationRegistrationMeta = create_registration_meta(SATURATION_TRANSFORMATIONS)
+from pymc_marketing.serialization import serialization
 
 
-class SaturationTransformation(Transformation, metaclass=SaturationRegistrationMeta):  # type: ignore
+class SaturationTransformation(Transformation):
     """Subclass for all saturation transformations.
 
     In order to use a custom saturation transformation, subclass and define:
@@ -128,7 +127,6 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
 
         class InfiniteReturns(SaturationTransformation):
-            lookup_name = "infinite_returns"
             function = infinite_returns
             default_priors = {"b": Prior("HalfNormal")}
 
@@ -152,6 +150,22 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
     """
 
     prefix: str = "saturation"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SaturationTransformation:
+        """Reconstruct a saturation transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop(
+            "lookup_name", None
+        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
+
+        if "priors" in data:
+            from pymc_extras.deserialize import deserialize
+
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
 
     @validate_call
     def sample_curve(
@@ -186,19 +200,16 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         """
         x = np.linspace(0, max_value, num_points)
 
-        coords = {
-            "x": x,
-        }
-
         return self._sample_curve(
             var_name="saturation",
             parameters=parameters,
             x=x,
-            coords=coords,
+            coords={"x": x},
             **sample_prior_predictive_kwargs,
         )
 
 
+@serialization.register
 class LogisticSaturation(SaturationTransformation):
     """Wrapper around logistic saturation function.
 
@@ -221,9 +232,7 @@ class LogisticSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "logistic"
-
-    def function(self, x, lam, beta):
+    def function(self, x, lam, beta, *, dim: str | None = None):
         """Logistic saturation function."""
         return beta * logistic_saturation(x, lam)
 
@@ -233,6 +242,7 @@ class LogisticSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class InverseScaledLogisticSaturation(SaturationTransformation):
     """Wrapper around inverse scaled logistic saturation function.
 
@@ -255,9 +265,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "inverse_scaled_logistic"
-
-    def function(self, x, lam, beta):
+    def function(self, x, lam, beta, *, dim: str | None = None):
         """Inverse scaled logistic saturation function."""
         return beta * inverse_scaled_logistic_saturation(x, lam)
 
@@ -267,6 +275,7 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class TanhSaturation(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
@@ -289,9 +298,7 @@ class TanhSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "tanh"
-
-    def function(self, x, b, c):
+    def function(self, x, b, c, *, dim: str | None = None):
         """Tanh saturation function."""
         return tanh_saturation(x, b, c)
 
@@ -301,6 +308,7 @@ class TanhSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class TanhSaturationBaselined(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
@@ -323,9 +331,7 @@ class TanhSaturationBaselined(SaturationTransformation):
 
     """
 
-    lookup_name = "tanh_baselined"
-
-    def function(self, x, x0, gain, r, beta):
+    def function(self, x, x0, gain, r, beta, *, dim: str | None = None):
         """Tanh saturation function."""
         return beta * tanh_saturation_baselined(x, x0, gain, r)
 
@@ -337,6 +343,7 @@ class TanhSaturationBaselined(SaturationTransformation):
     }
 
 
+@serialization.register
 class MichaelisMentenSaturation(SaturationTransformation):
     """Wrapper around Michaelis-Menten saturation function.
 
@@ -359,11 +366,9 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "michaelis_menten"
-
-    def function(self, x, alpha, lam):
+    def function(self, x, alpha, lam, *, dim: str | None = None):
         """Michaelis-Menten saturation function."""
-        return pt.as_tensor_variable(michaelis_menten(x, alpha, lam))
+        return michaelis_menten(x, alpha, lam)
 
     default_priors = {
         "alpha": Prior("Gamma", mu=2, sigma=1),
@@ -371,6 +376,7 @@ class MichaelisMentenSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
@@ -393,9 +399,7 @@ class HillSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "hill"
-
-    def function(self, x, slope, kappa, beta):
+    def function(self, x, slope, kappa, beta, *, dim: str | None = None):
         """Hill saturation function."""
         return beta * hill_function(x, slope, kappa)
 
@@ -406,6 +410,7 @@ class HillSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class HillSaturationSigmoid(SaturationTransformation):
     """Wrapper around Hill saturation sigmoid function.
 
@@ -428,9 +433,9 @@ class HillSaturationSigmoid(SaturationTransformation):
 
     """
 
-    lookup_name = "hill_sigmoid"
-
-    function = hill_saturation_sigmoid
+    def function(self, x, sigma, beta, lam, *, dim: str | None = None):
+        """Hill sigmoid function."""
+        return hill_saturation_sigmoid(x, sigma, beta, lam)
 
     default_priors = {
         "sigma": Prior("HalfNormal", sigma=1.5),
@@ -439,6 +444,7 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
+@serialization.register
 class RootSaturation(SaturationTransformation):
     """Wrapper around Root saturation function.
 
@@ -461,9 +467,7 @@ class RootSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "root"
-
-    def function(self, x, alpha, beta):
+    def function(self, x, alpha, beta, *, dim: str | None = None):
         """Root saturation function."""
         return beta * root_saturation(x, alpha)
 
@@ -473,6 +477,7 @@ class RootSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
 
@@ -493,29 +498,58 @@ class NoSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "no_saturation"
-
-    def function(self, x, beta):
+    def function(self, x, beta, *, dim: str | None = None):
         """Linear saturation function."""
-        return pt.as_tensor_variable(beta * x)
+        x = as_xtensor(x)
+        beta = as_xtensor(beta)
+        return beta * x
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1)}
 
 
+# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
+SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
+    "logistic": LogisticSaturation,
+    "inverse_scaled_logistic": InverseScaledLogisticSaturation,
+    "tanh": TanhSaturation,
+    "tanh_baselined": TanhSaturationBaselined,
+    "michaelis_menten": MichaelisMentenSaturation,
+    "hill": HillSaturation,
+    "hill_sigmoid": HillSaturationSigmoid,
+    "root": RootSaturation,
+    "no_saturation": NoSaturation,
+}
+
+
 def saturation_from_dict(data: dict) -> SaturationTransformation:
-    """Get a saturation function from a dictionary."""
+    """Get a saturation function from a dictionary.
+
+    .. deprecated:: 0.18.2
+        `saturation_from_dict` is deprecated and will be removed in 0.20.0.
+        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
+    """
+    warnings.warn(
+        "saturation_from_dict is deprecated and will be removed in 0.20.0. "
+        "Use `from pymc_marketing.serialization import serialization; "
+        "serialization.deserialize(data)` instead.",
+        FutureWarning,
+        stacklevel=2,
+    )
     data = data.copy()
-    cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
+    type_key = data.pop("__type__", None)
+    lookup_name = data.pop("lookup_name", None)
+
+    if lookup_name:
+        cls = SATURATION_TRANSFORMATIONS[lookup_name]
+    elif type_key:
+        return serialization.deserialize({**data, "__type__": type_key})
+    else:
+        raise ValueError(
+            "Cannot deserialize saturation: missing both 'lookup_name' and '__type__'"
+        )
 
     if "priors" in data:
         data["priors"] = {
             key: deserialize(value) for key, value in data["priors"].items()
         }
     return cls(**data)
-
-
-def _is_saturation(data):
-    return "lookup_name" in data and data["lookup_name"] in SATURATION_TRANSFORMATIONS
-
-
-register_deserialization(_is_saturation, saturation_from_dict)

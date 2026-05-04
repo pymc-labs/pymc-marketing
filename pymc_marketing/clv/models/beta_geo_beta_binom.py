@@ -86,7 +86,6 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         # Initialize model with customer data; `model_config` parameter is optional
         model = BetaGeoBetaBinomModel(
-            data=rfm_df,
             model_config={
                 "alpha": Prior("HalfFlat"),
                 "beta": Prior("HalfFlat"),
@@ -96,7 +95,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         )
 
         # Fit model quickly to large datasets via Maximum a Posteriori
-        model.fit(fit_method="map")
+        model.fit(data=rfm_df, fit_method="map")
         print(model.fit_summary())
 
         # Fit with the default 'mcmc' for more informative predictions and reliable performance on smaller datasets
@@ -148,7 +147,7 @@ class BetaGeoBetaBinomModel(CLVModel):
 
     def __init__(
         self,
-        data: pd.DataFrame,
+        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
@@ -158,17 +157,6 @@ class BetaGeoBetaBinomModel(CLVModel):
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=None,
-        )
-        self._validate_cols(
-            data,
-            required_cols=[
-                "customer_id",
-                "frequency",
-                "recency",
-                "T",
-            ],
-            must_be_unique=["customer_id"],
-            must_be_homogenous=["T"],
         )
 
     @property
@@ -181,8 +169,44 @@ class BetaGeoBetaBinomModel(CLVModel):
             "kappa_dropout": Prior("Pareto", alpha=1, m=1),
         }
 
-    def build_model(self) -> None:  # type: ignore[override]
-        """Build the model."""
+    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate BG/BB-specific data requirements."""
+        self._validate_cols(
+            data,
+            required_cols=[
+                "customer_id",
+                "frequency",
+                "recency",
+                "T",
+            ],
+            must_be_unique=["customer_id"],
+            must_be_homogenous=["T"],
+        )
+
+    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+        """Build the model.
+
+        Parameters
+        ----------
+        data : pd.DataFrame, optional
+            Input data with customer_id, frequency, recency, and T columns.
+            If not provided, uses data from model initialization (deprecated).
+        """
+        # TODO: Revise this logic when old API is removed in 1.0.
+        # Handle data parameter
+        if data is not None:
+            self._validate_data(data)
+            self.data = data
+        elif not hasattr(self, "data") or self.data is None:
+            raise ValueError(
+                f"{self._model_type}.build_model() requires data parameter. "
+                "Either pass data to build_model(data=...) or fit(data=...)"
+            )
+        else:
+            # Validate existing data from old API
+            self._validate_data(self.data)
+
         coords = {
             "obs_var": ["recency", "frequency"],
             "customer_id": self.data["customer_id"],
@@ -331,7 +355,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         Given *recency*, *frequency*, and *T* for an individual customer, this method estimates the
         expected number of future purchases across *future_t* time periods.
 
-        Adapted from equation (13) in Bruce Hardie's notes [1]_, and `lifetimes` library:
+        Adapted from equation (13) in Bruce Hardie's notes [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179
 
         Parameters
@@ -408,7 +432,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         Estimate the probability that a customer with history *frequency*, *recency*, and *T*
         is currently active. Can also estimate alive probability for *future_t* periods into the future.
 
-        Adapted from equation (11) in Bruce Hardie's notes [1]_ and lifetimes library:
+        Adapted from equation (11) in Bruce Hardie's notes [1]_ and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L217
 
         Parameters

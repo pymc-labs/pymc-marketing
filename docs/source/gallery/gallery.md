@@ -36,6 +36,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_media_saturation.html
 :::
 
+:::{grid-item-card} Guide to Adstock Transformations
+:img-top: ../gallery/images/adstock_functions_guide.png
+:link: ../notebooks/mmm/adstock_functions_guide.html
+:::
+
 :::{grid-item-card} Build MMM from YAML Configuration
 :img-top: ../gallery/images/mmm_build_from_yml_example.png
 :link: ../notebooks/mmm/mmm_build_from_yml_example.html
@@ -51,6 +56,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/plot_interactive.html
 :::
 
+:::{grid-item-card} Cost-per-Unit: Model What Drives Revenue, Report What You Spend
+:img-top: ../gallery/images/mmm_cost_per_unit.png
+:link: ../notebooks/mmm/mmm_cost_per_unit.html
+:::
+
 :::{grid-item-card} Parameter Recovery
 :img-top: ../gallery/images/mmm_data_generator.png
 :link: ../notebooks/mmm/mmm_data_generator.html
@@ -60,9 +70,14 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_migration_guide.png
 :link: ../notebooks/mmm/mmm_migration_guide.html
 :::
+
+:::{grid-item-card} MMM Dims Migration Guide
+:img-top: ../gallery/images/mmm_dims_migration_guide.png
+:link: ../notebooks/mmm/mmm_dims_migration_guide.html
+:::
 ::::
 
-### Custom models
+### Custom Models
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -79,6 +94,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Beyond MMMs: adding GAMs or anything else to your model.
 :img-top: ../gallery/images/mmm_example.png
 :link: ../notebooks/mmm/mmm_gam_options.html
+:::
+
+:::{grid-item-card} Custom MMM with ROAS Parameterization
+:img-top: ../gallery/images/mmm_roas_parametrization.png
+:link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
 ::::
 
@@ -109,7 +129,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} Multi-Objective Optimization
-:img-top: ../gallery/images/mmm_allocation_assessment.png
+:img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
 ::::
@@ -125,11 +145,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 
 :::{grid-item-card} MMM Calibration with Geo-Level Lift Tests
-:img-top: ../gallery/images/mmm_lift_test.png
+:img-top: ../gallery/images/mmm_geolift_calibration.png
 :link: ../notebooks/mmm/mmm_geolift_calibration.html
 :::
 
-:::{grid-item-card} Case Study: Unobserved Confounders, ROAS and Lift Tests
+:::{grid-item-card} Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html
 :::
@@ -284,6 +304,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Mixed Logit Discrete Choice
 :img-top: ../gallery/images/mixed_logit.png
 :link: ../notebooks/customer_choice/mixed_logit.html
+:::
+
+:::{grid-item-card} Consideration Set Mixed Logit
+:img-top: ../gallery/images/consideration_set_logit.png
+:link: ../notebooks/customer_choice/consideration_set_logit.html
+:::
+
+:::{grid-item-card} MaxDiff (Best-Worst Scaling)
+:img-top: ../gallery/images/maxdiff.png
+:link: ../notebooks/customer_choice/maxdiff.html
 :::
 ::::
 

@@ -982,8 +982,10 @@ def log_mmm_configuration(mmm: MMM) -> None:
     attrs = mmm.create_idata_attrs()
     mlflow.log_params(attrs)
 
-    mlflow.log_param("adstock_name", mmm.adstock.lookup_name)
-    mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
+    adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
+    saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
+    mlflow.log_param("adstock_name", adstock_name)
+    mlflow.log_param("saturation_name", saturation_name)
 
 
 def log_error(func: Callable, file_name: str):
@@ -1263,10 +1265,12 @@ def autolog(
 
     def patch_clv_fit(fit):
         @wraps(fit)
-        def new_fit(self, fit_method: str = "mcmc", **kwargs):
+        def new_fit(self, data=None, method: str = "mcmc", fit_method=None, **kwargs):
             mlflow.log_param("model_type", self._model_type)
-            mlflow.log_param("fit_method", fit_method)
-            idata = fit(self, fit_method, **kwargs)
+            mlflow.log_param(
+                "fit_method", fit_method if fit_method is not None else method
+            )
+            idata = fit(self, data=data, method=method, fit_method=fit_method, **kwargs)
             mlflow.log_params(
                 idata.attrs,
             )

@@ -18,7 +18,6 @@ from collections import Counter
 
 import arviz as az
 import pandas as pd
-import pytensor.tensor as pt
 from arviz import InferenceData
 from pymc.model.core import Model
 from pymc.model.fgraph import (
@@ -29,10 +28,13 @@ from pymc.model.fgraph import (
 )
 from pymc.pytensorf import rvs_in_graph
 from pytensor import as_symbolic
+from pytensor.graph.basic import Variable
 from pytensor.graph.fg import FunctionGraph
-from pytensor.graph.replace import clone_replace, vectorize_graph
+from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
 from pytensor.graph.traversal import ancestors
+from pytensor.xtensor import xtensor_constant
+from pytensor.xtensor.vectorization import vectorize_graph
 
 
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
@@ -265,7 +267,8 @@ def extract_response_distribution(
     pymc_model: Model,
     idata: InferenceData,
     response_variable: str,
-) -> pt.TensorVariable:
+    frozen_deterministics: list[str] | None = None,
+) -> Variable:
     """Extract the response distribution graph, conditioned on posterior parameters.
 
     Parameters
@@ -276,6 +279,9 @@ def extract_response_distribution(
         The inference data containing posterior samples.
     response_variable : str
         The name of the response variable to extract.
+    frozen_deterministics : list of str, optional
+        Names of Deterministic variables to freeze at their posterior values instead of recomputing from the graph.
+        Some models (e.g, those containing HSGP) need this to to obtain a valid conditional posterior graph.
 
     Returns
     -------
@@ -294,17 +300,22 @@ def extract_response_distribution(
     # The PyMC variable to extract
     response_var = pymc_model[response_variable]
 
-    # Identify which free RVs are needed to compute `response_var`
+    # Identify which free RVs are needed to compute `response_var`.
+    # Frozen deterministics are treated as additional blockers so their
+    # subgraphs are not traversed — their posterior values are substituted
+    # directly, just like free RVs.
     free_rvs = set(pymc_model.free_RVs)
+    frozen_vars: set = set()
+    if frozen_deterministics:
+        for name in frozen_deterministics:
+            if name in pymc_model.named_vars:
+                frozen_vars.add(pymc_model[name])
+
+    blockers = free_rvs | frozen_vars
     needed_rvs = [
-        rv for rv in ancestors([response_var], blockers=free_rvs) if rv in free_rvs
+        rv for rv in ancestors([response_var], blockers=blockers) if rv in blockers
     ]
-    placeholder_replace_dict = {
-        pymc_model[rv.name]: pt.tensor(
-            name=rv.name, shape=rv.type.shape, dtype=rv.dtype
-        )
-        for rv in needed_rvs
-    }
+    placeholder_replace_dict = {pymc_model[rv.name]: rv.clone() for rv in needed_rvs}
 
     [response_var] = clone_replace(
         [response_var],
@@ -320,7 +331,7 @@ def extract_response_distribution(
     # Replace placeholders with actual posterior samples
     replace_dict = {}
     for placeholder in placeholder_replace_dict.values():
-        replace_dict[placeholder] = pt.constant(
+        replace_dict[placeholder] = xtensor_constant(
             posterior[placeholder.name].astype(placeholder.dtype),
             name=placeholder.name,
         )

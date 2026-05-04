@@ -13,6 +13,7 @@
 #   limitations under the License.
 import os
 from collections.abc import Callable
+from pathlib import Path
 
 import arviz as az
 import numpy as np
@@ -23,7 +24,7 @@ import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Prior
-from pytensor.tensor.basic import TensorVariable
+from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -42,7 +43,11 @@ from pymc_marketing.mmm.multidimensional import (
     MMM,
     MultiDimensionalBudgetOptimizerWrapper,
 )
-from pymc_marketing.mmm.scaling import Scaling, VariableScaling
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+)
 
 
 @pytest.fixture
@@ -162,6 +167,26 @@ def test_save_load(fit_mmm: MMM):
     os.remove(file)
 
 
+@pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
+def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path, path_factory):
+    """Roundtrip via MMM.save() / MMM.load() using a .zarr store.
+
+    TODO: Remove this coverage once we require ``arviz>=1.0``.
+
+    arviz.InferenceData.to_zarr() / from_zarr() only support zarr<3.
+    Passing a path ending in .zarr dispatches to the xarray-native Zarr
+    backend, which works with zarr>=3, bypassing the ArviZ version guard.
+    """
+    store = tmp_path / "model.zarr"
+    path_arg = path_factory(store)
+
+    fit_mmm.save(path_arg)
+    loaded = MMM.load(path_arg)
+
+    assert isinstance(loaded, MMM)
+    assert loaded == fit_mmm
+
+
 def test_save_load_equality(fit_mmm: MMM):
     """Test that save/load produces an equivalent MMM instance.
 
@@ -204,6 +229,82 @@ def test_save_load_equality(fit_mmm: MMM):
     os.remove(file)
 
 
+def test_save_original_scale_vars_stored_in_attrs(fit_mmm: MMM, tmp_path):
+    """save() persists original_scale_vars in idata.attrs."""
+    fit_mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    file = str(tmp_path / "test.nc")
+    fit_mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "original_scale_vars" in loaded.idata.attrs
+    import json
+
+    stored = json.loads(loaded.idata.attrs["original_scale_vars"])
+    assert "channel_contribution" in stored
+
+
+def test_save_load_restores_original_scale_deterministic(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    """save/load round-trip preserves *_original_scale Deterministics in named_vars.
+
+    add_original_scale_contribution_variable is called before fit() so the variable
+    is captured in idata.posterior; save() persists the base names in idata.attrs;
+    load() re-adds the Deterministic to the rebuilt model graph.
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.fit(X, y)
+
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+    file = str(tmp_path / "test.nc")
+    mmm.save(file)
+
+    loaded = MMM.load(file)
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
+
+
+def test_build_from_idata_fallback_infers_original_scale_from_posterior(
+    mmm: MMM, df, target_column, mock_pymc_sample, tmp_path
+):
+    """Fallback path restores *_original_scale Deterministics from idata.posterior.
+
+    Simulates loading a model artifact saved *before* the fix, i.e. idata has
+    channel_contribution_original_scale in posterior but no original_scale_vars
+    attr.  build_from_idata() must infer the variable from posterior and still
+    re-add the Deterministic to the model graph.
+    """
+
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    mmm.fit(X, y)
+
+    assert "channel_contribution_original_scale" in mmm.idata.posterior
+
+    file = str(tmp_path / "test.nc")
+    mmm.save(file)
+
+    # Simulate a pre-fix artifact by stripping the attr before loading.
+    loaded_idata = az.from_netcdf(file)
+    assert "original_scale_vars" in loaded_idata.attrs
+    del loaded_idata.attrs["original_scale_vars"]
+    assert "original_scale_vars" not in loaded_idata.attrs
+
+    stripped_file = str(tmp_path / "test_stripped.nc")
+    loaded_idata.to_netcdf(stripped_file)
+
+    loaded = MMM.load(stripped_file)
+    assert "channel_contribution_original_scale" in loaded.model.named_vars
+
+
 def test_save_load_equality_with_all_effects(mock_pymc_sample):
     """Test save/load roundtrip with all MuEffects and HSGP time-varying effects.
 
@@ -232,24 +333,26 @@ def test_save_load_equality_with_all_effects(mock_pymc_sample):
     )
 
     # Create MMM with time-varying effects
-    mmm = MMM(
-        date_column="date",
-        channel_columns=["channel_1", "channel_2"],
-        target_column="target",
-        adstock=GeometricAdstock(l_max=8),
-        saturation=LogisticSaturation(),
-        time_varying_intercept=True,
-        time_varying_media=True,
-    )
-
-    # Add MuEffects
-    mmm.mu_effects.append(
-        FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
-    )
-    mmm.mu_effects.append(
-        LinearTrendEffect(
-            trend=LinearTrend(n_changepoints=5),
-            prefix="trend",
+    mmm = (
+        MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            time_varying_intercept=True,
+            time_varying_media=True,
+        )
+        .add_mu_effect(
+            FourierEffect(
+                fourier=YearlyFourier(n_order=3, prefix="yearly"),
+            ),
+        )
+        .add_mu_effect(
+            LinearTrendEffect(
+                trend=LinearTrend(n_changepoints=5),
+                prefix="trend",
+            )
         )
     )
 
@@ -296,6 +399,278 @@ def test_save_load_equality_with_all_effects(mock_pymc_sample):
     import os
 
     os.remove(file)
+
+
+def _make_minimal_mmm_idata():
+    """Build a minimal InferenceData with valid v1 MMM attrs for testing."""
+    import json
+
+    from pymc_marketing.serialization import serialization
+
+    posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
+    idata = az.InferenceData(posterior=posterior)
+
+    adstock = GeometricAdstock(l_max=4)
+    saturation = LogisticSaturation()
+
+    idata.attrs["id"] = "test123"
+    idata.attrs["model_type"] = "MMM"
+    idata.attrs["version"] = "0.0.1"
+    idata.attrs["sampler_config"] = json.dumps({})
+    idata.attrs["model_config"] = json.dumps({})
+    idata.attrs["__serialization_version__"] = "1"
+    idata.attrs["date_column"] = "date"
+    idata.attrs["target_column"] = "target"
+    idata.attrs["channel_columns"] = json.dumps(["x1"])
+    idata.attrs["control_columns"] = json.dumps([])
+    idata.attrs["adstock"] = json.dumps(serialization.serialize(adstock))
+    idata.attrs["saturation"] = json.dumps(serialization.serialize(saturation))
+    idata.attrs["adstock_first"] = json.dumps(True)
+    idata.attrs["yearly_seasonality"] = json.dumps(None)
+    idata.attrs["time_varying_intercept"] = json.dumps(False)
+    idata.attrs["time_varying_media"] = json.dumps(False)
+    idata.attrs["scaling"] = json.dumps(None)
+    idata.attrs["dims"] = json.dumps([])
+    idata.attrs["dag"] = json.dumps(None)
+    idata.attrs["treatment_nodes"] = json.dumps(None)
+    idata.attrs["outcome_node"] = json.dumps(None)
+    idata.attrs["mu_effects"] = json.dumps([])
+    idata.attrs["cost_per_unit"] = json.dumps(None)
+    return idata
+
+
+class TestRegistryDeserialization:
+    """Verify the load side uses serialization.deserialize() for components."""
+
+    def test_deserialization_error_raises_not_warns(self):
+        """MuEffect deserialization failures should raise, not silently warn."""
+        import json
+
+        from pymc_marketing.serialization import SerializationError
+
+        idata = _make_minimal_mmm_idata()
+        idata.attrs["mu_effects"] = json.dumps(
+            [{"__type__": "nonexistent.module.FakeEffect", "value": 1}]
+        )
+
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        X_df = pd.DataFrame(
+            {
+                "date": date_range,
+                "x1": np.random.uniform(100, 500, size=len(date_range)),
+                "target": np.random.randint(500, 1500, size=len(date_range)),
+            }
+        )
+        fit_data = xr.Dataset.from_dataframe(X_df)
+        idata.add_groups(fit_data=fit_data)
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["x1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+        with pytest.raises((SerializationError, KeyError)):
+            mmm.build_from_idata(idata)
+
+
+class TestSerializationIntegration:
+    """End-to-end save/load tests using the new TypeRegistry-based system."""
+
+    @pytest.fixture
+    def minimal_fit_data(self):
+        """Minimal single-channel X/y for inline fit tests."""
+        date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+        np.random.seed(42)
+        X = pd.DataFrame(
+            {
+                "date": date_range,
+                "ch1": np.random.uniform(100, 500, size=len(date_range)),
+            }
+        )
+        y = pd.Series(np.random.randint(500, 1500, size=len(date_range)), name="target")
+        return X, y
+
+    def _base_mmm(self, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_full_roundtrip_basic(
+        self, simple_fitted_mmm, minimal_fit_data, tmp_path, mock_pymc_sample
+    ):
+        """Basic and non-default adstock/saturation roundtrips preserve types, config, and version tag."""
+        from pymc_marketing.mmm.components.adstock import DelayedAdstock
+        from pymc_marketing.mmm.components.saturation import TanhSaturation
+
+        fname = tmp_path / "model.nc"
+        simple_fitted_mmm.save(str(fname))
+        loaded = type(simple_fitted_mmm).load(str(fname))
+
+        assert type(loaded.adstock) is type(simple_fitted_mmm.adstock)
+        assert type(loaded.saturation) is type(simple_fitted_mmm.saturation)
+        assert loaded.channel_columns == simple_fitted_mmm.channel_columns
+        assert loaded.date_column == simple_fitted_mmm.date_column
+        assert loaded.target_column == simple_fitted_mmm.target_column
+        assert loaded.adstock_first == simple_fitted_mmm.adstock_first
+
+        loaded_idata = az.from_netcdf(fname)
+        assert "__serialization_version__" in loaded_idata.attrs
+        assert loaded_idata.attrs["__serialization_version__"] == "1"
+
+        # non-default adstock/saturation types preserve the concrete class
+        X, y = minimal_fit_data
+        mmm2 = MMM(
+            date_column="date",
+            channel_columns=["ch1"],
+            target_column="target",
+            adstock=DelayedAdstock(l_max=3),
+            saturation=TanhSaturation(),
+        )
+        mmm2.fit(X, y)
+        fname2 = tmp_path / "delayed_model.nc"
+        mmm2.save(str(fname2))
+        loaded2 = MMM.load(str(fname2))
+        assert isinstance(loaded2.adstock, DelayedAdstock)
+        assert loaded2.adstock.l_max == 3
+        assert isinstance(loaded2.saturation, TanhSaturation)
+
+    def test_roundtrip_with_tvp(self, minimal_fit_data, tmp_path, mock_pymc_sample):
+        """Save/load with time-varying parameters (HSGP) preserves HSGP config."""
+        X, y = minimal_fit_data
+        mmm = self._base_mmm(time_varying_intercept=True)
+        mmm.fit(X, y)
+
+        fname = tmp_path / "tvp_model.nc"
+        mmm.save(str(fname))
+        loaded = MMM.load(str(fname))
+
+        assert loaded.time_varying_intercept is not None
+        assert loaded.time_varying_intercept is not False
+        if hasattr(loaded.time_varying_intercept, "to_dict"):
+            assert (
+                loaded.time_varying_intercept.to_dict()
+                == mmm.time_varying_intercept.to_dict()
+            )
+
+    def test_roundtrip_with_mu_effects(
+        self, minimal_fit_data, tmp_path, mock_pymc_sample
+    ):
+        """FourierEffect, EventAdditiveEffect, and a custom MuEffect all survive a single roundtrip."""
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.mmm.additive_effect import FourierEffect, MuEffect
+        from pymc_marketing.mmm.events import EventEffect, GaussianBasis
+        from pymc_marketing.mmm.fourier import YearlyFourier
+        from pymc_marketing.serialization import serialization
+
+        @serialization.register
+        class _TestCustomEffect(MuEffect):
+            my_param: float = 1.0
+            prefix: str = "custom"
+            date_dim_name: str = "date"
+
+            def create_data(self, mmm):
+                pass
+
+            def create_effect(self, mmm):
+                import pytensor.tensor as pt
+                from pytensor.xtensor.type import as_xtensor
+
+                return as_xtensor(pt.zeros(1), dims=["date"])
+
+            def set_data(self, mmm, model, X):
+                pass
+
+        df_events = pd.DataFrame(
+            {
+                "start_date": pd.to_datetime(["2023-02-01", "2023-03-01"]),
+                "end_date": pd.to_datetime(["2023-02-08", "2023-03-08"]),
+                "name": ["promo_a", "promo_b"],
+            }
+        )
+
+        X, y = minimal_fit_data
+        mmm = (
+            self._base_mmm()
+            .add_mu_effect(
+                FourierEffect(fourier=YearlyFourier(n_order=3, prefix="yearly"))
+            )
+            .add_events(
+                df_events,
+                prefix="promos",
+                effect=EventEffect(
+                    basis=GaussianBasis(),
+                    effect_size=Prior("Normal"),
+                    dims=("promos",),
+                ),
+            )
+            .add_mu_effect(_TestCustomEffect(my_param=42.0))
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "mu_effects_model.nc"
+        mmm.save(str(fname))
+
+        raw_idata = az.from_netcdf(fname)
+        assert hasattr(raw_idata, "supplementary_data_promos")
+
+        loaded = MMM.load(str(fname))
+        assert len(loaded.mu_effects) == 3
+
+        fourier_effect = loaded.mu_effects[0]
+        assert isinstance(fourier_effect, FourierEffect)
+        assert isinstance(fourier_effect.fourier, YearlyFourier)
+        assert fourier_effect.fourier.n_order == 3
+
+        event_effect = loaded.mu_effects[1]
+        assert isinstance(event_effect, EventAdditiveEffect)
+        assert list(event_effect.df_events["name"]) == ["promo_a", "promo_b"]
+        assert event_effect.prefix == "promos"
+        assert "start_date" in event_effect.df_events.columns
+        assert "end_date" in event_effect.df_events.columns
+
+        custom_effect = loaded.mu_effects[2]
+        assert isinstance(custom_effect, _TestCustomEffect)
+        assert custom_effect.my_param == 42.0
+
+
+def test_single_channel():
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1630
+    target_column = "y"
+    mmm = MMM(
+        date_column="date_week",
+        channel_columns=["x1"],
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=3),
+        saturation=LogisticSaturation(),
+        control_columns=[
+            "event_1",
+            "event_2",
+            "t",
+        ],
+    )
+    rng = np.random.default_rng(319)
+    X = pd.DataFrame(
+        {
+            "date_week": range(7),
+            "x1": rng.uniform(size=7),
+            "event1": rng.binomial(n=1, p=0.5, size=7),
+            "event2": rng.binomial(n=1, p=0.5, size=7),
+            "t": rng.uniform(size=7),
+        }
+    )
+    y = pd.Series(rng.uniform(size=7), index=X.index, name="y")
+    mmm.build_model(X, y)
+    assert mmm.model["channel_contribution"].dims == ("date", "channel")
+    assert mmm.model["channel_contribution"].eval().shape == (7, 1)
 
 
 @pytest.fixture
@@ -550,10 +925,7 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
     """
     X, y = single_dim_data
     X_train = X.iloc[:-5]
-    _ = X.iloc[-5:]
-
     y_train = y.iloc[:-5]
-    _ = y.iloc[-5:]
 
     # Build a small model
     adstock = GeometricAdstock(l_max=2)
@@ -917,6 +1289,30 @@ def test_time_varying_intercept_with_custom_hsgp_multi_dim(
     assert latent_dims == hsgp_dims
 
 
+def test_time_varying_intercept_with_batch_baseline(df, target_column):
+    # Regression test for https://github.com/pymc-labs/pymc-marketing/issues/1514
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["C1", "C2"],
+        dims=("country",),
+        target_column=target_column,
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+        model_config={"intercept": Prior("Normal", dims=("date", "country"))},
+        time_varying_intercept=True,
+    )
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+    mmm.build_model(X, y)
+    assert mmm.model["intercept_baseline"].dims == ("date", "country")
+    assert mmm.model["intercept_contribution"].dims == ("date", "country")
+    coords = mmm.model.coords
+    assert mmm.model["intercept_contribution"].eval(mode="FAST_COMPILE").shape == (
+        len(coords["date"]),
+        len(coords["country"]),
+    )
+
+
 @pytest.mark.parametrize(
     "hsgp_dims",
     [
@@ -972,7 +1368,10 @@ def test_time_varying_media_with_custom_hsgp_single_dim_save_load(
     mmm.save(file)
     loaded = MMM.load(file)
 
-    assert loaded.time_varying_media.to_dict() == data
+    loaded_dict = loaded.time_varying_media.to_dict()
+    loaded_dict.pop("__type__", None)
+    expected = {**data, "dims": tuple(data["dims"])}
+    assert loaded_dict == expected
 
     os.remove(file)
 
@@ -1031,7 +1430,10 @@ def test_time_varying_intercept_with_custom_hsgp_single_dim_save_load(
     mmm.save(file)
     loaded = MMM.load(file)
 
-    assert loaded.time_varying_intercept.to_dict() == data
+    loaded_dict = loaded.time_varying_intercept.to_dict()
+    loaded_dict.pop("__type__", None)
+    expected = {**data, "dims": tuple(data["dims"])}
+    assert loaded_dict == expected
 
     os.remove(file)
 
@@ -1088,7 +1490,10 @@ def test_time_varying_media_with_custom_hsgp_multi_dim_save_load(
     mmm.save(file)
     loaded = MMM.load(file)
 
-    assert loaded.time_varying_media.to_dict() == data
+    loaded_dict = loaded.time_varying_media.to_dict()
+    loaded_dict.pop("__type__", None)
+    expected = {**data, "dims": tuple(data["dims"])}
+    assert loaded_dict == expected
 
     os.remove(file)
 
@@ -1208,7 +1613,7 @@ def test_create_effect_mu_effect(
     with mock_mmm.model:
         mu = effect.create_effect(mock_mmm)
 
-    assert isinstance(mu, TensorVariable)
+    assert isinstance(mu, XTensorVariable)
 
     for named_vars in ["holiday_sigma", "holiday_effect_size", "holiday_total_effect"]:
         assert named_vars in mock_mmm.model.named_vars
@@ -1398,7 +1803,7 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    assert mmm.scaling.target == VariableScaling(method=method, dims=())
+    assert mmm.scaling.target == DataDerivedScaling(method=method, dims=())
     mmm.fit(X, y)
     assert mmm.xarray_dataset._target.dims == ("date", "country")
     assert mmm.scalers._target.dims == ("country",)
@@ -1512,9 +1917,439 @@ def test_scaling_dict_doesnt_mutate() -> None:
 
     assert scaling == {}
     assert mmm.scaling == Scaling(
-        target=VariableScaling(method="max", dims=dims),
-        channel=VariableScaling(method="max", dims=dims),
+        target=DataDerivedScaling(method="max", dims=dims),
+        channel=DataDerivedScaling(method="max", dims=dims),
     )
+
+
+def test_fixed_scaling_scalar(multi_dim_data) -> None:
+    """Fixed scalar scaling produces a uniform scaler across all levels."""
+    X, y = multi_dim_data
+
+    fixed_channel = 5_000.0
+    fixed_target = 25_000.0
+
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=fixed_target),
+        channel=FixedScaling(dims=("country",), value=fixed_channel),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    assert float(mmm.scalers._target) == fixed_target
+    assert float(mmm.scalers._channel) == fixed_channel
+
+
+def test_fixed_scaling_per_country(multi_dim_data) -> None:
+    """Per-country fixed scaling assigns different target values per level."""
+    X, y = multi_dim_data
+
+    target_values = {"Venezuela": 10_000, "Colombia": 20_000, "Chile": 30_000}
+
+    scaling = Scaling(
+        target=FixedScaling(dims=(), value=target_values),
+        channel=FixedScaling(dims=("country",), value=5_000.0),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    for country in ["Venezuela", "Colombia", "Chile"]:
+        assert float(mmm.scalers._target.sel(country=country)) == target_values[country]
+    assert float(mmm.scalers._channel) == 5_000.0
+
+
+def test_fixed_scaling_per_channel(multi_dim_data) -> None:
+    """Per-channel fixed scaling assigns different values per channel."""
+    X, y = multi_dim_data
+
+    channel_values = {
+        "channel_1": 1_000,
+        "channel_2": 2_000,
+        "channel_3": 3_000,
+    }
+
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=("country",), value=channel_values),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    for ch in ["channel_1", "channel_2", "channel_3"]:
+        assert float(mmm.scalers._channel.sel(channel=ch)) == channel_values[ch]
+    assert float(mmm.scalers._target) == 25_000.0
+
+
+def test_fixed_scaling_stable_across_data_changes(multi_dim_data) -> None:
+    """Fixed scales are the same regardless of the data distribution."""
+    X, y = multi_dim_data
+    fixed_target = 42_000.0
+    fixed_channel = 7_000.0
+
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=fixed_target),
+        channel=FixedScaling(dims=("country",), value=fixed_channel),
+    )
+
+    mmm1 = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm1.build_model(X, y)
+
+    X_shifted = X.copy()
+    X_shifted["channel_1"] = X_shifted["channel_1"] * 10
+    y_shifted = y * 3
+
+    mmm2 = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm2.build_model(X_shifted, y_shifted)
+
+    np.testing.assert_equal(mmm1.scalers._target.values, mmm2.scalers._target.values)
+    np.testing.assert_equal(mmm1.scalers._channel.values, mmm2.scalers._channel.values)
+
+
+def test_fixed_scaling_dict_wrong_remaining_dims(multi_dim_data) -> None:
+    """Dict-valued fixed scaling with multiple remaining dims is rejected."""
+    X, y = multi_dim_data
+
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(
+            dims=(),
+            value={"channel_1": 1_000, "channel_2": 2_000, "channel_3": 3_000},
+        ),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"exactly one remaining dimension.*DataArray"):
+        mmm.build_model(X, y)
+
+
+def test_fixed_scaling_dataarray_country_channel_grid(multi_dim_data) -> None:
+    """Full country × channel grid via DataArray when dict is not enough."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    channels = ["channel_1", "channel_2", "channel_3"]
+    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
+    da = xr.DataArray(
+        vals,
+        dims=("country", "channel"),
+        coords={"country": countries, "channel": channels},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    for cty in countries:
+        for ch in channels:
+            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
+                da.sel(country=cty, channel=ch)
+            )
+
+
+def test_fixed_scaling_dataarray_reversed_dims(multi_dim_data) -> None:
+    """DataArray with (channel, country) dims accepted even though data uses (country, channel)."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    channels = ["channel_1", "channel_2", "channel_3"]
+    vals = np.arange(9, dtype=float).reshape(3, 3) + 100.0
+    da = xr.DataArray(
+        vals,
+        dims=("channel", "country"),
+        coords={"channel": channels, "country": countries},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    for cty in countries:
+        for ch in channels:
+            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
+                da.sel(country=cty, channel=ch)
+            )
+
+
+def test_fixed_scaling_dataarray_broadcasts_country_only(multi_dim_data) -> None:
+    """Per-country fixed media scale broadcasts over channel (e.g. population)."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    da = xr.DataArray(
+        [1_000.0, 2_000.0, 3_000.0],
+        dims="country",
+        coords={"country": countries},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    for cty in countries:
+        for ch in ["channel_1", "channel_2", "channel_3"]:
+            assert float(mmm.scalers._channel.sel(country=cty, channel=ch)) == float(
+                da.sel(country=cty)
+            )
+
+
+def test_fixed_scaling_dataarray_misaligned_country_raises(multi_dim_data) -> None:
+    """Mismatched country labels on fixed channel scale raise when aligning."""
+    X, y = multi_dim_data
+    da = xr.DataArray(
+        [500.0],
+        dims="country",
+        coords={"country": ["NowhereLand"]},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"NaN|align|shape"):
+        mmm.build_model(X, y)
+
+
+def test_fixed_scaling_target_dict_missing_country(multi_dim_data) -> None:
+    """Target fixed dict keys must match panel coordinates (checked at build)."""
+    X, y = multi_dim_data
+    scaling = Scaling(
+        target=FixedScaling(
+            dims=(),
+            value={"Venezuela": 10_000.0, "Colombia": 20_000.0},
+        ),
+        channel=FixedScaling(dims=("country",), value=5_000.0),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    with pytest.raises(ValueError, match=r"missing keys.*Chile"):
+        mmm.build_model(X, y)
+
+
+@pytest.fixture
+def two_panel_dim_data():
+    """Minimal panel with country and product dimensions."""
+    rng = np.random.default_rng(42)
+    dates = pd.date_range("2023-01-01", periods=3)
+    countries = ["A", "B"]
+    products = ["P1", "P2"]
+    rows = []
+    for d in dates:
+        for c in countries:
+            for p in products:
+                rows.append(
+                    {
+                        "date": d,
+                        "country": c,
+                        "product": p,
+                        "ch1": float(rng.integers(50, 150)),
+                        "ch2": float(rng.integers(50, 150)),
+                    }
+                )
+    X = pd.DataFrame(rows)
+    y = pd.Series(rng.random(len(X)) * 500 + 100, name="target")
+    return X, y
+
+
+def test_fixed_scaling_dataarray_three_dims_country_product_channel(
+    two_panel_dim_data,
+) -> None:
+    """Fixed channel scale indexed by country × product × channel."""
+    X, y = two_panel_dim_data
+    countries = ["A", "B"]
+    products = ["P1", "P2"]
+    channels = ["ch1", "ch2"]
+    rng = np.random.default_rng(0)
+    vals = rng.random((2, 2, 2)) * 500 + 100.0
+    da = xr.DataArray(
+        vals,
+        dims=("country", "product", "channel"),
+        coords={"country": countries, "product": products, "channel": channels},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country", "product"), value=50_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country", "product"),
+    )
+    mmm.build_model(X, y)
+    np.testing.assert_allclose(
+        mmm.scalers._channel.values,
+        da.broadcast_like(mmm.scalers._channel).values,
+    )
+
+
+def test_multidimensional_fixed_scaling_dataarray_idata_roundtrip(
+    multi_dim_data,
+) -> None:
+    """Scaling with DataArray-valued FixedScaling survives idata attrs round-trip."""
+    X, y = multi_dim_data
+    countries = ["Venezuela", "Colombia", "Chile"]
+    channels = ["channel_1", "channel_2", "channel_3"]
+    da = xr.DataArray(
+        np.full((3, 3), 2_000.0),
+        dims=("country", "channel"),
+        coords={"country": countries, "channel": channels},
+    )
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(dims=(), value=da),
+    )
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling=scaling,
+        date_column="date",
+        target_column="target",
+        channel_columns=channels,
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+    attrs = mmm.create_idata_attrs()
+    kwargs = MMM.attrs_to_init_kwargs(attrs)
+    restored = kwargs["scaling"]
+    assert isinstance(restored.channel, FixedScaling)
+    assert isinstance(restored.channel.value, xr.DataArray)
+    xr.testing.assert_equal(restored.channel.value, da)
+
+
+def test_fixed_scaling_dict_missing_key(multi_dim_data) -> None:
+    """Missing labels in a dict-valued fixed scale raise at init, not build_model."""
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(
+            dims=("country",),
+            value={"channel_1": 1_000, "channel_2": 2_000},
+        ),
+    )
+    with pytest.raises(ValueError, match=r"missing keys.*channel_3"):
+        MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            dims=("country",),
+        )
+
+
+def test_fixed_scaling_dict_extra_key(multi_dim_data) -> None:
+    """Extra labels in a dict-valued fixed scale raise at init, not build_model."""
+    scaling = Scaling(
+        target=FixedScaling(dims=("country",), value=25_000.0),
+        channel=FixedScaling(
+            dims=("country",),
+            value={
+                "channel_1": 1_000,
+                "channel_2": 2_000,
+                "channel_3": 3_000,
+                "channel_99": 9_000,
+            },
+        ),
+    )
+    with pytest.raises(ValueError, match=r"unexpected keys.*channel_99"):
+        MMM(
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=scaling,
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            dims=("country",),
+        )
 
 
 def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
@@ -1617,8 +2452,8 @@ def test_add_lift_test_measurements(
         target_column="target",
         channel_columns=["channel_1", "channel_2", "channel_3"],
         scaling=Scaling(
-            channel=VariableScaling(method="max", dims=channel_scaling_dims),
-            target=VariableScaling(method="max", dims=target_scaling_dims),
+            channel=DataDerivedScaling(method="max", dims=channel_scaling_dims),
+            target=DataDerivedScaling(method="max", dims=target_scaling_dims),
         ),
         dims=("country",),
     )
@@ -1702,8 +2537,8 @@ def test_add_calibration_test_measurements(multi_dim_data):
     assert "channel_contribution_original_scale" in mmm.model.named_vars
     assert "cost_per_target" not in mmm.model.named_vars
 
-    pot_names = [getattr(p, "name", None) for p in mmm.model.potentials]
-    assert "cpt_calibration" in pot_names
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
 
 def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
@@ -2103,8 +2938,8 @@ def test_make_channel_transform_multi_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method=scaling_method, dims=scaling_dims),
-            target=VariableScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method=scaling_method, dims=scaling_dims),
+            target=DataDerivedScaling(method="max", dims=()),
         ),
     )
 
@@ -2182,8 +3017,8 @@ def test_make_channel_transform_single_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method=scaling_method, dims=()),
-            target=VariableScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method=scaling_method, dims=()),
+            target=DataDerivedScaling(method="max", dims=()),
         ),
     )
 
@@ -2251,8 +3086,8 @@ def test_make_target_transform_multi_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method="max", dims=()),
-            target=VariableScaling(method=scaling_method, dims=scaling_dims),
+            channel=DataDerivedScaling(method="max", dims=()),
+            target=DataDerivedScaling(method=scaling_method, dims=scaling_dims),
         ),
     )
 
@@ -2318,8 +3153,8 @@ def test_make_target_transform_single_dim(
         adstock=GeometricAdstock(l_max=2),
         saturation=LogisticSaturation(),
         scaling=Scaling(
-            channel=VariableScaling(method=scaling_method, dims=()),
-            target=VariableScaling(method=scaling_method, dims=()),
+            channel=DataDerivedScaling(method=scaling_method, dims=()),
+            target=DataDerivedScaling(method=scaling_method, dims=()),
         ),
     )
 
@@ -2501,8 +3336,8 @@ def test_mmm_equality():
         saturation=LogisticSaturation(),
         dims=("geo",),
         scaling=Scaling(
-            target=VariableScaling(method="mean", dims=("geo",)),  # Different method
-            channel=VariableScaling(method="max", dims=("geo",)),
+            target=DataDerivedScaling(method="mean", dims=("geo",)),  # Different method
+            channel=DataDerivedScaling(method="max", dims=("geo",)),
         ),
     )
     assert mmm1 != mmm12
@@ -2751,13 +3586,18 @@ class TestPydanticValidation:
             scaling=scaling_dict,
         )
         assert isinstance(mmm.scaling, Scaling)
-        assert mmm.scaling.model_dump() == scaling_dict
+        assert isinstance(mmm.scaling.channel, DataDerivedScaling)
+        assert isinstance(mmm.scaling.target, DataDerivedScaling)
+        assert mmm.scaling.channel.method == "max"
+        assert mmm.scaling.target.method == "max"
+        assert mmm.scaling.channel.dims == ()
+        assert mmm.scaling.target.dims == ()
 
     def test_valid_scaling_object_accepted(self):
         """Test that valid Scaling object is accepted."""
         scaling_obj = Scaling(
-            target=VariableScaling(method="max", dims=()),
-            channel=VariableScaling(method="max", dims=()),
+            target=DataDerivedScaling(method="max", dims=()),
+            channel=DataDerivedScaling(method="max", dims=()),
         )
         mmm = MMM(
             date_column="date",
@@ -2841,8 +3681,8 @@ class TestPydanticValidation:
             time_varying_media=True,
             dims=("country", "product"),
             scaling=Scaling(
-                target=VariableScaling(method="mean", dims=("country",)),
-                channel=VariableScaling(method="max", dims=("country", "channel")),
+                target=DataDerivedScaling(method="mean", dims=("country",)),
+                channel=DataDerivedScaling(method="max", dims=("country", "channel")),
             ),
             model_config={"intercept": Prior("Normal", mu=0, sigma=2)},
             sampler_config={"draws": 1000, "chains": 4},
@@ -2907,7 +3747,7 @@ def test_mmm_linear_trend_different_dimensions_original_scale(
 
     # Create the wrapper
     trend_effect = LinearTrendEffect(trend=trend, prefix="trend")
-    mmm.mu_effects.append(trend_effect)
+    mmm.add_mu_effect(trend_effect)
 
     mmm.build_model(X, y)
 
@@ -2968,7 +3808,7 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
     assert dataset_xarray._channel.dtype == np.float32
 
     # Apply _set_xarray_data
-    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
 
     # Check that the data in the model has been converted to the original dtypes
     assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
@@ -3003,7 +3843,8 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
 
     # Apply _set_xarray_data with target
     model_with_target = mmm._set_xarray_data(
-        dataset_xarray_with_target, clone_model=True
+        dataset_xarray_with_target,
+        model=mmm.model.copy(),
     )
 
     # Check that target dtype is preserved
@@ -3082,7 +3923,7 @@ def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
     )
 
     # Apply _set_xarray_data
-    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
 
     # Check that data types are preserved
     assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
@@ -3105,7 +3946,7 @@ def test_set_xarray_data_with_control_columns_preserves_dtypes(multi_dim_data):
 
     # Apply _set_xarray_data with target
     model_with_target = mmm._set_xarray_data(
-        dataset_xarray_with_target, clone_model=True
+        dataset_xarray_with_target, model=mmm.model.copy()
     )
 
     # Check that all data types are preserved
@@ -3155,7 +3996,7 @@ def test_set_xarray_data_without_target_preserves_dtypes(multi_dim_data):
     )
 
     # Apply _set_xarray_data
-    model = mmm._set_xarray_data(dataset_xarray, clone_model=True)
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
 
     # Check that channel data type is preserved
     assert model.named_vars["channel_data"].get_value().dtype == original_channel_dtype
@@ -3405,7 +4246,7 @@ def test_specify_time_varying_configuration(
     mmm.build_model(X, y)
 
     assert (
-        mmm.model[expected_rv["name"]].owner.op.__class__.__name__
+        mmm.model[expected_rv["name"]].owner.op.core_op.__class__.__name__
         == expected_rv["kind"]
     )
 
@@ -3852,8 +4693,8 @@ def test_calibration_spend_with_different_dtypes(multi_dim_data, mock_pymc_sampl
     assert "y" in idata_pred
 
 
-def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
-    """Test that attempting to re-register calibration potentials raises a duplicate name error."""
+def test_calibration_duplicate_name_warns(multi_dim_data, mock_pymc_sample):
+    """Test that re-registering calibration potentials warns and skips."""
     X, y = multi_dim_data
 
     # Create MMM model
@@ -3895,9 +4736,9 @@ def test_calibration_duplicate_name_error(multi_dim_data, mock_pymc_sample):
         name_prefix="cpt_calibration",
     )
 
-    # Attempting to re-register the calibration potentials should raise a duplicate name error
-    with pytest.raises(
-        ValueError, match="Variable name cpt_calibration already exists"
+    # Re-registering should warn and skip (idempotent)
+    with pytest.warns(
+        UserWarning, match="Cost-per-target potentials with name 'cpt_calibration'"
     ):
         mmm.add_cost_per_target_calibration(
             data=spend_df,
@@ -3932,13 +4773,9 @@ def test_calibration_shape_mismatch_error(multi_dim_data, mock_pymc_sample):
     spend_df = spend_df[spend_df["country"] != "Chile"].copy()
     for col in ["channel_1", "channel_2", "channel_3"]:
         spend_df[col] = spend_df[col] * 1.5
-    # print unique countries in spend_df
-    print(spend_df["country"].unique())
 
     # Create calibration data
     countries = mmm.model.coords["country"]
-    # print unique countries in countries
-    print(countries)
     calibration_df = pd.DataFrame(
         {
             "country": [countries[0], countries[1], countries[2]],
@@ -3949,7 +4786,10 @@ def test_calibration_shape_mismatch_error(multi_dim_data, mock_pymc_sample):
     )
 
     # This should raise a shape mismatch error
-    with pytest.raises(ValueError, match="shape does not match"):
+    with pytest.raises(
+        ValueError,
+        match=r"Spend data coordinates for dim 'country' do not match model coords",
+    ):
         mmm.add_cost_per_target_calibration(
             data=spend_df,
             calibration_data=calibration_df,
@@ -4010,6 +4850,55 @@ def test_calibration_coordinate_label_mismatch_error(multi_dim_data, mock_pymc_s
             calibration_data=calibration_df,
             name_prefix="cpt_calibration",
         )
+
+
+def test_cost_per_target_calibration_non_alphabetical_channels(
+    multi_dim_data, mock_pymc_sample
+):
+    """Regression test: add_cost_per_target_calibration should work when
+    channel_columns are not in alphabetical order.
+
+    _create_xarray_from_pandas alphabetically sorts the channel coordinate,
+    but the model coords preserve the user-provided order.  The calibration
+    method must reindex to match before comparing.
+    """
+    X, y = multi_dim_data
+
+    non_alpha_channels = ["channel_2", "channel_1", "channel_3"]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=non_alpha_channels,
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    spend_df = X.copy()
+
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0], countries[1]],
+            "channel": [non_alpha_channels[0], non_alpha_channels[1]],
+            "cost_per_target": [30.0, 45.0],
+            "sigma": [2.0, 3.0],
+        }
+    )
+
+    mmm.add_cost_per_target_calibration(
+        data=spend_df,
+        calibration_data=calibration_df,
+        name_prefix="cpt_calibration",
+    )
+
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "cpt_calibration" in obs_names
 
 
 class TestAddOriginalScaleContributionVariable:
@@ -4289,3 +5178,632 @@ class TestDataProperty:
         assert isinstance(wrapper, MMMIDataWrapper)
         # Verify time_index variable exists in schema (indicator of time-varying)
         assert "time_index" in wrapper.schema.groups["constant_data"].variables
+
+
+class TestChannelCoordinateOrdering:
+    """Regression tests for #2417: channel coordinates must preserve
+    the user-provided channel_columns order, not be alphabetically sorted."""
+
+    NON_ALPHA_CHANNELS = ["Z_tv", "A_social", "M_radio"]
+
+    @pytest.fixture
+    def shuffled_channel_data(self):
+        n = 14
+        dates = pd.date_range("2023-01-01", periods=n, freq="W")
+        geos = ["G1", "G2"]
+        rows = []
+        rng = np.random.default_rng(42)
+        for geo in geos:
+            for date in dates:
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        **{
+                            ch: rng.integers(100, 500) for ch in self.NON_ALPHA_CHANNELS
+                        },
+                    }
+                )
+        df = pd.DataFrame(rows)
+        y = pd.Series(rng.integers(200, 800, size=len(df)), name="target")
+        return df, y
+
+    @pytest.fixture
+    def shuffled_mmm(self):
+        return MMM(
+            date_column="date",
+            channel_columns=list(self.NON_ALPHA_CHANNELS),
+            dims=("geo",),
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+
+    def test_xarray_dataset_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data
+    ):
+        """Regression test for #2417: xarray_dataset channel coordinate must
+        match channel_columns order after xr.merge."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.build_model(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        actual = list(shuffled_mmm.xarray_dataset.coords["channel"].values)
+        assert actual == channels
+
+    def test_model_coords_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data
+    ):
+        """Regression test for #2417: model_coords['channel'] must match
+        channel_columns order, not alphabetical."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.build_model(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        actual = list(shuffled_mmm.model_coords["channel"])
+        assert actual == channels
+
+    def test_idata_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data, mock_pymc_sample
+    ):
+        """Regression test for #2417: InferenceData posterior channel coordinate
+        must match channel_columns order."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.fit(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        posterior_channels = list(shuffled_mmm.idata.posterior.coords["channel"].values)
+        assert posterior_channels == channels
+
+    def test_data_wrapper_channels_preserves_order(
+        self, shuffled_mmm, shuffled_channel_data, mock_pymc_sample
+    ):
+        """Regression test for #2417: MMMIDataWrapper.channels must match
+        channel_columns order."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.fit(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels, "precondition: channels must not be sorted"
+
+        wrapper = shuffled_mmm.data
+        assert isinstance(wrapper, MMMIDataWrapper)
+        assert wrapper.channels == channels
+
+    def test_posterior_predictive_data_transformation_preserves_channel_order(
+        self, shuffled_mmm, shuffled_channel_data, mock_pymc_sample
+    ):
+        """Regression test for #2417: _posterior_predictive_data_transformation
+        must return a dataset with channel coordinates in user-provided order."""
+        X, y = shuffled_channel_data
+        shuffled_mmm.fit(X=X, y=y)
+
+        channels = self.NON_ALPHA_CHANNELS
+        assert sorted(channels) != channels
+
+        dataset = shuffled_mmm._posterior_predictive_data_transformation(X=X)
+        actual = list(dataset.coords["channel"].values)
+        assert actual == channels
+
+        future_dates = pd.date_range(
+            "2023-05-01", periods=X["date"].nunique(), freq="W"
+        )
+        X_future = X.copy()
+        X_future["date"] = np.tile(future_dates, len(X) // len(future_dates))
+        dataset_with_last = shuffled_mmm._posterior_predictive_data_transformation(
+            X=X_future, include_last_observations=True
+        )
+        actual_with_last = list(dataset_with_last.coords["channel"].values)
+        assert actual_with_last == channels
+
+    def test_posterior_predictive_data_transformation_preserves_values(
+        self, mock_pymc_sample
+    ):
+        """Regression test for #2417: channel VALUES must be mapped to the
+        correct channel LABELS after _posterior_predictive_data_transformation.
+        Uses distinct spend levels per channel so a swap is detectable."""
+        channels = self.NON_ALPHA_CHANNELS
+        n = 14
+        dates = pd.date_range("2023-01-01", periods=n, freq="W")
+        geos = ["G1", "G2"]
+        rng = np.random.default_rng(99)
+        rows = []
+        for geo in geos:
+            for date in dates:
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        "Z_tv": rng.integers(800, 1200),
+                        "A_social": rng.integers(1, 10),
+                        "M_radio": rng.integers(100, 300),
+                    }
+                )
+        df = pd.DataFrame(rows)
+        y = pd.Series(rng.integers(200, 800, size=len(df)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=list(channels),
+            dims=("geo",),
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X=df, y=y)
+
+        dataset = mmm._posterior_predictive_data_transformation(X=df)
+        z_tv_mean = float(dataset._channel.sel(channel="Z_tv").mean())
+        a_social_mean = float(dataset._channel.sel(channel="A_social").mean())
+        assert z_tv_mean > a_social_mean * 10, (
+            f"Z_tv mean ({z_tv_mean:.1f}) should be >> A_social mean "
+            f"({a_social_mean:.1f}); values are likely swapped"
+        )
+
+    def test_posterior_predictive_data_transformation_preserves_control_order(
+        self, mock_pymc_sample
+    ):
+        """Regression test for #2417: control coordinate order must be
+        preserved through _posterior_predictive_data_transformation."""
+        channels = ["Z_tv", "A_social"]
+        controls = ["Z_ctrl", "A_ctrl"]
+        n = 14
+        dates = pd.date_range("2023-01-01", periods=n, freq="W")
+        geos = ["G1", "G2"]
+        rng = np.random.default_rng(42)
+        rows = []
+        for geo in geos:
+            for date in dates:
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        "Z_tv": rng.integers(100, 500),
+                        "A_social": rng.integers(100, 500),
+                        "Z_ctrl": rng.integers(50, 100),
+                        "A_ctrl": rng.integers(1, 5),
+                    }
+                )
+        df = pd.DataFrame(rows)
+        y = pd.Series(rng.integers(200, 800, size=len(df)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=channels,
+            control_columns=controls,
+            dims=("geo",),
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X=df, y=y)
+
+        dataset = mmm._posterior_predictive_data_transformation(X=df)
+        assert sorted(controls) != controls, "precondition: controls not alphabetical"
+        assert list(dataset.coords["channel"].values) == channels
+        assert list(dataset.coords["control"].values) == controls
+
+
+class TestComputeMeanContributionsOverTime:
+    """Tests for compute_mean_contributions_over_time method."""
+
+    def test_channels_only(self, single_dim_data, mock_pymc_sample) -> None:
+        """Channels + intercept only (no controls, no seasonality)."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        n_dates = X["date"].nunique()
+        assert result.shape[0] == n_dates
+        expected_columns = ["date", "channel_1", "channel_2", "channel_3", "intercept"]
+        assert result.columns.tolist() == expected_columns
+
+    def test_with_controls_and_seasonality(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Full model with controls and yearly seasonality."""
+        X, y = single_dim_data
+        X = X.copy()
+        X["ctrl"] = np.random.default_rng(0).uniform(size=len(X))
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            control_columns=["ctrl"],
+            target_column="target",
+            yearly_seasonality=2,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        expected_columns = [
+            "date",
+            "channel_1",
+            "channel_2",
+            "channel_3",
+            "ctrl",
+            "yearly_seasonality",
+            "intercept",
+        ]
+        assert result.columns.tolist() == expected_columns
+
+    def test_multi_dimensional(self, multi_dim_data, mock_pymc_sample) -> None:
+        """Extra panel dimensions (e.g. country) produce additional columns."""
+        X, y = multi_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            dims=("country",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        assert "country" in result.columns
+        assert "date" in result.columns
+        n_dates = X["date"].nunique()
+        n_countries = X["country"].nunique()
+        assert result.shape[0] == n_dates * n_countries
+        for ch in ["channel_1", "channel_2", "channel_3"]:
+            assert ch in result.columns
+        assert "intercept" in result.columns
+
+    def test_original_scale_values(self, single_dim_data, mock_pymc_sample) -> None:
+        """Verify values match manual target_scale multiplication."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        target_scale = mmm.idata.constant_data["target_scale"].values
+        scaled_channel = mmm.idata.posterior["channel_contribution"].mean(
+            dim=("chain", "draw")
+        )
+        expected_channel = (scaled_channel * target_scale).values
+
+        actual_channel = result[["channel_1", "channel_2", "channel_3"]].values
+        np.testing.assert_allclose(actual_channel, expected_channel, rtol=1e-6)
+
+    def test_with_time_varying_intercept(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Time-varying intercept produces a per-date intercept column."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            time_varying_intercept=True,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        assert isinstance(result, pd.DataFrame)
+        assert "intercept" in result.columns
+        n_dates = X["date"].nunique()
+        assert result.shape[0] == n_dates
+
+        target_scale = mmm.idata.constant_data["target_scale"].values
+        scaled_intercept = mmm.idata.posterior["intercept_contribution"].mean(
+            dim=("chain", "draw")
+        )
+        expected_intercept = (scaled_intercept * target_scale).values
+
+        np.testing.assert_allclose(
+            result["intercept"].values, expected_intercept, rtol=1e-6
+        )
+
+    def test_raises_without_idata(self) -> None:
+        """Method raises ValueError before fitting."""
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["ch"],
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        with pytest.raises(ValueError, match="idata"):
+            mmm.compute_mean_contributions_over_time()
+
+
+class TestChannelOrderingIntegration:
+    """End-to-end integration regression test for issues #2323 and #2417.
+
+    Exercises the complete pipeline with non-alphabetical channel and control
+    names from a single data setup: build -> fit -> predict -> optimize -> ROAS.
+    """
+
+    CHANNELS = ["Z_tv", "A_social", "M_radio"]
+    CONTROLS = ["Z_ctrl", "A_ctrl"]
+
+    @pytest.fixture(scope="class")
+    def integration_model(self, mock_pymc_sample):
+        """Build and fit an MMM with non-alphabetical channels/controls
+        and distinct per-channel spend levels."""
+        n = 14
+        dates = pd.date_range("2023-01-01", periods=n, freq="W")
+        geos = ["G1", "G2"]
+        rng = np.random.default_rng(42)
+
+        rows = []
+        for geo in geos:
+            for date in dates:
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        "Z_tv": rng.integers(800, 1200),
+                        "A_social": rng.integers(1, 10),
+                        "M_radio": rng.integers(100, 300),
+                        "Z_ctrl": rng.integers(50, 100),
+                        "A_ctrl": rng.integers(1, 5),
+                    }
+                )
+        df = pd.DataFrame(rows)
+        y = pd.Series(rng.integers(200, 800, size=len(df)), name="target")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=list(self.CHANNELS),
+            control_columns=list(self.CONTROLS),
+            dims=("geo",),
+            target_column="target",
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X=df, y=y, progressbar=False)
+        mmm.sample_posterior_predictive(
+            X=df, extend_idata=True, combined=True, progressbar=False
+        )
+
+        return mmm, df, y
+
+    def test_precondition_channels_not_alphabetical(self, integration_model):
+        """Guard: channels and controls must not be alphabetically sorted."""
+        mmm, _, _ = integration_model
+        assert sorted(self.CHANNELS) != self.CHANNELS
+        assert sorted(self.CONTROLS) != self.CONTROLS
+        assert list(mmm.channel_columns) == self.CHANNELS
+        assert list(mmm.control_columns) == self.CONTROLS
+
+    def test_build_preserves_channel_order(self, integration_model):
+        """xarray_dataset, model_coords, and idata must preserve user order
+        for both channels and controls."""
+        mmm, _, _ = integration_model
+        assert list(mmm.xarray_dataset.coords["channel"].values) == self.CHANNELS
+        assert list(mmm.model_coords["channel"]) == self.CHANNELS
+        assert list(mmm.idata.posterior.coords["channel"].values) == self.CHANNELS
+        assert list(mmm.xarray_dataset.coords["control"].values) == self.CONTROLS
+
+    def test_prediction_transform_preserves_order(self, integration_model):
+        """_posterior_predictive_data_transformation must preserve user order
+        for both channels and controls, with and without include_last_observations."""
+        mmm, df, _y = integration_model
+
+        dataset = mmm._posterior_predictive_data_transformation(X=df)
+        assert list(dataset.coords["channel"].values) == self.CHANNELS
+        assert list(dataset.coords["control"].values) == self.CONTROLS
+
+        future_dates = pd.date_range(
+            "2023-05-01", periods=df["date"].nunique(), freq="W"
+        )
+        df_future = df.copy()
+        df_future["date"] = np.tile(future_dates, len(df) // len(future_dates))
+        dataset_with_last = mmm._posterior_predictive_data_transformation(
+            X=df_future, include_last_observations=True
+        )
+        assert list(dataset_with_last.coords["channel"].values) == self.CHANNELS
+        assert list(dataset_with_last.coords["control"].values) == self.CONTROLS
+
+    def test_prediction_transform_values_match_channels(self, integration_model):
+        """Channel and control VALUES must be mapped to the correct LABELS.
+        Z_tv spend (800-1200) must be >> A_social spend (1-10); if alphabetical
+        sorting swapped them, this assertion fails."""
+        mmm, df, _y = integration_model
+
+        dataset = mmm._posterior_predictive_data_transformation(X=df)
+
+        z_tv_mean = float(dataset._channel.sel(channel="Z_tv").mean())
+        a_social_mean = float(dataset._channel.sel(channel="A_social").mean())
+        assert z_tv_mean > a_social_mean * 10, (
+            f"Z_tv ({z_tv_mean:.1f}) should be >> A_social ({a_social_mean:.1f}); "
+            "values are likely swapped due to alphabetical sorting"
+        )
+
+        z_ctrl_mean = float(dataset._control.sel(control="Z_ctrl").mean())
+        a_ctrl_mean = float(dataset._control.sel(control="A_ctrl").mean())
+        assert z_ctrl_mean > a_ctrl_mean * 5, (
+            f"Z_ctrl ({z_ctrl_mean:.1f}) should be >> A_ctrl ({a_ctrl_mean:.1f}); "
+            "values are likely swapped due to alphabetical sorting"
+        )
+
+    def test_optimizer_asymmetric_bounds_respected(self, integration_model):
+        """Regression for #2323: asymmetric bounds must apply to the correct
+        channels. Z_tv (first in user order) gets the tightest upper bound;
+        if bounds were applied alphabetically, it would get A_social's looser bound."""
+        mmm, _, _ = integration_model
+        channels = list(mmm.channel_columns)
+        geos = list(mmm.model_coords["geo"])
+
+        wrapper = MultiDimensionalBudgetOptimizerWrapper(
+            model=mmm,
+            start_date="2023-04-01",
+            end_date="2023-06-01",
+        )
+
+        total = 100.0
+        n_ch = len(channels)
+        bounds_dict = {
+            ch: (0.0, total * (i + 1) / n_ch) for i, ch in enumerate(channels)
+        }
+        bounds_da = xr.DataArray(
+            [[list(bounds_dict[ch]) for ch in channels] for _ in geos],
+            dims=["geo", "channel", "bound"],
+            coords={"geo": geos, "channel": channels, "bound": ["lower", "upper"]},
+        )
+
+        optimal_budgets, result = wrapper.optimize_budget(
+            budget=total, budget_bounds=bounds_da
+        )
+        assert result.success
+        for ch in channels:
+            vals = optimal_budgets.sel(channel=ch).values
+            lo, hi = bounds_dict[ch]
+            assert np.all(vals >= lo - 1e-6) and np.all(vals <= hi + 1e-6), (
+                f"{ch} allocation {vals} outside bounds [{lo}, {hi}]"
+            )
+
+    def test_roas_channel_coordinate_order(self, integration_model):
+        """ROAS result from incrementality module must have user-ordered
+        channel coordinates."""
+        mmm, _, _ = integration_model
+        roas = mmm.incrementality.contribution_over_spend(frequency="all_time").rename(
+            "roas"
+        )
+        assert list(roas.coords["channel"].values) == self.CHANNELS
+
+    def test_roas_matches_ground_truth(self, integration_model):
+        """ROAS from contribution_over_spend must equal
+        incremental_contribution / spend per channel."""
+        mmm, _, _ = integration_model
+        roas = mmm.incrementality.contribution_over_spend(frequency="all_time").rename(
+            "roas"
+        )
+
+        incremental = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", counterfactual_spend_factor=0.0
+        )
+        spend = mmm.data.aggregate_time(
+            period="all_time", method="sum"
+        ).get_channel_spend()
+        expected_roas = incremental / xr.where(spend == 0, np.nan, spend)
+        xr.testing.assert_allclose(roas, expected_roas)
+
+    def test_sample_posterior_predictive_channel_order(self, integration_model):
+        """After sample_posterior_predictive, the data set into the model
+        must use user-ordered channel and control coordinates."""
+        mmm, df, _ = integration_model
+        idata = mmm.sample_posterior_predictive(
+            X=df,
+            extend_idata=False,
+            combined=True,
+            progressbar=False,
+            # Sample variables with channel/control dims
+            var_names=[mmm.output_var, "channel_contribution", "control_contribution"],
+        )
+        assert (
+            list(idata.coords["channel"])
+            == list(mmm.model.coords["channel"])
+            == self.CHANNELS
+        )
+        assert (
+            list(idata.coords["control"])
+            == list(mmm.model.coords["control"])
+            == self.CONTROLS
+        )
+
+
+def test_add_original_scale_contribution_variable_idempotent(multi_dim_data):
+    """Issue #2367: calling add_original_scale_contribution_variable twice
+    should not create duplicate nodes."""
+    X, y = multi_dim_data
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+
+    with pytest.warns(
+        UserWarning, match=r"channel_contribution_original_scale already in the model"
+    ):
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    assert "channel_contribution_original_scale" in mmm.model.named_vars
+
+
+def test_iterative_workflow(multi_dim_data, mock_pymc_sample):
+    """Issue #2226: calling sample_posterior_predictive() multiple times should not fail."""
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    X, y = multi_dim_data
+    full_pp_sizes = {"chain": 1, "draw": 10, "date": 7, "country": 3}
+    full_cd_sizes = {"date": 7, "country": 3, "channel": 3}
+    reduced_X = X[::10]
+    reduced_y = y[::10]
+    reduced_pp_sizes = full_pp_sizes | {"date": 3}
+    reduced_cd_sizes = full_cd_sizes | {"date": 3}
+
+    # Test loses most of its meaning if these are not different
+    assert full_pp_sizes != reduced_pp_sizes
+    assert full_cd_sizes != reduced_cd_sizes
+
+    mmm.fit(X, y, chains=1, draws=10)
+    mmm.sample_posterior_predictive(X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
+
+    # Second call should succeed (not raise)
+    mmm.sample_posterior_predictive(X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
+
+    # Call with new shapes
+    mmm.sample_posterior_predictive(reduced_X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == reduced_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == reduced_cd_sizes
+
+    # Fit with new shapes
+    mmm.fit(reduced_X, reduced_y)
+    mmm.sample_posterior_predictive(reduced_X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == reduced_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == reduced_cd_sizes
+
+    # Should still work with different shapes
+    mmm.sample_posterior_predictive(X)
+    assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
+    assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes

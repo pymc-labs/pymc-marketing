@@ -16,14 +16,15 @@ import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc_extras.deserialize import (
     DESERIALIZERS,
-    deserialize,
     register_deserialization,
 )
 from pymc_extras.prior import Prior
+from xarray import DataArray
 
 from pymc_marketing.mmm.fourier import (
     FourierBase,
@@ -32,6 +33,7 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
+from pymc_marketing.serialization import serialization as type_registry
 
 
 @pytest.mark.parametrize(
@@ -330,7 +332,7 @@ def test_bad_non_integer_order(n_order, seasonality) -> None:
     ],
 )
 def test_fourier_modes_shape(periods, n_order, expected_shape, seasonality) -> None:
-    result = generate_fourier_modes(periods, n_order)
+    result = generate_fourier_modes(DataArray(periods, dims=("date",)), n_order)
     assert result.eval().shape == expected_shape
 
 
@@ -343,7 +345,9 @@ def test_fourier_modes_shape(periods, n_order, expected_shape, seasonality) -> N
     ],
 )
 def test_fourier_modes_range(periods, n_order):
-    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+    fourier_modes = generate_fourier_modes(
+        periods=DataArray(periods, dims=("date",)), n_order=n_order
+    ).eval()
 
     assert fourier_modes.min() >= -1.0
     assert fourier_modes.max() <= 1.0
@@ -358,8 +362,9 @@ def test_fourier_modes_range(periods, n_order):
     ],
 )
 def test_fourier_modes_frequency_integer_range(periods, n_order):
-    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
-
+    fourier_modes = generate_fourier_modes(
+        periods=DataArray(periods, dims=("date",)), n_order=n_order
+    ).eval()
     assert (fourier_modes[:, :n_order].mean(axis=0) < 1e-10).all()
     assert (fourier_modes[:-1, n_order:].mean(axis=0) < 1e-10).all()
 
@@ -381,7 +386,9 @@ def test_fourier_modes_frequency_integer_range(periods, n_order):
     ],
 )
 def test_fourier_modes_pythagoras(periods, n_order):
-    fourier_modes = generate_fourier_modes(periods=periods, n_order=n_order).eval()
+    fourier_modes = generate_fourier_modes(
+        periods=DataArray(periods, dims=("date",)), n_order=n_order
+    ).eval()
     norm = fourier_modes[:, :n_order] ** 2 + fourier_modes[:, n_order:] ** 2
 
     assert (abs(norm - 1) < 1e-10).all()
@@ -396,26 +403,18 @@ def test_fourier_modes_pythagoras(periods, n_order):
         "weekly",
     ],
 )
-def test_apply_result_callback(seasonality) -> None:
+def test_apply_sum_kwarg(seasonality) -> None:
     n_order = 3
     fourier = seasonality(n_order=n_order)
+    dayofyear = DataArray(np.arange(365), dims=("date",))
 
-    def result_callback(x):
-        pm.Deterministic(
-            "components",
-            x,
-            dims=("dayofyear", *fourier.prior.dims),
-        )
+    with pm.Model():
+        res = fourier.apply(dayofyear, sum=False)
+        assert res.dims == ("date", "fourier")
 
-    dayofyear = np.arange(365)
-    coords = {
-        "dayofyear": dayofyear,
-    }
-    with pm.Model(coords=coords) as model:
-        fourier.apply(dayofyear, result_callback=result_callback)
-
-    assert "components" in model
-    assert model["components"].eval().shape == (365, n_order * 2)
+    with pm.Model():
+        res = fourier.apply(dayofyear, sum=True)
+        assert res.dims == ("date",)
 
 
 @pytest.mark.parametrize(
@@ -582,8 +581,11 @@ class ArbitraryCode:
     def __init__(self, dims: tuple[str, ...]) -> None:
         self.dims = dims
 
-    def create_variable(self, name: str):
-        return pm.Normal(name, dims=self.dims)
+    def create_variable(self, name: str, xdist: bool = False):
+        if xdist:
+            return pmd.Normal(name, dims=self.dims)
+        else:
+            return pm.Normal(name, dims=self.dims)
 
 
 @pytest.mark.parametrize(
@@ -599,7 +601,7 @@ def test_fourier_arbitrary_prior(seasonality) -> None:
     prior = ArbitraryCode(dims=("fourier",))
     fourier = seasonality(n_order=4, prior=prior)
 
-    x = np.arange(10)
+    x = DataArray(np.arange(10), dims=("date",))
     with pm.Model():
         y = fourier.apply(x)
 
@@ -651,6 +653,7 @@ def test_fourier_serializable_arbitrary_prior() -> None:
 def test_fourier_to_dict(name, cls, days_in_period) -> None:
     fourier = cls(n_order=4)
     assert fourier.to_dict() == {
+        "__type__": f"{cls.__module__}.{cls.__qualname__}",
         "class": name,
         "data": {
             "n_order": 4,
@@ -695,10 +698,47 @@ def test_fourier_deserialization(serialization, name, cls) -> None:
             "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
         },
     }
-    fourier = deserialize(data)
+    fourier = cls.from_dict(data)
 
     assert isinstance(fourier, cls)
     assert fourier.n_order == 4
     assert fourier.prefix == "fourier"
     assert fourier.variable_name == "fourier_beta"
     assert isinstance(fourier.prior, SerializableArbitraryCode)
+
+
+class TestFourierRoundtrips:
+    @pytest.mark.parametrize(
+        "cls_name",
+        ["YearlyFourier", "MonthlyFourier", "WeeklyFourier"],
+    )
+    def test_fourier_roundtrip_all_parameters(self, cls_name):
+        import pymc_marketing.mmm.fourier as fourier_mod
+
+        cls = getattr(fourier_mod, cls_name)
+        original = cls(
+            n_order=5,
+            prefix="custom_fourier",
+            prior=Prior("Laplace", mu=0.5, b=2.0),
+        )
+        data = type_registry.serialize(original)
+        restored = type_registry.deserialize(data)
+
+        assert type(restored) is cls
+        assert restored.n_order == 5
+        assert restored.prefix == "custom_fourier"
+        assert restored.days_in_period == cls(n_order=1).days_in_period
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.fourier.YearlyFourier",
+        "pymc_marketing.mmm.fourier.MonthlyFourier",
+        "pymc_marketing.mmm.fourier.WeeklyFourier",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_fourier_type_registered(type_key):
+    assert type_key in type_registry._registry, f"{type_key} not registered"

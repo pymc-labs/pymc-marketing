@@ -16,8 +16,10 @@ import numpy as np
 import pymc as pm
 import pytest
 from pymc_extras.prior import Prior
+from xarray import DataArray
 
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.serialization import serialization
 
 
 def test_init_errors_with_additional_parameter() -> None:
@@ -66,11 +68,11 @@ def test_apply(include_intercept, expected_keys) -> None:
     trend = LinearTrend(include_intercept=include_intercept)
 
     n_obs = 100
-    x = np.linspace(0, 1, n_obs)
+    x = DataArray(np.linspace(0, 1, n_obs), dims=("date",))
     with pm.Model() as model:
         mu = trend.apply(x)
 
-    assert mu.eval().shape == (n_obs,)
+    assert mu.type.shape == (n_obs,)
     assert set(model.named_vars.keys()) == expected_keys
 
 
@@ -94,7 +96,7 @@ def test_apply_additional_dims(delta_dims, dims) -> None:
     trend = LinearTrend(priors=priors, dims=dims)
 
     n_obs = 100
-    x = np.linspace(0, 1, n_obs)
+    x = DataArray(np.linspace(0, 1, n_obs), dims=("time",))
     geos = ["A", "B", "C"]
     products = ["X", "Y"]
     coords = {
@@ -105,16 +107,10 @@ def test_apply_additional_dims(delta_dims, dims) -> None:
         mu = trend.apply(x)
 
     if delta_dims is None:
-        additional_sizes = (1,)
+        dims = {"time"}
     else:
-        additional_sizes = tuple(
-            len(coords[dim]) for dim in delta_dims if dim in coords
-        )
-
-    if not additional_sizes:
-        additional_sizes = (1,)
-
-    assert mu.eval().shape == (n_obs, *additional_sizes)
+        dims = {"time", *delta_dims} - {"changepoint"}
+    assert set(mu.type.dims) == dims
 
 
 @pytest.mark.parametrize(
@@ -138,16 +134,51 @@ def test_plot_workflow(include_changepoints: bool) -> None:
     "priors, dims, expected_dims",
     [
         pytest.param({}, (), (), id="no-priors-no-dims"),
-        pytest.param({}, ("geo", "product"), (), id="scalar"),
+        pytest.param({}, ("geo", "product"), ("geo", "product"), id="scalar"),
         pytest.param(
             {"delta": Prior("Normal", dims=("geo", "changepoint"))},
             ("geo", "product"),
-            ("geo",),
+            ("geo", "product"),
             id="drop-broadcastable-product-dim",
         ),
     ],
 )
 def test_linear_trend_apply_dims(priors, dims, expected_dims) -> None:
     trend = LinearTrend(priors=priors, dims=dims)
+    assert trend.dims == expected_dims
 
-    assert trend.non_broadcastable_dims == expected_dims
+
+class TestLinearTrendRoundtrips:
+    def test_to_dict_includes_type_key(self):
+        lt = LinearTrend(n_changepoints=5)
+        data = lt.to_dict()
+        assert "__type__" in data
+        expected = f"{LinearTrend.__module__}.{LinearTrend.__qualname__}"
+        assert data["__type__"] == expected
+
+    def test_registered_in_type_registry(self):
+        type_key = f"{LinearTrend.__module__}.{LinearTrend.__qualname__}"
+        assert type_key in serialization._registry
+
+    def test_roundtrip_all_parameters(self):
+        original = LinearTrend(
+            n_changepoints=8,
+            include_intercept=True,
+            dims=("geo",),
+            priors={
+                "delta": Prior("Laplace", mu=0, b=0.5, dims="changepoint"),
+                "k": Prior("Normal", mu=0.1, sigma=0.1),
+            },
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is LinearTrend
+        assert restored.n_changepoints == 8
+        assert restored.include_intercept is True
+        assert restored.dims == ("geo",)
+        assert restored.priors["delta"] == Prior(
+            "Laplace", mu=0, b=0.5, dims="changepoint"
+        )
+        assert restored.priors["k"] == Prior("Normal", mu=0.1, sigma=0.1)
+        assert restored == original

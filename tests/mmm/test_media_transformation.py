@@ -14,8 +14,9 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
-from pymc_extras.deserialize import deserialize
+from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.media_transformation import (
@@ -23,6 +24,8 @@ from pymc_marketing.mmm.media_transformation import (
     MediaConfigList,
     MediaTransformation,
 )
+from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.serialization import serialization
 
 
 @pytest.fixture
@@ -118,13 +121,13 @@ def test_apply_media_transformation(
     }
 
     with pm.Model(coords=coords) as model:
-        data = pm.Data(
+        data = pmd.Data(
             "media_data",
             media_data.loc[:, media_columns].to_numpy(),
             dims=("date", "media"),
         )
         transformed_media_data = media_configs(
-            data,
+            data, core_dim="date", media_dim="media"
         ).eval()
 
     assert transformed_media_data.shape == (media_data.shape[0], len(media_columns))
@@ -147,6 +150,32 @@ def test_apply_media_transformation(
         assert actual_dims[rv] == expected_dims
 
 
+def test_media_config_list_dim_order_independent(
+    media_data: pd.DataFrame,
+    create_media_config_list,
+) -> None:
+    """MediaConfigList works regardless of the dimension order of x."""
+    media_configs = create_media_config_list(online_dims=(), offline_dims=())
+    media_columns = media_configs.media_values
+    n_dates = len(media_data.index)
+    coords = {
+        "date": media_data.index,
+        "media": media_columns,
+    }
+
+    with pm.Model(coords=coords):
+        data_media_first = pmd.Data(
+            "media_data",
+            media_data.loc[:, media_columns].to_numpy().T,
+            dims=("media", "date"),
+        )
+        result = media_configs(
+            data_media_first, core_dim="date", media_dim="media"
+        ).eval()
+
+    assert result.shape == (n_dates, len(media_columns))
+
+
 def test_media_transformation_deserialize() -> None:
     adstock = GeometricAdstock(l_max=10)
     saturation = LogisticSaturation()
@@ -156,7 +185,7 @@ def test_media_transformation_deserialize() -> None:
         "adstock_first": True,
     }
 
-    media_transformation = deserialize(data)
+    media_transformation = MediaTransformation.from_dict(data)
     assert isinstance(media_transformation, MediaTransformation)
 
 
@@ -175,7 +204,7 @@ def test_media_config_list_deserialize() -> None:
         }
     ]
 
-    media_config_list = deserialize(data)
+    media_config_list = MediaConfigList.from_dict(data)
     assert isinstance(media_config_list, MediaConfigList)
 
 
@@ -192,13 +221,19 @@ def test_media_transformation_round_trip() -> None:
     data = media_transformation.to_dict()
 
     assert data == {
+        "__type__": f"{MediaTransformation.__module__}.{MediaTransformation.__qualname__}",
         "adstock": adstock.to_dict(),
         "saturation": saturation.to_dict(),
         "adstock_first": True,
         "dims": ("media",),
     }
     recovered = MediaTransformation.from_dict(data)
+    assert type(recovered.adstock) is GeometricAdstock
+    assert recovered.adstock.l_max == 10
+    assert type(recovered.saturation) is LogisticSaturation
+    assert recovered.adstock_first is True
     assert recovered.dims == ("media",)
+    assert recovered == media_transformation
 
 
 @pytest.mark.parametrize(
@@ -219,3 +254,74 @@ def test_incompatible_dims_raise(adstock_dims, saturation_dims) -> None:
             adstock_first=True,
             dims=(),
         )
+
+
+class TestMediaTransformationRoundtrips:
+    def test_full_media_config_list_all_parameters(self):
+        from pymc_marketing.mmm.components.adstock import (
+            DelayedAdstock,
+        )
+        from pymc_marketing.mmm.components.saturation import (
+            TanhSaturation,
+        )
+
+        mt1 = MediaTransformation(
+            adstock=GeometricAdstock(
+                l_max=8,
+                normalize=False,
+                mode=ConvMode.Before,
+                prefix="geo_adstock",
+                priors={"alpha": Prior("Beta", alpha=2.0, beta=5.0)},
+            ),
+            saturation=LogisticSaturation(
+                prefix="log_sat",
+                priors={
+                    "lam": Prior("Gamma", alpha=2, beta=2),
+                    "beta": Prior("HalfNormal", sigma=3),
+                },
+            ),
+            adstock_first=False,
+            dims=("channel",),
+        )
+        mt2 = MediaTransformation(
+            adstock=DelayedAdstock(l_max=6),
+            saturation=TanhSaturation(),
+            adstock_first=True,
+        )
+        mc1 = MediaConfig(
+            name="online", columns=["tv", "radio"], media_transformation=mt1
+        )
+        mc2 = MediaConfig(name="offline", columns=["print"], media_transformation=mt2)
+        original = MediaConfigList([mc1, mc2])
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is MediaConfigList
+        assert len(restored.media_configs) == 2
+
+        r1 = restored.media_configs[0]
+        assert r1.name == "online"
+        assert r1.columns == ["tv", "radio"]
+        assert type(r1.media_transformation.adstock) is GeometricAdstock
+        assert r1.media_transformation.adstock.l_max == 8
+        assert r1.media_transformation.adstock.normalize is False
+        assert r1.media_transformation.adstock_first is False
+
+        r2 = restored.media_configs[1]
+        assert r2.name == "offline"
+        assert type(r2.media_transformation.adstock) is DelayedAdstock
+
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.media_transformation.MediaTransformation",
+        "pymc_marketing.mmm.media_transformation.MediaConfig",
+        "pymc_marketing.mmm.media_transformation.MediaConfigList",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_media_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

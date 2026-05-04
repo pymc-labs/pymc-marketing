@@ -32,8 +32,6 @@ There are three types of Fourier seasonality transformations available:
     from pymc_marketing.mmm import YearlyFourier
     from pymc_extras.prior import Prior
 
-    plt.style.use('arviz-darkgrid')
-
     prior = Prior(
         "Normal",
         mu=[0, 0, -1, 0],
@@ -73,21 +71,11 @@ Plot the prior fourier seasonality trend.
 .. plot::
     :context: close-figs
 
-    import pandas as pd
-    import pymc as pm
     import matplotlib.pyplot as plt
 
     from pymc_marketing.mmm import YearlyFourier
 
     yearly = YearlyFourier(n_order=3)
-
-    dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
-
-    dayofyear = dates.dayofyear.to_numpy()
-
-    with pm.Model() as model:
-        fourier_trend = yearly.apply(dayofyear)
-
     prior = yearly.sample_prior()
     curve = yearly.sample_curve(prior)
     yearly.plot_curve(curve)
@@ -235,7 +223,7 @@ conflicts.
 
 import datetime
 from abc import abstractmethod
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from typing import Any, Self
 
 import arviz as az
@@ -244,7 +232,9 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import (
     BaseModel,
@@ -254,46 +244,52 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
+from pymc_extras.deserialize import deserialize
+from pymc_extras.prior import Prior, VariableFactory
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
+from pymc_marketing.serialization import serialization
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
 
 
 def generate_fourier_modes(
-    periods: pt.TensorLike,
+    periods: XTensorLike,
     n_order: int,
-) -> pt.TensorVariable:
+    fourier_dim: str = "fourier_mode",
+) -> XTensorVariable:
     """Create fourier modes for a given period.
 
     Parameters
     ----------
-    periods : pt.TensorLike
+    periods : XTensorLike
         Periods to generate fourier modes for.
     n_order : int
         Number of fourier modes to generate.
 
     Returns
     -------
-    pt.TensorVariable
+    XTensorVariable
         Fourier modes.
 
     """
-    multiples = pt.arange(1, n_order + 1)
-    x = 2 * pt.pi * periods
+    periods = as_xtensor(periods)
+    multiples = as_xtensor(pt.arange(1, n_order + 1), dims=(fourier_dim,))
 
-    values = x[:, None] * multiples
+    x = 2 * np.pi * periods
+    values = x * multiples
 
-    return pt.concatenate(
+    return ptx.concat(
         [
-            pt.sin(values),
-            pt.cos(values),
+            ptx.math.sin(values),
+            ptx.math.cos(values),
         ],
-        axis=1,
+        dim=fourier_dim,
     )
 
 
@@ -431,23 +427,23 @@ class FourierBase(BaseModel):
 
     def apply(
         self,
-        dayofperiod: pt.TensorLike,
-        result_callback: Callable[[pt.TensorVariable], None] | None = None,
-    ) -> pt.TensorVariable:
+        dayofperiod: XTensorLike,
+        sum: bool = True,
+    ) -> XTensorVariable:
         """Apply fourier seasonality to day of year.
 
         Must be used within a PyMC model context.
 
         Parameters
         ----------
-        dayofperiod : pt.TensorLike
+        dayofperiod : XTensorLike
             Day of year or weekday
-        result_callback : Callable[[pt.TensorVariable], None], optional
-            Callback function to apply to the result, by default None
+        sum : bool, default True
+            Whether to sum the fourier contributions.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             Fourier seasonality
 
         Examples
@@ -484,23 +480,17 @@ class FourierBase(BaseModel):
         model = pm.modelcontext(None)
         model.add_coord(self.prefix, self.nodes)
 
-        beta = self.prior.create_variable(self.variable_name)
+        beta = self.prior.create_variable(self.variable_name, xdist=True)
 
-        fourier_modes = generate_fourier_modes(periods=periods, n_order=self.n_order)
-
-        DUMMY_DIM = "DATE"
-
-        prefix_idx = self.prior.dims.index(self.prefix)
-        result_dims = (DUMMY_DIM, *self.prior.dims)
-        dim_handler = create_dim_handler(result_dims)
-
-        result = dim_handler(fourier_modes, (DUMMY_DIM, self.prefix)) * dim_handler(
-            beta, self.prior.dims
+        fourier_modes = generate_fourier_modes(
+            periods=periods, n_order=self.n_order, fourier_dim=self.prefix
         )
-        if result_callback is not None:
-            result_callback(result)
 
-        return result.sum(axis=prefix_idx + 1)
+        result = fourier_modes * beta
+        if sum:
+            return result.sum(dim=self.prefix)
+        else:
+            return result
 
     def sample_prior(self, coords: dict | None = None, **kwargs) -> xr.Dataset:
         """Sample the prior distributions.
@@ -550,18 +540,21 @@ class FourierBase(BaseModel):
         full_period = np.arange(self.days_in_period + 1)
 
         coords: dict[str, npt.NDArray[Any]] = {}
+        date_dim: str
         if use_dates:
+            date_dim = "date"
             start_date = self.get_default_start_date(start_date=start_date)
             date_range = pd.date_range(
                 start=start_date,
                 periods=int(np.ceil(self.days_in_period) + 1),
                 freq="D",
             )
-            coords["date"] = date_range.to_numpy()
+            coords[date_dim] = date_range.to_numpy()
             dayofperiod = self._get_days_in_period(date_range).to_numpy()
 
         else:
-            coords["day"] = full_period
+            date_dim = "day"
+            coords[date_dim] = full_period
             dayofperiod = full_period
 
         for key, values in parameters[self.variable_name].coords.items():
@@ -571,10 +564,9 @@ class FourierBase(BaseModel):
 
         with pm.Model(coords=coords):
             name = f"{self.prefix}_trend"
-            pm.Deterministic(
+            pmd.Deterministic(
                 name,
-                self.apply(dayofperiod=dayofperiod),
-                dims=tuple(coords.keys()),
+                self.apply(as_xtensor(dayofperiod, dims=(date_dim,))),
             )
 
             return pm.sample_posterior_predictive(
@@ -778,11 +770,14 @@ class FourierBase(BaseModel):
             Deserialized Fourier seasonality
 
         """
-        data = data["data"]
-        data["prior"] = deserialize(data["prior"])
-        return cls(**data)
+        inner = data.get("data", data)
+        if "__type__" in inner:
+            inner = {k: v for k, v in inner.items() if k != "__type__"}
+        inner["prior"] = deserialize(inner["prior"])
+        return cls(**inner)
 
 
+@serialization.register
 class YearlyFourier(FourierBase):
     """Yearly fourier seasonality.
 
@@ -795,8 +790,6 @@ class YearlyFourier(FourierBase):
 
         from pymc_marketing.mmm import YearlyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Yearly"))
         rng = np.random.default_rng(seed)
@@ -849,6 +842,7 @@ class YearlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@serialization.register
 class MonthlyFourier(FourierBase):
     """Monthly fourier seasonality.
 
@@ -861,8 +855,6 @@ class MonthlyFourier(FourierBase):
 
         from pymc_marketing.mmm import MonthlyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Monthly"))
         rng = np.random.default_rng(seed)
@@ -914,6 +906,7 @@ class MonthlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@serialization.register
 class WeeklyFourier(FourierBase):
     """Weekly fourier seasonality.
 
@@ -926,8 +919,6 @@ class WeeklyFourier(FourierBase):
 
         from pymc_marketing.mmm import WeeklyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Weekly"))
         rng = np.random.default_rng(seed)
@@ -984,30 +975,3 @@ class WeeklyFourier(FourierBase):
             The relevant period within the characteristic periodicity
         """
         return dates.dayofyear
-
-
-def _is_yearly_fourier(data: Any) -> bool:
-    return data.get("class") == "YearlyFourier"
-
-
-def _is_monthly_fourier(data: Any) -> bool:
-    return data.get("class") == "MonthlyFourier"
-
-
-def _is_weekly_fourier(data: Any) -> bool:
-    return data.get("class") == "WeeklyFourier"
-
-
-register_deserialization(
-    is_type=_is_yearly_fourier,
-    deserialize=lambda data: YearlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_monthly_fourier,
-    deserialize=lambda data: MonthlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_weekly_fourier, deserialize=lambda data: WeeklyFourier.from_dict(data)
-)

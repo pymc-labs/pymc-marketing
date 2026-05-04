@@ -17,6 +17,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor import function
 
@@ -69,7 +70,7 @@ def test_LogNormalPrior_args(mean, std, centered, dims):
         assert "variable_log_offset" in prior.data_vars
 
     with pm.Model(coords=coords):
-        rv.create_variable("test")
+        rv.create_variable("test", xdist=True)
 
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
@@ -131,7 +132,7 @@ def test_LaplacePrior_args(mu, b, centered, dims):
         assert "variable_sigma" in prior.data_vars
 
     with pm.Model(coords=coords):
-        rv.create_variable("test")
+        rv.create_variable("test", xdist=True)
 
     assert rv.to_dict() == rv.from_dict(rv.to_dict()).to_dict()
 
@@ -161,6 +162,171 @@ def test_masked_prior_simple_1d():
     samples = idata.prior["intercept"].values  # (chain, draw, country)
     # All draws at the inactive entry must be exactly zero
     assert np.all(samples[..., 1] == 0)
+
+
+@pytest.mark.parametrize(
+    "mu_value, param_id",
+    [
+        ([0, 1], "list"),
+        (np.array([0, 1]), "numpy_array"),
+        (xr.DataArray([0, 1], dims="country"), "dataarray_1d"),
+    ],
+    ids=lambda x: x if isinstance(x, str) else None,
+)
+def test_masked_prior_non_scalar_params_regression_2463(mu_value, param_id):
+    """Regression test for #2463: MaskedPrior must work with non-scalar Prior params."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, False], dims=["country"], coords=coords)
+    prior = Prior("Normal", mu=mu_value, sigma=10, dims=("country",))
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2,)
+    assert vals[1] == 0.0  # Colombia is masked out
+    assert np.isfinite(vals[0])  # Venezuela is active
+
+
+def test_subset_raw_parameter_dataarray_dim_order():
+    """Verify xr.DataArray params are subset in mask dim order, not broadcast dim order."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    base = Prior("Normal", mu=0, sigma=1, dims=("country", "channel"))
+    mp = MaskedPrior(base, mask)
+    flat_mask = mask.values.astype(bool).ravel()
+
+    value = xr.DataArray([0, 1], dims="channel")
+    result = mp._subset_raw_parameter(value, flat_mask)
+    # Active positions in (country, channel) order: (Ven,TV), (Col,TV), (Col,Radio)
+    # TV=0, Radio=1 → expected [0, 0, 1]
+    np.testing.assert_array_equal(result, [0, 0, 1])
+
+    value_country = xr.DataArray([5, 10], dims="country")
+    result_country = mp._subset_raw_parameter(value_country, flat_mask)
+    # Venezuela=5, Colombia=10 → expected [5, 10, 10]
+    np.testing.assert_array_equal(result_country, [5, 10, 10])
+
+
+def test_masked_prior_dataarray_per_channel_2d_mask():
+    """DataArray param along rightmost dim with a 2D mask (migration guide pattern)."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior(
+        "Normal",
+        mu=xr.DataArray([0, 100], dims="channel"),
+        sigma=0.001,
+        dims=("country", "channel"),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2, 2)
+    assert vals[0, 1] == 0.0  # (Venezuela, Radio) masked out
+    assert abs(vals[0, 0] - 0) < 1  # (Ven, TV) ≈ mu_TV = 0
+    assert abs(vals[1, 0] - 0) < 1  # (Col, TV) ≈ mu_TV = 0
+    assert abs(vals[1, 1] - 100) < 1  # (Col, Radio) ≈ mu_Radio = 100
+
+
+def test_masked_prior_dataarray_non_rightmost_dim_2d_mask():
+    """DataArray param along non-rightmost dim -- only xarray broadcasting gets this right."""
+    coords = {
+        "country": ["Venezuela", "Colombia"],
+        "channel": ["TV", "Radio", "Digital"],
+    }
+    mask = xr.DataArray(
+        [[True, False, True], [True, True, False]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior(
+        "Normal",
+        mu=xr.DataArray([5, 10], dims="country"),
+        sigma=1,
+        dims=("country", "channel"),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2, 3)
+    assert vals[0, 1] == 0.0  # (Venezuela, Radio) masked
+    assert vals[1, 2] == 0.0  # (Colombia, Digital) masked
+    active_mask = mask.values
+    assert np.all(np.isfinite(vals[active_mask]))
+
+
+def test_masked_prior_2d_mask_full_shape_list():
+    """Plain list matching full mask shape with 2D dims."""
+    coords = {"country": ["Venezuela", "Colombia"], "channel": ["TV", "Radio"]}
+    mask = xr.DataArray(
+        [[True, False], [True, True]],
+        dims=["country", "channel"],
+        coords=coords,
+    )
+    prior = Prior(
+        "Normal",
+        mu=[[0, 1], [2, 3]],
+        sigma=1,
+        dims=("country", "channel"),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2, 2)
+    assert vals[0, 1] == 0.0
+
+
+def test_masked_prior_nested_prior_with_array_params():
+    """Nested Prior whose inner parameters are lists must be subset via recursion."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, False], dims=["country"], coords=coords)
+    prior = Prior(
+        "Normal",
+        mu=Prior("Normal", mu=[0, 1], sigma=1, dims=("country",)),
+        sigma=1,
+        dims=("country",),
+    )
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2,)
+    assert vals[1] == 0.0
+
+
+def test_masked_prior_all_active_preserves_array_param():
+    """All-True mask with array params: no subsetting, full shape preserved."""
+    coords = {"country": ["Venezuela", "Colombia"]}
+    mask = xr.DataArray([True, True], dims=["country"], coords=coords)
+    prior = Prior("Normal", mu=[0, 1], sigma=10, dims=("country",))
+
+    with pm.Model(coords=coords):
+        mp = MaskedPrior(prior, mask)
+        result = mp.create_variable("test")
+
+    vals = result.eval()
+    assert vals.shape == (2,)
+    assert np.all(np.isfinite(vals))
 
 
 def test_masked_prior_with_logistic_saturation_prior_sampling():
@@ -593,6 +759,68 @@ def test_special_prior_hashable():
     assert len(mixed_set) == 2
 
 
+class TestSpecialPriorTypeRegistry:
+    """Tests for TypeRegistry-based round-trip serialization of SpecialPrior classes."""
+
+    @pytest.mark.parametrize(
+        "cls_name",
+        ["LogNormalPrior", "LaplacePrior", "MaskedPrior"],
+    )
+    def test_registered_in_type_registry(self, cls_name):
+        from pymc_marketing import special_priors
+        from pymc_marketing.serialization import serialization
+
+        cls = getattr(special_priors, cls_name)
+        type_key = f"{cls.__module__}.{cls.__qualname__}"
+        assert type_key in serialization._registry, f"{cls_name} not registered"
+
+    def test_log_normal_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import serialization
+
+        original = LogNormalPrior(mu=2.0, sigma=0.8, dims=("channel",), centered=False)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is LogNormalPrior
+        assert restored.parameters["mean"] == 2.0
+        assert restored.parameters["std"] == 0.8
+        assert restored.dims == ("channel",)
+        assert restored.centered is False
+
+    def test_laplace_prior_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import serialization
+
+        original = LaplacePrior(mu=1.5, b=0.3, dims=("geo",), centered=False)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is LaplacePrior
+        assert restored.parameters["mu"] == 1.5
+        assert restored.parameters["b"] == 0.3
+        assert restored.dims == ("geo",)
+        assert restored.centered is False
+
+    def test_masked_prior_roundtrip_all_parameters(self):
+        from pymc_marketing.serialization import serialization
+
+        mask = xr.DataArray(
+            np.array([[True, False], [True, True]]),
+            dims=("geo", "channel"),
+            coords={"geo": ["a", "b"], "channel": ["tv", "radio"]},
+        )
+        original = MaskedPrior(
+            prior=Prior("Normal", mu=0, sigma=1, dims=("geo", "channel")),
+            mask=mask,
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is MaskedPrior
+        assert restored.dims == original.dims
+        assert tuple(restored.mask.dims) == tuple(original.mask.dims)
+        np.testing.assert_array_equal(restored.mask.values, original.mask.values)
+
+
 def test_mmm_with_special_prior_save_load_round_trip(tmp_path, mock_pymc_sample):
     """Test that MMM with SpecialPrior in saturation can be saved and loaded with check=True."""
     # Create minimal data
@@ -649,3 +877,59 @@ def test_mmm_with_special_prior_save_load_round_trip(tmp_path, mock_pymc_sample)
     # Verify prior parameters match
     assert mmm_loaded.saturation.priors["lam"] == mmm.saturation.priors["lam"]
     assert mmm_loaded.saturation.priors["beta"] == mmm.saturation.priors["beta"]
+
+
+def test_xarray_dataarray_deserializer_registered():
+    da = xr.DataArray([1.0, 2.0], dims=["channel"], coords={"channel": ["a", "b"]})
+    result = deserialize(da.to_dict())
+    assert isinstance(result, xr.DataArray)
+    xr.testing.assert_equal(result, da)
+
+
+def test_lognormal_prior_roundtrip_with_dataarray_params():
+    coords = {"country": ["ES", "IT"], "channel": ["search", "social"]}
+    mean = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]], dims=["country", "channel"], coords=coords
+    )
+    std = xr.DataArray(
+        [[0.5, 0.5], [0.5, 0.5]], dims=["country", "channel"], coords=coords
+    )
+    prior = LogNormalPrior(mean=mean, std=std, dims=("country", "channel"))
+    restored = LogNormalPrior.from_dict(prior.to_dict())
+    assert isinstance(restored.parameters["mean"], xr.DataArray)
+    assert isinstance(restored.parameters["std"], xr.DataArray)
+    xr.testing.assert_equal(restored.parameters["mean"], mean)
+    xr.testing.assert_equal(restored.parameters["std"], std)
+    assert restored.dims == prior.dims
+
+
+def test_lognormal_prior_roundtrip_non_centered():
+    coords = {"country": ["ES", "IT"], "channel": ["search", "social"]}
+    mean = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]], dims=["country", "channel"], coords=coords
+    )
+    std = xr.DataArray(
+        [[0.5, 0.5], [0.5, 0.5]], dims=["country", "channel"], coords=coords
+    )
+    prior = LogNormalPrior(
+        mean=mean, std=std, dims=("country", "channel"), centered=False
+    )
+    restored = LogNormalPrior.from_dict(prior.to_dict())
+    assert not restored.centered
+    xr.testing.assert_equal(restored.parameters["mean"], mean)
+    xr.testing.assert_equal(restored.parameters["std"], std)
+
+
+def test_lognormal_prior_roundtrip_via_deserialize():
+    coords = {"country": ["ES", "IT"], "channel": ["search", "social"]}
+    mean = xr.DataArray(
+        [[1.0, 2.0], [3.0, 4.0]], dims=["country", "channel"], coords=coords
+    )
+    std = xr.DataArray(
+        [[0.5, 0.5], [0.5, 0.5]], dims=["country", "channel"], coords=coords
+    )
+    prior = LogNormalPrior(mean=mean, std=std, dims=("country", "channel"))
+    restored = deserialize(prior.to_dict())
+    assert isinstance(restored, LogNormalPrior)
+    xr.testing.assert_equal(restored.parameters["mean"], mean)
+    xr.testing.assert_equal(restored.parameters["std"], std)

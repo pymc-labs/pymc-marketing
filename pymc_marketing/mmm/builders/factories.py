@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import importlib
+import warnings
 from collections.abc import Mapping, MutableMapping, Sequence
 from typing import Any
 
@@ -28,6 +29,8 @@ import pymc_marketing.prior  # noqa: F401
 REGISTRY: dict[str, Any] = {
     # "Prior": pymc_extras.prior.Prior,   # <— example of a whitelisted alias
 }
+
+KNOWN_SPEC_KEYS = frozenset({"class", "kwargs", "args"})
 
 # -----------------------------------------------------------------------------
 
@@ -76,6 +79,16 @@ def build(spec: Mapping[str, Any]) -> Any:
             f"Expected string for 'class' but got {type(spec['class']).__name__}: {spec['class']}"
         )
 
+    unknown_keys = set(spec.keys()) - KNOWN_SPEC_KEYS
+    if unknown_keys:
+        warnings.warn(
+            f"Unknown keys {unknown_keys} in build spec for "
+            f"'{spec['class']}'. Only {sorted(KNOWN_SPEC_KEYS)} are "
+            f"recognised; other keys are ignored.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     cls = locate(spec["class"])
 
     raw_kwargs: MutableMapping[str, Any] = dict(spec.get("kwargs", {}))
@@ -97,11 +110,13 @@ def build(spec: Mapping[str, Any]) -> Any:
             # Handle priors and prior differently
             if isinstance(v, dict):
                 if k == "priors":
-                    # Create a dictionary of priors
                     priors_dict = {}
                     for prior_key, prior_value in v.items():
                         if isinstance(prior_value, dict):
-                            priors_dict[prior_key] = deserialize(prior_value)
+                            if "class" in prior_value:
+                                priors_dict[prior_key] = build(prior_value)
+                            else:
+                                priors_dict[prior_key] = deserialize(prior_value)
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
@@ -126,8 +141,11 @@ def resolve(value):
 
     This is a helper function for build.
     """
-    if isinstance(value, Mapping) and "class" in value:
-        return build(value)
+    if isinstance(value, Mapping):
+        if "class" in value:
+            return build(value)
+        if "distribution" in value or "special_prior" in value:
+            return deserialize(value)
 
     if (
         isinstance(value, list)

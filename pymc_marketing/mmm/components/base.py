@@ -21,23 +21,26 @@ Use the subclasses directly for custom transformations:
 """
 
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any, TypeAlias
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
 import pymc as pm
+import pymc.dims as pmd
 import xarray as xr
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.prior import Prior, VariableFactory, create_dim_handler
-from pytensor import tensor as pt
-from pytensor.tensor.variable import TensorVariable
+from pymc_extras.prior import Prior, VariableFactory
+from pytensor import Variable
+from pytensor.xtensor import as_xtensor
+from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.plot import (
     SelToString,
@@ -49,10 +52,10 @@ from pymc_marketing.plot import (
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
-SupportedPrior: TypeAlias = (
+type SupportedPrior = (
     InstanceOf[Prior]
     | float
-    | InstanceOf[TensorVariable]
+    | InstanceOf[Variable]
     | InstanceOf[VariableFactory]
     | list
     | InstanceOf[npt.NDArray[np.floating]]
@@ -93,27 +96,6 @@ class MissingDataParameter(Exception):
         super().__init__(msg)
 
 
-def index_variable(var, dims, idx) -> TensorVariable:
-    """Index a variable based on the provided dimensions and index.
-
-    Parameters
-    ----------
-    var : TensorVariable
-        The variable to index.
-    dims : tuple[str, ...]
-        The dims of the variable.
-    idx : dict[str, pt.TensorLike]
-        The index to use for the variable.
-
-    Returns
-    -------
-    TensorVariable
-        The indexed variable.
-
-    """
-    return var[tuple(idx[dim] if dim in idx else slice(None) for dim in dims)]
-
-
 class Transformation:
     """Base class for adstock and saturation functions.
 
@@ -132,7 +114,7 @@ class Transformation:
 
     Parameters
     ----------
-    priors : dict[str, Prior | float | TensorVariable | VariableFactory | list  | numpy array], optional
+    priors : dict[str, Prior | float | XTensorVariable | VariableFactory | list  | numpy array], optional
         Dictionary with the priors for the parameters of the function. The keys should be the
         parameter names and the values the priors. If not provided, it will use the default
         priors from the subclass.
@@ -145,7 +127,6 @@ class Transformation:
     prefix: str
     default_priors: dict[str, Prior]
     function: Any
-    lookup_name: str
 
     def __init__(
         self,
@@ -194,7 +175,6 @@ class Transformation:
 
         """
         return {
-            "lookup_name": self.lookup_name,
             "prefix": self.prefix,
             "priors": {
                 key: _serialize_value(value)
@@ -217,7 +197,7 @@ class Transformation:
     @property
     def priors(self) -> dict[str, SupportedPrior]:
         """Get the priors for the function."""
-        return self.function_priors
+        return self.function_priors  # type: ignore[return-value]
 
     @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
@@ -254,7 +234,6 @@ class Transformation:
 
 
             class MyTransformation(Transformation):
-                lookup_name: str = "my_transformation"
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
                 default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
@@ -271,6 +250,7 @@ class Transformation:
             for parameter_name, variable_name in self.variable_mapping.items()
             if variable_name in priors
         }
+
         if not new_priors:
             available_priors = list(self.variable_mapping.values())
             warnings.warn(
@@ -320,16 +300,14 @@ class Transformation:
         if not hasattr(self, "function"):
             raise NotImplementedError("function must be implemented in the subclass")
 
-        if not hasattr(self, "lookup_name"):
-            raise NotImplementedError("lookup_name must be implemented in the subclass")
-
     def _has_defaults_for_all_arguments(self) -> None:
         function_signature = signature(self.function)
 
         # Remove the first one as assumed to be the data
+        # And the dim kwarg
         parameters_that_need_priors = set(
             list(function_signature.parameters.keys())[1:]
-        )
+        ) - {"dim"}
         parameters_with_priors = set(self.default_priors.keys())
 
         missing_priors = parameters_that_need_priors - parameters_with_priors
@@ -383,33 +361,47 @@ class Transformation:
 
     def _create_distributions(
         self,
-        dims: Dims | None = None,
-        idx: dict[str, pt.TensorLike] | None = None,
-    ) -> dict[str, TensorVariable]:
-        if isinstance(dims, str):
-            dims = (dims,)
+        idx: XTensorLike | Sequence[XTensorLike] | dict[str, XTensorLike] | None = None,
+    ) -> dict[str, XTensorVariable]:
+        if idx is None:
+            idxs = None
+        else:
+            if isinstance(idx, Sequence):
+                idxs = tuple(as_xtensor(i) for i in idx)
+            # Backwards compatibility for dict idx made out of {dim: value} pairs
+            elif isinstance(idx, dict):
+                idxs = tuple(
+                    as_xtensor(value, dims=(key,)) for key, value in idx.items()
+                )
+            else:
+                idxs = (
+                    as_xtensor(
+                        idx,
+                    ),
+                )
+        del idx
 
-        dims = dims or self.combined_dims
-        if idx is not None:
-            dims = ("N", *dims)
-
-        dim_handler = create_dim_handler(dims)
-
-        def create_variable(parameter_name: str, variable_name: str) -> TensorVariable:
+        def create_variable(parameter_name: str, variable_name: str) -> XTensorVariable:
             dist = self.function_priors[parameter_name]
-            if not hasattr(dist, "create_variable"):
-                return dist
 
-            var = dist.create_variable(variable_name)
+            try:
+                var = dist.create_variable(variable_name, xdist=True)
+            except AttributeError:
+                var = dist
 
-            dist_dims = dist.dims
-            if idx is not None and any(dim in idx for dim in dist_dims):
-                var = index_variable(var, dist.dims, idx)
+            if idxs is not None:
+                for idx in idxs:
+                    if overlap_dims := set(idx.dims) & set(var.dims):
+                        if overlap_dims != set(idx.dims):
+                            # API can be tweaked if we want to allow >1D indices
+                            raise ValueError(
+                                f"There is a partial overlap between variable dims {var.dims} and idx dims {idx.dims}. "
+                                "Either none or all of the idx dims should be present in the variable."
+                            )
+                        (idx_dim,) = overlap_dims
+                        var = var[{idx_dim: idx}]
 
-                dist_dims = [dim for dim in dist_dims if dim not in idx]
-                dist_dims = ("N", *dist_dims)
-
-            return dim_handler(var, dist_dims)
+            return var
 
         return {
             parameter_name: create_variable(parameter_name, variable_name)
@@ -435,9 +427,8 @@ class Transformation:
 
         """
         coords = coords or {}
-        dims = tuple(coords.keys())
         with pm.Model(coords=coords):
-            self._create_distributions(dims=dims)
+            self._create_distributions()
             return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
 
     def plot_curve(
@@ -510,37 +501,27 @@ class Transformation:
         self,
         var_name: str,
         parameters: xr.Dataset,
-        x: pt.TensorLike,
+        x: XTensorVariable,
         coords: dict[str, Any],
         **sample_prior_predictive_kwargs: Any,
     ) -> xr.DataArray:
-        output_core_dims = self._infer_output_core_dims()
-
-        keys = list(coords.keys())
+        keys = tuple(coords.keys())
         if len(keys) != 1:
-            msg = "The coords should only have one key."
-            raise ValueError(msg)
+            raise ValueError("The coords should only have one key.")
         x_dim = keys[0]
 
-        # Allow broadcasting
-        x = np.expand_dims(
-            x,
-            axis=tuple(range(1, len(output_core_dims) + 1)),
-        )
+        x = as_xtensor(x, dims=(x_dim,))
 
-        coords.update(
-            {
-                dim: np.asarray(coord)
-                for dim, coord in parameters.coords.items()
-                if dim not in ["chain", "draw"]
-            }
-        )
+        coords = coords | {
+            dim: np.asarray(coord)
+            for dim, coord in parameters.coords.items()
+            if dim not in ["chain", "draw"]
+        }
 
         with pm.Model(coords=coords):
-            pm.Deterministic(
+            pmd.Deterministic(
                 var_name,
-                self.apply(x, dims=output_core_dims),
-                dims=(x_dim, *output_core_dims),
+                self.apply(x, core_dim=x_dim),
             )
 
             return pm.sample_posterior_predictive(
@@ -631,25 +612,26 @@ class Transformation:
 
     def apply(
         self,
-        x: pt.TensorLike,
+        x: XTensorLike,
+        *,
         dims: Dims | None = None,
-        idx: dict[str, pt.TensorLike] | None = None,
-    ) -> TensorVariable:
+        core_dim: str | None = None,
+        idx: XTensorLike | Sequence[XTensorLike] | dict[str, XTensorLike] | None = None,
+    ) -> XTensorVariable:
         """Call within a model context.
 
         Used internally of the MMM to apply the transformation to the data.
 
         Parameters
         ----------
-        x : pt.TensorLike
+        x : XTensorLike
             The data to be transformed.
-        dims : str, sequence[str], optional
-            The dims of the parameters. Defaults to None. Not the dims of the
-            data!
+        core_dim: str
+            The dimension of X along which to apply the transformation.
 
         Returns
         -------
-        pt.TensorVariable
+        XTensorVariable
             The transformed data.
 
         Examples
@@ -662,67 +644,32 @@ class Transformation:
 
             transformation = ...
 
-            coords = {"channel": ["TV", "Radio", "Digital"]}
+            coords = {
+                "channel": ["TV", "Radio", "Digital"],
+                "date": range(10),
+            }
             with pm.Model(coords=coords):
-                transformed_data = transformation.apply(data, dims="channel")
+                transformed_data = transformation.apply(data, core_dim="date")
 
         """
-        kwargs = self._create_distributions(dims=dims, idx=idx)
-        return self.function(x, **kwargs)
+        if dims is not None:
+            warnings.warn(
+                "Transformation.apply no longer requires dims. Using it will raise in a future release",
+                FutureWarning,
+                stacklevel=2,
+            )
+        kwargs = self._create_distributions(idx=idx)
+        return self.function(x, dim=core_dim, **kwargs)
 
 
 def _serialize_value(value: Any) -> Any:
     if hasattr(value, "to_dict"):
         return value.to_dict()
 
-    if isinstance(value, TensorVariable):
+    if isinstance(value, Variable):
         value = value.eval()
 
     if isinstance(value, np.ndarray):
         return value.tolist()
 
     return value
-
-
-class DuplicatedTransformationError(Exception):
-    """Exception when a transformation is duplicated."""
-
-    def __init__(self, name: str, lookup_name: str):
-        self.name = name
-        self.lookup_name = lookup_name
-        super().__init__(f"Duplicate {name}. The name {lookup_name!r} already exists.")
-
-
-def create_registration_meta(subclasses: dict[str, Any]) -> type[type]:
-    """Create a metaclass for registering subclasses.
-
-    Parameters
-    ----------
-    subclasses : dict[str, type[Transformation]]
-        The subclasses to register.
-
-    Returns
-    -------
-    type
-        The metaclass for registering subclasses.
-
-    """
-
-    class RegistrationMeta(type):
-        def __new__(cls, name, bases, attrs):
-            new_cls = super().__new__(cls, name, bases, attrs)
-
-            if "lookup_name" not in attrs:
-                return new_cls
-
-            base_name = bases[0].__name__
-
-            lookup_name = attrs["lookup_name"]
-            if lookup_name in subclasses:
-                raise DuplicatedTransformationError(base_name, lookup_name)
-
-            subclasses[lookup_name] = new_cls
-
-            return new_cls
-
-    return RegistrationMeta

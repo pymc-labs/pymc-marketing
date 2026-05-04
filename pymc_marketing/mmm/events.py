@@ -97,8 +97,8 @@ from typing import Any, Literal, cast
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pymc as pm
-import pytensor.tensor as pt
+import pymc.dims as pmd
+import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import (
     BaseModel,
@@ -108,21 +108,34 @@ from pydantic import (
     model_validator,
     validate_call,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior, create_dim_handler
-from pytensor.tensor.variable import TensorVariable
+from pymc_extras.deserialize import deserialize
+from pymc_extras.prior import Prior
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
+from pymc_marketing.mmm.components.base import Transformation
+from pymc_marketing.mmm.dims import XTensorLike
+from pymc_marketing.mmm.utils import density
+from pymc_marketing.serialization import serialization
 
-BASIS_TRANSFORMATIONS: dict = {}
-BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
 
-
-class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
+class Basis(Transformation):
     """Basis transformation associated with an event model."""
 
     prefix: str = "basis"
-    lookup_name: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Basis":
+        """Reconstruct a basis from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("lookup_name", None)
+
+        if "priors" in data:
+            from pymc_extras.deserialize import deserialize
+
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
 
     @validate_call
     def sample_curve(
@@ -168,28 +181,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
         )
 
 
-def basis_from_dict(data: dict) -> Basis:
-    """Create a basis transformation from a dictionary."""
-    data = data.copy()
-    lookup_name = data.pop("lookup_name")
-    cls = BASIS_TRANSFORMATIONS[lookup_name]
-
-    if "priors" in data:
-        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-    return cls(**data)
-
-
-def _is_basis(data):
-    return "lookup_name" in data and data["lookup_name"] in BASIS_TRANSFORMATIONS
-
-
-register_deserialization(
-    is_type=_is_basis,
-    deserialize=basis_from_dict,
-)
-
-
+@serialization.register
 class EventEffect(BaseModel):
     """Event effect associated with an event model."""
 
@@ -218,12 +210,10 @@ class EventEffect(BaseModel):
 
         return self
 
-    def apply(self, X: pt.TensorLike, name: str = "event") -> TensorVariable:
+    def apply(self, X: XTensorLike, name: str = "event") -> XTensorVariable:
         """Apply the event effect to the data."""
-        dim_handler = create_dim_handler(("x", *self.dims))
-        return self.basis.apply(X, dims=self.dims) * dim_handler(
-            self.effect_size.create_variable(f"{name}_effect_size"),
-            self.effect_size.dims,
+        return self.basis.apply(X) * self.effect_size.create_variable(
+            f"{name}_effect_size", xdist=True
         )
 
     def to_dict(self) -> dict:
@@ -240,40 +230,41 @@ class EventEffect(BaseModel):
     @classmethod
     def from_dict(cls, data: dict) -> "EventEffect":
         """Create an event effect from a dictionary."""
+        data_inner = data.get("data", data)
+        if "__type__" in data_inner:
+            data_inner = {k: v for k, v in data_inner.items() if k != "__type__"}
+
+        basis_data = data_inner["basis"]
+        if isinstance(basis_data, dict) and "__type__" in basis_data:
+            basis = serialization.deserialize(basis_data)
+        else:
+            basis = deserialize(basis_data)
+
         return cls(
-            basis=deserialize(data["basis"]),
-            effect_size=deserialize(data["effect_size"]),
-            dims=data["dims"],
+            basis=basis,
+            effect_size=deserialize(data_inner["effect_size"]),
+            dims=data_inner["dims"],
         )
 
 
-def _is_event_effect(data: dict) -> bool:
-    """Check if the data is an event effect."""
-    return data["class"] == "EventEffect"
-
-
-register_deserialization(
-    is_type=_is_event_effect,
-    deserialize=lambda data: EventEffect.from_dict(data["data"]),
-)
-
-
+@serialization.register
 class GaussianBasis(Basis):
     """Gaussian basis transformation."""
 
-    lookup_name = "gaussian"
-
-    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+    def function(
+        self, x: XTensorLike, sigma: XTensorLike, *, dim: str | None = None
+    ) -> XTensorVariable:
         """Gaussian bump function."""
-        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
-        out = pm.math.exp(pm.logp(rv, x))
-        return out
+        x = as_xtensor(x)
+        sigma = as_xtensor(sigma)
+        return density(pmd.Normal, value=x, sigma=sigma)
 
     default_priors = {
         "sigma": Prior("Gamma", mu=7, sigma=1),
     }
 
 
+@serialization.register
 class HalfGaussianBasis(Basis):
     R"""One-sided Gaussian basis transformation.
 
@@ -310,8 +301,6 @@ class HalfGaussianBasis(Basis):
         Prefix for the parameter names.
     """
 
-    lookup_name = "half_gaussian"
-
     def __init__(
         self,
         mode: Literal["after", "before"] = "after",
@@ -322,21 +311,21 @@ class HalfGaussianBasis(Basis):
         self.mode = mode
         self.include_event = include_event
 
-    def function(self, x: pt.TensorLike, sigma: pt.TensorLike) -> TensorVariable:
+    def function(
+        self, x: XTensorLike, sigma: XTensorLike, *, dim: str | None = None
+    ) -> XTensorVariable:
         """One-sided Gaussian bump function."""
-        rv = pm.Normal.dist(mu=0.0, sigma=sigma)
-        out = pm.math.exp(pm.logp(rv, x))
+        x = as_xtensor(x)
+        sigma = as_xtensor(sigma)
+        out = density(pmd.Normal, value=x, sigma=sigma)
         # Sign determines if the zeroing happens after or before the event.
         sign = 1 if self.mode == "after" else -1
         # Build boolean mask(s) in x's shape and broadcast to out's shape.
         pre_mask = sign * x < 0
         if not self.include_event:
-            pre_mask = pm.math.or_(pre_mask, sign * x == 0)
+            pre_mask = pre_mask | ptx.math.equal(sign * x, 0)
 
-        # Ensure mask matches output shape for elementwise switch
-        pre_mask = pt.broadcast_to(pre_mask, out.shape)
-
-        return pt.switch(pre_mask, 0, out)
+        return ptx.math.switch(pre_mask, 0, out)
 
     def to_dict(self) -> dict:
         """Convert the half Gaussian basis to a dictionary."""
@@ -351,6 +340,7 @@ class HalfGaussianBasis(Basis):
     }
 
 
+@serialization.register
 class AsymmetricGaussianBasis(Basis):
     R"""Asymmetric Gaussian bump basis transformation.
 
@@ -390,8 +380,6 @@ class AsymmetricGaussianBasis(Basis):
         Prefix for the parameters.
     """
 
-    lookup_name = "asymmetric_gaussian"
-
     def __init__(
         self,
         event_in: Literal["before", "after", "exclude"] = "after",
@@ -402,36 +390,39 @@ class AsymmetricGaussianBasis(Basis):
 
     def function(
         self,
-        x: pt.TensorLike,
-        sigma_before: pt.TensorLike,
-        sigma_after: pt.TensorLike,
-        a_after: pt.TensorLike,
-    ) -> pt.TensorVariable:
+        x: XTensorLike,
+        sigma_before: XTensorLike,
+        sigma_after: XTensorLike,
+        a_after: XTensorLike,
+        *,
+        dim: str | None = None,
+    ) -> XTensorVariable:
         """Asymmetric Gaussian bump function."""
+        x = as_xtensor(x)
+        sigma_before = as_xtensor(sigma_before)
+        sigma_after = as_xtensor(sigma_after)
+
         match self.event_in:
             case "before":
-                indicator_before = pt.cast(x <= 0, "float32")
-                indicator_after = pt.cast(x > 0, "float32")
+                indicator_before = ptx.math.cast(x <= 0, "float32")
+                indicator_after = ptx.math.cast(x > 0, "float32")
             case "after":
-                indicator_before = pt.cast(x < 0, "float32")
-                indicator_after = pt.cast(x >= 0, "float32")
+                indicator_before = ptx.math.cast(x < 0, "float32")
+                indicator_after = ptx.math.cast(x >= 0, "float32")
             case "exclude":
-                indicator_before = pt.cast(x < 0, "float32")
-                indicator_after = pt.cast(x > 0, "float32")
+                indicator_before = ptx.math.cast(x < 0, "float32")
+                indicator_after = ptx.math.cast(x > 0, "float32")
             case _:
                 raise ValueError(f"Invalid event_in: {self.event_in}")
 
-        rv_before = pm.Normal.dist(mu=0.0, sigma=sigma_before)
-        rv_after = pm.Normal.dist(mu=0.0, sigma=sigma_after)
-
-        y_before = pt.switch(
+        y_before = ptx.math.switch(
             indicator_before,
-            pm.math.exp(pm.logp(rv_before, x)),
+            density(pmd.Normal, value=x, sigma=sigma_before),
             0,
         )
-        y_after = pt.switch(
+        y_after = ptx.math.switch(
             indicator_after,
-            pm.math.exp(pm.logp(rv_after, x)) * a_after,
+            density(pmd.Normal, value=x, sigma=sigma_after) * a_after,
             0,
         )
 
