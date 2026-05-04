@@ -222,6 +222,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting.budget import BudgetPlots
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -3565,6 +3566,11 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                     f"'{type(self).__name__}' object and its wrapped 'MMM' object have no attribute '{name}'"
                 ) from e
 
+    @property
+    def plot(self) -> BudgetPlots:
+        """Access budget allocation plots."""
+        return BudgetPlots()
+
     def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
         """Return the respective PyMC model with any predictors set for optimization."""
         # Use the model's method for transformation
@@ -3946,6 +3952,13 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if include_carryover:
             data_with_noise = self._apply_carryover_effect(data_with_noise)
 
+        if "channel_contribution_original_scale" not in self.model.named_vars:
+            raise ValueError(
+                "'channel_contribution_original_scale' is not in the model. "
+                "Call `mmm.add_original_scale_contribution_variable(['channel_contribution'])` "
+                "before calling `sample_response_distribution`."
+            )
+
         constant_data = allocation_strategy.to_dataset(name="allocation")
         _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
             self.channel_columns
@@ -3954,6 +3967,7 @@ class MultiDimensionalBudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         var_names = [
             self.output_var,
             "channel_contribution",
+            "channel_contribution_original_scale",
             "total_media_contribution_original_scale",
         ]
         if additional_var_names is not None:
