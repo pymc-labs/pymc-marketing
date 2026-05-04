@@ -86,7 +86,7 @@ test = [
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
-    "jax<0.10.0",
+    "jax",
     "graphviz>=0.20.1",
     "papermill",
     "polars>=1.0.0",
