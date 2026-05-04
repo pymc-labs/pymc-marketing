@@ -310,6 +310,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/consideration_set_logit.png
 :link: ../notebooks/customer_choice/consideration_set_logit.html
 :::
+
+:::{grid-item-card} MaxDiff (Best-Worst Scaling)
+:img-top: ../gallery/images/maxdiff.png
+:link: ../notebooks/customer_choice/maxdiff.html
+:::
 ::::
 
 ## Bass Diffusion Model
