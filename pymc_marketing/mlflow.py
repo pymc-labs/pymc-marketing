@@ -111,7 +111,7 @@ Autologging for a PyMC-Marketing MMM:
         idata = mmm.fit(X, y)
 
         # Additional specific logging
-        fig = mmm.plot_components_contributions()
+        fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
         mlflow.log_figure(fig, "components.png")
 
 Autologging for a PyMC-Marketing CLV model:
@@ -864,7 +864,7 @@ def log_mmm(
             idata = mmm.fit(X, y)
 
             # Additional specific logging
-            fig = mmm.plot_components_contributions()
+            fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
             mlflow.log_figure(fig, "components.png")
 
             model_info = log_mmm(
@@ -1158,7 +1158,7 @@ def autolog(
             posterior_preds = mmm.sample_posterior_predictive(X)
 
             # Additional specific logging
-            fig = mmm.plot_components_contributions()
+            fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
             mlflow.log_figure(fig, "components.png")
 
     Autologging for a PyMC-Marketing CLV model:

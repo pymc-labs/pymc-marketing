@@ -1688,6 +1688,17 @@ class MMM(RegressionModelBuilder):
         X: pd.DataFrame,  # type: ignore
         y: pd.Series,  # type: ignore
     ):
+        # Convert ndarray-like ``y`` into a pandas Series so the downstream
+        # ``pd.concat`` call below produces an actionable error rather than a
+        # leaky pandas ``TypeError`` from ``concat``.
+        if isinstance(y, np.ndarray):
+            if len(y) != len(X):
+                raise ValueError(
+                    "y length must match X when passed as ndarray"
+                    f" (got len(y)={len(y)} and len(X)={len(X)})"
+                )
+            y = pd.Series(y, index=X.index, name=self.target_column)
+
         self.X = X  # type: ignore
         self.y = y  # type: ignore
 
@@ -2122,14 +2133,32 @@ class MMM(RegressionModelBuilder):
 
             _target = pmd.Data("target_data", self.xarray_dataset._target)
 
-            # Scale `channel_data` and `target`
+            # Scale `channel_data` and `target`. The switches guard against
+            # NaN (0/0 when a channel/target is all-zero) and against +/-inf
+            # (non-zero numerator over a zero scale, which can arise under
+            # per-dim ``DataDerivedScaling`` with heterogeneous slices).
+            # Both are clamped to 0 so the likelihood receives finite inputs.
             channel_data_ = _channel_data / _channel_scale
             channel_data_ = pmd.math.switch(
-                pmd.math.isnan(channel_data_), 0.0, channel_data_
+                pmd.math.logical_or(
+                    pmd.math.isnan(channel_data_), pmd.math.isinf(channel_data_)
+                ),
+                0.0,
+                channel_data_,
             )
             channel_data_.name = "channel_data_scaled"
+            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            self.channel_data_scaled = channel_data_
 
             target_data_scaled = _target / _target_scale
+            target_data_scaled = pmd.math.switch(
+                pmd.math.logical_or(
+                    pmd.math.isnan(target_data_scaled),
+                    pmd.math.isinf(target_data_scaled),
+                ),
+                0.0,
+                target_data_scaled,
+            )
             target_data_scaled.name = "target_scaled"
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             self.target_data_scaled = target_data_scaled

@@ -26,12 +26,14 @@ import xarray as xr
 from mlflow.client import MlflowClient
 from pymc.exceptions import SamplingError
 
+import pymc_marketing.mlflow as pmm_mlflow
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     create_log_callback,
     log_error,
     log_likelihood_type,
+    log_mmm,
     log_mmm_evaluation_metrics,
     log_model_graph,
     log_sample_diagnostics,
@@ -872,3 +874,20 @@ def test_log_error() -> None:
     ]
     for line in lines:
         assert line in loaded_artifact
+
+
+@pytest.mark.parametrize(
+    "doc_source",
+    [pmm_mlflow.__doc__, log_mmm.__doc__, autolog.__doc__],
+    ids=["module", "log_mmm", "autolog"],
+)
+def test_mlflow_docstrings_have_no_removed_methods(doc_source):
+    """Guard against re-introducing removed MMM API methods in published examples.
+
+    The old ``MMM.plot_components_contributions`` helper no longer exists on
+    the new ``multidimensional.MMM``; copy-pasting the obsolete docstring
+    example would raise ``AttributeError`` at runtime, so make sure none of
+    the rendered Sphinx docstrings still reference it.
+    """
+    assert doc_source is not None
+    assert "plot_components_contributions" not in doc_source
