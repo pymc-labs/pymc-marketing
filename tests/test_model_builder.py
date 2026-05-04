@@ -1255,6 +1255,17 @@ def test_load_from_idata_check_false(fitted_regression_model_instance):
     assert isinstance(model, RegressionModelBuilderTest)
 
 
+def test_load_from_idata_without_fit_data_warns(fitted_regression_model_instance):
+    idata = fitted_regression_model_instance.idata.copy()
+    assert "fit_data" in idata
+    del idata.fit_data
+    with pytest.warns(UserWarning, match="Run build_model() with training data"):
+        model = RegressionModelBuilderTest.load_from_idata(idata)
+    assert isinstance(model, RegressionModelBuilderTest)
+    assert model.idata is idata
+    assert not hasattr(model, "model")
+
+
 def test_fit_result_setter_else_branch():
     """Covers line 707: else branch in fit_result setter."""
     model = RegressionModelBuilderTest()

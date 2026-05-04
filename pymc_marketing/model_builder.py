@@ -548,7 +548,16 @@ class ModelIO:
             model = cls(**init_kwargs)
 
         model.idata = idata
-        model.build_from_idata(idata)
+        if "fit_data" in idata:
+            model.build_from_idata(idata)
+        else:
+            warnings.warn(
+                "The loaded model does not include fit_data used for training. "
+                "Plotting and prior/posterior predictive sampling may not work correctly. "
+                "Run build_model() with training data for full functionality.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if not check:
             return model
