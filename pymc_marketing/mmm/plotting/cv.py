@@ -38,8 +38,6 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 
-# ── Shared base validation ────────────────────────────────────────────────────
-
 
 def _validate_cv_results(cv_data: az.InferenceData) -> None:
     """Raise if cv_data is not a valid CV InferenceData.
@@ -161,6 +159,16 @@ def _pred_matrix_for_rows(
     selected via the matching column in rows_df so the result is always 1-D
     (n_samples,) per observation.
 
+    Parameters
+    ----------
+    cv_data : az.InferenceData
+        Full CV InferenceData (already validated by the caller).
+    cv_label : str
+        Label identifying the CV fold to select.
+    rows_df : pd.DataFrame
+        DataFrame with a ``"date"`` column and one column per extra dimension;
+        each row corresponds to one observation.
+
     Returns
     -------
     np.ndarray, shape (n_samples, n_rows)
@@ -244,9 +252,6 @@ def _crps_for_split(
             stacklevel=3,
         )
         return float(np.nan)
-
-
-# ── Main class ────────────────────────────────────────────────────────────────
 
 
 class MMMCVPlotSuite:
