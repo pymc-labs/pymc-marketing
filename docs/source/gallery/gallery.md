@@ -310,6 +310,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/consideration_set_logit.png
 :link: ../notebooks/customer_choice/consideration_set_logit.html
 :::
+
+:::{grid-item-card} Bayesian BLP (Synthetic Data)
+:img-top: ../gallery/images/bayesian_blp.png
+:link: ../notebooks/customer_choice/bayesian_blp.html
+:::
+
+:::{grid-item-card} Bayesian BLP (Nevo Cereal Panel)
+:img-top: ../gallery/images/bayesian_blp_nevo.png
+:link: ../notebooks/customer_choice/bayesian_blp_nevo.html
+:::
 ::::
 
 ## Bass Diffusion Model

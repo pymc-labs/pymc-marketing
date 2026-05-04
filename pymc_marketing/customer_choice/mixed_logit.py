@@ -29,6 +29,7 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
+from pymc_marketing.customer_choice._choice_helpers import stable_softmax
 from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
@@ -915,11 +916,7 @@ class MixedLogit(ModelBuilder):
         p : TensorVariable
             Choice probabilities, shape (n_obs, n_alts)
         """
-        U_centered = U - U.max(axis=1, keepdims=True)
-        p = pm.Deterministic(
-            "p", pm.math.softmax(U_centered, axis=1), dims=("obs", "alts")
-        )
-        return p
+        return stable_softmax(U, axis=1, name="p", dims=("obs", "alts"))
 
     def make_model(
         self, X: np.ndarray, F: np.ndarray | None, y: np.ndarray, observed: bool = True

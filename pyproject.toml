@@ -162,6 +162,7 @@ ignore = [
     "S101", # Use of assert
 ]
 "scripts/*" = ["D", "E402"]
+"sandbox/*" = ["D", "E402", "RUF059"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
