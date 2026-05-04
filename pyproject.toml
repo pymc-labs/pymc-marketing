@@ -181,6 +181,9 @@ addopts = [
     "--durations=50",
     "--color=yes",
 ]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"
 
