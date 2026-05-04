@@ -27,6 +27,7 @@ from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.multidimensional import MMM
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.time_slice_cross_validation import (
     TimeSliceCrossValidationResult,
     TimeSliceCrossValidator,
@@ -1161,3 +1162,40 @@ class TestReturnModels:
         cv.run(X, y, mmm=_RecordingFoldModel())
         for r in cv._cv_results:
             assert r.mmm is None
+
+
+def test_plot_property_returns_mmm_cv_plot_suite():
+    """TimeSliceCrossValidator.plot returns an MMMCVPlotSuite instance."""
+    # Use _combine_idata to build a cv_idata that includes the required cv_metadata group.
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    dates2 = pd.to_datetime(["2025-01-15", "2025-01-22"])
+    df_train = pd.DataFrame({"date": dates1})
+    df_test = pd.DataFrame({"date": dates2})
+
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([1, 2]),
+        X_test=df_test,
+        y_test=pd.Series([3, 4]),
+        idata=_build_simple_idata(dates1),
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([5, 6]),
+        X_test=df_test,
+        y_test=pd.Series([7, 8]),
+        idata=_build_simple_idata(dates2),
+    )
+
+    # Build a cv_idata with the correct structure (including cv_metadata)
+    cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv._cv_results = [r1, r2]
+    cv_idata = cv._combine_idata([r1, r2], ["fold_0", "fold_1"])
+
+    # Reset to a fresh instance to test the plot property in isolation
+    cv2 = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv2._cv_results = [r1, r2]  # non-empty so _validate_model_was_built passes
+    cv2.cv_idata = cv_idata
+
+    result = cv2.plot
+    assert isinstance(result, MMMCVPlotSuite)

@@ -13,6 +13,7 @@
 #   limitations under the License.
 """MMM plotting package — namespace-based plot suite."""
 
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.plotting.decomposition import DecompositionPlots
 from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
 from pymc_marketing.mmm.plotting.sensitivity import SensitivityPlots
@@ -21,6 +22,7 @@ from pymc_marketing.mmm.plotting.transformations import TransformationPlots
 __all__ = [
     "DecompositionPlots",
     "DiagnosticsPlots",
+    "MMMCVPlotSuite",
     "SensitivityPlots",
     "TransformationPlots",
 ]
