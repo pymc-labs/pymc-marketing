@@ -21,7 +21,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
     - name: Sync labels with closing issues
-      uses: williambdean/closing-labels@v0.0.6
+      uses: williambdean/closing-labels@v0.0.7
       with:
         exclude: "question,request discussion,help wanted,research_needed,research-done,plan_needed,plan-done,implement,implementation-done,iterate,iteration-done"
         respect_unlabeled: true
