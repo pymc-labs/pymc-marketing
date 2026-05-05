@@ -26,18 +26,19 @@ import xarray as xr
 from mlflow.client import MlflowClient
 from pymc.exceptions import SamplingError
 
+import pymc_marketing.mlflow as pmm_mlflow
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
     autolog,
     create_log_callback,
     log_error,
     log_likelihood_type,
+    log_mmm,
     log_mmm_evaluation_metrics,
     log_model_graph,
     log_sample_diagnostics,
 )
 from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 seed = sum(map(ord, "mlflow-with-pymc"))
@@ -57,8 +58,6 @@ def setup_module():
         pm.sample = pm.sample.__wrapped__
     while hasattr(MMM.fit, "__wrapped__"):
         MMM.fit = MMM.fit.__wrapped__
-    while hasattr(MultiDimensionalMMM.fit, "__wrapped__"):
-        MultiDimensionalMMM.fit = MultiDimensionalMMM.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
@@ -433,7 +432,7 @@ def toy_X(generate_data) -> pd.DataFrame:
 
 @pytest.fixture(scope="module")
 def toy_y(toy_X: pd.DataFrame) -> pd.Series:
-    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]))
+    return pd.Series(data=rng.integers(low=0, high=100, size=toy_X.shape[0]), name="y")
 
 
 @pytest.fixture(scope="module")
@@ -519,8 +518,8 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
 
 
 @pytest.fixture(scope="module")
-def multidimensional_mmm() -> MultiDimensionalMMM:
-    return MultiDimensionalMMM(
+def multidimensional_mmm() -> MMM:
+    return MMM(
         date_column="date",
         channel_columns=["channel_1", "channel_2"],
         target_column="y",
@@ -875,3 +874,20 @@ def test_log_error() -> None:
     ]
     for line in lines:
         assert line in loaded_artifact
+
+
+@pytest.mark.parametrize(
+    "doc_source",
+    [pmm_mlflow.__doc__, log_mmm.__doc__, autolog.__doc__],
+    ids=["module", "log_mmm", "autolog"],
+)
+def test_mlflow_docstrings_have_no_removed_methods(doc_source):
+    """Guard against re-introducing removed MMM API methods in published examples.
+
+    The old ``MMM.plot_components_contributions`` helper no longer exists on
+    the new ``multidimensional.MMM``; copy-pasting the obsolete docstring
+    example would raise ``AttributeError`` at runtime, so make sure none of
+    the rendered Sphinx docstrings still reference it.
+    """
+    assert doc_source is not None
+    assert "plot_components_contributions" not in doc_source

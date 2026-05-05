@@ -111,7 +111,7 @@ Autologging for a PyMC-Marketing MMM:
         idata = mmm.fit(X, y)
 
         # Additional specific logging
-        fig = mmm.plot_components_contributions()
+        fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
         mlflow.log_figure(fig, "components.png")
 
 Autologging for a PyMC-Marketing CLV model:
@@ -172,7 +172,6 @@ from packaging import version
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
-from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 # MLflow 3.0.0+ deprecated artifact_path in favor of name
@@ -865,7 +864,7 @@ def log_mmm(
             idata = mmm.fit(X, y)
 
             # Additional specific logging
-            fig = mmm.plot_components_contributions()
+            fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
             mlflow.log_figure(fig, "components.png")
 
             model_info = log_mmm(
@@ -1159,7 +1158,7 @@ def autolog(
             posterior_preds = mmm.sample_posterior_predictive(X)
 
             # Additional specific logging
-            fig = mmm.plot_components_contributions()
+            fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
             mlflow.log_figure(fig, "components.png")
 
     Autologging for a PyMC-Marketing CLV model:
@@ -1261,7 +1260,6 @@ def autolog(
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
-        MultiDimensionalMMM.fit = patch_mmm_fit(MultiDimensionalMMM.fit)
 
     def patch_clv_fit(fit):
         @wraps(fit)
