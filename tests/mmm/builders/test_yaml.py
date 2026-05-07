@@ -48,7 +48,7 @@ def _minimal_model_config():
     """Reusable minimal MMM config dict (no data/idata sections)."""
     return {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],
@@ -88,6 +88,7 @@ def get_yaml_files():
         for file in config_dir.glob("*.yml")
         if "wrong_" not in file.name
         and "multi_dimensional_example_model.yml" not in file.name
+        and "multi_dimensional_example_model_with_2_geos.yml" not in file.name
         and "multi_dimensional_fivetran.yml" not in file.name
         and "cost_per_unit_example.yml" not in file.name
     ]
@@ -288,7 +289,7 @@ def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
 
     config = {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],
@@ -367,7 +368,7 @@ def test_lognormal_prior_class_key_in_yaml(tmp_path, mock_pymc_sample):
 
     config = {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],
@@ -580,7 +581,7 @@ def test_original_scale_vars_none_is_harmless(tmp_path):
 
     config = {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],

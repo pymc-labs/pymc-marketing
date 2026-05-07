@@ -13,8 +13,7 @@
 #   limitations under the License.
 """Marketing Mix Models (MMM)."""
 
-from pymc_marketing.mmm import base, mmm, preprocessing, validating
-from pymc_marketing.mmm.base import BaseValidateMMM, MMMModelBuilder
+from pymc_marketing.mmm import preprocessing, validating
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -59,7 +58,10 @@ from pymc_marketing.mmm.media_transformation import (
     MediaConfigList,
     MediaTransformation,
 )
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.mmm import (
+    MMM,
+    BudgetOptimizerWrapper,
+)
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -82,8 +84,8 @@ __all__ = [
     "HSGP",
     "MMM",
     "AdstockTransformation",
-    "BaseValidateMMM",
     "BinomialAdstock",
+    "BudgetOptimizerWrapper",
     "CovFunc",
     "DataDerivedScaling",
     "DelayedAdstock",
@@ -98,7 +100,6 @@ __all__ = [
     "LogSaturation",
     "LogisticSaturation",
     "MMMBuilder",
-    "MMMModelBuilder",
     "MediaConfig",
     "MediaConfigList",
     "MediaTransformation",
@@ -123,12 +124,10 @@ __all__ = [
     "YearlyFourier",
     "adstock_from_dict",
     "approx_hsgp_hyperparams",
-    "base",
     "create_complexity_penalizing_prior",
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
-    "mmm",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",

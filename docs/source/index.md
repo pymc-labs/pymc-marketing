@@ -199,7 +199,7 @@ See our example notebooks for [saturated markets](https://www.pymc-marketing.io/
 
 ---
 
-<h1 style="text-align: center;">Resources</h1>
+## Resources
 
 ### Bolt's success story with PyMC-Marketing
 **Checkout the video below to see how Bolt leverages PyMC-Marketing to assess the impact of their marketing efforts.**

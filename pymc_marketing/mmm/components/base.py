@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any, TypeAlias
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -52,7 +52,7 @@ from pymc_marketing.plot import (
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
-SupportedPrior: TypeAlias = (
+type SupportedPrior = (
     InstanceOf[Prior]
     | float
     | InstanceOf[Variable]

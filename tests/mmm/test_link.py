@@ -37,7 +37,7 @@ from pymc_marketing.mmm.link import (
     LogLinkSpec,
     get_link_spec,
 )
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 
 def _make_positive_panel(

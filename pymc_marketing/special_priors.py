@@ -42,6 +42,26 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from pymc_marketing.serialization import serialization
 
 
+def _is_xarray_dataarray_dict(data: Any) -> bool:
+    """Return True for dicts produced by ``xr.DataArray.to_dict()``."""
+    if not isinstance(data, dict):
+        return False
+    required = {"dims", "attrs", "data", "coords"}
+    return (
+        required.issubset(data.keys())
+        and "data_vars" not in data
+        and "dist" not in data
+        and "special_prior" not in data
+        and "lookup_name" not in data
+    )
+
+
+register_deserialization(
+    is_type=_is_xarray_dataarray_dict,
+    deserialize=xr.DataArray.from_dict,
+)
+
+
 class SpecialPrior(ABC):
     """A base class for specialized priors."""
 
@@ -137,6 +157,9 @@ class SpecialPrior(ABC):
 
                 if isinstance(value, np.ndarray):
                     return value.tolist()
+
+                if isinstance(value, xr.DataArray):
+                    return value.to_dict()
 
                 if hasattr(value, "to_dict"):
                     return value.to_dict()

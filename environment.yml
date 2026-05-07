@@ -67,6 +67,8 @@ dependencies:
   - papermill
   - plotly
   - tqdm
+  - pygraphviz
   - pip:
       - roadmapper
       - labs-sphinx-theme
+      - arviz-plots[matplotlib]>=1.0.0

@@ -19,12 +19,12 @@ import os
 import warnings
 from pathlib import Path
 
+import arviz as az
 import pandas as pd
 
 from pymc_marketing.mmm.builders.factories import build, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
-from pymc_marketing.mmm.multidimensional import MMM
-from pymc_marketing.utils import from_netcdf
+from pymc_marketing.mmm.mmm import MMM
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:
@@ -152,7 +152,7 @@ def build_mmm_from_yaml(
     # 3 -- effects (preserve order)
     for eff_spec in cfg.effects or []:
         effect = build(eff_spec.model_dump(by_alias=True))
-        model.mu_effects.append(effect)
+        model.add_mu_effect(effect)
 
     # 4 -- build PyMC graph (must precede idata loading)
     model.build_model(X, y)
@@ -169,6 +169,6 @@ def build_mmm_from_yaml(
     if cfg.idata_path is not None:
         idata_path = Path(cfg.idata_path)
         if os.path.exists(idata_path):
-            model.idata = from_netcdf(idata_path)
+            model.idata = az.from_netcdf(str(idata_path))
 
     return model

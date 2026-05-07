@@ -1129,7 +1129,7 @@ msgid ""
 "additional variables like seasonality and baseline (intercept). As mentioned"
 " above, we set the control variables to zero for the sake of comparison. "
 "This is what is done in the "
-"{meth}`~pymc_marketing.mmm.mmm.MMM.allocate_budget_to_maximize_response` "
+"{meth}`~pymc_marketing.mmm.MMM.allocate_budget_to_maximize_response` "
 "method."
 msgstr ""
 "A continuación, queremos comparar las ventas totales optimizadas e ingenuas."
@@ -1138,7 +1138,7 @@ msgstr ""
 "(intercepto). Como se mencionó anteriormente, establecemos las variables de "
 "control en cero para efectos de comparación. Esto es lo que se hace en el "
 "método "
-"{meth}`~pymc_marketing.mmm.mmm.MMM.allocate_budget_to_maximize_response`."
+"{meth}`~pymc_marketing.mmm.MMM.allocate_budget_to_maximize_response`."
 
 #: ../source/notebooks/mmm/mmm_case_study.ipynb:1140002
 #: 85dc1e1bd7ee46b38d445da0a6c0e187

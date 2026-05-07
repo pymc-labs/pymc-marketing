@@ -31,7 +31,7 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.utils import from_netcdf
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -398,7 +398,10 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
-            self.idata.to_netcdf(str(file), **kwargs)
+            if file.suffix == ".zarr" or file.is_dir():
+                idata_to_zarr(self.idata, file, **kwargs)
+            else:
+                self.idata.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -445,7 +448,7 @@ class ModelIO:
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
         """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
 
-        This method must be overridden in child classes if data is needed as a keyword argument.
+        This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
@@ -494,7 +497,10 @@ class ModelIO:
 
         """
         filepath = Path(str(fname))
-        idata = from_netcdf(filepath)
+        if filepath.suffix == ".zarr" or filepath.is_dir():
+            idata = idata_from_zarr(filepath)
+        else:
+            idata = az.from_netcdf(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -542,7 +548,19 @@ class ModelIO:
             model = cls(**init_kwargs)
 
         model.idata = idata
-        model.build_from_idata(idata)
+        if "fit_data" in idata:
+            # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
+            built = model.build_from_idata(idata)
+            if built is not None:
+                model = built
+        else:
+            warnings.warn(
+                "The loaded model does not include fit_data used for training. "
+                "Plotting and prior/posterior predictive sampling may not work correctly. "
+                "Run build_model() with training data for full functionality.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if not check:
             return model

@@ -24,13 +24,9 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata.schema import Frequency
-from pymc_marketing.mmm.decomposition import (
-    original_scale_prediction_from_mu,
-    safe_proportional_share,
-)
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 
 class MMMIDataWrapper:
@@ -218,7 +214,7 @@ class MMMIDataWrapper:
                 "channel_scale not found in constant_data. "
                 "Expected 'channel_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data.channel_scale
+        return self.idata.constant_data.channel_scale.copy()
 
     def get_target_scale(self) -> xr.DataArray:
         """Get target scaling factor used during model fitting.
@@ -248,7 +244,7 @@ class MMMIDataWrapper:
                 "target_scale not found in constant_data. "
                 "Expected 'target_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data.target_scale
+        return self.idata.constant_data.target_scale.copy()
 
     # ==================== Observed Data Access ====================
 
@@ -592,7 +588,7 @@ class MMMIDataWrapper:
                                              {\sum_c \text{channel\_contrib}_c}
 
         This uses the same log-link prediction transform as
-        :meth:`~pymc_marketing.mmm.multidimensional.MMM.compute_counterfactual_contributions_dataset`
+        :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`
         via shared decomposition helpers in :mod:`pymc_marketing.mmm.decomposition`.
 
         Parameters
@@ -626,6 +622,12 @@ class MMMIDataWrapper:
         ``exp(mu) * target_scale`` (the full posterior prediction) for every
         posterior draw.
         """
+        # Deferred import: avoid circular import (mmm.py -> mmm_wrapper -> mmm pkg).
+        from pymc_marketing.mmm.decomposition import (
+            original_scale_prediction_from_mu,
+            safe_proportional_share,
+        )
+
         posterior = self.idata.posterior
         target_scale = self.get_target_scale()
 

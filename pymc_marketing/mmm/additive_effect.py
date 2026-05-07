@@ -77,7 +77,7 @@ Example of a custom additive effect
 
     # Build your MMM as usual (with channels, etc.), then add the effect before build/fit:
     # mmm = MMM(...)
-    # mmm.mu_effects.append(weekend_penalty)
+    # mmm.add_mu_effect(weekend_penalty)
     # mmm.build_model(X, y)
     # mmm.fit(X, y, ...)
     # At prediction time, the effect updates itself via set_data.
