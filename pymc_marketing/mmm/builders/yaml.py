@@ -24,7 +24,7 @@ import pandas as pd
 
 from pymc_marketing.mmm.builders.factories import build, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:

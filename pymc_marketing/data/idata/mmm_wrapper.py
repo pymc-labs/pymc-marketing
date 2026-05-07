@@ -25,7 +25,7 @@ import xarray as xr
 from pymc_marketing.data.idata.schema import Frequency
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 
 class MMMIDataWrapper:

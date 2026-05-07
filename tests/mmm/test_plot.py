@@ -26,7 +26,7 @@ from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", FutureWarning)
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm.plot import MMMPlotSuite

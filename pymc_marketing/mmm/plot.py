@@ -20,7 +20,7 @@ Quickstart with MMM:
 .. code-block:: python
 
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
     import pandas as pd
 
     # Minimal dataset

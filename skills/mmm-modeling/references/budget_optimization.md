@@ -10,18 +10,18 @@
 
 ## Setup
 
-Budget optimization uses `MultiDimensionalBudgetOptimizerWrapper`, which wraps a fitted MMM and optimizes spend allocation over a future date range:
+Budget optimization uses `BudgetOptimizerWrapper`, which wraps a fitted MMM and optimizes spend allocation over a future date range:
 
 ```python
 import pandas as pd
-from pymc_marketing.mmm.multidimensional import MultiDimensionalBudgetOptimizerWrapper
+from pymc_marketing.mmm.mmm import BudgetOptimizerWrapper
 
 # Define optimization window (typically future periods)
 last_date = pd.Timestamp(X[date_column].max())
 start_date = last_date + pd.Timedelta(weeks=1)
 end_date = start_date + pd.Timedelta(weeks=12)
 
-optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+optimizable_model = BudgetOptimizerWrapper(
     model=mmm,
     start_date=str(start_date),
     end_date=str(end_date),

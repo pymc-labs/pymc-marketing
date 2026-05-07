@@ -368,7 +368,7 @@ asymmetric = AsymmetricGaussianBasis(
 | Built-in scaling (channel & target) | Yes | Manual |
 | `plot.waterfall_components_decomposition()` | Yes | Manual |
 | `plot.contributions_over_time()` | Yes | Manual |
-| `MultiDimensionalBudgetOptimizerWrapper` | Yes | Not available |
+| `BudgetOptimizerWrapper` | Yes | Not available |
 | `add_lift_test_measurements()` | Yes | Manual implementation required |
 | `save()` / `load()` | Yes | Use `arviz.to_netcdf(idata)` |
 | `TimeSliceCrossValidator` | Yes | Manual loop |

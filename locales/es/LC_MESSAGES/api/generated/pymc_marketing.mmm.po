@@ -184,8 +184,8 @@ msgstr "M?dulo para aplicar transformaciones de medios a datos de medios."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: abfdcfd12b224db1980f5e21084233d9
-msgid ":py:obj:`multidimensional <pymc_marketing.mmm.multidimensional>`\\"
-msgstr ":py:obj:`multidimensional <pymc_marketing.mmm.multidimensional>`"
+msgid ":py:obj:`multidimensional <pymc_marketing.mmm.mmm>`\\"
+msgstr ":py:obj:`multidimensional <pymc_marketing.mmm.mmm>`"
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 8ee9d6d6ddfc4c64bc0c84f88d20289e
