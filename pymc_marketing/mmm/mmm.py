@@ -3975,6 +3975,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if include_carryover:
             data_with_noise = self._apply_carryover_effect(data_with_noise)
 
+        if "channel_contribution_original_scale" not in self.model.named_vars:
+            raise ValueError(
+                "'channel_contribution_original_scale' is not in the model. "
+                "Call `mmm.add_original_scale_contribution_variable(['channel_contribution'])` "
+                "before calling `sample_response_distribution`."
+            )
+
         constant_data = allocation_strategy.to_dataset(name="allocation")
         _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
             self.channel_columns
@@ -3983,6 +3990,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         var_names = [
             self.output_var,
             "channel_contribution",
+            "channel_contribution_original_scale",
             "total_media_contribution_original_scale",
         ]
         if additional_var_names is not None:
