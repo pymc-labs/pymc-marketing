@@ -3982,7 +3982,14 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 "before calling `sample_response_distribution`."
             )
 
-        constant_data = allocation_strategy.to_dataset(name="allocation")
+        constant_data = xr.merge(
+            [
+                allocation_strategy.to_dataset(name="allocation"),
+                (allocation_strategy * self.num_periods).to_dataset(
+                    name="total_allocation"
+                ),
+            ]
+        )
         _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
             self.channel_columns
         ].to_xarray()
