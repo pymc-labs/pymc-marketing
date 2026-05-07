@@ -21,7 +21,7 @@ import xarray as xr
 
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 
 

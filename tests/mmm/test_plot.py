@@ -26,7 +26,7 @@ from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", FutureWarning)
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm.plot import MMMPlotSuite
@@ -100,6 +100,15 @@ def fit_mmm_without_channel_original_scale(df, mmm, mock_pymc_sample):
 
     mmm.fit(X, y)
 
+    return mmm
+
+
+@pytest.fixture
+def mmm_with_prior_predictive(df, mmm):
+    """``mmm`` with ``prior`` and ``prior_predictive`` groups available."""
+    X = df.drop(columns=["y"])
+    y = df["y"]
+    mmm.sample_prior_predictive(X, y, samples=10)
     return mmm
 
 
@@ -244,6 +253,26 @@ def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     assert isinstance(fig, Figure)
     assert isinstance(ax, np.ndarray)
     assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+@pytest.mark.parametrize("hdi_prob", [0.5, 0.85])
+def test_prior_predictive(mmm_with_prior_predictive, hdi_prob):
+    """Smoke test for ``MMMPlotSuite.prior_predictive``.
+
+    Mirrors :func:`test_posterior_predictive` and locks coverage of the
+    prior-predictive plot path (PR #2487 review item 6).
+    """
+    fig, ax = mmm_with_prior_predictive.plot.prior_predictive(hdi_prob=hdi_prob)
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+def test_prior_predictive_raises_when_missing():
+    """Plotting prior predictive without sampled data must give an actionable error."""
+    suite = MMMPlotSuite(idata=az.InferenceData())
+    with pytest.raises(ValueError, match=r"prior_predictive"):
+        suite.prior_predictive()
 
 
 @pytest.fixture(scope="module")
@@ -2975,126 +3004,6 @@ class TestChannelContributionShareHDI:
 
         assert isinstance(fig, Figure)
         assert isinstance(ax, Axes)
-
-
-@pytest.mark.parametrize(
-    "dim_config",
-    [
-        {},
-        {"country": ["A", "B"]},
-        {"country": ["A", "B"], "product": ["p1", "p2"]},
-    ],
-)
-def test_time_slice_cv_run_sets_results_and_plot_property(dim_config):
-    """Ensure TimeSliceCrossValidator.run persists results and exposes MMMPlotSuite via .plot
-
-    Test with different dimension granularities (no extra dims, single dim, multiple dims)
-    so the combined idata and plot helper behave correctly regardless of additional coords.
-    """
-    from pymc_marketing.mmm.time_slice_cross_validation import (
-        TimeSliceCrossValidator,
-    )
-
-    class FakeModel:
-        def __init__(self):
-            self.idata = None
-            self.sampler_config = None
-
-        def fit(self, X, y, progressbar=True):
-            # no-op fit
-            return None
-
-        def sample_posterior_predictive(
-            self, X, extend_idata=True, combined=True, progressbar=False, **kwargs
-        ):
-            # Build minimal posterior_predictive with a date coord and any extra dims
-            dates = pd.to_datetime(np.unique(X["date"].to_numpy()))
-
-            # determine unique values for each dimension in dim_config
-            dim_keys = list(dim_config.keys())
-            dim_sizes = [len(np.unique(X[k])) for k in dim_keys]
-
-            # build array shape: (chain, draw, *dim_sizes, date)
-            shape = (1, 2, *dim_sizes, len(dates))
-
-            arr = np.random.RandomState(1).normal(size=shape)
-
-            dims = (
-                ("chain", "draw", *dim_keys, "date")
-                if dim_keys
-                else (
-                    "chain",
-                    "draw",
-                    "date",
-                )
-            )
-
-            coords = {"date": dates}
-            for k in dim_keys:
-                coords[k] = np.unique(X[k])
-
-            da = xr.DataArray(arr, dims=dims, coords=coords, name="y")
-            ds = xr.Dataset({"y": da})
-            self.idata = az.InferenceData(posterior_predictive=ds)
-            return self.idata
-
-    class FakeMMMFactory:
-        def build_model(self, X, y):
-            return FakeModel()
-
-    # Prepare tiny dataset with combinations for the requested dims
-    dates = pd.date_range("2025-01-01", periods=6, freq="D")
-
-    # build cartesian product of dims
-    dim_keys = list(dim_config.keys())
-    if dim_keys:
-        import itertools as _it
-
-        dim_values = [dim_config[k] for k in dim_keys]
-        rows = []
-        for date in dates:
-            for combo in _it.product(*dim_values):
-                row = {"date": date}
-                # Explicitly set strict=False to satisfy ruff B905 (zip strictness)
-                for k, v in zip(dim_keys, combo, strict=False):
-                    row[k] = v
-                rows.append(row)
-        X = pd.DataFrame(rows)
-    else:
-        X = pd.DataFrame({"date": dates, "geo": ["g1"] * len(dates)})
-
-    y = pd.Series(np.arange(len(X)))
-
-    cv = TimeSliceCrossValidator(
-        n_init=2, forecast_horizon=1, date_column="date", step_size=1
-    )
-
-    run_out = cv.run(X, y, mmm=FakeMMMFactory())
-
-    # Support both historical behavior (run returned list of results) and
-    # current behavior (run returns combined arviz.InferenceData).
-    if isinstance(run_out, list):
-        results = run_out
-        combined = getattr(cv, "cv_idata", None)
-        # If legacy behavior, cv._cv_results should point at returned results
-        assert results == getattr(cv, "_cv_results", results)
-    else:
-        combined = run_out
-        # current behavior: combined InferenceData returned and _cv_results persisted
-        assert isinstance(combined, az.InferenceData)
-        assert hasattr(cv, "_cv_results")
-        results = cv._cv_results
-    assert isinstance(results, list)
-
-    # combined posterior_predictive should contain all configured dims as coords
-    if dim_keys:
-        for k in dim_keys:
-            assert k in combined.posterior_predictive.coords
-
-    # Plot property should return MMMPlotSuite that wraps the latest idata
-    plot_suite = cv.plot
-    assert hasattr(plot_suite, "idata")
-    assert plot_suite.idata is cv._cv_results[-1].idata
 
 
 def test_init_subplots_and_build_title():

@@ -23,7 +23,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -149,7 +149,7 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
     # Explicitly set model data via pm.set_data so channel_data has concrete shape,
     # matching real mmm.fit() behavior. Without this, channel_data may retain
     # symbolic shape unlike mmm.fit().
-    model._set_xarray_data(model.xarray_dataset, clone_model=False)
+    model._set_xarray_data(model.xarray_dataset, model=model.model)
 
     if random_seed is None:
         random_seed = rng

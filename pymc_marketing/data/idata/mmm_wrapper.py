@@ -25,7 +25,7 @@ import xarray as xr
 from pymc_marketing.data.idata.schema import Frequency
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 
 class MMMIDataWrapper:
@@ -213,7 +213,7 @@ class MMMIDataWrapper:
                 "channel_scale not found in constant_data. "
                 "Expected 'channel_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data.channel_scale
+        return self.idata.constant_data.channel_scale.copy()
 
     def get_target_scale(self) -> xr.DataArray:
         """Get target scaling factor used during model fitting.
@@ -243,7 +243,7 @@ class MMMIDataWrapper:
                 "target_scale not found in constant_data. "
                 "Expected 'target_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data.target_scale
+        return self.idata.constant_data.target_scale.copy()
 
     # ==================== Observed Data Access ====================
 

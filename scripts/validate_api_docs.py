@@ -18,6 +18,8 @@ Exit codes:
 
 import argparse
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -34,6 +36,9 @@ EXCLUDE_MODULES = {
 def get_package_modules(package_dir: Path) -> set[str]:
     """Get all public modules from the pymc_marketing package.
 
+    Only considers files tracked by git, so untracked files in the working
+    tree do not trigger spurious failures.
+
     Parameters
     ----------
     package_dir : Path
@@ -44,23 +49,27 @@ def get_package_modules(package_dir: Path) -> set[str]:
     set[str]
         Set of module names (without .py extension).
     """
+    git = shutil.which("git") or "git"
+    result = subprocess.run(  # noqa: S603
+        [git, "ls-files", str(package_dir)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    tracked = {Path(p).resolve() for p in result.stdout.splitlines()}
+
     modules = set()
-
-    if not package_dir.exists():
-        print(f"❌ Error: Package directory not found: {package_dir}")
-        sys.exit(1)
-
-    # Find all .py files (modules)
     for item in package_dir.iterdir():
         if item.is_file() and item.suffix == ".py":
-            module_name = item.stem
-            if module_name not in EXCLUDE_MODULES:
-                modules.add(module_name)
+            if item.resolve() in tracked:
+                module_name = item.stem
+                if module_name not in EXCLUDE_MODULES:
+                    modules.add(module_name)
 
         # Find all subdirectories with __init__.py (subpackages)
         elif item.is_dir() and not item.name.startswith("__"):
             init_file = item / "__init__.py"
-            if init_file.exists():
+            if init_file.exists() and init_file.resolve() in tracked:
                 modules.add(item.name)
 
     return modules
