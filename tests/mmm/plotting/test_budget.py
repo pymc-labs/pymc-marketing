@@ -45,10 +45,12 @@ def simple_allocation_samples(channels) -> xr.Dataset:
     rng = np.random.default_rng(SEED)
     n_sample, n_date = 80, 20
     dates = np.arange(n_date)
+    contrib = rng.uniform(100, 500, (n_sample, n_date, len(channels)))
+    alloc = rng.uniform(1000, 5000, len(channels))
     return xr.Dataset(
         {
             "channel_contribution_original_scale": xr.DataArray(
-                rng.uniform(100, 500, (n_sample, n_date, len(channels))),
+                contrib,
                 dims=("sample", "date", "channel"),
                 coords={
                     "sample": np.arange(n_sample),
@@ -57,7 +59,12 @@ def simple_allocation_samples(channels) -> xr.Dataset:
                 },
             ),
             "allocation": xr.DataArray(
-                rng.uniform(1000, 5000, len(channels)),
+                alloc,
+                dims=("channel",),
+                coords={"channel": channels},
+            ),
+            "total_allocation": xr.DataArray(
+                alloc * n_date,
                 dims=("channel",),
                 coords={"channel": channels},
             ),
@@ -72,10 +79,12 @@ def panel_allocation_samples(channels) -> xr.Dataset:
     n_sample, n_date = 80, 20
     geos = ["CA", "NY"]
     dates = np.arange(n_date)
+    contrib = rng.uniform(100, 500, (n_sample, n_date, len(geos), len(channels)))
+    alloc = rng.uniform(1000, 5000, (len(geos), len(channels)))
     return xr.Dataset(
         {
             "channel_contribution_original_scale": xr.DataArray(
-                rng.uniform(100, 500, (n_sample, n_date, len(geos), len(channels))),
+                contrib,
                 dims=("sample", "date", "geo", "channel"),
                 coords={
                     "sample": np.arange(n_sample),
@@ -85,7 +94,12 @@ def panel_allocation_samples(channels) -> xr.Dataset:
                 },
             ),
             "allocation": xr.DataArray(
-                rng.uniform(1000, 5000, (len(geos), len(channels))),
+                alloc,
+                dims=("geo", "channel"),
+                coords={"geo": geos, "channel": channels},
+            ),
+            "total_allocation": xr.DataArray(
+                alloc * n_date,
                 dims=("geo", "channel"),
                 coords={"geo": geos, "channel": channels},
             ),
@@ -199,6 +213,28 @@ class TestAllocationRoas:
             }
         )
         with pytest.raises(ValueError, match="channel"):
+            BudgetPlots().allocation_roas(bad_samples)
+
+    def test_missing_total_allocation_raises(self):
+        from pymc_marketing.mmm.plotting.budget import BudgetPlots
+
+        rng = np.random.default_rng(SEED)
+        channels = ["tv", "radio"]
+        bad_samples = xr.Dataset(
+            {
+                "channel_contribution_original_scale": xr.DataArray(
+                    rng.uniform(0, 1, (10, 5, 2)),
+                    dims=("sample", "date", "channel"),
+                    coords={"channel": channels},
+                ),
+                "allocation": xr.DataArray(
+                    [1000.0, 2000.0],
+                    dims=("channel",),
+                    coords={"channel": channels},
+                ),
+            }
+        )
+        with pytest.raises(ValueError, match="total_allocation"):
             BudgetPlots().allocation_roas(bad_samples)
 
     def test_dims_subsetting(self, panel_allocation_samples):

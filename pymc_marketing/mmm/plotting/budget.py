@@ -99,6 +99,10 @@ class BudgetPlots:
             )
         if "channel" not in samples.dims:
             raise ValueError("Expected 'channel' dimension in samples, but none found.")
+        if "total_allocation" not in samples:
+            raise ValueError(
+                "Expected 'total_allocation' variable in samples, but none found."
+            )
 
         pc_kwargs = _process_plot_params(
             figsize=figsize,
@@ -107,9 +111,9 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        n_periods = len(samples.date)
-        roas_da = samples["channel_contribution_original_scale"].sum("date") / (
-            samples["allocation"] * n_periods
+        roas_da = (
+            samples["channel_contribution_original_scale"].sum("date")
+            / samples["total_allocation"]
         )
         roas_da.name = "roas"
 
