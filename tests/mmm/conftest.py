@@ -23,7 +23,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
 seed: int = sum(map(ord, "pymc_marketing"))

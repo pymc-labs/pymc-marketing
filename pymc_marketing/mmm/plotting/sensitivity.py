@@ -21,7 +21,7 @@ sensitivity sweep run via :class:`~pymc_marketing.mmm.SensitivityAnalysis`:
 * :meth:`~SensitivityPlots.marginal`  — marginal effects along the sweep
 
 The class is normally accessed through the ``mmm.plots.sensitivity`` shortcut on a
-fitted :class:`~pymc_marketing.mmm.multidimensional.MMM` instance, but it can also be constructed
+fitted :class:`~pymc_marketing.mmm.mmm.MMM` instance, but it can also be constructed
 directly from any :class:`~pymc_marketing.data.idata.MMMIDataWrapper`.
 
 Examples

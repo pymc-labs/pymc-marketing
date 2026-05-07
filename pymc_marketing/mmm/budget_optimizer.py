@@ -29,9 +29,9 @@ Quickstart (multi‑dimensional MMM)
     import pandas as pd
     import xarray as xr
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.multidimensional import (
+    from pymc_marketing.mmm.mmm import (
         MMM,
-        MultiDimensionalBudgetOptimizerWrapper,
+        BudgetOptimizerWrapper,
     )
 
     # 1) Fit a model (toy example)
@@ -56,7 +56,7 @@ Quickstart (multi‑dimensional MMM)
     mmm.fit(X, y)
 
     # 2) Wrap the fitted model for allocation over a future window
-    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+    wrapper = BudgetOptimizerWrapper(
         model=mmm,
         start_date=X["date"].max() + pd.Timedelta(weeks=1),
         end_date=X["date"].max() + pd.Timedelta(weeks=8),
@@ -377,9 +377,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
     .. code-block:: python
 
-        from pymc_marketing.mmm.multidimensional import (
+        from pymc_marketing.mmm.mmm import (
             MMM,
-            MultiDimensionalBudgetOptimizerWrapper,
+            BudgetOptimizerWrapper,
         )
         from pymc_marketing.mmm.budget_optimizer import (
             BuildMergedModel,
@@ -387,15 +387,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
         )
 
         # Assume m1, m2, m3 are already fitted MMM instances
-        w1 = MultiDimensionalBudgetOptimizerWrapper(
-            model=m1, start_date=start, end_date=end
-        )
-        w2 = MultiDimensionalBudgetOptimizerWrapper(
-            model=m2, start_date=start, end_date=end
-        )
-        w3 = MultiDimensionalBudgetOptimizerWrapper(
-            model=m3, start_date=start, end_date=end
-        )
+        w1 = BudgetOptimizerWrapper(model=m1, start_date=start, end_date=end)
+        w2 = BudgetOptimizerWrapper(model=m2, start_date=start, end_date=end)
+        w3 = BudgetOptimizerWrapper(model=m3, start_date=start, end_date=end)
 
         merged = BuildMergedModel(
             models=[w1, w2, w3],

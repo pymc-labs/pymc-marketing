@@ -885,7 +885,7 @@ def test_mlflow_docstrings_have_no_removed_methods(doc_source):
     """Guard against re-introducing removed MMM API methods in published examples.
 
     The old ``MMM.plot_components_contributions`` helper no longer exists on
-    the new ``multidimensional.MMM``; copy-pasting the obsolete docstring
+    the new ``mmm.MMM``; copy-pasting the obsolete docstring
     example would raise ``AttributeError`` at runtime, so make sure none of
     the rendered Sphinx docstrings still reference it.
     """
