@@ -1043,7 +1043,7 @@ def hill_function(
 
     where:
      - :math:`s` is the slope of the hill.
-     - :math:`\kappa` is the half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
+     - :math:`\kappa` is the half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
      - :math:`x` is the independent variable and must be non-negative.
 
     Hill function from Equation (5) in the paper [1]_.
@@ -1093,7 +1093,7 @@ def hill_function(
     slope : XTensorLike
         The slope of the hill. Must be non-positive.
     kappa : XTensorLike
-        The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s` and :math:`\kappa`.
+        The half-saturation point as :math:`f(\kappa) = 0.5` for any value of :math:`s`.
 
     Returns
     -------
@@ -1104,7 +1104,7 @@ def hill_function(
     ----------
     .. [1] Jin, Yuxue, et al. “Bayesian methods for media mix modeling with carryover and shape effects.” (2017).
 
-    """  # noqa: E501
+    """
     x = as_xtensor(x)
     slope = as_xtensor(slope)
     kappa = as_xtensor(kappa)
