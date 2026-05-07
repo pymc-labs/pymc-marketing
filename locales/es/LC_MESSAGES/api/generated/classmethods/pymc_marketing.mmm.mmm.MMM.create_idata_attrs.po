@@ -21,26 +21,11 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.create_idata_attrs.rst:2
-#: bb91ec4a036a44bdb5b9f36971ac2eee
+#: 67abbbfb5145496d9b939213bdf2395a
 msgid "MMM.create\\_idata\\_attrs"
 msgstr "MMM.create\\_idata\\_attrs"
 
-#: 20a1229d2c5f49d5a06c6845fc74d1dd of
-#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs:2
-msgid "Create attributes for the inference data."
-msgstr "Cree atributos para los datos de inferencia."
-
-#: 745561d9fdba4b4992376243161a5d92 of
-#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs
-msgid "Returns"
-msgstr "Devoluciones"
-
-#: ba1121be6356406795699004582b3c14 of
-#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs:10
-msgid ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
-
-#: 6d7b3905f73f43669089cce7d758de06 of
-#: pymc_marketing.mmm.mmm.BaseMMM.create_idata_attrs:11
-msgid "The attributes for the inference data."
-msgstr "Los atributos para los datos de inferencia."
+#: 75ec0d6e234f4259b6dfdca511e9e4e6 of
+#: pymc_marketing.mmm.mmm.MMM.create_idata_attrs:2
+msgid "Return the idata attributes for the model."
+msgstr "Devuelva los atributos idata para el modelo."

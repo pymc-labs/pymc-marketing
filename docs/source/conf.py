@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import plotly.io as pio
+
 import pymc_marketing  # isort:skip
 
 # -- General configuration ------------------------------------------------
@@ -89,12 +91,50 @@ locale_dirs = ["../../locales"]
 # exclude method pages from toctree to make pages lighter and build faster
 remove_from_toctrees = ["**/classmethods/*"]
 
+# matplotlib plot directive configuration
+# plot_pre_code runs before every .. plot:: block; replaces the default
+# "import numpy as np / from matplotlib import pyplot as plt" preamble.
+plot_pre_code = (
+    "import numpy as np\n"
+    "import arviz  # registers arviz styles with matplotlib\n"
+    "from matplotlib import pyplot as plt\n"
+    "plt.style.use('arviz-darkgrid')\n"
+)
+
 # myst config
 nb_execution_mode = "auto"
 nb_execution_excludepatterns = ["*.ipynb"]
 nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
+
+# Block Plotly from injecting its own version of MathJax
+# Set global engine defaults
+pio.full_figure_for_development = False
+
+# Disable MathJax across all possible renderers
+for renderer in pio.renderers:
+    try:
+        pio.renderers[renderer].include_mathjax = "cdn"
+    except AttributeError:
+        continue
+
+# Sphinx's mathjax_path will be handled automatically by the extension/theme.
+# This config is compatible with both MathJax 3 and 4.
+mathjax3_config = {
+    "tex": {
+        "inlineMath": [["\\(", "\\)"]],
+        "displayMath": [["\\[", "\\]"]],
+        "processEscapes": True,
+    },
+    "options": {
+        # 'ignoreHtmlClass' is the modern standard for both v3 and v4.
+        # We include 'tex2jax_ignore' for v2/v3 compatibility and
+        # 'plotly-graph-div' to stop MathJax from touching Plotly SVGs.
+        "ignoreHtmlClass": "tex2jax_ignore|plotly-graph-div",
+        "processHtmlClass": "tex2jax_process",
+    },
+}
 
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
@@ -268,3 +308,22 @@ texinfo_documents = [
         "Miscellaneous",
     )
 ]
+
+
+def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
+    """Remove Plotly's forced MathJax 2.7.5 injection from the final HTML."""
+    if "body" in context:
+        # This targets the specific CDN Plotly always uses
+        bad_script = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js"
+        context["body"] = context["body"].replace(
+            f'<script src="{bad_script}', '<script data-blocked="true"'
+        )
+
+
+def setup(app):
+    """Configure Sphinx application event handlers.
+
+    Connects the Plotly MathJax scrubbing function to the html-page-context event.
+    """
+    # Connect the scrubbing function to the html-page-context event
+    app.connect("html-page-context", scrub_plotly_mathjax)

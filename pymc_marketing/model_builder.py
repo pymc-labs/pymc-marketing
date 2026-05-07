@@ -31,7 +31,7 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.utils import from_netcdf
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -196,6 +196,8 @@ class ModelIO:
 
         def _serialize_for_hash(obj):
             """Serialize objects for deterministic hashing."""
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "model_dump"):
@@ -247,20 +249,23 @@ class ModelIO:
 
         def _json_default(obj):
             """Handle objects that aren't JSON serializable by default."""
+            from pymc_marketing.serialization import serialization
+
+            try:
+                return serialization.serialize(obj)
+            except (KeyError, TypeError):
+                pass
+
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "model_dump"):
-                # Handle Pydantic models (e.g., HSGPKwargs)
                 return obj.model_dump(mode="json")
-            # For other objects, try to use their __dict__ but filter out non-serializable items
             if hasattr(obj, "__dict__"):
-                # Filter out methods, functions, and other non-serializable attributes
                 return {
                     k: v
                     for k, v in obj.__dict__.items()
                     if not callable(v) and not k.startswith("_")
                 }
-            # Last resort: convert to string representation
             return str(obj)
 
         attrs: dict[str, str] = {}
@@ -393,7 +398,10 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
-            self.idata.to_netcdf(str(file), **kwargs)
+            if file.suffix == ".zarr" or file.is_dir():
+                idata_to_zarr(self.idata, file, **kwargs)
+            else:
+                self.idata.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -401,25 +409,27 @@ class ModelIO:
     def _model_config_formatting(cls, model_config: dict) -> dict:
         """Format the model configuration.
 
-        Because of json serialization, model_config values that were originally tuples
-        or numpy are being encoded as lists. This function converts them back to tuples
-        and numpy arrays to ensure correct id encoding.
+        Recursively processes the config dict.  Dicts with a ``__type__`` key
+        are deserialized via the TypeRegistry.  Plain lists are converted back
+        to tuples (for ``dims``) or numpy arrays (everything else) to undo the
+        JSON round-trip.
         """
-        for key in model_config:
-            if isinstance(model_config[key], dict):
-                for sub_key in model_config[key]:
-                    if isinstance(model_config[key][sub_key], list):
-                        # Check if "dims" key to convert it to tuple
-                        if sub_key == "dims":
-                            model_config[key][sub_key] = tuple(
-                                model_config[key][sub_key]
-                            )
-                        # Convert all other lists to numpy arrays
-                        else:
-                            model_config[key][sub_key] = np.array(
-                                model_config[key][sub_key]
-                            )
-        return model_config
+        from pymc_marketing.serialization import serialization
+
+        def _format(d: dict) -> dict:
+            for key, value in d.items():
+                if isinstance(value, dict) and "__type__" in value:
+                    d[key] = serialization.deserialize(value)
+                elif isinstance(value, dict):
+                    d[key] = _format(value)
+                elif isinstance(value, list):
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    elif value and all(isinstance(v, (int, float)) for v in value):
+                        d[key] = np.array(value)
+            return d
+
+        return _format(model_config.copy())
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
@@ -438,7 +448,7 @@ class ModelIO:
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
         """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
 
-        This method must be overridden in child classes if data is needed as a keyword argument.
+        This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
@@ -487,7 +497,10 @@ class ModelIO:
 
         """
         filepath = Path(str(fname))
-        idata = from_netcdf(filepath)
+        if filepath.suffix == ".zarr" or filepath.is_dir():
+            idata = idata_from_zarr(filepath)
+        else:
+            idata = az.from_netcdf(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -535,7 +548,19 @@ class ModelIO:
             model = cls(**init_kwargs)
 
         model.idata = idata
-        model.build_from_idata(idata)
+        if "fit_data" in idata:
+            # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
+            built = model.build_from_idata(idata)
+            if built is not None:
+                model = built
+        else:
+            warnings.warn(
+                "The loaded model does not include fit_data used for training. "
+                "Plotting and prior/posterior predictive sampling may not work correctly. "
+                "Run build_model() with training data for full functionality.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if not check:
             return model

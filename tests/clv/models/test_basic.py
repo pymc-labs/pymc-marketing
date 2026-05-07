@@ -79,6 +79,26 @@ class CLVModelTest(CLVModel):
             pm.Normal("y", mu=x, sigma=1, observed=self.data["y"])
 
 
+class CLVModelForLoadTest(CLVModelTest):
+    """Like CLVModelTest but does not invent random ``data`` when ``data`` is omitted."""
+
+    _model_type = "CLVModelForLoadTest"
+
+    def __init__(
+        self,
+        data=None,
+        model_config=None,
+        sampler_config: dict | None = None,
+    ):
+        CLVModel.__init__(
+            self,
+            data=data,
+            model_config=model_config,
+            sampler_config=sampler_config,
+            non_distributions=[],
+        )
+
+
 @pytest.fixture(scope="module")
 def posterior():
     # Create a random numpy array for posterior samples
@@ -209,6 +229,21 @@ class TestCLVModel:
         model2.build_model()
         assert model2.model is not None
         os.remove("test_model")
+
+    def test_load_from_idata_without_fit_data_warns(self, mocker):
+        mocker.patch("pymc.sample", mock_sample)
+        model = CLVModelForLoadTest()
+        data = pd.DataFrame({"y": np.arange(10, dtype=float)})
+        model.fit(data=data, tune=0, chains=2, draws=5)
+        idata = model.idata.copy()
+        assert "fit_data" in idata
+        del idata.fit_data
+        with pytest.warns(UserWarning, match="fit_data used for training"):
+            loaded = CLVModelForLoadTest.load_from_idata(idata)
+        assert isinstance(loaded, CLVModelForLoadTest)
+        assert loaded.idata is idata
+        assert not hasattr(loaded, "model")
+        assert not hasattr(loaded, "data")
 
     def test_default_sampler_config(self):
         model = CLVModelTest()

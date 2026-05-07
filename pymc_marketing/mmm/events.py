@@ -108,23 +108,34 @@ from pydantic import (
     model_validator,
     validate_call,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
 
-from pymc_marketing.mmm.components.base import Transformation, create_registration_meta
+from pymc_marketing.mmm.components.base import Transformation
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.mmm.utils import density
-
-BASIS_TRANSFORMATIONS: dict = {}
-BasisMeta = create_registration_meta(BASIS_TRANSFORMATIONS)
+from pymc_marketing.serialization import serialization
 
 
-class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
+class Basis(Transformation):
     """Basis transformation associated with an event model."""
 
     prefix: str = "basis"
-    lookup_name: str
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Basis":
+        """Reconstruct a basis from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("lookup_name", None)
+
+        if "priors" in data:
+            from pymc_extras.deserialize import deserialize
+
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
 
     @validate_call
     def sample_curve(
@@ -170,28 +181,7 @@ class Basis(Transformation, metaclass=BasisMeta):  # type: ignore[metaclass]
         )
 
 
-def basis_from_dict(data: dict) -> Basis:
-    """Create a basis transformation from a dictionary."""
-    data = data.copy()
-    lookup_name = data.pop("lookup_name")
-    cls = BASIS_TRANSFORMATIONS[lookup_name]
-
-    if "priors" in data:
-        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-    return cls(**data)
-
-
-def _is_basis(data):
-    return "lookup_name" in data and data["lookup_name"] in BASIS_TRANSFORMATIONS
-
-
-register_deserialization(
-    is_type=_is_basis,
-    deserialize=basis_from_dict,
-)
-
-
+@serialization.register
 class EventEffect(BaseModel):
     """Event effect associated with an event model."""
 
@@ -240,28 +230,26 @@ class EventEffect(BaseModel):
     @classmethod
     def from_dict(cls, data: dict) -> "EventEffect":
         """Create an event effect from a dictionary."""
+        data_inner = data.get("data", data)
+        if "__type__" in data_inner:
+            data_inner = {k: v for k, v in data_inner.items() if k != "__type__"}
+
+        basis_data = data_inner["basis"]
+        if isinstance(basis_data, dict) and "__type__" in basis_data:
+            basis = serialization.deserialize(basis_data)
+        else:
+            basis = deserialize(basis_data)
+
         return cls(
-            basis=deserialize(data["basis"]),
-            effect_size=deserialize(data["effect_size"]),
-            dims=data["dims"],
+            basis=basis,
+            effect_size=deserialize(data_inner["effect_size"]),
+            dims=data_inner["dims"],
         )
 
 
-def _is_event_effect(data: dict) -> bool:
-    """Check if the data is an event effect."""
-    return data["class"] == "EventEffect"
-
-
-register_deserialization(
-    is_type=_is_event_effect,
-    deserialize=lambda data: EventEffect.from_dict(data["data"]),
-)
-
-
+@serialization.register
 class GaussianBasis(Basis):
     """Gaussian basis transformation."""
-
-    lookup_name = "gaussian"
 
     def function(
         self, x: XTensorLike, sigma: XTensorLike, *, dim: str | None = None
@@ -276,6 +264,7 @@ class GaussianBasis(Basis):
     }
 
 
+@serialization.register
 class HalfGaussianBasis(Basis):
     R"""One-sided Gaussian basis transformation.
 
@@ -311,8 +300,6 @@ class HalfGaussianBasis(Basis):
     prefix : str
         Prefix for the parameter names.
     """
-
-    lookup_name = "half_gaussian"
 
     def __init__(
         self,
@@ -353,6 +340,7 @@ class HalfGaussianBasis(Basis):
     }
 
 
+@serialization.register
 class AsymmetricGaussianBasis(Basis):
     R"""Asymmetric Gaussian bump basis transformation.
 
@@ -391,8 +379,6 @@ class AsymmetricGaussianBasis(Basis):
     prefix : str
         Prefix for the parameters.
     """
-
-    lookup_name = "asymmetric_gaussian"
 
     def __init__(
         self,

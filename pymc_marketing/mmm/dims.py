@@ -13,8 +13,6 @@
 #   limitations under the License.
 """Dims related functionality."""
 
-from typing import TypeAlias
-
 from pytensor.graph.replace import _vectorize_node
 from pytensor.tensor import TensorLike
 from pytensor.tensor.shape import Shape_i, shape_i
@@ -22,7 +20,7 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 # TODO: This will eventually exist in PyTensor or PyMC, remove then
-XTensorLike: TypeAlias = TensorLike | XTensorVariable | DataArray
+type XTensorLike = TensorLike | XTensorVariable | DataArray
 
 
 @_vectorize_node.register(Shape_i)
