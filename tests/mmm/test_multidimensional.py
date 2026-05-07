@@ -157,6 +157,225 @@ def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
     assert isinstance(mmm.prior_predictive, xr.Dataset)
 
 
+class TestMultidimMMMEdgeCases:
+    @staticmethod
+    def _build_basic_mmm() -> MMM:
+        return MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=10),
+            saturation=LogisticSaturation(),
+        )
+
+    def test_single_row_dataframe(self, simple_mmm_data):
+        """Single-row inputs should still build a numerically valid model."""
+        X = simple_mmm_data["X"].head(1).copy()
+        y = simple_mmm_data["y"].head(1).copy()
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert int(mmm.xarray_dataset.sizes["date"]) == 1
+        assert np.isfinite(np.asarray(mmm.scalers["_channel"].values)).all()
+        assert np.isfinite(np.asarray(mmm.scalers["_target"].values)).all()
+
+    @pytest.mark.parametrize(
+        "zero_columns",
+        [["channel_1"], ["channel_1", "channel_2"]],
+    )
+    def test_all_zeros_in_channel_yields_zero_scale_and_finite_scaled_data(
+        self, simple_mmm_data, zero_columns
+    ):
+        """All-zero channel(s) must give zero scalers and a finite scaled tensor.
+
+        The scalers themselves are computed from the raw data and can legally
+        be ``0``. What matters is that the in-graph ``channel_data /
+        channel_scale`` is clamped to a finite value by the NaN/Inf guard in
+        ``MMM.build_model``, otherwise the likelihood receives ``NaN``.
+        """
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        for column in zero_columns:
+            X[column] = 0.0
+
+        mmm = self._build_basic_mmm()
+        mmm.build_model(X, y)
+
+        channel_scales = np.asarray(mmm.scalers["_channel"].values)
+        assert np.isfinite(channel_scales).all()
+        for column in zero_columns:
+            col_idx = mmm.channel_columns.index(column)
+            assert channel_scales[col_idx] == pytest.approx(0.0)
+
+        scaled = fast_eval(mmm.channel_data_scaled)
+        assert np.isfinite(scaled).all()
+        for column in zero_columns:
+            col_idx = mmm.channel_columns.index(column)
+            np.testing.assert_array_equal(scaled[..., col_idx], 0.0)
+
+    def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):
+        """Per-dim channel scaling with one zero slice must not produce Inf.
+
+        Mirrors :meth:`test_heterogeneous_zero_slice_target_scaled_tensor_is_finite`
+        for the channel path: with ``DataDerivedScaling(dims=())`` the channel
+        scaler keeps the ``geo`` dim. When one geo's channel column is
+        all-zero, that slice's scaler is ``0`` and the un-guarded division
+        would yield ``NaN`` / ``Inf``.
+        """
+        dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+        rows = []
+        for date in dates:
+            for geo in ("A", "B"):
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        "channel_1": 1.0 if geo == "A" else 0.0,
+                        "channel_2": 2.0 if geo == "A" else 0.0,
+                        "y": 3.0 if geo == "A" else 5.0,
+                    }
+                )
+        df = pd.DataFrame(rows)
+        X = df[["date", "geo", "channel_1", "channel_2"]]
+        y = df["y"]
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            dims=("geo",),
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=DataDerivedScaling(dims=(), method="max"),
+                channel=DataDerivedScaling(dims=(), method="max"),
+            ),
+        )
+        mmm.build_model(X, y)
+
+        channel_scaler = np.asarray(mmm.scalers["_channel"].values)
+        assert mmm.scalers["_channel"].dims == ("geo", "channel")
+        assert (channel_scaler == 0).any(), (
+            "Test setup expects at least one zero-channel geo slice"
+        )
+
+        scaled = fast_eval(mmm.channel_data_scaled)
+        assert np.isfinite(scaled).all()
+
+    def test_target_all_zeros_with_max_scaling(self, simple_mmm_data):
+        """All-zero target must yield a zero scaler and a finite scaled tensor.
+
+        Locks in the NaN/Inf guard around ``_target / _target_scale`` in
+        ``MMM.build_model`` (otherwise ``0 / 0`` would propagate ``NaN``
+        into the likelihood).
+        """
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        y[:] = 0.0
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert np.asarray(mmm.scalers["_target"].values).item() == pytest.approx(0.0)
+
+        scaled = fast_eval(mmm.target_data_scaled)
+        assert np.isfinite(scaled).all()
+        np.testing.assert_array_equal(scaled, 0.0)
+
+    def test_heterogeneous_zero_slice_target_scaled_tensor_is_finite(self):
+        """Per-dim target scaling with one zero slice must not produce Inf.
+
+        With ``DataDerivedScaling(dims=())`` the scaler keeps the ``geo``
+        dim. When one geo's target is all-zero, that slice's scaler is ``0``
+        and ``_target / _target_scale`` would be ``0/0 = NaN`` (or ``+inf``
+        for a non-zero numerator) without the guard added in ``build_model``.
+        """
+        dates = pd.date_range("2024-01-01", periods=6, freq="W-MON")
+        rows = []
+        for date in dates:
+            for geo in ("A", "B"):
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        "channel_1": 1.0 if geo == "A" else 0.0,
+                        "channel_2": 2.0 if geo == "A" else 0.0,
+                        "y": 3.0 if geo == "A" else 0.0,
+                    }
+                )
+        df = pd.DataFrame(rows)
+        X = df[["date", "geo", "channel_1", "channel_2"]]
+        y = df["y"]
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2"],
+            dims=("geo",),
+            target_column="y",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            scaling=Scaling(
+                target=DataDerivedScaling(dims=(), method="max"),
+                channel=DataDerivedScaling(dims=(), method="max"),
+            ),
+        )
+        mmm.build_model(X, y)
+
+        target_scaler = np.asarray(mmm.scalers["_target"].values)
+        assert mmm.scalers["_target"].dims == ("geo",)
+        assert (target_scaler == 0).any(), (
+            "Test setup expects at least one zero-target geo to exercise the guard"
+        )
+
+        scaled_target = fast_eval(mmm.target_data_scaled)
+        assert np.isfinite(scaled_target).all()
+        # Slices with a zero-target are clamped to 0 by the guard.
+        zero_geo_idx = int(np.argmax(target_scaler == 0))
+        np.testing.assert_array_equal(scaled_target[:, zero_geo_idx], 0.0)
+
+    def test_nan_in_channel_is_handled_without_non_finite_scales(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        X.loc[X.index[0], "channel_1"] = np.nan
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert np.isfinite(np.asarray(mmm.scalers["_channel"].values)).all()
+        assert np.isfinite(np.asarray(mmm.scalers["_target"].values)).all()
+
+    @pytest.mark.parametrize("inf_value", [np.inf, -np.inf], ids=["+inf", "-inf"])
+    def test_inf_in_channel_yields_finite_scaled_tensor(
+        self, simple_mmm_data, inf_value
+    ):
+        """+/-inf in a channel input must be clamped to a finite scaled tensor.
+
+        ``max(x)`` over a column containing ``inf`` is itself ``inf``, so the
+        per-channel scaler is ``inf`` and the un-guarded ``x / inf`` would
+        produce ``0`` for finite entries and ``NaN`` for the ``inf`` entry.
+        The NaN/Inf guard in ``MMM.build_model`` clamps both, so the scaled
+        tensor remains finite end-to-end (PR #2487 review item 8).
+        """
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy()
+        X.loc[X.index[0], "channel_1"] = inf_value
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        scaled = fast_eval(mmm.channel_data_scaled)
+        assert np.isfinite(scaled).all()
+
+    def test_mismatched_X_y_lengths_raises_clear_error(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].to_numpy()[:-1]
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(ValueError, match=r"y length must match X"):
+            mmm.build_model(X, y)
+
+
 def test_save_load(fit_mmm: MMM):
     file = "test.nc"
     fit_mmm.save(file)

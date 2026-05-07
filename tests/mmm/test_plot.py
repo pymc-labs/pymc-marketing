@@ -103,6 +103,15 @@ def fit_mmm_without_channel_original_scale(df, mmm, mock_pymc_sample):
     return mmm
 
 
+@pytest.fixture
+def mmm_with_prior_predictive(df, mmm):
+    """``mmm`` with ``prior`` and ``prior_predictive`` groups available."""
+    X = df.drop(columns=["y"])
+    y = df["y"]
+    mmm.sample_prior_predictive(X, y, samples=10)
+    return mmm
+
+
 def test_saturation_curves_scatter_original_scale(fit_mmm_with_channel_original_scale):
     fig, ax = fit_mmm_with_channel_original_scale.plot.saturation_curves_scatter(
         original_scale=True
@@ -244,6 +253,26 @@ def test_posterior_predictive(fit_mmm_with_channel_original_scale, df):
     assert isinstance(fig, Figure)
     assert isinstance(ax, np.ndarray)
     assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+@pytest.mark.parametrize("hdi_prob", [0.5, 0.85])
+def test_prior_predictive(mmm_with_prior_predictive, hdi_prob):
+    """Smoke test for ``MMMPlotSuite.prior_predictive``.
+
+    Mirrors :func:`test_posterior_predictive` and locks coverage of the
+    prior-predictive plot path (PR #2487 review item 6).
+    """
+    fig, ax = mmm_with_prior_predictive.plot.prior_predictive(hdi_prob=hdi_prob)
+    assert isinstance(fig, Figure)
+    assert isinstance(ax, np.ndarray)
+    assert all(isinstance(a, Axes) for a in ax.flat)
+
+
+def test_prior_predictive_raises_when_missing():
+    """Plotting prior predictive without sampled data must give an actionable error."""
+    suite = MMMPlotSuite(idata=az.InferenceData())
+    with pytest.raises(ValueError, match=r"prior_predictive"):
+        suite.prior_predictive()
 
 
 @pytest.fixture(scope="module")

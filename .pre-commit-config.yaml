@@ -49,3 +49,10 @@ repos:
         language: system
         pass_filenames: false
         files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
+      - id: validate-notebooks
+        name: Validate Jupyter notebooks (nbformat)
+        entry: python -c "import sys, nbformat; [nbformat.validate(nbformat.read(p, as_version=4)) for p in sys.argv[1:]]"
+        language: python
+        additional_dependencies: [nbformat]
+        files: \.ipynb$
+        exclude: ^docs/source/notebooks/(mmm/mmm_components|mmm/mmm_dims_migration_guide|mmm/mmm_quickstart)\.ipynb$

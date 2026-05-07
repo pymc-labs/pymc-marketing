@@ -32,7 +32,7 @@ msgstr "Modelos de Mezcla de Marketing (MMM)."
 #: ../source/api/generated/pymc_marketing.mmm.rst:25
 #: d98a69b2dd334d8f8870dc69967ff861
 msgid "Modules"
-msgstr "Módulos"
+msgstr "M?dulos"
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 2acd811fbe5642969486d9b4e313d01f
@@ -46,16 +46,6 @@ msgstr ""
 "Efectos aditivos para el modelo de mezcla de marketing multidimensional."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
-#: ea8f278ade26416eab9d39114d5f453f
-msgid ":py:obj:`base <pymc_marketing.mmm.base>`\\"
-msgstr ":py:obj:`base <pymc_marketing.mmm.base>`\\"
-
-#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
-#: 8e5f693eae094c33a428661c36bb0744
-msgid "Base class for Marketing Mix Models (MMM)."
-msgstr "Clase base para Modelos de Mezcla de Marketing (MMM)."
-
-#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: f580e3d7a51341208ea72a5487a05537
 msgid ":py:obj:`budget_optimizer <pymc_marketing.mmm.budget_optimizer>`\\"
 msgstr ""
@@ -65,7 +55,7 @@ msgstr ""
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 5e99b4a72816487aafb0b566a44ec860
 msgid "Budget optimization module."
-msgstr "Módulo de optimización de presupuesto."
+msgstr "M?dulo de optimizaci?n de presupuesto."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 1499209feb654978b67b720e0e17eaed
@@ -75,7 +65,7 @@ msgstr ":py:obj:`constructores <pymc_marketing.mmm.builders>`\\"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 46d32220f2774ac2ae94e26a5ecee966
 msgid "Configuration I/O for PyMC-Marketing."
-msgstr "Configuración de I/O para PyMC-Marketing."
+msgstr "Configuraci?n de I/O para PyMC-Marketing."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 9b715f3d1f884df9bf46ef6b0d7d641c
@@ -85,7 +75,7 @@ msgstr ":py:obj:`causal <pymc_marketing.mmm.causal>`\\"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 99a61e0e78a04d018fd5972e8d97026d
 msgid "Causal module."
-msgstr "Módulo causal."
+msgstr "M?dulo causal."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: d4ffe62590574c8fa0a0e31207984929
@@ -95,7 +85,7 @@ msgstr ":py:obj:`componentes <pymc_marketing.mmm.components>`"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 6a2948e1a05c4708bedc898b89f7de50
 msgid "Components for media transformation in the MMM model."
-msgstr "Componentes para la transformación de medios en el modelo MMM."
+msgstr "Componentes para la transformaci?n de medios en el modelo MMM."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: ff10183c4f634ef99b2c12d0860c5b2d
@@ -110,12 +100,12 @@ msgstr "Restricciones para el BudgetOptimizer."
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 64673b309c264c10b59b0e5c3950d5e7
 msgid ":py:obj:`evaluation <pymc_marketing.mmm.evaluation>`\\"
-msgstr ":py:obj:`evaluación <pymc_marketing.mmm.evaluación>`\\"
+msgstr ":py:obj:`evaluaci?n <pymc_marketing.mmm.evaluaci?n>`\\"
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: ff423b61fac54c19b5b9566d1de181ce
 msgid "Evaluation and diagnostics for MMM models."
-msgstr "Evaluación y diagnósticos para modelos MMM."
+msgstr "Evaluaci?n y diagn?sticos para modelos MMM."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 19cc69ec634a497681bbecaa739b232e
@@ -156,8 +146,8 @@ msgstr ":py:obj:`lift_test <pymc_marketing.mmm.lift_test>`\\"
 #: 95d60b7585e346bea338b96a42772e0f
 msgid "Adding lift tests as observations of saturation function."
 msgstr ""
-"Agregando pruebas de elevación como observaciones de la función de "
-"saturación."
+"Agregando pruebas de elevaci?n como observaciones de la funci?n de "
+"saturaci?n."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 75b55a71ebba4cb2aacf3321e510a4ae
@@ -167,7 +157,7 @@ msgstr ":py:obj:`linear_regression <pymc_marketing.mmm.linear_regression>`\\"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 7c960b89c4ed4cb391cfbba0b6043222
 msgid "Linear regression model implemented using the MMM class."
-msgstr "Modelo de regresión lineal implementado utilizando la clase MMM."
+msgstr "Modelo de regresi?n lineal implementado utilizando la clase MMM."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: b45753fcf4084e1bbba4015fcae94dce
@@ -184,23 +174,13 @@ msgstr "Tendencia lineal utilizando puntos de cambio."
 msgid ""
 ":py:obj:`media_transformation <pymc_marketing.mmm.media_transformation>`\\"
 msgstr ""
-":py:obj:`transformación_de_medios "
-"<pymc_marketing.mmm.transformación_de_medios>`\\"
+":py:obj:`transformaci?n_de_medios "
+"<pymc_marketing.mmm.transformaci?n_de_medios>`\\"
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 4fe1c3b5f6564e2eb4851da5e28da934
 msgid "Module for applying media transformations to media data."
-msgstr "Módulo para aplicar transformaciones de medios a datos de medios."
-
-#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
-#: 165aa88ca1ac4cd7926341ba3d02eefc
-msgid ":py:obj:`mmm <pymc_marketing.mmm.mmm>`\\"
-msgstr ":py:obj:`mmm <pymc_marketing.mmm.mmm>`\\"
-
-#: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
-#: 5860336a2b3041b3a05953d3eb0d4b42
-msgid "Media Mix Model class."
-msgstr "Clase de Modelo de Mezcla de Medios."
+msgstr "M?dulo para aplicar transformaciones de medios a datos de medios."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: abfdcfd12b224db1980f5e21084233d9
@@ -230,7 +210,7 @@ msgstr ":py:obj:`preprocesamiento <pymc_marketing.mmm.preprocessing>`"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: ac5d05b07e924ebfa24f0ce59cb7267e
 msgid "Preprocessing methods for the Marketing Mix Model."
-msgstr "Métodos de preprocesamiento para el Modelo de Mezcla de Marketing."
+msgstr "M?todos de preprocesamiento para el Modelo de Mezcla de Marketing."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: a13e20746e63494a9e5b1806b41f9b03
@@ -240,15 +220,15 @@ msgstr ":py:obj:`escalado <pymc_marketing.mmm.escalado>`\\"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 7ca13c812ab648318264d52e935ef860
 msgid "Scaling configuration for the MMMM."
-msgstr "Configuración de escalado para el MMMM."
+msgstr "Configuraci?n de escalado para el MMMM."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: f1c73ae788d54084919da7aebb09501d
 msgid ""
 ":py:obj:`sensitivity_analysis <pymc_marketing.mmm.sensitivity_analysis>`\\"
 msgstr ""
-":py:obj:`análisis_de_sensibilidad "
-"<pymc_marketing.mmm.análisis_de_sensibilidad>`\\"
+":py:obj:`an?lisis_de_sensibilidad "
+"<pymc_marketing.mmm.an?lisis_de_sensibilidad>`\\"
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: fec785073b8c4191b2ce16aee76aeb50
@@ -264,7 +244,7 @@ msgstr ":py:obj:`transformers <pymc_marketing.mmm.transformers>`\\"
 #: 74fa018ae3d34424ba1351525448d509
 msgid "Media transformation functions for Marketing Mix Models."
 msgstr ""
-"Funciones de transformación de medios para Modelos de Mezcla de Marketing."
+"Funciones de transformaci?n de medios para Modelos de Mezcla de Marketing."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: c5f8768b0bd0484fa5f1a0a81dd9316b
@@ -287,7 +267,7 @@ msgstr ":py:obj:`utility <pymc_marketing.mmm.utility>`\\"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: c9cb9bbde90d4e78b2405b5b8861980d
 msgid "Utility functions for Bayesian optimization."
-msgstr "Funciones utilitarias para la optimización bayesiana."
+msgstr "Funciones utilitarias para la optimizaci?n bayesiana."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: e3eca019389740e7a7c651cf1aeb4a09
@@ -298,7 +278,7 @@ msgstr ":py:obj:`utils <pymc_marketing.mmm.utils>`\\"
 #: 9496dcc2f6ef4a849b552e82a95b235b
 msgid "Utility functions for the Marketing Mix Modeling module."
 msgstr ""
-"Funciones utilitarias para el módulo de Modelado de Mezcla de Marketing."
+"Funciones utilitarias para el m?dulo de Modelado de Mezcla de Marketing."
 
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 41c2d2121dc6492dbf014d30032d2535
@@ -308,4 +288,4 @@ msgstr ":py:obj:`validando <pymc_marketing.mmm.validando>`\\"
 #: ../source/api/generated/pymc_marketing.mmm.rst:56:<autosummary>:1
 #: 9582195ed8da4a3c97f5deeca534fd85
 msgid "Validating methods for MMM classes."
-msgstr "Validando métodos para las clases MMM."
+msgstr "Validando m?todos para las clases MMM."
