@@ -416,6 +416,39 @@ def test_save_load(fit_mmm: MMM):
     os.remove(file)
 
 
+def test_save_load_roundtrip_with_unnamed_y_series(
+    simple_mmm_data, mock_pymc_sample, tmp_path
+):
+    """Unnamed ``y`` at fit time is normalized; save/load still round-trips fit_data.
+
+    :meth:`MMM.create_fit_data` names the target by ``target_column`` in
+    ``idata.fit_data``; :meth:`MMM.load` rebuilds from that group, so the
+    original call-time series name does not need to match.
+    """
+    X = simple_mmm_data["X"].copy()
+    y = simple_mmm_data["y"].copy().rename(None)
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+    file = str(tmp_path / "unnamed_y_roundtrip.nc")
+    mmm.save(file)
+    loaded = MMM.load(file)
+
+    assert loaded.target_column == "target"
+    assert "target" in loaded.idata.fit_data.data_vars
+    assert loaded.model is not None
+    assert int(loaded.idata.fit_data.sizes["date"]) == int(
+        mmm.idata.fit_data.sizes["date"]
+    )
+
+
 @pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
 def test_save_load_zarr_roundtrip(fit_mmm: MMM, tmp_path, path_factory):
     """Roundtrip via MMM.save() / MMM.load() using a .zarr store.

@@ -171,7 +171,9 @@ Save, load, and plot:
 Notes
 -----
 - X must include `date`, the `channel_columns`, and any extra `dims` columns.
-- y is a Series with name equal to `target_column`.
+- ``y`` may be a :class:`pandas.Series` aligned with ``X``. An unnamed series is
+  accepted and treated as ``target_column``; if ``y.name`` is set, it must match
+  ``target_column``.
 - Call `add_events` before fitting/building.
 """
 
