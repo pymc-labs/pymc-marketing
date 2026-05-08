@@ -375,6 +375,36 @@ class TestMultidimMMMEdgeCases:
         with pytest.raises(ValueError, match=r"y length must match X"):
             mmm.build_model(X, y)
 
+    def test_unnamed_y_series_builds_model(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename(None)
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert "_target" in mmm.xarray_dataset
+        assert int(mmm.xarray_dataset.sizes["date"]) == X["date"].nunique()
+
+    def test_y_series_with_target_column_name_builds_model(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename("target")
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert "_target" in mmm.xarray_dataset
+        assert int(mmm.xarray_dataset.sizes["date"]) == X["date"].nunique()
+
+    def test_y_series_with_mismatched_name_raises_clear_error(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename("not_target")
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(
+            ValueError, match=r"y has name 'not_target'.*target_column is 'target'"
+        ):
+            mmm.build_model(X, y)
+
 
 def test_save_load(fit_mmm: MMM):
     file = "test.nc"

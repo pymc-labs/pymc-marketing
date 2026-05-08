@@ -1686,7 +1686,7 @@ class MMM(RegressionModelBuilder):
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame,  # type: ignore
-        y: pd.Series,  # type: ignore
+        y: pd.Series | np.ndarray,  # type: ignore
     ):
         # Convert ndarray-like ``y`` into a pandas Series so the downstream
         # ``pd.concat`` call below produces an actionable error rather than a
@@ -1698,6 +1698,15 @@ class MMM(RegressionModelBuilder):
                     f" (got len(y)={len(y)} and len(X)={len(X)})"
                 )
             y = pd.Series(y, index=X.index, name=self.target_column)
+        elif isinstance(y, pd.Series):
+            if y.name is None:
+                y = y.rename(self.target_column)
+            elif y.name != self.target_column:
+                raise ValueError(
+                    f"y has name '{y.name}' but the model's target_column is "
+                    f"'{self.target_column}'. Pass an unnamed Series or rename "
+                    f"it to '{self.target_column}'."
+                )
 
         self.X = X  # type: ignore
         self.y = y  # type: ignore
