@@ -137,7 +137,7 @@ class BudgetPlots:
         self,
         samples: xr.Dataset,
         dims: dict[str, Any] | None = None,
-        hdi_prob: float = 0.85,
+        hdi_prob: float = 0.94,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
         return_as_pc: bool = False,
