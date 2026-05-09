@@ -1125,6 +1125,8 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
     """Test that total spend is the same with and without time distribution patterns."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up common parameters
     num_periods = 4
     total_budget = 100
@@ -1254,6 +1256,8 @@ def test_time_distribution_with_carryover_total_spend_preserved(
     """Test that total spend is preserved when using both carryover and time distribution patterns."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up common parameters
     num_periods = 4
     total_budget = 100
@@ -1343,6 +1347,8 @@ def test_budget_distribution_carryover_interaction_issue(
     """Test that budget distribution and carryover interaction preserves total spend correctly."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up a simple scenario
     num_periods = 4
 
@@ -1408,6 +1414,44 @@ def test_budget_distribution_carryover_interaction_issue(
         np.abs(channel_1_spend_with_carryover - channel_1_allocation * num_periods)
         < 0.1
     ), "With carryover: total spend should still equal allocation * num_periods"
+
+
+@compile_kwargs
+def test_sample_response_distribution_includes_total_allocation(
+    dummy_df, fitted_mmm, compile_kwargs
+):
+    """total_allocation == allocation * num_periods, regardless of include_carryover."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+    num_periods = 4
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=num_periods),
+        compile_kwargs=compile_kwargs,
+    )
+
+    allocation_strategy = xr.DataArray(
+        np.full((2, 2), 10.0),
+        dims=["channel", "geo"],
+        coords={
+            "channel": ["channel_1", "channel_2"],
+            "geo": ["A", "B"],
+        },
+    )
+
+    for include_carryover in [False, True]:
+        result = optimizable_model.sample_response_distribution(
+            allocation_strategy=allocation_strategy,
+            include_carryover=include_carryover,
+        )
+        assert "total_allocation" in result, (
+            f"total_allocation missing from output with include_carryover={include_carryover}"
+        )
+        expected = allocation_strategy * optimizable_model.num_periods
+        xr.testing.assert_allclose(result["total_allocation"], expected)
 
 
 @compile_kwargs
