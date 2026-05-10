@@ -97,12 +97,13 @@ Tips for custom components
 - Use unique variable prefixes to avoid name clashes with built-in pieces like
   controls. Do not call your component "control"; choose a distinct name/prefix.
 - Follow the patterns used by the provided effects in this module (e.g.,
-  `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
-  - In `create_data`, derive and register any required inputs into the model.
-  - In `create_effect`, construct PyTensor expressions and return a contribution
+  ``FourierEffect``, ``LinearTrendEffect``, ``EventAdditiveEffect``):
+
+  - In ``create_data``, derive and register any required inputs into the model.
+  - In ``create_effect``, construct PyTensor expressions and return a contribution
     with dims ``("date", *mmm.dims)``. If you need broadcasting, use
-    `pymc_extras.prior.create_dim_handler` as shown above.
-  - In `set_data`, update the data variables when dates/dims change.
+    ``pymc_extras.prior.create_dim_handler`` as shown above.
+  - In ``set_data``, update the data variables when dates/dims change.
 """
 
 from abc import ABC, abstractmethod

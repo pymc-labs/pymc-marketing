@@ -452,10 +452,10 @@ class NestedLogit(ModelBuilder):
 
         Notes
         -----
-        - Updates internal state: assigns `X_data`, `F`, `alternatives`, `fixed_covar`, `y`,
-        `prod_indices`, `nest_indices`, `all_nests`, `lambda_lkup`, and `coords`.
+        - Updates internal state: assigns ``X_data``, ``F``, ``alternatives``, ``fixed_covar``,
+          ``y``, ``prod_indices``, ``nest_indices``, ``all_nests``, ``lambda_lkup``, and ``coords``.
         - Handles single-layer nesting structures only.
-        - Assumes the existence of instance attributes `depvar`, `covariates`, and `nesting_structure`.
+        - Assumes the existence of instance attributes ``depvar``, ``covariates``, and ``nesting_structure``.
 
         """
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(
