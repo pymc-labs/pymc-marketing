@@ -1,14 +1,9 @@
-# Audit-only docs build for now: this job does NOT fail on warnings.
+# Docs build: any new sphinx/myst/numpydoc warning fails this job.
 #
-# Issue #1210 tracks a backlog of Sphinx/MyST/numpydoc warnings (~700 at the
-# time of writing). The plan is:
-#   1. Land cleanup PRs that drive the warning count toward zero.
-#   2. Once zero, flip `continue-on-error` off and add `-W` to SPHINXOPTS so any
-#      new warning fails the PR.
-#   3. Mirror that contract in .readthedocs.yaml via `sphinx.fail_on_warning: true`.
-#
-# In the meantime the job posts the warning count to the job summary so
-# reviewers can see the trajectory and catch large regressions early.
+# History: #1210 tracked a backlog of ~900 warnings; the cleanup landed in
+# this PR. Going forward, any new warning is a regression and blocks the
+# merge. The same gate is enforced on RTD via sphinx.fail_on_warning: true
+# in .readthedocs.yaml.
 
 name: Docs
 
@@ -46,8 +41,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.should_build == 'true' }}
     runs-on: ubuntu-latest
-    # Audit-only: do not block PRs while we work down the warning backlog.
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
@@ -65,10 +58,11 @@ jobs:
         # Mirrors what RTD runs in its pre_build step (see .readthedocs.yaml).
         run: python scripts/generate_gallery.py
       - name: Build HTML
-        # --keep-going collects every warning instead of stopping at the first.
-        # No -W yet (would fail the build until #1210 cleanup completes).
+        # -W: turn warnings into errors. --keep-going: collect every warning
+        # before failing, so the job summary shows the full list (not just
+        # the first).
         run: |
-          sphinx-build docs/source docs/build -b html --keep-going \
+          sphinx-build docs/source docs/build -b html -W --keep-going \
             2> docs_warnings.log
       - name: Report warning count
         if: always()

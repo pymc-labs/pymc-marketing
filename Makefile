@@ -43,16 +43,17 @@ html: ## Install documentation dependencies and build HTML docs
 cleandocs: ## Clean the documentation build directories
 	rm -r "docs/build" "docs/jupyter_execute" "docs/source/api/generated"
 
-# Audit-only counterpart to the `Docs` GH Actions workflow. Runs the same
-# build with --keep-going so contributors can reproduce the warning report
-# locally. Once #1210 cleanup is done this target should switch to -W and
-# the CI workflow's continue-on-error should be removed.
-check_docs: ## Build docs and report warning count (does not fail on warnings yet)
+# Reproduce the GH Actions `Docs` workflow locally. Fails on any
+# sphinx/myst/numpydoc warning (-W). --keep-going collects every warning
+# before failing so contributors see the full list.
+check_docs: ## Build docs treating warnings as errors (matches CI)
 	pip install .[docs]
 	python scripts/generate_gallery.py
-	sphinx-build docs/source docs/build -b html --keep-going 2> docs_warnings.log; \
+	sphinx-build docs/source docs/build -b html -W --keep-going 2> docs_warnings.log; \
+	  status=$$?; \
 	  warnings=$$(grep -cE 'WARNING|ERROR' docs_warnings.log || echo 0); \
-	  echo "Docs warnings/errors: $$warnings (see docs_warnings.log)"
+	  echo "Docs warnings/errors: $$warnings (see docs_warnings.log)"; \
+	  exit $$status
 
 run_notebooks: ## Run Jupyter notebooks
 	python scripts/run_notebooks/runner.py
