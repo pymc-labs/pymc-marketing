@@ -3939,9 +3939,11 @@ class MMMPlotSuite:
         var : list of str, optional
             List of contribution variable names from the posterior to include in the plot.
             If None, automatically detects all contribution variables from the posterior.
-            Example: ["intercept_contribution_original_scale",
-                     "channel_contribution_original_scale",
-                     "control_contribution_original_scale"]
+            Example::
+
+                ["intercept_contribution_original_scale",
+                 "channel_contribution_original_scale",
+                 "control_contribution_original_scale"]
         original_scale : bool, default True
             If True and var is None, use original scale contribution variables
             (ending with "_contribution_original_scale").
