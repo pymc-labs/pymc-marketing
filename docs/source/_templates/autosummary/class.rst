@@ -36,8 +36,13 @@
    .. rubric:: Attributes
 
    .. autosummary::
+   {# Same exclusions as the methods block: rv_op shows up as an attribute on
+      Distribution subclasses (it's a classmethod descriptor) and autodoc fails
+      to import it, producing 'failed to import object ...rv_op' warnings. #}
    {% for item in attributes %}
+   {%- if item not in excluded_members %}
       ~{{ name }}.{{ item }}
+   {%- endif %}
    {%- endfor %}
    {% endif %}
    {% endblock %}

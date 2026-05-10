@@ -86,9 +86,9 @@ How it works
 ------------
 - Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
   and ``set_data(mmm, model, X)``.
-- During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
+- During ``MMM.build_model(...)``, each effect's ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
-  dims ("date", *mmm.dims) that is added additively to the model mean.
+  dims ``("date", *mmm.dims)`` that is added additively to the model mean.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
@@ -100,7 +100,7 @@ Tips for custom components
   `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
   - In `create_data`, derive and register any required inputs into the model.
   - In `create_effect`, construct PyTensor expressions and return a contribution
-    with dims ("date", *mmm.dims). If you need broadcasting, use
+    with dims ``("date", *mmm.dims)``. If you need broadcasting, use
     `pymc_extras.prior.create_dim_handler` as shown above.
   - In `set_data`, update the data variables when dates/dims change.
 """

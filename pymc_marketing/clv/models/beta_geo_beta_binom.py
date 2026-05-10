@@ -54,7 +54,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         * `frequency`: Number of repeat purchases
         * `recency`: Purchase opportunities between the first and the last purchase
         * `T`: Total purchase opportunities.
-          Model assumptions require *T >= recency* and all customers share the same value for *T.
+          Model assumptions require *T >= recency* and all customers share the same value for *T*.
 
     model_config : dict, optional
         Dictionary containing model parameters:
@@ -367,7 +367,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         * `frequency`: Number of repeat purchases
         * `recency`: Purchase opportunities between the first and the last purchase
         * `T`: Total purchase opportunities.
-          Model assumptions require *T >= recency* and all customers share the same value for *T.
+          Model assumptions require *T >= recency* and all customers share the same value for *T*.
         * `future_t`: Optional column for *future_t* parametrization.
 
         If not provided, predictions will be ran with data used to fit model.
@@ -444,7 +444,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             * `frequency`: Number of repeat purchases
             * `recency`: Purchase opportunities between the first and the last purchase
             * `T`: Total purchase opportunities.
-              Model assumptions require *T >= recency* and all customers share the same value for *T.
+              Model assumptions require *T >= recency* and all customers share the same value for *T*.
             * `future_t`: Optional column for *future_t* parametrization.
 
             If not provided, predictions will be ran with data used to fit model.

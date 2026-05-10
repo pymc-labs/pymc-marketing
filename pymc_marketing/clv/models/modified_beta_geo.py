@@ -331,10 +331,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         References
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
-        "Empirical validation and comparison of models for customer base
-        analysis,"
-        International Journal of Research in Marketing, 24 (3), 201-209.
-        https://works.bepress.com/meltem-denizel/2/download/
+           "Empirical validation and comparison of models for customer base
+           analysis,"
+           International Journal of Research in Marketing, 24 (3), 201-209.
+           https://works.bepress.com/meltem-denizel/2/download/
         """  # noqa: E501
         if data is None:
             data = self.data
@@ -383,9 +383,9 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         References
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
-        "Empirical validation and comparison of models for customer base
-        analysis." International Journal of Research in Marketing, 24 (3), 201-209.
-        https://works.bepress.com/meltem-denizel/2/download/
+           "Empirical validation and comparison of models for customer base
+           analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+           https://works.bepress.com/meltem-denizel/2/download/
         """
         # TODO: This is extraneous now, but needed for future covariate support.
         if data is None:
@@ -422,7 +422,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         Parameters
         ----------
-        data : *pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
             * `customer_id`: Unique customer identifier
@@ -433,9 +433,9 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         References
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
-        "Empirical validation and comparison of models for customer base
-        analysis." International Journal of Research in Marketing, 24 (3), 201-209.
-        https://works.bepress.com/meltem-denizel/2/download/
+           "Empirical validation and comparison of models for customer base
+           analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+           https://works.bepress.com/meltem-denizel/2/download/
         """
         if data is None:
             data = self.data
