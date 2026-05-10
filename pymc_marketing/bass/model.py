@@ -129,6 +129,9 @@ from typing import Any, TypedDict
 
 import pymc as pm
 import pytensor.tensor as pt
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc.model import Model
 from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 
