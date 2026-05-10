@@ -193,6 +193,7 @@ Requirements
 ------------
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
+
   - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
   - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
     model where a variable named `channel_data` exists with dims including `"date"` and all
@@ -1144,7 +1145,8 @@ class BudgetOptimizer(BaseModel):
         budget_bounds : DataArray or dict, optional
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
-            - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
+            - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
+              specifying [low, high] per channel cell.
         x0 : np.ndarray, optional
             Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
             None, the total budget is spread uniformly across all drivers to be optimized.

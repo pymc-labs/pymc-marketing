@@ -24,18 +24,25 @@ The autologging can be enabled by calling the `autolog` function. The following 
 are patched:
 
 - `pymc.sample`:
+
     - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
     - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
     - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
+
 - `pymc.find_MAP`:
+
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+
 - `MMM.fit`:
+
     - All parameters, metrics, and artifacts from `pymc.sample`
     - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
+
 - `CLVModel.fit`:
+
     - Information dependent on fit method used (MCMC or MAP)
     - Model type and fit method
 

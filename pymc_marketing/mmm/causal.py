@@ -95,7 +95,7 @@ class BuildModelFromDAG:
     model_config : dict, optional
         Optional configuration with priors for keys ``"intercept"``, ``"slope"`` and
         ``"likelihood"``. Values should be ``pymc_extras.prior.Prior`` instances.
-        Missing keys fall back to :pyattr:`default_model_config`.
+        Missing keys fall back to :py:attr:`default_model_config`.
 
     Examples
     --------
@@ -213,7 +213,7 @@ class BuildModelFromDAG:
         dict
             Dictionary with keys ``"intercept"``, ``"slope"`` and ``"likelihood"``
             mapping to ``Prior`` instances with dims derived from
-            :pyattr:`dims`.
+            :py:attr:`dims`.
         """
         slope_dims = tuple(dim for dim in (self.dims or ()) if dim != "date")
         return {
