@@ -67,7 +67,7 @@ Quickstart with MMM:
     _ = mmm.plot.channel_contribution_share_hdi(hdi_prob=0.94)
 
 Wrap a custom PyMC model
---------
+------------------------
 
 Requirements
 
@@ -105,7 +105,7 @@ Requirements
     _ = plot.posterior_predictive(var=["y"], hdi_prob=0.9)
 
 Custom contributions_over_time
---------
+------------------------------
 
 .. code-block:: python
 
@@ -127,7 +127,7 @@ Custom contributions_over_time
     _ = plot.contributions_over_time(var=["component"], hdi_prob=0.9)
 
 Saturation plots with a custom model
---------
+------------------------------------
 
 .. code-block:: python
 

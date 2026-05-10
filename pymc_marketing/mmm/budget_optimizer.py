@@ -21,7 +21,7 @@ Optimize how to allocate a total budget across channels (and optional extra dims
 maximize an expected response derived from a fitted MMM posterior.
 
 Quickstart (multi‑dimensional MMM)
----------------------------------
+----------------------------------
 
 .. code-block:: python
 
@@ -120,7 +120,7 @@ in monetary units.
     # cost_per_unit internally before feeding into the model.
 
 Use a custom pymc model with any dimensionality
-----------------------------------------------
+-----------------------------------------------
 
 .. code-block:: python
 

@@ -14,7 +14,7 @@
 """Additive effects for the multidimensional Marketing Mix Model.
 
 Example of a custom additive effect
---------
+-----------------------------------
 
 1. Custom negative-effect component (added as a MuEffect)
 
