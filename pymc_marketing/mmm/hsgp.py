@@ -654,7 +654,7 @@ class HSGP(HSGPBase):
         coords = {"time": dates, "channel": ["A", "B"]}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f", xdist=True)
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior
@@ -1414,7 +1414,7 @@ class SoftPlusHSGP(HSGP):
         coords = {"time": dates, "channel": channels}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f", xdist=True)
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior

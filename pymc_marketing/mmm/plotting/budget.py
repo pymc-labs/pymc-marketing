@@ -39,11 +39,9 @@ class BudgetPlots:
     Stateless namespace — all data is supplied via the ``samples`` argument
     on each method call.  Obtain an instance via ``mmm.plot.budget``.
 
-    Methods
-    -------
-    allocation_roas : Forest plot of per-channel ROAS distributions.
-    contribution_over_time : Time-series of channel contributions from an
-        optimised budget allocation.
+    Provides ``allocation_roas`` (forest plot of per-channel ROAS
+    distributions) and ``contribution_over_time`` (time-series of channel
+    contributions from an optimised budget allocation).
     """
 
     def allocation_roas(

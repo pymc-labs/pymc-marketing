@@ -386,6 +386,7 @@ class LinearTrendEffect(MuEffect):
         import matplotlib.pyplot as plt
 
         import pymc as pm
+        import pymc.dims as pmd
 
         from pymc_marketing.mmm.linear_trend import LinearTrend
         from pymc_marketing.mmm.additive_effect import LinearTrendEffect
