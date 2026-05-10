@@ -77,6 +77,10 @@ exclude_patterns = [
     "jupyter_cache",
     "**.ipynb_checkpoints",
     "**/dev/**",
+    # Internal contributor-facing README for the gallery, not part of the
+    # published docs (#1210); excluding stops the 'document isn't included
+    # in any toctree' warning.
+    "gallery/README.md",
 ]
 
 # Suppress the harmless myst-parser override of mathjax3_config.processHtmlClass.
