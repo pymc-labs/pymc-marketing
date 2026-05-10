@@ -54,8 +54,9 @@ class MixedLogit(ModelBuilder):
     utility_equations : list of formula strings
         A list of formulas specifying how to model the utility of
         each product alternative. The formulas should be in Wilkinson
-        style notation with three parts separated by |:
-        target_product ~ alt_specific_covariates | fixed_covariates | random_covariates
+        style notation with three parts separated by ``|``::
+
+            target_product ~ alt_specific_covariates | fixed_covariates | random_covariates
 
     depvar : str
         The name of the dependent variable in the choice_df.

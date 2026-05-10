@@ -46,22 +46,24 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ----------
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between the first purchase and the end of the observation period
+
+        * ``customer_id``: Unique customer identifier
+        * ``frequency``: Number of repeat purchases
+        * ``recency``: Time between the first and the last purchase
+        * ``T``: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `alpha`: Scale parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `r`: Shape parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
-            * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-            * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-            * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 1)`
-            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 1)`
-            * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
-            * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
+
+        * ``alpha``: Scale parameter for time between purchases; defaults to ``Prior("HalfFlat")``
+        * ``r``: Shape parameter for time between purchases; defaults to ``Prior("HalfFlat")``
+        * ``a``: Shape parameter of dropout process; defaults to ``phi_purchase * kappa_purchase``
+        * ``b``: Shape parameter of dropout process; defaults to ``(1 - phi_dropout) * kappa_dropout``
+        * ``phi_dropout``: Nested prior for a and b priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_dropout``: Nested prior for a and b priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
+        * ``purchase_covariates``: Coefficients for purchase rate covariates; defaults to ``Normal(0, 1)``
+        * ``dropout_covariates``: Coefficients for dropout covariates; defaults to ``Normal.dist(0, 1)``
+        * ``purchase_covariate_cols``: List containing column names of covariates for customer purchase rates.
+        * ``dropout_covariate_cols``: List containing column names of covariates for customer dropouts.
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 

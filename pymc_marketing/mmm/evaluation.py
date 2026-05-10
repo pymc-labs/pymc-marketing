@@ -44,12 +44,14 @@ def calculate_metric_distributions(
         Posterior predictive samples. Shape: (date, sample)
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
-            * `r_squared`: Bayesian R-squared.
-            * `rmse`: Root Mean Squared Error.
-            * `nrmse`: Normalized Root Mean Squared Error.
-            * `mae`: Mean Absolute Error.
-            * `nmae`: Normalized Mean Absolute Error.
-            * `mape`: Mean Absolute Percentage Error.
+
+        * ``r_squared``: Bayesian R-squared.
+        * ``rmse``: Root Mean Squared Error.
+        * ``nrmse``: Normalized Root Mean Squared Error.
+        * ``mae``: Mean Absolute Error.
+        * ``nmae``: Normalized Mean Absolute Error.
+        * ``mape``: Mean Absolute Percentage Error.
+
         Defaults to all metrics if None.
 
     Returns
@@ -159,12 +161,14 @@ def compute_summary_metrics(
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
-            * `r_squared`: Bayesian R-squared.
-            * `rmse`: Root Mean Squared Error.
-            * `nrmse`: Normalized Root Mean Squared Error.
-            * `mae`: Mean Absolute Error.
-            * `nmae`: Normalized Mean Absolute Error.
-            * `mape`: Mean Absolute Percentage Error.
+
+        * ``r_squared``: Bayesian R-squared.
+        * ``rmse``: Root Mean Squared Error.
+        * ``nrmse``: Normalized Root Mean Squared Error.
+        * ``mae``: Mean Absolute Error.
+        * ``nmae``: Normalized Mean Absolute Error.
+        * ``mape``: Mean Absolute Percentage Error.
+
         Defaults to all metrics if None.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
