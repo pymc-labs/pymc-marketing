@@ -137,7 +137,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
        https://works.bepress.com/meltem-denizel/2/download/
     .. [2] Wagner, U. and Hoppe D. (2008), "Erratum on the MBG/NBD Model,"
        International Journal of Research in Marketing, 25 (3), 225-226.
-        https://www.researchgate.net/profile/Udo-Wagner/publication/274894157_Customer_Base_Analysis_The_Case_for_a_Central_Variant_of_the_BetageometricBND_Model/links/55c3728608aeca747d5f6658/Customer-Base-Analysis-The-Case-for-a-Central-Variant-of-the-Betageometric-BND-Model.pdf
+       https://www.researchgate.net/profile/Udo-Wagner/publication/274894157_Customer_Base_Analysis_The_Case_for_a_Central_Variant_of_the_BetageometricBND_Model/links/55c3728608aeca747d5f6658/Customer-Base-Analysis-The-Case-for-a-Central-Variant-of-the-Betageometric-BND-Model.pdf
     """  # noqa: E501
 
     _model_type = "MBG/NBD"
