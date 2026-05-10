@@ -1333,8 +1333,8 @@ class CausalGraphModel:
 
         References
         ----------
-        .. [1] Causal Inference in Statistics: A Primer
-        By Judea Pearl, Madelyn Glymour, Nicholas P. Jewell · 2016
+        .. [1] Causal Inference in Statistics: A Primer.
+           By Judea Pearl, Madelyn Glymour, Nicholas P. Jewell · 2016.
         """
         # Use DoWhy's internal method to get backdoor paths for all treatments combined
         return self.causal_model._graph.get_backdoor_paths(

@@ -118,13 +118,14 @@ def summarize_metric_distributions(
     dict of str to dict
         A dictionary containing summary statistics for each metric.
         List of summary statistics calculated for each metric:
-            * `mean`: Mean of the metric distribution.
-            * `median`: Median of the metric distribution.
-            * `std`: Standard deviation of the metric distribution.
-            * `min`: Minimum value of the metric distribution.
-            * `max`: Maximum value of the metric distribution.
-            * `hdi_lower`: Lower bound of the Highest Density Interval.
-            * `hdi_upper`: Upper bound of the Highest Density Interval.
+
+        * ``mean``: Mean of the metric distribution.
+        * ``median``: Median of the metric distribution.
+        * ``std``: Standard deviation of the metric distribution.
+        * ``min``: Minimum value of the metric distribution.
+        * ``max``: Maximum value of the metric distribution.
+        * ``hdi_lower``: Lower bound of the Highest Density Interval.
+        * ``hdi_upper``: Upper bound of the Highest Density Interval.
     """
     metric_summaries = {}
     for metric, distribution in metric_distributions.items():
@@ -178,12 +179,13 @@ def compute_summary_metrics(
     dict of str to dict
         A dictionary containing summary statistics for each metric.
         List of summary statistics calculated for each metric:
-            * `mean`: Mean of the metric distribution.
-            * `median`: Median of the metric distribution.
-            * `std`: Standard deviation of the metric distribution.
-            * `min`: Minimum value of the metric distribution.
-            * `max`: Maximum value of the metric distribution.
-            * `hdi_lower`: Lower bound of the Highest Density Interval.
+
+        * ``mean``: Mean of the metric distribution.
+        * ``median``: Median of the metric distribution.
+        * ``std``: Standard deviation of the metric distribution.
+        * ``min``: Minimum value of the metric distribution.
+        * ``max``: Maximum value of the metric distribution.
+        * ``hdi_lower``: Lower bound of the Highest Density Interval.
             * `hdi_upper`: Upper bound of the Highest Density Interval.
 
     Examples

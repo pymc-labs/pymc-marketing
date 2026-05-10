@@ -88,10 +88,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             [5, "2024-01-18"],
             [5, "2024-01-19"],
         ]
-        raw_data = pd.DataFrame(data, columns=["id", "date"]
+        raw_data = pd.DataFrame(data, columns=["id", "date"])
 
         # preprocess data
-        rfm_df = rfm_summary(raw_data,'id','date')
+        rfm_df = rfm_summary(raw_data, "id", "date")
 
         # model_config and sampler_configs are optional
         model = ModifiedBetaGeoModel(
@@ -99,7 +99,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 "r": Prior("HalfFlat"),
                 "alpha": Prior("HalfFlat"),
                 "a": Prior("HalfFlat"),
-                "b": Prior("HalfFlat),
+                "b": Prior("HalfFlat"),
             },
             sampler_config={
                 "draws": 1000,
@@ -116,7 +116,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         # Maximum a Posteriori can quickly fit a model to large datasets,
         # but will give limited insights into predictive uncertainty.
-        model.fit(data=rfm_df,fit_method='map')
+        model.fit(data=rfm_df, fit_method="map")
         print(model.fit_summary())
 
         # Predict number of purchases for current customers

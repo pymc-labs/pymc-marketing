@@ -333,7 +333,8 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
     """Merge multiple optimizer-compatible models into a single model.
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
-    - Merging their posterior `InferenceData` with per-model prefixes
+
+    - Merging their posterior ``InferenceData`` with per-model prefixes
     - Optionally thinning posterior draws via ``use_every_n_draw``
     - Exposing a persistent merged PyMC ``Model`` for optimization through
       ``_set_predictors_for_optimization`` and a dynamic ``model`` property for
