@@ -549,13 +549,13 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        data : *pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+            * ``customer_id``: Unique customer identifier
+            * ``frequency``: Number of repeat purchases
+            * ``recency``: Time between the first and the last purchase
+            * ``T``: Time between first purchase and end of observation period, model assumptions require T >= recency
 
         References
         ----------
@@ -599,13 +599,13 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        data : *pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+            * ``customer_id``: Unique customer identifier
+            * ``frequency``: Number of repeat purchases
+            * ``recency``: Time between the first and the last purchase
+            * ``T``: Time between first purchase and end of observation period, model assumptions require T >= recency
 
         t : int
             Days after T which defines the range (T, T+t].
