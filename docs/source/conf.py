@@ -67,12 +67,25 @@ else:
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
+# Notebooks under any "dev/" subdirectory are work-in-progress drafts kept
+# in-tree for contributors but not part of the published docs. Excluding them
+# stops MyST from parsing them, which silences the bulk of the toctree and
+# duplicate-label warnings reported in #1198 and (transitively) #1209.
 exclude_patterns = [
     "build",
     "jupyter_execute",
     "jupyter_cache",
     "**.ipynb_checkpoints",
+    "**/dev/**",
 ]
+
+# Suppress the harmless myst-parser override of mathjax3_config.processHtmlClass.
+# myst-parser intentionally extends the class list ("tex2jax_process" ->
+# "tex2jax_process|mathjax_process|math|output_area") so it can render math in
+# notebook output cells. Our config sets the same key, so myst flags it; the
+# resulting behaviour is what we want, so we silence the warning rather than
+# remove the explicit setting (which we keep for clarity).
+suppress_warnings = ["myst.mathjax"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown
