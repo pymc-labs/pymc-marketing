@@ -72,10 +72,8 @@ class MNLogit(ModelBuilder):
     sampler_config : dict, optional
         Sampler configuration. If None, the default config is used.
 
-    Notes
-    -----
-    Example:
-    -------
+    Examples
+    --------
     The format of `choice_df`:
 
         +------------+------------+------------+------------+------------+

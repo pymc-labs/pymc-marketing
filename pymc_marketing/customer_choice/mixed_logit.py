@@ -84,9 +84,7 @@ class MixedLogit(ModelBuilder):
 
     Notes
     -----
-    Example:
-    -------
-    The format of `choice_df`:
+    The format of ``choice_df``:
 
         +------------+------------+------------+------------+------------+
         | choice     | bus_price  | bus_time   | car_price  | car_time   |
