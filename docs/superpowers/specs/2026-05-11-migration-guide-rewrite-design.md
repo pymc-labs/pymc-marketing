@@ -125,8 +125,8 @@ Four subsections, one per namespace. Each has:
 **Example:**
 
 ```python
-fig, axes = mmm.plot.diagnostics.posterior_predictive(hdi_prob=0.94)
-fig, axes = mmm.plot.diagnostics.posterior(var_names=["alpha", "beta"], kind="kde")
+fig, axes = mmm.plot.diagnostics.posterior_predictive()
+fig, axes = mmm.plot.diagnostics.posterior(var_names=["alpha", "beta"])
 fig, axes = mmm.plot.diagnostics.residuals_distribution(quantiles=[0.025, 0.5, 0.975])
 ```
 
@@ -153,11 +153,8 @@ Note: `waterfall()` does not support `backend` or `return_as_pc` — it always r
 **Example:**
 
 ```python
-fig, axes = mmm.plot.decomposition.contributions_over_time(
-    include=["channels", "baseline"],
-    original_scale=True,
-)
-fig, axes = mmm.plot.decomposition.waterfall(original_scale=True)
+fig, axes = mmm.plot.decomposition.contributions_over_time(include=["channels", "baseline"])
+fig, axes = mmm.plot.decomposition.waterfall()
 fig, axes = mmm.plot.decomposition.channel_share_hdi(hdi_prob=0.89)
 ```
 
@@ -183,11 +180,8 @@ fig, axes = mmm.plot.decomposition.channel_share_hdi(hdi_prob=0.89)
 **Example:**
 
 ```python
-fig, axes = mmm.plot.sensitivity.analysis(
-    x_sweep_axis="relative",
-    apply_cost_per_unit=True,
-    hdi_prob=0.94,
-)
+fig, axes = mmm.plot.sensitivity.analysis()
+fig, axes = mmm.plot.sensitivity.analysis(x_sweep_axis="absolute", hdi_prob=0.89)
 ```
 
 #### 5d. Transformation (`mmm.plot.transformation`)
@@ -215,12 +209,8 @@ fig, axes = mmm.plot.sensitivity.analysis(
 **Example:**
 
 ```python
-fig, axes = mmm.plot.transformation.saturation_scatterplot(original_scale=True)
-fig, axes = mmm.plot.transformation.saturation_curves(
-    curves=saturation_curve_data,
-    n_samples=20,
-    hdi_prob=0.94,
-)
+fig, axes = mmm.plot.transformation.saturation_scatterplot()
+fig, axes = mmm.plot.transformation.saturation_curves(curves=saturation_curve_data, n_samples=20)
 ```
 
 ### 6. Budget Plots
@@ -236,8 +226,8 @@ mmm.plot_suite = "new"
 optimizer = BudgetOptimizerWrapper(model=mmm, start_date="2024-01-01", end_date="2024-12-31")
 samples = optimizer.allocate_budget(...)
 
-fig, axes = optimizer.plot.allocation_roas(samples=samples, hdi_prob=0.94)
-fig, axes = optimizer.plot.contribution_over_time(samples=samples, hdi_prob=0.94)
+fig, axes = optimizer.plot.allocation_roas(samples=samples)
+fig, axes = optimizer.plot.contribution_over_time(samples=samples)
 ```
 
 **Argument changes from legacy:**
