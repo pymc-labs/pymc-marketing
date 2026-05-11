@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 import arviz as az
 import arviz_plots as azp
@@ -122,7 +122,7 @@ class DecompositionPlots:
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Plot time-series contributions for selected contribution types with HDI bands.
 
         Creates one panel per extra-dimension combination (e.g. one per geo for
@@ -146,7 +146,7 @@ class DecompositionPlots:
         backend : str, optional
             Rendering backend. Non-matplotlib requires ``return_as_pc=True``.
         return_as_pc : bool, default False
-            If True, return the ``PlotCollection`` instead of ``(Figure, NDArray[Any])``.
+            If True, return the ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
         line_kwargs : dict, optional
             Extra kwargs forwarded to ``azp.visuals.line_xy`` for every mean line.
         hdi_kwargs : dict, optional
@@ -157,7 +157,7 @@ class DecompositionPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Any]] or PlotCollection
+        tuple[Figure, NDArray[Axes]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -202,9 +202,8 @@ class DecompositionPlots:
             None,
         )
         if dates_coord is None:
-            posterior = cast(xr.Dataset, getattr(data.idata, "posterior", None))
-            # Gracefully skip date coordinates if posterior is not available (unfitted model)
-            if posterior is not None and "date" in posterior.coords:
+            posterior = data.idata.posterior
+            if "date" in posterior.coords:
                 dates_coord = posterior.coords["date"]
 
         # Build flat entries: each entry has dims (chain, draw, date[, extra_dims])
@@ -271,7 +270,7 @@ class DecompositionPlots:
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         bar_kwargs: dict[str, Any] | None = None,
-    ) -> tuple[Figure, NDArray[Any]]:
+    ) -> tuple[Figure, NDArray[Axes]]:
         """Horizontal waterfall chart showing mean contribution per component.
 
         One subplot per extra-dimension combination (e.g. per geo). Each subplot
@@ -294,7 +293,7 @@ class DecompositionPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Any]]
+        tuple[Figure, NDArray[Axes]]
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -330,27 +329,17 @@ class DecompositionPlots:
         # Determine panel combos from extra dims
         if extra_dims:
             # Find an entry that has all extra dimensions
-            ref_coords: xr.Coordinates | None = None
+            ref_da = None
             for _, da in entries:
                 if all(d in da.coords for d in extra_dims):
-                    ref_coords = da.coords
+                    ref_da = da
                     break
 
-            if ref_coords is None:
+            if ref_da is None:
                 # Fallback: use constant_data coordinates
-                constant_data = cast(
-                    xr.Dataset | None, getattr(data.idata, "constant_data", None)
-                )
-                if constant_data is not None:
-                    ref_coords = constant_data.coords
+                ref_da = data.idata.constant_data
 
-            if ref_coords is None:
-                raise ValueError(
-                    "Could not find coordinate data for extra dimensions. "
-                    "Ensure the model's InferenceData contains constant_data."
-                )
-
-            coord_values = [ref_coords[d].values for d in extra_dims]
+            coord_values = [ref_da.coords[d].values for d in extra_dims]
             combos = list(itertools.product(*coord_values))
         else:
             combos = [()]
@@ -380,11 +369,9 @@ class DecompositionPlots:
             for label, da in entries:
                 if sel_kwargs:
                     # Only select dimensions that exist in this DataArray
-                    sel_dims: dict[str, list[Any]] = {
-                        k: [v] for k, v in sel_kwargs.items() if k in da.dims
-                    }
+                    sel_dims = {k: [v] for k, v in sel_kwargs.items() if k in da.dims}
                     if sel_dims:
-                        da = da.sel(sel_dims).squeeze()
+                        da = da.sel(**sel_dims).squeeze()
                 panel_entries.append((label, float(da.values)))
 
             title = (
@@ -409,7 +396,7 @@ class DecompositionPlots:
         backend: str | None = None,
         return_as_pc: bool = False,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Forest plot of each channel's share of total channel contribution.
 
         Computes each channel's contribution as a fraction of total channel
@@ -434,7 +421,7 @@ class DecompositionPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Any]] or PlotCollection
+        tuple[Figure, NDArray[Axes]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)

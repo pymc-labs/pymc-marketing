@@ -87,7 +87,7 @@ Fine-tune every visual layer independently:
 from __future__ import annotations
 
 import warnings
-from typing import Any, cast
+from typing import Any
 
 import arviz as az
 import arviz_plots as azp
@@ -95,6 +95,7 @@ import numpy as np
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
@@ -148,7 +149,7 @@ class TransformationPlots:
         return_as_pc: bool = False,
         scatter_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Scatter plot of channel spend/data vs. mean channel contributions.
 
         Creates one panel per channel (and per custom dimension like ``country``
@@ -182,7 +183,7 @@ class TransformationPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Any]] or PlotCollection
+        tuple[Figure, NDArray[Axes]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -259,7 +260,7 @@ class TransformationPlots:
         mean_curve_kwargs: dict[str, Any] | None = None,
         sample_curves_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Overlay saturation curves with posterior sample lines and HDI bands.
 
         Renders a scatter plot of observed data, posterior sample curves,
@@ -332,7 +333,7 @@ class TransformationPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Any]] or PlotCollection
+        tuple[Figure, NDArray[Axes]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -340,19 +341,16 @@ class TransformationPlots:
             else self._data
         )
 
-        pc = cast(
-            PlotCollection,
-            self.saturation_scatterplot(
-                original_scale=original_scale,
-                apply_cost_per_unit=apply_cost_per_unit,
-                idata=idata,
-                dims=dims,
-                figsize=figsize,
-                backend=backend,
-                return_as_pc=True,
-                scatter_kwargs=scatter_kwargs,
-                **pc_kwargs,
-            ),
+        pc: PlotCollection = self.saturation_scatterplot(
+            original_scale=original_scale,
+            apply_cost_per_unit=apply_cost_per_unit,
+            idata=idata,
+            dims=dims,
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=True,
+            scatter_kwargs=scatter_kwargs,
+            **pc_kwargs,
         )
 
         curves = _ensure_chain_draw_dims(curves)
