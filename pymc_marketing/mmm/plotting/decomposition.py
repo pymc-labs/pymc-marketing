@@ -151,7 +151,7 @@ class DecompositionPlots:
         backend : str, optional
             Rendering backend. Non-matplotlib requires ``return_as_pc=True``.
         return_as_pc : bool, default False
-            If True, return the ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+            If True, return the ``PlotCollection`` instead of ``(Figure, NDArray[Any])``.
         line_kwargs : dict, optional
             Extra kwargs forwarded to ``azp.visuals.line_xy`` for every mean line.
         hdi_kwargs : dict, optional
@@ -162,7 +162,7 @@ class DecompositionPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -208,6 +208,7 @@ class DecompositionPlots:
         )
         if dates_coord is None:
             posterior = cast(xr.Dataset, getattr(data.idata, "posterior", None))
+            # Gracefully skip date coordinates if posterior is not available (unfitted model)
             if posterior is not None and "date" in posterior.coords:
                 dates_coord = posterior.coords["date"]
 
@@ -298,7 +299,7 @@ class DecompositionPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]]
+        tuple[Figure, NDArray[Any]]
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -438,7 +439,7 @@ class DecompositionPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
