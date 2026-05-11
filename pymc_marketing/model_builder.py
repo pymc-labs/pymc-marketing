@@ -96,13 +96,15 @@ def create_idata_accessor(value: str, message: str):
     """
 
     def accessor(self) -> xr.Dataset:
-        __doc__ = f"""Access the '{value}' attribute of the InferenceData object."""  # noqa: F841
         if self.idata is None or value not in self.idata:
             raise RuntimeError(message)
 
         return self.idata[value]
 
-    return property(accessor)
+    return property(
+        accessor,
+        doc=f"Access the '{value}' attribute of the InferenceData object.",
+    )
 
 
 def requires_model(func):
