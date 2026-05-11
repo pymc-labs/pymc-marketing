@@ -12,10 +12,10 @@ This spec covers the integration work (PRs 9–10 scope), adapted to support **b
 
 ## Goals
 
-- Add `plot_suite: Literal["legacy", "new"] = "legacy"` to `MMM` and `TimeSliceCrossValidator`.
+- Add `plot_suite: Literal["legacy", "new"] = "legacy"` as an instance attribute on `MMM` and `TimeSliceCrossValidator` (set post-construction, not in `__init__`).
 - Default to legacy — zero breaking changes for existing users.
 - Emit a one-time `FutureWarning` on first `.plot` access in legacy mode, pointing to the new migration guide.
-- Provide a clean opt-in path to the new namespace API via `plot_suite="new"`.
+- Provide a clean opt-in path to the new namespace API via `mmm.plot_suite = "new"`.
 - Write a new `mmm_plot_suite_migration_guide.ipynb` notebook.
 - Update two notebooks that already use new-mode CV plot methods.
 
@@ -29,15 +29,37 @@ This spec covers the integration work (PRs 9–10 scope), adapted to support **b
 
 ## Section 1: `MMM` changes
 
-### Constructor
+### `plot_suite` property
 
-Add one new keyword argument to `MMM.__init__`:
+`MMM` gains a `plot_suite` property backed by `_plot_suite`. In `__init__`:
 
 ```python
-plot_suite: Literal["legacy", "new"] = "legacy"
+self._plot_suite: Literal["legacy", "new"] = "legacy"
 ```
 
-Stored as `self._plot_suite`. Must round-trip through `save`/`load` — include it in `model_config` alongside other MMM config fields (follow the existing pattern for how MMM constructor args are persisted in `idata` attrs or `model_config`).
+Property definition:
+
+```python
+@property
+def plot_suite(self) -> Literal["legacy", "new"]:
+    return self._plot_suite
+
+@plot_suite.setter
+def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+    if value not in ("legacy", "new"):
+        raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+    self._plot_suite = value
+```
+
+Set on an instance to switch modes:
+
+```python
+mmm = MMM(...)
+mmm.plot_suite = "new"
+mmm.plot.decomposition.contributions_over_time(...)
+```
+
+No `__init__` signature change. No serialization needed (it's an opt-in runtime flag, not a model configuration value).
 
 ### `.plot` property
 
@@ -46,11 +68,11 @@ Stored as `self._plot_suite`. Must round-trip through `save`/`load` — include 
 def plot(self) -> MMMPlotSuite | MMMPlotSuiteFacade:
     self._validate_model_was_built()
     self._validate_idata_exists()
-    if self._plot_suite == "legacy":
+    if self.plot_suite == "legacy":
         if not getattr(self, "_plot_suite_warned", False):
             warnings.warn(
                 "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
-                "Pass plot_suite='new' to opt in to the new namespace-based API. "
+                "Set mmm.plot_suite = 'new' to opt in to the new namespace-based API. "
                 "See the migration guide: "
                 "docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb",
                 FutureWarning,
@@ -98,15 +120,35 @@ class MMMPlotSuiteFacade:
 
 ## Section 3: `TimeSliceCrossValidator` changes
 
-### Constructor
+### `plot_suite` property
 
-Add one new keyword argument:
+`TimeSliceCrossValidator` gains the same `plot_suite` property pattern. In `__init__`:
 
 ```python
-plot_suite: Literal["legacy", "new"] = "legacy"
+self._plot_suite: Literal["legacy", "new"] = "legacy"
 ```
 
-Stored as `self._plot_suite`. `TimeSliceCrossValidator` does not hold an `MMM` reference, so it cannot inherit this from `MMM` — it must be set independently.
+Property definition (identical to `MMM`):
+
+```python
+@property
+def plot_suite(self) -> Literal["legacy", "new"]:
+    return self._plot_suite
+
+@plot_suite.setter
+def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+    if value not in ("legacy", "new"):
+        raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+    self._plot_suite = value
+```
+
+`TimeSliceCrossValidator` does not hold an `MMM` reference, so this must be set independently:
+
+```python
+cv = TimeSliceCrossValidator(...)
+cv.plot_suite = "new"
+cv.plot.predictions(...)
+```
 
 ### `.plot` property
 
@@ -116,7 +158,7 @@ Revert to the pre-PR-#2530 legacy behavior by default:
 @property
 def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
     self._validate_model_was_built()  # sets self.idata from last fold
-    if self._plot_suite == "legacy":
+    if self.plot_suite == "legacy":
         if not hasattr(self, "idata") or self.idata is None:
             raise ValueError(
                 "idata is not available. Ensure TimeSliceCrossValidator.run() "
@@ -135,7 +177,7 @@ Legacy mode returns the last fold's `idata` wrapped in the monolithic `MMMPlotSu
 
 ### Notebook updates
 
-Two notebooks already use new-mode CV methods and will break when `.plot` reverts to legacy default. Add `plot_suite="new"` to their `TimeSliceCrossValidator(...)` constructor calls:
+Two notebooks already use new-mode CV methods and will break when `.plot` reverts to legacy default. Set `cv.plot_suite = "new"` after constructing `TimeSliceCrossValidator`:
 
 - `docs/source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb`
 - `docs/source/notebooks/mmm/mmm_roas.ipynb`
@@ -149,7 +191,7 @@ Add an explicit `.plot` property (overrides `__getattr__` delegation):
 ```python
 @property
 def plot(self) -> BudgetPlots | MMMPlotSuite:
-    if self.model_class._plot_suite == "new":
+    if self.model_class.plot_suite == "new":
         return BudgetPlots()
     return self.model_class.plot  # legacy MMMPlotSuite with budget methods
 ```
@@ -168,7 +210,7 @@ No notebook changes needed — `mmm_multidimensional_example.ipynb` uses legacy 
 A new notebook (no code execution required — prose + code snippets only) covering:
 
 1. **Why the new API exists** — namespace-based separation, cleaner boundaries
-2. **How to opt in** — `MMM(plot_suite="new")`, `TimeSliceCrossValidator(plot_suite="new")`
+2. **How to opt in** — `mmm.plot_suite = "new"`, `cv.plot_suite = "new"`
 3. **`mmm.plot.*` namespace map** — side-by-side old vs new for each method group:
    - Diagnostics: `mmm.plot.posterior_predictive()` → `mmm.plot.diagnostics.posterior_predictive()`
    - Decomposition: `mmm.plot.contributions_over_time()` → `mmm.plot.decomposition.contributions_over_time()`
@@ -184,14 +226,14 @@ A new notebook (no code execution required — prose + code snippets only) cover
 
 | File | Change |
 |------|--------|
-| `pymc_marketing/mmm/mmm.py` | Add `plot_suite` arg to `MMM.__init__`; update `.plot` property; add `.plot` property to `BudgetOptimizerWrapper` |
+| `pymc_marketing/mmm/mmm.py` | Add `plot_suite` instance attr in `MMM.__init__` body; update `.plot` property; add `.plot` property to `BudgetOptimizerWrapper` |
 | `pymc_marketing/mmm/plotting/suite.py` | New file: `MMMPlotSuiteFacade` |
 | `pymc_marketing/mmm/plotting/__init__.py` | Export `MMMPlotSuiteFacade` |
 | `pymc_marketing/mmm/__init__.py` | Export `MMMPlotSuiteFacade` |
-| `pymc_marketing/mmm/time_slice_cross_validation.py` | Add `plot_suite` arg; revert `.plot` to legacy default |
+| `pymc_marketing/mmm/time_slice_cross_validation.py` | Add `plot_suite` instance attr; revert `.plot` to legacy default |
 | `docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb` | New notebook |
-| `docs/source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb` | Add `plot_suite="new"` to CV constructor |
-| `docs/source/notebooks/mmm/mmm_roas.ipynb` | Add `plot_suite="new"` to CV constructor |
+| `docs/source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb` | Set `cv.plot_suite = "new"` after CV construction |
+| `docs/source/notebooks/mmm/mmm_roas.ipynb` | Set `cv.plot_suite = "new"` after CV construction |
 
 ## Out of scope
 
