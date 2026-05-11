@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the existing v2 namespace-based plotting classes into `MMM`, `BudgetOptimizerWrapper`, and `TimeSliceCrossValidator` behind a `plot_suite` argument, defaulting to the legacy suite so nothing breaks.
+**Goal:** Wire the existing v2 namespace-based plotting classes into `MMM`, `BudgetOptimizerWrapper`, and `TimeSliceCrossValidator` behind a `plot_suite` property, defaulting to the legacy suite so nothing breaks.
 
-**Architecture:** A new `MMMPlotSuiteFacade` container class wraps the four v2 namespace classes (`DecompositionPlots`, `DiagnosticsPlots`, `SensitivityPlots`, `TransformationPlots`). `MMM` gains a `plot_suite` constructor arg; its `.plot` property returns either the legacy `MMMPlotSuite` or the new `MMMPlotSuiteFacade` depending on that arg. `TimeSliceCrossValidator` gets its own `plot_suite` arg (it holds no `MMM` reference). `BudgetOptimizerWrapper` adds an explicit `.plot` property that reads `model_class._plot_suite`.
+**Architecture:** A new `MMMPlotSuiteFacade` container class wraps the four v2 namespace classes (`DecompositionPlots`, `DiagnosticsPlots`, `SensitivityPlots`, `TransformationPlots`). `MMM` gains a `plot_suite` property (backed by `_plot_suite`) set post-construction; its `.plot` property returns either the legacy `MMMPlotSuite` or the new `MMMPlotSuiteFacade` depending on that value. `TimeSliceCrossValidator` gets its own `plot_suite` property (it holds no `MMM` reference). `BudgetOptimizerWrapper` adds an explicit `.plot` property that reads `model_class.plot_suite`.
 
-**Tech Stack:** Python, pymc-marketing, pydantic `Field`, `FutureWarning`, nbformat for notebook edits.
+**Tech Stack:** Python, pymc-marketing, `FutureWarning`, nbformat for notebook edits.
 
 **Activate conda env before running any command:**
 ```bash
@@ -253,29 +253,37 @@ git commit -m "feat(mmm): export MMMPlotSuiteFacade from plotting and mmm packag
 
 ---
 
-## Task 3: `MMM.plot_suite` constructor arg and updated `.plot` property
+## Task 3: `MMM.plot_suite` property and updated `.plot` property
 
 **Files:**
 - Modify: `pymc_marketing/mmm/mmm.py`
 
-### 3a: Add `plot_suite` parameter
+### 3a: Add `plot_suite` property
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing tests**
 
-In `tests/mmm/test_mmm.py`, add a new test function. The existing fitted-MMM fixture is `fit_mmm`:
+In `tests/mmm/test_mmm.py`, add new test functions. The existing fitted-MMM fixture is `fit_mmm`:
 
 ```python
 def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
-    """MMM.plot_suite defaults to 'legacy'."""
-    assert fit_mmm._plot_suite == "legacy"
+    """MMM.plot_suite property defaults to 'legacy'."""
+    assert fit_mmm.plot_suite == "legacy"
 
 
-def test_mmm_plot_suite_new_mode(fit_mmm):
-    """Setting _plot_suite to 'new' stores the setting."""
+def test_mmm_plot_suite_setter(fit_mmm):
+    """MMM.plot_suite setter stores the value."""
     import copy
     mmm = copy.copy(fit_mmm)
-    mmm._plot_suite = "new"
-    assert mmm._plot_suite == "new"
+    mmm.plot_suite = "new"
+    assert mmm.plot_suite == "new"
+
+
+def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
+    """MMM.plot_suite setter raises ValueError for unknown values."""
+    import copy
+    mmm = copy.copy(fit_mmm)
+    with pytest.raises(ValueError, match="plot_suite must be"):
+        mmm.plot_suite = "invalid"
 ```
 
 - [ ] **Step 2: Run to see current state**
@@ -284,7 +292,7 @@ def test_mmm_plot_suite_new_mode(fit_mmm):
 conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy -v
 ```
 
-Expected: FAIL with `AttributeError: '_plot_suite' not found` (attribute doesn't exist yet).
+Expected: FAIL with `AttributeError: 'plot_suite' not found` (property doesn't exist yet).
 
 - [ ] **Step 3: Add `Literal` to imports in `mmm.py`**
 
@@ -308,18 +316,7 @@ Add after it:
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 ```
 
-- [ ] **Step 5: Add `plot_suite` parameter to `MMM.__init__`**
-
-In `mmm.py`, find the last parameter before `-> None:` in `MMM.__init__` (currently `cost_per_unit`, ending around line 450). Add `plot_suite` as a new keyword-only parameter after `cost_per_unit`:
-
-```python
-        plot_suite: Literal["legacy", "new"] = Field(
-            "legacy",
-            description="Which plot suite to use. 'legacy' for the monolithic MMMPlotSuite, 'new' for the namespace-based MMMPlotSuiteFacade.",
-        ),
-```
-
-- [ ] **Step 6: Store `plot_suite` in `__init__` body**
+- [ ] **Step 5: Initialise `_plot_suite` in `MMM.__init__` body**
 
 In the `__init__` body, find the line:
 ```python
@@ -327,14 +324,31 @@ In the `__init__` body, find the line:
 ```
 Add after it:
 ```python
-        self._plot_suite = plot_suite
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
         self._plot_suite_warned = False
+```
+
+- [ ] **Step 6: Add the `plot_suite` property to `MMM`**
+
+After the `__init__` method body (before the first `@property` in the class, or immediately after `__init__`), add:
+
+```python
+    @property
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
 ```
 
 - [ ] **Step 7: Run tests**
 
 ```bash
-conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy tests/mmm/test_mmm.py::test_mmm_plot_suite_setter tests/mmm/test_mmm.py::test_mmm_plot_suite_setter_rejects_invalid -v
 ```
 
 Expected: PASS.
@@ -378,8 +392,10 @@ def test_mmm_plot_legacy_warns_only_once(fit_mmm):
 
 
 def test_mmm_plot_new_returns_facade(fit_mmm):
-    fit_mmm._plot_suite = "new"
-    result = fit_mmm.plot
+    import copy
+    mmm = copy.copy(fit_mmm)
+    mmm.plot_suite = "new"
+    result = mmm.plot
     assert isinstance(result, MMMPlotSuiteFacade)
 ```
 
@@ -417,11 +433,11 @@ Replace with:
         """Access the plot suite for visualizing MMM results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        if self._plot_suite == "legacy":
+        if self.plot_suite == "legacy":
             if not getattr(self, "_plot_suite_warned", False):
                 warnings.warn(
                     "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
-                    "Pass plot_suite='new' to opt in to the new namespace-based API. "
+                    "Set mmm.plot_suite = 'new' to opt in to the new namespace-based API. "
                     "See the migration guide: "
                     "docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb",
                     FutureWarning,
@@ -442,67 +458,13 @@ conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_legacy_re
 
 Expected: PASS.
 
-### 3c: Serialization round-trip
-
-- [ ] **Step 12: Write failing serialization test**
-
-Add to `tests/mmm/test_mmm.py`:
-
-```python
-def test_mmm_plot_suite_roundtrips_through_save_load(fit_mmm, tmp_path):
-    """plot_suite='new' survives save/load."""
-    import copy
-    mmm = copy.deepcopy(fit_mmm)
-    mmm._plot_suite = "new"
-    fpath = str(tmp_path / "mmm_test.nc")
-    mmm.save(fpath)
-    loaded = MMM.load(fpath)
-    assert loaded._plot_suite == "new"
-```
-
-- [ ] **Step 13: Run to verify failure**
-
-```bash
-conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_roundtrips_through_save_load -v
-```
-
-Expected: FAIL — `_plot_suite` not in attrs yet, so loaded instance defaults to `"legacy"`.
-
-- [ ] **Step 14: Add `plot_suite` to `create_idata_attrs` in `mmm.py`**
-
-Find `create_idata_attrs` (around line 967). After the line:
-```python
-        attrs["cost_per_unit"] = ...
-```
-(i.e., after the `if self._cost_per_unit_input is not None` block, at the end of the method), add:
-
-```python
-        attrs["plot_suite"] = json.dumps(self._plot_suite)
-```
-
-- [ ] **Step 15: Add `plot_suite` to `attrs_to_init_kwargs` in `mmm.py`**
-
-Find `attrs_to_init_kwargs` (around line 1068). Add `"plot_suite"` to the returned dict after `"cost_per_unit"`:
-
-```python
-            "plot_suite": json.loads(attrs.get("plot_suite", '"legacy"')),
-```
-
-- [ ] **Step 16: Run serialization test**
-
-```bash
-conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_roundtrips_through_save_load -v
-```
-
-Expected: PASS.
-
-- [ ] **Step 17: Run pre-commit**
+- [ ] **Step 12: Run pre-commit**
 
 ```bash
 conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/mmm.py
 ```
 
-- [ ] **Step 18: Run all MMM tests to check for regressions**
+- [ ] **Step 13: Run all MMM tests to check for regressions**
 
 ```bash
 conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py -v --tb=short -x 2>&1 | tail -30
@@ -512,11 +474,11 @@ Suppress the new `FutureWarning` in any existing test that calls `.plot` without
 
 For any failing test that calls `mmm.plot` and gets unexpected warning output, add `@pytest.mark.filterwarnings("ignore::FutureWarning")` or wrap in `warnings.catch_warnings`.
 
-- [ ] **Step 19: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
 git add pymc_marketing/mmm/mmm.py tests/mmm/test_mmm.py
-git commit -m "feat(mmm): add plot_suite arg to MMM with legacy/new switching and FutureWarning"
+git commit -m "feat(mmm): add plot_suite property to MMM with legacy/new switching and FutureWarning"
 ```
 
 ---
@@ -546,7 +508,7 @@ def test_budget_optimizer_plot_legacy_returns_mmm_plot_suite(fitted_mmm, dummy_d
         start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
         end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
     )
-    optimizable_model.model_class._plot_suite = "legacy"
+    optimizable_model.model_class.plot_suite = "legacy"
     optimizable_model.model_class._plot_suite_warned = False
     with warnings.catch_warnings(record=True):
         warnings.simplefilter("always")
@@ -562,7 +524,7 @@ def test_budget_optimizer_plot_new_returns_budget_plots(fitted_mmm, dummy_df):
         start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
         end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
     )
-    optimizable_model.model_class._plot_suite = "new"
+    optimizable_model.model_class.plot_suite = "new"
     result = optimizable_model.plot
     assert isinstance(result, BudgetPlots)
 ```
@@ -591,7 +553,7 @@ Find `BudgetOptimizerWrapper.__getattr__` (around line 3582). Add the `plot` pro
     @property
     def plot(self) -> BudgetPlots | MMMPlotSuite:
         """Access budget plotting functionality."""
-        if self.model_class._plot_suite == "new":
+        if self.model_class.plot_suite == "new":
             return BudgetPlots()
         return self.model_class.plot
 ```
@@ -707,13 +669,7 @@ Add after it:
 from pymc_marketing.mmm.plot import MMMPlotSuite
 ```
 
-- [ ] **Step 4: Add `plot_suite` parameter to `TimeSliceCrossValidator.__init__`**
-
-Find the `__init__` signature (line 155). Add `plot_suite` as the last parameter before `-> None`:
-
-```python
-        plot_suite: Literal["legacy", "new"] = "legacy",
-```
+- [ ] **Step 4: Initialise `_plot_suite` in `TimeSliceCrossValidator.__init__` body and add property**
 
 (`Literal` is already imported in this file at line 25.)
 
@@ -723,7 +679,22 @@ In the `__init__` body, find:
 ```
 Add after it:
 ```python
-        self._plot_suite = plot_suite
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
+```
+
+After the `__init__` method, add the property (identical pattern to `MMM`):
+
+```python
+    @property
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
 ```
 
 - [ ] **Step 5: Replace the `.plot` property**
@@ -748,7 +719,7 @@ Replace with:
     def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
         """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
-        if self._plot_suite == "legacy":
+        if self.plot_suite == "legacy":
             if not hasattr(self, "idata") or self.idata is None:
                 raise ValueError(
                     "idata is not available. Ensure TimeSliceCrossValidator.run() "
@@ -788,7 +759,7 @@ Expected: all pass.
 ```bash
 conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/time_slice_cross_validation.py tests/mmm/test_time_slice_cross_validator.py
 git add pymc_marketing/mmm/time_slice_cross_validation.py tests/mmm/test_time_slice_cross_validator.py
-git commit -m "feat(mmm): add plot_suite arg to TimeSliceCrossValidator, revert .plot to legacy default"
+git commit -m "feat(mmm): add plot_suite property to TimeSliceCrossValidator, revert .plot to legacy default"
 ```
 
 ---
@@ -799,7 +770,7 @@ git commit -m "feat(mmm): add plot_suite arg to TimeSliceCrossValidator, revert 
 - Modify: `docs/source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb`
 - Modify: `docs/source/notebooks/mmm/mmm_roas.ipynb`
 
-Both notebooks call `cv.plot.param_stability(...)`, `cv.plot.predictions(...)`, `cv.plot.crps(...)` — these are `MMMCVPlotSuite` methods. They'll break now that `.plot` defaults to legacy. Fix: add `plot_suite="new"` to the `TimeSliceCrossValidator(...)` constructor call in each notebook.
+Both notebooks call `cv.plot.param_stability(...)`, `cv.plot.predictions(...)`, `cv.plot.crps(...)` — these are `MMMCVPlotSuite` methods. They'll break now that `.plot` defaults to legacy. Fix: add `cv.plot_suite = "new"` on the line immediately after each `TimeSliceCrossValidator(...)` construction in each notebook.
 
 - [ ] **Step 1: Update `mmm_time_slice_cross_validation.ipynb`**
 
@@ -815,14 +786,18 @@ with open(path) as f:
 for cell in nb["cells"]:
     src = "".join(cell["source"])
     if "TimeSliceCrossValidator(" in src and "import" not in src:
-        # Find the closing paren line and add plot_suite before it
-        new_lines = []
-        for line in cell["source"]:
-            if line.strip() == ")":
-                new_lines.append("    plot_suite=\"new\",\n")
-            new_lines.append(line)
+        # Find the variable name (e.g. "cv") and append the attribute assignment
+        new_lines = list(cell["source"])
+        # Insert after the closing paren line
+        insert_idx = None
+        for i, line in enumerate(new_lines):
+            if line.rstrip().endswith(")") and "TimeSliceCrossValidator" not in line:
+                insert_idx = i + 1
+                break
+        if insert_idx is not None:
+            new_lines.insert(insert_idx, "cv.plot_suite = \"new\"\n")
         cell["source"] = new_lines
-        break  # only the first constructor call cell
+        break
 
 with open(path, "w") as f:
     json.dump(nb, f, indent=1)
@@ -836,8 +811,8 @@ cv = TimeSliceCrossValidator(
     forecast_horizon=12,
     date_column="date",
     step_size=1,
-    plot_suite="new",
 )
+cv.plot_suite = "new"
 ```
 
 - [ ] **Step 2: Update `mmm_roas.ipynb`**
@@ -852,11 +827,14 @@ with open(path) as f:
 for cell in nb["cells"]:
     src = "".join(cell["source"])
     if "TimeSliceCrossValidator(" in src and "import" not in src:
-        new_lines = []
-        for line in cell["source"]:
-            if line.strip() == ")":
-                new_lines.append("    plot_suite=\"new\",\n")
-            new_lines.append(line)
+        new_lines = list(cell["source"])
+        insert_idx = None
+        for i, line in enumerate(new_lines):
+            if line.rstrip().endswith(")") and "TimeSliceCrossValidator" not in line:
+                insert_idx = i + 1
+                break
+        if insert_idx is not None:
+            new_lines.insert(insert_idx, "cv.plot_suite = \"new\"\n")
         cell["source"] = new_lines
         break
 
@@ -872,11 +850,11 @@ cv = TimeSliceCrossValidator(
     forecast_horizon=12,
     date_column="date",
     step_size=1,
-    plot_suite="new",
 )
+cv.plot_suite = "new"
 ```
 
-> **Note:** The `mmm_roas.ipynb` notebook has multiple `TimeSliceCrossValidator` usages. Verify that all constructor call cells were updated (run the grep again to confirm). If the loop only caught the first, run it in a `for cell in nb["cells"]` loop without `break`.
+> **Note:** The `mmm_roas.ipynb` notebook has multiple `TimeSliceCrossValidator` usages. Verify that all constructor call cells were updated (run grep to confirm). If the loop only caught the first, remove `break` and re-run.
 
 - [ ] **Step 3: Run pre-commit on notebooks**
 
@@ -933,24 +911,22 @@ nb = {
             "source": [
                 "## Opting In\n",
                 "\n",
-                "Pass `plot_suite='new'` when constructing `MMM` or `TimeSliceCrossValidator`:\n",
+                "Set `plot_suite = 'new'` on an existing instance to switch to the new API:\n",
                 "\n",
                 "```python\n",
                 "from pymc_marketing.mmm import MMM, TimeSliceCrossValidator\n",
                 "\n",
                 "# MMM with new plot suite\n",
-                "mmm = MMM(\n",
-                "    ...,\n",
-                "    plot_suite='new',\n",
-                ")\n",
+                "mmm = MMM(...)\n",
+                "mmm.plot_suite = 'new'\n",
                 "\n",
                 "# Cross-validator with new plot suite\n",
                 "cv = TimeSliceCrossValidator(\n",
                 "    n_init=100,\n",
                 "    forecast_horizon=12,\n",
                 "    date_column='date',\n",
-                "    plot_suite='new',\n",
                 ")\n",
+                "cv.plot_suite = 'new'\n",
                 "```\n"
             ]
         },
@@ -1006,7 +982,8 @@ nb = {
                 "```python\n",
                 "from pymc_marketing.mmm import BudgetOptimizerWrapper, MMM\n",
                 "\n",
-                "mmm = MMM(..., plot_suite='new')\n",
+                "mmm = MMM(...)\n",
+                "mmm.plot_suite = 'new'\n",
                 "optimizer = BudgetOptimizerWrapper(mmm, start_date='2024-01-01', end_date='2024-12-31')\n",
                 "\n",
                 "# Run optimization first to get samples\n",
@@ -1032,8 +1009,9 @@ nb = {
                 "\n",
                 "```python\n",
                 "cv = TimeSliceCrossValidator(\n",
-                "    n_init=100, forecast_horizon=12, date_column='date', plot_suite='new'\n",
+                "    n_init=100, forecast_horizon=12, date_column='date'\n",
                 ")\n",
+                "cv.plot_suite = 'new'\n",
                 "cv_idata = cv.run(X, y, mmm=mmm)\n",
                 "\n",
                 "# Parameter stability across folds\n",
@@ -1054,9 +1032,9 @@ nb = {
             "source": [
                 "## Removal timeline\n",
                 "\n",
-                "The legacy `MMMPlotSuite` (accessed via `mmm.plot` with the default `plot_suite='legacy'`) will be **removed in pymc-marketing 2.0.0**.\n",
+                "The legacy `MMMPlotSuite` (accessed via `mmm.plot` when `mmm.plot_suite == 'legacy'`, which is the default) will be **removed in pymc-marketing 2.0.0**.\n",
                 "\n",
-                "Until then, using the legacy suite emits a `FutureWarning` on first access. To suppress it, opt in to the new API with `plot_suite='new'`.\n"
+                "Until then, using the legacy suite emits a `FutureWarning` on first access. To suppress it, opt in to the new API with `mmm.plot_suite = 'new'`.\n"
             ]
         }
     ]
@@ -1114,7 +1092,7 @@ git commit -m "fix(mmm): address test regressions from plot_suite integration"
 
 ## Self-Review Notes
 
-- **Spec §1 `MMM`:** Covered in Tasks 3a–3c (constructor arg, `.plot` property, serialization).
+- **Spec §1 `MMM`:** Covered in Tasks 3a–3b (`plot_suite` property, `.plot` property with FutureWarning). No serialization — `plot_suite` is a runtime flag, not model config.
 - **Spec §2 `MMMPlotSuiteFacade`:** Covered in Task 1 + Task 2 (file, exports).
 - **Spec §3 `TimeSliceCrossValidator`:** Covered in Task 5 (revert, legacy path, new path, notebook updates).
 - **Spec §4 `BudgetOptimizerWrapper`:** Covered in Task 4.
