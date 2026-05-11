@@ -55,6 +55,11 @@ class DecompositionPlots:
     def __init__(self, data: MMMIDataWrapper) -> None:
         self._data = data
 
+    @property
+    def data(self) -> MMMIDataWrapper:
+        """The data wrapper backing this plotter."""
+        return self._data
+
     @staticmethod
     def _plot_waterfall_panel(
         ax: Axes,

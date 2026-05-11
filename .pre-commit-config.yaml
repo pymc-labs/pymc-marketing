@@ -25,7 +25,7 @@ repos:
     rev: v1.20.2
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports]
+        args: [--ignore-missing-imports, --python-version=3.12]
         files: ^pymc_marketing/
         additional_dependencies: [numpy>=1.20, pandas-stubs]
   - repo: https://github.com/pre-commit/pre-commit-hooks

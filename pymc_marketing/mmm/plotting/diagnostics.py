@@ -158,6 +158,11 @@ class DiagnosticsPlots:
     def __init__(self, data: MMMIDataWrapper) -> None:
         self._data = data
 
+    @property
+    def data(self) -> MMMIDataWrapper:
+        """The data wrapper backing this plotter."""
+        return self._data
+
     def _plot_predictive(
         self,
         data: MMMIDataWrapper,

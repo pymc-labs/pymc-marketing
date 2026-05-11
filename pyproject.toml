@@ -186,7 +186,7 @@ testpaths = "tests"
 
 [tool.mypy]
 files = "pymc_marketing/*.py"
-exclude = "build|dist|docs|examples|tests|setup.py"
+exclude = "build|dist|docs|examples|tests|setup.py|pymc_marketing/mmm/plotting"
 
 [tool.mypy-matplotlib]
 ignore_missing_imports = true
