@@ -223,6 +223,7 @@ from pymc_marketing.mmm.lift_test import (
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
+from pymc_marketing.mmm.plotting.budget import BudgetPlots
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -3605,6 +3606,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
+
+    @property
+    def plot(self) -> BudgetPlots | MMMPlotSuite | MMMPlotSuiteFacade:
+        """Access budget plotting functionality."""
+        if self.model_class.plot_suite == "new":
+            return BudgetPlots()
+        return self.model_class.plot
 
     def __getattr__(self, name):
         """Delegate attribute access to the wrapped MMM model."""
