@@ -10,12 +10,12 @@
 
 **Activate conda env before running any command:**
 ```bash
-conda run -n pymc-marketing-dev <command>
+conda run -n pymc-dev-2527 <command>
 ```
 
 **Run pre-commit after every file you create or modify:**
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files <file>
+conda run -n pymc-dev-2527 pre-commit run --files <file>
 ```
 
 ---
@@ -78,7 +78,7 @@ def test_facade_passes_data_to_each_namespace():
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/plotting/test_suite.py -v
+conda run -n pymc-dev-2527 pytest tests/mmm/plotting/test_suite.py -v
 ```
 
 Expected: `ModuleNotFoundError` — `suite.py` does not exist yet.
@@ -135,7 +135,7 @@ class MMMPlotSuiteFacade:
 - [ ] **Step 4: Run test to verify it passes**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/plotting/test_suite.py -v
+conda run -n pymc-dev-2527 pytest tests/mmm/plotting/test_suite.py -v
 ```
 
 Expected: PASS (2 tests).
@@ -143,7 +143,7 @@ Expected: PASS (2 tests).
 - [ ] **Step 5: Run pre-commit**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files pymc_marketing/mmm/plotting/suite.py tests/mmm/plotting/test_suite.py
+conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/plotting/suite.py tests/mmm/plotting/test_suite.py
 ```
 
 - [ ] **Step 6: Commit**
@@ -179,7 +179,7 @@ def test_facade_importable_from_mmm_package():
 - [ ] **Step 2: Run to verify failure**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/plotting/test_suite.py::test_facade_importable_from_plotting_package tests/mmm/plotting/test_suite.py::test_facade_importable_from_mmm_package -v
+conda run -n pymc-dev-2527 pytest tests/mmm/plotting/test_suite.py::test_facade_importable_from_plotting_package tests/mmm/plotting/test_suite.py::test_facade_importable_from_mmm_package -v
 ```
 
 Expected: `ImportError`.
@@ -233,7 +233,7 @@ And add `"MMMPlotSuiteFacade"` to `__all__` (keep list alphabetically sorted, in
 - [ ] **Step 5: Run tests to verify they pass**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/plotting/test_suite.py -v
+conda run -n pymc-dev-2527 pytest tests/mmm/plotting/test_suite.py -v
 ```
 
 Expected: PASS (4 tests).
@@ -241,7 +241,7 @@ Expected: PASS (4 tests).
 - [ ] **Step 6: Run pre-commit**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files pymc_marketing/mmm/plotting/__init__.py pymc_marketing/mmm/__init__.py
+conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/plotting/__init__.py pymc_marketing/mmm/__init__.py
 ```
 
 - [ ] **Step 7: Commit**
@@ -281,7 +281,7 @@ def test_mmm_plot_suite_new_mode(fit_mmm):
 - [ ] **Step 2: Run to see current state**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy -v
 ```
 
 Expected: FAIL with `AttributeError: '_plot_suite' not found` (attribute doesn't exist yet).
@@ -334,7 +334,7 @@ Add after it:
 - [ ] **Step 7: Run tests**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_defaults_to_legacy -v
 ```
 
 Expected: PASS.
@@ -388,7 +388,7 @@ def test_mmm_plot_new_returns_facade(fit_mmm):
 - [ ] **Step 9: Run to verify failure**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py::test_mmm_plot_legacy_returns_legacy_suite -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_legacy_returns_legacy_suite -v
 ```
 
 Expected: FAIL — `_plot_suite_warned` doesn't exist yet on the fitted fixture instance.
@@ -437,7 +437,7 @@ Replace with:
 - [ ] **Step 11: Run tests**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py::test_mmm_plot_legacy_returns_legacy_suite tests/mmm/test_mmm.py::test_mmm_plot_legacy_emits_future_warning tests/mmm/test_mmm.py::test_mmm_plot_legacy_warns_only_once tests/mmm/test_mmm.py::test_mmm_plot_new_returns_facade -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_legacy_returns_legacy_suite tests/mmm/test_mmm.py::test_mmm_plot_legacy_emits_future_warning tests/mmm/test_mmm.py::test_mmm_plot_legacy_warns_only_once tests/mmm/test_mmm.py::test_mmm_plot_new_returns_facade -v
 ```
 
 Expected: PASS.
@@ -463,7 +463,7 @@ def test_mmm_plot_suite_roundtrips_through_save_load(fit_mmm, tmp_path):
 - [ ] **Step 13: Run to verify failure**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_roundtrips_through_save_load -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_roundtrips_through_save_load -v
 ```
 
 Expected: FAIL — `_plot_suite` not in attrs yet, so loaded instance defaults to `"legacy"`.
@@ -491,7 +491,7 @@ Find `attrs_to_init_kwargs` (around line 1068). Add `"plot_suite"` to the return
 - [ ] **Step 16: Run serialization test**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_roundtrips_through_save_load -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py::test_mmm_plot_suite_roundtrips_through_save_load -v
 ```
 
 Expected: PASS.
@@ -499,13 +499,13 @@ Expected: PASS.
 - [ ] **Step 17: Run pre-commit**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files pymc_marketing/mmm/mmm.py
+conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/mmm.py
 ```
 
 - [ ] **Step 18: Run all MMM tests to check for regressions**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py -v --tb=short -x 2>&1 | tail -30
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py -v --tb=short -x 2>&1 | tail -30
 ```
 
 Suppress the new `FutureWarning` in any existing test that calls `.plot` without expecting it:
@@ -570,7 +570,7 @@ def test_budget_optimizer_plot_new_returns_budget_plots(fitted_mmm, dummy_df):
 - [ ] **Step 2: Run to verify failure**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_budget_optimizer_mmm.py::test_budget_optimizer_plot_legacy_returns_mmm_plot_suite -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_budget_optimizer_mmm.py::test_budget_optimizer_plot_legacy_returns_mmm_plot_suite -v
 ```
 
 Expected: FAIL — `BudgetOptimizerWrapper` has no explicit `.plot` property; the `__getattr__` delegation path does not produce the right branch behavior in this test.
@@ -599,7 +599,7 @@ Find `BudgetOptimizerWrapper.__getattr__` (around line 3582). Add the `plot` pro
 - [ ] **Step 5: Run tests**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_budget_optimizer_mmm.py::test_budget_optimizer_plot_legacy_returns_mmm_plot_suite tests/mmm/test_budget_optimizer_mmm.py::test_budget_optimizer_plot_new_returns_budget_plots -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_budget_optimizer_mmm.py::test_budget_optimizer_plot_legacy_returns_mmm_plot_suite tests/mmm/test_budget_optimizer_mmm.py::test_budget_optimizer_plot_new_returns_budget_plots -v
 ```
 
 Expected: PASS.
@@ -607,7 +607,7 @@ Expected: PASS.
 - [ ] **Step 6: Run pre-commit and commit**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files pymc_marketing/mmm/mmm.py tests/mmm/test_budget_optimizer_mmm.py
+conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/mmm.py tests/mmm/test_budget_optimizer_mmm.py
 git add pymc_marketing/mmm/mmm.py tests/mmm/test_budget_optimizer_mmm.py
 git commit -m "feat(mmm): add explicit plot property to BudgetOptimizerWrapper"
 ```
@@ -691,7 +691,7 @@ def test_plot_property_new_mode_returns_mmm_cv_plot_suite():
 - [ ] **Step 2: Run to verify state**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_time_slice_cross_validator.py::test_plot_property_legacy_default_returns_mmm_plot_suite -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_time_slice_cross_validator.py::test_plot_property_legacy_default_returns_mmm_plot_suite -v
 ```
 
 Expected: FAIL — `_plot_suite` attr not present, and `.plot` currently returns `MMMCVPlotSuite` unconditionally.
@@ -766,7 +766,7 @@ Replace with:
 - [ ] **Step 6: Run tests**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_time_slice_cross_validator.py::test_plot_property_legacy_default_returns_mmm_plot_suite tests/mmm/test_time_slice_cross_validator.py::test_plot_property_new_mode_returns_mmm_cv_plot_suite -v
+conda run -n pymc-dev-2527 pytest tests/mmm/test_time_slice_cross_validator.py::test_plot_property_legacy_default_returns_mmm_plot_suite tests/mmm/test_time_slice_cross_validator.py::test_plot_property_new_mode_returns_mmm_cv_plot_suite -v
 ```
 
 Expected: PASS.
@@ -778,7 +778,7 @@ Delete the old test `test_plot_property_returns_mmm_cv_plot_suite` from `test_ti
 - [ ] **Step 8: Run the full CV test suite to check for regressions**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_time_slice_cross_validator.py -v --tb=short 2>&1 | tail -20
+conda run -n pymc-dev-2527 pytest tests/mmm/test_time_slice_cross_validator.py -v --tb=short 2>&1 | tail -20
 ```
 
 Expected: all pass.
@@ -786,7 +786,7 @@ Expected: all pass.
 - [ ] **Step 9: Run pre-commit and commit**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files pymc_marketing/mmm/time_slice_cross_validation.py tests/mmm/test_time_slice_cross_validator.py
+conda run -n pymc-dev-2527 pre-commit run --files pymc_marketing/mmm/time_slice_cross_validation.py tests/mmm/test_time_slice_cross_validator.py
 git add pymc_marketing/mmm/time_slice_cross_validation.py tests/mmm/test_time_slice_cross_validator.py
 git commit -m "feat(mmm): add plot_suite arg to TimeSliceCrossValidator, revert .plot to legacy default"
 ```
@@ -881,7 +881,7 @@ cv = TimeSliceCrossValidator(
 - [ ] **Step 3: Run pre-commit on notebooks**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files docs/source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb docs/source/notebooks/mmm/mmm_roas.ipynb
+conda run -n pymc-dev-2527 pre-commit run --files docs/source/notebooks/mmm/mmm_time_slice_cross_validation.ipynb docs/source/notebooks/mmm/mmm_roas.ipynb
 ```
 
 - [ ] **Step 4: Commit**
@@ -1081,7 +1081,7 @@ Update the notebook tables to match the actual method names.
 - [ ] **Step 3: Run pre-commit on notebook**
 
 ```bash
-conda run -n pymc-marketing-dev pre-commit run --files docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+conda run -n pymc-dev-2527 pre-commit run --files docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
 ```
 
 - [ ] **Step 4: Commit**
@@ -1098,7 +1098,7 @@ git commit -m "docs(mmm): add MMMPlotSuite v2 migration guide notebook"
 - [ ] **Step 1: Run the full MMM and plotting test suite**
 
 ```bash
-conda run -n pymc-marketing-dev pytest tests/mmm/test_mmm.py tests/mmm/test_time_slice_cross_validator.py tests/mmm/test_budget_optimizer_mmm.py tests/mmm/plotting/ -v --tb=short 2>&1 | tail -40
+conda run -n pymc-dev-2527 pytest tests/mmm/test_mmm.py tests/mmm/test_time_slice_cross_validator.py tests/mmm/test_budget_optimizer_mmm.py tests/mmm/plotting/ -v --tb=short 2>&1 | tail -40
 ```
 
 Expected: all pass, no unexpected failures.
