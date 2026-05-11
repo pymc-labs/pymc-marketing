@@ -31,6 +31,7 @@ import xarray as xr
 from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.types import MMMBuilder
 
@@ -173,14 +174,34 @@ class TimeSliceCrossValidator:
         # Optional sampler configuration that will be applied to the MMM prior to fitting
         # Can be provided here at construction or passed to run() to override per-run.
         self.sampler_config = sampler_config
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
 
     @property
-    def plot(self) -> MMMCVPlotSuite:
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
+
+    @property
+    def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
         """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
+        if self.plot_suite == "legacy":
+            if not hasattr(self, "idata") or self.idata is None:
+                raise ValueError(
+                    "idata is not available. Ensure TimeSliceCrossValidator.run() "
+                    "completed successfully."
+                )
+            return MMMPlotSuite(idata=self.idata)
         if not hasattr(self, "cv_idata"):
             raise ValueError(
-                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() completed successfully."
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() "
+                "completed successfully."
             )
         return MMMCVPlotSuite(self.cv_idata)
 
