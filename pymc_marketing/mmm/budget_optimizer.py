@@ -21,7 +21,7 @@ Optimize how to allocate a total budget across channels (and optional extra dims
 maximize an expected response derived from a fitted MMM posterior.
 
 Quickstart (multi‑dimensional MMM)
----------------------------------
+----------------------------------
 
 .. code-block:: python
 
@@ -120,7 +120,7 @@ in monetary units.
     # cost_per_unit internally before feeding into the model.
 
 Use a custom pymc model with any dimensionality
-----------------------------------------------
+-----------------------------------------------
 
 .. code-block:: python
 
@@ -193,6 +193,7 @@ Requirements
 ------------
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
+
   - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
   - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
     model where a variable named `channel_data` exists with dims including `"date"` and all
@@ -332,7 +333,8 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
     """Merge multiple optimizer-compatible models into a single model.
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
-    - Merging their posterior `InferenceData` with per-model prefixes
+
+    - Merging their posterior ``InferenceData`` with per-model prefixes
     - Optionally thinning posterior draws via ``use_every_n_draw``
     - Exposing a persistent merged PyMC ``Model`` for optimization through
       ``_set_predictors_for_optimization`` and a dynamic ``model`` property for
@@ -1144,7 +1146,8 @@ class BudgetOptimizer(BaseModel):
         budget_bounds : DataArray or dict, optional
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
-            - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
+            - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
+              specifying [low, high] per channel cell.
         x0 : np.ndarray, optional
             Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
             None, the total budget is spread uniformly across all drivers to be optimized.
