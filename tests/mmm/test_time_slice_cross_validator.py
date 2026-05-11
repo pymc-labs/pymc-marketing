@@ -1190,9 +1190,11 @@ def test_plot_property_legacy_default_returns_mmm_plot_suite():
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
     cv._cv_results = [r1, r2]
     cv._plot_suite = "legacy"
+    cv._plot_suite_warned = False
     cv._combine_idata([r1, r2], ["fold_0", "fold_1"])  # sets cv.idata from last fold
 
-    result = cv.plot
+    with pytest.warns(FutureWarning):
+        result = cv.plot
     assert isinstance(result, MMMPlotSuite)
 
 
@@ -1246,3 +1248,50 @@ def test_plot_legacy_raises_when_no_idata():
     # Do NOT set cv.idata
     with pytest.raises(ValueError, match="idata is not available"):
         cv.plot
+
+
+def _make_legacy_cv_with_idata():
+    """Return a legacy-mode CV with idata set, ready to call .plot."""
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    dates2 = pd.to_datetime(["2025-01-15", "2025-01-22"])
+    df_train = pd.DataFrame({"date": dates1})
+    df_test = pd.DataFrame({"date": dates2})
+
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([1, 2]),
+        X_test=df_test,
+        y_test=pd.Series([3, 4]),
+        idata=_build_simple_idata(dates1),
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([5, 6]),
+        X_test=df_test,
+        y_test=pd.Series([7, 8]),
+        idata=_build_simple_idata(dates2),
+    )
+    cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv._cv_results = [r1, r2]
+    cv._plot_suite = "legacy"
+    cv._plot_suite_warned = False
+    cv._combine_idata([r1, r2], ["fold_0", "fold_1"])
+    return cv
+
+
+def test_plot_legacy_emits_future_warning():
+    """Accessing .plot in legacy mode emits a FutureWarning pointing to the new API."""
+    cv = _make_legacy_cv_with_idata()
+    with pytest.warns(FutureWarning, match="cv.plot_suite = 'new'"):
+        cv.plot
+
+
+def test_plot_legacy_future_warning_emitted_only_once():
+    """The FutureWarning is suppressed after the first .plot access on the same instance."""
+    cv = _make_legacy_cv_with_idata()
+    with pytest.warns(FutureWarning):
+        cv.plot
+    # Second access must not emit a warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        cv.plot  # would raise if a second warning were emitted

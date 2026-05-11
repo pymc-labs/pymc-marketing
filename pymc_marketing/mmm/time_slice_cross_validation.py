@@ -20,6 +20,7 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
 import copy
+import warnings
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Literal, overload
@@ -175,6 +176,7 @@ class TimeSliceCrossValidator:
         # Can be provided here at construction or passed to run() to override per-run.
         self.sampler_config = sampler_config
         self._plot_suite: Literal["legacy", "new"] = "legacy"
+        self._plot_suite_warned: bool = False
 
     @property
     def plot_suite(self) -> Literal["legacy", "new"]:
@@ -186,6 +188,8 @@ class TimeSliceCrossValidator:
         if value not in ("legacy", "new"):
             raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
         self._plot_suite = value
+        if value == "legacy":
+            self._plot_suite_warned = False
 
     @property
     def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
@@ -197,6 +201,16 @@ class TimeSliceCrossValidator:
                     "idata is not available. Ensure TimeSliceCrossValidator.run() "
                     "completed successfully."
                 )
+            if not self._plot_suite_warned:
+                warnings.warn(
+                    "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
+                    "Set cv.plot_suite = 'new' to opt in to the new namespace-based API. "
+                    "See the migration guide: "
+                    "docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                self._plot_suite_warned = True
             return MMMPlotSuite(idata=self.idata)
         if not hasattr(self, "cv_idata"):
             raise ValueError(
