@@ -357,10 +357,11 @@ class ModelIO:
         **kwargs
             Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
             Common options include:
-            - engine : str, optional (default "netcdf4")
-                Library to use for writing files.
-            - groups : list of str, optional
-                Groups to save to netcdf. If None, all groups are saved.
+
+            - ``engine`` : str, optional (default ``"netcdf4"``)
+              Library to use for writing files.
+            - ``groups`` : list of str, optional
+              Groups to save to netcdf. If None, all groups are saved.
 
         Returns
         -------

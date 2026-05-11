@@ -24,18 +24,25 @@ The autologging can be enabled by calling the `autolog` function. The following 
 are patched:
 
 - `pymc.sample`:
+
     - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
     - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
     - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
+
 - `pymc.find_MAP`:
+
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+
 - `MMM.fit`:
+
     - All parameters, metrics, and artifacts from `pymc.sample`
     - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
+
 - `CLVModel.fit`:
+
     - Information dependent on fit method used (MCMC or MAP)
     - Model type and fit method
 
@@ -612,12 +619,13 @@ def log_mmm_evaluation_metrics(
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. If None, all available metrics will be calculated.
         Options include:
-            * `r_squared`: Bayesian R-squared.
-            * `rmse`: Root Mean Squared Error.
-            * `nrmse`: Normalized Root Mean Squared Error.
-            * `mae`: Mean Absolute Error.
-            * `nmae`: Normalized Mean Absolute Error.
-            * `mape`: Mean Absolute Percentage Error.
+
+        * ``r_squared``: Bayesian R-squared.
+        * ``rmse``: Root Mean Squared Error.
+        * ``nrmse``: Normalized Root Mean Squared Error.
+        * ``mae``: Mean Absolute Error.
+        * ``nmae``: Normalized Mean Absolute Error.
+        * ``mape``: Mean Absolute Percentage Error.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
     prefix : str, optional
