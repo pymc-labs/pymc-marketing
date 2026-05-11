@@ -1144,7 +1144,7 @@ class MMM(RegressionModelBuilder):
                     "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
                     "Set mmm.plot_suite = 'new' to opt in to the new namespace-based API. "
                     "See the migration guide: "
-                    "docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb",
+                    "https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_plot_suite_migration_guide.html",
                     FutureWarning,
                     stacklevel=2,
                 )
