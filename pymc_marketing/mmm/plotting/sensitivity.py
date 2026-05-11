@@ -65,14 +65,13 @@ Examples
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import arviz as az
 import arviz_plots as azp
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
@@ -121,7 +120,7 @@ class SensitivityPlots:
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot sensitivity analysis sweep results (``idata.sensitivity_analysis["x"]``).
 
         Parameters
@@ -158,7 +157,7 @@ class SensitivityPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -207,7 +206,7 @@ class SensitivityPlots:
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot uplift curves (``idata.sensitivity_analysis["uplift_curve"]``).
 
         Parameters
@@ -241,7 +240,7 @@ class SensitivityPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -266,7 +265,7 @@ class SensitivityPlots:
             return_as_pc=return_as_pc,
         )
 
-        pc = self._sensitivity_plot(
+        pc_result = self._sensitivity_plot(
             sa_da=sa_group["uplift_curve"],
             data=data,
             ylabel="Uplift",
@@ -282,7 +281,11 @@ class SensitivityPlots:
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
+        # _sensitivity_plot with return_as_pc=True always returns a PlotCollection
+        pc = cast(PlotCollection, pc_result)
+
         # Add reference lines at appropriate positions
+        ref_x: float | xr.DataArray
         if x_sweep_axis == "relative":
             ref_x = 1.0
         else:
@@ -329,7 +332,7 @@ class SensitivityPlots:
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot marginal effects (``idata.sensitivity_analysis["marginal_effects"]``).
 
         Parameters
@@ -363,7 +366,7 @@ class SensitivityPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -414,7 +417,7 @@ class SensitivityPlots:
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,

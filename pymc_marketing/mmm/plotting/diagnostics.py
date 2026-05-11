@@ -95,7 +95,6 @@ import arviz as az
 import arviz_plots as azp
 import xarray as xr
 from arviz_plots import PlotCollection
-from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
@@ -308,7 +307,7 @@ class DiagnosticsPlots:
         hdi_kwargs: dict[str, Any] | None = None,
         observed_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot time series from the posterior predictive distribution.
 
         Creates one panel per extra-dimension combination (e.g. one per geo
@@ -334,7 +333,7 @@ class DiagnosticsPlots:
         backend : str, optional
             Rendering backend. Non-matplotlib backends require ``return_as_pc=True``.
         return_as_pc : bool, default False
-            If True, return the PlotCollection instead of ``(Figure, NDArray[Axes])``.
+            If True, return the PlotCollection instead of ``(Figure, NDArray[Any])``.
         line_kwargs : dict, optional
             Forwarded to ``azp.visuals.line_xy`` for the predictive mean line.
         hdi_kwargs : dict, optional
@@ -347,7 +346,7 @@ class DiagnosticsPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
 
         Examples
         --------
@@ -408,7 +407,7 @@ class DiagnosticsPlots:
         hdi_kwargs: dict[str, Any] | None = None,
         observed_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot time series from the prior predictive distribution.
 
         Mirrors ``posterior_predictive`` but draws from the prior_predictive
@@ -442,7 +441,7 @@ class DiagnosticsPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
 
         Examples
         --------
@@ -500,7 +499,7 @@ class DiagnosticsPlots:
         hdi_kwargs: dict[str, Any] | None = None,
         line_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot residuals (target − posterior predictions) over time.
 
         Computes residuals using ``y_original_scale`` from posterior_predictive
@@ -528,7 +527,7 @@ class DiagnosticsPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
 
         Examples
         --------
@@ -615,7 +614,7 @@ class DiagnosticsPlots:
         return_as_pc: bool = False,
         dist_kwargs: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot the posterior distribution of residuals using arviz-plots.
 
         Uses ``azp.plot_dist`` (KDE) with quantile reference lines via
@@ -645,7 +644,7 @@ class DiagnosticsPlots:
             Rendering backend (e.g. ``"matplotlib"``). Non-matplotlib backends
             require ``return_as_pc=True``.
         return_as_pc : bool, default False
-            Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+            Return the raw ``PlotCollection`` instead of ``(Figure, NDArray[Any])``.
         dist_kwargs : dict, optional
             Extra kwargs forwarded to ``azp.plot_dist``.
         **pc_kwargs
@@ -653,7 +652,7 @@ class DiagnosticsPlots:
 
         Returns
         -------
-        PlotCollection or tuple[Figure, NDArray[Axes]]
+        PlotCollection or tuple[Figure, NDArray[Any]]
 
         Examples
         --------
@@ -734,7 +733,7 @@ class DiagnosticsPlots:
         aes: dict[str, Any] | None = None,
         aes_by_visuals: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Plot 1-D marginal KDE distributions for one or more posterior variables.
 
         Thin wrapper around ``azp.plot_dist``.
@@ -769,7 +768,7 @@ class DiagnosticsPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
 
         Examples
         --------
@@ -799,10 +798,10 @@ class DiagnosticsPlots:
             var_names=var_names,
             group=group,
             coords=coords,
-            visuals=visuals,
-            aes_by_visuals=aes_by_visuals,
+            visuals=visuals,  # type: ignore[arg-type]
+            aes_by_visuals=aes_by_visuals,  # type: ignore[arg-type]
             backend=backend,
-            **({"aes": aes} if aes is not None else {}),
+            **({"aes": aes} if aes is not None else {}),  # type: ignore[arg-type]
             **pc_kwargs,
         )
         return _extract_matplotlib_result(pc, return_as_pc)
@@ -820,7 +819,7 @@ class DiagnosticsPlots:
         aes: dict[str, Any] | None = None,
         aes_by_visuals: dict[str, Any] | None = None,
         **pc_kwargs,
-    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+    ) -> tuple[Figure, NDArray[Any]] | PlotCollection:
         """Overlay prior and posterior 1-D marginal KDE distributions.
 
         Thin wrapper around ``azp.plot_prior_posterior``, which handles
@@ -854,7 +853,7 @@ class DiagnosticsPlots:
 
         Returns
         -------
-        tuple[Figure, NDArray[Axes]] or PlotCollection
+        tuple[Figure, NDArray[Any]] or PlotCollection
 
         Examples
         --------
@@ -888,10 +887,10 @@ class DiagnosticsPlots:
             kind=kind,
             var_names=var_names,
             coords=coords,
-            visuals=visuals,
-            aes_by_visuals=aes_by_visuals,
+            visuals=visuals,  # type: ignore[arg-type]
+            aes_by_visuals=aes_by_visuals,  # type: ignore[arg-type]
             backend=backend,
-            **({"aes": aes} if aes is not None else {}),
+            **({"aes": aes} if aes is not None else {}),  # type: ignore[arg-type]
             **pc_kwargs,
         )
         return _extract_matplotlib_result(pc, return_as_pc)
