@@ -1,18 +1,35 @@
 #!/usr/bin/env python3
 """
-Sphinx plugin to generate a gallery for notebooks
+Sphinx plugin to generate a gallery for notebooks.
+
+Two responsibilities, run from one CLI:
+
+1. Extract a thumbnail image from each notebook (the legacy behaviour, kept
+   intact). See ``process_notebooks`` and ``NotebookProcessor``.
+
+2. Render ``docs/source/gallery/gallery.md`` from
+   ``docs/source/gallery/gallery.yaml`` so the gallery page stays a single
+   source of truth (#1617). The yaml owns the section / subsection layout
+   and per-card title; the script fills in image paths and notebook links
+   by convention. A coverage check fails when a notebook under
+   ``docs/source/notebooks/`` (excluding ``dev/`` drafts) is not listed in
+   the yaml. Pass ``--check`` to run without writing.
 
 Modified from the pytensor project, which was modified from the pymc project,
 which modified the seaborn project, which modified the mpld3 project.
 """
 
+import argparse
 import base64
 import json
 import logging
 import os
 import shutil
+import sys
 import tempfile
 from pathlib import Path
+
+import yaml
 
 # Configure logging
 logging.basicConfig(
@@ -333,9 +350,176 @@ def process_notebooks(temp_dir: str | Path) -> tuple[int, int]:
     return success_count, total_count
 
 
+GALLERY_YAML = GALLERY_DIR / "gallery.yaml"
+GALLERY_MD = GALLERY_DIR / "gallery.md"
+
+
+def render_gallery_md(yaml_path: Path = GALLERY_YAML) -> str:
+    """Render the gallery markdown from the yaml source.
+
+    The yaml shape is:
+
+        anchor: gallery
+        title: Example Gallery
+        intro: |
+          ...
+        sections:
+          - title: Marketing Mix Models (MMM)
+            subsections:                      # optional
+              - title: Fundamentals
+                cards: [ {title, notebook, thumb?}, ... ]
+          - title: Customer Lifetime Value (CLV) Models
+            cards: [ ... ]                    # flat, no subsections
+
+    Each card has a ``title`` and a ``notebook`` path (relative to
+    ``docs/source/notebooks/``, no extension). The thumbnail defaults to
+    ``../gallery/images/<notebook_stem>.png``; set ``thumb`` to override.
+    """
+    data = yaml.safe_load(yaml_path.read_text())
+
+    out: list[str] = []
+    out.append(f"({data['anchor']})=")
+    out.append(f"# {data['title']}")
+    out.append("")
+    # Hidden toctree picks up every notebook via :glob:; dev/ drafts are
+    # already excluded by exclude_patterns in conf.py (#1198).
+    out.append("```{toctree}")
+    out.append(":hidden:")
+    out.append(":glob:")
+    out.append("")
+    out.append("/notebooks/**")
+    out.append("```")
+    out.append("")
+    out.append("## Introduction")
+    out.append("")
+    out.append(data["intro"].rstrip())
+    out.append("")
+
+    for section in data["sections"]:
+        out.append(f"## {section['title']}")
+        out.append("")
+        if "subsections" in section:
+            for sub in section["subsections"]:
+                out.append(f"### {sub['title']}")
+                out.append("")
+                out.extend(_render_grid(sub["cards"]))
+        else:
+            out.extend(_render_grid(section.get("cards", [])))
+
+    while out and out[-1] == "":
+        out.pop()
+    return "\n".join(out) + "\n"
+
+
+def _render_grid(cards: list[dict]) -> list[str]:
+    """Render a sphinx-design grid block for a list of cards.
+
+    Closes with a blank line so the next heading (subsection or section) has
+    breathing room without the caller having to remember to add it.
+    """
+    block: list[str] = []
+    block.append("::::{grid} 1 2 3 3")
+    block.append(":gutter: 3")
+    block.append("")
+    for i, card in enumerate(cards):
+        notebook = card["notebook"]
+        stem = Path(notebook).name
+        thumb = card.get("thumb", f"{stem}.png")
+        block.append(f":::{{grid-item-card}} {card['title']}")
+        block.append(f":img-top: ../gallery/images/{thumb}")
+        block.append(f":link: ../notebooks/{notebook}.html")
+        block.append(":::")
+        if i < len(cards) - 1:
+            block.append("")
+    block.append("::::")
+    block.append("")
+    return block
+
+
+def check_coverage() -> list[str]:
+    """Return a list of notebook stems present on disk but missing from the yaml.
+
+    Excludes ``dev/`` drafts to match conf.py's ``exclude_patterns``.
+    """
+    data = yaml.safe_load(GALLERY_YAML.read_text())
+    listed: set[str] = set()
+    for section in data["sections"]:
+        for sub in section.get("subsections", [{"cards": section.get("cards", [])}]):
+            for card in sub.get("cards", []):
+                listed.add(card["notebook"])
+
+    missing: list[str] = []
+    for nb in NOTEBOOK_DIR.rglob("*.ipynb"):
+        if "dev" in nb.parts:
+            continue
+        rel = nb.relative_to(NOTEBOOK_DIR).with_suffix("").as_posix()
+        if rel not in listed:
+            missing.append(rel)
+    return sorted(missing)
+
+
+def generate_or_check_gallery_md(check: bool = False) -> int:
+    """Regenerate gallery.md from gallery.yaml; ``check`` mode only verifies.
+
+    Returns 0 on success, non-zero on a coverage or sync failure.
+    """
+    rendered = render_gallery_md()
+    missing = check_coverage()
+
+    status = 0
+    if missing:
+        logger.error("gallery.yaml is missing entries for these notebooks:")
+        for nb in missing:
+            logger.error(f"  - {nb}")
+        status = 1
+
+    on_disk = GALLERY_MD.read_text() if GALLERY_MD.exists() else ""
+    if check:
+        if rendered != on_disk:
+            logger.error(
+                f"{GALLERY_MD.relative_to(PROJECT_ROOT)} is out of sync with "
+                f"{GALLERY_YAML.relative_to(PROJECT_ROOT)}. "
+                "Run `python scripts/generate_gallery.py` to regenerate."
+            )
+            status = 1
+        return status
+
+    if rendered != on_disk:
+        GALLERY_MD.write_text(rendered)
+        logger.info(f"Wrote {GALLERY_MD.relative_to(PROJECT_ROOT)}")
+    else:
+        logger.info(f"{GALLERY_MD.relative_to(PROJECT_ROOT)} already up to date")
+    return status
+
+
 def main() -> None:
-    """Main function to process notebooks and create thumbnails"""
+    """Main function: regenerate gallery.md, then extract thumbnails."""
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Do not write gallery.md or thumbnails; exit non-zero if "
+        "gallery.md is out of sync with gallery.yaml or if any notebook is "
+        "missing from gallery.yaml.",
+    )
+    parser.add_argument(
+        "--no-thumbnails",
+        action="store_true",
+        help="Skip the thumbnail extraction pass (useful when only the yaml "
+        "or the rendered markdown changed).",
+    )
+    args = parser.parse_args()
+
     logger.info("Starting gallery generation...")
+
+    # Gallery markdown comes first because it is fast and is the most common
+    # thing pre-commit and CI need to verify.
+    status = generate_or_check_gallery_md(check=args.check)
+    if status:
+        sys.exit(status)
+
+    if args.check or args.no_thumbnails:
+        return
 
     # Check if default image exists and create if needed
     create_default_image()

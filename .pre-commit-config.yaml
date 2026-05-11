@@ -56,3 +56,9 @@ repos:
         additional_dependencies: [nbformat]
         files: \.ipynb$
         exclude: ^docs/source/notebooks/(mmm/mmm_components|mmm/mmm_dims_migration_guide|mmm/mmm_quickstart)\.ipynb$
+      - id: gallery-in-sync
+        name: gallery.md is in sync with gallery.yaml
+        entry: python3 scripts/generate_gallery.py --check --no-thumbnails
+        language: system
+        pass_filenames: false
+        files: ^(docs/source/gallery/gallery\.(md|yaml)|docs/source/notebooks/.+\.ipynb|scripts/generate_gallery\.py)$
