@@ -1,0 +1,418 @@
+# Migration Guide Rewrite Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Completely rewrite `docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb` to cover arviz-plots integration, the new common argument set, non-matplotlib backend caveats, and per-namespace argument changes.
+
+**Architecture:** Replace all existing cells with a linear structure: intro → opt-in → common args → backends → four namespace sections → budget → CV → removal timeline. All code is reference-only (non-executing).
+
+**Tech Stack:** Jupyter nbformat 4, `Write` tool for full file replacement, pre-commit for nbformat validation.
+
+---
+
+## File Structure
+
+- Modify: `docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb` (complete replacement via `Write`)
+
+---
+
+### Task 1: Write the complete notebook
+
+**Files:**
+- Modify: `docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb`
+
+- [ ] **Step 1: Write the full notebook JSON**
+
+Use the `Write` tool to replace the file at `docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb` with the following content:
+
+```json
+{
+  "nbformat": 4,
+  "nbformat_minor": 5,
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3 (ipykernel)",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.11.0"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "id": "intro",
+      "metadata": {},
+      "source": [
+        "# MMMPlotSuite v2 Migration Guide\n",
+        "\n",
+        "PyMC-Marketing is moving from the monolithic `MMMPlotSuite` to a namespace-based plotting API backed by [arviz-plots](https://arviz-plots.readthedocs.io/). The new API uses `PlotCollection` for subplot layout, dimension-aware faceting, and multi-backend rendering. The legacy suite will be removed in **pymc-marketing 2.0.0**.\n",
+        "\n",
+        "This guide covers how to opt in to the new API and what has changed."
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "opting-in-md",
+      "metadata": {},
+      "source": [
+        "## Opting In\n",
+        "\n",
+        "Set `plot_suite = \"new\"` on an existing instance to switch to the new API. Until set to `\"new\"`, accessing `mmm.plot` emits a `FutureWarning`."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "opting-in-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "from pymc_marketing.mmm import MMM, TimeSliceCrossValidator\n",
+        "\n",
+        "mmm = MMM(...)\n",
+        "mmm.plot_suite = \"new\"\n",
+        "\n",
+        "cv = TimeSliceCrossValidator(\n",
+        "    n_init=100,\n",
+        "    forecast_horizon=12,\n",
+        "    date_column=\"date\",\n",
+        ")\n",
+        "cv.plot_suite = \"new\""
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "common-args-md",
+      "metadata": {},
+      "source": [
+        "## Common Arguments\n",
+        "\n",
+        "All methods share a consistent parameter set. These are explained once here; subsequent sections refer to them by name.\n",
+        "\n",
+        "| Argument | Type | Default | Description |\n",
+        "|---|---|---|---|\n",
+        "| `idata` | `az.InferenceData \\| None` | `None` | Override the model's fitted data for a single call. When `None`, uses the data stored on the model instance. |\n",
+        "| `hdi_prob` | `float` | `0.94` | Credible interval width. Replaces `hdi_probs: list[float]` — only one level per call. |\n",
+        "| `dims` | `dict[str, Any] \\| None` | `None` | Subset coordinates, e.g. `{\"channel\": [\"tv\", \"radio\"]}`. Size-1 dims are preserved as facets rather than squeezed out. |\n",
+        "| `figsize` | `tuple[float, float] \\| None` | `None` | Shorthand for `figure_kwargs={\"figsize\": ...}` passed to `PlotCollection`. |\n",
+        "| `backend` | `str \\| None` | `None` (matplotlib) | Rendering backend: `\"matplotlib\"`, `\"plotly\"`, or `\"bokeh\"`. |\n",
+        "| `return_as_pc` | `bool` | `False` | Return a `PlotCollection` instead of `(Figure, NDArray[Axes])`. Required when `backend` is not `\"matplotlib\"`. |\n",
+        "| `**pc_kwargs` | — | — | Forwarded to `PlotCollection.wrap()`. Controls `col_wrap`, layout, aesthetic mappings. |\n",
+        "| `*_kwargs` | `dict \\| None` | `None` | Per-visual-element kwargs e.g. `line_kwargs`, `hdi_kwargs`, `scatter_kwargs` — forwarded to the underlying arviz-plots visual. |"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "common-args-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "fig, axes = mmm.plot.diagnostics.posterior_predictive(\n",
+        "    hdi_prob=0.89,\n",
+        "    dims={\"channel\": [\"tv\"]},\n",
+        "    figsize=(10, 4),\n",
+        "    line_kwargs={\"color\": \"blue\"},\n",
+        "    hdi_kwargs={\"alpha\": 0.3},\n",
+        ")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "backends-md",
+      "metadata": {},
+      "source": [
+        "## Non-Matplotlib Backends\n",
+        "\n",
+        "Any method that accepts `backend` can render with Plotly or Bokeh instead of Matplotlib. When using a non-matplotlib backend you must pass `return_as_pc=True`, which returns a `PlotCollection` instead of a `(Figure, axes)` tuple.\n",
+        "\n",
+        "> **Note:** Non-matplotlib backend support has not been fully tested and is likely to contain issues. Use at your own risk.\n",
+        "\n",
+        "`waterfall()` in the decomposition namespace does not accept `backend` or `return_as_pc` — it always returns a matplotlib `(Figure, axes)` tuple."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "backends-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "# Plotly backend — requires return_as_pc=True\n",
+        "pc = mmm.plot.diagnostics.posterior_predictive(\n",
+        "    backend=\"plotly\",\n",
+        "    return_as_pc=True,\n",
+        ")\n",
+        "pc.show()"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "diagnostics-md",
+      "metadata": {},
+      "source": [
+        "## `mmm.plot.diagnostics`\n",
+        "\n",
+        "### Method names\n",
+        "\n",
+        "| Legacy | New |\n",
+        "|---|---|\n",
+        "| `mmm.plot.posterior_predictive(...)` | `mmm.plot.diagnostics.posterior_predictive(...)` |\n",
+        "| `mmm.plot.prior_predictive(...)` | `mmm.plot.diagnostics.prior_predictive(...)` |\n",
+        "| `mmm.plot.residuals_over_time(...)` | `mmm.plot.diagnostics.residuals_over_time(...)` |\n",
+        "| `mmm.plot.residuals_posterior_distribution(...)` | `mmm.plot.diagnostics.residuals_distribution(...)` |\n",
+        "| `mmm.plot.posterior_distribution(...)` | `mmm.plot.diagnostics.posterior(...)` |\n",
+        "| `mmm.plot.prior_vs_posterior(...)` | `mmm.plot.diagnostics.prior_vs_posterior(...)` |\n",
+        "\n",
+        "### Argument changes\n",
+        "\n",
+        "| Old | New | Notes |\n",
+        "|---|---|---|\n",
+        "| `hdi_probs: list[float]` | `hdi_prob: float` | Single level per call |\n",
+        "| `var: list[str]` (on `posterior_distribution`) | `var_names: list[str] \\| str \\| None` | Also accepts a single string |\n",
+        "| — | `group: str = \"posterior\"` | New on `posterior()` — pass `\"prior\"` to plot prior instead |\n",
+        "| — | `kind: str = \"kde\"` | New on `posterior()` and `prior_vs_posterior()` — controls plot type |\n",
+        "| — | `aggregation` | New on `residuals_distribution()` — dimension to aggregate over |\n",
+        "| — | `quantiles` | New on `residuals_distribution()` — quantile lines to overlay |"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "diagnostics-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "fig, axes = mmm.plot.diagnostics.posterior_predictive()\n",
+        "fig, axes = mmm.plot.diagnostics.posterior(var_names=[\"alpha\", \"beta\"])\n",
+        "fig, axes = mmm.plot.diagnostics.residuals_distribution(quantiles=[0.025, 0.5, 0.975])"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "decomposition-md",
+      "metadata": {},
+      "source": [
+        "## `mmm.plot.decomposition`\n",
+        "\n",
+        "### Method names\n",
+        "\n",
+        "| Legacy | New |\n",
+        "|---|---|\n",
+        "| `mmm.plot.contributions_over_time(...)` | `mmm.plot.decomposition.contributions_over_time(...)` |\n",
+        "| `mmm.plot.waterfall_components_decomposition(...)` | `mmm.plot.decomposition.waterfall(...)` |\n",
+        "| `mmm.plot.channel_parameter(...)` | `mmm.plot.decomposition.channel_share_hdi(...)` |\n",
+        "\n",
+        "### Argument changes\n",
+        "\n",
+        "| Old | New | Notes |\n",
+        "|---|---|---|\n",
+        "| `hdi_probs: list[float]` | `hdi_prob: float` | Single level per call |\n",
+        "| `original_scale: bool = False` | `original_scale: bool = True` | Default flipped to True |\n",
+        "| — | `include: list[Literal[\"channels\", \"baseline\", \"controls\", \"seasonality\"]] \\| None` | New on `contributions_over_time()` — filter which components appear |\n",
+        "\n",
+        "`waterfall()` does not accept `backend` or `return_as_pc` — it always returns `(Figure, NDArray[Axes])`."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "decomposition-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "fig, axes = mmm.plot.decomposition.contributions_over_time(include=[\"channels\", \"baseline\"])\n",
+        "fig, axes = mmm.plot.decomposition.waterfall()\n",
+        "fig, axes = mmm.plot.decomposition.channel_share_hdi(hdi_prob=0.89)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "sensitivity-md",
+      "metadata": {},
+      "source": [
+        "## `mmm.plot.sensitivity`\n",
+        "\n",
+        "### Method names\n",
+        "\n",
+        "| Legacy | New |\n",
+        "|---|---|\n",
+        "| `mmm.plot.sensitivity_analysis(...)` | `mmm.plot.sensitivity.analysis(...)` |\n",
+        "| `mmm.plot.uplift_curve(...)` | `mmm.plot.sensitivity.uplift(...)` |\n",
+        "| `mmm.plot.marginal_curve(...)` | `mmm.plot.sensitivity.marginal(...)` |\n",
+        "\n",
+        "### Argument changes\n",
+        "\n",
+        "| Old | New | Notes |\n",
+        "|---|---|---|\n",
+        "| `hdi_probs: list[float]` | `hdi_prob: float` | Single level per call |\n",
+        "| — | `x_sweep_axis: Literal[\"relative\", \"absolute\"] = \"relative\"` | New — controls x-axis scale |\n",
+        "| — | `apply_cost_per_unit: bool = True` | New — scale spend axis by cost-per-unit |\n",
+        "| — | `aggregation: dict[str, str \\| list[str]] \\| None` | New — aggregate over dimensions before plotting |"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "sensitivity-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "fig, axes = mmm.plot.sensitivity.analysis()\n",
+        "fig, axes = mmm.plot.sensitivity.analysis(x_sweep_axis=\"absolute\", hdi_prob=0.89)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "transformation-md",
+      "metadata": {},
+      "source": [
+        "## `mmm.plot.transformation`\n",
+        "\n",
+        "### Method names\n",
+        "\n",
+        "| Legacy | New |\n",
+        "|---|---|\n",
+        "| `mmm.plot.saturation_scatterplot(...)` | `mmm.plot.transformation.saturation_scatterplot(...)` |\n",
+        "| `mmm.plot.saturation_curves(...)` | `mmm.plot.transformation.saturation_curves(...)` |\n",
+        "\n",
+        "### Argument changes\n",
+        "\n",
+        "| Old | New | Notes |\n",
+        "|---|---|---|\n",
+        "| `original_scale: bool = False` | `original_scale: bool = True` | Default flipped to True |\n",
+        "| `hdi_probs: list[float]` | `hdi_prob: float \\| None = 0.94` | Single level; pass `None` to suppress HDI band |\n",
+        "| — | `apply_cost_per_unit: bool = True` | New on both methods |\n",
+        "| — | `n_samples: int = 10` | New on `saturation_curves()` — number of posterior draws to overlay |\n",
+        "| — | `random_seed` | New on `saturation_curves()` — for reproducible sample selection |\n",
+        "| — | `mean_curve_kwargs` | New on `saturation_curves()` — style the mean curve separately |\n",
+        "| — | `sample_curves_kwargs` | New on `saturation_curves()` — style individual sample curves |\n",
+        "| — | `curves: xr.DataArray` | Now required positional arg on `saturation_curves()` |"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "transformation-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "fig, axes = mmm.plot.transformation.saturation_scatterplot()\n",
+        "fig, axes = mmm.plot.transformation.saturation_curves(curves=saturation_curve_data, n_samples=20)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "budget-md",
+      "metadata": {},
+      "source": [
+        "## Budget Plots\n",
+        "\n",
+        "Budget plots have moved from `mmm.plot` to `optimizer.plot`. `BudgetPlots` is stateless — all data is passed per-call via `samples`.\n",
+        "\n",
+        "### Argument changes\n",
+        "\n",
+        "| Old | New | Notes |\n",
+        "|---|---|---|\n",
+        "| `hdi_probs: list[float]` | `hdi_prob: float` | Single level per call |\n",
+        "| — | `samples: xr.Dataset` | Required arg — output of `allocate_budget()` |"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "budget-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "from pymc_marketing.mmm import BudgetOptimizerWrapper, MMM\n",
+        "\n",
+        "mmm = MMM(...)\n",
+        "mmm.plot_suite = \"new\"\n",
+        "optimizer = BudgetOptimizerWrapper(model=mmm, start_date=\"2024-01-01\", end_date=\"2024-12-31\")\n",
+        "samples = optimizer.allocate_budget(...)\n",
+        "\n",
+        "fig, axes = optimizer.plot.allocation_roas(samples=samples)\n",
+        "fig, axes = optimizer.plot.contribution_over_time(samples=samples)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "cv-md",
+      "metadata": {},
+      "source": [
+        "## Cross-Validation Plots\n",
+        "\n",
+        "CV plots use `MMMCVPlotSuite` when `cv.plot_suite = \"new\"`.\n",
+        "\n",
+        "### Argument changes\n",
+        "\n",
+        "| Old | New | Notes |\n",
+        "|---|---|---|\n",
+        "| `hdi_probs: list[float]` | `hdi_prob: float` | Single level per call |\n",
+        "| — | `var_names: list[str] \\| None` | New on `param_stability()` — filter which parameters appear |"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "id": "cv-code",
+      "metadata": {},
+      "outputs": [],
+      "source": [
+        "cv = TimeSliceCrossValidator(n_init=100, forecast_horizon=12, date_column=\"date\")\n",
+        "cv.plot_suite = \"new\"\n",
+        "cv_idata = cv.run(X, y, mmm=mmm)\n",
+        "\n",
+        "fig, axes = cv.plot.predictions(cv_idata)\n",
+        "fig, axes = cv.plot.param_stability(cv_idata, var_names=[\"alpha\"])\n",
+        "fig, axes = cv.plot.crps(cv_idata)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "id": "removal-timeline",
+      "metadata": {},
+      "source": [
+        "## Removal Timeline\n",
+        "\n",
+        "The legacy `MMMPlotSuite` (the default when `mmm.plot_suite` is not set) will be **removed in pymc-marketing 2.0.0**. Until then, accessing `mmm.plot` without opting in emits a `FutureWarning`.\n",
+        "\n",
+        "To suppress it: set `mmm.plot_suite = \"new\"`."
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### Task 2: Validate and commit
+
+**Files:**
+- Modify: `docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb`
+
+- [ ] **Step 1: Run pre-commit on the notebook**
+
+```bash
+conda run -n pymc-marketing-dev pre-commit run --files docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+```
+
+Expected: all hooks pass. If `Validate Jupyter notebooks (nbformat)` fails, the JSON is malformed — check for mismatched braces or missing commas.
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb
+git commit -m "rewrite migration guide: add arviz-plots, common args, per-namespace arg changes"
+```
