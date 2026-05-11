@@ -3205,6 +3205,18 @@ def test_cv_predictions_unsupported_dims_raises_value_error():
         suite.cv_predictions(results, dims={"region": "X"})
 
 
+def test_cv_predictions_does_not_call_plt_show(monkeypatch):
+    """Library methods must not call plt.show; the caller controls rendering."""
+    calls: list[None] = []
+    monkeypatch.setattr(plt, "show", lambda *a, **k: calls.append(None))
+
+    suite = MMMPlotSuite(idata=None)
+    results = _build_cv_results_for_cv_predictions()
+    suite.cv_predictions(results, dims=None)
+
+    assert calls == []
+
+
 def test_cv_predictions_with_dims_string_creates_panel_title():
     """When user supplies dims with a single value (not list), ensure panel title includes the dim."""
     suite = MMMPlotSuite(idata=None)
