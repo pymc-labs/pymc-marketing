@@ -1689,7 +1689,6 @@ def test_optimize_budget_asymmetric_dims_with_mask(fitted_mmm_asymmetric):
 def test_budget_optimizer_plot_legacy_returns_mmm_plot_suite(fitted_mmm, dummy_df):
     """In legacy mode, BudgetOptimizerWrapper.plot returns the legacy MMMPlotSuite."""
     from pymc_marketing.mmm.plot import MMMPlotSuite
-    from pymc_marketing.mmm.plotting.budget import BudgetPlots  # noqa: F401
 
     _df_kwargs, X_dummy, _y_dummy = dummy_df
     optimizable_model = BudgetOptimizerWrapper(
