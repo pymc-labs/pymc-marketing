@@ -3,6 +3,9 @@
 
 ```{toctree}
 :hidden:
+:glob:
+
+/notebooks/**
 ```
 
 ## Introduction

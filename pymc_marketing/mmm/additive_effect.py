@@ -14,7 +14,7 @@
 """Additive effects for the multidimensional Marketing Mix Model.
 
 Example of a custom additive effect
---------
+-----------------------------------
 
 1. Custom negative-effect component (added as a MuEffect)
 
@@ -86,9 +86,9 @@ How it works
 ------------
 - Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
   and ``set_data(mmm, model, X)``.
-- During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
+- During ``MMM.build_model(...)``, each effect's ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
-  dims ("date", *mmm.dims) that is added additively to the model mean.
+  dims ``("date", *mmm.dims)`` that is added additively to the model mean.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
@@ -97,12 +97,13 @@ Tips for custom components
 - Use unique variable prefixes to avoid name clashes with built-in pieces like
   controls. Do not call your component "control"; choose a distinct name/prefix.
 - Follow the patterns used by the provided effects in this module (e.g.,
-  `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
-  - In `create_data`, derive and register any required inputs into the model.
-  - In `create_effect`, construct PyTensor expressions and return a contribution
-    with dims ("date", *mmm.dims). If you need broadcasting, use
-    `pymc_extras.prior.create_dim_handler` as shown above.
-  - In `set_data`, update the data variables when dates/dims change.
+  ``FourierEffect``, ``LinearTrendEffect``, ``EventAdditiveEffect``):
+
+  - In ``create_data``, derive and register any required inputs into the model.
+  - In ``create_effect``, construct PyTensor expressions and return a contribution
+    with dims ``("date", *mmm.dims)``. If you need broadcasting, use
+    ``pymc_extras.prior.create_dim_handler`` as shown above.
+  - In ``set_data``, update the data variables when dates/dims change.
 """
 
 from abc import ABC, abstractmethod
@@ -385,6 +386,7 @@ class LinearTrendEffect(MuEffect):
         import matplotlib.pyplot as plt
 
         import pymc as pm
+        import pymc.dims as pmd
 
         from pymc_marketing.mmm.linear_trend import LinearTrend
         from pymc_marketing.mmm.additive_effect import LinearTrendEffect

@@ -29,6 +29,9 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
     Prior,

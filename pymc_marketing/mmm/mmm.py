@@ -171,7 +171,9 @@ Save, load, and plot:
 Notes
 -----
 - X must include `date`, the `channel_columns`, and any extra `dims` columns.
-- y is a Series with name equal to `target_column`.
+- ``y`` may be a :class:`pandas.Series` aligned with ``X``. An unnamed series is
+  accepted and treated as ``target_column``; if ``y.name`` is set, it must match
+  ``target_column``.
 - Call `add_events` before fitting/building.
 """
 
@@ -1714,7 +1716,7 @@ class MMM(RegressionModelBuilder):
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame,  # type: ignore
-        y: pd.Series,  # type: ignore
+        y: pd.Series | np.ndarray,  # type: ignore
     ):
         # Convert ndarray-like ``y`` into a pandas Series so the downstream
         # ``pd.concat`` call below produces an actionable error rather than a
@@ -1726,6 +1728,15 @@ class MMM(RegressionModelBuilder):
                     f" (got len(y)={len(y)} and len(X)={len(X)})"
                 )
             y = pd.Series(y, index=X.index, name=self.target_column)
+        elif isinstance(y, pd.Series):
+            if y.name is None:
+                y = y.rename(self.target_column)
+            elif y.name != self.target_column:
+                raise ValueError(
+                    f"y has name '{y.name}' but the model's target_column is "
+                    f"'{self.target_column}'. Pass an unnamed Series or rename "
+                    f"it to '{self.target_column}'."
+                )
 
         self.X = X  # type: ignore
         self.y = y  # type: ignore
@@ -2104,10 +2115,12 @@ class MMM(RegressionModelBuilder):
         **kwargs : dict
             Additional keyword arguments that might be required by underlying methods or utilities.
 
-        Attributes Set
-        ---------------
-        model : pm.Model
-            The PyMC model object containing all the defined stochastic and deterministic variables.
+        Notes
+        -----
+        Sets the following attributes on the instance:
+
+        - ``model``: a :class:`pymc.Model` containing all defined stochastic
+          and deterministic variables.
 
         Examples
         --------
@@ -2657,8 +2670,9 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled saturation curves with dimensions:
-            - Simple model: (chain, draw, x, channel)
-            - Panel model: (chain, draw, x, *custom_dims, channel)
+
+            - Simple model: ``(chain, draw, x, channel)``
+            - Panel model: ``(chain, draw, x, *custom_dims, channel)``
 
             When subsampling (``num_samples`` < total posterior draws), the
             ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
@@ -2800,8 +2814,9 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled adstock curves with dimensions:
-            - Simple model: (chain, draw, time since exposure, channel)
-            - Panel model: (chain, draw, time since exposure, *custom_dims, channel)
+
+            - Simple model: ``(chain, draw, time since exposure, channel)``
+            - Panel model: ``(chain, draw, time since exposure, *custom_dims, channel)``
 
             When subsampling (``num_samples`` < total posterior draws), the
             ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
@@ -3195,9 +3210,11 @@ class MMM(RegressionModelBuilder):
             same ``date`` and any model ``dims`` columns.
         calibration_data : pd.DataFrame
             DataFrame with rows specifying calibration targets. Must include:
-              - ``channel``: channel name in ``self.channel_columns``
-              - ``cost_per_target``: desired CPT value
-              - ``sigma``: accepted deviation; larger => weaker penalty
+
+            - ``channel``: channel name in ``self.channel_columns``
+            - ``cost_per_target``: desired CPT value
+            - ``sigma``: accepted deviation; larger => weaker penalty
+
             and one column per dimension in ``self.dims``.
         cpt_variable_name : str
             Name for the cost-per-target Deterministic in the model.

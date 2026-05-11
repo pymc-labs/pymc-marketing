@@ -140,9 +140,9 @@ def approx_hsgp_hyperparams(
 
     Returns
     -------
-    - `m` : int
+    m : int
         Number of basis vectors. Increasing it helps approximate smaller lengthscales, but increases computational cost.
-    - `c` : float
+    c : float
         Scaling factor such that L = c * S, where L is the boundary of the approximation.
         Increasing it helps approximate larger lengthscales, but may require increasing m.
 
@@ -154,7 +154,7 @@ def approx_hsgp_hyperparams(
     References
     ----------
     .. [1] Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022).
-    Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming
+       Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming.
     """
     lengthscale_min, lengthscale_max = lengthscale_range
     if lengthscale_min >= lengthscale_max:
@@ -654,7 +654,7 @@ class HSGP(HSGPBase):
         coords = {"time": dates, "channel": ["A", "B"]}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f", xdist=True)
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior
@@ -1414,7 +1414,7 @@ class SoftPlusHSGP(HSGP):
         coords = {"time": dates, "channel": channels}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f", xdist=True)
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior

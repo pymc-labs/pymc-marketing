@@ -379,6 +379,36 @@ class TestMultidimMMMEdgeCases:
         with pytest.raises(ValueError, match=r"y length must match X"):
             mmm.build_model(X, y)
 
+    def test_unnamed_y_series_builds_model(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename(None)
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert "_target" in mmm.xarray_dataset
+        assert int(mmm.xarray_dataset.sizes["date"]) == X["date"].nunique()
+
+    def test_y_series_with_target_column_name_builds_model(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename("target")
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert "_target" in mmm.xarray_dataset
+        assert int(mmm.xarray_dataset.sizes["date"]) == X["date"].nunique()
+
+    def test_y_series_with_mismatched_name_raises_clear_error(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename("not_target")
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(
+            ValueError, match=r"y has name 'not_target'.*target_column is 'target'"
+        ):
+            mmm.build_model(X, y)
+
 
 def test_save_load(fit_mmm: MMM):
     file = "test.nc"
@@ -388,6 +418,39 @@ def test_save_load(fit_mmm: MMM):
     assert isinstance(loaded, MMM)
 
     os.remove(file)
+
+
+def test_save_load_roundtrip_with_unnamed_y_series(
+    simple_mmm_data, mock_pymc_sample, tmp_path
+):
+    """Unnamed ``y`` at fit time is normalized; save/load still round-trips fit_data.
+
+    :meth:`MMM.create_fit_data` names the target by ``target_column`` in
+    ``idata.fit_data``; :meth:`MMM.load` rebuilds from that group, so the
+    original call-time series name does not need to match.
+    """
+    X = simple_mmm_data["X"].copy()
+    y = simple_mmm_data["y"].copy().rename(None)
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+    file = str(tmp_path / "unnamed_y_roundtrip.nc")
+    mmm.save(file)
+    loaded = MMM.load(file)
+
+    assert loaded.target_column == "target"
+    assert "target" in loaded.idata.fit_data.data_vars
+    assert loaded.model is not None
+    assert int(loaded.idata.fit_data.sizes["date"]) == int(
+        mmm.idata.fit_data.sizes["date"]
+    )
 
 
 @pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])

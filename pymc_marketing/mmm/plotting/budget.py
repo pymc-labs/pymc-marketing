@@ -137,7 +137,7 @@ class BudgetPlots:
         self,
         samples: xr.Dataset,
         dims: dict[str, Any] | None = None,
-        hdi_prob: float = 0.85,
+        hdi_prob: float = 0.94,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
         return_as_pc: bool = False,
@@ -186,7 +186,7 @@ class BudgetPlots:
                 )
         if "channel_contribution_original_scale" not in samples.data_vars:
             raise ValueError(
-                "Expected a variable containing 'channel_contribution' in samples, "
+                "Expected 'channel_contribution_original_scale' variable in samples, "
                 "but none found."
             )
 
@@ -197,10 +197,7 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        contrib_var = next(
-            v for v in samples.data_vars if "channel_contribution_original_scale" in v
-        )
-        da = _select_dims(samples[contrib_var], dims)
+        da = _select_dims(samples["channel_contribution_original_scale"], dims)
 
         extra_dims = [
             d

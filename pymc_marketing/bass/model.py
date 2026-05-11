@@ -21,7 +21,7 @@ marketing, forecasting, and innovation studies to predict the adoption rates of 
 and technologies.
 
 Mathematical Formulation
------------------------
+------------------------
 The model is based on a differential equation that describes the rate of adoption:
 
 .. math::
@@ -48,7 +48,7 @@ The adoption rate at time t is given by:
     f(t) = (p + q F(t))(1 - F(t))
 
 Key Parameters
--------------
+--------------
 The model has three main parameters:
 
 - :math:`m`: Market potential (total number of eventual adopters)
@@ -56,14 +56,14 @@ The model has three main parameters:
 - :math:`q`: Coefficient of imitation (internal influence) - typically 0.3-0.5
 
 Parameter Interpretation
------------------------
+------------------------
 - A higher :math:`p` value indicates stronger external influence (advertising, marketing)
 - A higher :math:`q` value indicates stronger internal influence (word-of-mouth, social interactions)
 - The ratio :math:`q/p` indicates the relative strength of internal vs. external influences
 - The peak of adoption occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
 
 Applications
------------
+------------
 The Bass model has been applied to forecast the adoption of various products and technologies:
 
 - Consumer durables (TVs, refrigerators)
@@ -129,6 +129,9 @@ from typing import Any, TypedDict
 
 import pymc as pm
 import pytensor.tensor as pt
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc.model import Model
 from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 

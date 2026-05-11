@@ -9,13 +9,14 @@ There are 4 main ways of contributing to the PyMC-Marketing project (in ascendin
 3. Fixing outstanding issues (bugs) with the existing codebase. They range from low-level software bugs to higher-level design problems.
 4. Adding new or improved functionality to the existing codebase.
 
-Items 2-4 require setting up a local development environment, see [Local development steps](#Contributing-code-via-pull-requests) for more information.
+Items 2-4 require setting up a local development environment, see [Local development steps](contributing-code-via-pull-requests) for more information.
 
 ## Opening issues
 We appreciate being notified of problems with the existing PyMC-Marketing code. We prefer that issues be filed the on [Github Issue Tracker](https://github.com/pymc-labs/pymc-marketing/issues), rather than on social media or by direct email to the developers.
 
 Please verify that your issue is not being currently addressed by other issues or pull requests by using the GitHub search tool to look for key words in the project issue tracker.
 
+(contributing-code-via-pull-requests)=
 ## Contributing code via pull requests
 
 While issue reporting is valuable, we strongly encourage users who are inclined to do so to submit patches for new or existing issues via pull requests. This is particularly the case for simple fixes, such as typos or tweaks to documentation, which do not require a heavy investment of time and attention.
@@ -24,7 +25,7 @@ Contributors are also encouraged to contribute new code to enhance PyMC-Marketin
 
 The preferred workflow for contributing to PyMC-Marketing is to fork the GitHub repository, clone it to your local machine, and develop on a feature branch.
 
-For more instructions see the [Pull request checklist](#pull-request-checklist)
+For more instructions see the [Pull request checklist](pull-request-checklist)
 
 ## Local development steps
 
@@ -106,10 +107,11 @@ For more instructions see the [Pull request checklist](#pull-request-checklist)
 
     To delete all intermediate files and cached content and build the docs from scratch, run `make cleandocs` before `make html`
 
-1. Before you submit a Pull request, follow the [Pull request checklist](#pull-request-checklist).
+1. Before you submit a Pull request, follow the [Pull request checklist](pull-request-checklist).
 
 1. Finally, to submit a pull request, go to the GitHub web page of your fork of the PyMC-Marketing repo. Click the 'Pull request' button to send your changes to the project's maintainers for review. This will send an email to the committers.
 
+(pull-request-checklist)=
 ## Pull request checklist
 
 We recommend that your contribution complies with the following guidelines before you submit a pull request:
