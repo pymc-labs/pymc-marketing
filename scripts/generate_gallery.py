@@ -1,19 +1,14 @@
 #!/usr/bin/env python3
 """
-Sphinx plugin to generate a gallery for notebooks.
+Generate the example gallery for the docs.
 
-Two responsibilities, run from one CLI:
+1. Render ``docs/source/gallery/gallery.md`` from
+   ``docs/source/gallery/gallery.yaml`` (#1617). Schema and contributor
+   workflow: ``docs/source/gallery/README.md``.
+2. Extract a thumbnail image from each notebook into ``gallery/images/``.
 
-1. Extract a thumbnail image from each notebook (the legacy behaviour, kept
-   intact). See ``process_notebooks`` and ``NotebookProcessor``.
-
-2. Render ``docs/source/gallery/gallery.md`` from
-   ``docs/source/gallery/gallery.yaml`` so the gallery page stays a single
-   source of truth (#1617). The yaml owns the section / subsection layout
-   and per-card title; the script fills in image paths and notebook links
-   by convention. A coverage check fails when a notebook under
-   ``docs/source/notebooks/`` (excluding ``dev/`` drafts) is not listed in
-   the yaml. Pass ``--check`` to run without writing.
+Pass ``--check`` to verify sync without writing, ``--no-thumbnails`` to
+skip the image extraction pass.
 
 Modified from the pytensor project, which was modified from the pymc project,
 which modified the seaborn project, which modified the mpld3 project.
@@ -357,23 +352,7 @@ GALLERY_MD = GALLERY_DIR / "gallery.md"
 def render_gallery_md(yaml_path: Path = GALLERY_YAML) -> str:
     """Render the gallery markdown from the yaml source.
 
-    The yaml shape is:
-
-        anchor: gallery
-        title: Example Gallery
-        intro: |
-          ...
-        sections:
-          - title: Marketing Mix Models (MMM)
-            subsections:                      # optional
-              - title: Fundamentals
-                cards: [ {title, notebook, thumb?}, ... ]
-          - title: Customer Lifetime Value (CLV) Models
-            cards: [ ... ]                    # flat, no subsections
-
-    Each card has a ``title`` and a ``notebook`` path (relative to
-    ``docs/source/notebooks/``, no extension). The thumbnail defaults to
-    ``../gallery/images/<notebook_stem>.png``; set ``thumb`` to override.
+    Schema and workflow live in ``docs/source/gallery/README.md``.
     """
     data = yaml.safe_load(yaml_path.read_text())
 

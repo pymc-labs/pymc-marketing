@@ -1,10 +1,5 @@
-# Source of truth for the example gallery layout (#1617).
-# Rendered to gallery.md by scripts/generate_gallery.py; the
-# gallery-in-sync pre-commit hook blocks drift.
-#
-# Card schema: {title, notebook, thumb?}. ``notebook`` is the path
-# relative to docs/source/notebooks/, no extension. The thumbnail
-# defaults to images/<notebook stem>.png; set ``thumb`` to override.
+# Source of truth for the example gallery (#1617). Schema and workflow:
+# docs/source/gallery/README.md.
 
 anchor: gallery
 title: Example Gallery
