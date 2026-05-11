@@ -36,3 +36,15 @@ def test_facade_passes_data_to_each_namespace():
     assert facade.diagnostics.data is data
     assert facade.sensitivity.data is data
     assert facade.transformation.data is data
+
+
+def test_facade_importable_from_plotting_package():
+    from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade as F
+
+    assert F is MMMPlotSuiteFacade
+
+
+def test_facade_importable_from_mmm_package():
+    from pymc_marketing.mmm import MMMPlotSuiteFacade as F
+
+    assert F is MMMPlotSuiteFacade
