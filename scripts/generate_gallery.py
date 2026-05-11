@@ -436,10 +436,18 @@ def _render_grid(cards: list[dict]) -> list[str]:
     return block
 
 
-def check_coverage() -> list[str]:
-    """Return a list of notebook stems present on disk but missing from the yaml.
+def check_coverage() -> tuple[list[str], list[str]]:
+    """Compare gallery.yaml against notebooks on disk.
 
-    Excludes ``dev/`` drafts to match conf.py's ``exclude_patterns``.
+    Returns a ``(missing, orphan)`` pair:
+
+    - ``missing``: notebook paths present on disk but not listed in the
+      yaml. Adding a notebook without a yaml entry should fail loud.
+    - ``orphan``: notebook paths listed in the yaml but no longer on
+      disk. Removing a notebook without cleaning the yaml should fail
+      loud too.
+
+    Excludes ``dev/`` drafts to match ``exclude_patterns`` in ``conf.py``.
     """
     data = yaml.safe_load(GALLERY_YAML.read_text())
     listed: set[str] = set()
@@ -448,14 +456,15 @@ def check_coverage() -> list[str]:
             for card in sub.get("cards", []):
                 listed.add(card["notebook"])
 
-    missing: list[str] = []
+    on_disk: set[str] = set()
     for nb in NOTEBOOK_DIR.rglob("*.ipynb"):
         if "dev" in nb.parts:
             continue
-        rel = nb.relative_to(NOTEBOOK_DIR).with_suffix("").as_posix()
-        if rel not in listed:
-            missing.append(rel)
-    return sorted(missing)
+        on_disk.add(nb.relative_to(NOTEBOOK_DIR).with_suffix("").as_posix())
+
+    missing = sorted(on_disk - listed)
+    orphan = sorted(listed - on_disk)
+    return missing, orphan
 
 
 def generate_or_check_gallery_md(check: bool = False) -> int:
@@ -464,12 +473,17 @@ def generate_or_check_gallery_md(check: bool = False) -> int:
     Returns 0 on success, non-zero on a coverage or sync failure.
     """
     rendered = render_gallery_md()
-    missing = check_coverage()
+    missing, orphan = check_coverage()
 
     status = 0
     if missing:
         logger.error("gallery.yaml is missing entries for these notebooks:")
         for nb in missing:
+            logger.error(f"  - {nb}")
+        status = 1
+    if orphan:
+        logger.error("gallery.yaml lists notebooks that are not on disk:")
+        for nb in orphan:
             logger.error(f"  - {nb}")
         status = 1
 
