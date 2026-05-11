@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import copy
 import os
 import warnings
 from collections.abc import Callable
@@ -6043,8 +6044,6 @@ def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
 
 def test_mmm_plot_suite_setter(fit_mmm):
     """MMM.plot_suite setter stores the value."""
-    import copy
-
     mmm = copy.copy(fit_mmm)
     mmm.plot_suite = "new"
     assert mmm.plot_suite == "new"
@@ -6052,8 +6051,6 @@ def test_mmm_plot_suite_setter(fit_mmm):
 
 def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
     """MMM.plot_suite setter raises ValueError for unknown values."""
-    import copy
-
     mmm = copy.copy(fit_mmm)
     with pytest.raises(ValueError, match="plot_suite must be"):
         mmm.plot_suite = "invalid"
@@ -6086,9 +6083,11 @@ def test_mmm_plot_legacy_warns_only_once(fit_mmm):
 
 
 def test_mmm_plot_new_returns_facade(fit_mmm):
-    import copy
-
     mmm = copy.copy(fit_mmm)
     mmm.plot_suite = "new"
-    result = mmm.plot
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = mmm.plot
     assert isinstance(result, MMMPlotSuiteFacade)
+    future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+    assert len(future_warnings) == 0

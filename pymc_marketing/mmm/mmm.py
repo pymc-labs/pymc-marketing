@@ -575,7 +575,7 @@ class MMM(RegressionModelBuilder):
 
         self._cost_per_unit_input = cost_per_unit
         self._plot_suite: Literal["legacy", "new"] = "legacy"
-        self._plot_suite_warned = False
+        self._plot_suite_warned: bool = False
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -899,6 +899,8 @@ class MMM(RegressionModelBuilder):
         if value not in ("legacy", "new"):
             raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
         self._plot_suite = value
+        if value == "legacy":
+            self._plot_suite_warned = False
 
     @property
     def default_sampler_config(self) -> dict:
@@ -1134,7 +1136,7 @@ class MMM(RegressionModelBuilder):
         self._validate_model_was_built()
         self._validate_idata_exists()
         if self.plot_suite == "legacy":
-            if not getattr(self, "_plot_suite_warned", False):
+            if not self._plot_suite_warned:
                 warnings.warn(
                     "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
                     "Set mmm.plot_suite = 'new' to opt in to the new namespace-based API. "
