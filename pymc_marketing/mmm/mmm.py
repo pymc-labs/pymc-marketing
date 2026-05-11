@@ -182,7 +182,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Self, cast
+from typing import Annotated, Any, Literal, Self, cast
 
 import arviz as az
 import numpy as np
@@ -222,6 +222,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -573,6 +574,8 @@ class MMM(RegressionModelBuilder):
                     self.yearly_seasonality = None
 
         self._cost_per_unit_input = cost_per_unit
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
+        self._plot_suite_warned = False
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -887,6 +890,17 @@ class MMM(RegressionModelBuilder):
         )
 
     @property
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
+
+    @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
         return {}
@@ -1115,14 +1129,25 @@ class MMM(RegressionModelBuilder):
         }
 
     @property
-    def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+    def plot(self) -> MMMPlotSuite | MMMPlotSuiteFacade:
+        """Access the plot suite for visualizing MMM results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        data = self.data
-        # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
-        # However the schema is not very flexiable and the plot suite is (too) flexiable.
-        return MMMPlotSuite(data=data)
+        if self.plot_suite == "legacy":
+            if not getattr(self, "_plot_suite_warned", False):
+                warnings.warn(
+                    "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
+                    "Set mmm.plot_suite = 'new' to opt in to the new namespace-based API. "
+                    "See the migration guide: "
+                    "docs/source/notebooks/mmm/mmm_plot_suite_migration_guide.ipynb",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                self._plot_suite_warned = True
+            # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
+            # However the schema is not very flexible and the plot suite is (too) flexible.
+            return MMMPlotSuite(data=self.data)
+        return MMMPlotSuiteFacade(data=self.data)
 
     @property
     def plot_interactive(self):  # type: ignore[no-any-return]
