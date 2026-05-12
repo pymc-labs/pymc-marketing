@@ -65,7 +65,7 @@ jobs:
       - name: Extract labels
         id: extract_labels
         run: |
-          LABELS="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | sed 's/^TRIAGE: Added labels: //' || true)"
+          LABELS="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | sed 's/^TRIAGE: Added labels: *//' | sed 's/^ *//;s/ *$//' || true)"
           echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
 
       - name: Apply labels
