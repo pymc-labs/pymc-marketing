@@ -79,7 +79,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_dims_migration_guide.html
 :::
 
-:::{grid-item-card} MMMPlotSuite v2 Migration Guide
+:::{grid-item-card} MMM Plot Suite Migration Guide
 :img-top: ../gallery/images/mmm_plot_suite_migration_guide.png
 :link: ../notebooks/mmm/mmm_plot_suite_migration_guide.html
 :::
