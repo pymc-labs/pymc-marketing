@@ -467,7 +467,9 @@ class FourierBase(BaseModel):
 
             coords = {"date": dates}
             with pm.Model(coords=coords) as model:
-                dayofyear = dates.dayofyear.to_numpy()
+                dayofyear = pmd.Data(
+                    "dayofyear", dates.dayofyear.to_numpy(), dims=("date",)
+                )
                 components = fourier.apply(dayofyear, sum=False)
                 pmd.Deterministic(
                     "fourier_trend", components, dims=("date", fourier.prefix)
