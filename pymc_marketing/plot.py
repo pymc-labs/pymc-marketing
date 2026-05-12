@@ -175,6 +175,8 @@ def set_subplot_kwargs_defaults(
     if "ncols" not in subplot_kwargs and "nrows" not in subplot_kwargs:
         subplot_kwargs["ncols"] = total_size
 
+    # -(-a // b) is ceil(a / b) without importing math: floor-divide the
+    # negation, then negate back. Ensures the grid always covers total_size.
     if "ncols" in subplot_kwargs:
         subplot_kwargs["nrows"] = -(-total_size // subplot_kwargs["ncols"])
     elif "nrows" in subplot_kwargs:
