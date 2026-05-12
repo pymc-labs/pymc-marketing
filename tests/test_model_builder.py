@@ -377,6 +377,21 @@ def test_model_io_comprehensive():
         regression_model.set_idata_attrs(None)
 
 
+@pytest.mark.parametrize(
+    "method_name",
+    ["sample_prior_predictive", "sample_posterior_predictive", "predict_posterior"],
+)
+def test_pred_alias_no_longer_accepted(
+    fitted_regression_model_instance, toy_X, method_name
+):
+    """X_pred used to be a deprecated alias for X. After deprecation removal,
+    it lands in **kwargs while X stays None, so the existing validation fires.
+    """
+    method = getattr(fitted_regression_model_instance, method_name)
+    with pytest.raises(ValueError, match=r"Please provide X"):
+        method(X_pred=toy_X)
+
+
 def test_data_validation_comprehensive():
     """Comprehensive test of data validation in RegressionModelBuilder."""
     model = RegressionModelBuilderTest()
