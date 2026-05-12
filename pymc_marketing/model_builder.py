@@ -1057,7 +1057,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -1221,7 +1221,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_prior_predictive(
         self,
-        X=None,
+        X,
         y=None,
         samples: int | None = None,
         extend_idata: bool = True,
@@ -1254,9 +1254,6 @@ class RegressionModelBuilder(ModelBuilder):
             Prior predictive samples for each input X
 
         """
-        if X is None:
-            raise ValueError("Please provide X.")
-
         if y is None:
             y = np.zeros(len(X))
         if samples is None:
@@ -1285,7 +1282,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_posterior_predictive(
         self,
-        X=None,
+        X,
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -1310,9 +1307,6 @@ class RegressionModelBuilder(ModelBuilder):
             Posterior predictive samples for each input X
 
         """
-        if X is None:
-            raise ValueError("Please provide X.")
-
         self._data_setter(X)
 
         with self.model:
@@ -1333,7 +1327,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_proba(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
@@ -1343,7 +1337,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_posterior(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -1369,8 +1363,6 @@ class RegressionModelBuilder(ModelBuilder):
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        if X is None:
-            raise ValueError("Please provide X.")
         X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
             X, extend_idata, combined, **kwargs

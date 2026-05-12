@@ -385,10 +385,10 @@ def test_pred_alias_no_longer_accepted(
     fitted_regression_model_instance, toy_X, method_name
 ):
     """X_pred used to be a deprecated alias for X. After deprecation removal,
-    it lands in **kwargs while X stays None, so the existing validation fires.
+    X is a required positional argument, so passing only X_pred raises TypeError.
     """
     method = getattr(fitted_regression_model_instance, method_name)
-    with pytest.raises(ValueError, match=r"Please provide X"):
+    with pytest.raises(TypeError, match=r"missing 1 required positional argument: 'X'"):
         method(X_pred=toy_X)
 
 
