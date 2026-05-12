@@ -48,7 +48,7 @@ cleandocs: ## Clean the documentation build directories
 # before failing so contributors see the full list.
 check_docs: ## Build docs treating warnings as errors (matches CI)
 	pip install .[docs]
-	python scripts/generate_gallery.py
+	python scripts/generate_gallery.py --check --no-thumbnails
 	sphinx-build docs/source docs/build -b html -W --keep-going 2> docs_warnings.log; \
 	  status=$$?; \
 	  warnings=$$(grep -cE 'WARNING|ERROR' docs_warnings.log || echo 0); \
