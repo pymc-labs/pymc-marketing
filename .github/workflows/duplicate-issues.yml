@@ -6,21 +6,26 @@ on:
 
 concurrency:
   group: issue-${{ github.event.issue.number }}-duplicate
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   check-duplicates:
     if: github.event.action == 'opened' || github.event.changes.body
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     permissions:
       contents: read
       issues: write
 
     steps:
-      - name: Wait 10 minutes before checking
-        run: sleep 600
+      - name: Wait for edits to settle
+        run: |
+          if [ "${{ github.event.action }}" = "opened" ]; then
+            sleep 120
+          else
+            sleep 300
+          fi
 
       - name: Checkout repository
         uses: actions/checkout@v6

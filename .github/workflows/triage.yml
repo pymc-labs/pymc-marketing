@@ -62,14 +62,16 @@ jobs:
             --print \
             < /tmp/issue_content.txt 2>&1 | tee /tmp/claude_output.log
 
-          # Extract labels from triage output
-          LABELS="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | sed 's/^TRIAGE: Added labels: //')"
-          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
+      - name: Extract labels
+        id: extract_labels
+        run: |
+          LABELS="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | sed 's/^TRIAGE: Added labels: //' || true)"
+          echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
 
       - name: Apply labels
-        if: success() && steps.triage.outputs.labels
+        if: steps.extract_labels.outputs.labels
         run: |
-          LABELS="${{ steps.triage.outputs.labels }}"
+          LABELS="${{ steps.extract_labels.outputs.labels }}"
           if [ -n "$LABELS" ]; then
             gh issue edit "${{ github.event.issue.number }}" --add-label "$LABELS"
           fi
@@ -77,10 +79,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
 
       - name: Remove Needs Triage label
-        if: success()
+        if: always()
         run: gh issue edit "${{ github.event.issue.number }}" --remove-label "Needs Triage" || true
         env:
           GH_TOKEN: ${{ github.token }}
+
+      - name: Post triage analysis as comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if [ ! -s /tmp/claude_output.log ]; then
+            echo "No agent output to post"
+            exit 0
+          fi
+          {
+            printf '%s\n' '<details>'
+            printf '%s\n' '<summary>:robot: Triage analysis</summary>'
+            printf '%s\n' ''
+            cat /tmp/claude_output.log
+            printf '%s\n' ''
+            printf '%s\n' '</details>'
+          } > /tmp/triage_comment.md
+          gh issue comment "$ISSUE_NUMBER" --body-file /tmp/triage_comment.md
 
       - name: Upload Claude output logs
         if: always()
