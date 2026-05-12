@@ -86,6 +86,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 ::::
 
 ### Custom Models
+
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -224,8 +225,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
 :::
-
-:::::
+::::
 
 ### Case Studies
 
