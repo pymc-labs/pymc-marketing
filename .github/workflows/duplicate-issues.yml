@@ -89,22 +89,38 @@ jobs:
             echo "has_duplicates=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Comment on issue if duplicates found
+      - name: Post or update duplicate detection comment
         if: steps.extract_response.outputs.has_duplicates == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          # Sentinel marker lets queued runs find and update the prior comment
+          # instead of stacking one comment per edit on the same issue.
+          MARKER='<!-- duplicate-finder-comment -->'
+          {
+            printf '%s\n' "$MARKER"
+            cat /tmp/duplicate_response.txt
+            printf '\n---\n\n'
+            printf '*[Workflow run](%s)*\n' "$RUN_URL"
+          } > /tmp/duplicate_comment.md
 
-          echo "" >> /tmp/duplicate_response.txt
-          echo "---" >> /tmp/duplicate_response.txt
-          echo "" >> /tmp/duplicate_response.txt
-          echo "*[Workflow run](${RUN_URL})*" >> /tmp/duplicate_response.txt
+          EXISTING_ID="$(gh issue view "$ISSUE_NUMBER" --repo "$REPO" --json comments \
+            --jq ".comments[] | select(.body | startswith(\"$MARKER\")) | .id" \
+            | head -n 1)"
 
-          gh issue comment "$ISSUE_NUMBER" \
-            --body-file /tmp/duplicate_response.txt
-          echo "✅ Posted duplicate detection result to issue #$ISSUE_NUMBER"
+          if [ -n "$EXISTING_ID" ]; then
+            gh api graphql \
+              -f query='mutation($id: ID!, $body: String!) { updateIssueComment(input: {id: $id, body: $body}) { issueComment { id } } }' \
+              -f id="$EXISTING_ID" \
+              -f body="$(cat /tmp/duplicate_comment.md)" >/dev/null
+            echo "Updated existing duplicate-finder comment on issue #$ISSUE_NUMBER"
+          else
+            gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body-file /tmp/duplicate_comment.md
+            echo "Posted duplicate detection result to issue #$ISSUE_NUMBER"
+          fi
 
       - name: Upload Claude output logs
         if: always()
