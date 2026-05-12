@@ -49,33 +49,6 @@ except ImportError:
         return X
 
 
-def _handle_deprecate_pred_argument(
-    value,
-    name: str,
-    kwargs: dict,
-    none_allowed: bool = False,
-):
-    name_pred = f"{name}_pred"
-    if name_pred in kwargs and value is not None:
-        raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
-
-    if name_pred not in kwargs and value is None and none_allowed:
-        return value
-
-    if name_pred not in kwargs and value is None:
-        raise ValueError(f"Please provide {name}.")
-
-    if name_pred in kwargs:
-        warnings.warn(
-            f"{name_pred} is deprecated, use {name} instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return kwargs.pop(name_pred)
-
-    return value
-
-
 def create_idata_accessor(value: str, message: str):
     """Create a property accessor for an InferenceData object.
 
@@ -1281,8 +1254,8 @@ class RegressionModelBuilder(ModelBuilder):
             Prior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
-        y = _handle_deprecate_pred_argument(y, "y", kwargs, none_allowed=True)
+        if X is None:
+            raise ValueError("Please provide X.")
 
         if y is None:
             y = np.zeros(len(X))
@@ -1337,7 +1310,8 @@ class RegressionModelBuilder(ModelBuilder):
             Posterior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
+        if X is None:
+            raise ValueError("Please provide X.")
 
         self._data_setter(X)
 
@@ -1395,7 +1369,8 @@ class RegressionModelBuilder(ModelBuilder):
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
+        if X is None:
+            raise ValueError("Please provide X.")
         X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
             X, extend_idata, combined, **kwargs

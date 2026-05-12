@@ -239,10 +239,7 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     create_zero_dataset,
 )
-from pymc_marketing.model_builder import (
-    RegressionModelBuilder,
-    _handle_deprecate_pred_argument,
-)
+from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
@@ -2530,7 +2527,6 @@ class MMM(RegressionModelBuilder):
         xr.DataArray
             Posterior predictive samples.
         """
-        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
         # Update model data with xarray
         if X is None:
             raise ValueError("X values must be provided")
