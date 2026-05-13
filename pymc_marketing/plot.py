@@ -176,9 +176,9 @@ def set_subplot_kwargs_defaults(
         subplot_kwargs["ncols"] = total_size
 
     if "ncols" in subplot_kwargs:
-        subplot_kwargs["nrows"] = total_size // subplot_kwargs["ncols"]
+        subplot_kwargs["nrows"] = -(-total_size // subplot_kwargs["ncols"])
     elif "nrows" in subplot_kwargs:
-        subplot_kwargs["ncols"] = total_size // subplot_kwargs["nrows"]
+        subplot_kwargs["ncols"] = -(-total_size // subplot_kwargs["nrows"])
 
 
 Selection = dict[str, Any]
