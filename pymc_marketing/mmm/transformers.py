@@ -203,8 +203,8 @@ def binomial_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
+    dim : str
+        The dimension of the x input along which to perform the convolution.
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -289,6 +289,8 @@ def geometric_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
+    dim : str
+        The dimension of the x input along which to perform the convolution.
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -374,8 +376,8 @@ def delayed_adstock(
         Maximum duration of carryover effect.
     normalize : bool, by default False
         Whether to normalize the weights.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
+    dim : str
+        The dimension of the x input along which to perform the convolution.
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
@@ -483,8 +485,8 @@ def weibull_adstock(
         Shape parameter of the Weibull distribution. Must be positive.
     l_max : int, by default 12
         Maximum duration of carryover effect.
-    axis : int
-        The axis of ``x`` along witch to apply the convolution
+    dim : str
+        The dimension of the x input along which to perform the convolution.
     mode : ConvMode, optional
         The convolution mode determines how the convolution is applied at the boundaries
         of the input signal, denoted as "x." The default mode is ConvMode.After.
