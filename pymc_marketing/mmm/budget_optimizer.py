@@ -706,7 +706,7 @@ class BudgetOptimizer(BaseModel):
     _pymc_model: Model = PrivateAttr()
     _compiled_functions: dict = PrivateAttr()
     _constraints: dict = PrivateAttr()
-    _compiled_constraints: list = PrivateAttr()
+    _compiled_constraints: list[dict] = PrivateAttr()
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
@@ -720,8 +720,8 @@ class BudgetOptimizer(BaseModel):
             self.num_periods
         )  # TODO: Once multidimensional class becomes the main class.
 
-        # 2. Shared variable for total_budget: Use annotation to avoid type checking
-        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")  # type: ignore
+        # 2. Shared variable for total_budget
+        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
