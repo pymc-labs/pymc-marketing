@@ -2513,8 +2513,6 @@ class MMM(RegressionModelBuilder):
         ----------
         X : pd.DataFrame
             Input data for prediction, with the same structure as the training data.
-        y : pd.Series, optional
-            Optional target data for validation or alignment. Default is None.
         extend_idata : bool, optional
             Whether to add predictions to the inference data object. Defaults to True.
         combined : bool, optional
