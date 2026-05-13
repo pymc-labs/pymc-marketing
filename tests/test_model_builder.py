@@ -35,7 +35,6 @@ from pymc_marketing.model_builder import (
     ModelBuilder,
     ModelIO,
     RegressionModelBuilder,
-    _handle_deprecate_pred_argument,
     create_sample_kwargs,
 )
 
@@ -379,41 +378,18 @@ def test_model_io_comprehensive():
 
 
 @pytest.mark.parametrize(
-    "method_name,deprecated_arg,additional_kwargs",
-    [
-        ("sample_posterior_predictive", "X_pred", {}),
-        ("predict", "X_pred", {}),
-        ("sample_prior_predictive", "X_pred", {}),
-        (
-            "sample_prior_predictive",
-            "y_pred",
-            {"X": pd.DataFrame({"input": [1, 2, 3]})},
-        ),
-    ],
+    "method_name",
+    ["sample_prior_predictive", "sample_posterior_predictive", "predict_posterior"],
 )
-def test_deprecation_warnings(
-    fitted_regression_model_instance,
-    toy_X,
-    toy_y,
-    method_name,
-    deprecated_arg,
-    additional_kwargs,
+def test_pred_alias_no_longer_accepted(
+    fitted_regression_model_instance, toy_X, method_name
 ):
-    """Test deprecation warnings for various methods."""
-    # Clear any existing data that might interfere
-    if "posterior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.posterior_predictive
-    if "prior" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior
-    if "prior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior_predictive
-
-    with pytest.warns(DeprecationWarning, match=f"{deprecated_arg} is deprecated"):
-        method = getattr(fitted_regression_model_instance, method_name)
-        if deprecated_arg == "y_pred":
-            method(**additional_kwargs, **{deprecated_arg: toy_y})
-        else:
-            method(**additional_kwargs, **{deprecated_arg: toy_X})
+    """X_pred used to be a deprecated alias for X. After deprecation removal,
+    X is a required positional argument, so passing only X_pred raises TypeError.
+    """
+    method = getattr(fitted_regression_model_instance, method_name)
+    with pytest.raises(TypeError, match=r"missing 1 required positional argument: 'X'"):
+        method(X_pred=toy_X)
 
 
 def test_data_validation_comprehensive():
@@ -526,36 +502,6 @@ def test_idata_accessors_comprehensive():
     # Test fit_result accessor
     with pytest.raises(RuntimeError, match=r"The model hasn't been fit yet"):
         model.fit_result
-
-
-def test_handle_deprecate_pred_argument():
-    """Test the _handle_deprecate_pred_argument utility function."""
-    kwargs = {}
-
-    # Test normal case
-    result = _handle_deprecate_pred_argument("test_value", "test", kwargs)
-    assert result == "test_value"
-
-    # Test deprecated argument
-    kwargs = {"test_pred": "deprecated_value"}
-    with pytest.warns(DeprecationWarning, match="test_pred is deprecated"):
-        result = _handle_deprecate_pred_argument(None, "test", kwargs)
-    assert result == "deprecated_value"
-    assert "test_pred" not in kwargs  # Should be removed
-
-    # Test both arguments provided
-    kwargs = {"test_pred": "deprecated_value"}
-    with pytest.raises(ValueError, match=r"Both test and test_pred cannot be provided"):
-        _handle_deprecate_pred_argument("test_value", "test", kwargs)
-
-    # Test none allowed (without deprecated argument)
-    kwargs = {}
-    result = _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=True)
-    assert result is None
-
-    # Test none not allowed
-    with pytest.raises(ValueError, match=r"Please provide test"):
-        _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=False)
 
 
 def test_save_input_params(fitted_regression_model_instance):
