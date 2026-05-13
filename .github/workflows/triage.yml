@@ -65,9 +65,9 @@ jobs:
       - name: Extract labels
         id: extract_labels
         run: |
-          # Collapse ", " into "," so gh issue edit --add-label, which splits
-          # on commas literally, does not see leading spaces in label names.
-          LABELS="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | tail -n 1 | sed 's/^TRIAGE: Added labels: *//' | sed 's/, */,/g' | sed 's/^ *//;s/ *$//' || true)"
+          # Collapse whitespace around commas so gh issue edit --add-label,
+          # which splits on commas literally, does not see padded label names.
+          LABELS="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | tail -n 1 | sed 's/^TRIAGE: Added labels: *//' | sed 's/ *, */,/g' | sed 's/^ *//;s/ *$//' || true)"
           echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
 
       - name: Apply labels
