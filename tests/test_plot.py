@@ -24,6 +24,7 @@ from pymc_marketing.plot import (
     plot_samples,
     random_samples,
     selections,
+    set_subplot_kwargs_defaults,
 )
 
 
@@ -221,3 +222,24 @@ def test_drop_scalar_coords(mock_curve_with_scalars) -> None:
 
     # Ensure the original DataArray was not modified
     xr.testing.assert_identical(mock_curve_with_scalars, original_curve)
+
+
+@pytest.mark.parametrize(
+    "subplot_kwargs, total_size, expected",
+    [
+        ({"ncols": 4}, 9, {"ncols": 4, "nrows": 3}),
+        ({"nrows": 4}, 9, {"nrows": 4, "ncols": 3}),
+        ({"ncols": 4}, 8, {"ncols": 4, "nrows": 2}),
+        ({"ncols": 1}, 5, {"ncols": 1, "nrows": 5}),
+        ({"ncols": 3}, 1, {"ncols": 3, "nrows": 1}),
+        ({}, 4, {"ncols": 4, "nrows": 1}),
+    ],
+)
+def test_set_subplot_kwargs_defaults(subplot_kwargs, total_size, expected) -> None:
+    set_subplot_kwargs_defaults(subplot_kwargs, total_size)
+    assert subplot_kwargs == expected
+
+
+def test_set_subplot_kwargs_defaults_rejects_both() -> None:
+    with pytest.raises(ValueError):
+        set_subplot_kwargs_defaults({"ncols": 2, "nrows": 2}, total_size=4)
