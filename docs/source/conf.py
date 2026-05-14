@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     # extensions provided by other packages
     "sphinx_autodoc_typehints",
+    "sphinxcontrib.autodoc_pydantic",
     "numpydoc",
     "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
@@ -173,6 +174,19 @@ numpydoc_xref_aliases = {
 }
 # don't add a return type section, use standard return with type info
 typehints_document_rtype = False
+
+# autodoc-pydantic config: keep rendering close to the numpydoc style we used
+# before. Hide the JSON schema, validator, and Config summaries; show field
+# descriptions inline with constraints and defaults.
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_field_list_validators = False
+autodoc_pydantic_field_show_alias = False
+autodoc_pydantic_field_show_default = True
+autodoc_pydantic_field_show_constraints = True
 
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {
