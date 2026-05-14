@@ -24,7 +24,7 @@ __all__ = ["from_netcdf", "idata_from_zarr", "idata_to_zarr"]
 
 
 def from_netcdf(filepath: str | Path) -> az.InferenceData:
-    """Load inference data from a netcdf file without ``fit_data`` group warnings.
+    """Load inference data from a netcdf file.
 
     .. deprecated::
         ``from_netcdf`` will be removed in a future release.
@@ -46,10 +46,4 @@ def from_netcdf(filepath: str | Path) -> az.InferenceData:
         FutureWarning,
         stacklevel=2,
     )
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message=r"fit_data group is not defined in the InferenceData scheme",
-        )
-        return az.from_netcdf(filepath)
+    return az.from_netcdf(filepath)

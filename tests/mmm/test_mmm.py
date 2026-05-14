@@ -11,7 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import copy
 import os
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
@@ -43,6 +45,8 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -6089,3 +6093,64 @@ def test_iterative_workflow(multi_dim_data, mock_pymc_sample):
     mmm.sample_posterior_predictive(X)
     assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
     assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
+
+
+# ---------------------------------------------------------------------------
+# Task 3: plot_suite property and updated .plot property
+# ---------------------------------------------------------------------------
+
+
+def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
+    """MMM.plot_suite property defaults to 'legacy'."""
+    assert fit_mmm.plot_suite == "legacy"
+
+
+def test_mmm_plot_suite_setter(fit_mmm):
+    """MMM.plot_suite setter stores the value."""
+    mmm = copy.copy(fit_mmm)
+    mmm.plot_suite = "new"
+    assert mmm.plot_suite == "new"
+
+
+def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
+    """MMM.plot_suite setter raises ValueError for unknown values."""
+    mmm = copy.copy(fit_mmm)
+    with pytest.raises(ValueError, match="plot_suite must be"):
+        mmm.plot_suite = "invalid"
+
+
+def test_mmm_plot_legacy_returns_legacy_suite(fit_mmm):
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        result = fit_mmm.plot
+    assert isinstance(result, MMMPlotSuite)
+
+
+def test_mmm_plot_legacy_emits_future_warning(fit_mmm):
+    fit_mmm._plot_suite_warned = False  # reset flag
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fit_mmm.plot
+    assert any(issubclass(warning.category, FutureWarning) for warning in w)
+    assert any("2.0.0" in str(warning.message) for warning in w)
+
+
+def test_mmm_plot_legacy_warns_only_once(fit_mmm):
+    fit_mmm._plot_suite_warned = False
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fit_mmm.plot
+        fit_mmm.plot
+    future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+    assert len(future_warnings) == 1
+
+
+def test_mmm_plot_new_returns_facade(fit_mmm):
+    mmm = copy.copy(fit_mmm)
+    mmm.plot_suite = "new"
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = mmm.plot
+    assert isinstance(result, MMMPlotSuiteFacade)
+    future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+    assert len(future_warnings) == 0
