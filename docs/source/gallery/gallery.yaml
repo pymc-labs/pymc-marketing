@@ -35,6 +35,8 @@ sections:
             notebook: mmm/mmm_migration_guide
           - title: MMM Dims Migration Guide
             notebook: mmm/mmm_dims_migration_guide
+          - title: MMM Plot Suite Migration Guide
+            notebook: mmm/mmm_plot_suite_migration_guide
       - title: Custom Models
         cards:
           - title: Custom Models with MMM components
