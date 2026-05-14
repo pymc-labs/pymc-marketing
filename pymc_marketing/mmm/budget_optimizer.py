@@ -226,7 +226,14 @@ import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
 from arviz import InferenceData
-from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    PrivateAttr,
+    model_validator,
+)
 from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
@@ -612,10 +619,11 @@ class BudgetOptimizer(BaseModel):
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
         Mask defining a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.
-    custom_constraints : Sequence[Constraint], optional
-        Custom constraints for the optimizer.
-    default_constraints : bool, optional
-        Whether to add a default sum constraint on the total budget. Default is True.
+    constraints : Sequence[Constraint], optional
+        Constraints for the optimizer. If empty, a default sum-equals-total-budget
+        constraint is added automatically. If non-empty, the caller is in charge:
+        no default is added. Pass ``build_default_sum_constraint()`` explicitly
+        to keep the sum constraint alongside custom ones.
     budget_distribution_over_period : xarray.DataArray, optional
         Fixed temporal distribution of each budget cell across periods.
         Must have dims ``("date", *budget_dims)`` where the ``"date"``
@@ -657,14 +665,15 @@ class BudgetOptimizer(BaseModel):
         description="Mask defining a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
     )
 
-    custom_constraints: Sequence[Constraint] = Field(
+    constraints: Sequence[Constraint] = Field(
         default=(),
-        description="Custom constraints for the optimizer.",
-    )
-
-    default_constraints: bool = Field(
-        default=True,
-        description="Whether to add a default sum constraint on the total budget.",
+        description=(
+            "Constraints for the optimizer. Empty means the default sum "
+            "constraint is added automatically; non-empty means the caller "
+            "is in charge (no default is added). Pass "
+            "`build_default_sum_constraint()` explicitly to keep the sum "
+            "constraint alongside custom ones."
+        ),
     )
 
     budget_distribution_over_period: DataArray | None = Field(
@@ -707,6 +716,49 @@ class BudgetOptimizer(BaseModel):
     _compiled_functions: dict = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_constraint_kwargs(cls, data: Any) -> Any:
+        """Translate deprecated ``custom_constraints``/``default_constraints`` to ``constraints``."""
+        if not isinstance(data, dict):
+            return data
+
+        has_custom = "custom_constraints" in data
+        has_default = "default_constraints" in data
+        if not (has_custom or has_default):
+            return data
+
+        if "constraints" in data:
+            raise TypeError(
+                "Pass either `constraints` or the deprecated "
+                "`custom_constraints`/`default_constraints`, not both."
+            )
+
+        custom = data.pop("custom_constraints", ())
+        # `default_constraints` defaulted to True under the old API.
+        default_flag = data.pop("default_constraints", True)
+
+        warnings.warn(
+            "`custom_constraints` and `default_constraints` are deprecated and "
+            "will be removed in a future release. Use `constraints` instead: "
+            "an empty `constraints` auto-adds the default sum constraint; a "
+            "non-empty one means the caller is in charge. To keep the default "
+            "sum constraint alongside custom ones, append "
+            "`build_default_sum_constraint()` to your list.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        if default_flag and custom:
+            data["constraints"] = [*custom, build_default_sum_constraint()]
+        elif default_flag:
+            # custom is empty; the new contract auto-adds the default on empty.
+            data["constraints"] = ()
+        else:
+            # User opted out of the default sum constraint.
+            data["constraints"] = list(custom)
+        return data
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
@@ -828,9 +880,7 @@ class BudgetOptimizer(BaseModel):
 
         # 9. Build constraints
         self._constraints = {}
-        self.set_constraints(
-            default=self.default_constraints, constraints=self.custom_constraints
-        )
+        self.set_constraints(constraints=self.constraints)
 
     def set_constraints(self, constraints, default=None) -> None:
         """Set constraints for the optimizer."""

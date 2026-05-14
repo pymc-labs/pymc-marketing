@@ -3707,7 +3707,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         response_variable: str = "total_media_contribution_original_scale",
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[Constraint] = (),
-        default_constraints: bool = True,
+        default_constraints: bool | None = None,
         budgets_to_optimize: xr.DataArray | None = None,
         budget_distribution_over_period: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
@@ -3730,10 +3730,17 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint]
-            Custom constraints for the optimizer. Each element must be an instance of
-            :class:`~pymc_marketing.mmm.constraints.Constraint`.
-        default_constraints : bool
-            Whether to add default constraints.
+            Constraints for the optimizer. Each element must be a
+            :class:`~pymc_marketing.mmm.constraints.Constraint`. If empty, a
+            default sum-equals-total-budget constraint is added automatically.
+            If non-empty, the caller is in charge: no default is added. Pass
+            :func:`~pymc_marketing.mmm.constraints.build_default_sum_constraint`
+            explicitly to keep the sum constraint alongside custom ones.
+        default_constraints : bool, optional
+            .. deprecated::
+                Use ``constraints`` instead. An empty ``constraints`` now
+                auto-adds the default sum constraint; a non-empty one means
+                the caller is in charge. Will be removed in a future release.
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
         budget_distribution_over_period : xr.DataArray | None
@@ -3796,18 +3803,25 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 stacklevel=2,
             )
 
-        allocator = BudgetOptimizer(
+        allocator_kwargs: dict[str, Any] = dict(
             num_periods=self.num_periods,
             utility_function=utility_function,
             response_variable=response_variable,
-            custom_constraints=constraints,
-            default_constraints=default_constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
             cost_per_unit=cost_per_unit_da,
             model=self,
             compile_kwargs=self.compile_kwargs,
         )
+        if default_constraints is None:
+            allocator_kwargs["constraints"] = constraints
+        else:
+            # Legacy path: forward the deprecated kwargs so BudgetOptimizer's
+            # validator emits the DeprecationWarning with the migration hint.
+            allocator_kwargs["custom_constraints"] = constraints
+            allocator_kwargs["default_constraints"] = default_constraints
+
+        allocator = BudgetOptimizer(**allocator_kwargs)
 
         return allocator.allocate_budget(
             total_budget=budget,

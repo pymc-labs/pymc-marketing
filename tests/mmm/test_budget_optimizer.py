@@ -302,6 +302,73 @@ def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
         )
 
 
+def test_empty_constraints_auto_adds_default(mmm_wrapper):
+    """Empty ``constraints`` should auto-add the default sum constraint."""
+    with pytest.warns(UserWarning, match="Using default equality constraint"):
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+        )
+    assert "default" in optimizer._constraints
+
+
+def test_non_empty_constraints_skips_default(mmm_wrapper):
+    """A non-empty ``constraints`` means the caller is in charge: no default."""
+    custom = [
+        Constraint(
+            key="cap",
+            constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                budgets_sym.sum() - total_budget_sym
+            ),
+            constraint_type="eq",
+        )
+    ]
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=custom,
+    )
+    assert "default" not in optimizer._constraints
+    assert "cap" in optimizer._constraints
+
+
+def test_custom_constraints_kwarg_is_deprecated(mmm_wrapper):
+    """The legacy ``custom_constraints`` kwarg must warn but still work."""
+    custom = [
+        Constraint(
+            key="cap",
+            constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                budgets_sym.sum() - total_budget_sym
+            ),
+            constraint_type="eq",
+        )
+    ]
+    with pytest.warns(DeprecationWarning, match="custom_constraints"):
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            custom_constraints=custom,
+            default_constraints=False,
+        )
+    assert "cap" in optimizer._constraints
+    assert "default" not in optimizer._constraints
+
+
+def test_constraints_and_legacy_kwargs_conflict(mmm_wrapper):
+    """Passing ``constraints`` alongside legacy kwargs must raise."""
+    with pytest.raises(TypeError, match="not both"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            constraints=(),
+            default_constraints=True,
+        )
+
+
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
 def test_allocate_budget_custom_minimize_args(
     minimize_mock,
@@ -338,7 +405,7 @@ def test_allocate_budget_custom_minimize_args(
 
 
 @pytest.mark.parametrize(
-    "total_budget, budget_bounds, parameters, custom_constraints",
+    "total_budget, budget_bounds, parameters, constraints",
     [
         (
             100,
@@ -380,14 +447,13 @@ def test_allocate_budget_infeasible_constraints(
     total_budget,
     budget_bounds,
     parameters,
-    custom_constraints,
+    constraints,
     mmm_wrapper,
 ):
     optimizer = BudgetOptimizer(
         model=mmm_wrapper,
         response_variable="total_media_contribution_original_scale",
-        default_constraints=False,
-        custom_constraints=custom_constraints,
+        constraints=constraints,
         num_periods=30,
     )
 
@@ -441,7 +507,7 @@ def test_allocate_budget_custom_response_constraint(
             budgets_sym, total_budget_sym, optimizer, target_response
         )
 
-    custom_constraints = [
+    constraints = [
         Constraint(
             key="target_response_constraint",
             constraint_fun=constraint_wrapper,
@@ -453,8 +519,7 @@ def test_allocate_budget_custom_response_constraint(
         model=mmm_wrapper,
         response_variable="total_media_contribution_original_scale",
         utility_function=minimize_budget_utility,
-        default_constraints=False,
-        custom_constraints=custom_constraints,
+        constraints=constraints,
         num_periods=30,
     )
 
@@ -623,7 +688,6 @@ def test_budget_distribution_over_period(
                 model=mmm_wrapper,
                 num_periods=num_periods,
                 budget_distribution_over_period=budget_distribution_over_period_factors,
-                default_constraints=True,
                 response_variable="total_media_contribution_original_scale",
             )
     else:
@@ -633,7 +697,6 @@ def test_budget_distribution_over_period(
                 model=mmm_wrapper,
                 num_periods=num_periods,
                 budget_distribution_over_period=budget_distribution_over_period_factors,
-                default_constraints=True,
                 response_variable="total_media_contribution_original_scale",
             )
 
@@ -666,7 +729,6 @@ def test_budget_distribution_over_period_wrong_dims(mmm_wrapper):
             model=mmm_wrapper,
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
-            default_constraints=True,
             response_variable="total_media_contribution_original_scale",
         )
 
@@ -697,7 +759,6 @@ def test_budget_distribution_over_period_applied_correctly(mmm_wrapper):
             model=mmm_wrapper,
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period_factors,
-            default_constraints=True,
             response_variable="total_media_contribution_original_scale",
         )
 
@@ -738,7 +799,6 @@ def test_budget_distribution_over_period_integration(mmm_wrapper):
         model=mmm_wrapper,
         num_periods=num_periods,
         budget_distribution_over_period=budget_distribution_over_period_factors,
-        default_constraints=True,
         response_variable="total_media_contribution_original_scale",
     )
 
@@ -746,7 +806,6 @@ def test_budget_distribution_over_period_integration(mmm_wrapper):
         model=mmm_wrapper,
         num_periods=num_periods,
         budget_distribution_over_period=None,
-        default_constraints=True,
         response_variable="total_media_contribution_original_scale",
     )
 

@@ -387,7 +387,6 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
             num_periods=4,
             budget_distribution_over_period=time_factors_geo_only,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -436,7 +435,6 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
         budget_distribution_over_period=budget_distribution_over_period,
         response_variable="total_media_contribution_original_scale",
         # No custom utility function needed with fitted model!
-        default_constraints=True,
         compile_kwargs=compile_kwargs,
     )
 
@@ -505,7 +503,6 @@ def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm, compile_kwargs):
         num_periods=4,
         budget_distribution_over_period=budget_distribution_over_period,
         response_variable="total_media_contribution_original_scale",
-        default_constraints=True,
         compile_kwargs=compile_kwargs,
     )
 
@@ -591,7 +588,6 @@ def test_time_distribution_with_zero_bounds(dummy_df, fitted_mmm, compile_kwargs
         num_periods=4,
         budget_distribution_over_period=budget_distribution_over_period,
         response_variable="total_media_contribution_original_scale",
-        default_constraints=True,
         compile_kwargs=compile_kwargs,
     )
 
@@ -650,7 +646,6 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -931,7 +926,6 @@ def test_time_distribution_multidim(dummy_df, fitted_mmm, compile_kwargs):
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1019,7 +1013,6 @@ def test_time_distribution_channel_specific_pattern(
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1087,7 +1080,6 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
             num_periods=4,
             budget_distribution_over_period=bad_factors,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1117,7 +1109,6 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
             num_periods=4,
             budget_distribution_over_period=wrong_periods_factors,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1149,7 +1140,6 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
             num_periods=num_periods,
             budget_distribution_over_period=None,  # No pattern
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1188,7 +1178,6 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
             num_periods=num_periods,
             budget_distribution_over_period=budget_distribution_over_period,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1302,7 +1291,6 @@ def test_time_distribution_with_carryover_total_spend_preserved(
             num_periods=num_periods,
             budget_distribution_over_period=budget_distribution_over_period,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
