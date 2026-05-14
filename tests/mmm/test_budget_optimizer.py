@@ -401,6 +401,12 @@ def test_legacy_default_only_adds_default(mmm_wrapper):
     assert "default" in optimizer._constraints
 
 
+def test_migrate_legacy_constraint_kwargs_passes_non_dict_through():
+    """Non-dict inputs (e.g., model-copy scenarios) bypass the legacy translation."""
+    sentinel = object()
+    assert BudgetOptimizer._migrate_legacy_constraint_kwargs(sentinel) is sentinel
+
+
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
 def test_allocate_budget_custom_minimize_args(
     minimize_mock,
