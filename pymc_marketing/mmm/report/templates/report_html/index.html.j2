@@ -1,0 +1,22 @@
+{%- extends 'lab/index.html.j2' -%}
+
+{% block html_head %}
+{{ super() }}
+<style>
+  /* Render code inputs collapsed by default for report readability. */
+  div.jp-Cell-inputWrapper {
+    display: none;
+  }
+
+  /* Keep output tables compact for long reports. */
+  table.dataframe {
+    font-size: 0.9rem;
+    border-collapse: collapse;
+  }
+  table.dataframe th,
+  table.dataframe td {
+    border: 1px solid #d9d9d9;
+    padding: 4px 8px;
+  }
+</style>
+{% endblock html_head %}

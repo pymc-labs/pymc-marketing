@@ -65,6 +65,7 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.report import MMMReport
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -98,6 +99,8 @@ __all__ = [
     "LinearTrend",
     "LogisticSaturation",
     "MMMBuilder",
+    "MMMModelBuilder",
+    "MMMReport",
     "MediaConfig",
     "MediaConfigList",
     "MediaTransformation",
