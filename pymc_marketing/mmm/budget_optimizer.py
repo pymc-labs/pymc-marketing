@@ -760,9 +760,22 @@ class BudgetOptimizer(BaseModel):
         elif default_flag:
             # custom is empty; the new contract auto-adds the default on empty.
             data["constraints"] = ()
-        else:
+        elif custom:
             # User opted out of the default sum constraint.
             data["constraints"] = list(custom)
+        else:
+            # Legacy edge case: `default_constraints=False` with empty
+            # `custom_constraints` used to raise in compile_constraints_for_scipy
+            # because no constraint was installed. Under the new contract, an
+            # empty `constraints` would auto-add the default; preserve the
+            # legacy error here so callers hitting this combination see a
+            # clear message instead of a silent behaviour change.
+            raise ValueError(
+                "`default_constraints=False` with empty `custom_constraints` "
+                "leaves the optimizer without any constraint. Pass at least "
+                "one constraint via `constraints=[...]`, or omit "
+                "`default_constraints` to use the default sum constraint."
+            )
         return data
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
@@ -888,11 +901,36 @@ class BudgetOptimizer(BaseModel):
         self.set_constraints(constraints=self.constraints)
 
     def set_constraints(self, constraints, default=None) -> None:
-        """Set constraints for the optimizer."""
-        self._constraints = {}
-        if default is None:
+        """Set constraints for the optimizer.
+
+        An empty ``constraints`` auto-adds the default sum constraint; a
+        non-empty one means the caller is in charge.
+
+        Parameters
+        ----------
+        constraints : Sequence[Constraint]
+            Constraints to install. See the contract above.
+        default : bool, optional
+            .. deprecated:: 0.20.0
+                The ``default`` parameter is redundant under the new contract
+                and will be removed in 0.21.0. Append
+                ``build_default_sum_constraint()`` to ``constraints`` to keep
+                the default alongside custom ones.
+        """
+        if default is not None:
+            warnings.warn(
+                "The `default` parameter of `set_constraints` is deprecated "
+                "and will be removed in 0.21.0. Empty `constraints` already "
+                "auto-adds the default sum constraint; append "
+                "`build_default_sum_constraint()` to your list to keep it "
+                "alongside custom ones.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        else:
             default = False if constraints else True
 
+        self._constraints = {}
         for c in constraints:
             new_constraint = Constraint(
                 key=c.key,
@@ -903,11 +941,6 @@ class BudgetOptimizer(BaseModel):
 
         if default:
             self._constraints["default"] = build_default_sum_constraint("default")
-            warnings.warn(
-                "Using default equality constraint",
-                UserWarning,
-                stacklevel=2,
-            )
 
         # Compile constraints to be used by SciPy
         self._compiled_constraints = compile_constraints_for_scipy(

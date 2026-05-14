@@ -268,13 +268,11 @@ def test_allocate_budget(
     optimizes ``total_media_contribution_original_scale`` (media-only, original
     units), so the expected allocation/response values intentionally differ.
     """
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     # Allocate Budget
     optimal_budgets, optimization_res = optimizer.allocate_budget(
@@ -304,12 +302,11 @@ def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
 
 def test_empty_constraints_auto_adds_default(mmm_wrapper):
     """Empty ``constraints`` should auto-add the default sum constraint."""
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
     assert "default" in optimizer._constraints
 
 
@@ -407,18 +404,65 @@ def test_migrate_legacy_constraint_kwargs_passes_non_dict_through():
     assert BudgetOptimizer._migrate_legacy_constraint_kwargs(sentinel) is sentinel
 
 
+def test_legacy_default_false_with_empty_custom_raises(mmm_wrapper):
+    """Legacy: ``default_constraints=False`` with empty custom must keep raising."""
+    with (
+        pytest.warns(DeprecationWarning, match="custom_constraints"),
+        pytest.raises(ValueError, match="leaves the optimizer without any constraint"),
+    ):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            custom_constraints=(),
+            default_constraints=False,
+        )
+
+
+def test_set_constraints_default_kwarg_is_deprecated(mmm_wrapper):
+    """The ``default`` kwarg on ``set_constraints`` is deprecated."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    with pytest.warns(DeprecationWarning, match="`default` parameter"):
+        optimizer.set_constraints(constraints=(), default=True)
+
+
+def test_constraint_instance_round_trips_through_legacy_kwargs(mmm_wrapper):
+    """A ``Constraint`` passed via the legacy kwarg lands in ``_constraints`` by key."""
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="ineq",
+    )
+    with pytest.warns(DeprecationWarning):
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            custom_constraints=[cap],
+            default_constraints=False,
+        )
+    stored = optimizer._constraints["cap"]
+    assert stored.key == cap.key
+    assert stored.constraint_fun is cap.constraint_fun
+    assert stored.constraint_type == cap.constraint_type
+
+
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
 def test_allocate_budget_custom_minimize_args(
     minimize_mock,
     mmm_wrapper,
 ) -> None:
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
@@ -595,13 +639,11 @@ def test_callback_functionality_parametrized(
     expected_return_length,
 ):
     """Test callback functionality with various parameter combinations."""
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     result = optimizer.allocate_budget(
         total_budget=total_budget,
@@ -729,14 +771,12 @@ def test_budget_distribution_over_period(
                 response_variable="total_media_contribution_original_scale",
             )
     else:
-        match = "Using default equality constraint"
-        with pytest.warns(UserWarning, match=match):
-            optimizer = BudgetOptimizer(
-                model=mmm_wrapper,
-                num_periods=num_periods,
-                budget_distribution_over_period=budget_distribution_over_period_factors,
-                response_variable="total_media_contribution_original_scale",
-            )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=num_periods,
+            budget_distribution_over_period=budget_distribution_over_period_factors,
+            response_variable="total_media_contribution_original_scale",
+        )
 
         # Check that the time distribution factors were stored correctly
         if budget_distribution_over_period_factors is not None:
@@ -791,14 +831,12 @@ def test_budget_distribution_over_period_applied_correctly(mmm_wrapper):
         dims=["channel", "date"],
     )
 
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            budget_distribution_over_period=budget_distribution_over_period_factors,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        budget_distribution_over_period=budget_distribution_over_period_factors,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     # Verify that the time distribution factors tensor was created correctly
     assert optimizer._budget_distribution_over_period_tensor is not None
