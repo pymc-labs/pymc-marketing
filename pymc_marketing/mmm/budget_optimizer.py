@@ -231,7 +231,7 @@ from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
-from pytensor.compile.sharedvalue import shared
+from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -695,20 +695,33 @@ class BudgetOptimizer(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    _total_budget: SharedVariable = PrivateAttr()
+    _budget_dims: list[str] = PrivateAttr()
+    _budget_coords: dict[str, list] = PrivateAttr()
+    _budget_shape: tuple[int, ...] = PrivateAttr()
+    _budgets_flat: XTensorVariable = PrivateAttr()
+    _budgets: XTensorVariable = PrivateAttr()
+    _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
+    _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
+    _pymc_model: Model = PrivateAttr()
+    _compiled_functions: dict = PrivateAttr()
+    _constraints: dict = PrivateAttr()
+    _compiled_constraints: list[dict] = PrivateAttr()
+
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
         "options": {"ftol": 1e-9, "maxiter": 1_000},
     }
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def model_post_init(self, context: Any, /) -> None:
+        """Build optimization tensors and compile objective after Field validation."""
         # 1. Prepare model with time dimension for optimization
         pymc_model = self.mmm_model._set_predictors_for_optimization(
             self.num_periods
         )  # TODO: Once multidimensional class becomes the main class.
 
-        # 2. Shared variable for total_budget: Use annotation to avoid type checking
-        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")  # type: ignore
+        # 2. Shared variable for total_budget
+        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
