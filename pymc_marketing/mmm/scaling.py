@@ -102,17 +102,14 @@ class VariableScaling(SerializableBaseModel, ABC):
       (``"max"`` or ``"mean"``), computed at fit time.
     - :class:`FixedScaling` -- use a user-supplied constant that stays the
       same across model refreshes.
-
-    Parameters
-    ----------
-    dims : str or tuple of str
-        The dimensions to perform the operation through (``"date"`` is always
-        included implicitly).
     """
 
     dims: str | tuple[str, ...] = Field(
         ...,
-        description="The dimensions to perform operation through.",
+        description=(
+            "The dimensions to perform the operation through "
+            '(``"date"`` is always included implicitly).'
+        ),
     )
 
     @abstractmethod
@@ -136,14 +133,6 @@ class VariableScaling(SerializableBaseModel, ABC):
 
 class DataDerivedScaling(VariableScaling):
     """Scale by a statistic of the data, computed at fit time.
-
-    Parameters
-    ----------
-    method : ``"max"`` | ``"mean"``
-        The scaling method.
-    dims : str or tuple of str
-        The dimensions to perform the operation through (``"date"`` is always
-        included implicitly).
 
     Examples
     --------
@@ -169,22 +158,6 @@ class DataDerivedScaling(VariableScaling):
 
 class FixedScaling(VariableScaling):
     """Use a user-supplied constant that stays the same across model refreshes.
-
-    Parameters
-    ----------
-    dims : str or tuple of str
-        The dimensions to perform the operation through (``"date"`` is always
-        included implicitly).
-    value : float or dict[str, float] or xarray.DataArray
-        Fixed scaling constant(s). A single ``float`` applies uniformly.
-
-        A ``dict`` maps **coordinate labels along the single remaining
-        dimension** after reducing over ``date`` and ``dims`` (see the
-        multidimensional MMM). If more than one non-reduced dimension remains,
-        use an :class:`xarray.DataArray` whose dimensions broadcast to that
-        grid (e.g. a vector over ``country`` when the media grid is
-        ``country`` × ``channel``). All values must be positive; NaNs are not
-        allowed.
 
     Examples
     --------
@@ -234,7 +207,16 @@ class FixedScaling(VariableScaling):
 
     value: float | dict[str, float] | xr.DataArray = Field(
         ...,
-        description="Fixed scaling constant(s). All values must be positive.",
+        description=(
+            "Fixed scaling constant(s). A single ``float`` applies uniformly. "
+            "A ``dict`` maps coordinate labels along the single remaining "
+            "dimension after reducing over ``date`` and ``dims`` (see the "
+            "multidimensional MMM). If more than one non-reduced dimension "
+            "remains, use an :class:`xarray.DataArray` whose dimensions "
+            "broadcast to that grid (e.g. a vector over ``country`` when the "
+            "media grid is ``country`` x ``channel``). All values must be "
+            "positive; NaNs are not allowed."
+        ),
     )
 
     @property
@@ -404,13 +386,6 @@ def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
 class Scaling(SerializableBaseModel):
     """Scaling configuration for the MMM.
 
-    Parameters
-    ----------
-    target : VariableScaling
-        Scaling configuration for the target (response) variable.
-    channel : VariableScaling
-        Scaling configuration for the channel (media) variables.
-
     Examples
     --------
     Data-derived scaling:
@@ -434,11 +409,11 @@ class Scaling(SerializableBaseModel):
 
     target: VariableScaling = Field(
         ...,
-        description="The scaling for the target variable.",
+        description="Scaling configuration for the target (response) variable.",
     )
     channel: VariableScaling = Field(
         ...,
-        description="The scaling for the channel variable.",
+        description="Scaling configuration for the channel (media) variables.",
     )
 
     @model_validator(mode="before")
