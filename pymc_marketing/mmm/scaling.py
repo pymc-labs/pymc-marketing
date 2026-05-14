@@ -209,12 +209,12 @@ class FixedScaling(VariableScaling):
         ...,
         description=(
             "Fixed scaling constant(s). A single ``float`` applies uniformly. "
-            "A ``dict`` maps coordinate labels along the single remaining "
-            "dimension after reducing over ``date`` and ``dims`` (see the "
+            "A ``dict`` maps **coordinate labels along the single remaining "
+            "dimension** after reducing over ``date`` and ``dims`` (see the "
             "multidimensional MMM). If more than one non-reduced dimension "
             "remains, use an :class:`xarray.DataArray` whose dimensions "
             "broadcast to that grid (e.g. a vector over ``country`` when the "
-            "media grid is ``country`` x ``channel``). All values must be "
+            "media grid is ``country`` × ``channel``). All values must be "
             "positive; NaNs are not allowed."
         ),
     )
