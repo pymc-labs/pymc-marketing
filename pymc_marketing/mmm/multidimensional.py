@@ -202,6 +202,7 @@ from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
+    ControlEffect,
     EventAdditiveEffect,
     MuEffect,
     safe_to_datetime,
@@ -585,6 +586,14 @@ class MMM(RegressionModelBuilder):
             )
 
         self.mu_effects: list[MuEffect] = []
+
+        # Insert ControlEffect at position 0 when control_columns are present so
+        # control variables are handled via the MuEffect protocol rather than
+        # inline build_model code.
+        if self.control_columns:
+            self.mu_effects.insert(
+                0, ControlEffect(prior=self.model_config["gamma_control"])
+            )
 
     def add_mu_effect(
         self: Self,
@@ -2135,7 +2144,7 @@ class MMM(RegressionModelBuilder):
             self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:
-                mu_effect.create_data(self)
+                mu_effect.create_data(self, self.xarray_dataset)
 
             if self.time_varying_intercept or self.time_varying_media:
                 time_index = pmd.Data("time_index", self._time_index)
@@ -2215,20 +2224,6 @@ class MMM(RegressionModelBuilder):
 
             # Add other contributions and likelihood
             mu_var = intercept + channel_contribution.sum(dim="channel")
-
-            if self.control_columns is not None and len(self.control_columns) > 0:
-                gamma_control = self.model_config["gamma_control"].create_variable(
-                    name="gamma_control", xdist=True
-                )
-
-                control_data_ = pmd.Data("control_data", self.xarray_dataset._control)
-
-                control_contribution = pmd.Deterministic(
-                    "control_contribution",
-                    control_data_ * gamma_control,
-                )
-
-                mu_var += control_contribution.sum(dim="control")
 
             if self.yearly_seasonality is not None:
                 dayofyear = pmd.Data(
@@ -2423,15 +2418,6 @@ class MMM(RegressionModelBuilder):
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
 
-        if "_control" in dataset_xarray:
-            control_values = dataset_xarray["_control"].transpose(
-                "date", *self.dims, "control"
-            )
-            if "control_data" in model.named_vars:
-                original_dtype = model.named_vars["control_data"].type.dtype
-                control_values = control_values.astype(original_dtype)
-            data["control_data"] = control_values
-            coords["control"] = dataset_xarray["control"].to_numpy()
         if self.yearly_seasonality is not None:
             data["dayofyear"] = dataset_xarray["date"].dt.dayofyear.to_numpy()
 
@@ -3389,6 +3375,18 @@ class MMM(RegressionModelBuilder):
                 serialization.deserialize(effect_data, context=ctx)
                 for effect_data in mu_effects_data
             ]
+
+            # Backward compatibility: models saved before ControlEffect was
+            # introduced stored the control logic inline in build_model, so
+            # the serialized mu_effects list contains no ControlEffect.
+            # Re-inject one when control_columns are present but none exists.
+            has_control_effect = any(
+                isinstance(e, ControlEffect) for e in self.mu_effects
+            )
+            if self.control_columns and not has_control_effect:
+                self.mu_effects.insert(
+                    0, ControlEffect(prior=self.model_config["gamma_control"])
+                )
 
         dataset = idata.fit_data.to_dataframe()
 

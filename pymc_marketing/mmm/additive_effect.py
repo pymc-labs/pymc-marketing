@@ -84,8 +84,8 @@ Example of a custom additive effect
 
 How it works
 ------------
-- Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
-  and ``set_data(mmm, model, X)``.
+- Mu effects follow a simple protocol: ``create_data(mmm, X=None)``,
+  ``create_effect(mmm)``, and ``set_data(mmm, model, X)``.
 - During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
   dims ("date", *mmm.dims) that is added additively to the model mean.
@@ -114,7 +114,8 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf
+from pydantic import Field, InstanceOf, field_validator
+from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
@@ -231,15 +232,25 @@ class MuEffect(SerializableBaseModel, ABC):
     """
 
     @abstractmethod
-    def create_data(self, mmm: Model) -> None:
-        """Create the required data in the model."""
+    def create_data(self, mmm: Model, X: xr.Dataset | None = None) -> None:
+        """Create the required data in the model.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        X : xr.Dataset, optional
+            The xarray dataset containing training data. Effects that need
+            external data (e.g. control variables) use this parameter.
+            Effects that derive data purely from model coordinates may ignore it.
+        """
 
     @abstractmethod
     def create_effect(self, mmm: Model) -> XTensorVariable:
         """Create the additive effect in the model."""
 
     @abstractmethod
-    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset | None) -> None:
         """Set the data for new predictions."""
 
 
@@ -271,13 +282,15 @@ class FourierEffect(MuEffect):
             fourier = deserialize(fourier_data)
         return cls(fourier=fourier, date_dim_name=work.get("date_dim_name", "date"))
 
-    def create_data(self, mmm: Model) -> None:
+    def create_data(self, mmm: Model, X: xr.Dataset | None = None) -> None:
         """Create the required data in the model.
 
         Parameters
         ----------
         mmm : MMM
             The MMM model instance
+        X : xr.Dataset, optional
+            Not used by this effect. Dates are derived from model coordinates.
         """
         model = mmm.model
 
@@ -491,13 +504,15 @@ class LinearTrendEffect(MuEffect):
             date_dim_name=work.get("date_dim_name", "date"),
         )
 
-    def create_data(self, mmm: Model) -> None:
+    def create_data(self, mmm: Model, X: xr.Dataset | None = None) -> None:
         """Create the required data in the model.
 
         Parameters
         ----------
         mmm : MMM
             The MMM model instance.
+        X : xr.Dataset, optional
+            Not used by this effect. Time index is derived from model coordinates.
         """
         model: pm.Model = mmm.model
 
@@ -621,13 +636,15 @@ class EventAdditiveEffect(MuEffect):
         """The end dates of the events."""
         return pd.to_datetime(self.df_events["end_date"])
 
-    def create_data(self, mmm: Model) -> None:
+    def create_data(self, mmm: Model, X: xr.Dataset | None = None) -> None:
         """Create the required data in the model.
 
         Parameters
         ----------
         mmm : MMM
             The MMM model instance.
+        X : xr.Dataset, optional
+            Not used by this effect. Event data is carried in :attr:`df_events`.
 
         """
         model: pm.Model = mmm.model
@@ -705,6 +722,185 @@ class EventAdditiveEffect(MuEffect):
         pm.set_data(new_data=new_data, model=model)
 
 
+class ControlEffect(MuEffect):
+    """Additive effect for control variables in the MMM.
+
+    Encapsulates the control column logic so that control variables are handled
+    through the :class:`MuEffect` protocol rather than as inline code inside
+    ``build_model``.
+
+    Parameters
+    ----------
+    prior : Prior, optional
+        The prior distribution for the ``gamma_control`` coefficients.
+        If ``"control"`` is absent from the prior's ``dims`` it is
+        automatically added so each control column receives its own
+        independent coefficient. Defaults to
+        ``Normal(mu=0, sigma=2, dims="control")``.
+    date_dim_name : str, optional
+        The name of the date dimension in the model. Default is ``"date"``.
+
+    Examples
+    --------
+    Standalone usage (the MMM wires this automatically when ``control_columns``
+    is provided, but you can also construct it explicitly):
+
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.mmm.additive_effect import ControlEffect
+
+        effect = ControlEffect(
+            prior=Prior("Normal", mu=0, sigma=1, dims="control"),
+        )
+
+    """
+
+    prior: InstanceOf[Prior] = Field(
+        default_factory=lambda: Prior("Normal", mu=0, sigma=2, dims="control"),
+        description="Prior for the gamma_control coefficients (one per control column).",
+    )
+    date_dim_name: str = Field(default="date")
+
+    @field_validator("prior", mode="after")
+    @classmethod
+    def _ensure_control_dim(cls, prior: Prior) -> Prior:
+        """Ensure ``"control"`` is the default dim when none are specified.
+
+        Mirrors the behaviour of ``Transformation.with_default_prior_dims``:
+        dims are only set when ``prior.dims is None``; an explicitly supplied
+        ``dims`` value is left untouched.
+        """
+        dims = prior.dims
+        if dims is None:
+            new = prior.deepcopy()
+            new.dims = "control"
+            return new
+        return prior
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
+        return {
+            "prior": self.prior.to_dict(),
+            "date_dim_name": self.date_dim_name,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ControlEffect":
+        """Reconstruct from a dict."""
+        from pymc_marketing.serialization import serialization
+
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        prior_data = work["prior"]
+        if "__type__" in prior_data:
+            prior = serialization.deserialize(prior_data)
+        else:
+            from pymc_extras.deserialize import deserialize
+
+            prior = deserialize(prior_data)
+        return cls(prior=prior, date_dim_name=work.get("date_dim_name", "date"))
+
+    def create_data(self, mmm: Model, X: xr.Dataset | None = None) -> None:
+        """Register control data in the PyMC model.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        X : xr.Dataset, optional
+            The xarray dataset containing training data. Must include a
+            ``"_control"`` variable and a ``"control"`` coordinate when
+            control columns are present. If ``None`` or ``"_control"`` is
+            absent, this method does nothing.
+        """
+        if X is None or "_control" not in X:
+            return
+
+        model: pm.Model = mmm.model
+
+        control_values = X["_control"].transpose(
+            self.date_dim_name, *mmm.dims, "control"
+        )
+        if "control" not in model.coords:
+            model.add_coord("control", X.coords["control"].values)
+        if "control_data" not in model.named_vars:
+            pmd.Data(
+                "control_data",
+                control_values,
+                dims=(self.date_dim_name, *mmm.dims, "control"),
+            )
+
+    def create_effect(self, mmm: Model) -> XTensorVariable:
+        """Create the control contribution deterministic in the model.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+
+        Returns
+        -------
+        XTensorVariable
+            The summed control contribution with dims
+            ``(self.date_dim_name, *mmm.dims)``.
+
+        Raises
+        ------
+        RuntimeError
+            If ``create_data`` was not called before this method (i.e.
+            ``control_data`` is not registered in the model).
+        """
+        model: pm.Model = mmm.model
+
+        if "control_data" not in model.named_vars:
+            raise RuntimeError(
+                "ControlEffect.create_effect() called before create_data(). "
+                "Call create_data(mmm, X) first to register control_data in the model."
+            )
+
+        control_data_ = model["control_data"]
+        gamma_control = self.prior.create_variable("gamma_control", xdist=True)
+
+        control_contribution = pmd.Deterministic(
+            "control_contribution",
+            control_data_ * gamma_control,
+        )
+
+        return control_contribution.sum(dim="control")
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset | None) -> None:
+        """Update control data for new predictions.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        model : pm.Model
+            The cloned PyMC model used for prediction.
+        X : xr.Dataset or None
+            The dataset for prediction. Must contain ``"_control"`` if the
+            model was trained with control columns. If ``None`` or
+            ``"_control"`` is absent, this method does nothing.
+        """
+        if X is None or "_control" not in X:
+            return
+
+        control_values = X["_control"].transpose(
+            self.date_dim_name, *mmm.dims, "control"
+        )
+
+        # Preserve the original dtype to avoid PyMC shared-variable type errors.
+        if "control_data" in model.named_vars:
+            original_dtype = model.named_vars["control_data"].type.dtype
+            control_values = control_values.astype(original_dtype)
+
+        pm.set_data(
+            {"control_data": control_values},
+            coords={"control": X.coords["control"].values},
+            model=model,
+        )
+
+
 def _deserialize_event_additive_effect(
     data: dict[str, Any],
     context: Any,
@@ -755,3 +951,15 @@ def _register_event_additive_effect() -> None:
 
 
 _register_event_additive_effect()
+
+
+def _register_control_effect() -> None:
+    from pymc_marketing.serialization import serialization
+
+    serialization.register(
+        f"{ControlEffect.__module__}.{ControlEffect.__qualname__}",
+        ControlEffect,
+    )
+
+
+_register_control_effect()
