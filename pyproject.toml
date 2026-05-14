@@ -63,6 +63,7 @@ docs = [
     "numpyro",
     "nutpie>=0.16.7",
     "pylint",
+    "autodoc-pydantic",
     "sphinx-autodoc-typehints",
     "sphinx-copybutton",
     "sphinx-design",
