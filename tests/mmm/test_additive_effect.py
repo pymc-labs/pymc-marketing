@@ -20,6 +20,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.additive_effect import (
+    ControlEffect,
     FourierEffect,
     LinearTrendEffect,
 )
@@ -472,8 +473,262 @@ class TestEventAdditiveEffectRoundtrips:
         "pymc_marketing.mmm.additive_effect.FourierEffect",
         "pymc_marketing.mmm.additive_effect.LinearTrendEffect",
         "pymc_marketing.mmm.additive_effect.EventAdditiveEffect",
+        "pymc_marketing.mmm.additive_effect.ControlEffect",
     ],
     ids=lambda s: s.rsplit(".", 1)[-1],
 )
 def test_additive_effect_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+# ---------------------------------------------------------------------------
+# ControlEffect tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="function")
+def control_dates() -> pd.DatetimeIndex:
+    return pd.date_range("2025-01-01", periods=10, freq="W-MON", name="date")
+
+
+@pytest.fixture(scope="function")
+def control_xarray(control_dates) -> xr.Dataset:
+    """Minimal xarray Dataset mimicking what MMM._set_xarray_data produces."""
+    n_dates = len(control_dates)
+    control_cols = ["price_index", "promo"]
+    rng = np.random.default_rng(0)
+    data = rng.standard_normal((n_dates, len(control_cols)))
+    control_da = xr.DataArray(
+        data,
+        dims=["date", "control"],
+        coords={"date": control_dates, "control": control_cols},
+        name="_control",
+    )
+    return xr.Dataset({"_control": control_da})
+
+
+@pytest.fixture(scope="function")
+def control_model(control_dates) -> pm.Model:
+    return pm.Model(coords={"date": control_dates})
+
+
+@pytest.fixture(scope="function")
+def mock_mmm_control(control_model):
+    class MMM:
+        pass
+
+    mmm = MMM()
+    mmm.dims = ()
+    mmm.model = control_model
+    return mmm
+
+
+def _make_panel_xarray(dates, geos, control_cols, seed=0):
+    """Build a panel _control DataArray with dims (date, geo, control)."""
+    rng = np.random.default_rng(seed)
+    data = rng.standard_normal((len(dates), len(geos), len(control_cols)))
+    return xr.Dataset(
+        {
+            "_control": xr.DataArray(
+                data,
+                dims=["date", "geo", "control"],
+                coords={"date": dates, "geo": geos, "control": control_cols},
+            )
+        }
+    )
+
+
+class TestControlEffect:
+    def test_create_data_registers_shared_variable(
+        self, mock_mmm_control, control_xarray, control_model
+    ):
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=control_xarray)
+
+        assert "control_data" in control_model.named_vars
+        assert "control" in control_model.coords
+
+    def test_create_data_with_no_X_does_nothing(self, mock_mmm_control, control_model):
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=None)
+
+        assert "control_data" not in control_model.named_vars
+
+    def test_create_data_with_missing_control_key_does_nothing(
+        self, mock_mmm_control, control_dates, control_model
+    ):
+        effect = ControlEffect()
+        X_no_control = xr.Dataset({"other": xr.DataArray([1, 2], dims=["date"])})
+        with control_model:
+            effect.create_data(mock_mmm_control, X=X_no_control)
+
+        assert "control_data" not in control_model.named_vars
+
+    def test_create_data_idempotent_coord(
+        self, mock_mmm_control, control_xarray, control_model
+    ):
+        """Calling create_data twice must not raise due to duplicate coord."""
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=control_xarray)
+            # Second call should not raise even though "control" coord exists
+            effect.create_data(mock_mmm_control, X=control_xarray)
+
+    def test_create_effect_produces_deterministic(
+        self, mock_mmm_control, control_xarray, control_model
+    ):
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=control_xarray)
+            result = effect.create_effect(mock_mmm_control)
+
+        assert "control_contribution" in control_model.named_vars
+        # Result should have summed over "control" dim — only date dim remains
+        assert "control" not in result.type.dims
+
+    def test_create_effect_raises_without_create_data(
+        self, mock_mmm_control, control_model
+    ):
+        """create_effect must raise clearly when create_data was not called first."""
+        effect = ControlEffect()
+        with control_model:
+            with pytest.raises(RuntimeError, match="create_data"):
+                effect.create_effect(mock_mmm_control)
+
+    def test_set_data_updates_shared_variable(
+        self, mock_mmm_control, control_xarray, control_model
+    ):
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=control_xarray)
+            effect.create_effect(mock_mmm_control)
+
+        # New dataset with same structure but different values
+        n_dates = len(control_xarray.coords["date"])
+        rng = np.random.default_rng(42)
+        new_data = rng.standard_normal((n_dates, 2))
+        new_control_da = xr.DataArray(
+            new_data,
+            dims=["date", "control"],
+            coords={
+                "date": control_xarray.coords["date"],
+                "control": control_xarray.coords["control"],
+            },
+            name="_control",
+        )
+        new_X = xr.Dataset({"_control": new_control_da})
+
+        # Should not raise
+        effect.set_data(mock_mmm_control, control_model, new_X)
+
+    def test_set_data_with_none_does_nothing(
+        self, mock_mmm_control, control_xarray, control_model
+    ):
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=control_xarray)
+            effect.create_effect(mock_mmm_control)
+
+        # Should not raise
+        effect.set_data(mock_mmm_control, control_model, None)
+
+    def test_set_data_with_no_control_key_does_nothing(
+        self, mock_mmm_control, control_xarray, control_model
+    ):
+        effect = ControlEffect()
+        with control_model:
+            effect.create_data(mock_mmm_control, X=control_xarray)
+            effect.create_effect(mock_mmm_control)
+
+        X_no_control = xr.Dataset()
+        # Should not raise
+        effect.set_data(mock_mmm_control, control_model, X_no_control)
+
+    def test_to_dict_round_trip(self):
+        prior = Prior("Normal", mu=0, sigma=1, dims="control")
+        effect = ControlEffect(prior=prior, date_dim_name="time")
+
+        data = serialization.serialize(effect)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is ControlEffect
+        assert restored.date_dim_name == "time"
+        assert restored.prior._distribution == "Normal"
+
+    def test_default_prior(self):
+        effect = ControlEffect()
+        assert effect.prior._distribution == "Normal"
+        assert effect.prior.parameters["mu"] == 0
+        assert effect.prior.parameters["sigma"] == 2
+        assert "control" in (effect.prior.dims or ())
+
+    @pytest.mark.parametrize(
+        "input_prior,expected_dims",
+        [
+            (Prior("Normal"), ("control",)),
+            (Prior("Normal", dims="control"), ("control",)),
+            (Prior("Normal", mu=0, sigma=1), ("control",)),
+            (Prior("Normal", dims="geo"), ("geo",)),
+        ],
+        ids=["no-dims", "already-control", "kwargs-no-dims", "explicit-other-dim"],
+    )
+    def test_prior_validator_ensures_control_dim(self, input_prior, expected_dims):
+        """Prior with dims=None is defaulted to 'control'; explicit dims are untouched."""
+        effect = ControlEffect(prior=input_prior)
+        assert effect.prior.dims == expected_dims
+
+    @pytest.mark.parametrize(
+        "dims,extra_coords",
+        [
+            ((), {}),
+            (("geo",), {"geo": ["A", "B"]}),
+        ],
+        ids=["scalar", "panel-geo"],
+    )
+    def test_create_effect_multidimensional(self, control_dates, dims, extra_coords):
+        """ControlEffect must produce correct dims for both scalar and panel MMMs."""
+        control_cols = ["price_index", "promo"]
+        geos = extra_coords.get("geo", [])
+
+        coords = {"date": control_dates, **extra_coords}
+        model = pm.Model(coords=coords)
+
+        class MockMMM:
+            pass
+
+        mmm = MockMMM()
+        mmm.dims = dims
+        mmm.model = model
+
+        if dims:
+            X = _make_panel_xarray(control_dates, geos, control_cols)
+            prior = Prior("Normal", mu=0, sigma=2, dims=(*dims, "control"))
+        else:
+            rng = np.random.default_rng(0)
+            data = rng.standard_normal((len(control_dates), len(control_cols)))
+            X = xr.Dataset(
+                {
+                    "_control": xr.DataArray(
+                        data,
+                        dims=["date", "control"],
+                        coords={"date": control_dates, "control": control_cols},
+                    )
+                }
+            )
+            prior = Prior("Normal", mu=0, sigma=2, dims="control")
+
+        effect = ControlEffect(prior=prior)
+
+        with model:
+            effect.create_data(mmm, X=X)
+            result = effect.create_effect(mmm)
+
+        assert "control_contribution" in model.named_vars
+        assert "control" not in result.type.dims
+        # date dim should be present
+        assert "date" in result.type.dims
+        # geo dim should be present for panel models
+        for dim in dims:
+            assert dim in result.type.dims
