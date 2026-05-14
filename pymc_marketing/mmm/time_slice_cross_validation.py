@@ -20,6 +20,7 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
 import copy
+import warnings
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Literal, overload
@@ -31,6 +32,7 @@ import xarray as xr
 from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.types import MMMBuilder
 
@@ -173,14 +175,47 @@ class TimeSliceCrossValidator:
         # Optional sampler configuration that will be applied to the MMM prior to fitting
         # Can be provided here at construction or passed to run() to override per-run.
         self.sampler_config = sampler_config
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
+        self._plot_suite_warned: bool = False
 
     @property
-    def plot(self) -> MMMCVPlotSuite:
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
+        if value == "legacy":
+            self._plot_suite_warned = False
+
+    @property
+    def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
         """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
+        if self.plot_suite == "legacy":
+            if not hasattr(self, "idata") or self.idata is None:
+                raise ValueError(
+                    "idata is not available. Ensure TimeSliceCrossValidator.run() "
+                    "completed successfully."
+                )
+            if not self._plot_suite_warned:
+                warnings.warn(
+                    "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
+                    "Set cv.plot_suite = 'new' to opt in to the new namespace-based API. "
+                    "See the migration guide: "
+                    "https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_plot_suite_migration_guide.html",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                self._plot_suite_warned = True
+            return MMMPlotSuite(idata=self.idata)
         if not hasattr(self, "cv_idata"):
             raise ValueError(
-                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() completed successfully."
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() "
+                "completed successfully."
             )
         return MMMCVPlotSuite(self.cv_idata)
 
