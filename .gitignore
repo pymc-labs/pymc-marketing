@@ -1,3 +1,6 @@
+# JOSS paper build artifacts
+paper/jats/
+
 # MLflow logging
 mlruns/
 mlruns.db
