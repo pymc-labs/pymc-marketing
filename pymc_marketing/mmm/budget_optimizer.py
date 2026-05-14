@@ -720,7 +720,12 @@ class BudgetOptimizer(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _migrate_legacy_constraint_kwargs(cls, data: Any) -> Any:
-        """Translate deprecated ``custom_constraints``/``default_constraints`` to ``constraints``."""
+        """Translate deprecated ``custom_constraints``/``default_constraints`` to ``constraints``.
+
+        .. deprecated:: 0.20.0
+            ``custom_constraints`` and ``default_constraints`` are deprecated
+            and will be removed in 0.21.0. Use ``constraints`` instead.
+        """
         if not isinstance(data, dict):
             return data
 
@@ -741,10 +746,10 @@ class BudgetOptimizer(BaseModel):
 
         warnings.warn(
             "`custom_constraints` and `default_constraints` are deprecated and "
-            "will be removed in a future release. Use `constraints` instead: "
-            "an empty `constraints` auto-adds the default sum constraint; a "
-            "non-empty one means the caller is in charge. To keep the default "
-            "sum constraint alongside custom ones, append "
+            "will be removed in 0.21.0. Use `constraints` instead: an empty "
+            "`constraints` auto-adds the default sum constraint; a non-empty "
+            "one means the caller is in charge. To keep the default sum "
+            "constraint alongside custom ones, append "
             "`build_default_sum_constraint()` to your list.",
             DeprecationWarning,
             stacklevel=2,

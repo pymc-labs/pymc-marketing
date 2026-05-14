@@ -369,6 +369,38 @@ def test_constraints_and_legacy_kwargs_conflict(mmm_wrapper):
         )
 
 
+def test_legacy_custom_with_implicit_default_keeps_both(mmm_wrapper):
+    """Legacy: ``custom_constraints=[c]`` without ``default_constraints`` keeps both."""
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="eq",
+    )
+    with pytest.warns(DeprecationWarning, match="custom_constraints"):
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            custom_constraints=[cap],
+        )
+    assert "cap" in optimizer._constraints
+    assert "default" in optimizer._constraints
+
+
+def test_legacy_default_only_adds_default(mmm_wrapper):
+    """Legacy: ``default_constraints=True`` alone behaves like the new empty case."""
+    with pytest.warns(DeprecationWarning, match="default_constraints"):
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            default_constraints=True,
+        )
+    assert "default" in optimizer._constraints
+
+
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
 def test_allocate_budget_custom_minimize_args(
     minimize_mock,

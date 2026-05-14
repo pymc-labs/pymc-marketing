@@ -3737,10 +3737,10 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             :func:`~pymc_marketing.mmm.constraints.build_default_sum_constraint`
             explicitly to keep the sum constraint alongside custom ones.
         default_constraints : bool, optional
-            .. deprecated::
+            .. deprecated:: 0.20.0
                 Use ``constraints`` instead. An empty ``constraints`` now
                 auto-adds the default sum constraint; a non-empty one means
-                the caller is in charge. Will be removed in a future release.
+                the caller is in charge. Will be removed in 0.21.0.
         budgets_to_optimize : xr.DataArray | None
             Mask defining which budgets to optimize.
         budget_distribution_over_period : xr.DataArray | None

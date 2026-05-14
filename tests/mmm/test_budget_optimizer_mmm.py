@@ -198,6 +198,30 @@ compile_kwargs = pytest.mark.parametrize(
 
 
 @compile_kwargs
+def test_optimize_budget_default_constraints_kwarg_is_deprecated(
+    dummy_df, fitted_mmm, compile_kwargs
+):
+    """Passing ``default_constraints`` to ``optimize_budget`` warns but still works."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        compile_kwargs=compile_kwargs,
+    )
+
+    with pytest.warns(DeprecationWarning, match="default_constraints"):
+        optimal_budgets, result = optimizable_model.optimize_budget(
+            budget=1,
+            default_constraints=True,
+        )
+
+    assert isinstance(optimal_budgets, xr.DataArray)
+    assert result.success
+
+
+@compile_kwargs
 def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
