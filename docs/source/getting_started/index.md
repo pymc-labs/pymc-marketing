@@ -15,3 +15,10 @@ quickstart/clv/index
 quickstart/mmm/index
 quickstart/customer_choice/index
 :::
+
+:::{toctree}
+:caption: Bass Diffusion
+:maxdepth: 1
+
+../notebooks/bass/bass_example
+:::
