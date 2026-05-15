@@ -344,6 +344,22 @@ def _force_load_idata_groups(idata: az.InferenceData) -> None:
                 group_data.load()
 
 
+def _attach_run_id(idata: az.InferenceData) -> None:
+    """Stamp the active MLflow run id onto ``idata.attrs``.
+
+    No-op when no MLflow run is active.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object to stamp.
+    """
+    run = mlflow.active_run()
+    if run is None:
+        return
+    idata.attrs["mlflow_run_id"] = run.info.run_id
+
+
 def log_arviz_summary(
     idata: az.InferenceData,
     path: str | Path,
@@ -1214,6 +1230,7 @@ def autolog(
                 log_model_derived_info(model)
 
             idata = sample(*args, **kwargs)
+            _attach_run_id(idata)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -1259,6 +1276,7 @@ def autolog(
             log_mmm_configuration(self)
 
             idata = fit(self, *args, **kwargs)
+            _attach_run_id(idata)
 
             log_inference_data(idata, save_file="idata.nc")
 
@@ -1280,6 +1298,7 @@ def autolog(
             mlflow.log_params(
                 idata.attrs,
             )
+            _attach_run_id(idata)
             log_inference_data(idata, save_file="idata.nc")
 
             return idata
