@@ -14,5 +14,5 @@ installation/index
 quickstart/clv/index
 quickstart/mmm/index
 quickstart/customer_choice/index
-../notebooks/bass/bass_example
+Bass Diffusion Model Quickstart <../notebooks/bass/bass_example>
 :::
