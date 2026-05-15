@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
@@ -278,6 +280,14 @@ def test_higher_dimension_hsgp(data) -> None:
     assert isinstance(prior, xr.Dataset)
     curve = prior["f"]
     assert curve.shape == (1, 25, 10, 5, 3)
+
+
+def test_hsgp_drop_first_does_not_emit_pymc_deprecation(data) -> None:
+    hsgp = HSGP.parameterize_from_data(data, dims="time", drop_first=True)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        with pm.Model(coords={"time": np.arange(10)}):
+            hsgp.create_variable("f", xdist=True)
 
 
 def test_from_dict_with_non_dictionary_distributions_hsgp() -> None:
