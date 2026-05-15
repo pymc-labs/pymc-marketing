@@ -671,9 +671,10 @@ class BudgetOptimizer(BaseModel):
         default=None,
         description=(
             "Fixed temporal distribution of each budget cell across periods. "
-            "Must have dims ('date', *budget_dims) where 'date' has length num_periods. "
-            "Values must sum to 1 along 'date' for every combination of the remaining dims. "
-            "If None, budget is distributed uniformly (1/num_periods per period)."
+            "Must have dims ``('date', *budget_dims)`` where 'date' has length "
+            "num_periods. Values must sum to 1 along 'date' for every combination "
+            "of the remaining dims. If None, budget is distributed uniformly "
+            "(1/num_periods per period)."
         ),
     )
 
@@ -682,7 +683,7 @@ class BudgetOptimizer(BaseModel):
         description=(
             "Cost per unit conversion factors for converting budgets from "
             "monetary units (dollars) to original units (impressions, clicks). "
-            "Must have dims (date, *budget_dims) where date has length "
+            "Must have dims ``(date, *budget_dims)`` where date has length "
             "num_periods. If None, budgets are assumed to already be in "
             "the model's native units (no conversion applied)."
         ),
