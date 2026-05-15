@@ -3736,7 +3736,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             If non-empty, the caller is in charge: no default is added. Pass
             :func:`~pymc_marketing.mmm.constraints.build_default_sum_constraint`
             explicitly to keep the sum constraint alongside custom ones.
-        default_constraints : bool, optional
+        default_constraints : bool or None, optional
             .. deprecated:: 0.20.0
                 Use ``constraints`` instead. An empty ``constraints`` now
                 auto-adds the default sum constraint; a non-empty one means

@@ -735,6 +735,11 @@ class BudgetOptimizer(BaseModel):
             return data
 
         if "constraints" in data:
+            # Pydantic v2 wraps `ValueError` raised from a `mode="before"`
+            # validator into `pydantic.ValidationError` (itself a `ValueError`).
+            # `TypeError` is re-raised as-is, which is what we want here:
+            # passing mutually exclusive kwargs is a programming error, not a
+            # value error.
             raise TypeError(
                 "Pass either `constraints` or the deprecated "
                 "`custom_constraints`/`default_constraints`, not both."
