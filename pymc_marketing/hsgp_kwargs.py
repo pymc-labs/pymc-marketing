@@ -14,7 +14,7 @@
 """Class to store and validate keyword argument for the Hilbert Space Gaussian Process (HSGP) components."""
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -48,28 +48,25 @@ class HSGPKwargs(BaseModel):
     .. [6] Orduz, J. `"A Conceptual and Practical Introduction to Hilbert Space GPs Approximation Methods" <https://juanitorduz.github.io/hsgp_intro/>`_.
     """  # noqa E501
 
-    m: int = Field(200, description="Number of basis functions")
-    L: (
-        Annotated[
-            float,
-            Field(
-                gt=0,
-                description="""
-                Extent of basis functions. Set this to reflect the expected range of in+out-of-sample data
-                (considering that time-indices are zero-centered).Default is `X_mid * 2` (identical to `c=2` in HSGP)
-                """,
-            ),
-        ]
-        | None
-    ) = None
-    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance")
+    m: int = Field(200, description="Number of basis functions.")
+    L: float | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Extent of basis functions. Set this to reflect the expected range "
+            "of in+out-of-sample data (considering that time-indices are "
+            "zero-centered). Defaults to ``X_mid * 2`` (identical to ``c=2`` "
+            "in HSGP)."
+        ),
+    )
+    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance.")
     ls_mu: float = Field(
-        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
+        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale."
     )
     ls_sigma: float = Field(
         5.0,
         gt=0,
-        description="Standard deviation of the inverse gamma prior for the lengthscale",
+        description="Standard deviation of the inverse gamma prior for the lengthscale.",
     )
     cov_func: CovFunc | None = Field(
         None,

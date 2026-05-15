@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     # extensions provided by other packages
     "sphinx_autodoc_typehints",
+    "sphinxcontrib.autodoc_pydantic",
     "numpydoc",
     "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
@@ -173,6 +174,16 @@ numpydoc_xref_aliases = {
 }
 # don't add a return type section, use standard return with type info
 typehints_document_rtype = False
+
+# autodoc-pydantic: render Field(description=...) on pydantic models. Keep
+# the page free of pydantic internals (JSON schema, Config, validators);
+# those add noise without helping the reader.
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_field_list_validators = False
 
 
 # intersphinx configuration to ease linking arviz docs
@@ -338,111 +349,56 @@ def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
         )
 
 
-def _resolve_field_description(field) -> str:
-    """Return ``field.description``, looking into ``Annotated`` metadata."""
-    import typing
+def use_autopydantic_for_pydantic_models(app, docname, source):
+    """Swap ``autoclass`` for ``autopydantic_model`` in pydantic autosummary stubs.
 
-    from pydantic.fields import FieldInfo
-
-    if field.description:
-        return field.description
-
-    def walk(annotation) -> str | None:
-        if annotation is None:
-            return None
-        for arg in typing.get_args(annotation):
-            if isinstance(arg, FieldInfo) and arg.description:
-                return arg.description
-            found = walk(arg)
-            if found:
-                return found
-        return None
-
-    return walk(field.annotation) or ""
-
-
-def _format_field_type(annotation) -> str:
-    """Render a pydantic field annotation as a numpydoc-style type string."""
-    import types
-    import typing
-
-    if annotation is None or annotation is type(None):
-        return "None"
-
-    origin = typing.get_origin(annotation)
-    args = typing.get_args(annotation)
-
-    # Annotated[X, ...]: use the base type only, drop FieldInfo metadata.
-    if origin is typing.get_origin(typing.Annotated[int, "x"]):
-        return _format_field_type(args[0])
-
-    # Union / X | None: render as "X, optional" when the only extra is None.
-    if origin in (types.UnionType, typing.Union):
-        non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1 and len(args) != len(non_none):
-            return f"{_format_field_type(non_none[0])}, optional"
-        return " or ".join(_format_field_type(a) for a in args)
-
-    if isinstance(annotation, type):
-        return annotation.__name__
-
-    return str(annotation).replace("typing.", "")
-
-
-_PYDANTIC_PARAMETERS_INJECT_TARGETS = frozenset(
-    {
-        "pymc_marketing.hsgp_kwargs.HSGPKwargs",
-        "pymc_marketing.mmm.scaling.VariableScaling",
-        "pymc_marketing.mmm.scaling.DataDerivedScaling",
-        "pymc_marketing.mmm.scaling.FixedScaling",
-        "pymc_marketing.mmm.scaling.Scaling",
-    }
-)
-
-
-def inject_pydantic_parameters(app, what, name, obj, options, lines):
-    """Append a numpydoc ``Parameters`` block derived from ``model_fields``.
-
-    Source of truth for the listed classes is ``Field(description=...)``.
-    This callback turns those descriptions into the same Parameters block
-    numpydoc renders for regular classes, so they appear in the published
-    docs without keeping a duplicated block in the docstring.
-
-    Scoped to the targets in ``_PYDANTIC_PARAMETERS_INJECT_TARGETS``: other
-    pydantic models in the repo have hand-written Parameters blocks or
-    orphan parameter-like lists that this injector would clash with.
+    Sphinx 9.x's autosummary picks the template via hard-coded heuristics
+    (`_best_object_type_for_member`) that don't respect autodoc-pydantic's
+    ``PydanticModelDocumenter`` priority, so generated stubs use
+    ``autoclass``. Rewriting at source-read time lets autodoc-pydantic
+    render fields (the goal of #1700) for every pydantic model in the repo.
     """
-    from pydantic_core import PydanticUndefined
-
-    if what != "class" or name not in _PYDANTIC_PARAMETERS_INJECT_TARGETS:
+    if not docname.startswith("api/generated/"):
         return
-    if not getattr(obj, "model_fields", None):
+    text = source[0]
+    if ".. autoclass:: " not in text or "autopydantic_model" in text:
         return
 
-    # Emit sphinx-domain :param: / :type: directives, which docutils renders
-    # as a "Parameters" field list. Numpydoc has already run on the original
-    # docstring by the time this callback fires, so producing numpydoc-style
-    # "Parameters\n----------" here would be parsed as a section header
-    # instead of a field list.
-    block = [""]
-    for fname, field in obj.model_fields.items():
-        description = _resolve_field_description(field).strip()
-        if field.default is not PydanticUndefined and field.default is not None:
-            description = f"{description} Default is ``{field.default!r}``.".strip()
-        type_str = _format_field_type(field.annotation)
-        desc_lines = description.splitlines() or [""]
-        block.append(f":param {fname}: {desc_lines[0].strip()}")
-        for cont in desc_lines[1:]:
-            block.append(f"    {cont.strip()}")
-        block.append(f":type {fname}: {type_str}")
-    lines.extend(block)
+    import importlib
+    import re
+
+    cm = re.search(r"\.\. currentmodule:: (\S+)", text)
+    ac = re.search(r"\.\. autoclass:: (\S+)", text)
+    if not cm or not ac:
+        return
+    module_name, class_name = cm.group(1), ac.group(1)
+
+    try:
+        mod = importlib.import_module(module_name)
+        cls = getattr(mod, class_name, None)
+        from pydantic import BaseModel
+
+        if (
+            isinstance(cls, type)
+            and cls is not BaseModel
+            and issubclass(cls, BaseModel)
+        ):
+            # :inherited-members: BaseModel pulls fields defined on parent
+            # pydantic models (e.g. ``dims`` on ``VariableScaling`` shows
+            # up on ``FixedScaling``) without leaking BaseModel internals.
+            source[0] = text.replace(
+                f".. autoclass:: {class_name}",
+                (
+                    f".. autopydantic_model:: {class_name}\n"
+                    "   :inherited-members: BaseModel"
+                ),
+                1,
+            )
+    except Exception:
+        return
 
 
 def setup(app):
-    """Configure Sphinx application event handlers.
-
-    Connects the Plotly MathJax scrubbing function to the html-page-context
-    event and the pydantic-parameters injector to autodoc-process-docstring.
-    """
+    """Configure Sphinx application event handlers."""
     app.connect("html-page-context", scrub_plotly_mathjax)
-    app.connect("autodoc-process-docstring", inject_pydantic_parameters)
+    app.connect("source-read", use_autopydantic_for_pydantic_models)
