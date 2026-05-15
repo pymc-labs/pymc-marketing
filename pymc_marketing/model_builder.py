@@ -49,33 +49,6 @@ except ImportError:
         return X
 
 
-def _handle_deprecate_pred_argument(
-    value,
-    name: str,
-    kwargs: dict,
-    none_allowed: bool = False,
-):
-    name_pred = f"{name}_pred"
-    if name_pred in kwargs and value is not None:
-        raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
-
-    if name_pred not in kwargs and value is None and none_allowed:
-        return value
-
-    if name_pred not in kwargs and value is None:
-        raise ValueError(f"Please provide {name}.")
-
-    if name_pred in kwargs:
-        warnings.warn(
-            f"{name_pred} is deprecated, use {name} instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return kwargs.pop(name_pred)
-
-    return value
-
-
 def create_idata_accessor(value: str, message: str):
     """Create a property accessor for an InferenceData object.
 
@@ -1084,7 +1057,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -1248,7 +1221,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_prior_predictive(
         self,
-        X=None,
+        X,
         y=None,
         samples: int | None = None,
         extend_idata: bool = True,
@@ -1281,9 +1254,6 @@ class RegressionModelBuilder(ModelBuilder):
             Prior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
-        y = _handle_deprecate_pred_argument(y, "y", kwargs, none_allowed=True)
-
         if y is None:
             y = np.zeros(len(X))
         if samples is None:
@@ -1312,7 +1282,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_posterior_predictive(
         self,
-        X=None,
+        X,
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -1337,8 +1307,6 @@ class RegressionModelBuilder(ModelBuilder):
             Posterior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
-
         self._data_setter(X)
 
         with self.model:
@@ -1359,7 +1327,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_proba(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
@@ -1369,7 +1337,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_posterior(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -1395,7 +1363,6 @@ class RegressionModelBuilder(ModelBuilder):
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
         X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
             X, extend_idata, combined, **kwargs

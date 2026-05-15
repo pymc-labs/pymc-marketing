@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -1682,3 +1684,36 @@ def test_optimize_budget_asymmetric_dims_with_mask(fitted_mmm_asymmetric):
     assert set(optimal_budgets.dims) == {"geo", "channel"}
     assert optimal_budgets.sizes["geo"] == 3
     assert optimal_budgets.sizes["channel"] == 2
+
+
+def test_budget_optimizer_plot_legacy_returns_mmm_plot_suite(fitted_mmm, dummy_df):
+    """In legacy mode, BudgetOptimizerWrapper.plot returns the legacy MMMPlotSuite."""
+    from pymc_marketing.mmm.plot import MMMPlotSuite
+
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+    optimizable_model.model_class.plot_suite = "legacy"
+    optimizable_model.model_class._plot_suite_warned = False
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        result = optimizable_model.plot
+    assert isinstance(result, MMMPlotSuite)
+
+
+def test_budget_optimizer_plot_new_returns_budget_plots(fitted_mmm, dummy_df):
+    """In new mode, BudgetOptimizerWrapper.plot returns BudgetPlots."""
+    from pymc_marketing.mmm.plotting.budget import BudgetPlots
+
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+    optimizable_model.model_class.plot_suite = "new"
+    result = optimizable_model.plot
+    assert isinstance(result, BudgetPlots)

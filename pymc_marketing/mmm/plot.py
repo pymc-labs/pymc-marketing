@@ -4640,7 +4640,6 @@ class MMMPlotSuite:
             plt.tight_layout()
 
         axes[-1].set_xlabel("date")
-        plt.show()
         return fig, axes
 
     def param_stability(

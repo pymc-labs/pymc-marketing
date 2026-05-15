@@ -15,6 +15,7 @@
 
 import copy
 import warnings
+from unittest.mock import MagicMock
 
 import arviz as az
 import numpy as np
@@ -1164,9 +1165,8 @@ class TestReturnModels:
             assert r.mmm is None
 
 
-def test_plot_property_returns_mmm_cv_plot_suite():
-    """TimeSliceCrossValidator.plot returns an MMMCVPlotSuite instance."""
-    # Use _combine_idata to build a cv_idata that includes the required cv_metadata group.
+def test_plot_property_legacy_default_returns_mmm_plot_suite():
+    """TimeSliceCrossValidator.plot returns MMMPlotSuite by default (legacy mode)."""
     dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
     dates2 = pd.to_datetime(["2025-01-15", "2025-01-22"])
     df_train = pd.DataFrame({"date": dates1})
@@ -1187,15 +1187,111 @@ def test_plot_property_returns_mmm_cv_plot_suite():
         idata=_build_simple_idata(dates2),
     )
 
-    # Build a cv_idata with the correct structure (including cv_metadata)
     cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
     cv._cv_results = [r1, r2]
-    cv_idata = cv._combine_idata([r1, r2], ["fold_0", "fold_1"])
+    cv._plot_suite = "legacy"
+    cv._plot_suite_warned = False
+    cv._combine_idata([r1, r2], ["fold_0", "fold_1"])  # sets cv.idata from last fold
 
-    # Reset to a fresh instance to test the plot property in isolation
-    cv2 = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
-    cv2._cv_results = [r1, r2]  # non-empty so _validate_model_was_built passes
-    cv2.cv_idata = cv_idata
+    with pytest.warns(FutureWarning):
+        result = cv.plot
+    assert isinstance(result, MMMPlotSuite)
 
-    result = cv2.plot
+
+def test_plot_property_new_mode_returns_mmm_cv_plot_suite():
+    """TimeSliceCrossValidator.plot returns MMMCVPlotSuite when plot_suite='new'."""
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    dates2 = pd.to_datetime(["2025-01-15", "2025-01-22"])
+    df_train = pd.DataFrame({"date": dates1})
+    df_test = pd.DataFrame({"date": dates2})
+
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([1, 2]),
+        X_test=df_test,
+        y_test=pd.Series([3, 4]),
+        idata=_build_simple_idata(dates1),
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([5, 6]),
+        X_test=df_test,
+        y_test=pd.Series([7, 8]),
+        idata=_build_simple_idata(dates2),
+    )
+
+    cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv._cv_results = [r1, r2]
+    cv._plot_suite = "new"
+    cv._combine_idata([r1, r2], ["fold_0", "fold_1"])
+
+    result = cv.plot
     assert isinstance(result, MMMCVPlotSuite)
+
+
+def test_plot_suite_setter_rejects_invalid():
+    """TimeSliceCrossValidator.plot_suite setter raises ValueError for unknown values."""
+    cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv._plot_suite = "legacy"
+    with pytest.raises(ValueError, match="plot_suite must be"):
+        cv.plot_suite = "invalid"
+
+
+def test_plot_legacy_raises_when_no_idata():
+    """TimeSliceCrossValidator.plot raises ValueError in legacy mode if idata not available."""
+    cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    # Use a mock with idata=None so _validate_model_was_built does not set self.idata
+    fold_mock = MagicMock()
+    fold_mock.idata = None
+    cv._cv_results = [fold_mock]  # non-empty so _validate_model_was_built passes
+    cv._plot_suite = "legacy"
+    # Do NOT set cv.idata
+    with pytest.raises(ValueError, match="idata is not available"):
+        cv.plot
+
+
+def _make_legacy_cv_with_idata():
+    """Return a legacy-mode CV with idata set, ready to call .plot."""
+    dates1 = pd.to_datetime(["2025-01-01", "2025-01-08"])
+    dates2 = pd.to_datetime(["2025-01-15", "2025-01-22"])
+    df_train = pd.DataFrame({"date": dates1})
+    df_test = pd.DataFrame({"date": dates2})
+
+    r1 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([1, 2]),
+        X_test=df_test,
+        y_test=pd.Series([3, 4]),
+        idata=_build_simple_idata(dates1),
+    )
+    r2 = TimeSliceCrossValidationResult(
+        X_train=df_train,
+        y_train=pd.Series([5, 6]),
+        X_test=df_test,
+        y_test=pd.Series([7, 8]),
+        idata=_build_simple_idata(dates2),
+    )
+    cv = TimeSliceCrossValidator.__new__(TimeSliceCrossValidator)
+    cv._cv_results = [r1, r2]
+    cv._plot_suite = "legacy"
+    cv._plot_suite_warned = False
+    cv._combine_idata([r1, r2], ["fold_0", "fold_1"])
+    return cv
+
+
+def test_plot_legacy_emits_future_warning():
+    """Accessing .plot in legacy mode emits a FutureWarning pointing to the new API."""
+    cv = _make_legacy_cv_with_idata()
+    with pytest.warns(FutureWarning, match="cv.plot_suite = 'new'"):
+        cv.plot
+
+
+def test_plot_legacy_future_warning_emitted_only_once():
+    """The FutureWarning is suppressed after the first .plot access on the same instance."""
+    cv = _make_legacy_cv_with_idata()
+    with pytest.warns(FutureWarning):
+        cv.plot
+    # Second access must not emit a warning
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", FutureWarning)
+        cv.plot  # would raise if a second warning were emitted
