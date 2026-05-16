@@ -18,6 +18,23 @@ Each of these transformations is a subclass of
 that takes media and return the saturated media. The parameters of the function
 are the parameters of the saturation transformation.
 
+Notes
+-----
+The wrapper classes in this module extend the transformer functions in
+:mod:`pymc_marketing.mmm.transformers` with the priors needed to fit them in a model.
+Several wrappers also introduce an extra scaling parameter that the underlying
+transformer does not take, so the curve can reach a value other than the bounded
+range of the transformer:
+
+- :class:`LogisticSaturation`, :class:`InverseScaledLogisticSaturation`,
+  :class:`TanhSaturationBaselined`, :class:`HillSaturation`, :class:`RootSaturation`,
+  and :class:`NoSaturation` multiply the output by ``beta``.
+- :class:`MichaelisMentenSaturation` and the underlying :func:`tanh_saturation`
+  /:func:`hill_saturation_sigmoid` already expose this asymptote as ``alpha``,
+  ``b``, or ``sigma``, so no extra parameter is added.
+
+See each class for the full list of parameters and their default priors.
+
 Examples
 --------
 Create a new saturation transformation:
@@ -213,7 +230,17 @@ class SaturationTransformation(Transformation):
 class LogisticSaturation(SaturationTransformation):
     """Wrapper around logistic saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.logistic_saturation`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.logistic_saturation` by an extra
+    scaling parameter ``beta`` so the curve can reach an asymptote other than 1.
+
+    Parameters
+    ----------
+    lam : tensor
+        Steepness of the curve, as in :func:`logistic_saturation`. Default prior:
+        ``Prior("Gamma", alpha=3, beta=1)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=2)``.
 
     .. plot::
         :context: close-figs
@@ -246,7 +273,18 @@ class LogisticSaturation(SaturationTransformation):
 class InverseScaledLogisticSaturation(SaturationTransformation):
     """Wrapper around inverse scaled logistic saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation`
+    by an extra scaling parameter ``beta`` so the curve can reach an asymptote other
+    than 1.
+
+    Parameters
+    ----------
+    lam : tensor
+        Half-saturation point of the curve (when ``eps`` keeps its default value).
+        Default prior: ``Prior("Gamma", alpha=0.5, beta=1)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=2)``.
 
     .. plot::
         :context: close-figs
@@ -279,7 +317,18 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
 class TanhSaturation(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation`.
+    Calls :func:`pymc_marketing.mmm.transformers.tanh_saturation` directly. The
+    saturation level is already exposed by the underlying function as ``b``, so no
+    extra scaling parameter is added at this layer.
+
+    Parameters
+    ----------
+    b : tensor
+        Saturation point, the asymptote that the response approaches. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
+    c : tensor
+        Initial cost per user; larger values give a less efficient channel. Default
+        prior: ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -312,7 +361,24 @@ class TanhSaturation(SaturationTransformation):
 class TanhSaturationBaselined(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation_baselined`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.tanh_saturation_baselined` by an
+    extra scaling parameter ``beta`` so the response can reach an asymptote other
+    than the gain-implied one.
+
+    Parameters
+    ----------
+    x0 : tensor
+        Reference point on the input scale, as in :func:`tanh_saturation_baselined`.
+        Default prior: ``Prior("HalfNormal", sigma=1)``.
+    gain : tensor
+        Value of the curve at ``x0`` divided by ``x0`` (the ROAS at the baseline).
+        Default prior: ``Prior("HalfNormal", sigma=1)``.
+    r : tensor
+        Overspend fraction, the ratio of the response at ``x0`` to the saturation
+        level. Default prior: ``Prior("HalfNormal", sigma=1)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -347,7 +413,18 @@ class TanhSaturationBaselined(SaturationTransformation):
 class MichaelisMentenSaturation(SaturationTransformation):
     """Wrapper around Michaelis-Menten saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.michaelis_menten`.
+    Calls :func:`pymc_marketing.mmm.transformers.michaelis_menten` directly. The
+    saturation level is exposed by the underlying function as ``alpha``, so no extra
+    scaling parameter is added at this layer.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Maximum contribution, the asymptote that the response approaches. Default
+        prior: ``Prior("Gamma", mu=2, sigma=1)``.
+    lam : tensor
+        Half-saturation point on the input axis. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -380,7 +457,20 @@ class MichaelisMentenSaturation(SaturationTransformation):
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_function`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.hill_function` by an extra
+    scaling parameter ``beta`` so the curve can reach an asymptote other than 1.
+
+    Parameters
+    ----------
+    slope : tensor
+        Slope of the Hill curve, controlling its steepness. Default prior:
+        ``Prior("HalfNormal", sigma=1.5)``.
+    kappa : tensor
+        Half-saturation point where the response equals half its asymptote. Default
+        prior: ``Prior("HalfNormal", sigma=1.5)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=1.5)``.
 
     .. plot::
         :context: close-figs
@@ -414,7 +504,22 @@ class HillSaturation(SaturationTransformation):
 class HillSaturationSigmoid(SaturationTransformation):
     """Wrapper around Hill saturation sigmoid function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid`.
+    Calls :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid` directly. The
+    saturation level is exposed by the underlying function as ``sigma``, so no extra
+    scaling parameter is added at this layer. Note that ``beta`` here is the slope of
+    the sigmoid, not a scaling factor.
+
+    Parameters
+    ----------
+    sigma : tensor
+        Upper asymptote of the curve. Default prior:
+        ``Prior("HalfNormal", sigma=1.5)``.
+    beta : tensor
+        Slope of the sigmoid, controlling the steepness of the transition. Default
+        prior: ``Prior("HalfNormal", sigma=1.5)``.
+    lam : tensor
+        Midpoint of the transition on the input axis. Default prior:
+        ``Prior("HalfNormal", sigma=1.5)``.
 
     .. plot::
         :context: close-figs
@@ -448,7 +553,17 @@ class HillSaturationSigmoid(SaturationTransformation):
 class RootSaturation(SaturationTransformation):
     """Wrapper around Root saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.root_saturation`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.root_saturation` by an extra
+    scaling parameter ``beta``.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Exponent applied to the input by :func:`root_saturation`. Default prior:
+        ``Prior("Beta", alpha=1, beta=2)``.
+    beta : tensor
+        Scaling factor applied to the root-transformed input. Default prior:
+        ``Prior("Gamma", mu=1, sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -480,6 +595,15 @@ class RootSaturation(SaturationTransformation):
 @serialization.register
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
+
+    Identity-like transformation that returns ``beta * x``. Useful when a channel
+    should not be saturated but still needs a learned coefficient.
+
+    Parameters
+    ----------
+    beta : tensor
+        Slope of the linear response. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
