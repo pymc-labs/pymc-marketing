@@ -31,6 +31,7 @@ are patched:
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
     - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
 - `pymc.find_MAP`:
 
@@ -40,11 +41,13 @@ are patched:
 
     - All parameters, metrics, and artifacts from `pymc.sample`
     - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
 - `CLVModel.fit`:
 
     - Information dependent on fit method used (MCMC or MAP)
     - Model type and fit method
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
 Examples
 --------
@@ -342,6 +345,22 @@ def _force_load_idata_groups(idata: az.InferenceData) -> None:
             group_data = getattr(idata, group)
             if hasattr(group_data, "load"):
                 group_data.load()
+
+
+def _attach_run_id(idata: az.InferenceData) -> None:
+    """Stamp the active MLflow run id onto ``idata.attrs``.
+
+    No-op when no MLflow run is active.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object to stamp.
+    """
+    run = mlflow.active_run()
+    if run is None:
+        return
+    idata.attrs["mlflow_run_id"] = run.info.run_id
 
 
 def log_arviz_summary(
@@ -1217,6 +1236,7 @@ def autolog(
                 log_model_derived_info(model)
 
             idata = sample(*args, **kwargs)
+            _attach_run_id(idata)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -1262,6 +1282,7 @@ def autolog(
             log_mmm_configuration(self)
 
             idata = fit(self, *args, **kwargs)
+            _attach_run_id(idata)
 
             log_inference_data(idata, save_file="idata.nc")
 
@@ -1283,6 +1304,7 @@ def autolog(
             mlflow.log_params(
                 idata.attrs,
             )
+            _attach_run_id(idata)
             log_inference_data(idata, save_file="idata.nc")
 
             return idata
