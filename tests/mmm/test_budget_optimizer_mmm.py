@@ -27,6 +27,7 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.version import __version__
 
 
 @pytest.fixture(scope="module")
@@ -1454,6 +1455,7 @@ def test_sample_response_distribution_includes_total_allocation(
         )
         expected = allocation_strategy * optimizable_model.num_periods
         xr.testing.assert_allclose(result["total_allocation"], expected)
+        assert result.attrs.get("pymc_marketing_version") == __version__
 
 
 @compile_kwargs
