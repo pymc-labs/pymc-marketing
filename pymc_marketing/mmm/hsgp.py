@@ -895,11 +895,13 @@ class HSGP(HSGPBase):
             m=[self.m],
             L=[self.L],
             cov_func=cov_func,
-            drop_first=self.drop_first,
         )
         phi, sqrt_psd = gp.prior_linearized(
             self.X.values[:, None] - self.X_mid,
         )
+        if self.drop_first:
+            phi = phi[:, 1:]
+            sqrt_psd = sqrt_psd[1:]
 
         if self.demeaned_basis:
             phi = phi - phi.mean(axis=0).eval()
