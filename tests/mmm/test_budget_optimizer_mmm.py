@@ -217,6 +217,7 @@ def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
     assert isinstance(optimal_budgets, xr.DataArray)
     assert optimal_budgets.shape == (2, 2)  # 2 channels, 2 geos
     assert result.success
+    assert optimal_budgets.attrs.get("pymc_marketing_version") == __version__
 
 
 @compile_kwargs
