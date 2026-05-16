@@ -721,7 +721,10 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
         self.sample_kwargs = sample_kwargs
 
     def predict(
-        self, context: Any, model_input, params: dict[str, Any] | None = None
+        self,
+        context: Any,
+        model_input: pd.DataFrame,
+        params: dict[str, Any] | None = None,
     ) -> Any:
         """Perform predictions or sampling using the specified prediction method.
 
