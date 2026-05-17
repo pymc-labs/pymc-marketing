@@ -93,8 +93,8 @@ def unstack_sample(curve: xr.DataArray) -> xr.DataArray:
     The plotting helpers in this module index ``chain`` and ``draw`` directly,
     so a combined input must be unstacked first. Assumes ``sample`` is a dim
     of ``curve``. Returns ``curve`` unchanged if ``sample`` is not a
-    ``pd.MultiIndex`` with ``chain`` and ``draw`` levels. Pure: ``curve`` is
-    not mutated.
+    ``pd.MultiIndex`` with ``chain`` and ``draw`` levels. Does not modify
+    ``curve``.
 
     """
     index = curve.indexes.get("sample")
