@@ -75,18 +75,28 @@ Add labels based on issue content (title + body):
 
 ## Output Format
 
-After analyzing the issue, output your triage actions in this format:
+The **very last line** of your response must be a single line in this exact
+format (no trailing text after it):
 
 ```
 TRIAGE: Added labels: label1, label2
 ```
 
-For example:
-- `TRIAGE: Added labels: bug, MMM`
-- `TRIAGE: Added labels: enhancement, documentation`
-- `TRIAGE: Added labels: bug, Installation, priority: high`
+This line is required on every response, even when no labels apply. In that
+case emit it with an empty label list:
 
-The workflow will read this output and apply the labels using GitHub CLI.
+```
+TRIAGE: Added labels:
+```
+
+Examples:
+- `TRIAGE: Added labels: bug, MMM`
+- `TRIAGE: Added labels: enhancement, docs`
+- `TRIAGE: Added labels: bug, Installation, priority: high`
+- `TRIAGE: Added labels:` (no labels apply)
+
+The workflow uses `grep` on this exact prefix to pick the labels up, so the
+format and placement at the end of the response are not optional.
 
 ## Important Guidelines
 
