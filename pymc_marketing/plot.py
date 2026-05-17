@@ -85,7 +85,7 @@ def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
     return curve.reset_coords(scalar_coords_to_drop, drop=True)
 
 
-def unstack_sample(curve: xr.DataArray) -> xr.DataArray:
+def _unstack_sample(curve: xr.DataArray) -> xr.DataArray:
     """Unstack a ``(chain, draw)`` ``sample`` MultiIndex back into chain/draw.
 
     ``arviz.extract(..., combined=True)`` returns a DataArray whose ``chain``
@@ -500,7 +500,7 @@ def plot_hdi(
         non_grid_names = {non_grid_names}
 
     if "sample" in curve.dims:
-        curve = unstack_sample(curve)
+        curve = _unstack_sample(curve)
 
     plot_kwargs = plot_kwargs or {}
     plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
@@ -570,7 +570,7 @@ def plot_samples(
         non_grid_names = {non_grid_names}
 
     if "sample" in curve.dims:
-        curve = unstack_sample(curve)
+        curve = _unstack_sample(curve)
     n_chains = curve.sizes["chain"]
     n_draws = curve.sizes["draw"]
     make_selection = _create_make_sample_selection(
@@ -740,7 +740,7 @@ def plot_curve(
 
     """
     if "sample" in curve.dims:
-        curve = unstack_sample(curve)
+        curve = _unstack_sample(curve)
     curve = drop_scalar_coords(curve)
 
     hdi_probs = hdi_probs or None
