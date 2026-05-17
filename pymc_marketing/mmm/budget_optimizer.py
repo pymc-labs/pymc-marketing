@@ -245,6 +245,7 @@ from pymc_marketing.mmm.constraints import (
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
+from pymc_marketing.version import __version__
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -1340,6 +1341,7 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
+            optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
             if callback:
                 return optimal_budgets, result, callback_info
