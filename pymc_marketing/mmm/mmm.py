@@ -245,6 +245,7 @@ from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.version import __version__
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -4049,7 +4050,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if additional_var_names is not None:
             var_names.extend(additional_var_names)
 
-        return (
+        response = (
             self.sample_posterior_predictive(
                 X=data_with_noise,
                 extend_idata=False,
@@ -4060,3 +4061,5 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             .merge(constant_data)
             .merge(_dataset)
         )
+        response.attrs["pymc_marketing_version"] = __version__
+        return response
