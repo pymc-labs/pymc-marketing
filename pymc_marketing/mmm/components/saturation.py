@@ -29,9 +29,9 @@ range of the transformer:
 - :class:`LogisticSaturation`, :class:`InverseScaledLogisticSaturation`,
   :class:`TanhSaturationBaselined`, :class:`HillSaturation`, :class:`RootSaturation`,
   and :class:`NoSaturation` multiply the output by ``beta``.
-- :class:`MichaelisMentenSaturation` and the underlying :func:`tanh_saturation`
-  /:func:`hill_saturation_sigmoid` already expose this asymptote as ``alpha``,
-  ``b``, or ``sigma``, so no extra parameter is added.
+- :class:`MichaelisMentenSaturation`, :class:`TanhSaturation`, and
+  :class:`HillSaturationSigmoid` do not add an extra parameter because the underlying
+  function already exposes the asymptote (``alpha``, ``b``, or ``sigma``).
 
 See each class for the full list of parameters and their default priors.
 
@@ -327,8 +327,8 @@ class TanhSaturation(SaturationTransformation):
         Saturation point, the asymptote that the response approaches. Default prior:
         ``Prior("HalfNormal", sigma=1)``.
     c : tensor
-        Initial cost per user; larger values give a less efficient channel. Default
-        prior: ``Prior("HalfNormal", sigma=1)``.
+        Initial cost per user; larger values give a less efficient channel. Must be
+        non-zero. Default prior: ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -377,8 +377,9 @@ class TanhSaturationBaselined(SaturationTransformation):
         Overspend fraction, the ratio of the response at ``x0`` to the saturation
         level. Default prior: ``Prior("HalfNormal", sigma=1)``.
     beta : tensor
-        Asymptote that the saturated response approaches as the input grows. Default
-        prior: ``Prior("HalfNormal", sigma=1)``.
+        Scaling factor applied to the baselined-tanh response (multiplies the
+        gain-implied asymptote ``gain * x0 / r``). Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -512,7 +513,9 @@ class HillSaturationSigmoid(SaturationTransformation):
     Parameters
     ----------
     sigma : tensor
-        Upper asymptote of the curve. Default prior:
+        Upper-asymptote parameter (approximate; the true maximum is
+        ``sigma * (1 - 1 / (1 + exp(beta * lam)))``, see
+        :func:`hill_saturation_sigmoid`). Default prior:
         ``Prior("HalfNormal", sigma=1.5)``.
     beta : tensor
         Slope of the sigmoid, controlling the steepness of the transition. Default
