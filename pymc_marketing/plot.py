@@ -86,17 +86,17 @@ def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
 
 
 def unstack_sample(curve: xr.DataArray) -> xr.DataArray:
-    """Unstack ``sample`` back into ``chain`` / ``draw`` when combined.
+    """Unstack a ``(chain, draw)`` ``sample`` MultiIndex back into chain/draw.
 
     ``arviz.extract(..., combined=True)`` returns a DataArray whose ``chain``
     and ``draw`` dims have been stacked into a single ``sample`` MultiIndex.
     The plotting helpers in this module index ``chain`` and ``draw`` directly,
-    so a combined input is silently unstacked here. Inputs without a ``sample``
-    MultiIndex are returned unchanged.
+    so a combined input must be unstacked first. Assumes ``sample`` is a dim
+    of ``curve``. Returns ``curve`` unchanged if ``sample`` is not a
+    ``pd.MultiIndex`` with ``chain`` and ``draw`` levels. Pure: ``curve`` is
+    not mutated.
 
     """
-    if "sample" not in curve.dims:
-        return curve
     index = curve.indexes.get("sample")
     if isinstance(index, pd.MultiIndex) and {"chain", "draw"} <= set(index.names):
         # chain/draw must lead so make_sample_selection's `.loc[idx, :]` resolves
@@ -499,7 +499,8 @@ def plot_hdi(
     if isinstance(non_grid_names, str):
         non_grid_names = {non_grid_names}
 
-    curve = unstack_sample(curve)
+    if "sample" in curve.dims:
+        curve = unstack_sample(curve)
 
     plot_kwargs = plot_kwargs or {}
     plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
@@ -568,7 +569,8 @@ def plot_samples(
     if isinstance(non_grid_names, str):
         non_grid_names = {non_grid_names}
 
-    curve = unstack_sample(curve)
+    if "sample" in curve.dims:
+        curve = unstack_sample(curve)
     n_chains = curve.sizes["chain"]
     n_draws = curve.sizes["draw"]
     make_selection = _create_make_sample_selection(
@@ -737,7 +739,8 @@ def plot_curve(
         plt.show()
 
     """
-    curve = unstack_sample(curve)
+    if "sample" in curve.dims:
+        curve = unstack_sample(curve)
     curve = drop_scalar_coords(curve)
 
     hdi_probs = hdi_probs or None
