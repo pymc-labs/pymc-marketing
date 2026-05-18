@@ -32,6 +32,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     # extensions provided by other packages
     "sphinx_autodoc_typehints",
+    "sphinxcontrib.autodoc_pydantic",
     "numpydoc",
     "matplotlib.sphinxext.plot_directive",  # needed to plot in docstrings
     "myst_nb",
@@ -173,6 +174,17 @@ numpydoc_xref_aliases = {
 }
 # don't add a return type section, use standard return with type info
 typehints_document_rtype = False
+
+# autodoc-pydantic: render Field(description=...) on pydantic models. Keep
+# the page free of pydantic internals (JSON schema, Config, validators);
+# those add noise without helping the reader.
+autodoc_pydantic_model_show_json = False
+autodoc_pydantic_model_show_config_summary = False
+autodoc_pydantic_model_show_validator_summary = False
+autodoc_pydantic_model_show_validator_members = False
+autodoc_pydantic_model_show_field_summary = False
+autodoc_pydantic_field_list_validators = False
+
 
 # intersphinx configuration to ease linking arviz docs
 intersphinx_mapping = {
@@ -337,10 +349,56 @@ def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
         )
 
 
-def setup(app):
-    """Configure Sphinx application event handlers.
+def use_autopydantic_for_pydantic_models(app, docname, source):
+    """Swap ``autoclass`` for ``autopydantic_model`` in pydantic autosummary stubs.
 
-    Connects the Plotly MathJax scrubbing function to the html-page-context event.
+    Sphinx 9.x's autosummary picks the template via hard-coded heuristics
+    (`_best_object_type_for_member`) that don't respect autodoc-pydantic's
+    ``PydanticModelDocumenter`` priority, so generated stubs use
+    ``autoclass``. Rewriting at source-read time lets autodoc-pydantic
+    render fields (the goal of #1700) for every pydantic model in the repo.
     """
-    # Connect the scrubbing function to the html-page-context event
+    if not docname.startswith("api/generated/"):
+        return
+    text = source[0]
+    if ".. autoclass:: " not in text or "autopydantic_model" in text:
+        return
+
+    import importlib
+    import re
+
+    cm = re.search(r"\.\. currentmodule:: (\S+)", text)
+    ac = re.search(r"\.\. autoclass:: (\S+)", text)
+    if not cm or not ac:
+        return
+    module_name, class_name = cm.group(1), ac.group(1)
+
+    try:
+        mod = importlib.import_module(module_name)
+        cls = getattr(mod, class_name, None)
+        from pydantic import BaseModel
+
+        if (
+            isinstance(cls, type)
+            and cls is not BaseModel
+            and issubclass(cls, BaseModel)
+        ):
+            # :inherited-members: BaseModel pulls fields defined on parent
+            # pydantic models (e.g. ``dims`` on ``VariableScaling`` shows
+            # up on ``FixedScaling``) without leaking BaseModel internals.
+            source[0] = text.replace(
+                f".. autoclass:: {class_name}",
+                (
+                    f".. autopydantic_model:: {class_name}\n"
+                    "   :inherited-members: BaseModel"
+                ),
+                1,
+            )
+    except Exception:
+        return
+
+
+def setup(app):
+    """Configure Sphinx application event handlers."""
     app.connect("html-page-context", scrub_plotly_mathjax)
+    app.connect("source-read", use_autopydantic_for_pydantic_models)

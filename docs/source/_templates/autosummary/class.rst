@@ -24,7 +24,18 @@
     "model_validate", "model_validate_json", "model_validate_strings",
     "model_json_schema", "model_post_init", "model_rebuild",
     "predict_stream", "load_context",
+    "construct", "copy", "dict", "from_orm", "json",
+    "parse_obj", "parse_raw", "parse_file",
+    "schema", "schema_json", "update_forward_refs", "validate",
+    "model_parametrized_name",
 ] %}
+{# Pydantic models have their fields documented inline by autopydantic_model
+   (see the source-read hook in conf.py), so the Attributes summary table is
+   skipped to avoid duplicating user fields and listing pydantic internals
+   (model_config, model_fields, model_extra, ...). Detect pydantic by the
+   presence of `model_fields` in the attributes list, which is reliable in
+   pydantic v2 and never present on non-pydantic classes. #}
+{% set is_pydantic_model = "model_fields" in attributes %}
 {{ name | escape | underline}}
 
 .. currentmodule:: {{ module }}
@@ -48,7 +59,7 @@
    {% endblock %}
 
    {% block attributes %}
-   {% if attributes %}
+   {% if attributes and not is_pydantic_model %}
    .. rubric:: Attributes
 
    .. autosummary::

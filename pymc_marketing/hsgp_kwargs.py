@@ -14,7 +14,7 @@
 """Class to store and validate keyword argument for the Hilbert Space Gaussian Process (HSGP) components."""
 
 from enum import StrEnum
-from typing import Annotated, Any
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -46,51 +46,34 @@ class HSGPKwargs(BaseModel):
     .. [4] PyMC Example Gallery: `"Gaussian Processes: HSGP Advanced Usage" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/HSGP-Advanced.html>`_.
     .. [5] PyMC Example Gallery: `"Baby Births Modelling with HSGPs" <https://www.pymc.io/projects/examples/en/latest/gaussian_processes/GP-Births.html>`_.
     .. [6] Orduz, J. `"A Conceptual and Practical Introduction to Hilbert Space GPs Approximation Methods" <https://juanitorduz.github.io/hsgp_intro/>`_.
-
-    Parameters
-    ----------
-    m : int
-        Number of basis functions. Default is 200.
-    L : float, optional
-        Extent of basis functions. Set this to reflect the expected range of in+out-of-sample data
-        (considering that time-indices are zero-centered).Default is `X_mid * 2` (identical to `c=2` in HSGP).
-        By default it is None.
-    eta_lam : float
-        Exponential prior for the variance. Default is 1.
-    ls_mu : float
-        Mean of the inverse gamma prior for the lengthscale. Default is 5.
-    ls_sigma : float
-        Standard deviation of the inverse gamma prior for the lengthscale. Default is 5.
-    cov_func : CovFunc, optional
-        Covariance function enum. Supported values: ``ExpQuad``, ``Matern52``, ``Matern32``.
-        By default it is None (resolved to ``Matern52`` at model-build time).
     """  # noqa E501
 
-    m: int = Field(200, description="Number of basis functions")
-    L: (
-        Annotated[
-            float,
-            Field(
-                gt=0,
-                description="""
-                Extent of basis functions. Set this to reflect the expected range of in+out-of-sample data
-                (considering that time-indices are zero-centered).Default is `X_mid * 2` (identical to `c=2` in HSGP)
-                """,
-            ),
-        ]
-        | None
-    ) = None
-    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance")
+    m: int = Field(200, description="Number of basis functions.")
+    L: float | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Extent of basis functions. Set this to reflect the expected range "
+            "of in+out-of-sample data (considering that time-indices are "
+            "zero-centered). Defaults to ``X_mid * 2`` (identical to ``c=2`` "
+            "in HSGP)."
+        ),
+    )
+    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance.")
     ls_mu: float = Field(
-        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
+        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale."
     )
     ls_sigma: float = Field(
         5.0,
         gt=0,
-        description="Standard deviation of the inverse gamma prior for the lengthscale",
+        description="Standard deviation of the inverse gamma prior for the lengthscale.",
     )
     cov_func: CovFunc | None = Field(
-        None, description="Covariance function enum (ExpQuad, Matern52, Matern32)"
+        None,
+        description=(
+            "Covariance function enum. Supported values: ``ExpQuad``, ``Matern52``, "
+            "``Matern32``. ``None`` is resolved to ``Matern52`` at model-build time."
+        ),
     )
 
     def to_dict(self) -> dict[str, Any]:
