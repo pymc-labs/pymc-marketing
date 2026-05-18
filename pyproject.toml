@@ -49,6 +49,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+pie = ["pymc-bart"]
 docs = [
     "blackjax",
     "fastprogress",
@@ -102,6 +103,7 @@ test = [
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
+    "pymc-bart",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -202,3 +204,8 @@ ignore_missing_imports = true
 
 [tool.mypy-scipy]
 ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

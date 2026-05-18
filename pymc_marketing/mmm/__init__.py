@@ -61,6 +61,7 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.pie import PIEModel, generate_synthetic_rct_corpus
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
@@ -107,6 +108,7 @@ __all__ = [
     "MonthlyFourier",
     "NoAdstock",
     "NoSaturation",
+    "PIEModel",
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
@@ -128,6 +130,7 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "generate_synthetic_rct_corpus",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
