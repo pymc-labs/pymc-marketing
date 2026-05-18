@@ -202,6 +202,12 @@ class FakeMMM:
         self.channel_columns = ["channel1", "channel2"]
         self.control_columns = ["control1"]
         self.dims = ["region"]
+        self.xarray_dataset = xr.Dataset(
+            coords={
+                "date": pd.date_range("2022-01-01", "2022-01-31", freq="D"),
+                "region": ["A", "B"],
+            }
+        )
 
         # Add a fake adstock object with l_max attribute
         class FakeAdstock:
@@ -220,13 +226,14 @@ def test_create_zero_dataset():
     result = create_zero_dataset(model, start_date, end_date)
 
     # Check results
-    assert isinstance(result, pd.DataFrame)
+    assert isinstance(result, xr.Dataset)
     # With l_max=7, the function adds 7 days to the end date
-    # So we get 17 days (Feb 1 to Feb 17) * 2 regions = 34 rows
-    assert len(result) == 17 * 2  # 17 days by 2 regions
-    assert list(result.columns) == list(model.X.columns)
-    assert np.all(result[model.channel_columns] == 0)
-    assert np.all(result[model.control_columns] == 0)
+    # So we get 17 days (Feb 1 to Feb 17) * 2 regions
+    assert len(result.coords["date"]) == 17  # 17 days
+    assert len(result.coords["region"]) == 2  # 2 regions
+    assert set(result.data_vars) == {"_channel", "_control"}
+    assert np.all(result["_channel"].values == 0)
+    assert np.all(result["_control"].values == 0)
 
     # Test with channel_xr
     # Create a simple xarray Dataset with channel values
@@ -244,12 +251,14 @@ def test_create_zero_dataset():
 
     # Check results
     assert np.all(
-        result_with_channels.loc[result_with_channels.region == "A", "channel1"] == 5.0
+        result_with_channels["_channel"].sel(region="A", channel="channel1") == 5.0
     )
     assert np.all(
-        result_with_channels.loc[result_with_channels.region == "B", "channel1"] == 7.0
+        result_with_channels["_channel"].sel(region="B", channel="channel1") == 7.0
     )
-    assert np.all(result_with_channels["channel2"] == 0)  # Not provided in channel_xr
+    assert np.all(
+        result_with_channels["_channel"].sel(channel="channel2") == 0
+    )  # Not provided in channel_xr
 
 
 @pytest.mark.parametrize(
@@ -361,13 +370,15 @@ class TestCreateZeroDataset:
         result = create_zero_dataset(model, start_date, end_date)
 
         # Check basic properties
-        assert isinstance(result, pd.DataFrame)
-        assert list(result.columns) == list(model.X.columns)
-        assert np.all(result[model.channel_columns] == 0)
-        assert np.all(result[model.control_columns] == 0)
+        assert isinstance(result, xr.Dataset)
+        assert list(result.data_vars) == ["_channel", "_control"]
+        assert result["_channel"].dims == ("date", "region", "channel")
+        assert np.all(result["_channel"].values == 0)
+        assert result["_control"].dims == ("date", "region", "control")
+        assert np.all(result["_control"].values == 0)
 
         # Check that we have data for both regions
-        assert set(result["region"].unique()) == {"A", "B"}
+        assert set(result.coords["region"].values) == {"A", "B"}
 
     def test_create_zero_dataset_with_channel_xr_dataset(self):
         """Test create_zero_dataset with channel_xr as xarray Dataset."""
@@ -387,10 +398,18 @@ class TestCreateZeroDataset:
         result = create_zero_dataset(model, start_date, end_date, channel_values)
 
         # Check channel values are set correctly
-        assert np.all(result.loc[result.region == "A", "channel1"] == 5.0)
-        assert np.all(result.loc[result.region == "B", "channel1"] == 7.0)
-        assert np.all(result.loc[result.region == "A", "channel2"] == 3.0)
-        assert np.all(result.loc[result.region == "B", "channel2"] == 4.0)
+        assert np.all(
+            result["_channel"].sel(region="A", channel="channel1").values == 5.0
+        )
+        assert np.all(
+            result["_channel"].sel(region="B", channel="channel1").values == 7.0
+        )
+        assert np.all(
+            result["_channel"].sel(region="A", channel="channel2").values == 3.0
+        )
+        assert np.all(
+            result["_channel"].sel(region="B", channel="channel2").values == 4.0
+        )
 
     def test_create_zero_dataset_with_channel_xr_dataarray(self):
         """Test create_zero_dataset with channel_xr as xarray DataArray."""
@@ -409,9 +428,15 @@ class TestCreateZeroDataset:
         result = create_zero_dataset(model, start_date, end_date, channel_array)
 
         # Check channel values are set correctly
-        assert np.all(result.loc[result.region == "A", "channel1"] == 10.0)
-        assert np.all(result.loc[result.region == "B", "channel1"] == 12.0)
-        assert np.all(result["channel2"] == 0)  # Not provided
+        assert np.all(
+            result["_channel"].sel(region="A", channel="channel1").values == 10.0
+        )
+        assert np.all(
+            result["_channel"].sel(region="B", channel="channel1").values == 12.0
+        )
+        assert np.all(
+            result["_channel"].sel(channel="channel2").values == 0
+        )  # Not provided
 
     def test_create_zero_dataset_include_carryover_false(self):
         """Test create_zero_dataset with include_carryover=False."""
@@ -426,14 +451,16 @@ class TestCreateZeroDataset:
             model, start_date, end_date, include_carryover=True
         )
 
-        # Without carryover should have fewer rows (no l_max extension)
-        assert len(result_without_carryover) < len(result_with_carryover)
+        # Without carryover should have fewer dates (no l_max extension)
+        assert len(result_without_carryover.coords["date"]) < len(
+            result_with_carryover.coords["date"]
+        )
 
-        # Without carryover: 10 days * 2 regions = 20 rows
-        assert len(result_without_carryover) == 10 * 2
+        # Without carryover: 10 days
+        assert len(result_without_carryover.coords["date"]) == 10
 
-        # With carryover: (10 + 7) days * 2 regions = 34 rows
-        assert len(result_with_carryover) == 17 * 2
+        # With carryover: (10 + 7) days = 17
+        assert len(result_with_carryover.coords["date"]) == 17
 
     def test_create_zero_dataset_with_timestamps(self):
         """Test create_zero_dataset with pd.Timestamp inputs."""
@@ -443,8 +470,8 @@ class TestCreateZeroDataset:
 
         result = create_zero_dataset(model, start_date, end_date)
 
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) > 0
+        assert isinstance(result, xr.Dataset)
+        assert len(result.coords["date"]) > 0
 
     def test_create_zero_dataset_missing_channels_warning(self):
         """Test warning when channel_xr doesn't supply all channels."""
@@ -464,7 +491,7 @@ class TestCreateZeroDataset:
             result = create_zero_dataset(model, start_date, end_date, channel_values)
 
         # channel2 should still be 0
-        assert np.all(result["channel2"] == 0)
+        assert np.all(result["_channel"].sel(channel="channel2").values == 0)
 
     def test_create_zero_dataset_error_cases(self):
         """Test error cases for create_zero_dataset."""
@@ -527,6 +554,11 @@ class TestCreateZeroDataset:
                 # Include 'date' as a model dim so the invalid-dims check passes,
                 # and we can assert on the specific date-dimension error.
                 self.dims = ["date"]
+                self.xarray_dataset = xr.Dataset(
+                    coords={
+                        "date": dates,
+                    }
+                )
 
                 class FakeAdstock:
                     l_max = 1
@@ -566,6 +598,11 @@ class TestCreateZeroDataset:
                 self.channel_columns = ["channel1", "channel2"]
                 self.control_columns = []
                 self.dims = []  # No dimensions
+                self.xarray_dataset = xr.Dataset(
+                    coords={
+                        "date": dates,
+                    }
+                )
 
                 class FakeAdstock:
                     l_max = 3
@@ -578,9 +615,9 @@ class TestCreateZeroDataset:
 
         result = create_zero_dataset(model, start_date, end_date)
 
-        # Should have (5 + 3) days = 8 rows (no cross-join with dimensions)
-        assert len(result) == 8
-        assert "region" not in result.columns
+        # Should have (5 + 3) days = 8 dates (no cross-join with dimensions)
+        assert len(result.coords["date"]) == 8
+        assert "region" not in result.dims
 
     def test_create_zero_dataset_empty_date_range_error(self):
         """Test error when generated date range is empty."""
@@ -609,6 +646,11 @@ class TestCreateZeroDataset:
                 self.channel_columns = ["channel1", "channel2"]
                 self.control_columns = []
                 self.dims = []  # No dimensions
+                self.xarray_dataset = xr.Dataset(
+                    coords={
+                        "date": dates,
+                    }
+                )
 
                 class FakeAdstock:
                     l_max = 3
@@ -629,10 +671,10 @@ class TestCreateZeroDataset:
 
         result = create_zero_dataset(model, start_date, end_date, channel_values)
 
-        # (5 + 3) days = 8 rows
-        assert len(result) == 8
-        assert np.all(result["channel1"] == 100.0)
-        assert np.all(result["channel2"] == 200.0)
+        # (5 + 3) days = 8 dates
+        assert len(result.coords["date"]) == 8
+        assert np.all(result["_channel"].sel(channel="channel1") == 100.0)
+        assert np.all(result["_channel"].sel(channel="channel2") == 200.0)
 
     def test_create_zero_dataset_channel_xr_no_dims_missing_channel(self):
         """Channel-only allocation with missing channel var should warn and leave others at 0."""
@@ -651,6 +693,11 @@ class TestCreateZeroDataset:
                 self.channel_columns = ["channel1", "channel2"]
                 self.control_columns = []
                 self.dims = []
+                self.xarray_dataset = xr.Dataset(
+                    coords={
+                        "date": dates,
+                    }
+                )
 
                 class FakeAdstock:
                     l_max = 2
@@ -673,10 +720,10 @@ class TestCreateZeroDataset:
         ):
             result = create_zero_dataset(model, start_date, end_date, channel_values)
 
-        # (3 + 2) days = 5 rows
-        assert len(result) == 5
-        assert np.all(result["channel1"] == 50.0)
-        assert np.all(result["channel2"] == 0.0)
+        # (3 + 2) days = 5 dates
+        assert len(result.coords["date"]) == 5
+        assert np.all(result["_channel"].sel(channel="channel1") == 50.0)
+        assert np.all(result["_channel"].sel(channel="channel2") == 0.0)
 
 
 class TestBuildContributions:

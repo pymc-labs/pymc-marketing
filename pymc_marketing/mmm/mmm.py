@@ -204,6 +204,7 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
+from pymc_marketing.mmm._data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
@@ -1687,259 +1688,6 @@ class MMM(RegressionModelBuilder):
         if not hasattr(self, "idata") or self.idata is None:
             raise ValueError("idata does not exist. Build the model first and fit.")
 
-    def _validate_dims_in_multiindex(
-        self, index: pd.MultiIndex, dims: tuple[str, ...], date_column: str
-    ) -> list[str]:
-        """Validate that dimensions exist in the MultiIndex.
-
-        Parameters
-        ----------
-        index : pd.MultiIndex
-            The MultiIndex to check
-        dims : tuple[str, ...]
-            The dimensions to validate
-        date_column : str
-            The name of the date column
-
-        Returns
-        -------
-        list[str]
-            List of valid dimensions found in the index
-
-        Raises
-        ------
-        ValueError
-            If date_column is not in the index
-        """
-        if date_column not in index.names:
-            raise ValueError(f"date_column '{date_column}' not found in index")
-
-        valid_dims = [dim for dim in dims if dim in index.names]
-        return valid_dims
-
-    def _validate_dims_in_dataframe(
-        self, df: pd.DataFrame, dims: tuple[str, ...], date_column: str
-    ) -> list[str]:
-        """Validate that dimensions exist in the DataFrame columns.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            The DataFrame to check
-        dims : tuple[str, ...]
-            The dimensions to validate
-        date_column : str
-            The name of the date column
-
-        Returns
-        -------
-        list[str]
-            List of valid dimensions found in the DataFrame
-
-        Raises
-        ------
-        ValueError
-            If date_column is not in the DataFrame
-        """
-        if date_column not in df.columns:
-            raise ValueError(f"date_column '{date_column}' not found in DataFrame")
-
-        valid_dims = [dim for dim in dims if dim in df.columns]
-        return valid_dims
-
-    def _validate_metrics(
-        self, data: pd.DataFrame | pd.Series, metric_list: list[str]
-    ) -> list[str]:
-        """Validate that metrics exist in the data.
-
-        Parameters
-        ----------
-        data : pd.DataFrame | pd.Series
-            The data to check
-        metric_list : list[str]
-            The metrics to validate
-
-        Returns
-        -------
-        list[str]
-            List of valid metrics found in the data
-        """
-        if isinstance(data, pd.DataFrame):
-            return [metric for metric in metric_list if metric in data.columns]
-        else:  # pd.Series
-            return [metric for metric in metric_list if metric in data.index.names]
-
-    def _process_multiindex_series(
-        self,
-        series: pd.Series,
-        date_column: str,
-        valid_dims: list[str],
-        metric_coordinate_name: str,
-    ) -> xr.Dataset:
-        """Process a MultiIndex Series into an xarray Dataset.
-
-        Parameters
-        ----------
-        series : pd.Series
-            The MultiIndex Series to process
-        date_column : str
-            The name of the date column
-        valid_dims : list[str]
-            List of valid dimensions
-        metric_coordinate_name : str
-            Name for the metric coordinate
-
-        Returns
-        -------
-        xr.Dataset
-            The processed xarray Dataset
-        """
-        # Reset index to get a DataFrame with all index levels as columns
-        df = series.reset_index()
-
-        # The series values become the metric values
-        df_long = pd.DataFrame(
-            {
-                **{col: df[col] for col in [date_column, *valid_dims]},
-                metric_coordinate_name: series.name,
-                f"_{metric_coordinate_name}": series.values,
-            }
-        )
-
-        # Drop duplicates to avoid non-unique MultiIndex
-        df_long = df_long.drop_duplicates(
-            subset=[date_column, *valid_dims, metric_coordinate_name]
-        )
-
-        # Convert to xarray, renaming date_column to "date" for internal consistency
-        if valid_dims:
-            df_long = df_long.rename(columns={date_column: "date"})
-            return df_long.set_index(
-                ["date", *valid_dims, metric_coordinate_name]
-            ).to_xarray()
-        df_long = df_long.rename(columns={date_column: "date"})
-        return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
-
-    def _process_dataframe(
-        self,
-        df: pd.DataFrame,
-        date_column: str,
-        valid_dims: list[str],
-        valid_metrics: list[str],
-        metric_coordinate_name: str,
-    ) -> xr.Dataset:
-        """Process a DataFrame into an xarray Dataset.
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            The DataFrame to process
-        date_column : str
-            The name of the date column
-        valid_dims : list[str]
-            List of valid dimensions
-        valid_metrics : list[str]
-            List of valid metrics
-        metric_coordinate_name : str
-            Name for the metric coordinate
-
-        Returns
-        -------
-        xr.Dataset
-            The processed xarray Dataset
-        """
-        # Reshape DataFrame to long format
-        df_long = df.melt(
-            id_vars=[date_column, *valid_dims],
-            value_vars=valid_metrics,
-            var_name=metric_coordinate_name,
-            value_name=f"_{metric_coordinate_name}",
-        )
-
-        # Drop duplicates to avoid non-unique MultiIndex
-        df_long = df_long.drop_duplicates(
-            subset=[date_column, *valid_dims, metric_coordinate_name]
-        )
-
-        # Convert to xarray, renaming date_column to "date" for internal consistency
-        df_long = df_long.rename(columns={date_column: "date"})
-        if valid_dims:
-            ds = df_long.set_index(
-                ["date", *valid_dims, metric_coordinate_name]
-            ).to_xarray()
-        else:
-            ds = df_long.set_index(["date", metric_coordinate_name]).to_xarray()
-
-        # .to_xarray() alphabetically sorts coordinates; restore the
-        # user-provided ordering so downstream code (pm.set_data,
-        # coordinate comparisons, etc.) sees a consistent order.
-        return ds.reindex({metric_coordinate_name: valid_metrics})
-
-    def _create_xarray_from_pandas(
-        self,
-        data: pd.DataFrame | pd.Series,
-        date_column: str,
-        dims: tuple[str, ...],
-        metric_list: list[str],
-        metric_coordinate_name: str,
-    ) -> xr.Dataset:
-        """Create an xarray Dataset from a DataFrame or Series.
-
-        This method handles both DataFrame and MultiIndex Series inputs, reshaping them
-        into a long format and converting into an xarray Dataset. It validates dimensions
-        and metrics, ensuring they exist in the input data.
-
-        Parameters
-        ----------
-        data : pd.DataFrame | pd.Series
-            The input data to transform
-        date_column : str
-            The name of the date column
-        dims : tuple[str, ...]
-            The dimensions to include
-        metric_list : list[str]
-            List of metrics to include
-        metric_coordinate_name : str
-            Name for the metric coordinate in the output
-
-        Returns
-        -------
-        xr.Dataset
-            The transformed data in xarray format
-
-        Raises
-        ------
-        ValueError
-            If date_column is not found in the data
-        """
-        # Validate dimensions based on input type
-        if isinstance(data, pd.Series):
-            valid_dims = self._validate_dims_in_multiindex(
-                index=data.index,  # type: ignore
-                dims=dims,  # type: ignore
-                date_column=date_column,  # type: ignore
-            )
-            return self._process_multiindex_series(
-                series=data,
-                date_column=date_column,
-                valid_dims=valid_dims,
-                metric_coordinate_name=metric_coordinate_name,
-            )
-        else:  # pd.DataFrame
-            valid_dims = self._validate_dims_in_dataframe(
-                df=data,
-                dims=dims,
-                date_column=date_column,  # type: ignore
-            )
-            valid_metrics = self._validate_metrics(data, metric_list)
-            return self._process_dataframe(
-                df=data,
-                date_column=date_column,
-                valid_dims=valid_dims,
-                valid_metrics=valid_metrics,
-                metric_coordinate_name=metric_coordinate_name,
-            )
-
     def _reindex_dataset_to_user_order(self, dataset: xr.Dataset) -> xr.Dataset:
         """Restore user-provided coordinate ordering after xr.merge.
 
@@ -1955,68 +1703,39 @@ class MMM(RegressionModelBuilder):
 
     def _generate_and_preprocess_model_data(
         self,
-        X: pd.DataFrame,  # type: ignore
-        y: pd.Series | np.ndarray,  # type: ignore
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
     ):
-        # Convert ndarray-like ``y`` into a pandas Series so the downstream
-        # ``pd.concat`` call below produces an actionable error rather than a
-        # leaky pandas ``TypeError`` from ``concat``.
-        if isinstance(y, np.ndarray):
-            if len(y) != len(X):
-                raise ValueError(
-                    "y length must match X when passed as ndarray"
-                    f" (got len(y)={len(y)} and len(X)={len(X)})"
-                )
-            y = pd.Series(y, index=X.index, name=self.target_column)
-        elif isinstance(y, pd.Series):
-            if y.name is None:
-                y = y.rename(self.target_column)
-            elif y.name != self.target_column:
-                raise ValueError(
-                    f"y has name '{y.name}' but the model's target_column is "
-                    f"'{self.target_column}'. Pass an unnamed Series or rename "
-                    f"it to '{self.target_column}'."
-                )
-
-        self.X = X  # type: ignore
-        self.y = y  # type: ignore
-
-        dataarrays = []
-
-        X_dataarray = self._create_xarray_from_pandas(
-            data=X,
-            date_column=self.date_column,
-            dims=self.dims,
-            metric_list=self.channel_columns,
-            metric_coordinate_name="channel",
-        )
-        dataarrays.append(X_dataarray)
-
-        # Create a temporary DataFrame to properly handle the y data transformation
-        temp_y_df = pd.concat([self.X[[self.date_column, *self.dims]], self.y], axis=1)
-        y_dataarray = self._create_xarray_from_pandas(
-            data=temp_y_df.set_index([self.date_column, *self.dims])[
-                self.target_column
-            ],
-            date_column=self.date_column,
-            dims=self.dims,
-            metric_list=[self.target_column],
-            metric_coordinate_name="target",
-        ).sum("target")
-        dataarrays.append(y_dataarray)
-
-        if self.control_columns is not None:
-            control_dataarray = self._create_xarray_from_pandas(
-                data=X,
-                date_column=self.date_column,
-                dims=self.dims,
-                metric_list=self.control_columns,
-                metric_coordinate_name="control",
+        if (
+            isinstance(y, np.ndarray)
+            and isinstance(X, pd.DataFrame)
+            and len(y) != len(X)
+        ):
+            raise ValueError(
+                "y length must match X when passed as ndarray"
+                f" (got len(y)={len(y)} and len(X)={len(X)})"
             )
-            dataarrays.append(control_dataarray)
 
-        self.xarray_dataset = xr.merge(dataarrays).fillna(0)
-        self.xarray_dataset = self._reindex_dataset_to_user_order(self.xarray_dataset)
+        if (
+            isinstance(y, pd.Series)
+            and y.name is not None
+            and y.name != self.target_column
+        ):
+            raise ValueError(
+                f"y has name '{y.name}' but the model's target_column is "
+                f"'{self.target_column}'. Pass an unnamed Series or rename "
+                f"it to '{self.target_column}'."
+            )
+
+        self.xarray_dataset = to_mmm_dataset(
+            X,
+            y,
+            date_column=self.date_column,
+            dims=self.dims,
+            channel_columns=self.channel_columns,
+            control_columns=self.control_columns,
+            target_column=self.target_column,
+        ).fillna(0)
 
         self.xarray_dataset["_channel"] = self.xarray_dataset["_channel"].astype(float)
 
@@ -2026,12 +1745,9 @@ class MMM(RegressionModelBuilder):
         }
 
         if bool(self.time_varying_intercept) or bool(self.time_varying_media):
-            self._time_index = xr.DataArray(
-                np.arange(0, X[self.date_column].unique().shape[0]), dims=("date",)
-            )
-            self._time_resolution = (
-                X[self.date_column].iloc[1] - X[self.date_column].iloc[0]
-            ).days
+            dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
+            self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
+            self._time_resolution = (dates[1] - dates[0]).days
 
     def forward_pass(
         self,
@@ -2385,8 +2101,8 @@ class MMM(RegressionModelBuilder):
 
     def build_model(  # type: ignore[override]
         self,
-        X: pd.DataFrame,
-        y: pd.Series | np.ndarray,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
         **kwargs,
     ) -> None:
         """Build a probabilistic model using PyMC for marketing mix modeling.
@@ -2397,12 +2113,17 @@ class MMM(RegressionModelBuilder):
 
         Parameters
         ----------
-        X : pd.DataFrame
-            The input data for the model, which should include columns for channels,
-            control variables (if applicable), and Fourier components (if applicable).
+        X : pd.DataFrame, xr.Dataset, or xr.DataArray
+            The input data for the model. When a :class:`pd.DataFrame` is provided,
+            columns should include channels, control variables (if applicable), and
+            Fourier components (if applicable). When an :class:`xr.Dataset` or
+            :class:`xr.DataArray` is provided, variables should be named ``"channel"``,
+            ``"target"``, and optionally ``"control"`` (or the underscore-prefixed
+            internal names ``"_channel"``, ``"_target"``, ``"_control"``).
 
-        y : Union[pd.Series, np.ndarray]
-            The target/response variable for the modeling.
+        y : pd.Series, np.ndarray, xr.DataArray, or None
+            The target/response variable for the modeling. If omitted, ``X`` must
+            contain a ``"target"`` (or ``"_target"``) variable.
 
         **kwargs : dict
             Additional keyword arguments that might be required by underlying methods or utilities.
@@ -2450,8 +2171,8 @@ class MMM(RegressionModelBuilder):
 
         """
         self._generate_and_preprocess_model_data(
-            X=X,  # type: ignore
-            y=y,  # type: ignore
+            X=X,
+            y=y,
         )
 
         self._link_spec.validate_target(np.asarray(y))
@@ -2649,30 +2370,14 @@ class MMM(RegressionModelBuilder):
             )
 
     def _validate_date_overlap_with_include_last_observations(
-        self, X: pd.DataFrame, include_last_observations: bool
+        self, X: xr.Dataset, include_last_observations: bool
     ) -> None:
-        """Validate that include_last_observations is not used with overlapping dates.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            The input data for prediction.
-        include_last_observations : bool
-            Whether to include the last observations of the training data.
-
-        Raises
-        ------
-        ValueError
-            If include_last_observations=True and input dates overlap with training dates.
-        """
         if not include_last_observations:
             return
 
-        # Get training dates and input dates
         training_dates = safe_to_datetime(self.model_coords["date"], "date")
-        input_dates = safe_to_datetime(X[self.date_column].unique(), self.date_column)
+        input_dates = safe_to_datetime(X.coords["date"].values, "date")
 
-        # Check for overlap
         overlapping_dates = set(training_dates).intersection(set(input_dates))
 
         if overlapping_dates:
@@ -2687,91 +2392,56 @@ class MMM(RegressionModelBuilder):
 
     def _posterior_predictive_data_transformation(
         self,
-        X: pd.DataFrame,
-        y: pd.Series | None = None,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
         include_last_observations: bool = False,
     ) -> xr.Dataset:
-        """Transform the data for posterior predictive sampling.
-
-        Parameters
-        ----------
-        X : pd.DataFrame
-            The input data for prediction.
-        y : pd.Series, optional
-            The target data for prediction.
-        include_last_observations : bool, optional
-            Whether to include the last observations of the training data for continuity.
-
-        Returns
-        -------
-        xr.Dataset
-            The transformed data in xarray format.
-        """
-        # Validate that include_last_observations is not used with overlapping dates
-        self._validate_date_overlap_with_include_last_observations(
-            X, include_last_observations
-        )
-
-        dataarrays = []
-        if include_last_observations:
-            last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
-            dataarrays.append(last_obs)
-
-        # Transform X and y_pred to xarray
-        X_xarray = self._create_xarray_from_pandas(
-            data=X,
+        ds = to_mmm_dataset(
+            X,
+            y,
             date_column=self.date_column,
             dims=self.dims,
-            metric_list=self.channel_columns,
-            metric_coordinate_name="channel",
-        ).transpose("date", *self.dims, "channel")
-        dataarrays.append(X_xarray)
+            channel_columns=self.channel_columns,
+            control_columns=self.control_columns,
+            target_column=self.target_column,
+        )
 
-        if self.control_columns is not None:
-            control_dataarray = self._create_xarray_from_pandas(
-                data=X,
-                date_column=self.date_column,
-                dims=self.dims,
-                metric_list=self.control_columns,
-                metric_coordinate_name="control",
-            ).transpose("date", *self.dims, "control")
-            dataarrays.append(control_dataarray)
+        self._validate_date_overlap_with_include_last_observations(
+            ds, include_last_observations
+        )
 
-        if y is not None:
-            y_xarray = (
-                self._create_xarray_from_pandas(
-                    data=y,
-                    date_column=self.date_column,
-                    dims=self.dims,
-                    metric_list=[self.target_column],
-                    metric_coordinate_name="target",
-                )
-                .sum("target")
-                .transpose("date", *self.dims)
-            )
-        else:
-            # Return empty xarray with same dimensions as the target but full of zeros
-            # Use the same dtype as the existing target data to avoid dtype mismatches
+        # Expand to include all original dimension coordinates so that
+        # _set_xarray_data always gets a dataset whose shape matches the
+        # model (missing dims get filled with zeros).
+        for dim in self.dims:
+            if dim in ds.coords and not set(ds.coords[dim].values).issuperset(
+                self.xarray_dataset.coords[dim].values
+            ):
+                all_vals = list(self.xarray_dataset.coords[dim].values)
+                ds = ds.reindex({dim: all_vals}, fill_value=0)
+
+        if y is None and "_target" not in ds.data_vars:
             target_dtype = self.xarray_dataset._target.dtype
-            y_xarray = xr.DataArray(
-                np.zeros(
-                    (
-                        X[self.date_column].nunique(),
-                        *[len(self.xarray_dataset.coords[dim]) for dim in self.dims],
-                    ),
-                    dtype=target_dtype,
-                ),
+            n_dates = ds.sizes["date"]
+            shape = (n_dates, *[ds.sizes[dim] for dim in self.dims])
+            coords = {"date": ds.coords["date"].values}
+            for dim in self.dims:
+                coords[dim] = (
+                    ds.coords[dim].values
+                    if dim in ds.coords
+                    else self.xarray_dataset.coords[dim].values
+                )
+            ds["_target"] = xr.DataArray(
+                np.zeros(shape, dtype=target_dtype),
                 dims=("date", *self.dims),
-                coords={
-                    "date": X[self.date_column].unique(),
-                    **{dim: self.xarray_dataset.coords[dim] for dim in self.dims},
-                },
-                name="_target",
-            ).to_dataset()
+                coords=coords,
+            )
 
-        dataarrays.append(y_xarray)
-        result = xr.merge(dataarrays, join="outer", compat="no_conflicts").fillna(0)
-        return self._reindex_dataset_to_user_order(result)
+        if include_last_observations:
+            last_obs = self.xarray_dataset.isel(date=slice(-self.adstock.l_max, None))
+            ds = xr.merge([last_obs, ds], join="outer", compat="no_conflicts").fillna(0)
+
+        return self._reindex_dataset_to_user_order(ds)
 
     def _set_xarray_data(
         self,
@@ -2842,7 +2512,7 @@ class MMM(RegressionModelBuilder):
 
     def sample_posterior_predictive(
         self,
-        X: pd.DataFrame | None = None,  # type: ignore
+        X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
         extend_idata: bool = True,  # type: ignore
         combined: bool = True,  # type: ignore
         include_last_observations: bool = False,  # type: ignore
@@ -2853,7 +2523,7 @@ class MMM(RegressionModelBuilder):
 
         Parameters
         ----------
-        X : pd.DataFrame
+        X : pd.DataFrame or xr.Dataset
             Input data for prediction, with the same structure as the training data.
         extend_idata : bool, optional
             Whether to add predictions to the inference data object. Defaults to True.
@@ -3588,12 +3258,11 @@ class MMM(RegressionModelBuilder):
 
         # Prepare spend data as xarray (original units)
         spend_ds = (
-            self._create_xarray_from_pandas(
-                data=data,
+            to_mmm_dataset(
+                data,
                 date_column=self.date_column,
                 dims=self.dims,
-                metric_list=self.channel_columns,
-                metric_coordinate_name="channel",
+                channel_columns=self.channel_columns,
             )
             .transpose(*channel_data_dims)
             .fillna(0)
@@ -3631,7 +3300,7 @@ class MMM(RegressionModelBuilder):
     def create_fit_data(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: np.ndarray | pd.Series | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray | None = None,
     ) -> xr.Dataset:
         """Create a fit dataset aligned on date and present dimensions.
 
@@ -3646,9 +3315,10 @@ class MMM(RegressionModelBuilder):
         X : pd.DataFrame | xr.Dataset | xr.DataArray
             Feature data. If an xarray object is provided, it is converted to a
             DataFrame via ``to_dataframe().reset_index()`` before processing.
-        y : np.ndarray | pd.Series | xr.DataArray
-            Target values. Must align with ``X`` either by position (same length)
-            or via a MultiIndex that includes ``(self.date_column, *dims present in X)``.
+        y : np.ndarray | pd.Series | xr.DataArray | None, optional
+            Target values. If ``None``, ``X`` must contain ``self.target_column``
+            or ``"_target"`` (e.g. when an ``xr.Dataset`` with an embedded target
+            variable is passed).
 
         Returns
         -------
@@ -3671,19 +3341,16 @@ class MMM(RegressionModelBuilder):
         - Coordinates are assigned only for dimensions present in ``X``.
         - Data is sorted by ``(self.date_column, *dims present in X)`` prior to
           conversion to xarray.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            ds = mmm.create_fit_data(X, y)
-
         """
         # --- Coerce X to DataFrame ---
         if isinstance(X, xr.Dataset):
             X_df = X.to_dataframe().reset_index()
+            if "date" in X_df.columns and self.date_column != "date":
+                X_df = X_df.rename(columns={"date": self.date_column})
         elif isinstance(X, xr.DataArray):
             X_df = X.to_dataframe(name=X.name or "value").reset_index()
+            if "date" in X_df.columns and self.date_column != "date":
+                X_df = X_df.rename(columns={"date": self.date_column})
         else:
             X_df = X.copy()
 
@@ -3691,15 +3358,35 @@ class MMM(RegressionModelBuilder):
             raise ValueError(f"'{self.date_column}' not in X columns")
 
         # --- Coerce y to Series ---
-        if isinstance(y, xr.DataArray):
+        if y is None:
+            # Target may be embedded in xr.Dataset as _target
+            if "_target" in X_df.columns:
+                y_s = X_df.pop("_target").rename(self.target_column)
+            elif self.target_column in X_df.columns:
+                y_s = X_df.pop(self.target_column)
+                y_s.name = self.target_column
+            else:
+                raise ValueError(
+                    "y was not provided and the target column "
+                    f"'{self.target_column}' was not found in X"
+                )
+        elif isinstance(y, xr.DataArray):
             y_s = y.to_series()
         elif isinstance(y, np.ndarray):
             if len(y) != len(X_df):
-                raise ValueError("y length must match X when passed as ndarray")
+                raise ValueError(
+                    "y length must match X when passed as ndarray"
+                    f" (got len(y)={len(y)} and len(X)={len(X)})"
+                )
             y_s = pd.Series(y, index=X_df.index)
         else:
             y_s = y.copy()
         y_s.name = self.target_column
+
+        # Drop internal underscore columns that should not persist in fit_data
+        for col in ["_channel", "_control", "_target"]:
+            if col in X_df.columns:
+                X_df = X_df.drop(columns=[col])
 
         dims_in_X = [d for d in self.dims if d in X_df.columns]
         coord_cols = [self.date_column, *dims_in_X]
@@ -3708,10 +3395,9 @@ class MMM(RegressionModelBuilder):
         if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
             y_s.index.names
         ):
-            # Align via MultiIndex
             X_mi = X_df.set_index(coord_cols)
             aligned = y_s.reindex(X_mi.index)
-            if aligned.isna().any():  # fallback merge if mismatch
+            if aligned.isna().any():
                 X_df = X_df.merge(
                     y_s.reset_index(),
                     on=coord_cols,
@@ -3720,10 +3406,8 @@ class MMM(RegressionModelBuilder):
             else:
                 X_df[self.target_column] = aligned.values
         elif len(y_s) == len(X_df):
-            # Positional
             X_df[self.target_column] = y_s.to_numpy()
         else:
-            # Try merge if y has columns as index levels
             if isinstance(y_s.index, pd.MultiIndex) and set(coord_cols).issubset(
                 y_s.index.names
             ):
@@ -3761,8 +3445,8 @@ class MMM(RegressionModelBuilder):
         -----
         - Expects ``idata.fit_data`` to exist and contain both features and the
             target column named ``self.output_var``.
-        - This rebuilds the model structure; it does not attach posterior samples.
-            Assign ``self.idata = idata`` separately if you need to reuse samples.
+        - Sets ``self.idata`` to the provided ``idata``, enabling downstream
+            methods like ``sample_posterior_predictive`` to access posterior samples.
 
         Examples
         --------
@@ -3771,6 +3455,7 @@ class MMM(RegressionModelBuilder):
             mmm.build_from_idata(idata)
 
         """
+        self.idata = idata
         if "mu_effects" in idata.attrs:
             mu_effects_data = json.loads(idata.attrs["mu_effects"])
             ctx = DeserializationContext(idata=idata)
@@ -3931,10 +3616,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             end_date=end_date,
             include_carryover=True,
         )
-        self.num_periods = (
-            len(self.zero_data[self.model_class.date_column].unique())
-            - self.adstock.l_max
-        )
+        self.num_periods = len(self.zero_data.coords["date"]) - self.adstock.l_max
         self.compile_kwargs = compile_kwargs
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
@@ -4140,145 +3822,59 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
     def _apply_budget_distribution_pattern(
         self,
-        data_with_noise: pd.DataFrame,
+        data_with_noise: xr.Dataset,
         budget_distribution: xr.DataArray,
-    ) -> pd.DataFrame:
-        """Apply budget distribution pattern to noisy data.
-
-        This method multiplies the channel values in data_with_noise by the
-        corresponding values in budget_distribution, aligning by date, dimensions,
-        and channels. Works like a left join where all dimensions must match.
-
-        Parameters
-        ----------
-        data_with_noise : pd.DataFrame
-            DataFrame with noise added to channel allocations.
-        budget_distribution : xr.DataArray
-            Distribution factors with dims ("date", *budget_dims) and "channel".
-
-        Returns
-        -------
-        pd.DataFrame
-            The data_with_noise DataFrame with channel values multiplied by
-            the distribution pattern where dimensions match.
-        """
-        # Set index to match the expected dimensions
-        index_cols = [self.date_column, *list(self.dims)]
-
-        # Store original index to restore later
-        original_index = data_with_noise.index
-
-        # Set MultiIndex for proper alignment
-        data_with_noise_indexed = data_with_noise.set_index(index_cols)
-
-        # Convert DataFrame channel columns to xarray
-        data_xr = data_with_noise_indexed[self.channel_columns].to_xarray()
-
-        # Stack channel columns into a 'channel' dimension to match budget_distribution format
-        data_xr_stacked = data_xr.to_array(dim="channel")
-
-        # Rename date column to 'date' for consistency with budget_distribution
-        if self.date_column != "date":
-            data_xr_stacked = data_xr_stacked.rename({self.date_column: "date"})
-
-        # Handle date coordinate alignment
-        # If budget_distribution has integer date indices, map them to actual dates
+    ) -> xr.Dataset:
         if np.issubdtype(budget_distribution.coords["date"].dtype, np.integer):
-            # Get unique dates from data_xr_stacked
-            unique_dates = safe_to_datetime(
-                data_xr_stacked.coords["date"].values, "date"
+            unique_dates = (
+                pd.DatetimeIndex(data_with_noise.coords["date"].values)
+                .unique()
+                .sort_values()
             )
-            unique_dates_sorted = pd.DatetimeIndex(unique_dates.unique()).sort_values()
-
-            # Map integer indices to actual dates
-            date_mapping = {i: date for i, date in enumerate(unique_dates_sorted)}
-
-            # Create new coordinates with actual dates
+            date_mapping = {i: date for i, date in enumerate(unique_dates)}
             new_coords = dict(budget_distribution.coords)
             new_coords["date"] = [
                 date_mapping[i] for i in budget_distribution.coords["date"].values
             ]
-
-            # Recreate budget_distribution with new date coordinates
             _budget_distribution = xr.DataArray(
                 budget_distribution.values,
                 dims=budget_distribution.dims,
                 coords=new_coords,
             )
         else:
-            # If dates are already in the correct format, use as is
             _budget_distribution = budget_distribution
 
-        # Multiply by budget distribution (xarray will automatically align dimensions)
-        # Only matching channels and dates will be multiplied
-        data_xr_multiplied = data_xr_stacked * (_budget_distribution * self.num_periods)
-
-        # Convert back to DataFrame format
-        # First unstack the channel dimension
-        data_xr_unstacked = data_xr_multiplied.to_dataset(dim="channel")
-
-        # Rename 'date' back to original date column name if needed
-        if self.date_column != "date":
-            data_xr_unstacked = data_xr_unstacked.rename({"date": self.date_column})
-
-        # Convert to DataFrame
-        multiplied_df = data_xr_unstacked.to_dataframe()
-
-        # Update the channel columns in the indexed DataFrame
-        for channel in self.channel_columns:
-            if channel in multiplied_df.columns:
-                data_with_noise_indexed.loc[:, channel] = multiplied_df[channel]
-
-        # Reset to original index structure
-        data_with_noise = data_with_noise_indexed.reset_index()
-        data_with_noise.index = original_index
-
-        return data_with_noise
+        result = data_with_noise.copy()
+        result["_channel"] = data_with_noise["_channel"] * (
+            _budget_distribution * self.num_periods
+        )
+        return result
 
     def _apply_carryover_effect(
         self,
-        data_with_noise: pd.DataFrame,
-    ) -> pd.DataFrame:
-        """Apply carryover effect by zeroing out last observations.
-
-        Parameters
-        ----------
-        data_with_noise : pd.DataFrame
-            DataFrame with channel allocations
-
-        Returns
-        -------
-        pd.DataFrame
-            DataFrame with carryover effect applied
-        """
+        data_with_noise: xr.Dataset,
+    ) -> xr.Dataset:
         from pymc_marketing.mmm.utils import _convert_frequency_to_timedelta
 
-        # Get date series and infer frequency
-        date_series = safe_to_datetime(
-            data_with_noise[self.date_column], self.date_column
-        )
-        inferred_freq = pd.infer_freq(date_series.unique())
-
-        if inferred_freq is None:  # fall-back if inference fails
+        dates = pd.DatetimeIndex(data_with_noise.coords["date"].values)
+        inferred_freq = pd.infer_freq(dates)
+        if inferred_freq is None:
             warnings.warn(
-                f"Could not infer frequency from '{self.date_column}'. Using weekly ('W').",
+                "Could not infer frequency. Using weekly ('W').",
                 UserWarning,
                 stacklevel=2,
             )
             inferred_freq = "W"
 
-        # Calculate the cutoff date
-        cutoff_date = data_with_noise[
-            self.date_column
-        ].max() - _convert_frequency_to_timedelta(self.adstock.l_max, inferred_freq)
+        cutoff_date = dates.max() - _convert_frequency_to_timedelta(
+            self.adstock.l_max, inferred_freq
+        )
 
-        # Zero out channel values after the cutoff date
-        data_with_noise.loc[
-            data_with_noise[self.date_column] > cutoff_date,
-            self.channel_columns,
-        ] = 0
-
-        return data_with_noise
+        result = data_with_noise.copy()
+        result["_channel"] = data_with_noise["_channel"].where(
+            data_with_noise.coords["date"] <= cutoff_date, 0
+        )
+        return result
 
     def sample_response_distribution(
         self,
@@ -4358,9 +3954,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 ),
             ]
         )
-        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
-            self.channel_columns
-        ].to_xarray()
+        _dataset = data_with_noise["_channel"].to_dataset(dim="channel")
 
         var_names = [
             self.output_var,
