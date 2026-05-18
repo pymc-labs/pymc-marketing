@@ -2528,7 +2528,7 @@ class MMM(RegressionModelBuilder):
         include_last_observations: bool = False,  # type: ignore
         clone_model: bool = True,  # type: ignore
         **sample_posterior_predictive_kwargs,  # type: ignore
-    ) -> xr.DataArray:
+    ) -> xr.Dataset:
         """Sample from the model's posterior predictive distribution.
 
         Parameters
@@ -2549,7 +2549,7 @@ class MMM(RegressionModelBuilder):
 
         Returns
         -------
-        xr.DataArray
+        xr.Dataset
             Posterior predictive samples.
         """
         # Update model data with xarray
@@ -3963,7 +3963,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         include_last_observations: bool = False,
         include_carryover: bool = True,
         budget_distribution_over_period: xr.DataArray | None = None,
-    ) -> az.InferenceData:
+    ) -> xr.Dataset:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
         Parameters
@@ -3990,7 +3990,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Returns
         -------
-        az.InferenceData
+        xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
         data = create_zero_dataset(
