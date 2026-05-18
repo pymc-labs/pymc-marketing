@@ -350,6 +350,10 @@ def create_log_callback(
             resolved.update({p: _resolve_parameter(p, draw.point) for p in parameters})
 
         for parameter in parameters or []:
+            # `mlflow.log_metric` is scalar-only. Vector-valued parameters
+            # (Dirichlet, Ordered, ZeroSumNormal, ...) raise `MlflowException`
+            # here. Expanding them into per-component metrics is left to a
+            # follow-up PR; see the comment on `_TRANSFORM_SUFFIXES`.
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
                 value=draw.point[resolved[parameter]],
