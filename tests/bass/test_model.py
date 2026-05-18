@@ -23,9 +23,11 @@ import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 from pydantic import BaseModel, ConfigDict
 from pymc_extras.prior import Prior, Scaled
 
+from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
 
 
@@ -636,3 +638,215 @@ def test_derivative() -> None:
             f_fn(p_, q_, t_),
             F_prime_fn(p_, q_, t_),
         )
+
+
+class TestBassModelClass:
+    """Tests for the BassModel class (ModelBuilder interface)."""
+
+    @pytest.fixture
+    def y(self) -> np.ndarray:
+        return np.random.default_rng(42).poisson(lam=100, size=20)
+
+    @pytest.fixture
+    def fitted_model(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
+        model = BassModel()
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        return model
+
+    @pytest.fixture
+    def fitted_model_positive_m(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=100, sigma=10),
+                "p": Prior("Beta", alpha=1.5, beta=20),
+                "q": Prior("Beta", alpha=2, beta=5),
+                "likelihood": Prior("Poisson"),
+            },
+        )
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        return model
+
+    def test_default_model_config(self):
+        model = BassModel()
+        config = model.default_model_config
+        assert "m" in config
+        assert "p" in config
+        assert "q" in config
+        assert "likelihood" in config
+
+    def test_default_sampler_config(self):
+        model = BassModel()
+        config = model.default_sampler_config
+        assert "draws" in config
+        assert "tune" in config
+        assert "chains" in config
+
+    def test_build_model_from_array(self):
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        model = BassModel()
+        model.build_model(data=y)
+        assert hasattr(model, "model")
+        assert all(
+            v in model.model.named_vars for v in ["m", "p", "q", "adopters", "y"]
+        )
+
+    @pytest.mark.parametrize(
+        "data,model_config",
+        [
+            pytest.param(
+                pd.DataFrame(
+                    {"observed": np.random.default_rng(42).poisson(lam=100, size=20)}
+                ),
+                BassModel().default_model_config,
+                id="dataframe",
+            ),
+            pytest.param(
+                xr.Dataset(
+                    {
+                        "observed": (
+                            "T",
+                            np.random.default_rng(42).poisson(lam=100, size=20),
+                        )
+                    },
+                    coords={"T": np.arange(20)},
+                ),
+                BassModel().default_model_config,
+                id="xarray_single",
+            ),
+            pytest.param(
+                xr.Dataset(
+                    {
+                        "observed": (
+                            ("T", "product"),
+                            np.random.default_rng(42).poisson(lam=100, size=(20, 3)),
+                        )
+                    },
+                    coords={"T": np.arange(20), "product": ["A", "B", "C"]},
+                ),
+                {
+                    "m": Prior("Normal", mu=1000, sigma=200, dims="product"),
+                    "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                    "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+                    "likelihood": Prior("Poisson", dims="product"),
+                },
+                id="xarray_multi_product",
+            ),
+        ],
+    )
+    def test_build_model(self, data, model_config):
+        model = BassModel(model_config=model_config)
+        model.build_model(data=data)
+        assert "adopters" in model.model.named_vars
+
+    def test_build_model_no_data_raises(self):
+        model = BassModel()
+        with pytest.raises(ValueError, match="Data must be provided"):
+            model.build_model()
+
+    def test_build_model_without_observed(self):
+        ds = xr.Dataset({"T": np.arange(20)})
+        model = BassModel()
+        model.build_model(data=ds)
+        assert hasattr(model, "model")
+
+    def test_fit_basic(self, fitted_model: BassModel):
+        idata = fitted_model.idata
+        assert "posterior" in idata
+        assert "fit_data" in idata.groups()
+
+    def test_fit_deterministics(self, fitted_model: BassModel):
+        for var in ["adopters", "innovators", "imitators", "peak"]:
+            assert var in fitted_model.idata.posterior, f"Missing deterministic: {var}"
+
+    def test_fit_with_dataframe(self, mock_pymc_sample):
+        df = pd.DataFrame(
+            {"observed": np.random.default_rng(42).poisson(lam=100, size=20)}
+        )
+        model = BassModel()
+        idata = model.fit(data=df, draws=5, tune=5, chains=1, random_seed=42)
+        assert "posterior" in idata
+
+    def test_model_id_stability(self, mock_pymc_sample):
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        model_a = BassModel()
+        model_a.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        id_a = model_a.id
+
+        y2 = np.random.default_rng(42).poisson(lam=100, size=20)
+        model_b = BassModel()
+        model_b.fit(data=y2, draws=5, tune=5, chains=1, random_seed=42)
+        assert model_b.id == id_a
+
+    def test_model_id_changes_with_config(self):
+        model_a = BassModel()
+        model_b = BassModel(model_config={"m": Prior("Normal", mu=100, sigma=20)})
+        assert model_a.id != model_b.id
+
+    def test_serializable_model_config(self, fitted_model: BassModel):
+        config = fitted_model._serializable_model_config
+        assert isinstance(config, dict)
+        assert "m" in config
+
+    def test_output_var(self):
+        assert BassModel().output_var == "y"
+
+    def test_posterior_predictive_in_sample(self, fitted_model_positive_m: BassModel):
+        with fitted_model_positive_m.model:
+            pp = pm.sample_posterior_predictive(
+                fitted_model_positive_m.idata,
+                extend_inferencedata=True,
+                random_seed=42,
+            )
+        assert "posterior_predictive" in pp
+
+    def test_data_setter_updates_time(self, fitted_model: BassModel):
+        new_t = np.arange(20) * 2
+        fitted_model._data_setter(xr.Dataset({"T": new_t}))
+        np.testing.assert_array_equal(fitted_model.model["t"].get_value(), new_t)
+
+    def test_data_setter_changes_T_length(self, fitted_model: BassModel):
+        new_t = np.arange(30)
+        fitted_model._data_setter(xr.Dataset({"T": new_t}))
+        np.testing.assert_array_equal(fitted_model.model["t"].get_value(), new_t)
+
+    @pytest.mark.parametrize(
+        "X,expected_T",
+        [
+            pytest.param(
+                xr.Dataset({"T": np.arange(20) * 2}),
+                20,
+                id="in_sample",
+            ),
+            pytest.param(
+                xr.Dataset({"T": np.arange(20, 30)}),
+                10,
+                id="out_of_sample",
+            ),
+            pytest.param(
+                xr.Dataset({"T": np.arange(30)}),
+                30,
+                id="extended_window",
+            ),
+        ],
+    )
+    def test_sample_posterior_predictive(
+        self, fitted_model_positive_m: BassModel, X: xr.Dataset, expected_T: int
+    ):
+        pp = fitted_model_positive_m.sample_posterior_predictive(
+            X=X, extend_idata=True, random_seed=42
+        )
+        assert "posterior_predictive" in fitted_model_positive_m.idata
+        assert isinstance(pp, xr.Dataset)
+        assert "y" in pp.data_vars
+        assert pp.sizes["T"] == expected_T
+
+    def test_sample_posterior_predictive_extend_false(
+        self, fitted_model_positive_m: BassModel
+    ):
+        pp = fitted_model_positive_m.sample_posterior_predictive(
+            X=xr.Dataset({"T": np.arange(20)}),
+            extend_idata=False,
+            random_seed=42,
+        )
+        assert isinstance(pp, xr.Dataset)
+        assert "posterior_predictive" not in fitted_model_positive_m.idata
