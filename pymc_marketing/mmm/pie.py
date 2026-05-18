@@ -326,7 +326,7 @@ class PIEModel(RegressionModelBuilder):
             "categorical_split": self.model_config["categorical_split"],
         }
 
-    def build_model(
+    def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray,
@@ -419,7 +419,7 @@ class PIEModel(RegressionModelBuilder):
             sigma = cfg["sigma"].create_variable("sigma")
             pm.Normal(self.output_var, mu=mu, sigma=sigma, observed=y_data, dims="obs")
 
-    def _data_setter(
+    def _data_setter(  # type: ignore[override]
         self,
         X: pd.DataFrame,
         y: pd.Series | np.ndarray | None = None,
