@@ -201,6 +201,53 @@ def test_pymc_bart_missing_raises(small_corpus, monkeypatch):
         model.build_model(X, y)
 
 
+def test_build_model_length_mismatch_raises(default_model, small_corpus):
+    X, y = small_corpus
+    with pytest.raises(ValueError, match="same length"):
+        default_model.build_model(X, y.iloc[:-1])
+
+
+def test_build_model_non_finite_y_raises(default_model, small_corpus):
+    X, y = small_corpus
+    y_bad = y.copy()
+    y_bad.iloc[0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        default_model.build_model(X, y_bad)
+
+
+def test_build_model_invalid_categorical_split_raises(small_corpus):
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0},
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "categorical_split": "not_a_valid_choice",
+        },
+    )
+    with pytest.raises(ValueError, match="categorical_split"):
+        model.build_model(X, y)
+
+
+def test_build_model_continuous_split_rules(small_corpus):
+    """``categorical_split='continuous'`` builds without error — exercising
+    the alternative branch that falls back to ContinuousSplitRule for every
+    column, including label-encoded categoricals."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0},
+            "sigma": Prior("HalfNormal", sigma=1.0),
+            "categorical_split": "continuous",
+        },
+    )
+    model.build_model(X, y)
+    assert model.model_config["categorical_split"] == "continuous"
+
+
 # ---------------------------------------------------------------------------
 # _data_setter tests
 # ---------------------------------------------------------------------------
@@ -244,6 +291,37 @@ def test_data_setter_reorders_columns_to_training_order(default_model, small_cor
     default_model.build_model(X, y)
 
     default_model._data_setter(X[list(reversed(X.columns))], y=None)
+
+
+def test_data_setter_with_y_rescales(default_model, small_corpus):
+    """Passing ``y`` to ``_data_setter`` divides by ``_target_scale`` and
+    installs the scaled values into the observed-data container."""
+    X, y = small_corpus
+    default_model.build_model(X, y)
+
+    X_new = X.iloc[:5].copy()
+    y_new = y.iloc[:5]
+    default_model._data_setter(X_new, y=y_new)
+
+    y_obs_value = default_model.model["y_obs"].get_value()
+    expected = y_new.to_numpy() / default_model._target_scale
+    np.testing.assert_allclose(y_obs_value, expected)
+
+
+def test_data_setter_y_length_mismatch_raises(default_model, small_corpus):
+    X, y = small_corpus
+    default_model.build_model(X, y)
+    with pytest.raises(ValueError, match="same length"):
+        default_model._data_setter(X.iloc[:5], y=y.iloc[:4])
+
+
+def test_data_setter_non_finite_y_raises(default_model, small_corpus):
+    X, y = small_corpus
+    default_model.build_model(X, y)
+    y_bad = y.iloc[:5].copy()
+    y_bad.iloc[0] = np.inf
+    with pytest.raises(ValueError, match="finite"):
+        default_model._data_setter(X.iloc[:5], y=y_bad)
 
 
 # ---------------------------------------------------------------------------

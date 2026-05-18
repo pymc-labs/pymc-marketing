@@ -31,7 +31,7 @@ from pymc_marketing.model_builder import RegressionModelBuilder
 try:
     import pymc_bart as pmb
     from pymc_bart.split_rules import ContinuousSplitRule, OneHotSplitRule
-except ImportError:
+except ImportError:  # pragma: no cover
     pmb = None  # type: ignore[assignment]
     ContinuousSplitRule = None  # type: ignore[assignment,misc]
     OneHotSplitRule = None  # type: ignore[assignment,misc]
