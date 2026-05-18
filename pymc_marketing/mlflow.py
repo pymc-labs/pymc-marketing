@@ -212,6 +212,32 @@ def _take_every(n: int):
     return decorator
 
 
+# Known PyMC transform suffixes used in ``draw.point`` keys. Extend this
+# tuple to support more transformations (e.g. ``_logodds__`` for Beta/Uniform
+# on (0, 1), ``_interval__`` for bounded variables, ``_ordered__``,
+# ``_simplex__``). Each new suffix gets resolved automatically by
+# ``_resolve_parameter``; no other code change is required.
+_TRANSFORM_SUFFIXES: tuple[str, ...] = ("_log__",)
+
+
+def _resolve_parameter(name: str, point: dict) -> str:
+    """Map a model-level variable name to its key in ``draw.point``.
+
+    Returns ``name`` if it is already a key in ``point``. Otherwise tries
+    ``name + suffix`` for each suffix in ``_TRANSFORM_SUFFIXES`` and returns
+    the first match. Raises ``KeyError`` if no candidate is found.
+    """
+    if name in point:
+        return name
+    for suffix in _TRANSFORM_SUFFIXES:
+        candidate = f"{name}{suffix}"
+        if candidate in point:
+            return candidate
+    raise KeyError(
+        f"Parameter {name!r} not found in draw.point. Available keys: {sorted(point)}."
+    )
+
+
 def create_log_callback(
     stats: list[str] | None = None,
     parameters: list[str] | None = None,
@@ -269,7 +295,10 @@ def create_log_callback(
         with mlflow.start_run():
             idata = pm.sample(model=model, callback=callback)
 
-    Log the parameters `mu` and `sigma_log__` every 100th draw:
+    Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
+    `sigma` on the unconstrained scale as `sigma_log__`; the callback
+    resolves the transformed name automatically, so passing the
+    model-level name is enough:
 
     .. code-block:: python
 
@@ -278,7 +307,7 @@ def create_log_callback(
         from pymc_marketing.mlflow import create_log_callback
 
         callback = create_log_callback(
-            parameters=["mu", "sigma_log__"],
+            parameters=["mu", "sigma"],
             take_every=100,
         )
 
@@ -291,6 +320,8 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
+    resolved: dict[str, str] = {}
+
     def callback(_, draw):
         prefix = f"chain_{draw.chain}"
         for stat in stats or []:
@@ -300,10 +331,13 @@ def create_log_callback(
                 step=draw.draw_idx,
             )
 
+        if not resolved and parameters:
+            resolved.update({p: _resolve_parameter(p, draw.point) for p in parameters})
+
         for parameter in parameters or []:
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
-                value=draw.point[parameter],
+                value=draw.point[resolved[parameter]],
                 step=draw.draw_idx,
             )
 
