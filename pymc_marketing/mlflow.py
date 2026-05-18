@@ -216,10 +216,22 @@ def _take_every(n: int):
 
 
 # Known PyMC transform suffixes used in ``draw.point`` keys. Extend this
-# tuple to support more transformations (e.g. ``_logodds__`` for Beta/Uniform
-# on (0, 1), ``_interval__`` for bounded variables, ``_ordered__``,
-# ``_simplex__``). Each new suffix gets resolved automatically by
-# ``_resolve_parameter``; no other code change is required.
+# tuple to support more transformations. Two caveats before adding entries:
+#
+# 1. Scalar-only. ``mlflow.log_metric`` accepts a scalar value, so only
+#    transforms that produce scalar value vars are safe to list here.
+#    Scalar-friendly: ``_logodds__`` (Beta, Uniform on (0, 1)),
+#    ``_interval__`` (bounded), ``_log_exp_m1__``, ``_circular__``.
+#    Vector-valued (``_ordered__``, ``_simplex__``, ``_sumto1__``,
+#    ``_zerosum__``, ``_cholesky-cov-packed__``) need per-component
+#    logging before they can be added; do not include them as-is.
+#
+# 2. Built-in transforms only. PyMC lets users subclass ``Transform`` and
+#    pick any ``name``, which produces a value var named
+#    ``f"{var}_{transform.name}__"``. Custom names are unknown here, so
+#    users of custom transforms must still pass the explicit transformed
+#    name. The exact-match branch in ``_resolve_parameter`` preserves
+#    that escape hatch.
 _TRANSFORM_SUFFIXES: tuple[str, ...] = ("_log__",)
 
 
