@@ -194,7 +194,6 @@ class PIEModel(RegressionModelBuilder):
         :py:meth:`default_model_config`; nested dicts (e.g. ``"bart"``) are
         replaced wholesale, so partial overrides of BART hyperparameters
         must restate every key. Keys:
-
         - ``"bart"``: dict with ``m`` (int), ``alpha`` (float), ``beta`` (float).
         - ``"sigma"``: :class:`pymc_extras.prior.Prior` for the noise std.
         - ``"categorical_split"``: ``"onehot"`` (default) or ``"continuous"``.
