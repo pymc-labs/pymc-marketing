@@ -11,30 +11,24 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import importlib
 import inspect
-import warnings
 
 import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 import pymc_marketing.mmm.components.adstock as adstock_module
 from pymc_marketing.mmm.components.adstock import (
-    ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
-    adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.serialization import serialization
@@ -47,12 +41,10 @@ ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
 
 
 def adstocks() -> list:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return [
-            pytest.param(adstock(l_max=10), id=name)
-            for name, adstock in ADSTOCK_TRANSFORMATIONS.items()
-        ]
+    return [
+        pytest.param(adstock_cls(l_max=10), id=adstock_cls.__name__)
+        for adstock_cls in ALL_ADSTOCK_CLASSES
+    ]
 
 
 @pytest.fixture
@@ -116,57 +108,6 @@ def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
     assert curve.shape == (1, 500, adstock.l_max)
 
 
-def test_adstock_from_dict() -> None:
-    data = {
-        "lookup_name": "geometric",
-        "l_max": 10,
-        "prefix": "test",
-        "mode": "Before",
-        "priors": {
-            "alpha": {
-                "dist": "Beta",
-                "kwargs": {
-                    "alpha": 1,
-                    "beta": 2,
-                },
-            },
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
-        adstock = adstock_from_dict(data)
-    assert adstock == GeometricAdstock(
-        l_max=10,
-        prefix="test",
-        priors={
-            "alpha": Prior("Beta", alpha=1, beta=2),
-        },
-        mode=ConvMode.Before,
-    )
-
-
-@pytest.mark.parametrize(
-    "lookup_name, adstock_cls",
-    list(ADSTOCK_TRANSFORMATIONS.items()),
-)
-def test_adstock_from_dict_without_priors(
-    lookup_name: str,
-    adstock_cls: type[AdstockTransformation],
-) -> None:
-    data = {
-        "lookup_name": lookup_name,
-        "l_max": 10,
-        "prefix": "test",
-        "mode": "Before",
-    }
-
-    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
-        adstock = adstock_from_dict(data)
-    assert adstock.default_priors == {
-        k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
-    }
-
-
 def test_repr() -> None:
     assert repr(GeometricAdstock(l_max=10)) == (
         "GeometricAdstock(prefix='adstock', l_max=10, "
@@ -175,52 +116,6 @@ def test_repr() -> None:
         "priors={'alpha': Prior(\"Beta\", alpha=1, beta=3)}"
         ")"
     )
-
-
-class ArbitraryObject:
-    def __init__(self, msg: str, value: int) -> None:
-        self.msg = msg
-        self.value = value
-        self.dims = ()
-
-    def create_variable(self, name: str):
-        return pm.Normal(name, mu=0, sigma=1)
-
-
-@pytest.fixture
-def register_arbitrary_deserialization():
-    register_deserialization(
-        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
-        lambda data: ArbitraryObject(**data),
-    )
-
-    yield
-
-    DESERIALIZERS.pop()
-
-
-def test_deserialization(
-    register_arbitrary_deserialization,
-) -> None:
-    data = {
-        "lookup_name": "geometric",
-        "prefix": "new",
-        "l_max": 10,
-        "priors": {
-            "alpha": {"msg": "hello", "value": 1},
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
-        instance = adstock_from_dict(data)
-    assert isinstance(instance, GeometricAdstock)
-    assert instance.prefix == "new"
-    assert instance.l_max == 10
-
-    alpha = instance.function_priors["alpha"]
-    assert isinstance(alpha, ArbitraryObject)
-    assert alpha.msg == "hello"
-    assert alpha.value == 1
 
 
 class TestAdstockRoundtrips:
@@ -269,3 +164,23 @@ class TestAdstockRoundtrips:
 )
 def test_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+class TestDeprecatedShimsRemoved:
+    """Regression tests for issue #2430."""
+
+    def test_adstock_from_dict_removed_from_components(self) -> None:
+        module = importlib.import_module("pymc_marketing.mmm.components.adstock")
+        assert not hasattr(module, "adstock_from_dict")
+
+    def test_adstock_from_dict_not_exported_from_mmm(self) -> None:
+        with pytest.raises(ImportError):
+            from pymc_marketing.mmm import adstock_from_dict  # noqa: F401
+
+    def test_adstock_transformations_dict_removed(self) -> None:
+        module = importlib.import_module("pymc_marketing.mmm.components.adstock")
+        assert not hasattr(module, "ADSTOCK_TRANSFORMATIONS")
+
+    def test_from_dict_rejects_lookup_name(self) -> None:
+        with pytest.raises((TypeError, ValidationError)):
+            GeometricAdstock.from_dict({"lookup_name": "geometric", "l_max": 4})

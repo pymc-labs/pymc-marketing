@@ -22,7 +22,6 @@ from pymc_marketing.mmm.components.adstock import (
     NoAdstock,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
-    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
@@ -36,7 +35,6 @@ from pymc_marketing.mmm.components.saturation import (
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
-    saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
@@ -124,7 +122,6 @@ __all__ = [
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
-    "adstock_from_dict",
     "approx_hsgp_hyperparams",
     "create_complexity_penalizing_prior",
     "create_constrained_inverse_gamma_prior",
@@ -133,7 +130,6 @@ __all__ = [
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "saturation_from_dict",
     "validating",
     "validation_method_X",
     "validation_method_y",

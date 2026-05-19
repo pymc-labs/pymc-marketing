@@ -93,7 +93,6 @@ for saturation parameter of logistic saturation.
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import numpy as np
@@ -186,13 +185,8 @@ class SaturationTransformation(Transformation):
         """Reconstruct a saturation transformation from a dict."""
         data = data.copy()
         data.pop("__type__", None)
-        data.pop(
-            "lookup_name", None
-        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
 
         if "priors" in data:
-            from pymc_extras.deserialize import deserialize
-
             data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
 
         return cls(**data)
@@ -699,52 +693,3 @@ class NoSaturation(SaturationTransformation):
         return beta * x
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1)}
-
-
-# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
-SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {
-    "logistic": LogisticSaturation,
-    "inverse_scaled_logistic": InverseScaledLogisticSaturation,
-    "tanh": TanhSaturation,
-    "tanh_baselined": TanhSaturationBaselined,
-    "michaelis_menten": MichaelisMentenSaturation,
-    "hill": HillSaturation,
-    "hill_sigmoid": HillSaturationSigmoid,
-    "root": RootSaturation,
-    "log_saturation": LogSaturation,
-    "no_saturation": NoSaturation,
-}
-
-
-def saturation_from_dict(data: dict) -> SaturationTransformation:
-    """Get a saturation function from a dictionary.
-
-    .. deprecated:: 0.18.2
-        `saturation_from_dict` is deprecated and will be removed in 0.20.0.
-        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
-    """
-    warnings.warn(
-        "saturation_from_dict is deprecated and will be removed in 0.20.0. "
-        "Use `from pymc_marketing.serialization import serialization; "
-        "serialization.deserialize(data)` instead.",
-        FutureWarning,
-        stacklevel=2,
-    )
-    data = data.copy()
-    type_key = data.pop("__type__", None)
-    lookup_name = data.pop("lookup_name", None)
-
-    if lookup_name:
-        cls = SATURATION_TRANSFORMATIONS[lookup_name]
-    elif type_key:
-        return serialization.deserialize({**data, "__type__": type_key})
-    else:
-        raise ValueError(
-            "Cannot deserialize saturation: missing both 'lookup_name' and '__type__'"
-        )
-
-    if "priors" in data:
-        data["priors"] = {
-            key: deserialize(value) for key, value in data["priors"].items()
-        }
-    return cls(**data)

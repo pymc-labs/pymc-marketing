@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import importlib
 import inspect
 from inspect import signature
 
@@ -19,21 +20,15 @@ import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.mmm.components.saturation import (
-    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
     SaturationTransformation,
-    saturation_from_dict,
 )
 from pymc_marketing.serialization import serialization
 
@@ -52,8 +47,8 @@ def model() -> pm.Model:
 
 def saturation_functions():
     return [
-        pytest.param(saturation(), id=name)
-        for name, saturation in SATURATION_TRANSFORMATIONS.items()
+        pytest.param(saturation_cls(), id=saturation_cls.__name__)
+        for saturation_cls in ALL_SATURATION_CLASSES
     ]
 
 
@@ -243,88 +238,6 @@ def test_sample_curve_with_bad_max_value(max_value) -> None:
         )
 
 
-def test_saturation_from_dict() -> None:
-    data = {
-        "lookup_name": "michaelis_menten",
-        "priors": {
-            "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-            "lam": {
-                "dist": "HalfNormal",
-                "kwargs": {"sigma": 1},
-            },
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
-        saturation = saturation_from_dict(data)
-    assert saturation == MichaelisMentenSaturation(
-        priors={
-            "alpha": Prior("HalfNormal", sigma=1),
-            "lam": Prior("HalfNormal", sigma=1),
-        }
-    )
-
-
-@pytest.mark.parametrize(
-    "lookup_name, saturation_cls",
-    list(SATURATION_TRANSFORMATIONS.items()),
-)
-def test_saturation_from_dict_without_priors(lookup_name, saturation_cls) -> None:
-    data = {
-        "lookup_name": lookup_name,
-    }
-
-    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
-        saturation = saturation_from_dict(data)
-    assert saturation.default_priors == {
-        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
-    }
-
-
-class ArbitraryObject:
-    def __init__(self, msg: str, value: int) -> None:
-        self.msg = msg
-        self.value = value
-        self.dims = ()
-
-    def create_variable(self, name: str):
-        return pm.Normal(name, mu=0, sigma=1)
-
-
-@pytest.fixture
-def register_arbitrary_deserialization():
-    register_deserialization(
-        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
-        lambda data: ArbitraryObject(**data),
-    )
-
-    yield
-
-    DESERIALIZERS.pop()
-
-
-def test_deserialization(
-    register_arbitrary_deserialization,
-) -> None:
-    data = {
-        "lookup_name": "logistic",
-        "prefix": "new",
-        "priors": {
-            "alpha": {"msg": "hello", "value": 1},
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="saturation_from_dict is deprecated"):
-        instance = saturation_from_dict(data)
-    assert isinstance(instance, LogisticSaturation)
-    assert instance.prefix == "new"
-
-    alpha = instance.function_priors["alpha"]
-    assert isinstance(alpha, ArbitraryObject)
-    assert alpha.msg == "hello"
-    assert alpha.value == 1
-
-
 class TestSaturationRoundtrips:
     """Every SaturationTransformation subclass round-trips with all params."""
 
@@ -369,3 +282,23 @@ class TestSaturationRoundtrips:
 )
 def test_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+class TestDeprecatedShimsRemoved:
+    """Regression tests for issue #2430."""
+
+    def test_saturation_from_dict_removed_from_components(self) -> None:
+        module = importlib.import_module("pymc_marketing.mmm.components.saturation")
+        assert not hasattr(module, "saturation_from_dict")
+
+    def test_saturation_from_dict_not_exported_from_mmm(self) -> None:
+        with pytest.raises(ImportError):
+            from pymc_marketing.mmm import saturation_from_dict  # noqa: F401
+
+    def test_saturation_transformations_dict_removed(self) -> None:
+        module = importlib.import_module("pymc_marketing.mmm.components.saturation")
+        assert not hasattr(module, "SATURATION_TRANSFORMATIONS")
+
+    def test_from_dict_rejects_lookup_name(self) -> None:
+        with pytest.raises((TypeError, ValidationError)):
+            LogisticSaturation.from_dict({"lookup_name": "logistic"})
