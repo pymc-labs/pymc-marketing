@@ -24,20 +24,30 @@ The autologging can be enabled by calling the `autolog` function. The following 
 are patched:
 
 - `pymc.sample`:
+
     - :func:`log_versions`: Log the versions of PyMC-Marketing, PyMC, and ArviZ to MLflow.
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
     - :func:`log_sample_diagnostics`: Log information derived from the InferenceData object.
     - :func:`log_arviz_summary`: Log table of summary statistics about estimated parameters
     - :func:`log_metadata`: Log the metadata of the data used in the model.
     - :func:`log_error`: Log the traceback and exception if an error occurs during sampling.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+
 - `pymc.find_MAP`:
+
     - :func:`log_model_derived_info`: Log types of parameters, coords, model graph, etc.
+
 - `MMM.fit`:
+
     - All parameters, metrics, and artifacts from `pymc.sample`
     - :func:`log_mmm_configuration`: Log the configuration of the MMM model.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+
 - `CLVModel.fit`:
+
     - Information dependent on fit method used (MCMC or MAP)
     - Model type and fit method
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
 Examples
 --------
@@ -111,7 +121,7 @@ Autologging for a PyMC-Marketing MMM:
         idata = mmm.fit(X, y)
 
         # Additional specific logging
-        fig = mmm.plot_components_contributions()
+        fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
         mlflow.log_figure(fig, "components.png")
 
 Autologging for a PyMC-Marketing CLV model:
@@ -172,7 +182,6 @@ from packaging import version
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
-from pymc_marketing.mmm.multidimensional import MMM as MultiDimensionalMMM
 from pymc_marketing.version import __version__
 
 # MLflow 3.0.0+ deprecated artifact_path in favor of name
@@ -336,6 +345,22 @@ def _force_load_idata_groups(idata: az.InferenceData) -> None:
             group_data = getattr(idata, group)
             if hasattr(group_data, "load"):
                 group_data.load()
+
+
+def _attach_run_id(idata: az.InferenceData) -> None:
+    """Stamp the active MLflow run id onto ``idata.attrs``.
+
+    No-op when no MLflow run is active.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The InferenceData object to stamp.
+    """
+    run = mlflow.active_run()
+    if run is None:
+        return
+    idata.attrs["mlflow_run_id"] = run.info.run_id
 
 
 def log_arviz_summary(
@@ -613,12 +638,13 @@ def log_mmm_evaluation_metrics(
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. If None, all available metrics will be calculated.
         Options include:
-            * `r_squared`: Bayesian R-squared.
-            * `rmse`: Root Mean Squared Error.
-            * `nrmse`: Normalized Root Mean Squared Error.
-            * `mae`: Mean Absolute Error.
-            * `nmae`: Normalized Mean Absolute Error.
-            * `mape`: Mean Absolute Percentage Error.
+
+        * ``r_squared``: Bayesian R-squared.
+        * ``rmse``: Root Mean Squared Error.
+        * ``nrmse``: Normalized Root Mean Squared Error.
+        * ``mae``: Mean Absolute Error.
+        * ``nmae``: Normalized Mean Absolute Error.
+        * ``mape``: Mean Absolute Percentage Error.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
     prefix : str, optional
@@ -714,7 +740,10 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
         self.sample_kwargs = sample_kwargs
 
     def predict(
-        self, context: Any, model_input, params: dict[str, Any] | None = None
+        self,
+        context: Any,
+        model_input: pd.DataFrame,
+        params: dict[str, Any] | None = None,
     ) -> Any:
         """Perform predictions or sampling using the specified prediction method.
 
@@ -722,7 +751,7 @@ class MMMWrapper(mlflow.pyfunc.PythonModel):
         ----------
         context : Any
             The context in which the model is running. Isn't specified by users but is passed by MLflow.
-        model_input : array, shape (n_pred, n_features)
+        model_input : pd.DataFrame, shape (n_pred, n_features)
             The input data used for prediction.
         params : dict, optional
             A dictionary of parameters to specify the prediction method.
@@ -865,7 +894,7 @@ def log_mmm(
             idata = mmm.fit(X, y)
 
             # Additional specific logging
-            fig = mmm.plot_components_contributions()
+            fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
             mlflow.log_figure(fig, "components.png")
 
             model_info = log_mmm(
@@ -982,8 +1011,10 @@ def log_mmm_configuration(mmm: MMM) -> None:
     attrs = mmm.create_idata_attrs()
     mlflow.log_params(attrs)
 
-    mlflow.log_param("adstock_name", mmm.adstock.lookup_name)
-    mlflow.log_param("saturation_name", mmm.saturation.lookup_name)
+    adstock_name = type(mmm.adstock).__name__.removesuffix("Adstock")
+    saturation_name = type(mmm.saturation).__name__.removesuffix("Saturation")
+    mlflow.log_param("adstock_name", adstock_name)
+    mlflow.log_param("saturation_name", saturation_name)
 
 
 def log_error(func: Callable, file_name: str):
@@ -1157,7 +1188,7 @@ def autolog(
             posterior_preds = mmm.sample_posterior_predictive(X)
 
             # Additional specific logging
-            fig = mmm.plot_components_contributions()
+            fig, _ = mmm.plot.contributions_over_time(var=["channel_contribution"])
             mlflow.log_figure(fig, "components.png")
 
     Autologging for a PyMC-Marketing CLV model:
@@ -1205,6 +1236,7 @@ def autolog(
                 log_model_derived_info(model)
 
             idata = sample(*args, **kwargs)
+            _attach_run_id(idata)
 
             # Align with the default values in pymc.sample
             tune = kwargs.get("tune", 1000)
@@ -1250,6 +1282,7 @@ def autolog(
             log_mmm_configuration(self)
 
             idata = fit(self, *args, **kwargs)
+            _attach_run_id(idata)
 
             log_inference_data(idata, save_file="idata.nc")
 
@@ -1259,7 +1292,6 @@ def autolog(
 
     if log_mmm:
         MMM.fit = patch_mmm_fit(MMM.fit)
-        MultiDimensionalMMM.fit = patch_mmm_fit(MultiDimensionalMMM.fit)
 
     def patch_clv_fit(fit):
         @wraps(fit)
@@ -1272,6 +1304,7 @@ def autolog(
             mlflow.log_params(
                 idata.attrs,
             )
+            _attach_run_id(idata)
             log_inference_data(idata, save_file="idata.nc")
 
             return idata

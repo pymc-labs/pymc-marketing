@@ -33,7 +33,7 @@ import xarray as xr
 
 from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 # Seed for reproducibility

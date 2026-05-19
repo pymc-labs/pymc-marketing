@@ -24,9 +24,9 @@ import xarray as xr
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-from pymc_marketing.mmm.multidimensional import (
+from pymc_marketing.mmm.mmm import (
     MMM,
-    MultiDimensionalBudgetOptimizerWrapper,
+    BudgetOptimizerWrapper,
 )
 
 SEED = sum(map(ord, "cost_per_unit_tests"))
@@ -582,7 +582,7 @@ class TestBudgetOptimizerCostPerUnitIntegration:
     def budget_mmm_setup(self, simple_fitted_mmm):
         """Build a multidimensional MMM wrapper for budget optimizer tests."""
         mmm = simple_fitted_mmm
-        wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        wrapper = BudgetOptimizerWrapper(
             model=mmm, start_date="2025-01-06", end_date="2025-02-03"
         )
         return wrapper, mmm.channel_columns
@@ -635,7 +635,7 @@ class TestBudgetOptimizerCostPerUnitIntegration:
         start_date = "2025-01-06"
         end_date = "2025-02-03"
 
-        wrapper = MultiDimensionalBudgetOptimizerWrapper(
+        wrapper = BudgetOptimizerWrapper(
             model=mmm, start_date=start_date, end_date=end_date
         )
 

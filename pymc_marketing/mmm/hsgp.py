@@ -29,7 +29,6 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, InstanceOf, model_validator, validate_call
 from pymc.distributions.shape_utils import Dims
-from pymc_extras.deserialize import register_deserialization
 from pymc_extras.prior import Prior, VariableFactory, _get_transform
 from pytensor.graph import Variable
 from pytensor.tensor import as_tensor
@@ -39,6 +38,7 @@ from xarray import DataArray
 from pymc_marketing.hsgp_kwargs import CovFunc
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve
+from pymc_marketing.serialization import DeferredFactory, serialization
 
 
 @validate_call
@@ -140,9 +140,9 @@ def approx_hsgp_hyperparams(
 
     Returns
     -------
-    - `m` : int
+    m : int
         Number of basis vectors. Increasing it helps approximate smaller lengthscales, but increases computational cost.
-    - `c` : float
+    c : float
         Scaling factor such that L = c * S, where L is the boundary of the approximation.
         Increasing it helps approximate larger lengthscales, but may require increasing m.
 
@@ -154,7 +154,7 @@ def approx_hsgp_hyperparams(
     References
     ----------
     .. [1] Ruitort-Mayol, G., Anderson, M., Solin, A., Vehtari, A. (2022).
-    Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming
+       Practical Hilbert Space Approximate Bayesian Gaussian Processes for Probabilistic Programming.
     """
     lengthscale_min, lengthscale_max = lengthscale_range
     if lengthscale_min >= lengthscale_max:
@@ -331,7 +331,10 @@ class HSGPBase(BaseModel):
             self.dims = (self.dims,)
             return self
 
-        if isinstance(self.dims, tuple) and len(self.dims) < 1:
+        if not isinstance(self.dims, tuple):
+            self.dims = tuple(self.dims)
+
+        if len(self.dims) < 1:
             raise ValueError("At least one dimension is required")
 
         if any(not isinstance(dim, str) for dim in self.dims):
@@ -352,12 +355,15 @@ class HSGPBase(BaseModel):
             The object as a dictionary.
 
         """
-        data = self.model_dump()
-
-        def handle_prior(value):
-            return value if not hasattr(value, "to_dict") else value.to_dict()
-
-        return {key: handle_prior(value) for key, value in data.items()}
+        dumped = self.model_dump()
+        result = {}
+        for key, dumped_value in dumped.items():
+            live_value = getattr(self, key, dumped_value)
+            if hasattr(live_value, "to_dict"):
+                result[key] = live_value.to_dict()
+            else:
+                result[key] = dumped_value
+        return result
 
     def sample_prior(
         self,
@@ -456,6 +462,7 @@ class HSGPBase(BaseModel):
         )
 
 
+@serialization.register
 class HSGP(HSGPBase):
     """HSGP component.
 
@@ -647,7 +654,7 @@ class HSGP(HSGPBase):
         coords = {"time": dates, "channel": ["A", "B"]}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f", xdist=True)
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior
@@ -725,10 +732,10 @@ class HSGP(HSGPBase):
 
     """
 
-    ls: InstanceOf[VariableFactory] | float = Field(
+    ls: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the lengthscales"
     )
-    eta: InstanceOf[VariableFactory] | float = Field(
+    eta: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the variance"
     )
     L: float = Field(..., gt=0, description="Extent of basis functions")
@@ -888,11 +895,13 @@ class HSGP(HSGPBase):
             m=[self.m],
             L=[self.L],
             cov_func=cov_func,
-            drop_first=self.drop_first,
         )
         phi, sqrt_psd = gp.prior_linearized(
             self.X.values[:, None] - self.X_mid,
         )
+        if self.drop_first:
+            phi = phi[:, 1:]
+            sqrt_psd = sqrt_psd[1:]
 
         if self.demeaned_basis:
             phi = phi - phi.mean(axis=0).eval()
@@ -940,9 +949,17 @@ class HSGP(HSGPBase):
             The object created from the data.
 
         """
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("hsgp_class", None)
+
         for key in ["eta", "ls"]:
-            if isinstance(data[key], dict):
-                data[key] = Prior.from_dict(data[key])
+            value = data.get(key)
+            if isinstance(value, dict):
+                if value.get("__deferred__"):
+                    data[key] = DeferredFactory.from_dict(value)
+                else:
+                    data[key] = Prior.from_dict(value)
 
         return cls(**data)
 
@@ -953,6 +970,7 @@ class PeriodicCovFunc(StrEnum):
     Periodic = "periodic"
 
 
+@serialization.register
 class HSGPPeriodic(HSGPBase):
     """HSGP component for periodic data.
 
@@ -1154,10 +1172,10 @@ class HSGPPeriodic(HSGPBase):
 
     """
 
-    ls: InstanceOf[VariableFactory] | float = Field(
+    ls: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the lengthscale"
     )
-    scale: InstanceOf[VariableFactory] | float = Field(
+    scale: InstanceOf[VariableFactory] | DeferredFactory | float = Field(
         ..., description="Prior for the scale"
     )
     cov_func: PeriodicCovFunc = Field(
@@ -1293,13 +1311,22 @@ class HSGPPeriodic(HSGPBase):
             The object created from the data.
 
         """
+        data = data.copy()
+        data.pop("__type__", None)
+        data.pop("hsgp_class", None)
+
         for key in ["scale", "ls"]:
-            if isinstance(data[key], dict):
-                data[key] = Prior.from_dict(data[key])
+            value = data.get(key)
+            if isinstance(value, dict):
+                if value.get("__deferred__"):
+                    data[key] = DeferredFactory.from_dict(value)
+                else:
+                    data[key] = Prior.from_dict(value)
 
         return cls(**data)
 
 
+@serialization.register
 class SoftPlusHSGP(HSGP):
     """HSGP with softplus transformation.
 
@@ -1389,7 +1416,7 @@ class SoftPlusHSGP(HSGP):
         coords = {"time": dates, "channel": channels}
         with pm.Model(coords=coords) as model:
             data = pm.Data("data", X, dims="time")
-            hsgp.register_data(data).create_variable("f")
+            hsgp.register_data(data).create_variable("f", xdist=True)
             idata = pm.sample_prior_predictive(random_seed=rng)
 
         prior = idata.prior
@@ -1453,31 +1480,3 @@ class SoftPlusHSGP(HSGP):
         # Multiplicative centering to preserve positivity and enforce mean 1
         centered_f = f / f_mean
         return pmd.Deterministic(name, centered_f)
-
-
-# TODO: Replace this with a more robust implementation
-def hsgp_from_dict(data: dict | bool):
-    """Get an HSGP instance from a dictionary if passed by user."""
-    if isinstance(data, bool):
-        return data
-
-    HSGP_CLASSES = {
-        "HSGP": HSGP,
-        "SoftPlusHSGP": SoftPlusHSGP,
-        "HSGPPeriodic": HSGPPeriodic,
-    }
-
-    data = data.copy()
-    cls = HSGP_CLASSES[data.pop("hsgp_class")]
-
-    return cls.from_dict(data)
-
-
-def _is_hsgp(data):
-    return (
-        "hsgp_class" in data
-        and data["hsgp_class"] in ["HSGP", "SoftPlusHSGP", "HSGPPeriodic"]
-    ) or isinstance(data, bool)
-
-
-register_deserialization(_is_hsgp, hsgp_from_dict)

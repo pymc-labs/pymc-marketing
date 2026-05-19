@@ -20,7 +20,7 @@ Quickstart with MMM:
 .. code-block:: python
 
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
     import pandas as pd
 
     # Minimal dataset
@@ -67,7 +67,7 @@ Quickstart with MMM:
     _ = mmm.plot.channel_contribution_share_hdi(hdi_prob=0.94)
 
 Wrap a custom PyMC model
---------
+------------------------
 
 Requirements
 
@@ -105,7 +105,7 @@ Requirements
     _ = plot.posterior_predictive(var=["y"], hdi_prob=0.9)
 
 Custom contributions_over_time
---------
+------------------------------
 
 .. code-block:: python
 
@@ -127,7 +127,7 @@ Custom contributions_over_time
     _ = plot.contributions_over_time(var=["component"], hdi_prob=0.9)
 
 Saturation plots with a custom model
---------
+------------------------------------
 
 .. code-block:: python
 
@@ -3939,9 +3939,11 @@ class MMMPlotSuite:
         var : list of str, optional
             List of contribution variable names from the posterior to include in the plot.
             If None, automatically detects all contribution variables from the posterior.
-            Example: ["intercept_contribution_original_scale",
-                     "channel_contribution_original_scale",
-                     "control_contribution_original_scale"]
+            Example::
+
+                ["intercept_contribution_original_scale",
+                 "channel_contribution_original_scale",
+                 "control_contribution_original_scale"]
         original_scale : bool, default True
             If True and var is None, use original scale contribution variables
             (ending with "_contribution_original_scale").
@@ -4638,7 +4640,6 @@ class MMMPlotSuite:
             plt.tight_layout()
 
         axes[-1].set_xlabel("date")
-        plt.show()
         return fig, axes
 
     def param_stability(

@@ -3,6 +3,9 @@
 
 ```{toctree}
 :hidden:
+:glob:
+
+/notebooks/**
 ```
 
 ## Introduction
@@ -34,6 +37,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Understanding Media Saturation
 :img-top: ../gallery/images/mmm_media_saturation.png
 :link: ../notebooks/mmm/mmm_media_saturation.html
+:::
+
+:::{grid-item-card} Guide to Adstock Transformations
+:img-top: ../gallery/images/adstock_functions_guide.png
+:link: ../notebooks/mmm/adstock_functions_guide.html
 :::
 
 :::{grid-item-card} Build MMM from YAML Configuration
@@ -70,9 +78,15 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_dims_migration_guide.png
 :link: ../notebooks/mmm/mmm_dims_migration_guide.html
 :::
+
+:::{grid-item-card} MMM Plot Suite Migration Guide
+:img-top: ../gallery/images/mmm_plot_suite_migration_guide.png
+:link: ../notebooks/mmm/mmm_plot_suite_migration_guide.html
+:::
 ::::
 
 ### Custom Models
+
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -211,8 +225,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
 :::
-
-:::::
+::::
 
 ### Case Studies
 
@@ -299,6 +312,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Mixed Logit Discrete Choice
 :img-top: ../gallery/images/mixed_logit.png
 :link: ../notebooks/customer_choice/mixed_logit.html
+:::
+
+:::{grid-item-card} Consideration Set Mixed Logit
+:img-top: ../gallery/images/consideration_set_logit.png
+:link: ../notebooks/customer_choice/consideration_set_logit.html
+:::
+
+:::{grid-item-card} MaxDiff (Best-Worst Scaling)
+:img-top: ../gallery/images/maxdiff.png
+:link: ../notebooks/customer_choice/maxdiff.html
 :::
 ::::
 

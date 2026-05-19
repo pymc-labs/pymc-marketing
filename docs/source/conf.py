@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import plotly.io as pio
+
 import pymc_marketing  # isort:skip
 
 # -- General configuration ------------------------------------------------
@@ -65,12 +67,29 @@ else:
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
+# Notebooks under any "dev/" subdirectory are work-in-progress drafts kept
+# in-tree for contributors but not part of the published docs. Excluding them
+# stops MyST from parsing them, which silences the bulk of the toctree and
+# duplicate-label warnings reported in #1198 and (transitively) #1209.
 exclude_patterns = [
     "build",
     "jupyter_execute",
     "jupyter_cache",
     "**.ipynb_checkpoints",
+    "**/dev/**",
+    # Internal contributor-facing README for the gallery, not part of the
+    # published docs (#1210); excluding stops the 'document isn't included
+    # in any toctree' warning.
+    "gallery/README.md",
 ]
+
+# Suppress the harmless myst-parser override of mathjax3_config.processHtmlClass.
+# myst-parser intentionally extends the class list ("tex2jax_process" ->
+# "tex2jax_process|mathjax_process|math|output_area") so it can render math in
+# notebook output cells. Our config sets the same key, so myst flags it; the
+# resulting behaviour is what we want, so we silence the warning rather than
+# remove the explicit setting (which we keep for clarity).
+suppress_warnings = ["myst.mathjax"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown
@@ -89,12 +108,50 @@ locale_dirs = ["../../locales"]
 # exclude method pages from toctree to make pages lighter and build faster
 remove_from_toctrees = ["**/classmethods/*"]
 
+# matplotlib plot directive configuration
+# plot_pre_code runs before every .. plot:: block; replaces the default
+# "import numpy as np / from matplotlib import pyplot as plt" preamble.
+plot_pre_code = (
+    "import numpy as np\n"
+    "import arviz  # registers arviz styles with matplotlib\n"
+    "from matplotlib import pyplot as plt\n"
+    "plt.style.use('arviz-darkgrid')\n"
+)
+
 # myst config
 nb_execution_mode = "auto"
 nb_execution_excludepatterns = ["*.ipynb"]
 nb_kernel_rgx_aliases = {".*": "python3"}
 myst_enable_extensions = ["colon_fence", "deflist", "dollarmath", "amsmath"]
 myst_heading_anchors = 0
+
+# Block Plotly from injecting its own version of MathJax
+# Set global engine defaults
+pio.full_figure_for_development = False
+
+# Disable MathJax across all possible renderers
+for renderer in pio.renderers:
+    try:
+        pio.renderers[renderer].include_mathjax = "cdn"
+    except AttributeError:
+        continue
+
+# Sphinx's mathjax_path will be handled automatically by the extension/theme.
+# This config is compatible with both MathJax 3 and 4.
+mathjax3_config = {
+    "tex": {
+        "inlineMath": [["\\(", "\\)"]],
+        "displayMath": [["\\[", "\\]"]],
+        "processEscapes": True,
+    },
+    "options": {
+        # 'ignoreHtmlClass' is the modern standard for both v3 and v4.
+        # We include 'tex2jax_ignore' for v2/v3 compatibility and
+        # 'plotly-graph-div' to stop MathJax from touching Plotly SVGs.
+        "ignoreHtmlClass": "tex2jax_ignore|plotly-graph-div",
+        "processHtmlClass": "tex2jax_process",
+    },
+}
 
 # numpydoc and autodoc typehints config
 numpydoc_show_class_members = False
@@ -268,3 +325,22 @@ texinfo_documents = [
         "Miscellaneous",
     )
 ]
+
+
+def scrub_plotly_mathjax(app, pagename, templatename, context, doctree):
+    """Remove Plotly's forced MathJax 2.7.5 injection from the final HTML."""
+    if "body" in context:
+        # This targets the specific CDN Plotly always uses
+        bad_script = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js"
+        context["body"] = context["body"].replace(
+            f'<script src="{bad_script}', '<script data-blocked="true"'
+        )
+
+
+def setup(app):
+    """Configure Sphinx application event handlers.
+
+    Connects the Plotly MathJax scrubbing function to the html-page-context event.
+    """
+    # Connect the scrubbing function to the html-page-context event
+    app.connect("html-page-context", scrub_plotly_mathjax)

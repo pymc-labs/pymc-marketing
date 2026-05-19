@@ -31,7 +31,7 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.utils import from_netcdf
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -47,33 +47,6 @@ except ImportError:
     def check_array(X, **kwargs):
         """Check if the input data is valid for the model."""
         return X
-
-
-def _handle_deprecate_pred_argument(
-    value,
-    name: str,
-    kwargs: dict,
-    none_allowed: bool = False,
-):
-    name_pred = f"{name}_pred"
-    if name_pred in kwargs and value is not None:
-        raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
-
-    if name_pred not in kwargs and value is None and none_allowed:
-        return value
-
-    if name_pred not in kwargs and value is None:
-        raise ValueError(f"Please provide {name}.")
-
-    if name_pred in kwargs:
-        warnings.warn(
-            f"{name_pred} is deprecated, use {name} instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return kwargs.pop(name_pred)
-
-    return value
 
 
 def create_idata_accessor(value: str, message: str):
@@ -96,13 +69,15 @@ def create_idata_accessor(value: str, message: str):
     """
 
     def accessor(self) -> xr.Dataset:
-        __doc__ = f"""Access the '{value}' attribute of the InferenceData object."""  # noqa: F841
         if self.idata is None or value not in self.idata:
             raise RuntimeError(message)
 
         return self.idata[value]
 
-    return property(accessor)
+    return property(
+        accessor,
+        doc=f"Access the '{value}' attribute of the InferenceData object.",
+    )
 
 
 def requires_model(func):
@@ -196,6 +171,8 @@ class ModelIO:
 
         def _serialize_for_hash(obj):
             """Serialize objects for deterministic hashing."""
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "model_dump"):
@@ -247,20 +224,23 @@ class ModelIO:
 
         def _json_default(obj):
             """Handle objects that aren't JSON serializable by default."""
+            from pymc_marketing.serialization import serialization
+
+            try:
+                return serialization.serialize(obj)
+            except (KeyError, TypeError):
+                pass
+
             if hasattr(obj, "to_dict"):
                 return obj.to_dict()
             if hasattr(obj, "model_dump"):
-                # Handle Pydantic models (e.g., HSGPKwargs)
                 return obj.model_dump(mode="json")
-            # For other objects, try to use their __dict__ but filter out non-serializable items
             if hasattr(obj, "__dict__"):
-                # Filter out methods, functions, and other non-serializable attributes
                 return {
                     k: v
                     for k, v in obj.__dict__.items()
                     if not callable(v) and not k.startswith("_")
                 }
-            # Last resort: convert to string representation
             return str(obj)
 
         attrs: dict[str, str] = {}
@@ -352,10 +332,11 @@ class ModelIO:
         **kwargs
             Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
             Common options include:
-            - engine : str, optional (default "netcdf4")
-                Library to use for writing files.
-            - groups : list of str, optional
-                Groups to save to netcdf. If None, all groups are saved.
+
+            - ``engine`` : str, optional (default ``"netcdf4"``)
+              Library to use for writing files.
+            - ``groups`` : list of str, optional
+              Groups to save to netcdf. If None, all groups are saved.
 
         Returns
         -------
@@ -393,7 +374,10 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
-            self.idata.to_netcdf(str(file), **kwargs)
+            if file.suffix == ".zarr" or file.is_dir():
+                idata_to_zarr(self.idata, file, **kwargs)
+            else:
+                self.idata.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -401,25 +385,27 @@ class ModelIO:
     def _model_config_formatting(cls, model_config: dict) -> dict:
         """Format the model configuration.
 
-        Because of json serialization, model_config values that were originally tuples
-        or numpy are being encoded as lists. This function converts them back to tuples
-        and numpy arrays to ensure correct id encoding.
+        Recursively processes the config dict.  Dicts with a ``__type__`` key
+        are deserialized via the TypeRegistry.  Plain lists are converted back
+        to tuples (for ``dims``) or numpy arrays (everything else) to undo the
+        JSON round-trip.
         """
-        for key in model_config:
-            if isinstance(model_config[key], dict):
-                for sub_key in model_config[key]:
-                    if isinstance(model_config[key][sub_key], list):
-                        # Check if "dims" key to convert it to tuple
-                        if sub_key == "dims":
-                            model_config[key][sub_key] = tuple(
-                                model_config[key][sub_key]
-                            )
-                        # Convert all other lists to numpy arrays
-                        else:
-                            model_config[key][sub_key] = np.array(
-                                model_config[key][sub_key]
-                            )
-        return model_config
+        from pymc_marketing.serialization import serialization
+
+        def _format(d: dict) -> dict:
+            for key, value in d.items():
+                if isinstance(value, dict) and "__type__" in value:
+                    d[key] = serialization.deserialize(value)
+                elif isinstance(value, dict):
+                    d[key] = _format(value)
+                elif isinstance(value, list):
+                    if key == "dims":
+                        d[key] = tuple(value)
+                    elif value and all(isinstance(v, (int, float)) for v in value):
+                        d[key] = np.array(value)
+            return d
+
+        return _format(model_config.copy())
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
@@ -438,7 +424,7 @@ class ModelIO:
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
         """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
 
-        This method must be overridden in child classes if data is needed as a keyword argument.
+        This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
@@ -487,7 +473,10 @@ class ModelIO:
 
         """
         filepath = Path(str(fname))
-        idata = from_netcdf(filepath)
+        if filepath.suffix == ".zarr" or filepath.is_dir():
+            idata = idata_from_zarr(filepath)
+        else:
+            idata = az.from_netcdf(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -535,7 +524,19 @@ class ModelIO:
             model = cls(**init_kwargs)
 
         model.idata = idata
-        model.build_from_idata(idata)
+        if "fit_data" in idata:
+            # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
+            built = model.build_from_idata(idata)
+            if built is not None:
+                model = built
+        else:
+            warnings.warn(
+                "The loaded model does not include fit_data used for training. "
+                "Plotting and prior/posterior predictive sampling may not work correctly. "
+                "Run build_model() with training data for full functionality.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if not check:
             return model
@@ -1031,8 +1032,6 @@ class RegressionModelBuilder(ModelBuilder):
                 idata.posterior, merge_dataset=True
             )
 
-        self.post_sample_model_transformation()
-
         if self.idata:
             self.idata = self.idata.copy()
             self.idata.extend(idata, join="right")
@@ -1058,7 +1057,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -1222,7 +1221,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_prior_predictive(
         self,
-        X=None,
+        X,
         y=None,
         samples: int | None = None,
         extend_idata: bool = True,
@@ -1255,9 +1254,6 @@ class RegressionModelBuilder(ModelBuilder):
             Prior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
-        y = _handle_deprecate_pred_argument(y, "y", kwargs, none_allowed=True)
-
         if y is None:
             y = np.zeros(len(X))
         if samples is None:
@@ -1286,7 +1282,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_posterior_predictive(
         self,
-        X=None,
+        X,
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -1311,8 +1307,6 @@ class RegressionModelBuilder(ModelBuilder):
             Posterior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
-
         self._data_setter(X)
 
         with self.model:
@@ -1333,7 +1327,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_proba(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
@@ -1343,7 +1337,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_posterior(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -1369,7 +1363,6 @@ class RegressionModelBuilder(ModelBuilder):
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
         X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
             X, extend_idata, combined, **kwargs

@@ -287,14 +287,17 @@ class CLVModel(ModelBuilder):
                 }
             )
 
+    # TODO: Remove for v1.0
     @classmethod
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
         """Create the initialization kwargs from an InferenceData object."""
         kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        kwargs["data"] = idata.fit_data.to_dataframe()
+        if "fit_data" in idata:
+            kwargs["data"] = idata.fit_data.to_dataframe()
 
         return kwargs
 
+    # TODO: Revise/remove for v1.0
     @classmethod
     def build_from_idata(cls, idata: az.InferenceData) -> None:
         """Build the model from the InferenceData object."""
@@ -308,12 +311,9 @@ class CLVModel(ModelBuilder):
 
         model.idata = idata
         model._rename_posterior_variables()
+        model.data = idata.fit_data.to_dataframe()
 
-        # Extract data from fit_data group if it exists
-        if hasattr(idata, "fit_data"):
-            model.data = idata.fit_data.to_dataframe()
-
-        model.build_model()  # type: ignore
+        model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
             msg = (
                 "The model id in the InferenceData does not match the model id. "
@@ -324,7 +324,7 @@ class CLVModel(ModelBuilder):
             raise DifferentModelError(msg)
         return model
 
-    # TODO: Remove in 2026Q1?
+    # TODO: Remove for v1.0
     def _rename_posterior_variables(self):
         """Rename variables in the posterior group to remove the _prior suffix.
 

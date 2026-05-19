@@ -762,23 +762,25 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
     """Shifted Beta Geometric model for individual customers.
 
     Model for customer behavior in a discrete contractual setting. It assumes that:
-      * At the end of each period, a customer has a probability `theta` of renewing the contract
-        and `1-theta` of cancelling
-      * The probability `theta` does not change over time for a given customer
-      * The probability `theta` varies across customers according to a Beta prior distribution
-        with hyperparameters `alpha` and `beta`.
 
-    based on [1]_.
+    * At the end of each period, a customer has a probability ``theta`` of renewing the contract
+      and ``1 - theta`` of cancelling
+    * The probability ``theta`` does not change over time for a given customer
+    * The probability ``theta`` varies across customers according to a Beta prior distribution
+      with hyperparameters ``alpha`` and ``beta``.
+
+    Based on [1]_.
 
     Parameters
     ----------
     data: pd.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Customer labels. There should be one unique label for each customer
-            * `t_churn`: Time at which the customer cancelled the contract (starting at 0).
-        It should  equal T for users that have not cancelled by the end of the
-        observation period
-            * `T`: Maximum observed time period (starting at 0)
+
+        * ``customer_id``: Customer labels. There should be one unique label for each customer.
+        * ``t_churn``: Time at which the customer cancelled the contract (starting at 0).
+          It should equal ``T`` for users that have not cancelled by the end of the
+          observation period.
+        * ``T``: Maximum observed time period (starting at 0).
     model_config: dict, optional
         Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
         `default_model_config` class attribute.

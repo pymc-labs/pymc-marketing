@@ -27,9 +27,9 @@ from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-from pymc_marketing.mmm.multidimensional import (
+from pymc_marketing.mmm.mmm import (
     MMM,
-    MultiDimensionalBudgetOptimizerWrapper,
+    BudgetOptimizerWrapper,
 )
 from pymc_marketing.pytensor_utils import (
     ModelSamplerEstimator,
@@ -128,8 +128,12 @@ def test_extract_response_distribution_vs_sample_response(
     print(f"End date: {end_date}")
     print(f"Number of periods: {(end_date - start_date) // 7}")
 
-    # Wrap the model in MultiDimensionalBudgetOptimizerWrapper
-    optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+    fitted_multidim_mmm.add_original_scale_contribution_variable(
+        ["channel_contribution"]
+    )
+
+    # Wrap the model in BudgetOptimizerWrapper
+    optimizable_model = BudgetOptimizerWrapper(
         model=fitted_multidim_mmm,
         start_date=start_date,
         end_date=end_date,
@@ -435,10 +439,10 @@ def test_merge_models_prefix_and_merge_on_channel_data(
     end_date = start_date + pd.Timedelta(weeks=4)
 
     # Create two optimizer-compatible wrappers from the same fitted model
-    wrapper1 = MultiDimensionalBudgetOptimizerWrapper(
+    wrapper1 = BudgetOptimizerWrapper(
         model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
     )
-    wrapper2 = MultiDimensionalBudgetOptimizerWrapper(
+    wrapper2 = BudgetOptimizerWrapper(
         model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
     )
 
@@ -479,10 +483,10 @@ def test_merge_models_value_vars_unique_and_logp_compiles(
     start_date = dates[-1] + pd.Timedelta(days=7)
     end_date = start_date + pd.Timedelta(weeks=4)
 
-    wrapper1 = MultiDimensionalBudgetOptimizerWrapper(
+    wrapper1 = BudgetOptimizerWrapper(
         model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
     )
-    wrapper2 = MultiDimensionalBudgetOptimizerWrapper(
+    wrapper2 = BudgetOptimizerWrapper(
         model=fitted_multidim_mmm, start_date=start_date, end_date=end_date
     )
 

@@ -15,6 +15,7 @@
 
 import numpy as np
 import pandas as pd
+import patsy
 
 
 def generate_saturated_data(
@@ -114,6 +115,365 @@ def generate_saturated_data(
     data.index.name = "day"
     data["pre"] = data.index < treatment_time
     return data
+
+
+def generate_maxdiff_data(
+    n_respondents: int = 200,
+    n_items: int = 20,
+    n_tasks_per_resp: int = 12,
+    subset_size: int = 4,
+    true_utilities: np.ndarray | None = None,
+    sigma_respondent: float = 0.6,
+    item_correlation: np.ndarray | None = None,
+    items: list[str] | None = None,
+    random_seed: np.random.Generator | int | None = None,
+) -> tuple[pd.DataFrame, dict]:
+    """Generate synthetic MaxDiff (best-worst scaling) data.
+
+    Simulates a MaxDiff survey where each respondent sees ``n_tasks_per_resp``
+    tasks, each showing a random ``subset_size`` of items drawn uniformly from
+    the full pool of ``n_items``. The respondent picks the best and worst items
+    from the subset according to the Louviere sequential best-worst model.
+
+    Parameters
+    ----------
+    n_respondents : int, default 200
+        Number of respondents.
+    n_items : int, default 20
+        Full item pool size.
+    n_tasks_per_resp : int, default 12
+        Tasks shown per respondent.
+    subset_size : int, default 4
+        Items shown per task (must be ``<= n_items``).
+    true_utilities : np.ndarray, optional
+        Ground-truth item utilities of length ``n_items``. If None, drawn
+        from ``Normal(0, 1)``. The last item's utility is shifted to 0 to
+        match the default identification constraint.
+    sigma_respondent : float, default 0.6
+        Scale of per-respondent item-level deviations (standard deviation).
+        Set to 0 for a homogeneous-preferences population.
+    item_correlation : np.ndarray, optional
+        Shape ``(n_items, n_items)`` correlation matrix for the
+        per-respondent utility deviations. Must be symmetric, positive
+        semi-definite, with ones on the diagonal. When supplied, respondent
+        deviations are drawn from
+        ``MVNormal(0, diag(σ) @ item_correlation @ diag(σ))``; otherwise
+        deviations are drawn independently (diagonal covariance). Use this
+        to generate correlated ground truth for validating
+        ``MaxDiffMixedLogit(full_covariance=True)`` recovery.
+    items : list[str], optional
+        Item names (length ``n_items``). Defaults to ``["item_0", ...]``.
+    random_seed : np.random.Generator or int, optional
+        Random state for reproducibility.
+
+    Returns
+    -------
+    task_df : pd.DataFrame
+        Long-format data with columns ``respondent_id``, ``task_id``,
+        ``item_id``, ``is_best``, ``is_worst``. One row per shown item per task.
+    ground_truth : dict
+        ``{"utilities", "respondent_utilities", "sigma_respondent",
+        "item_correlation", "items"}``.
+        ``utilities`` is the population-level ground truth (reference item
+        at 0); ``respondent_utilities`` holds per-respondent values used for
+        simulation; ``item_correlation`` is the ``(n_items, n_items)``
+        correlation matrix used — ``np.eye(n_items)`` when ``item_correlation``
+        was not supplied.
+
+    Notes
+    -----
+    Subsets are drawn uniformly without replacement. Real MaxDiff studies
+    use balanced designs (BIBD) for efficiency; this generator trades that
+    for simplicity and is adequate for parameter-recovery testing.
+
+    To verify that ``MaxDiffMixedLogit(full_covariance=True)`` recovers the
+    latent correlation structure, generate data with a non-identity
+    ``item_correlation`` and compare the posterior mean of ``corr_matrix``
+    against ``ground_truth["item_correlation"]``.
+    """
+    rng: np.random.Generator = (
+        random_seed
+        if isinstance(random_seed, np.random.Generator)
+        else np.random.default_rng(random_seed)
+    )
+
+    if subset_size > n_items:
+        raise ValueError(
+            f"subset_size ({subset_size}) cannot exceed n_items ({n_items})."
+        )
+    if subset_size < 2:
+        raise ValueError(
+            "subset_size must be at least 2 (need distinct best and worst)."
+        )
+
+    if items is None:
+        items = [f"item_{i}" for i in range(n_items)]
+    if len(items) != n_items:
+        raise ValueError(f"items has length {len(items)} but n_items is {n_items}.")
+
+    if true_utilities is None:
+        true_utilities = rng.normal(0, 1, size=n_items)
+    true_utilities = np.asarray(true_utilities, dtype=float)
+    # Identification: shift so the reference (last) item is at 0.
+    true_utilities = true_utilities - true_utilities[-1]
+
+    if item_correlation is not None:
+        item_correlation = np.asarray(item_correlation, dtype=float)
+        if item_correlation.shape != (n_items, n_items):
+            raise ValueError(
+                f"item_correlation must have shape ({n_items}, {n_items}), "
+                f"got {item_correlation.shape}."
+            )
+        if not np.allclose(item_correlation, item_correlation.T, atol=1e-8):
+            raise ValueError("item_correlation must be symmetric.")
+        if not np.allclose(np.diag(item_correlation), 1.0, atol=1e-8):
+            raise ValueError("item_correlation must have ones on the diagonal.")
+        eigvals = np.linalg.eigvalsh(item_correlation)
+        if eigvals.min() < -1e-8:
+            raise ValueError(
+                "item_correlation must be positive semi-definite "
+                f"(minimum eigenvalue: {eigvals.min():.4g})."
+            )
+        sigma = sigma_respondent * np.ones(n_items)
+        cov = (sigma[:, None] * sigma[None, :]) * item_correlation
+        deviations = rng.multivariate_normal(
+            mean=np.zeros(n_items), cov=cov, size=n_respondents
+        )
+    else:
+        item_correlation = np.eye(n_items)
+        deviations = sigma_respondent * rng.normal(size=(n_respondents, n_items))
+
+    respondent_utilities = true_utilities[None, :] + deviations
+
+    records = []
+    for r in range(n_respondents):
+        for task in range(n_tasks_per_resp):
+            subset = rng.choice(n_items, size=subset_size, replace=False)
+            u = respondent_utilities[r, subset]
+
+            # Sequential best then worst from remaining.
+            p_best = _softmax_1d(u)
+            best_local = int(rng.choice(subset_size, p=p_best))
+            remaining = np.ones(subset_size, dtype=bool)
+            remaining[best_local] = False
+            u_worst = -u
+            u_worst[~remaining] = -np.inf
+            p_worst = _softmax_1d(u_worst)
+            worst_local = int(rng.choice(subset_size, p=p_worst))
+
+            for local_pos, item_idx in enumerate(subset):
+                records.append(
+                    {
+                        "respondent_id": f"r{r}",
+                        "task_id": task,
+                        "item_id": items[item_idx],
+                        "is_best": int(local_pos == best_local),
+                        "is_worst": int(local_pos == worst_local),
+                    }
+                )
+
+    task_df = pd.DataFrame(records)
+    ground_truth = {
+        "utilities": true_utilities,
+        "respondent_utilities": respondent_utilities,
+        "sigma_respondent": sigma_respondent,
+        "item_correlation": item_correlation,
+        "items": items,
+    }
+    return task_df, ground_truth
+
+
+def _softmax_1d(x: np.ndarray) -> np.ndarray:
+    """Numerically stable 1-D softmax used by the synthetic MaxDiff generator."""
+    x_shift = x - np.max(x)
+    exp = np.exp(x_shift)
+    return exp / exp.sum()
+
+
+def generate_maxdiff_conjoint_data(
+    n_respondents: int = 150,
+    n_items: int = 12,
+    item_attributes: pd.DataFrame | None = None,
+    utility_formula: str = "~ 0 + C(brand) + price + quality",
+    true_betas: dict[str, float] | None = None,
+    n_tasks_per_resp: int = 12,
+    subset_size: int = 4,
+    random_attributes: list[str] | None = None,
+    sigma_respondent: float = 0.4,
+    items: list[str] | None = None,
+    random_seed: np.random.Generator | int | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    r"""Generate synthetic MaxDiff data with item-attribute utilities (part-worths).
+
+    Simulates a MaxDiff survey where each item has a fixed attribute profile
+    and utilities are computed as :math:`U_i = X_i^\top \beta + \text{noise}`.
+    Respondents optionally carry heterogeneous part-worths on a subset of
+    features (analogous to the random-coefficients formulation in
+    :class:`~pymc_marketing.customer_choice.MaxDiffMixedLogit`).
+
+    Parameters
+    ----------
+    n_respondents : int, default 150
+        Number of respondents.
+    n_items : int, default 12
+        Full item pool size. Ignored if ``item_attributes`` is provided.
+    item_attributes : pd.DataFrame, optional
+        One row per item, index = item name, columns = attributes. If None,
+        attributes are auto-generated: a 3-level ``brand`` categorical and two
+        continuous features ``price ~ Uniform(0, 1)`` and
+        ``quality ~ Normal(0, 1)``.
+    utility_formula : str, default ``"~ 0 + C(brand) + price + quality"``
+        Patsy formula used to expand ``item_attributes`` into a design matrix.
+    true_betas : dict[str, float], optional
+        Ground-truth part-worths keyed by patsy-expanded feature name. Missing
+        keys are drawn from ``Normal(0, 1)``.
+    n_tasks_per_resp : int, default 12
+        Tasks per respondent.
+    subset_size : int, default 4
+        Items shown per task.
+    random_attributes : list[str], optional
+        Feature names whose part-worths vary across respondents. Defaults to
+        all features.
+    sigma_respondent : float, default 0.4
+        Scale of per-respondent deviations on the random-feature subset.
+    items : list[str], optional
+        Item names. Defaults to ``["item_0", ...]`` when ``item_attributes``
+        is None; otherwise taken from ``item_attributes.index``.
+    random_seed : np.random.Generator or int, optional
+        Random state.
+
+    Returns
+    -------
+    task_df : pd.DataFrame
+        Long-format data with columns ``respondent_id``, ``task_id``,
+        ``item_id``, ``is_best``, ``is_worst``.
+    item_attributes : pd.DataFrame
+        The attribute table, indexed by item name. Aligned with ``items``.
+    ground_truth : dict
+        ``{"betas", "respondent_betas", "feature_names",
+        "random_attributes", "sigma_respondent", "items", "X"}``.
+        ``betas`` is the population part-worth vector;
+        ``respondent_betas`` holds the per-respondent part-worth matrix
+        actually used to simulate picks.
+
+    Notes
+    -----
+    Real conjoint studies use balanced designs; this generator draws task
+    subsets uniformly for simplicity, which is adequate for recovery tests.
+    """
+    rng: np.random.Generator = (
+        random_seed
+        if isinstance(random_seed, np.random.Generator)
+        else np.random.default_rng(random_seed)
+    )
+
+    if subset_size < 2:
+        raise ValueError("subset_size must be >= 2.")
+
+    # Attribute table -------------------------------------------------------
+    if item_attributes is None:
+        if items is None:
+            items = [f"item_{i}" for i in range(n_items)]
+        if subset_size > len(items):
+            raise ValueError(
+                f"subset_size ({subset_size}) cannot exceed n_items ({len(items)})."
+            )
+        item_attributes = pd.DataFrame(
+            {
+                "brand": rng.choice(["A", "B", "C"], size=len(items)),
+                "price": rng.uniform(0, 1, size=len(items)),
+                "quality": rng.standard_normal(len(items)),
+            },
+            index=pd.Index(items, name="item_id"),
+        )
+    else:
+        if items is None:
+            items = list(item_attributes.index)
+        item_attributes = item_attributes.loc[items].copy()
+        if subset_size > len(items):
+            raise ValueError(
+                f"subset_size ({subset_size}) cannot exceed n_items ({len(items)})."
+            )
+
+    # Design matrix ---------------------------------------------------------
+    design = patsy.dmatrix(utility_formula, item_attributes, return_type="matrix")
+    X = np.asarray(design, dtype=float)
+    feature_names = list(design.design_info.column_names)
+    n_features = X.shape[1]
+
+    # Part-worths ----------------------------------------------------------
+    betas: np.ndarray = np.asarray(rng.normal(0, 1, size=n_features))
+    if true_betas is not None:
+        for k, v in true_betas.items():
+            if k not in feature_names:
+                raise ValueError(
+                    f"true_betas key {k!r} not in expanded features {feature_names}."
+                )
+            betas[feature_names.index(k)] = float(v)
+
+    rc_names = (
+        list(random_attributes)
+        if random_attributes is not None
+        else list(feature_names)
+    )
+    unknown = [rc for rc in rc_names if rc not in feature_names]
+    if unknown:
+        raise ValueError(
+            f"random_attributes {unknown} not in expanded features {feature_names}."
+        )
+    rc_idx = np.array([feature_names.index(rc) for rc in rc_names], dtype=np.int64)
+
+    respondent_betas = np.broadcast_to(
+        betas[None, :], (n_respondents, n_features)
+    ).copy()
+    if len(rc_idx) > 0:
+        respondent_betas[:, rc_idx] += sigma_respondent * rng.standard_normal(
+            size=(n_respondents, len(rc_idx))
+        )
+
+    # Per-respondent per-item utility: (R, I)
+    U_ri = respondent_betas @ X.T
+
+    # Simulate picks --------------------------------------------------------
+    records = []
+    n_items_total = len(items)
+    for r in range(n_respondents):
+        for task in range(n_tasks_per_resp):
+            subset = rng.choice(n_items_total, size=subset_size, replace=False)
+            u = U_ri[r, subset]
+
+            p_best = _softmax_1d(u)
+            best_local = int(rng.choice(subset_size, p=p_best))
+            remaining = np.ones(subset_size, dtype=bool)
+            remaining[best_local] = False
+            u_worst = -u.copy()
+            u_worst[~remaining] = -np.inf
+            p_worst = _softmax_1d(u_worst)
+            worst_local = int(rng.choice(subset_size, p=p_worst))
+
+            for local_pos, item_pos in enumerate(subset):
+                records.append(
+                    {
+                        "respondent_id": f"r{r}",
+                        "task_id": task,
+                        "item_id": items[item_pos],
+                        "is_best": int(local_pos == best_local),
+                        "is_worst": int(local_pos == worst_local),
+                    }
+                )
+
+    task_df = pd.DataFrame(records)
+
+    ground_truth = {
+        "betas": betas,
+        "respondent_betas": respondent_betas,
+        "feature_names": feature_names,
+        "random_attributes": rc_names,
+        "sigma_respondent": sigma_respondent,
+        "items": items,
+        "X": X,
+    }
+    return task_df, item_attributes, ground_truth
 
 
 def generate_unsaturated_data(
