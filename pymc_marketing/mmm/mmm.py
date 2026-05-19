@@ -1035,17 +1035,13 @@ class MMM(RegressionModelBuilder):
         return attrs
 
     def save(self, fname: str, **kwargs) -> None:
-        """Save the model, including supplementary data for MuEffects."""
+        """Save the model, including supplementary idata groups from mu_effects."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
         for effect in self.mu_effects:
-            if isinstance(effect, EventAdditiveEffect):
-                group_name = f"supplementary_data_{effect.prefix}"
+            for group_name, ds in effect.idata_groups().items():
                 if not hasattr(self.idata, group_name):
-                    ds = xr.Dataset.from_dataframe(
-                        effect.df_events.reset_index(drop=True)
-                    )
                     self.idata.add_groups({group_name: ds})
 
         # Persist the base names of any *_original_scale Deterministics so they
@@ -2532,7 +2528,7 @@ class MMM(RegressionModelBuilder):
         include_last_observations: bool = False,  # type: ignore
         clone_model: bool = True,  # type: ignore
         **sample_posterior_predictive_kwargs,  # type: ignore
-    ) -> xr.DataArray:
+    ) -> xr.Dataset:
         """Sample from the model's posterior predictive distribution.
 
         Parameters
@@ -2553,7 +2549,7 @@ class MMM(RegressionModelBuilder):
 
         Returns
         -------
-        xr.DataArray
+        xr.Dataset
             Posterior predictive samples.
         """
         # Update model data with xarray
@@ -3967,7 +3963,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         include_last_observations: bool = False,
         include_carryover: bool = True,
         budget_distribution_over_period: xr.DataArray | None = None,
-    ) -> az.InferenceData:
+    ) -> xr.Dataset:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
         Parameters
@@ -3994,7 +3990,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Returns
         -------
-        az.InferenceData
+        xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
         data = create_zero_dataset(
