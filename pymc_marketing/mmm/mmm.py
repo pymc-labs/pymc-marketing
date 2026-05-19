@@ -1035,17 +1035,13 @@ class MMM(RegressionModelBuilder):
         return attrs
 
     def save(self, fname: str, **kwargs) -> None:
-        """Save the model, including supplementary data for MuEffects."""
+        """Save the model, including supplementary idata groups from mu_effects."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
         for effect in self.mu_effects:
-            if isinstance(effect, EventAdditiveEffect):
-                group_name = f"supplementary_data_{effect.prefix}"
+            for group_name, ds in effect.idata_groups().items():
                 if not hasattr(self.idata, group_name):
-                    ds = xr.Dataset.from_dataframe(
-                        effect.df_events.reset_index(drop=True)
-                    )
                     self.idata.add_groups({group_name: ds})
 
         # Persist the base names of any *_original_scale Deterministics so they
