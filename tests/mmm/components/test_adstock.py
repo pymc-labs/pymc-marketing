@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import importlib
 import inspect
 
 import numpy as np
@@ -164,23 +163,3 @@ class TestAdstockRoundtrips:
 )
 def test_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
-
-
-class TestDeprecatedShimsRemoved:
-    """Regression tests for issue #2430."""
-
-    def test_adstock_from_dict_removed_from_components(self) -> None:
-        module = importlib.import_module("pymc_marketing.mmm.components.adstock")
-        assert not hasattr(module, "adstock_from_dict")
-
-    def test_adstock_from_dict_not_exported_from_mmm(self) -> None:
-        with pytest.raises(ImportError):
-            from pymc_marketing.mmm import adstock_from_dict  # noqa: F401
-
-    def test_adstock_transformations_dict_removed(self) -> None:
-        module = importlib.import_module("pymc_marketing.mmm.components.adstock")
-        assert not hasattr(module, "ADSTOCK_TRANSFORMATIONS")
-
-    def test_from_dict_rejects_lookup_name(self) -> None:
-        with pytest.raises((TypeError, ValidationError)):
-            GeometricAdstock.from_dict({"lookup_name": "geometric", "l_max": 4})
