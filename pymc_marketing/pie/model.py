@@ -43,6 +43,8 @@ far outside the corpus's feature support are extrapolation and unreliable)
 3. measured incrementality is a consistent estimate of the true causal effect
 (per-RCT measurement error is not yet modelled — see :class:`PIEModel`).
 
+For the full method, see [1]_.
+
 References
 ----------
 .. [1] Gordon, B. R., Moakler, R., & Zettelmeyer, F. (2026).
@@ -118,6 +120,7 @@ class PIEModel(RegressionModelBuilder):
         :py:meth:`default_model_config`; nested dicts (e.g. ``"bart"``) are
         replaced wholesale, so a partial ``"bart"`` override must restate
         every required key (``m``, ``alpha``, ``beta``). Keys:
+
         - ``"bart"``: dict with ``m`` (int), ``alpha`` (float), ``beta``
           (float), and optional ``response`` — ``"constant"`` (default,
           piecewise-constant leaves), ``"linear"``, or ``"mix"`` (the latter
@@ -136,7 +139,7 @@ class PIEModel(RegressionModelBuilder):
 
         import pandas as pd
 
-        from pymc_marketing.mmm import PIEModel
+        from pymc_marketing.pie import PIEModel
 
         # Corpus of past campaigns, each labelled with the incrementality
         # measured by its RCT.
@@ -160,7 +163,7 @@ class PIEModel(RegressionModelBuilder):
     Notes
     -----
     **This module is alpha — the API and defaults may change.** Tracked
-    deviations from the paper (Gordon, Moakler & Zettelmeyer 2026):
+    deviations from the paper [1]_:
 
     - The paper uses a random forest fit to 2,226 RCTs; this implementation
       uses Bayesian Additive Regression Trees (PyMC-BART) for native

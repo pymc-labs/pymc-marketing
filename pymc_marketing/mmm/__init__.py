@@ -61,7 +61,6 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
-from pymc_marketing.mmm.pie import PIEModel
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
@@ -108,7 +107,6 @@ __all__ = [
     "MonthlyFourier",
     "NoAdstock",
     "NoSaturation",
-    "PIEModel",
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
