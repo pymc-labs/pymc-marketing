@@ -14,10 +14,10 @@
 r"""Predicted Incrementality by Experimentation (PIE) model.
 
 Randomised controlled trials (RCTs) — geo experiments or ghost-ad holdouts —
-are the gold standard for measuring the *incremental* effect of an ad
-campaign, but they are costly and slow, so advertisers only run them for a
-fraction of their campaigns. PIE turns that fraction into leverage: it fits a
-supervised model on the corpus of campaigns that *did* receive an RCT,
+are considered the gold standard for measuring the *incremental* effect of an ad
+campaign. However, they are costly and slow, so advertisers only typically run them
+for a fraction of their campaigns. PIE turns that fraction into leverage by fitting
+a supervised model on the corpus of campaigns that *did* receive an RCT,
 learning the map from observable campaign features to experimentally measured
 incrementality, then predicts incrementality for the campaigns that never ran
 an experiment.
@@ -35,12 +35,13 @@ sum of regularised regression trees. Because :math:`f` is sampled rather than
 point-estimated, the predicted incrementality for a new campaign with features
 :math:`x_\star` is a full posterior over :math:`f(x_\star)`.
 
-The approach rests on three assumptions: the RCT corpus is representative of
-the campaigns being predicted (predictions far outside the corpus's feature
-support are extrapolation and unreliable); the recorded features carry enough
-signal to explain variation in incrementality; and measured incrementality is
-a consistent estimate of the true causal effect (per-RCT measurement error is
-not yet modelled — see :class:`PIEModel`).
+The approach rests on three assumptions:
+
+1. the RCT corpus is representative of the campaigns being predicted (predictions
+far outside the corpus's feature support are extrapolation and unreliable)
+2. the recorded features carry enough signal to explain variation in incrementality
+3. measured incrementality is a consistent estimate of the true causal effect
+(per-RCT measurement error is not yet modelled — see :class:`PIEModel`).
 
 References
 ----------
