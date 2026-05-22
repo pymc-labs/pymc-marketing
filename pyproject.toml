@@ -204,8 +204,3 @@ ignore_missing_imports = true
 
 [tool.mypy-scipy]
 ignore_missing_imports = true
-
-[dependency-groups]
-dev = [
-    "pytest>=9.0.3",
-]

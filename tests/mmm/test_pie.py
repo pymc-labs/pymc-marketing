@@ -19,7 +19,7 @@ import pytest
 from pymc_extras.prior import Prior
 from scipy.stats import pearsonr
 
-from pymc_marketing.mmm.pie import PIEModel, generate_synthetic_rct_corpus
+from pymc_marketing.mmm.pie import PIEModel
 
 EXPECTED_COLUMNS = [
     "campaign_id",
@@ -43,12 +43,72 @@ POST = [
 ]
 
 
-# ---------------------------------------------------------------------------
-# generate_synthetic_rct_corpus tests
-# ---------------------------------------------------------------------------
+def generate_synthetic_rct_corpus(
+    n_campaigns: int = 500,
+    seed: int | None = None,
+) -> pd.DataFrame:
+    """Generate a synthetic RCT corpus (linear DGP) for exercising PIEModel."""
+    rng = np.random.default_rng(seed)
+
+    objectives = np.array(["conversions", "traffic", "awareness"])
+    verticals = np.array(["retail", "travel", "finance"])
+    audience_types = np.array(["prospecting", "retargeting"])
+
+    objective = rng.choice(objectives, size=n_campaigns)
+    vertical = rng.choice(verticals, size=n_campaigns)
+    audience_type = rng.choice(audience_types, size=n_campaigns)
+
+    budget = rng.uniform(1_000, 100_000, size=n_campaigns)
+    exposure_rate = rng.uniform(0.1, 0.9, size=n_campaigns)
+    ctr = rng.uniform(0.01, 0.1, size=n_campaigns)
+    avg_treated_outcome = rng.uniform(0.0, 5.0, size=n_campaigns)
+
+    obj_oh = (objective[:, None] == objectives).astype(float)
+    vert_oh = (vertical[:, None] == verticals).astype(float)
+    aud_oh = (audience_type[:, None] == audience_types).astype(float)
+
+    X_dgp = np.column_stack(
+        [
+            obj_oh,
+            vert_oh,
+            aud_oh,
+            budget / 100_000,
+            exposure_rate,
+            ctr,
+            avg_treated_outcome / 5.0,
+        ]
+    )
+
+    betas = np.array(
+        [0.30, -0.10, 0.20, 0.40, -0.20, 0.10, 0.50, -0.30, 0.20, 0.60, -0.10, 0.30]
+    )
+
+    tau_true = X_dgp @ betas
+    y_observed = rng.normal(tau_true, scale=0.1)
+    last_click = np.clip(
+        0.2 + 0.65 * tau_true + rng.normal(0.0, scale=0.25, size=n_campaigns),
+        0.0,
+        None,
+    )
+
+    return pd.DataFrame(
+        {
+            "campaign_id": [f"c_{i:04d}" for i in range(n_campaigns)],
+            "objective": objective,
+            "vertical": vertical,
+            "audience_type": audience_type,
+            "budget": budget,
+            "exposure_rate": exposure_rate,
+            "ctr": ctr,
+            "avg_treated_outcome": avg_treated_outcome,
+            "last_click_conversions_per_dollar": last_click,
+            "measured_incrementality_per_dollar": y_observed,
+        }
+    )
 
 
 def test_synthetic_corpus_schema():
+    """Generated corpus has the documented columns, dtypes, and value ranges."""
     df = generate_synthetic_rct_corpus(n_campaigns=50, seed=0)
 
     assert list(df.columns) == EXPECTED_COLUMNS
@@ -71,12 +131,14 @@ def test_synthetic_corpus_schema():
 
 
 def test_synthetic_corpus_reproducible():
+    """The same seed yields an identical corpus."""
     df1 = generate_synthetic_rct_corpus(n_campaigns=20, seed=7)
     df2 = generate_synthetic_rct_corpus(n_campaigns=20, seed=7)
     pd.testing.assert_frame_equal(df1, df2)
 
 
 def test_synthetic_corpus_different_seeds():
+    """Different seeds yield different incrementality labels."""
     df1 = generate_synthetic_rct_corpus(n_campaigns=20, seed=1)
     df2 = generate_synthetic_rct_corpus(n_campaigns=20, seed=2)
     assert not df1["measured_incrementality_per_dollar"].equals(
@@ -84,13 +146,9 @@ def test_synthetic_corpus_different_seeds():
     )
 
 
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="module")
 def small_corpus():
+    """A 50-row corpus split into the feature matrix X and target y."""
     df = generate_synthetic_rct_corpus(n_campaigns=50, seed=42)
     X = df.drop(columns=["campaign_id", "measured_incrementality_per_dollar"])
     y = df["measured_incrementality_per_dollar"]
@@ -99,20 +157,15 @@ def small_corpus():
 
 @pytest.fixture
 def default_model():
-    """Fresh PIEModel per test — fixture is function-scoped because tests
-    mutate the instance via ``build_model``."""
+    """Fresh PIEModel per test, since tests mutate it via build_model."""
     return PIEModel(
         pre_determined_features=PRE,
         post_determined_features=POST,
     )
 
 
-# ---------------------------------------------------------------------------
-# build_model tests
-# ---------------------------------------------------------------------------
-
-
 def test_build_model(default_model, small_corpus):
+    """build_model wires up the BART graph, sigma, and coords."""
     X, y = small_corpus
     default_model.build_model(X, y)
 
@@ -128,11 +181,11 @@ def test_build_model(default_model, small_corpus):
     assert "obs" in model.coords
     assert "feature" in model.coords
     assert list(model.coords["obs"]) == X.index.tolist()
-    # Feature coord follows pre + post order, not the column order of X.
     assert list(model.coords["feature"]) == PRE + POST
 
 
 def test_dtype_categorical_detection(default_model, small_corpus):
+    """Object-dtype columns get encoders; numeric columns do not."""
     X, y = small_corpus
     default_model.build_model(X, y)
 
@@ -144,9 +197,7 @@ def test_dtype_categorical_detection(default_model, small_corpus):
 
 
 def test_string_dtype_feature_is_encoded(default_model, small_corpus):
-    """Pandas ``StringDtype`` columns (e.g. from ``df.convert_dtypes()`` or a
-    pyarrow CSV backend) must be detected as categorical and label-encoded,
-    not passed through unchanged to ``X.values.astype(float)``."""
+    """Pandas StringDtype columns are detected as categorical and encoded."""
     X, y = small_corpus
     X_string = X.astype({"objective": "string"})
     assert isinstance(X_string["objective"].dtype, pd.StringDtype)
@@ -156,11 +207,11 @@ def test_string_dtype_feature_is_encoded(default_model, small_corpus):
     assert "objective" in default_model._encoders, (
         "string-dtype column should have been label-encoded"
     )
-    # Round-trips through _data_setter without raising.
     default_model._data_setter(X_string, y=None)
 
 
 def test_model_config_override(small_corpus):
+    """model_config overrides reach the built model."""
     X, y = small_corpus
     custom = PIEModel(
         pre_determined_features=PRE,
@@ -176,6 +227,7 @@ def test_model_config_override(small_corpus):
 
 
 def test_feature_not_in_X_raises(small_corpus):
+    """A declared feature absent from X raises ValueError."""
     X, y = small_corpus
     bad_model = PIEModel(
         pre_determined_features=["objective", "MISSING_FEATURE"],
@@ -186,12 +238,14 @@ def test_feature_not_in_X_raises(small_corpus):
 
 
 def test_negative_incrementality_is_allowed(default_model, small_corpus):
+    """Negative incrementality values are accepted."""
     X, y = small_corpus
     y_with_negative_values = y - y.mean()
     default_model.build_model(X, y_with_negative_values)
 
 
 def test_pymc_bart_missing_raises(small_corpus, monkeypatch):
+    """build_model raises ImportError when pymc-bart is unavailable."""
     import pymc_marketing.mmm.pie as pie_module
 
     monkeypatch.setattr(pie_module, "pmb", None)
@@ -203,12 +257,14 @@ def test_pymc_bart_missing_raises(small_corpus, monkeypatch):
 
 
 def test_build_model_length_mismatch_raises(default_model, small_corpus):
+    """Mismatched X and y lengths raise ValueError."""
     X, y = small_corpus
     with pytest.raises(ValueError, match="same length"):
         default_model.build_model(X, y.iloc[:-1])
 
 
 def test_build_model_non_finite_y_raises(default_model, small_corpus):
+    """Non-finite y raises ValueError."""
     X, y = small_corpus
     y_bad = y.copy()
     y_bad.iloc[0] = np.nan
@@ -217,6 +273,7 @@ def test_build_model_non_finite_y_raises(default_model, small_corpus):
 
 
 def test_build_model_invalid_categorical_split_raises(small_corpus):
+    """An invalid categorical_split raises ValueError."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
@@ -232,9 +289,7 @@ def test_build_model_invalid_categorical_split_raises(small_corpus):
 
 
 def test_build_model_continuous_split_rules(small_corpus):
-    """``categorical_split='continuous'`` builds without error — exercising
-    the alternative branch that falls back to ContinuousSplitRule for every
-    column, including label-encoded categoricals."""
+    """categorical_split='continuous' builds without error."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
@@ -250,23 +305,44 @@ def test_build_model_continuous_split_rules(small_corpus):
 
 
 def test_partial_bart_override_raises(small_corpus):
-    """A partial ``bart`` override drops the unspecified keys (nested dicts are
-    replaced wholesale, not deep-merged), so ``build_model`` must fail with a
-    clear error rather than a bare ``KeyError`` deep in the graph build."""
+    """A partial bart override raises a clear ValueError, not a bare KeyError."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
         post_determined_features=POST,
-        model_config={"bart": {"m": 50}},  # alpha, beta omitted
+        model_config={"bart": {"m": 50}},
     )
     with pytest.raises(ValueError, match="missing required keys"):
         model.build_model(X, y)
 
 
+def test_bart_response_override(small_corpus):
+    """A 'linear' BART response builds; an invalid response raises ValueError."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": "linear"},
+            "sigma": Prior("HalfNormal", sigma=1.0),
+        },
+    )
+    model.build_model(X, y)
+
+    bad = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0, "response": "nonsense"},
+            "sigma": Prior("HalfNormal", sigma=1.0),
+        },
+    )
+    with pytest.raises(ValueError, match="response"):
+        bad.build_model(X, y)
+
+
 def test_extra_columns_in_X_are_ignored(small_corpus):
-    """Only ``pre_determined_features`` + ``post_determined_features`` are fed
-    to BART; any other column in X (e.g. an id column) is dropped, not trained
-    on. This pins the pre/post feature-selection contract."""
+    """Columns outside the pre/post features are dropped, not trained on."""
     X, y = small_corpus
     model = PIEModel(pre_determined_features=PRE, post_determined_features=POST)
     X_extra = X.assign(campaign_note="ignore-me")
@@ -279,21 +355,16 @@ def test_extra_columns_in_X_are_ignored(small_corpus):
 
 
 def test_output_var_conflict_in_X_raises(small_corpus):
-    """``fit`` rejects an X containing a column named like the target variable,
-    which would otherwise be ambiguous against the separately-passed y."""
+    """fit rejects an X containing a column named like the target variable."""
     X, y = small_corpus
     model = PIEModel(pre_determined_features=PRE, post_determined_features=POST)
-    X_conflict = X.assign(y=0.0)  # default target_column is "y"
+    X_conflict = X.assign(y=0.0)
     with pytest.raises(ValueError, match="conflicts with the target variable"):
         model.fit(X_conflict, y)
 
 
-# ---------------------------------------------------------------------------
-# _data_setter tests
-# ---------------------------------------------------------------------------
-
-
 def test_unseen_categorical_raises(default_model, small_corpus):
+    """An unseen category at predict time raises ValueError."""
     X, y = small_corpus
     default_model.build_model(X, y)
 
@@ -305,8 +376,7 @@ def test_unseen_categorical_raises(default_model, small_corpus):
 
 
 def test_data_setter_dummy_y_when_none(default_model, small_corpus):
-    """When ``y=None`` (predict mode), ``_data_setter`` installs zeros for the
-    likelihood's observed variable."""
+    """_data_setter installs zeros for the observed y in predict mode."""
     X, y = small_corpus
     default_model.build_model(X, y)
     default_model._data_setter(X, y=None)
@@ -315,18 +385,18 @@ def test_data_setter_dummy_y_when_none(default_model, small_corpus):
 
 
 def test_data_setter_requires_training_feature_schema(default_model, small_corpus):
+    """_data_setter requires the training features and ignores extra columns."""
     X, y = small_corpus
     default_model.build_model(X, y)
 
     with pytest.raises(ValueError, match=r"missing.*budget"):
         default_model._data_setter(X.drop(columns=["budget"]))
 
-    # Extra columns beyond the training features are ignored, not rejected
-    # (consistent with build_model).
     default_model._data_setter(X.assign(extra_feature=1.0), y=None)
 
 
 def test_data_setter_reorders_columns_to_training_order(default_model, small_corpus):
+    """_data_setter tolerates columns supplied in a different order."""
     X, y = small_corpus
     default_model.build_model(X, y)
 
@@ -334,8 +404,7 @@ def test_data_setter_reorders_columns_to_training_order(default_model, small_cor
 
 
 def test_data_setter_with_y_rescales(default_model, small_corpus):
-    """Passing ``y`` to ``_data_setter`` divides by ``_target_scale`` and
-    installs the scaled values into the observed-data container."""
+    """A y passed to _data_setter is divided by _target_scale."""
     X, y = small_corpus
     default_model.build_model(X, y)
 
@@ -349,6 +418,7 @@ def test_data_setter_with_y_rescales(default_model, small_corpus):
 
 
 def test_data_setter_y_length_mismatch_raises(default_model, small_corpus):
+    """Mismatched X and y lengths raise ValueError in _data_setter."""
     X, y = small_corpus
     default_model.build_model(X, y)
     with pytest.raises(ValueError, match="same length"):
@@ -356,6 +426,7 @@ def test_data_setter_y_length_mismatch_raises(default_model, small_corpus):
 
 
 def test_data_setter_non_finite_y_raises(default_model, small_corpus):
+    """Non-finite y raises ValueError in _data_setter."""
     X, y = small_corpus
     default_model.build_model(X, y)
     y_bad = y.iloc[:5].copy()
@@ -364,19 +435,8 @@ def test_data_setter_non_finite_y_raises(default_model, small_corpus):
         default_model._data_setter(X.iloc[:5], y=y_bad)
 
 
-# ---------------------------------------------------------------------------
-# sample_posterior_predictive tests
-# ---------------------------------------------------------------------------
-
-
 def test_sample_posterior_predictive_unscaled(small_corpus):
-    """Draws must be returned in the original (un-scaled) target range.
-
-    We scale y by 1000 so the contrast between scaled (BART output is O(1) and
-    ``sigma=HalfNormal(1)`` keeps draws bounded near 1) and unscaled
-    (multiplied by ``_target_scale=max|y|`` ≈ 1000) is unambiguous regardless
-    of sampler noise from the tiny BART (m=10) and short chain.
-    """
+    """Posterior predictive draws are returned in the original target scale."""
     X, y = small_corpus
     y_big = y * 1000.0
     model = PIEModel(
@@ -393,8 +453,6 @@ def test_sample_posterior_predictive_unscaled(small_corpus):
 
     pred_max = float(abs(preds["y"]).max())
     stored_max = float(abs(model.idata.posterior_predictive["y"]).max())
-    # Without the un-scale step, predictions would be O(1) (BART output ~1,
-    # sigma ~1); with it they should land in O(y_big) ≈ O(1000).
     assert pred_max > 100, f"Predictions look scaled: pred_max={pred_max:.4f}"
     assert stored_max > 100, (
         f"Stored idata predictions look scaled: stored_max={stored_max:.4f}"
@@ -402,6 +460,7 @@ def test_sample_posterior_predictive_unscaled(small_corpus):
 
 
 def test_sample_posterior_predictive_supports_new_obs_count(small_corpus):
+    """Prediction works for an observation count different from training."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
@@ -420,12 +479,8 @@ def test_sample_posterior_predictive_supports_new_obs_count(small_corpus):
     assert list(preds["y"].coords["obs"].values) == X_new.index.tolist()
 
 
-# ---------------------------------------------------------------------------
-# save/load roundtrip test
-# ---------------------------------------------------------------------------
-
-
 def test_save_load_roundtrip(small_corpus, tmp_path):
+    """A saved model reloads with its config and predicts."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
@@ -445,22 +500,14 @@ def test_save_load_roundtrip(small_corpus, tmp_path):
     assert loaded.pre_determined_features == PRE
     assert loaded.post_determined_features == POST
     assert loaded.target_column == "y"
-
     assert abs(loaded._target_scale - model._target_scale) < 1e-6
 
     preds = loaded.sample_posterior_predictive(X)
     assert preds["y"].sizes["obs"] == len(X)
 
 
-# ---------------------------------------------------------------------------
-# predict + partial-config tests
-# ---------------------------------------------------------------------------
-
-
 def test_predict_returns_unscaled_means(small_corpus):
-    """``predict`` (inherited) routes through the overridden
-    ``sample_posterior_predictive`` and therefore must return values in the
-    original target scale, not the BART-internal scaled units."""
+    """predict returns means in the original target scale."""
     X, y = small_corpus
     y_big = y * 1000.0
     model = PIEModel(
@@ -475,17 +522,13 @@ def test_predict_returns_unscaled_means(small_corpus):
 
     preds = model.predict(X)
     assert preds.shape == (len(X),)
-    # Same un-scale check as for sample_posterior_predictive: scaled means
-    # would be O(1); unscaled means should be O(1000).
     assert abs(preds).max() > 100, (
         f"predict() looks scaled: max(|preds|)={abs(preds).max():.4f}"
     )
 
 
 def test_predict_posterior_returns_unscaled_draws(small_corpus):
-    """``predict_posterior`` is overridden to skip the inherited sklearn
-    ``check_array`` (which would mangle the categorical feature DataFrame); it
-    must still return draws in the original target scale, like ``predict``."""
+    """predict_posterior returns draws in the original target scale."""
     X, y = small_corpus
     y_big = y * 1000.0
     model = PIEModel(
@@ -501,52 +544,33 @@ def test_predict_posterior_returns_unscaled_draws(small_corpus):
     draws = model.predict_posterior(X, extend_idata=False)
 
     assert draws.sizes["obs"] == len(X)
-    # Scaled draws would be O(1); unscaled draws should be O(1000).
     assert float(abs(draws).max()) > 100, (
         f"predict_posterior looks scaled: max={float(abs(draws).max()):.4f}"
     )
 
 
 def test_partial_model_config_override(small_corpus):
-    """Top-level keys missing from ``model_config`` fall back to defaults.
-
-    Nested dicts (e.g. ``"bart"``) are replaced wholesale by ``ModelBuilder``'s
-    top-level dict merge, but top-level keys (``sigma``, ``categorical_split``)
-    that the caller omits should pick up :py:meth:`default_model_config`.
-    """
+    """Omitted top-level model_config keys fall back to defaults."""
     X, y = small_corpus
     model = PIEModel(
         pre_determined_features=PRE,
         post_determined_features=POST,
-        # Override only "bart"; omit "sigma" and "categorical_split".
         model_config={"bart": {"m": 25, "alpha": 0.95, "beta": 2.0}},
     )
     assert model.model_config["bart"]["m"] == 25
 
-    # sigma falls back to default Prior("HalfNormal", sigma=1.0)
     assert isinstance(model.model_config["sigma"], Prior)
     assert model.model_config["sigma"].distribution == "HalfNormal"
     assert model.model_config["sigma"].parameters["sigma"] == 1.0
 
-    # categorical_split falls back to "onehot"
     assert model.model_config["categorical_split"] == "onehot"
 
-    # And the partially-configured model actually builds without errors.
     model.build_model(X, y)
-
-
-# ---------------------------------------------------------------------------
-# Slow recovery test
-# ---------------------------------------------------------------------------
 
 
 @pytest.mark.slow
 def test_fit_recovers_known_effects():
-    """PIE predictions must correlate with held-out y above r=0.5.
-
-    This is a smoke test, not a benchmark. Uses a small model (m=100) and
-    few draws to stay within CI time limits (run with --run-slow).
-    """
+    """Predictions correlate with held-out incrementality and match its scale."""
     df = generate_synthetic_rct_corpus(n_campaigns=200, seed=0)
     split = 150
     train = df.iloc[:split]
@@ -573,9 +597,6 @@ def test_fit_recovers_known_effects():
     r, _ = pearsonr(pred_mean, y_test)
     assert r > 0.5, f"Expected Pearson r > 0.5, got r={r:.3f}"
 
-    # Guard against a silent zero/degenerate output that would still pass a
-    # correlation check: predicted means must sit in the same order of
-    # magnitude as the held-out targets (mean|y| ≈ 0.8 for this DGP).
     mean_abs_pred = float(np.abs(pred_mean).mean())
     assert 0.05 < mean_abs_pred < 10.0, (
         f"Predictions off the expected scale: mean|pred|={mean_abs_pred:.4f}"

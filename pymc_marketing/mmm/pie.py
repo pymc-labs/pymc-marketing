@@ -11,7 +11,43 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Predicted Incrementality by Experimentation (PIE) model."""
+r"""Predicted Incrementality by Experimentation (PIE) model.
+
+Randomised controlled trials (RCTs) — geo experiments or ghost-ad holdouts —
+are the gold standard for measuring the *incremental* effect of an ad
+campaign, but they are costly and slow, so advertisers only run them for a
+fraction of their campaigns. PIE turns that fraction into leverage: it fits a
+supervised model on the corpus of campaigns that *did* receive an RCT,
+learning the map from observable campaign features to experimentally measured
+incrementality, then predicts incrementality for the campaigns that never ran
+an experiment.
+
+For campaign :math:`i` with feature vector :math:`x_i` and RCT-measured
+incrementality :math:`\tau_i`, PIE models
+
+.. math::
+
+    \tau_i = f(x_i) + \varepsilon_i, \quad
+    \varepsilon_i \sim \mathrm{Normal}(0, \sigma),
+
+where :math:`f` is a Bayesian Additive Regression Trees (BART) ensemble — a
+sum of regularised regression trees. Because :math:`f` is sampled rather than
+point-estimated, the predicted incrementality for a new campaign with features
+:math:`x_\star` is a full posterior over :math:`f(x_\star)`.
+
+The approach rests on three assumptions: the RCT corpus is representative of
+the campaigns being predicted (predictions far outside the corpus's feature
+support are extrapolation and unreliable); the recorded features carry enough
+signal to explain variation in incrementality; and measured incrementality is
+a consistent estimate of the true causal effect (per-RCT measurement error is
+not yet modelled — see :class:`PIEModel`).
+
+References
+----------
+.. [1] Gordon, B. R., Moakler, R., & Zettelmeyer, F. (2026).
+   Predicted Incrementality by Experimentation (PIE) for Ad Measurement.
+   NBER Working Paper No. 35044.
+"""
 
 from __future__ import annotations
 
@@ -36,120 +72,6 @@ except ImportError:  # pragma: no cover
     pmb = None  # type: ignore[assignment]
     ContinuousSplitRule = None  # type: ignore[assignment,misc]
     OneHotSplitRule = None  # type: ignore[assignment,misc]
-
-
-def generate_synthetic_rct_corpus(
-    n_campaigns: int = 500,
-    seed: int | None = None,
-) -> pd.DataFrame:
-    """Generate a synthetic RCT corpus for PIEModel demonstration and testing.
-
-    Parameters
-    ----------
-    n_campaigns : int
-        Number of campaign rows to generate. Default 500.
-    seed : int, optional
-        Random seed for reproducibility.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with columns: campaign_id, objective, vertical, audience_type
-        (all object dtype), budget, exposure_rate, ctr, avg_treated_outcome,
-        last_click_conversions_per_dollar, measured_incrementality_per_dollar.
-
-    Notes
-    -----
-    The DGP is a linear model over one-hot-expanded categorical features and
-    scaled continuous features. ``last_click_conversions_per_dollar`` is a
-    biased-but-informative proxy for the true incrementality signal, matching
-    the paper's qualitative framing better than independent noise.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        from pymc_marketing.mmm import generate_synthetic_rct_corpus
-
-        df = generate_synthetic_rct_corpus(n_campaigns=200, seed=42)
-
-    References
-    ----------
-    .. [1] Gordon, B. R., Moakler, R., & Zettelmeyer, F. (2026).
-       Predicted Incrementality by Experimentation (PIE) for Ad Measurement.
-       NBER Working Paper No. 35044.
-    """
-    rng = np.random.default_rng(seed)
-
-    objectives = np.array(["conversions", "traffic", "awareness"])
-    verticals = np.array(["retail", "travel", "finance"])
-    audience_types = np.array(["prospecting", "retargeting"])
-
-    objective = rng.choice(objectives, size=n_campaigns)
-    vertical = rng.choice(verticals, size=n_campaigns)
-    audience_type = rng.choice(audience_types, size=n_campaigns)
-
-    budget = rng.uniform(1_000, 100_000, size=n_campaigns)
-    exposure_rate = rng.uniform(0.1, 0.9, size=n_campaigns)
-    ctr = rng.uniform(0.01, 0.1, size=n_campaigns)
-    avg_treated_outcome = rng.uniform(0.0, 5.0, size=n_campaigns)
-
-    # One-hot encode categoricals for DGP only (not passed to PIEModel)
-    obj_oh = (objective[:, None] == objectives).astype(float)  # (n, 3)
-    vert_oh = (vertical[:, None] == verticals).astype(float)  # (n, 3)
-    aud_oh = (audience_type[:, None] == audience_types).astype(float)  # (n, 2)
-
-    X_dgp = np.column_stack(
-        [
-            obj_oh,
-            vert_oh,
-            aud_oh,
-            budget / 100_000,
-            exposure_rate,
-            ctr,
-            avg_treated_outcome / 5.0,
-        ]
-    )
-
-    betas = np.array(
-        [
-            0.30,
-            -0.10,
-            0.20,  # objective
-            0.40,
-            -0.20,
-            0.10,  # vertical
-            0.50,
-            -0.30,  # audience_type
-            0.20,  # budget (normalised)
-            0.60,  # exposure_rate
-            -0.10,  # ctr
-            0.30,  # avg_treated_outcome (normalised)
-        ]
-    )
-
-    tau_true = X_dgp @ betas
-    y_observed = rng.normal(tau_true, scale=0.1)
-    last_click = np.clip(
-        0.2 + 0.65 * tau_true + rng.normal(0.0, scale=0.25, size=n_campaigns),
-        0.0,
-        None,
-    )
-
-    return pd.DataFrame(
-        {
-            "campaign_id": [f"c_{i:04d}" for i in range(n_campaigns)],
-            "objective": objective,
-            "vertical": vertical,
-            "audience_type": audience_type,
-            "budget": budget,
-            "exposure_rate": exposure_rate,
-            "ctr": ctr,
-            "avg_treated_outcome": avg_treated_outcome,
-            "last_click_conversions_per_dollar": last_click,
-            "measured_incrementality_per_dollar": y_observed,
-        }
-    )
 
 
 def _is_categorical(series: pd.Series) -> bool:
@@ -193,9 +115,13 @@ class PIEModel(RegressionModelBuilder):
     model_config : dict, optional
         Override default priors / BART settings. Top-level keys merge with
         :py:meth:`default_model_config`; nested dicts (e.g. ``"bart"``) are
-        replaced wholesale, so partial overrides of BART hyperparameters
-        must restate every key. Keys:
-        - ``"bart"``: dict with ``m`` (int), ``alpha`` (float), ``beta`` (float).
+        replaced wholesale, so a partial ``"bart"`` override must restate
+        every required key (``m``, ``alpha``, ``beta``). Keys:
+        - ``"bart"``: dict with ``m`` (int), ``alpha`` (float), ``beta``
+          (float), and optional ``response`` — ``"constant"`` (default,
+          piecewise-constant leaves), ``"linear"``, or ``"mix"`` (the latter
+          two fit linear models in the leaves, which can help on smooth
+          response surfaces).
         - ``"sigma"``: :class:`pymc_extras.prior.Prior` for the noise std.
         - ``"categorical_split"``: ``"onehot"`` (default) or ``"continuous"``.
           Controls how label-encoded categorical columns are split by BART
@@ -207,25 +133,25 @@ class PIEModel(RegressionModelBuilder):
     --------
     .. code-block:: python
 
-        from pymc_marketing.mmm import PIEModel, generate_synthetic_rct_corpus
+        import pandas as pd
 
-        df = generate_synthetic_rct_corpus(n_campaigns=500, seed=42)
-        X = df.drop(columns=["campaign_id", "measured_incrementality_per_dollar"])
-        y = df["measured_incrementality_per_dollar"]
+        from pymc_marketing.mmm import PIEModel
+
+        # Corpus of past campaigns, each labelled with the incrementality
+        # measured by its RCT.
+        X = pd.DataFrame(
+            {
+                "objective": ["conversions", "traffic", "awareness", "traffic"],
+                "vertical": ["retail", "travel", "finance", "retail"],
+                "budget": [50_000, 12_000, 80_000, 30_000],
+                "exposure_rate": [0.42, 0.71, 0.33, 0.55],
+            }
+        )
+        y = pd.Series([0.81, 0.34, 1.12, 0.49])  # incrementality per dollar
 
         model = PIEModel(
-            pre_determined_features=[
-                "objective",
-                "vertical",
-                "budget",
-                "audience_type",
-            ],
-            post_determined_features=[
-                "exposure_rate",
-                "ctr",
-                "last_click_conversions_per_dollar",
-                "avg_treated_outcome",
-            ],
+            pre_determined_features=["objective", "vertical", "budget"],
+            post_determined_features=["exposure_rate"],
         )
         model.fit(X, y, random_seed=42)
         preds = model.sample_posterior_predictive(X)
@@ -304,11 +230,11 @@ class PIEModel(RegressionModelBuilder):
         Returns
         -------
         dict
-            Keys: ``"bart"`` (dict of scalars), ``"sigma"`` (Prior),
+            Keys: ``"bart"`` (dict of BART settings), ``"sigma"`` (Prior),
             ``"categorical_split"`` (str — ``"onehot"`` or ``"continuous"``).
         """
         return {
-            "bart": {"m": 200, "alpha": 0.95, "beta": 2.0},
+            "bart": {"m": 200, "alpha": 0.95, "beta": 2.0, "response": "constant"},
             "sigma": Prior("HalfNormal", sigma=1.0),
             "categorical_split": "onehot",
         }
@@ -394,7 +320,13 @@ class PIEModel(RegressionModelBuilder):
                 f"model_config['bart'] is missing required keys: "
                 f"{sorted(missing_bart_keys)}. Nested config dicts are replaced "
                 "wholesale rather than deep-merged, so a partial 'bart' override "
-                "must restate every key (m, alpha, beta)."
+                "must restate every required key (m, alpha, beta)."
+            )
+        response = cfg["bart"].get("response", "constant")
+        if response not in ("constant", "linear", "mix"):
+            raise ValueError(
+                "model_config['bart']['response'] must be 'constant', 'linear', "
+                f"or 'mix', got {response!r}."
             )
         categorical_split = cfg.get("categorical_split", "onehot")
         if categorical_split not in ("onehot", "continuous"):
@@ -430,6 +362,7 @@ class PIEModel(RegressionModelBuilder):
                 m=cfg["bart"]["m"],
                 alpha=cfg["bart"]["alpha"],
                 beta=cfg["bart"]["beta"],
+                response=response,
                 split_rules=split_rules,
                 dims="obs",
             )
