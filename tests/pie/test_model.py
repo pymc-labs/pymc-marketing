@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Tests for pymc_marketing.mmm.pie."""
+"""Tests for the PIE model."""
 
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ import pytest
 from pymc_extras.prior import Prior
 from scipy.stats import pearsonr
 
-from pymc_marketing.mmm.pie import PIEModel
+from pymc_marketing.pie import PIEModel
 
 EXPECTED_COLUMNS = [
     "campaign_id",
@@ -246,7 +246,7 @@ def test_negative_incrementality_is_allowed(default_model, small_corpus):
 
 def test_pymc_bart_missing_raises(small_corpus, monkeypatch):
     """build_model raises ImportError when pymc-bart is unavailable."""
-    import pymc_marketing.mmm.pie as pie_module
+    import pymc_marketing.pie.model as pie_module
 
     monkeypatch.setattr(pie_module, "pmb", None)
 
