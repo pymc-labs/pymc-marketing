@@ -128,7 +128,8 @@ def test_build_model(default_model, small_corpus):
     assert "obs" in model.coords
     assert "feature" in model.coords
     assert list(model.coords["obs"]) == X.index.tolist()
-    assert list(model.coords["feature"]) == X.columns.tolist()
+    # Feature coord follows pre + post order, not the column order of X.
+    assert list(model.coords["feature"]) == PRE + POST
 
 
 def test_dtype_categorical_detection(default_model, small_corpus):
@@ -248,6 +249,45 @@ def test_build_model_continuous_split_rules(small_corpus):
     assert model.model_config["categorical_split"] == "continuous"
 
 
+def test_partial_bart_override_raises(small_corpus):
+    """A partial ``bart`` override drops the unspecified keys (nested dicts are
+    replaced wholesale, not deep-merged), so ``build_model`` must fail with a
+    clear error rather than a bare ``KeyError`` deep in the graph build."""
+    X, y = small_corpus
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={"bart": {"m": 50}},  # alpha, beta omitted
+    )
+    with pytest.raises(ValueError, match="missing required keys"):
+        model.build_model(X, y)
+
+
+def test_extra_columns_in_X_are_ignored(small_corpus):
+    """Only ``pre_determined_features`` + ``post_determined_features`` are fed
+    to BART; any other column in X (e.g. an id column) is dropped, not trained
+    on. This pins the pre/post feature-selection contract."""
+    X, y = small_corpus
+    model = PIEModel(pre_determined_features=PRE, post_determined_features=POST)
+    X_extra = X.assign(campaign_note="ignore-me")
+
+    model.build_model(X_extra, y)
+
+    assert model._feature_columns == PRE + POST
+    assert list(model.model.coords["feature"]) == PRE + POST
+    assert "campaign_note" not in model._encoders
+
+
+def test_output_var_conflict_in_X_raises(small_corpus):
+    """``fit`` rejects an X containing a column named like the target variable,
+    which would otherwise be ambiguous against the separately-passed y."""
+    X, y = small_corpus
+    model = PIEModel(pre_determined_features=PRE, post_determined_features=POST)
+    X_conflict = X.assign(y=0.0)  # default target_column is "y"
+    with pytest.raises(ValueError, match="conflicts with the target variable"):
+        model.fit(X_conflict, y)
+
+
 # ---------------------------------------------------------------------------
 # _data_setter tests
 # ---------------------------------------------------------------------------
@@ -281,9 +321,9 @@ def test_data_setter_requires_training_feature_schema(default_model, small_corpu
     with pytest.raises(ValueError, match=r"missing.*budget"):
         default_model._data_setter(X.drop(columns=["budget"]))
 
-    X_extra = X.assign(extra_feature=1.0)
-    with pytest.raises(ValueError, match=r"extra.*extra_feature"):
-        default_model._data_setter(X_extra)
+    # Extra columns beyond the training features are ignored, not rejected
+    # (consistent with build_model).
+    default_model._data_setter(X.assign(extra_feature=1.0), y=None)
 
 
 def test_data_setter_reorders_columns_to_training_order(default_model, small_corpus):
@@ -442,6 +482,31 @@ def test_predict_returns_unscaled_means(small_corpus):
     )
 
 
+def test_predict_posterior_returns_unscaled_draws(small_corpus):
+    """``predict_posterior`` is overridden to skip the inherited sklearn
+    ``check_array`` (which would mangle the categorical feature DataFrame); it
+    must still return draws in the original target scale, like ``predict``."""
+    X, y = small_corpus
+    y_big = y * 1000.0
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+        model_config={
+            "bart": {"m": 10, "alpha": 0.95, "beta": 2.0},
+            "sigma": Prior("HalfNormal", sigma=1.0),
+        },
+    )
+    model.fit(X, y_big, draws=10, tune=5, chains=1, random_seed=0)
+
+    draws = model.predict_posterior(X, extend_idata=False)
+
+    assert draws.sizes["obs"] == len(X)
+    # Scaled draws would be O(1); unscaled draws should be O(1000).
+    assert float(abs(draws).max()) > 100, (
+        f"predict_posterior looks scaled: max={float(abs(draws).max()):.4f}"
+    )
+
+
 def test_partial_model_config_override(small_corpus):
     """Top-level keys missing from ``model_config`` fall back to defaults.
 
@@ -507,3 +572,11 @@ def test_fit_recovers_known_effects():
 
     r, _ = pearsonr(pred_mean, y_test)
     assert r > 0.5, f"Expected Pearson r > 0.5, got r={r:.3f}"
+
+    # Guard against a silent zero/degenerate output that would still pass a
+    # correlation check: predicted means must sit in the same order of
+    # magnitude as the held-out targets (mean|y| ≈ 0.8 for this DGP).
+    mean_abs_pred = float(np.abs(pred_mean).mean())
+    assert 0.05 < mean_abs_pred < 10.0, (
+        f"Predictions off the expected scale: mean|pred|={mean_abs_pred:.4f}"
+    )

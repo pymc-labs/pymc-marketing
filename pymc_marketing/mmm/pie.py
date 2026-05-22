@@ -22,6 +22,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import xarray as xr
 from pydantic import Field, validate_call
 from pymc_extras.prior import Prior
 from sklearn.preprocessing import LabelEncoder
@@ -319,10 +320,13 @@ class PIEModel(RegressionModelBuilder):
 
     @property
     def _serializable_model_config(self) -> dict[str, Any]:
+        # Build a fresh dict (not a view of ``self.model_config``) so a
+        # downstream mutation of the result cannot leak back into the model,
+        # and tolerate a partial override that dropped a top-level key.
         return {
-            "bart": self.model_config["bart"],
-            "sigma": self.model_config["sigma"],
-            "categorical_split": self.model_config["categorical_split"],
+            key: self.model_config[key]
+            for key in ("bart", "sigma", "categorical_split")
+            if key in self.model_config
         }
 
     def build_model(  # type: ignore[override]
@@ -336,8 +340,10 @@ class PIEModel(RegressionModelBuilder):
         Parameters
         ----------
         X : pd.DataFrame
-            Campaign feature matrix. Columns with ``object`` or ``category``
-            dtype are label-encoded automatically.
+            Campaign feature matrix. Only the ``pre_determined_features`` and
+            ``post_determined_features`` columns are used — any other columns
+            (e.g. an id column) are ignored. Columns with non-numeric dtype
+            are label-encoded automatically.
         y : pd.Series or np.ndarray
             Measured incrementality (one value per campaign).
         """
@@ -347,15 +353,19 @@ class PIEModel(RegressionModelBuilder):
                 "Install it with: pip install 'pymc-marketing[pie]'"
             )
 
-        all_features = self.pre_determined_features + self.post_determined_features
-        missing = set(all_features) - set(X.columns)
+        feature_cols = self.pre_determined_features + self.post_determined_features
+        missing = set(feature_cols) - set(X.columns)
         if missing:
             raise ValueError(
                 f"Features not found in X: {sorted(missing)}. "
                 f"Available columns: {sorted(X.columns)}"
             )
 
-        self._feature_columns = list(X.columns)
+        # Train only on the declared pre/post features, in a deterministic
+        # order. Any other columns in X are dropped here so they are never
+        # label-encoded or fed to BART.
+        self._feature_columns = feature_cols
+        X = X.loc[:, feature_cols]
         X_encoded = X.copy()
         self._encoders = {}
         for col in X.columns:
@@ -378,6 +388,14 @@ class PIEModel(RegressionModelBuilder):
         y_scaled = (y_vals / self._target_scale).astype(float)
 
         cfg = self.model_config
+        missing_bart_keys = {"m", "alpha", "beta"} - set(cfg["bart"])
+        if missing_bart_keys:
+            raise ValueError(
+                f"model_config['bart'] is missing required keys: "
+                f"{sorted(missing_bart_keys)}. Nested config dicts are replaced "
+                "wholesale rather than deep-merged, so a partial 'bart' override "
+                "must restate every key (m, alpha, beta)."
+            )
         categorical_split = cfg.get("categorical_split", "onehot")
         if categorical_split not in ("onehot", "continuous"):
             raise ValueError(
@@ -428,16 +446,15 @@ class PIEModel(RegressionModelBuilder):
         Parameters
         ----------
         X : pd.DataFrame
-            New feature matrix. Must have the same columns as training X.
+            New feature matrix. Must contain the training feature columns;
+            any extra columns are ignored (consistent with ``build_model``).
         y : pd.Series or np.ndarray, optional
             Target values. When ``None`` (predict mode), dummy zeros are used.
         """
         missing = set(self._feature_columns) - set(X.columns)
-        extra = set(X.columns) - set(self._feature_columns)
-        if missing or extra:
+        if missing:
             raise ValueError(
-                "X must contain exactly the training feature columns; "
-                f"missing={sorted(missing)}, extra={sorted(extra)}"
+                f"X is missing required feature columns: {sorted(missing)}."
             )
 
         X_encoded = X.loc[:, self._feature_columns].copy()
@@ -518,6 +535,47 @@ class PIEModel(RegressionModelBuilder):
 
         return az.extract(post_pred, variable_name, combined=combined)
 
+    def predict_posterior(  # type: ignore[override]
+        self,
+        X: pd.DataFrame,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs: Any,
+    ) -> xr.DataArray:
+        """Posterior predictive draws for ``X`` as a single DataArray.
+
+        Overrides :meth:`RegressionModelBuilder.predict_posterior` to skip the
+        inherited :func:`sklearn.utils.check_array` validation, which would
+        coerce the feature DataFrame to a numeric ndarray (dropping column
+        names and rejecting the categorical columns ``PIEModel`` label-encodes
+        itself).
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Campaign feature matrix for prediction. Same schema as training X.
+        extend_idata : bool
+            Whether to attach predictions to ``self.idata``. Defaults to True.
+        combined : bool
+            Whether to combine chain and draw dims into a single sample dim.
+            Defaults to True.
+
+        Returns
+        -------
+        xarray.DataArray
+            Posterior predictive draws for ``self.output_var`` in the original
+            target scale.
+        """
+        posterior_predictive_samples = self.sample_posterior_predictive(
+            X, extend_idata=extend_idata, combined=combined, **kwargs
+        )
+        if self.output_var not in posterior_predictive_samples:
+            raise KeyError(
+                f"Output variable {self.output_var} not found in posterior "
+                "predictive samples."
+            )
+        return posterior_predictive_samples[self.output_var]
+
     def build_from_idata(self, idata: az.InferenceData) -> None:
         """Rebuild the model from saved inference data.
 
@@ -554,8 +612,9 @@ class PIEModel(RegressionModelBuilder):
         kwargs["post_determined_features"] = json.loads(
             attrs["post_determined_features"]
         )
-        if isinstance(kwargs.get("model_config", {}).get("sigma"), dict):
-            kwargs["model_config"]["sigma"] = Prior.from_dict(
-                kwargs["model_config"]["sigma"]
-            )
+        # `kwargs.get("model_config", {})` is not enough: a serialised
+        # `model_config` of `null` yields None, and `None.get(...)` raises.
+        model_config = kwargs.get("model_config") or {}
+        if isinstance(model_config.get("sigma"), dict):
+            model_config["sigma"] = Prior.from_dict(model_config["sigma"])
         return kwargs
