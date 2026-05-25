@@ -565,6 +565,7 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
+@serialization.register
 class HillShapeSaturation(SaturationTransformation):
     """Hill saturation without an internal scale parameter.
 
@@ -586,13 +587,56 @@ class HillShapeSaturation(SaturationTransformation):
 
     lookup_name = "hill_shape"
 
-    def function(self, x, slope, kappa):
+    def function(self, x, slope, kappa, *, dim: str | None = None):
         """Shape-only Hill saturation."""
         return hill_function(x, slope, kappa)
 
     default_priors = {
         "slope": Prior("HalfNormal", sigma=1.5),
         "kappa": Prior("HalfNormal", sigma=1.5),
+    }
+
+
+@serialization.register
+class RootSaturation(SaturationTransformation):
+    """Wrapper around Root saturation function.
+
+    Multiplies :func:`pymc_marketing.mmm.transformers.root_saturation` by an extra
+    scaling parameter ``beta``.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Exponent applied to the input by :func:`root_saturation`. Default prior:
+        ``Prior("Beta", alpha=1, beta=2)``.
+    beta : tensor
+        Scaling factor applied to the root-transformed input. Default prior:
+        ``Prior("Gamma", mu=1, sigma=1)``.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import RootSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = RootSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    def function(self, x, alpha, beta, *, dim: str | None = None):
+        """Root saturation function."""
+        return beta * root_saturation(x, alpha)
+
+    default_priors = {
+        "alpha": Prior("Beta", alpha=1, beta=2),
+        "beta": Prior("Gamma", mu=1, sigma=1),
     }
 
 

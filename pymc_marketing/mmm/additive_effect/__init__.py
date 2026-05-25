@@ -1,4 +1,4 @@
-#   Copyright 2022 - 2025 The PyMC Labs Developers
+#   Copyright 2022 - 2026 The PyMC Labs Developers
 #
 #   Licensed under the Apache License, Version 2.0 (the "License");
 #   you may not use this file except in compliance with the License.
@@ -29,16 +29,20 @@ from pymc_marketing.mmm.additive_effect.additive_effect import (
     LinearTrendEffect,
     Model,
     MuEffect,
+    safe_to_datetime,
 )
 from pymc_marketing.mmm.additive_effect.frequency_reach_effect import (
+    RF_CHANNEL_COORD,
     FrequencyReachAdditiveEffect,
 )
 
 __all__ = [
+    "RF_CHANNEL_COORD",
     "EventAdditiveEffect",
     "FourierEffect",
     "FrequencyReachAdditiveEffect",
     "LinearTrendEffect",
     "Model",
     "MuEffect",
+    "safe_to_datetime",
 ]

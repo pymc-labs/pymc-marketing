@@ -14,6 +14,10 @@
 """Marketing Mix Models (MMM)."""
 
 from pymc_marketing.mmm import preprocessing, validating
+from pymc_marketing.mmm.additive_effect import (
+    RF_CHANNEL_COORD,
+    FrequencyReachAdditiveEffect,
+)
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -85,6 +89,7 @@ from pymc_marketing.mmm.validating import validation_method_X, validation_method
 __all__ = [
     "HSGP",
     "MMM",
+    "RF_CHANNEL_COORD",
     "AdstockTransformation",
     "BinomialAdstock",
     "BudgetOptimizerWrapper",
@@ -93,6 +98,7 @@ __all__ = [
     "DelayedAdstock",
     "FancyLinearRegression",
     "FixedScaling",
+    "FrequencyReachAdditiveEffect",
     "GeometricAdstock",
     "HSGPPeriodic",
     "HillSaturation",
