@@ -17,6 +17,7 @@ from pymc_marketing.customer_choice.bayesian_blp import BayesianBLP
 from pymc_marketing.customer_choice.consideration_set_logit import (
     ConsiderationSetMixedLogit,
 )
+from pymc_marketing.customer_choice.mixed_logit import MixedLogit
 from pymc_marketing.customer_choice.mv_its import (
     MVITS,
     plot_product,
@@ -31,6 +32,7 @@ __all__ = [
     "MVITS",
     "BayesianBLP",
     "ConsiderationSetMixedLogit",
+    "MixedLogit",
     "generate_blp_panel",
     "generate_saturated_data",
     "generate_unsaturated_data",

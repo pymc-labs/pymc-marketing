@@ -306,7 +306,6 @@ class BayesianBLP(ModelBuilder):
 
         markets = df[self.market_col].unique().tolist()
         M = len(markets)
-        market_to_idx = {m: i for i, m in enumerate(markets)}
 
         product_counts = df.groupby(self.market_col)[self.product_col].nunique()
         if not (product_counts == J + 1).all():
@@ -334,29 +333,56 @@ class BayesianBLP(ModelBuilder):
         K = len(self.characteristics)
         L = len(self.instruments) if self.instruments else 0
 
-        inside_share = np.zeros((M, J))
-        outside_share = np.zeros(M)
-        n = np.zeros(M)
-        price = np.zeros((M, J))
-        x = np.zeros((M, J, K))
-        z = np.zeros((M, J, L)) if L > 0 else None
+        def _pivot(col: str) -> pd.DataFrame:
+            # aggfunc="last" matches the original iterrows() loop, which
+            # overwrote per-cell values in row order.
+            return df.pivot_table(
+                index=self.market_col,
+                columns=self.product_col,
+                values=col,
+                aggfunc="last",
+            ).reindex(index=markets)
 
-        product_to_idx = {p: i for i, p in enumerate(inside_products)}
+        share_pivot = _pivot(self.share_col)
+        outside_share = share_pivot[self.outside_good].to_numpy(dtype=float)
+        inside_share = share_pivot.reindex(columns=inside_products).to_numpy(
+            dtype=float
+        )
 
-        for _, row in df.iterrows():
-            m_idx = market_to_idx[row[self.market_col]]
-            n[m_idx] = row[self.market_size_col]
-            if row[self.product_col] == self.outside_good:
-                outside_share[m_idx] = row[self.share_col]
-            else:
-                j_idx = product_to_idx[row[self.product_col]]
-                inside_share[m_idx, j_idx] = row[self.share_col]
-                price[m_idx, j_idx] = row[self.price_col]
-                for k, col in enumerate(self.characteristics):
-                    x[m_idx, j_idx, k] = row[col]
-                if z is not None:
-                    for ell, col in enumerate(self.instruments or []):
-                        z[m_idx, j_idx, ell] = row[col]
+        price_pivot = _pivot(self.price_col)
+        price = price_pivot.reindex(columns=inside_products).to_numpy(dtype=float)
+
+        if K > 0:
+            x = np.stack(
+                [
+                    _pivot(col).reindex(columns=inside_products).to_numpy(dtype=float)
+                    for col in self.characteristics
+                ],
+                axis=-1,
+            )
+        else:
+            x = np.zeros((M, J, 0))
+
+        if L > 0:
+            z = np.stack(
+                [
+                    _pivot(col).reindex(columns=inside_products).to_numpy(dtype=float)
+                    for col in self.instruments or []
+                ],
+                axis=-1,
+            )
+        else:
+            z = None
+
+        if self.market_size_col is not None:
+            n = (
+                df.drop_duplicates(self.market_col)
+                .set_index(self.market_col)[self.market_size_col]
+                .reindex(markets)
+                .to_numpy(dtype=float)
+            )
+        else:
+            n = np.zeros(M)
 
         # Time-aware extension: validate, build period index, and permute
         # all M-axis arrays so markets are sorted lexicographically by
@@ -582,9 +608,16 @@ class BayesianBLP(ModelBuilder):
         xi_j = non_centered_normal("xi_j", 0.0, sigma_xi_j, dims="inside_product")
 
         if z_data is None:
-            sigma_xi = self.model_config["sigma_xi"].create_variable("sigma_xi")
+            sigma_xi_free = self.model_config["sigma_xi"].create_variable(
+                "sigma_xi_free"
+            )
+            # Keep ``sigma_xi`` as the always-Deterministic implied marginal
+            # scale of ``xi_tilde``; with no instruments, it equals the free
+            # prior. The IV branch defines it as sqrt(gamma^2 + omega^2), so
+            # downstream diagnostics see one variable name with one meaning.
+            pm.Deterministic("sigma_xi", sigma_xi_free)
             xi_tilde = non_centered_normal(
-                "xi_tilde", 0.0, sigma_xi, dims=("market", "inside_product")
+                "xi_tilde", 0.0, sigma_xi_free, dims=("market", "inside_product")
             )
             eta = None
         else:
@@ -664,6 +697,10 @@ class BayesianBLP(ModelBuilder):
             U = delta[..., None]
         else:
             U = delta[..., None] + mu_dev
+        # Clamping U_max at 0.0 keeps exp(-U_max) <= 1, so the outside
+        # good's term in the denominator stays bounded even when all
+        # inside-good utilities are large and negative; without the
+        # floor, exp(-U_max) could overflow and dominate the denom.
         U_max = pt.maximum(U.max(axis=1, keepdims=True), 0.0)
         eU = pt.exp(U - U_max)
         e0 = pt.exp(-U_max[:, 0, :])
@@ -800,16 +837,45 @@ class BayesianBLP(ModelBuilder):
         self.is_fitted_ = True
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Reconstruct the model graph from a saved InferenceData.
+    _SAVE_LOAD_NOT_IMPLEMENTED = (
+        "BayesianBLP v1 does not support save/load round-trips. The model "
+        "depends on the input market_data DataFrame, which is not serialised "
+        "onto InferenceData.attrs. Track the underlying data alongside the "
+        "fitted idata yourself, or reconstruct the model from raw data and "
+        "re-attach the saved idata via instance.idata = ...; PPC then works "
+        "without round-tripping the model graph."
+    )
 
-        Save / load is wired to the standard ``ModelBuilder`` round-trip in a
-        follow-up step; this stub simply rebuilds the model from current
-        in-memory data so that posterior predictive sampling on a
-        re-loaded class instance works.
+    def save(self, fname: str, **kwargs) -> None:
+        """Persist the fitted InferenceData (model graph is not saved).
+
+        Raises
+        ------
+        NotImplementedError
+            Always; full save/load is deferred to a follow-up release.
         """
-        self.build_model()
-        self.idata = idata
+        raise NotImplementedError(self._SAVE_LOAD_NOT_IMPLEMENTED)
+
+    @classmethod
+    def load(cls, fname: str, check: bool = True):
+        """Not implemented for v1.
+
+        Raises
+        ------
+        NotImplementedError
+            Always; full save/load is deferred to a follow-up release.
+        """
+        raise NotImplementedError(cls._SAVE_LOAD_NOT_IMPLEMENTED)
+
+    def build_from_idata(self, idata: az.InferenceData) -> None:
+        """Not implemented for v1.
+
+        Raises
+        ------
+        NotImplementedError
+            Always; full save/load is deferred to a follow-up release.
+        """
+        raise NotImplementedError(self._SAVE_LOAD_NOT_IMPLEMENTED)
 
     def _resolve_cell_mask(
         self,
@@ -835,7 +901,11 @@ class BayesianBLP(ModelBuilder):
 
         if periods is not None:
             all_periods = self._periods
-            assert all_periods is not None  # noqa: S101 — guarded by time_col check
+            if all_periods is None:
+                raise RuntimeError(
+                    "self._periods is None despite time_col guard; "
+                    "_preprocess invariant violated."
+                )
             if isinstance(periods, slice):
                 start = (
                     all_periods.index(periods.start) if periods.start is not None else 0
@@ -863,7 +933,11 @@ class BayesianBLP(ModelBuilder):
                 # Empty selection → mask becomes all-False; document as
                 # "no cells match" so downstream sees an empty intervention.
                 return np.zeros(self._M, dtype=bool)
-            assert self._period_idx is not None  # noqa: S101
+            if self._period_idx is None:
+                raise RuntimeError(
+                    "self._period_idx is None despite time_col guard; "
+                    "_preprocess invariant violated."
+                )
             mask &= np.isin(self._period_idx, wanted)
 
         if regions is not None:
@@ -985,7 +1059,14 @@ class BayesianBLP(ModelBuilder):
 
         return alpha_at_market, beta_at_market, xi, sigma_random
 
-    def _batch_shares(
+    # Cap peak working-set allocation in ``_batch_shares`` at 2 GiB. The
+    # dominant arrays scale as O(S * M * J * R * 8 bytes); large posteriors
+    # combined with many products and many Halton draws can blow past 10 GiB
+    # without chunking. When the requested batch exceeds this cap, the
+    # sample axis is split into chunks so peak memory stays bounded.
+    _SHARES_CHUNK_BYTES: int = 2 * 1024**3
+
+    def _compute_shares_one_chunk(
         self,
         alpha_M: np.ndarray,
         beta_M: np.ndarray,
@@ -993,30 +1074,10 @@ class BayesianBLP(ModelBuilder):
         sigma_M: np.ndarray | None,
         price: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Numpy-evaluate the share equation for a batch of posterior samples.
+        """Compute share equation for a single chunk along the sample axis.
 
-        Vectorised across the leading sample axis ``S``. The previous
-        per-sample implementation was a Python ``for`` loop over draws;
-        this version is ~50x faster on a typical small panel and removes
-        the implicit pressure to set ``n_samples`` to a tiny value (which
-        was the proximate cause of the rough elasticity KDEs in the
-        notebook).
-
-        Parameters
-        ----------
-        alpha_M : (S, M)
-        beta_M : (S, M, K)
-        xi_M : (S, M, J)
-        sigma_M : (S, n_random) or None
-        price : (M, J)
-
-        Returns
-        -------
-        s_inside_per_draw : (S, M, J, R)
-        s_inside_agg : (S, M, J)
-        s_outside_per_draw : (S, M, R)
-        s_outside_agg : (S, M)
-        alpha_per_draw : (S, M, R)  -- per-consumer-draw price coefficient
+        See ``_batch_shares`` for parameter / return shapes. This is the
+        un-chunked core; ``_batch_shares`` wraps it with allocation guards.
         """
         M, J = self._M, self._J
         R = self.n_mc_draws
@@ -1046,6 +1107,9 @@ class BayesianBLP(ModelBuilder):
             R_eff = 1
 
         U = delta[..., None] + mu_dev
+        # Clamping U_max at 0.0 ensures exp(-U_max) <= 1, so the outside
+        # good's term in the denominator stays bounded above even when the
+        # inside-good utilities are large and negative — prevents underflow.
         U_max = np.maximum(U.max(axis=2, keepdims=True), 0.0)
         eU = np.exp(U - U_max)
         e0 = np.exp(-U_max[:, :, 0, :])
@@ -1071,6 +1135,84 @@ class BayesianBLP(ModelBuilder):
             s_outside_per_draw.mean(axis=-1),
             alpha_per_draw,
         )
+
+    def _batch_shares(
+        self,
+        alpha_M: np.ndarray,
+        beta_M: np.ndarray,
+        xi_M: np.ndarray,
+        sigma_M: np.ndarray | None,
+        price: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Numpy-evaluate the share equation for a batch of posterior samples.
+
+        Vectorised across the leading sample axis ``S``. The previous
+        per-sample implementation was a Python ``for`` loop over draws;
+        this version is ~50x faster on a typical small panel and removes
+        the implicit pressure to set ``n_samples`` to a tiny value (which
+        was the proximate cause of the rough elasticity KDEs in the
+        notebook).
+
+        When the requested allocation exceeds ``_SHARES_CHUNK_BYTES``, the
+        sample axis is split into chunks; results are concatenated. A
+        ``UserWarning`` is emitted on the first chunk to surface the cap.
+
+        Parameters
+        ----------
+        alpha_M : (S, M)
+        beta_M : (S, M, K)
+        xi_M : (S, M, J)
+        sigma_M : (S, n_random) or None
+        price : (M, J)
+
+        Returns
+        -------
+        s_inside_per_draw : (S, M, J, R)
+        s_inside_agg : (S, M, J)
+        s_outside_per_draw : (S, M, R)
+        s_outside_agg : (S, M)
+        alpha_per_draw : (S, M, R)  -- per-consumer-draw price coefficient
+        """
+        S = alpha_M.shape[0]
+        M, J = self._M, self._J
+        R = self.n_mc_draws if (sigma_M is not None and self._n_random > 0) else 1
+        # 4x factor covers the simultaneously-live arrays: mu_dev, U, eU,
+        # plus headroom for the s_inside_per_draw output. Bytes per
+        # float64 element is 8.
+        bytes_per_sample = M * J * R * 8 * 4
+        total_bytes = S * bytes_per_sample
+
+        if total_bytes <= self._SHARES_CHUNK_BYTES:
+            return self._compute_shares_one_chunk(alpha_M, beta_M, xi_M, sigma_M, price)
+
+        chunk = max(1, self._SHARES_CHUNK_BYTES // bytes_per_sample)
+        warnings.warn(
+            f"_batch_shares allocation estimate {total_bytes / 1024**3:.1f} GiB "
+            f"exceeds the {self._SHARES_CHUNK_BYTES / 1024**3:.1f} GiB cap "
+            f"(_SHARES_CHUNK_BYTES); processing {S} samples in chunks of "
+            f"{chunk}.",
+            UserWarning,
+            stacklevel=2,
+        )
+
+        out: list[tuple[np.ndarray, ...]] = []
+        for start in range(0, S, chunk):
+            stop = min(S, start + chunk)
+            sigma_chunk = sigma_M[start:stop] if sigma_M is not None else None
+            out.append(
+                self._compute_shares_one_chunk(
+                    alpha_M[start:stop],
+                    beta_M[start:stop],
+                    xi_M[start:stop],
+                    sigma_chunk,
+                    price,
+                )
+            )
+        # Concatenate each of the 5 return arrays along the sample axis.
+        s_in, s_in_agg, s_out, s_out_agg, alpha = (
+            np.concatenate(arrs, axis=0) for arrs in zip(*out, strict=True)
+        )
+        return s_in, s_in_agg, s_out, s_out_agg, alpha
 
     def elasticities(
         self,
@@ -1137,7 +1279,11 @@ class BayesianBLP(ModelBuilder):
             "price": list(self._inside_products),
         }
         if self.time_col is not None:
-            assert self._periods is not None and self._period_idx is not None  # noqa: S101
+            if self._periods is None or self._period_idx is None:
+                raise RuntimeError(
+                    "_periods / _period_idx unset despite time_col guard; "
+                    "_preprocess invariant violated."
+                )
             coords["period"] = (
                 "market",
                 [self._periods[i] for i in self._period_idx],
@@ -1156,7 +1302,11 @@ class BayesianBLP(ModelBuilder):
 
         if periods is not None or regions is not None:
             mask = self._resolve_cell_mask(periods, regions)
-            assert mask is not None  # noqa: S101
+            if mask is None:
+                raise RuntimeError(
+                    "_resolve_cell_mask returned None despite non-None "
+                    "periods/regions arguments."
+                )
             da = da.isel(market=np.where(mask)[0])
 
         if at == "mean":
@@ -1234,7 +1384,11 @@ class BayesianBLP(ModelBuilder):
             "sample": np.arange(S),
         }
         if self.time_col is not None:
-            assert self._periods is not None and self._period_idx is not None  # noqa: S101
+            if self._periods is None or self._period_idx is None:
+                raise RuntimeError(
+                    "_periods / _period_idx unset despite time_col guard; "
+                    "_preprocess invariant violated."
+                )
             coords["period"] = (
                 "market",
                 [self._periods[i] for i in self._period_idx],
@@ -1283,7 +1437,11 @@ class BayesianBLP(ModelBuilder):
         xi = self.idata.posterior["xi"]
         R = len(self._regions)
         T = self._T
-        assert T is not None and self._periods is not None  # noqa: S101
+        if T is None or self._periods is None:
+            raise RuntimeError(
+                "_T / _periods unset despite time_col guard; _preprocess "
+                "invariant violated."
+            )
         arr = xi.values.reshape(xi.sizes["chain"], xi.sizes["draw"], R, T, self._J)
         return xr.DataArray(
             arr,
@@ -1299,16 +1457,16 @@ class BayesianBLP(ModelBuilder):
         )
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Serialise constructor arguments onto ``InferenceData.attrs``.
+        """Serialise scalar constructor arguments onto ``InferenceData.attrs``.
 
-        Every ``__init__`` parameter is registered so the base
-        ``ModelBuilder.set_idata_attrs`` invariant holds. Heavy or
-        non-JSON-serialisable arguments (``market_data``) are stored as
-        placeholder strings; full save/load round-tripping is wired up in a
-        follow-up step.
+        ``market_data`` is intentionally stored as ``None`` rather than a
+        serialised DataFrame: v1 does not support save/load round-trips (see
+        :meth:`save`). The ``None`` sentinel satisfies the base-class
+        invariant that every ``__init__`` parameter appears in attrs without
+        falsely implying the DataFrame is persisted.
         """
         attrs = super().create_idata_attrs()
-        attrs["market_data"] = json.dumps("placeholder for market_data DataFrame")
+        attrs["market_data"] = json.dumps(None)
         attrs["product_col"] = json.dumps(self.product_col)
         attrs["market_col"] = json.dumps(self.market_col)
         attrs["region_col"] = json.dumps(self.region_col)

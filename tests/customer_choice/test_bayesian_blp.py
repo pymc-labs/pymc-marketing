@@ -762,3 +762,218 @@ class TestNumericalStability:
         s_agg_safe = np.maximum(s_agg, 1e-30)
         elast = ds_dp * model._price[None, :, None, :] / s_agg_safe[:, :, :, None]
         assert not np.isnan(elast).any()
+
+
+class TestXiAsGrid:
+    """``xi_as_grid`` reshapes the flat ``(market,)`` axis to ``(region, period)``.
+
+    The reshape is only valid because ``_preprocess`` lex-sorts markets by
+    ``(region, period)`` when ``time_col`` is set. These tests pin both the
+    shape and the round-trip back to the flat axis.
+    """
+
+    def test_shape_and_round_trip(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        grid = model.xi_as_grid()
+        assert grid.dims == ("chain", "draw", "region", "period", "inside_product")
+        R = len(model._regions)
+        T = model._T
+        J = model._J
+        n_chain = model.idata.posterior.sizes["chain"]
+        n_draw = model.idata.posterior.sizes["draw"]
+        assert grid.shape == (n_chain, n_draw, R, T, J)
+        # Flattening (region, period) must recover the original (market,) axis.
+        flat = grid.values.reshape(n_chain, n_draw, R * T, J)
+        np.testing.assert_array_equal(flat, model.idata.posterior["xi"].values)
+
+    def test_raises_without_fit(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(RuntimeError, match="fit"):
+            m.xi_as_grid()
+
+    def test_raises_without_time_col(self, fitted_blp):
+        model, _ = fitted_blp  # fitted_blp has no time_col
+        with pytest.raises(RuntimeError, match="time_col"):
+            model.xi_as_grid()
+
+
+class TestHierarchicalParameterisation:
+    def test_noncentered_path_adds_raw_offsets(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            hierarchical_parameterisation="noncentered",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        named = set(m.model.named_vars)
+        # beta_r is Deterministic; the raw offset variable is what's sampled.
+        assert "beta_r_raw" in named
+        assert "beta_r" in named
+        # alpha_r in the noncentered path goes through ``non_centered_normal``,
+        # which creates a ``_raw`` standard-normal variable and exposes the
+        # realised value as a Deterministic with the original name.
+        assert "alpha_r_raw" in named
+
+    def test_centered_path_uses_direct_normal(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            hierarchical_parameterisation="centered",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        named = set(m.model.named_vars)
+        # Centered: alpha_r and beta_r are direct Normals, no raw offsets.
+        assert "alpha_r" in named
+        assert "beta_r" in named
+        assert "beta_r_raw" not in named
+        assert "alpha_r_raw" not in named
+
+
+class TestRandomCoefOnCharacteristics:
+    @pytest.mark.parametrize(
+        "random_coef_on, expected_names",
+        [
+            (["x_0"], ["x_0"]),
+            (["price", "x_0"], ["price", "x_0"]),
+            (["x_0", "x_1"], ["x_0", "x_1"]),
+        ],
+    )
+    def test_random_on_characteristic_builds_and_samples_prior(
+        self, blp_panel_small, random_coef_on, expected_names
+    ):
+        df, truth = blp_panel_small
+        # Map the parametrised char names to the fixture's actual char cols.
+        chars = truth["characteristic_cols"]
+        rc_on = [
+            chars[int(name.split("_")[-1])] if name.startswith("x_") else name
+            for name in random_coef_on
+        ]
+        exp = [
+            chars[int(name.split("_")[-1])] if name.startswith("x_") else name
+            for name in expected_names
+        ]
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=chars,
+            instruments=truth["instrument_cols"],
+            random_coef_on=rc_on,
+            n_mc_draws=30,
+            random_seed=0,
+        )
+        assert m._random_coef_names == exp
+        assert m._n_random == len(exp)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            prior = m.sample_prior_predictive(samples=10)
+        s_in = prior.prior["s_inside"].values
+        s_out = prior.prior["s_outside"].values
+        assert s_in.shape == (1, 10, m._M, m._J)
+        np.testing.assert_allclose(s_in.sum(axis=-1) + s_out, 1.0, atol=1e-6)
+
+
+class TestPriorPredictiveExtendIdata:
+    def test_extend_idata_false_leaves_self_idata_unchanged(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        assert m.idata is None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            prior = m.sample_prior_predictive(samples=10, extend_idata=False)
+        assert "prior" in prior
+        # extend_idata=False means self.idata stays None.
+        assert m.idata is None
+
+
+class TestResolveCellMaskSliceStep:
+    def test_slice_with_step_selects_strided_periods(self):
+        df, truth = generate_blp_panel(
+            T=10, J=3, K=2, L=2, R_geo=2, random_seed=3, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        # slice(start=1, stop=7, step=2) on period labels [0..9] resolves to
+        # period indices [1, 3, 5, 7] — start/stop are inclusive on labels,
+        # so the wanted range is range(1, 8, 2) = [1, 3, 5, 7].
+        mask = m._resolve_cell_mask(periods=slice(1, 7, 2), regions=None)
+        expected = np.isin(m._period_idx, [1, 3, 5, 7])
+        np.testing.assert_array_equal(mask, expected)
+
+    def test_slice_with_step_combined_with_regions(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, R_geo=3, random_seed=4, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        mask = m._resolve_cell_mask(periods=slice(0, 4, 2), regions=["r0", "r2"])
+        period_ok = np.isin(m._period_idx, [0, 2, 4])
+        region_ok = np.isin(m._region_idx, [0, 2])
+        np.testing.assert_array_equal(mask, period_ok & region_ok)
+
+
+class TestSaveLoadNotImplemented:
+    def test_save_raises(self, blp_panel_small, tmp_path):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(NotImplementedError, match="save/load"):
+            m.save(str(tmp_path / "m.nc"))
+
+    def test_load_raises(self, tmp_path):
+        with pytest.raises(NotImplementedError, match="save/load"):
+            BayesianBLP.load(str(tmp_path / "m.nc"))
+
+    def test_build_from_idata_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(NotImplementedError, match="save/load"):
+            m.build_from_idata(idata=None)  # type: ignore[arg-type]
