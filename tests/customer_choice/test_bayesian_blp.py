@@ -105,6 +105,36 @@ class TestBuild:
         s_out = m.model.named_vars["s_outside"].eval()
         np.testing.assert_allclose(s_in.sum(axis=-1) + s_out, 1.0, atol=1e-6)
 
+    def test_track_delta_exposes_delta_deterministic(self, blp_panel_small):
+        """``track_delta=True`` registers the ``delta`` mean-utility tensor."""
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            track_delta=True,
+            n_mc_draws=10,
+            random_seed=0,
+        )
+        m.build_model()
+        assert "delta" in m.model.named_vars
+        # Evaluated tensor matches (M, J); PyMC's type.shape may carry None
+        # for free dims, so we eval to check the concrete shape.
+        assert m.model.named_vars["delta"].eval().shape == (m._M, m._J)
+
+    def test_market_size_col_none_uses_zero_array(self, blp_panel_small):
+        """``market_size_col=None`` triggers the all-zeros fallback for n_jt."""
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            market_size_col=None,
+            n_mc_draws=10,
+            random_seed=0,
+        )
+        np.testing.assert_array_equal(m._n, np.zeros(m._M))
+
 
 class TestValidation:
     def test_unknown_random_coef_raises(self, blp_panel_small):
@@ -172,6 +202,39 @@ class TestValidation:
             BayesianBLP(
                 market_data=df,
                 characteristics=truth["characteristic_cols"],
+                random_seed=0,
+            )
+
+    def test_invalid_hierarchical_parameterisation_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.raises(ValueError, match="hierarchical_parameterisation"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                hierarchical_parameterisation="bogus",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_n_mc_draws_warns_when_too_small_for_many_random_coefs(self):
+        """``random_coef_on`` with > 4 dims and small n_mc_draws should warn."""
+        df, truth = generate_blp_panel(
+            T=8,
+            J=3,
+            K=5,
+            L=2,
+            market_size=2_000,
+            random_seed=0,
+            return_truth=True,
+        )
+        with pytest.warns(UserWarning, match="n_mc_draws"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                random_coef_on=["price", *truth["characteristic_cols"]],  # 6 dims
+                n_mc_draws=100,  # below the 500 threshold for n_random > 4
                 random_seed=0,
             )
 
@@ -259,6 +322,11 @@ class TestCounterfactual:
         model, _ = fitted_blp
         with pytest.raises(ValueError, match="shape"):
             model.counterfactual_shares(price_change=np.zeros((3, 3)))
+
+    def test_invalid_price_change_type_raises(self, fitted_blp):
+        model, _ = fitted_blp
+        with pytest.raises(TypeError, match="price_change must be"):
+            model.counterfactual_shares(price_change="0.10")  # type: ignore[arg-type]
 
     def test_unfit_model_raises(self, blp_panel_small):
         df, truth = blp_panel_small
@@ -427,6 +495,47 @@ class TestTimeCol:
                 characteristics=truth["characteristic_cols"],
                 instruments=truth["instrument_cols"],
                 region_col="region",
+                time_col="period",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_market_with_multiple_periods_raises(self):
+        """A market mapped to >1 period values triggers a ValueError."""
+        df, truth = generate_blp_panel(
+            T=4, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        # Re-label one product's row in market 0 to period 99 so the
+        # groupby(market)[period].nunique() check fails.
+        df = df.copy()
+        first_idx = df.index[(df["market"] == 0) & (df["product"] != "outside")][0]
+        df.loc[first_idx, "period"] = 99
+        with pytest.raises(ValueError, match="exactly one period"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                time_col="period",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_unsortable_period_values_raises(self):
+        """Period values of mixed/incomparable types trigger a ValueError."""
+        df, truth = generate_blp_panel(
+            T=4, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        # Mix str and int in the period column: sorted() raises TypeError,
+        # which _preprocess catches and re-raises as ValueError.
+        df = df.copy()
+        df["period"] = df["period"].astype(object)
+        mixed_market = df["market"].iloc[0]
+        df.loc[df["market"] == mixed_market, "period"] = "first"
+        with pytest.raises(ValueError, match="sortable"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
                 time_col="period",
                 n_mc_draws=20,
                 random_seed=0,
@@ -734,6 +843,40 @@ class TestNumericalStability:
         s_agg_safe = np.maximum(s_agg, 1e-30)
         elast = ds_dp * model._price[None, :, None, :] / s_agg_safe[:, :, :, None]
         assert not np.isnan(elast).any()
+
+    def test_batch_shares_chunking_matches_unchunked(
+        self, blp_panel_small, monkeypatch
+    ):
+        """When allocation exceeds the cap, chunked output equals one-shot output.
+
+        Drives the chunking branch of ``batch_shares`` by lowering the cap to
+        something tiny, verifies the warning fires and the concatenated chunks
+        match a bit-for-bit one-shot computation.
+        """
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        rng = np.random.default_rng(0)
+        S = 8
+        alpha_M = rng.normal(-2, 0.5, (S, model._M))
+        beta_M = rng.normal(0, 0.5, (S, model._M, model._K))
+        xi_M = rng.normal(0, 0.3, (S, model._M, model._J))
+        sigma_M = np.abs(rng.normal(0.5, 0.1, (S, 1)))
+
+        full = model.batch_shares(alpha_M, beta_M, xi_M, sigma_M, model._price)
+
+        # Force chunking by setting the cap below the per-sample allocation.
+        monkeypatch.setattr(type(model), "_SHARES_CHUNK_BYTES", 1)
+        with pytest.warns(UserWarning, match="chunks"):
+            chunked = model.batch_shares(alpha_M, beta_M, xi_M, sigma_M, model._price)
+        for full_arr, chunked_arr in zip(full, chunked, strict=True):
+            np.testing.assert_array_equal(full_arr, chunked_arr)
 
 
 class TestXiAsGrid:

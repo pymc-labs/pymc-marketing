@@ -34,10 +34,37 @@ Gini in [0, 1]). Numerical-accuracy assertions belong in
 ``test_taste_profiles.py`` where the model is genuinely fit.
 """
 
+import os
+from contextlib import contextmanager
+
 import nbformat
 import papermill
 import pytest
 from papermill.iorw import write_ipynb
+
+
+@contextmanager
+def _without_pytest_cov_subprocess_instrumentation():
+    """Clear the env vars pytest-cov uses to instrument subprocesses.
+
+    Without this, the ipykernel subprocess papermill spawns picks up the
+    parent ``COV_CORE_*`` / ``COVERAGE_*`` variables and tries to start
+    coverage tracking inside the kernel, which collides with pytensor's
+    compilation flags and raises a confusing ``_CopyMode.IF_NEEDED is
+    neither True nor False`` at import time. The integration test does
+    not need coverage of the in-notebook code, only of the test process
+    that launches it.
+    """
+    stripped = {}
+    prefixes = ("COV_CORE_", "COVERAGE_")
+    for key in list(os.environ):
+        if key.startswith(prefixes):
+            stripped[key] = os.environ.pop(key)
+    try:
+        yield
+    finally:
+        os.environ.update(stripped)
+
 
 # Mock injection identical to the four operative lines of
 # scripts/run_notebooks/injected.py. Inlined here so this test does not
@@ -148,13 +175,14 @@ def test_taste_profiles_round_trip_through_papermill(tmp_path):
     in_path = tmp_path / "taste_profiles_smoke.ipynb"
     write_ipynb(nb, str(in_path))
 
-    out_nb = papermill.execute_notebook(
-        input_path=str(in_path),
-        output_path=None,
-        kernel_name="python3",
-        progress_bar=False,
-        cwd=str(tmp_path),
-    )
+    with _without_pytest_cov_subprocess_instrumentation():
+        out_nb = papermill.execute_notebook(
+            input_path=str(in_path),
+            output_path=None,
+            kernel_name="python3",
+            progress_bar=False,
+            cwd=str(tmp_path),
+        )
 
     streams = [
         "".join(out.get("text", ""))
@@ -184,7 +212,10 @@ def test_taste_profiles_round_trip_propagates_cell_errors(tmp_path):
     in_path = tmp_path / "intentional_fail.ipynb"
     write_ipynb(nb, str(in_path))
 
-    with pytest.raises(papermill.PapermillExecutionError, match="intentional failure"):
+    with (
+        _without_pytest_cov_subprocess_instrumentation(),
+        pytest.raises(papermill.PapermillExecutionError, match="intentional failure"),
+    ):
         papermill.execute_notebook(
             input_path=str(in_path),
             output_path=None,

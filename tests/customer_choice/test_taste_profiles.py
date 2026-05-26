@@ -252,3 +252,100 @@ class TestPlotters:
         returned = taste_profiles.plot_buyer_profile_heatmap(model, n_samples=40, ax=ax)
         assert returned is fig
         plt.close(fig)
+
+    def test_plot_brand_buyer_heatmap_accepts_ax(self, fitted_blp):
+        model, _ = fitted_blp
+        fig, ax = plt.subplots(layout="constrained")
+        returned = taste_profiles.plot_brand_buyer_heatmap(
+            model, n_samples=40, dim=0, ax=ax
+        )
+        assert returned is fig
+        plt.close(fig)
+
+    def test_plot_demand_concentration_accepts_ax(self, fitted_blp):
+        model, _ = fitted_blp
+        fig, ax = plt.subplots(layout="constrained")
+        returned = taste_profiles.plot_demand_concentration(model, n_samples=40, ax=ax)
+        assert returned is fig
+        plt.close(fig)
+
+    def test_plot_taste_profile_stacked_accepts_axes(self, fitted_blp):
+        model, _ = fitted_blp
+        fig, axes = plt.subplots(2, 1, layout="constrained")
+        returned = taste_profiles.plot_taste_profile_stacked(
+            model, market_indices=[0, 1], n_samples=30, axes=list(axes)
+        )
+        assert returned is fig
+        plt.close(fig)
+
+    def test_plot_taste_profile_stacked_axes_length_mismatch_raises(self, fitted_blp):
+        model, _ = fitted_blp
+        fig, axes = plt.subplots(2, 1, layout="constrained")
+        with pytest.raises(ValueError, match="axes has length"):
+            taste_profiles.plot_taste_profile_stacked(
+                model,
+                market_indices=[0, 1, 2],
+                n_samples=20,
+                axes=list(axes),
+            )
+        plt.close(fig)
+
+    def test_default_market_pick_handles_n_geq_M(self, fitted_blp):
+        """When the requested number of markets meets or exceeds M, return all."""
+        from pymc_marketing.customer_choice.taste_profiles import (
+            _default_price_span_markets,
+        )
+
+        model, _ = fitted_blp
+        picks = _default_price_span_markets(model, n=model._M + 5)
+        assert sorted(picks) == list(range(model._M))
+
+    def test_plot_taste_profile_stacked_with_many_brands(self, blp_panel_small):
+        """Drives the ``J > 8`` tab20 colormap + bbox legend branch.
+
+        A throwaway model is built with J=9 inside products so the plotter
+        takes the high-J path; the fit is mocked to keep this fast.
+        """
+        from functools import partial
+        from unittest.mock import patch
+
+        import pymc as pm
+        import pymc.testing
+
+        from pymc_marketing.customer_choice import (
+            BayesianBLP,
+            generate_blp_panel,
+        )
+
+        df, truth = generate_blp_panel(
+            T=4,
+            J=9,
+            K=2,
+            L=2,
+            market_size=2_000,
+            random_seed=0,
+            return_truth=True,
+        )
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with patch.object(
+            pm,
+            "sample",
+            partial(
+                pymc.testing.mock_sample,
+                sample_stats={"diverging": lambda size: np.zeros(size, dtype=int)},
+            ),
+        ):
+            model.fit(draws=10, tune=10, chains=2, progressbar=False, random_seed=0)
+
+        fig = taste_profiles.plot_taste_profile_stacked(
+            model, market_indices=[0, 1], n_samples=20
+        )
+        assert isinstance(fig, Figure)
+        plt.close(fig)
