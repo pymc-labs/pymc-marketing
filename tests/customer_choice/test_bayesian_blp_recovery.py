@@ -163,209 +163,209 @@ class TestEndogeneityBias:
         )
 
 
-# class TestWeakInstruments:
-#     @pytest.fixture(scope="class")
-#     def weak_iv_fit(self):
-#         df, truth = generate_blp_panel(
-#             T=40,
-#             J=3,
-#             K=2,
-#             L=2,
-#             true_alpha=-2.0,
-#             sigma_alpha=0.5,
-#             instrument_strength=0.15,
-#             price_xi_corr=0.6,
-#             market_size=4_000,
-#             n_dgp_draws=3_000,
-#             random_seed=11,
-#             return_truth=True,
-#         )
-#         return _fit(
-#             _make_model(df, truth, instruments_arg=truth["instrument_cols"])
-#         ), truth
+class TestWeakInstruments:
+    @pytest.fixture(scope="class")
+    def weak_iv_fit(self):
+        df, truth = generate_blp_panel(
+            T=40,
+            J=3,
+            K=2,
+            L=2,
+            true_alpha=-2.0,
+            sigma_alpha=0.5,
+            instrument_strength=0.15,
+            price_xi_corr=0.6,
+            market_size=4_000,
+            n_dgp_draws=3_000,
+            random_seed=11,
+            return_truth=True,
+        )
+        return _fit(
+            _make_model(df, truth, instruments_arg=truth["instrument_cols"])
+        ), truth
 
-#     @pytest.fixture(scope="class")
-#     def strong_iv_fit(self):
-#         df, truth = generate_blp_panel(
-#             T=40,
-#             J=3,
-#             K=2,
-#             L=2,
-#             true_alpha=-2.0,
-#             sigma_alpha=0.5,
-#             instrument_strength=0.9,
-#             price_xi_corr=0.6,
-#             market_size=4_000,
-#             n_dgp_draws=3_000,
-#             random_seed=11,
-#             return_truth=True,
-#         )
-#         return _fit(
-#             _make_model(df, truth, instruments_arg=truth["instrument_cols"])
-#         ), truth
+    @pytest.fixture(scope="class")
+    def strong_iv_fit(self):
+        df, truth = generate_blp_panel(
+            T=40,
+            J=3,
+            K=2,
+            L=2,
+            true_alpha=-2.0,
+            sigma_alpha=0.5,
+            instrument_strength=0.9,
+            price_xi_corr=0.6,
+            market_size=4_000,
+            n_dgp_draws=3_000,
+            random_seed=11,
+            return_truth=True,
+        )
+        return _fit(
+            _make_model(df, truth, instruments_arg=truth["instrument_cols"])
+        ), truth
 
-#     def test_weak_iv_widens_alpha_interval(self, weak_iv_fit, strong_iv_fit):
-#         """Weak-IV credible interval on alpha should be wider than the strong-IV
-#         interval (Bayesian inference stays honest about identification weakness).
-#         """
-#         weak_model, _ = weak_iv_fit
-#         strong_model, _ = strong_iv_fit
-#         weak_lo, weak_hi = _hdi(weak_model.idata.posterior["alpha_r"].values)
-#         strong_lo, strong_hi = _hdi(strong_model.idata.posterior["alpha_r"].values)
-#         weak_width = weak_hi - weak_lo
-#         strong_width = strong_hi - strong_lo
-#         assert weak_width > strong_width, (
-#             f"weak-IV HDI width {weak_width:.3f} should exceed strong-IV "
-#             f"width {strong_width:.3f}"
-#         )
+    def test_weak_iv_widens_alpha_interval(self, weak_iv_fit, strong_iv_fit):
+        """Weak-IV credible interval on alpha should be wider than the strong-IV
+        interval (Bayesian inference stays honest about identification weakness).
+        """
+        weak_model, _ = weak_iv_fit
+        strong_model, _ = strong_iv_fit
+        weak_lo, weak_hi = _hdi(weak_model.idata.posterior["alpha_r"].values)
+        strong_lo, strong_hi = _hdi(strong_model.idata.posterior["alpha_r"].values)
+        weak_width = weak_hi - weak_lo
+        strong_width = strong_hi - strong_lo
+        assert weak_width > strong_width, (
+            f"weak-IV HDI width {weak_width:.3f} should exceed strong-IV "
+            f"width {strong_width:.3f}"
+        )
 
-#     def test_weak_iv_still_covers_truth(self, weak_iv_fit):
-#         weak_model, truth = weak_iv_fit
-#         lo, hi = _hdi(weak_model.idata.posterior["alpha_r"].values)
-#         assert lo <= truth["alpha"] <= hi
-
-
-# class TestHierarchicalPooling:
-#     @pytest.fixture(scope="class")
-#     def hierarchical_fit(self):
-#         df, truth = generate_blp_panel(
-#             T=20,
-#             J=3,
-#             K=2,
-#             L=2,
-#             R_geo=3,
-#             region_heterogeneity=0.6,
-#             true_alpha=-2.0,
-#             sigma_alpha=0.5,
-#             instrument_strength=0.7,
-#             price_xi_corr=0.5,
-#             market_size=4_000,
-#             n_dgp_draws=3_000,
-#             random_seed=7,
-#             return_truth=True,
-#         )
-#         model = BayesianBLP(
-#             market_data=df,
-#             characteristics=truth["characteristic_cols"],
-#             instruments=truth["instrument_cols"],
-#             region_col="region",
-#             random_coef_on=["price"],
-#             n_mc_draws=100,
-#             random_seed=0,
-#         )
-#         return _fit(model), truth
-
-#     def test_tau_alpha_excludes_zero_under_heterogeneity(self, hierarchical_fit):
-#         """When the DGP has region-level heterogeneity, the hierarchical SD
-#         ``tau_alpha`` posterior should be away from zero (not collapsed to a
-#         single-region degenerate solution).
-#         """
-#         model, _ = hierarchical_fit
-#         tau_lo, _ = _hdi(model.idata.posterior["tau_alpha"].values)
-#         assert tau_lo > 0.0, f"tau_alpha 94% HDI lower bound = {tau_lo:.3f}"
-
-#     def test_alpha_r_recovers_each_region(self, hierarchical_fit):
-#         model, truth = hierarchical_fit
-#         alpha_r_post = model.idata.posterior["alpha_r"].values
-#         for r, true_alpha_r in enumerate(truth["alpha_r"]):
-#             lo, hi = _hdi(alpha_r_post[..., r])
-#             assert lo <= true_alpha_r <= hi, (
-#                 f"region {r}: truth {true_alpha_r:.3f} not in [{lo:.3f}, {hi:.3f}]"
-#             )
+    def test_weak_iv_still_covers_truth(self, weak_iv_fit):
+        weak_model, truth = weak_iv_fit
+        lo, hi = _hdi(weak_model.idata.posterior["alpha_r"].values)
+        assert lo <= truth["alpha"] <= hi
 
 
-# class TestSimulationStability:
-#     @pytest.fixture(scope="class")
-#     def panel_for_stability(self):
-#         return generate_blp_panel(
-#             T=40,
-#             J=3,
-#             K=2,
-#             L=2,
-#             true_alpha=-2.0,
-#             sigma_alpha=0.5,
-#             instrument_strength=0.7,
-#             price_xi_corr=0.6,
-#             market_size=4_000,
-#             n_dgp_draws=3_000,
-#             random_seed=42,
-#             return_truth=True,
-#         )
+class TestHierarchicalPooling:
+    @pytest.fixture(scope="class")
+    def hierarchical_fit(self):
+        df, truth = generate_blp_panel(
+            T=20,
+            J=3,
+            K=2,
+            L=2,
+            R_geo=3,
+            region_heterogeneity=0.6,
+            true_alpha=-2.0,
+            sigma_alpha=0.5,
+            instrument_strength=0.7,
+            price_xi_corr=0.5,
+            market_size=4_000,
+            n_dgp_draws=3_000,
+            random_seed=7,
+            return_truth=True,
+        )
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            random_coef_on=["price"],
+            n_mc_draws=100,
+            random_seed=0,
+        )
+        return _fit(model), truth
 
-#     @pytest.fixture(scope="class")
-#     def fit_R100(self, panel_for_stability):
-#         df, truth = panel_for_stability
-#         return _fit(
-#             _make_model(
-#                 df, truth, instruments_arg=truth["instrument_cols"], n_mc_draws=100
-#             )
-#         ), truth
+    def test_tau_alpha_excludes_zero_under_heterogeneity(self, hierarchical_fit):
+        """When the DGP has region-level heterogeneity, the hierarchical SD
+        ``tau_alpha`` posterior should be away from zero (not collapsed to a
+        single-region degenerate solution).
+        """
+        model, _ = hierarchical_fit
+        tau_lo, _ = _hdi(model.idata.posterior["tau_alpha"].values)
+        assert tau_lo > 0.0, f"tau_alpha 94% HDI lower bound = {tau_lo:.3f}"
 
-#     @pytest.fixture(scope="class")
-#     def fit_R400(self, panel_for_stability):
-#         df, truth = panel_for_stability
-#         return _fit(
-#             _make_model(
-#                 df, truth, instruments_arg=truth["instrument_cols"], n_mc_draws=400
-#             )
-#         ), truth
-
-#     def test_alpha_stable_across_mc_draw_counts(self, fit_R100, fit_R400):
-#         """Doubling/quadrupling Halton draws should not move posterior-mean
-#         alpha by more than ~half a posterior SD.
-#         """
-#         m100, _ = fit_R100
-#         m400, _ = fit_R400
-#         alpha_R100 = m100.idata.posterior["alpha_r"].values
-#         alpha_R400 = m400.idata.posterior["alpha_r"].values
-#         mean_diff = abs(float(alpha_R100.mean()) - float(alpha_R400.mean()))
-#         post_sd = float(alpha_R100.std())
-#         assert mean_diff < 0.5 * post_sd, (
-#             f"alpha posterior-mean diff between R=100 and R=400 = "
-#             f"{mean_diff:.3f}; posterior SD = {post_sd:.3f}"
-#         )
+    def test_alpha_r_recovers_each_region(self, hierarchical_fit):
+        model, truth = hierarchical_fit
+        alpha_r_post = model.idata.posterior["alpha_r"].values
+        for r, true_alpha_r in enumerate(truth["alpha_r"]):
+            lo, hi = _hdi(alpha_r_post[..., r])
+            assert lo <= true_alpha_r <= hi, (
+                f"region {r}: truth {true_alpha_r:.3f} not in [{lo:.3f}, {hi:.3f}]"
+            )
 
 
-# class TestElasticitySanity:
-#     def test_own_elasticity_in_sensible_range(self, iv_fit):
-#         """Own-price elasticities for branded products typically sit in
-#         (-10, -0.5). A model that returns near-zero or wildly negative
-#         values is broken.
-#         """
-#         model, _ = iv_fit
-#         e = model.elasticities()
-#         for j in range(model._J):
-#             own_mean = float(e.values[:, j, j].mean())
-#             assert -10.0 < own_mean < -0.5, (
-#                 f"product {j} mean own elasticity {own_mean:.3f} outside (-10, -0.5)"
-#             )
+class TestSimulationStability:
+    @pytest.fixture(scope="class")
+    def panel_for_stability(self):
+        return generate_blp_panel(
+            T=40,
+            J=3,
+            K=2,
+            L=2,
+            true_alpha=-2.0,
+            sigma_alpha=0.5,
+            instrument_strength=0.7,
+            price_xi_corr=0.6,
+            market_size=4_000,
+            n_dgp_draws=3_000,
+            random_seed=42,
+            return_truth=True,
+        )
 
-#     def test_elasticity_matches_finite_difference(self, iv_fit):
-#         """Closed-form elasticity from ``elasticities()`` should match a
-#         finite-difference of ``counterfactual_shares()`` for the same
-#         intervention. Cross-check that the analytical formula isn't drifting
-#         from the simulation."""
-#         model, _ = iv_fit
-#         baseline_cf = model.counterfactual_shares(price_change=None, n_samples=200)
-#         e = model.elasticities(at="mean")
-#         target_idx = 0
-#         target_name = model._inside_products[target_idx]
-#         eps = 0.01
-#         shocked_cf = model.counterfactual_shares(
-#             price_change={target_name: eps}, n_samples=200
-#         )
-#         baseline_share = baseline_cf["s_inside"].mean(dim="sample").values
-#         shocked_share = shocked_cf["s_inside"].mean(dim="sample").values
-#         # price_change={...} applies a *relative* change: Δp = p · eps
-#         # so ε = (Δs/s) / (Δp/p) = (Δs/s) / eps
-#         fd_elast_own = (
-#             (shocked_share[:, target_idx] - baseline_share[:, target_idx])
-#             / eps
-#             / baseline_share[:, target_idx]
-#         )
-#         analytical_own = e.values[:, target_idx, target_idx]
-#         diff = np.abs(fd_elast_own - analytical_own).mean()
-#         assert diff < 0.5, (
-#             f"mean |FD - analytical| own elasticity diff = {diff:.3f}; "
-#             "should be small (<0.5) since both use the same posterior xi."
-#         )
+    @pytest.fixture(scope="class")
+    def fit_R100(self, panel_for_stability):
+        df, truth = panel_for_stability
+        return _fit(
+            _make_model(
+                df, truth, instruments_arg=truth["instrument_cols"], n_mc_draws=100
+            )
+        ), truth
+
+    @pytest.fixture(scope="class")
+    def fit_R400(self, panel_for_stability):
+        df, truth = panel_for_stability
+        return _fit(
+            _make_model(
+                df, truth, instruments_arg=truth["instrument_cols"], n_mc_draws=400
+            )
+        ), truth
+
+    def test_alpha_stable_across_mc_draw_counts(self, fit_R100, fit_R400):
+        """Doubling/quadrupling Halton draws should not move posterior-mean
+        alpha by more than ~half a posterior SD.
+        """
+        m100, _ = fit_R100
+        m400, _ = fit_R400
+        alpha_R100 = m100.idata.posterior["alpha_r"].values
+        alpha_R400 = m400.idata.posterior["alpha_r"].values
+        mean_diff = abs(float(alpha_R100.mean()) - float(alpha_R400.mean()))
+        post_sd = float(alpha_R100.std())
+        assert mean_diff < 0.5 * post_sd, (
+            f"alpha posterior-mean diff between R=100 and R=400 = "
+            f"{mean_diff:.3f}; posterior SD = {post_sd:.3f}"
+        )
+
+
+class TestElasticitySanity:
+    def test_own_elasticity_in_sensible_range(self, iv_fit):
+        """Own-price elasticities for branded products typically sit in
+        (-10, -0.5). A model that returns near-zero or wildly negative
+        values is broken.
+        """
+        model, _ = iv_fit
+        e = model.elasticities()
+        for j in range(model._J):
+            own_mean = float(e.values[:, j, j].mean())
+            assert -10.0 < own_mean < -0.5, (
+                f"product {j} mean own elasticity {own_mean:.3f} outside (-10, -0.5)"
+            )
+
+    def test_elasticity_matches_finite_difference(self, iv_fit):
+        """Closed-form elasticity from ``elasticities()`` should match a
+        finite-difference of ``counterfactual_shares()`` for the same
+        intervention. Cross-check that the analytical formula isn't drifting
+        from the simulation."""
+        model, _ = iv_fit
+        baseline_cf = model.counterfactual_shares(price_change=None, n_samples=200)
+        e = model.elasticities(at="mean")
+        target_idx = 0
+        target_name = model._inside_products[target_idx]
+        eps = 0.01
+        shocked_cf = model.counterfactual_shares(
+            price_change={target_name: eps}, n_samples=200
+        )
+        baseline_share = baseline_cf["s_inside"].mean(dim="sample").values
+        shocked_share = shocked_cf["s_inside"].mean(dim="sample").values
+        # price_change={...} applies a *relative* change: Δp = p · eps
+        # so ε = (Δs/s) / (Δp/p) = (Δs/s) / eps
+        fd_elast_own = (
+            (shocked_share[:, target_idx] - baseline_share[:, target_idx])
+            / eps
+            / baseline_share[:, target_idx]
+        )
+        analytical_own = e.values[:, target_idx, target_idx]
+        diff = np.abs(fd_elast_own - analytical_own).mean()
+        assert diff < 0.5, (
+            f"mean |FD - analytical| own elasticity diff = {diff:.3f}; "
+            "should be small (<0.5) since both use the same posterior xi."
+        )
