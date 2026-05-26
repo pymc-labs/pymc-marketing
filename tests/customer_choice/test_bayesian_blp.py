@@ -681,7 +681,7 @@ class TestCounterfactualFiltering:
 
 class TestNumericalStability:
     def test_batch_shares_extreme_params_no_nan(self, blp_panel_small):
-        """Verify _batch_shares doesn't produce NaN with extreme parameters."""
+        """Verify batch_shares doesn't produce NaN with extreme parameters."""
         df, truth = blp_panel_small
         model = BayesianBLP(
             market_data=df,
@@ -697,7 +697,7 @@ class TestNumericalStability:
         beta_M = rng.normal(0, 100, (S, model._M, model._K))
         xi_M = rng.normal(0, 100, (S, model._M, model._J))
         sigma_M = np.abs(rng.normal(0, 100, (S, 1)))
-        s_in, s_agg, s_out, s_out_agg, _ = model._batch_shares(
+        s_in, s_agg, s_out, s_out_agg, _ = model.batch_shares(
             alpha_M, beta_M, xi_M, sigma_M, model._price
         )
         assert not np.isnan(s_in).any()
@@ -722,7 +722,7 @@ class TestNumericalStability:
         beta_M = rng.normal(0, 100, (S, model._M, model._K))
         xi_M = rng.normal(0, 100, (S, model._M, model._J))
         sigma_M = np.abs(rng.normal(0, 100, (S, 1)))
-        s_per_draw, s_agg, _, _, alpha_per_draw = model._batch_shares(
+        s_per_draw, s_agg, _, _, alpha_per_draw = model.batch_shares(
             alpha_M, beta_M, xi_M, sigma_M, model._price
         )
         R_eff = s_per_draw.shape[-1]

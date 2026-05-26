@@ -1019,17 +1019,38 @@ class BayesianBLP(ModelBuilder):
             f"price_change must be dict, ndarray, or None; got {type(price_change)!r}"
         )
 
-    def _iterate_posterior_samples(
+    def iterate_posterior_samples(
         self, n_samples: int | None
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
-        """Stack chain × draw and (optionally) subsample posterior arrays.
+        """Stack ``chain × draw`` and (optionally) subsample posterior arrays.
+
+        Resolves region-level parameters at each market via the model's
+        ``region`` ↔ ``market`` index, so downstream code sees per-market
+        arrays without having to re-broadcast.
+
+        Parameters
+        ----------
+        n_samples : int or None
+            If given and smaller than the available ``chain × draw`` total,
+            randomly subsample to ``n_samples`` posterior draws using the
+            model's ``random_seed`` so results are reproducible.
 
         Returns
         -------
-        alpha_at_market : (S, M)
-        beta_at_market : (S, M, K)
-        xi : (S, M, J)
-        sigma_random : (S, n_random) or None
+        alpha_at_market : np.ndarray
+            Shape ``(S, M)``.
+        beta_at_market : np.ndarray
+            Shape ``(S, M, K)``.
+        xi : np.ndarray
+            Shape ``(S, M, J)``.
+        sigma_random : np.ndarray or None
+            Shape ``(S, n_random)`` when the model has random coefficients;
+            ``None`` otherwise.
+
+        Raises
+        ------
+        RuntimeError
+            If the model has not been fitted.
         """
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError(
@@ -1059,7 +1080,7 @@ class BayesianBLP(ModelBuilder):
 
         return alpha_at_market, beta_at_market, xi, sigma_random
 
-    # Cap peak working-set allocation in ``_batch_shares`` at 2 GiB. The
+    # Cap peak working-set allocation in ``batch_shares`` at 2 GiB. The
     # dominant arrays scale as O(S * M * J * R * 8 bytes); large posteriors
     # combined with many products and many Halton draws can blow past 10 GiB
     # without chunking. When the requested batch exceeds this cap, the
@@ -1076,8 +1097,8 @@ class BayesianBLP(ModelBuilder):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Compute share equation for a single chunk along the sample axis.
 
-        See ``_batch_shares`` for parameter / return shapes. This is the
-        un-chunked core; ``_batch_shares`` wraps it with allocation guards.
+        See ``batch_shares`` for parameter / return shapes. This is the
+        un-chunked core; ``batch_shares`` wraps it with allocation guards.
         """
         M, J = self._M, self._J
         R = self.n_mc_draws
@@ -1136,7 +1157,7 @@ class BayesianBLP(ModelBuilder):
             alpha_per_draw,
         )
 
-    def _batch_shares(
+    def batch_shares(
         self,
         alpha_M: np.ndarray,
         beta_M: np.ndarray,
@@ -1146,36 +1167,39 @@ class BayesianBLP(ModelBuilder):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Numpy-evaluate the share equation for a batch of posterior samples.
 
-        NOTE: ``pymc_marketing.customer_choice.taste_profiles`` depends on
-        this method via its ``_compute_inside_choice_probs`` wrapper. Any
-        signature change here must be reflected there.
-
-        Vectorised across the leading sample axis ``S``. The previous
-        per-sample implementation was a Python ``for`` loop over draws;
-        this version is ~50x faster on a typical small panel and removes
-        the implicit pressure to set ``n_samples`` to a tiny value (which
-        was the proximate cause of the rough elasticity KDEs in the
-        notebook).
-
-        When the requested allocation exceeds ``_SHARES_CHUNK_BYTES``, the
+        Vectorised across the leading sample axis ``S``. When the requested
+        allocation exceeds ``_SHARES_CHUNK_BYTES`` (2 GiB by default), the
         sample axis is split into chunks; results are concatenated. A
-        ``UserWarning`` is emitted on the first chunk to surface the cap.
+        ``UserWarning`` fires on the first chunk to surface the cap.
 
         Parameters
         ----------
-        alpha_M : (S, M)
-        beta_M : (S, M, K)
-        xi_M : (S, M, J)
-        sigma_M : (S, n_random) or None
-        price : (M, J)
+        alpha_M : np.ndarray
+            Shape ``(S, M)``. Per-sample, per-market price coefficient.
+        beta_M : np.ndarray
+            Shape ``(S, M, K)``. Per-sample, per-market characteristic weights.
+        xi_M : np.ndarray
+            Shape ``(S, M, J)``. Per-sample latent product-market shocks.
+        sigma_M : np.ndarray or None
+            Shape ``(S, n_random)`` when random coefficients are present;
+            otherwise pass ``None``.
+        price : np.ndarray
+            Shape ``(M, J)``. Per-market inside-good prices.
 
         Returns
         -------
-        s_inside_per_draw : (S, M, J, R)
-        s_inside_agg : (S, M, J)
-        s_outside_per_draw : (S, M, R)
-        s_outside_agg : (S, M)
-        alpha_per_draw : (S, M, R)  -- per-consumer-draw price coefficient
+        s_inside_per_draw : np.ndarray
+            Shape ``(S, M, J, R)``. Per-consumer-draw inside-good probabilities.
+        s_inside_agg : np.ndarray
+            Shape ``(S, M, J)``. Halton-averaged inside-good shares.
+        s_outside_per_draw : np.ndarray
+            Shape ``(S, M, R)``. Per-consumer-draw outside-good probabilities.
+        s_outside_agg : np.ndarray
+            Shape ``(S, M)``. Halton-averaged outside-good shares.
+        alpha_per_draw : np.ndarray
+            Shape ``(S, M, R)``. Per-consumer-draw price coefficient
+            (``alpha`` plus the per-draw price taste shock when ``price``
+            is a random coefficient).
         """
         S = alpha_M.shape[0]
         M, J = self._M, self._J
@@ -1191,7 +1215,7 @@ class BayesianBLP(ModelBuilder):
 
         chunk = max(1, self._SHARES_CHUNK_BYTES // bytes_per_sample)
         warnings.warn(
-            f"_batch_shares allocation estimate {total_bytes / 1024**3:.1f} GiB "
+            f"batch_shares allocation estimate {total_bytes / 1024**3:.1f} GiB "
             f"exceeds the {self._SHARES_CHUNK_BYTES / 1024**3:.1f} GiB cap "
             f"(_SHARES_CHUNK_BYTES); processing {S} samples in chunks of "
             f"{chunk}.",
@@ -1264,8 +1288,8 @@ class BayesianBLP(ModelBuilder):
         -------
         xr.DataArray
         """
-        alpha_M, beta_M, xi_M, sigma_M = self._iterate_posterior_samples(n_samples)
-        s_per_draw, s_agg, _, _, alpha_per_draw = self._batch_shares(
+        alpha_M, beta_M, xi_M, sigma_M = self.iterate_posterior_samples(n_samples)
+        s_per_draw, s_agg, _, _, alpha_per_draw = self.batch_shares(
             alpha_M, beta_M, xi_M, sigma_M, self._price
         )
         R_eff = s_per_draw.shape[-1]
@@ -1376,8 +1400,8 @@ class BayesianBLP(ModelBuilder):
         new_price = self._resolve_price_change(
             price_change, periods=periods, regions=regions
         )
-        alpha_M, beta_M, xi_M, sigma_M = self._iterate_posterior_samples(n_samples)
-        _, s_inside_arr, _, s_outside_arr, _ = self._batch_shares(
+        alpha_M, beta_M, xi_M, sigma_M = self.iterate_posterior_samples(n_samples)
+        _, s_inside_arr, _, s_outside_arr, _ = self.batch_shares(
             alpha_M, beta_M, xi_M, sigma_M, new_price
         )
         S = alpha_M.shape[0]

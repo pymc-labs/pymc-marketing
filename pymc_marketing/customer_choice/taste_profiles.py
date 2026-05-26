@@ -58,7 +58,7 @@ def _require_fitted(model: BayesianBLP, fn_name: str) -> None:
 def _compute_inside_choice_probs(
     model: BayesianBLP, n_samples: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Single boundary for the private-API call into ``BayesianBLP``.
+    """Adapter that pulls inside-good probabilities for downstream summaries.
 
     Returns
     -------
@@ -71,12 +71,13 @@ def _compute_inside_choice_probs(
         Shape ``(R, D)``. The Halton consumer-type grid the model integrates
         over; column ``d`` matches ``model._random_coef_names[d]``.
 
-    All public functions in this module delegate here, so any change to
-    ``BayesianBLP._iterate_posterior_samples`` or ``BayesianBLP._batch_shares``
+    Uses the public :meth:`BayesianBLP.iterate_posterior_samples` and
+    :meth:`BayesianBLP.batch_shares` methods. All public functions in this
+    module delegate here so any future change to the inside-choice contract
     only requires touching one place.
     """
-    alpha_M, beta_M, xi_M, sigma_M = model._iterate_posterior_samples(n_samples)
-    s_in_per_draw, _, s_out_per_draw, _, _ = model._batch_shares(
+    alpha_M, beta_M, xi_M, sigma_M = model.iterate_posterior_samples(n_samples)
+    s_in_per_draw, _, s_out_per_draw, _, _ = model.batch_shares(
         alpha_M, beta_M, xi_M, sigma_M, model._price
     )
     return s_in_per_draw, s_out_per_draw, model._halton[: model.n_mc_draws]
