@@ -1146,6 +1146,10 @@ class BayesianBLP(ModelBuilder):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Numpy-evaluate the share equation for a batch of posterior samples.
 
+        NOTE: ``pymc_marketing.customer_choice.taste_profiles`` depends on
+        this method via its ``_compute_inside_choice_probs`` wrapper. Any
+        signature change here must be reflected there.
+
         Vectorised across the leading sample axis ``S``. The previous
         per-sample implementation was a Python ``for`` loop over draws;
         this version is ~50x faster on a typical small panel and removes

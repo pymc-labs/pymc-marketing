@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Customer Choice module."""
 
+from pymc_marketing.customer_choice import taste_profiles
 from pymc_marketing.customer_choice.bayesian_blp import BayesianBLP
 from pymc_marketing.customer_choice.consideration_set_logit import (
     ConsiderationSetMixedLogit,
@@ -37,4 +38,5 @@ __all__ = [
     "generate_saturated_data",
     "generate_unsaturated_data",
     "plot_product",
+    "taste_profiles",
 ]

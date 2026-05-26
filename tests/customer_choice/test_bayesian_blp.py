@@ -22,34 +22,6 @@ import xarray as xr
 from pymc_marketing.customer_choice import BayesianBLP, generate_blp_panel
 
 
-@pytest.fixture(scope="session")
-def fitted_blp(blp_panel_small):
-    """A small BayesianBLP fitted on ``blp_panel_small``.
-
-    Session-scoped — the ~30s fit runs once for every test in this file.
-    """
-    df, truth = blp_panel_small
-    model = BayesianBLP(
-        market_data=df,
-        characteristics=truth["characteristic_cols"],
-        instruments=truth["instrument_cols"],
-        random_coef_on=["price"],
-        n_mc_draws=80,
-        random_seed=0,
-    )
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        model.fit(
-            nuts_sampler="numpyro",
-            draws=200,
-            tune=200,
-            chains=2,
-            progressbar=False,
-            random_seed=0,
-        )
-    return model, truth
-
-
 class TestBuild:
     def test_single_region_build_creates_expected_vars(self, blp_panel_small):
         df, truth = blp_panel_small
