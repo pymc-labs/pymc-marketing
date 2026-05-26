@@ -91,7 +91,7 @@ from pymc_marketing.mmm import (
     GeometricAdstock,
     LogisticSaturation,
 )
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.paths import data_dir
 
 file_path = data_dir / "mmm_example.csv"

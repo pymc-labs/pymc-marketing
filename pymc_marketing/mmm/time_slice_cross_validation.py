@@ -20,6 +20,7 @@ constructed per-fold from a YAML configuration or supplied to ``run()``.
 """
 
 import copy
+import warnings
 from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Literal, overload
@@ -32,6 +33,7 @@ from tqdm.auto import tqdm
 
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.types import MMMBuilder
 
 
@@ -103,7 +105,7 @@ class TimeSliceCrossValidator:
     See Also
     --------
     pymc_marketing.mmm.MMM : The Media Mix Model class.
-    pymc_marketing.mmm.plot.MMMPlotSuite : Plotting utilities for CV results.
+    pymc_marketing.mmm.plotting.cv.MMMCVPlotSuite : Plotting utilities for CV results.
 
     Notes
     -----
@@ -173,20 +175,56 @@ class TimeSliceCrossValidator:
         # Optional sampler configuration that will be applied to the MMM prior to fitting
         # Can be provided here at construction or passed to run() to override per-run.
         self.sampler_config = sampler_config
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
+        self._plot_suite_warned: bool = False
 
     @property
-    def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
+        if value == "legacy":
+            self._plot_suite_warned = False
+
+    @property
+    def plot(self) -> MMMPlotSuite | MMMCVPlotSuite:
+        """Plotting suite for cross-validation results."""
         self._validate_model_was_built()
-        self._validate_idata_exists()
-        return MMMPlotSuite(idata=self.idata)
+        if self.plot_suite == "legacy":
+            if not hasattr(self, "idata") or self.idata is None:
+                raise ValueError(
+                    "idata is not available. Ensure TimeSliceCrossValidator.run() "
+                    "completed successfully."
+                )
+            if not self._plot_suite_warned:
+                warnings.warn(
+                    "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
+                    "Set cv.plot_suite = 'new' to opt in to the new namespace-based API. "
+                    "See the migration guide: "
+                    "https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_plot_suite_migration_guide.html",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                self._plot_suite_warned = True
+            return MMMPlotSuite(idata=self.idata)
+        if not hasattr(self, "cv_idata"):
+            raise ValueError(
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() "
+                "completed successfully."
+            )
+        return MMMCVPlotSuite(self.cv_idata)
 
     def _validate_model_was_built(self) -> None:
         """Validate that at least one CV run has produced results.
 
         Ensures `self._cv_results` exists and is non-empty. If an
         InferenceData is present on the last result, expose it as
-        `self.idata` for compatibility with the MMMPlotSuite API.
+        `self.idata` for backward compatibility.
         """
         if not hasattr(self, "_cv_results") or not self._cv_results:
             raise ValueError(
@@ -194,15 +232,8 @@ class TimeSliceCrossValidator:
             )
         last_result = self._cv_results[-1]
         if hasattr(last_result, "idata") and last_result.idata is not None:
-            # make idata accessible for plotting helpers
+            # make idata accessible for compatibility
             self.idata = last_result.idata
-
-    def _validate_idata_exists(self) -> None:
-        """Validate that `self.idata` is present and not None."""
-        if not hasattr(self, "idata") or self.idata is None:
-            raise ValueError(
-                "No InferenceData available on the validator. Run `TimeSliceCrossValidator.run(...)` first."
-            )
 
     def _create_metadata(self, cv_coord: pd.Index) -> xr.Dataset:
         """Build a cv_metadata Dataset that stores per-fold metadata.
@@ -330,7 +361,7 @@ class TimeSliceCrossValidator:
                 cv_idata = az.InferenceData(**combined_kwargs)
                 # persist for plot helpers
                 self.cv_idata = cv_idata
-        # Also expose the last fold's idata (if any) for compatibility with MMMPlotSuite
+        # Also expose the last fold's idata (if any) for compatibility
         if results:
             last = results[-1]
             if hasattr(last, "idata") and last.idata is not None:

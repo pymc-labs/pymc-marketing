@@ -15,6 +15,8 @@
 
 from __future__ import annotations
 
+import functools
+from pathlib import Path
 from typing import Literal
 
 import arviz as az
@@ -24,6 +26,62 @@ import xarray as xr
 from numpy.random import Generator, RandomState
 
 from pymc_marketing.data.idata.schema import Frequency
+
+
+def idata_to_zarr(
+    idata: az.InferenceData,
+    store: str | Path,
+    groups: list[str] | None = None,
+) -> None:
+    """Save an InferenceData to a Zarr store.
+
+    TODO: Remove this shim once we require ``arviz>=1.0``.
+
+    Works with zarr>=3, which is not supported by
+    ``arviz.InferenceData.to_zarr()``. Mirrors the approach taken by
+    arviz>=1.0: ``idata.to_datatree().to_zarr(store)``.
+
+    Parameters
+    ----------
+    idata : az.InferenceData
+        The inference data to save.
+    store : str or Path
+        Path to the Zarr store directory.
+    groups : list of str, optional
+        Groups to save. If None, all groups are saved.
+    """
+    if groups is not None:
+        filtered_idata = az.InferenceData(
+            **{group: getattr(idata, group) for group in groups if group in idata}
+        )
+        filtered_idata.attrs = idata.attrs.copy()
+        idata = filtered_idata
+
+    idata.to_datatree().to_zarr(store)
+
+
+_open_datatree_zarr = functools.partial(xr.open_datatree, engine="zarr")
+
+
+def idata_from_zarr(store: str | Path) -> az.InferenceData:
+    """Load an InferenceData from a Zarr store.
+
+    TODO: Remove this shim once we require ``arviz>=1.0``.
+
+    Counterpart to :func:`idata_to_zarr`. Works with zarr>=3. Mirrors the
+    approach taken by arviz>=1.0, where ``from_zarr`` is
+    ``functools.partial(open_datatree, engine="zarr")``.
+
+    Parameters
+    ----------
+    store : str or Path
+        Path to the Zarr store directory written by :func:`idata_to_zarr`.
+
+    Returns
+    -------
+    az.InferenceData
+    """
+    return az.from_datatree(_open_datatree_zarr(store))
 
 
 def filter_idata_by_dates(

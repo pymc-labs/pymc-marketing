@@ -448,31 +448,32 @@ class FourierBase(BaseModel):
 
         Examples
         --------
-        Save off the result before summing through the prefix dimension.
+        Save the per-component result before summing through the prefix
+        dimension by passing ``sum=False`` and registering a Deterministic
+        on the un-summed tensor.
 
         .. code-block:: python
 
             import pandas as pd
 
             import pymc as pm
+            import pymc.dims as pmd
 
             from pymc_marketing.mmm import YearlyFourier
 
             fourier = YearlyFourier(n_order=3)
 
-
-            def callback(result):
-                pm.Deterministic("fourier_trend", result, dims=("date", "fourier"))
-
-
             dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
 
-            coords = {
-                "date": dates,
-            }
+            coords = {"date": dates}
             with pm.Model(coords=coords) as model:
-                dayofyear = dates.dayofyear.to_numpy()
-                fourier.apply(dayofyear, result_callback=callback)
+                dayofyear = pmd.Data(
+                    "dayofyear", dates.dayofyear.to_numpy(), dims=("date",)
+                )
+                components = fourier.apply(dayofyear, sum=False)
+                pmd.Deterministic(
+                    "fourier_trend", components, dims=("date", fourier.prefix)
+                )
 
         """
         periods = dayofperiod / self.days_in_period

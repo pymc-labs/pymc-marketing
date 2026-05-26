@@ -31,7 +31,7 @@ from pymc.util import RandomState
 from pymc_extras.printing import model_table
 from rich.table import Table
 
-from pymc_marketing.utils import from_netcdf
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -47,33 +47,6 @@ except ImportError:
     def check_array(X, **kwargs):
         """Check if the input data is valid for the model."""
         return X
-
-
-def _handle_deprecate_pred_argument(
-    value,
-    name: str,
-    kwargs: dict,
-    none_allowed: bool = False,
-):
-    name_pred = f"{name}_pred"
-    if name_pred in kwargs and value is not None:
-        raise ValueError(f"Both {name} and {name_pred} cannot be provided.")
-
-    if name_pred not in kwargs and value is None and none_allowed:
-        return value
-
-    if name_pred not in kwargs and value is None:
-        raise ValueError(f"Please provide {name}.")
-
-    if name_pred in kwargs:
-        warnings.warn(
-            f"{name_pred} is deprecated, use {name} instead",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return kwargs.pop(name_pred)
-
-    return value
 
 
 def create_idata_accessor(value: str, message: str):
@@ -96,13 +69,15 @@ def create_idata_accessor(value: str, message: str):
     """
 
     def accessor(self) -> xr.Dataset:
-        __doc__ = f"""Access the '{value}' attribute of the InferenceData object."""  # noqa: F841
         if self.idata is None or value not in self.idata:
             raise RuntimeError(message)
 
         return self.idata[value]
 
-    return property(accessor)
+    return property(
+        accessor,
+        doc=f"Access the '{value}' attribute of the InferenceData object.",
+    )
 
 
 def requires_model(func):
@@ -357,10 +332,11 @@ class ModelIO:
         **kwargs
             Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
             Common options include:
-            - engine : str, optional (default "netcdf4")
-                Library to use for writing files.
-            - groups : list of str, optional
-                Groups to save to netcdf. If None, all groups are saved.
+
+            - ``engine`` : str, optional (default ``"netcdf4"``)
+              Library to use for writing files.
+            - ``groups`` : list of str, optional
+              Groups to save to netcdf. If None, all groups are saved.
 
         Returns
         -------
@@ -398,7 +374,10 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
-            self.idata.to_netcdf(str(file), **kwargs)
+            if file.suffix == ".zarr" or file.is_dir():
+                idata_to_zarr(self.idata, file, **kwargs)
+            else:
+                self.idata.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -445,7 +424,7 @@ class ModelIO:
     def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
         """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
 
-        This method must be overridden in child classes if data is needed as a keyword argument.
+        This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
@@ -494,7 +473,10 @@ class ModelIO:
 
         """
         filepath = Path(str(fname))
-        idata = from_netcdf(filepath)
+        if filepath.suffix == ".zarr" or filepath.is_dir():
+            idata = idata_from_zarr(filepath)
+        else:
+            idata = az.from_netcdf(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -542,7 +524,19 @@ class ModelIO:
             model = cls(**init_kwargs)
 
         model.idata = idata
-        model.build_from_idata(idata)
+        if "fit_data" in idata:
+            # TODO: Overriding method in CLVModel requires this; revise/remove for v1.0
+            built = model.build_from_idata(idata)
+            if built is not None:
+                model = built
+        else:
+            warnings.warn(
+                "The loaded model does not include fit_data used for training. "
+                "Plotting and prior/posterior predictive sampling may not work correctly. "
+                "Run build_model() with training data for full functionality.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         if not check:
             return model
@@ -1063,7 +1057,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         **kwargs,
     ) -> np.ndarray:
@@ -1227,7 +1221,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_prior_predictive(
         self,
-        X=None,
+        X,
         y=None,
         samples: int | None = None,
         extend_idata: bool = True,
@@ -1260,9 +1254,6 @@ class RegressionModelBuilder(ModelBuilder):
             Prior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
-        y = _handle_deprecate_pred_argument(y, "y", kwargs, none_allowed=True)
-
         if y is None:
             y = np.zeros(len(X))
         if samples is None:
@@ -1291,7 +1282,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def sample_posterior_predictive(
         self,
-        X=None,
+        X,
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs,
@@ -1316,8 +1307,6 @@ class RegressionModelBuilder(ModelBuilder):
             Posterior predictive samples for each input X
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
-
         self._data_setter(X)
 
         with self.model:
@@ -1338,7 +1327,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_proba(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = False,
         **kwargs,
@@ -1348,7 +1337,7 @@ class RegressionModelBuilder(ModelBuilder):
 
     def predict_posterior(
         self,
-        X: np.ndarray | pd.DataFrame | pd.Series | None = None,
+        X: np.ndarray | pd.DataFrame | pd.Series,
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs,
@@ -1374,7 +1363,6 @@ class RegressionModelBuilder(ModelBuilder):
             Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
 
         """
-        X = _handle_deprecate_pred_argument(X, "X", kwargs)
         X = self._validate_data(X)
         posterior_predictive_samples = self.sample_posterior_predictive(
             X, extend_idata, combined, **kwargs

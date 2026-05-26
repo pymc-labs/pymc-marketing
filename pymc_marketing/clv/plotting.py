@@ -427,8 +427,8 @@ def plot_expected_purchases_over_time(
     References
     ----------
     .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
-    A Note on Implementing the Pareto/NBD Model in MATLAB.
-    http://brucehardie.com/notes/008/
+       A Note on Implementing the Pareto/NBD Model in MATLAB.
+       http://brucehardie.com/notes/008/
     """
     if ax is None:
         ax = plt.subplot(111)

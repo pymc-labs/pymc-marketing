@@ -34,8 +34,8 @@ dependencies = [
     "patsy",
     "pydantic>=2.1.0",
     # NOTE: Used as minimum pymc version with test.yml `OLDEST_PYMC_VERSION`
-    "pymc>=5.28.1",
-    "pytensor>=2.38.2",
+    "pymc>=5.28.5,<6.0.0",
+    "pytensor>=2.38.2,<3.0.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "tqdm",
@@ -49,6 +49,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+pie = ["pymc-bart"]
 docs = [
     "blackjax",
     "fastprogress",
@@ -86,7 +87,7 @@ test = [
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
-    "jax<0.10.0",
+    "jax",
     "graphviz>=0.20.1",
     "papermill",
     "polars>=1.0.0",
@@ -102,6 +103,7 @@ test = [
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
+    "pymc-bart",
 ]
 
 [tool.hatch.build.targets.sdist]

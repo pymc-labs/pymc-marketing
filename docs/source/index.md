@@ -2,8 +2,7 @@
 og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 ---
 
-:::{title} PyMC-Marketing
-:::
+# PyMC-Marketing
 
 ```{eval-rst}
 .. meta::
@@ -197,9 +196,15 @@ Analyze the impact of new product launches and understand customer choice behavi
 
 See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
 
+## Bass Diffusion Model
+
+Forecast the adoption of new products with the **Bass Diffusion Model**. The model captures how innovators and imitators drive cumulative adoption over time, which is useful for product launch forecasts, demand planning, and growth analysis.
+
+See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html) for a worked example.
+
 ---
 
-<h1 style="text-align: center;">Resources</h1>
+## Resources
 
 ### Bolt's success story with PyMC-Marketing
 **Checkout the video below to see how Bolt leverages PyMC-Marketing to assess the impact of their marketing efforts.**

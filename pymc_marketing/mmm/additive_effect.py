@@ -14,7 +14,7 @@
 """Additive effects for the multidimensional Marketing Mix Model.
 
 Example of a custom additive effect
---------
+-----------------------------------
 
 1. Custom negative-effect component (added as a MuEffect)
 
@@ -86,9 +86,9 @@ How it works
 ------------
 - Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
   and ``set_data(mmm, model, X)``.
-- During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
+- During ``MMM.build_model(...)``, each effect's ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
-  dims ("date", *mmm.dims) that is added additively to the model mean.
+  dims ``("date", *mmm.dims)`` that is added additively to the model mean.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
@@ -97,12 +97,13 @@ Tips for custom components
 - Use unique variable prefixes to avoid name clashes with built-in pieces like
   controls. Do not call your component "control"; choose a distinct name/prefix.
 - Follow the patterns used by the provided effects in this module (e.g.,
-  `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
-  - In `create_data`, derive and register any required inputs into the model.
-  - In `create_effect`, construct PyTensor expressions and return a contribution
-    with dims ("date", *mmm.dims). If you need broadcasting, use
-    `pymc_extras.prior.create_dim_handler` as shown above.
-  - In `set_data`, update the data variables when dates/dims change.
+  ``FourierEffect``, ``LinearTrendEffect``, ``EventAdditiveEffect``):
+
+  - In ``create_data``, derive and register any required inputs into the model.
+  - In ``create_effect``, construct PyTensor expressions and return a contribution
+    with dims ``("date", *mmm.dims)``. If you need broadcasting, use
+    ``pymc_extras.prior.create_dim_handler`` as shown above.
+  - In ``set_data``, update the data variables when dates/dims change.
 """
 
 from abc import ABC, abstractmethod
@@ -241,6 +242,23 @@ class MuEffect(SerializableBaseModel, ABC):
     @abstractmethod
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return supplementary data groups to store in InferenceData.
+
+        Override in subclasses that need to persist large DataFrames or
+        other non-JSON-serializable data alongside the model.
+
+        Each entry is stored as a top-level group in the InferenceData
+        netCDF file during ``save()`` and is available to custom
+        deserializers via ``DeserializationContext(idata=...)``.
+
+        Returns
+        -------
+        dict[str, xr.Dataset]
+            Group name to xarray Dataset mapping.
+        """
+        return {}
 
 
 class FourierEffect(MuEffect):
@@ -385,6 +403,7 @@ class LinearTrendEffect(MuEffect):
         import matplotlib.pyplot as plt
 
         import pymc as pm
+        import pymc.dims as pmd
 
         from pymc_marketing.mmm.linear_trend import LinearTrend
         from pymc_marketing.mmm.additive_effect import LinearTrendEffect
@@ -703,6 +722,14 @@ class EventAdditiveEffect(MuEffect):
             "days": days_from_reference(new_dates, self.reference_date),
         }
         pm.set_data(new_data=new_data, model=model)
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return the events DataFrame as a supplementary idata group."""
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df_events.reset_index(drop=True)
+            ),
+        }
 
 
 def _deserialize_event_additive_effect(

@@ -3,6 +3,9 @@
 
 ```{toctree}
 :hidden:
+:glob:
+
+/notebooks/**
 ```
 
 ## Introduction
@@ -75,9 +78,15 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_dims_migration_guide.png
 :link: ../notebooks/mmm/mmm_dims_migration_guide.html
 :::
+
+:::{grid-item-card} MMM Plot Suite Migration Guide
+:img-top: ../gallery/images/mmm_plot_suite_migration_guide.png
+:link: ../notebooks/mmm/mmm_plot_suite_migration_guide.html
+:::
 ::::
 
 ### Custom Models
+
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -216,8 +225,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
 :::
-
-:::::
+::::
 
 ### Case Studies
 
@@ -311,12 +319,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/customer_choice/consideration_set_logit.html
 :::
 
-:::{grid-item-card} Bayesian BLP (Synthetic Data)
+:::{grid-item-card} MaxDiff (Best-Worst Scaling)
+:img-top: ../gallery/images/maxdiff.png
+:link: ../notebooks/customer_choice/maxdiff.html
+:::
+
+:::{grid-item-card} Bayesian BLP: Structural Demand on Aggregate Shares
 :img-top: ../gallery/images/bayesian_blp.png
 :link: ../notebooks/customer_choice/bayesian_blp.html
 :::
 
-:::{grid-item-card} Bayesian BLP (Nevo Cereal Panel)
+:::{grid-item-card} Bayesian BLP on the Nevo Cereal Panel
 :img-top: ../gallery/images/bayesian_blp_nevo.png
 :link: ../notebooks/customer_choice/bayesian_blp_nevo.html
 :::

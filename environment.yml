@@ -67,6 +67,7 @@ dependencies:
   - papermill
   - plotly
   - tqdm
+  - pygraphviz
   - pip:
       - roadmapper
       - labs-sphinx-theme

@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import tempfile
+from pathlib import Path
 
 import arviz as az
 import graphviz
@@ -27,13 +28,13 @@ import pytest
 import xarray as xr
 from rich.table import Table
 
+from pymc_marketing.data.idata.utils import idata_from_zarr
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_builder import (
     DifferentModelError,
     ModelBuilder,
     ModelIO,
     RegressionModelBuilder,
-    _handle_deprecate_pred_argument,
     create_sample_kwargs,
 )
 
@@ -377,41 +378,18 @@ def test_model_io_comprehensive():
 
 
 @pytest.mark.parametrize(
-    "method_name,deprecated_arg,additional_kwargs",
-    [
-        ("sample_posterior_predictive", "X_pred", {}),
-        ("predict", "X_pred", {}),
-        ("sample_prior_predictive", "X_pred", {}),
-        (
-            "sample_prior_predictive",
-            "y_pred",
-            {"X": pd.DataFrame({"input": [1, 2, 3]})},
-        ),
-    ],
+    "method_name",
+    ["sample_prior_predictive", "sample_posterior_predictive", "predict_posterior"],
 )
-def test_deprecation_warnings(
-    fitted_regression_model_instance,
-    toy_X,
-    toy_y,
-    method_name,
-    deprecated_arg,
-    additional_kwargs,
+def test_pred_alias_no_longer_accepted(
+    fitted_regression_model_instance, toy_X, method_name
 ):
-    """Test deprecation warnings for various methods."""
-    # Clear any existing data that might interfere
-    if "posterior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.posterior_predictive
-    if "prior" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior
-    if "prior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior_predictive
-
-    with pytest.warns(DeprecationWarning, match=f"{deprecated_arg} is deprecated"):
-        method = getattr(fitted_regression_model_instance, method_name)
-        if deprecated_arg == "y_pred":
-            method(**additional_kwargs, **{deprecated_arg: toy_y})
-        else:
-            method(**additional_kwargs, **{deprecated_arg: toy_X})
+    """X_pred used to be a deprecated alias for X. After deprecation removal,
+    X is a required positional argument, so passing only X_pred raises TypeError.
+    """
+    method = getattr(fitted_regression_model_instance, method_name)
+    with pytest.raises(TypeError, match=r"missing 1 required positional argument: 'X'"):
+        method(X_pred=toy_X)
 
 
 def test_data_validation_comprehensive():
@@ -526,36 +504,6 @@ def test_idata_accessors_comprehensive():
         model.fit_result
 
 
-def test_handle_deprecate_pred_argument():
-    """Test the _handle_deprecate_pred_argument utility function."""
-    kwargs = {}
-
-    # Test normal case
-    result = _handle_deprecate_pred_argument("test_value", "test", kwargs)
-    assert result == "test_value"
-
-    # Test deprecated argument
-    kwargs = {"test_pred": "deprecated_value"}
-    with pytest.warns(DeprecationWarning, match="test_pred is deprecated"):
-        result = _handle_deprecate_pred_argument(None, "test", kwargs)
-    assert result == "deprecated_value"
-    assert "test_pred" not in kwargs  # Should be removed
-
-    # Test both arguments provided
-    kwargs = {"test_pred": "deprecated_value"}
-    with pytest.raises(ValueError, match=r"Both test and test_pred cannot be provided"):
-        _handle_deprecate_pred_argument("test_value", "test", kwargs)
-
-    # Test none allowed (without deprecated argument)
-    kwargs = {}
-    result = _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=True)
-    assert result is None
-
-    # Test none not allowed
-    with pytest.raises(ValueError, match=r"Please provide test"):
-        _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=False)
-
-
 def test_save_input_params(fitted_regression_model_instance):
     assert (
         fitted_regression_model_instance.idata.attrs["test_parameter"]
@@ -608,32 +556,32 @@ def test_save_with_kwargs(fitted_regression_model_instance):
         temp.close()
 
 
-def test_save_with_kwargs_integration(fitted_regression_model_instance):
+@pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
+@pytest.mark.parametrize("suffix", [".nc", ".zarr"], ids=["netcdf", "zarr"])
+def test_save_with_kwargs_integration(
+    fitted_regression_model_instance, tmp_path, path_factory, suffix
+):
     """Test save function with actual kwargs (integration test)"""
 
-    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-    temp_path = temp.name
-    temp.close()
+    file_path = tmp_path / f"model_results{suffix}"
+    path_arg = path_factory(file_path)
 
-    try:
-        # Test with specific groups - this tests that kwargs are passed through
-        fitted_regression_model_instance.save(temp_path, groups=["posterior"])
+    # Test with specific groups - this tests that kwargs are passed through
+    fitted_regression_model_instance.save(path_arg, groups=["posterior"])
 
-        # Verify file was created successfully
-        assert os.path.exists(temp_path)
+    # Verify file was created successfully
+    assert file_path.exists()
 
-        # Verify we can read the file and it contains the expected groups
-        from pymc_marketing.utils import from_netcdf
+    # Verify we can read the file and it contains the expected groups
+    if suffix == ".zarr":
+        loaded_idata = idata_from_zarr(path_arg)
+    else:
+        loaded_idata = az.from_netcdf(str(file_path))
 
-        loaded_idata = from_netcdf(temp_path)
-        assert "posterior" in loaded_idata.groups()
-        # Should only have posterior since we specified groups=["posterior"]
-        assert "fit_data" not in loaded_idata.groups()
-
-    finally:
-        # Clean up
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+    assert loaded_idata is not None
+    assert "posterior" in loaded_idata.groups()
+    # Should only have posterior since we specified groups=["posterior"]
+    assert "fit_data" not in loaded_idata.groups()
 
 
 def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
@@ -1251,6 +1199,17 @@ def test_load_from_idata_check_false(fitted_regression_model_instance):
     idata = fitted_regression_model_instance.idata
     model = RegressionModelBuilderTest.load_from_idata(idata, check=False)
     assert isinstance(model, RegressionModelBuilderTest)
+
+
+def test_load_from_idata_without_fit_data_warns(fitted_regression_model_instance):
+    idata = fitted_regression_model_instance.idata.copy()
+    assert "fit_data" in idata
+    del idata.fit_data
+    with pytest.warns(UserWarning, match="fit_data used for training"):
+        model = RegressionModelBuilderTest.load_from_idata(idata)
+    assert isinstance(model, RegressionModelBuilderTest)
+    assert model.idata is idata
+    assert not hasattr(model, "model")
 
 
 def test_fit_result_setter_else_branch():

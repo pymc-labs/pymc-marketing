@@ -18,6 +18,10 @@ from pymc_marketing.customer_choice.bayesian_blp import BayesianBLP
 from pymc_marketing.customer_choice.consideration_set_logit import (
     ConsiderationSetMixedLogit,
 )
+from pymc_marketing.customer_choice.maxdiff import (
+    MaxDiffMixedLogit,
+    prepare_maxdiff_data,
+)
 from pymc_marketing.customer_choice.mixed_logit import MixedLogit
 from pymc_marketing.customer_choice.mv_its import (
     MVITS,
@@ -25,6 +29,8 @@ from pymc_marketing.customer_choice.mv_its import (
 )
 from pymc_marketing.customer_choice.synthetic_data import (
     generate_blp_panel,
+    generate_maxdiff_conjoint_data,
+    generate_maxdiff_data,
     generate_saturated_data,
     generate_unsaturated_data,
 )
@@ -33,10 +39,14 @@ __all__ = [
     "MVITS",
     "BayesianBLP",
     "ConsiderationSetMixedLogit",
+    "MaxDiffMixedLogit",
     "MixedLogit",
     "generate_blp_panel",
+    "generate_maxdiff_conjoint_data",
+    "generate_maxdiff_data",
     "generate_saturated_data",
     "generate_unsaturated_data",
     "plot_product",
+    "prepare_maxdiff_data",
     "taste_profiles",
 ]

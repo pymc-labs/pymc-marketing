@@ -5,7 +5,7 @@ description: >
   transformations, setting priors, fitting multidimensional (geo-level) models, computing channel
   contributions, ROAS, running budget optimization, calibrating with lift tests, or performing
   sensitivity analysis. Covers the MMM class, GeometricAdstock, LogisticSaturation,
-  MultiDimensionalBudgetOptimizerWrapper, and ArviZ diagnostics for marketing models.
+  BudgetOptimizerWrapper, and ArviZ diagnostics for marketing models.
 ---
 
 # Media Mix Modeling with PyMC-Marketing
@@ -14,9 +14,9 @@ Bayesian Media Mix Modeling workflow using the PyMC-Marketing `MMM` class.
 
 > **PyMC prerequisite:** This skill assumes familiarity with PyMC's core modeling API (coords/dims, priors, MCMC diagnostics, HSGP). For foundational patterns, see the [pymc-modeling skill](https://github.com/pymc-labs/python-analytics-skills/tree/main/skills/pymc-modeling).
 
-LLMs understand Bayesian inference, MCMC, and hierarchical models in general. But getting from those concepts to a correctly specified, well-diagnosed, and actionable PyMC-Marketing MMM requires domain-specific knowledge: which `Prior` to use for saturation beta informed by spend shares, how `dims=("geo",)` activates multidimensional partial pooling, why the final model must be fit on the **full dataset** (time-slice CV is only for stability assessment), how `add_lift_test_measurements()` resolves causal identification, and how `MultiDimensionalBudgetOptimizerWrapper` translates posterior uncertainty into optimal allocations.
+LLMs understand Bayesian inference, MCMC, and hierarchical models in general. But getting from those concepts to a correctly specified, well-diagnosed, and actionable PyMC-Marketing MMM requires domain-specific knowledge: which `Prior` to use for saturation beta informed by spend shares, how `dims=("geo",)` activates multidimensional partial pooling, why the final model must be fit on the **full dataset** (time-slice CV is only for stability assessment), how `add_lift_test_measurements()` resolves causal identification, and how `BudgetOptimizerWrapper` translates posterior uncertainty into optimal allocations.
 
-This skill encodes those patterns. Without it, an LLM might hold out test data for the final fit (wrong -- use all data, validate with time-slice CV), use flat priors on saturation parameters (causes divergences), skip `add_original_scale_contribution_variable` (then contributions are on scaled space), or call `BudgetOptimizer` directly instead of `MultiDimensionalBudgetOptimizerWrapper` (misses geo-level allocation).
+This skill encodes those patterns. Without it, an LLM might hold out test data for the final fit (wrong -- use all data, validate with time-slice CV), use flat priors on saturation parameters (causes divergences), skip `add_original_scale_contribution_variable` (then contributions are on scaled space), or call `BudgetOptimizer` directly instead of `BudgetOptimizerWrapper` (misses geo-level allocation).
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ import pandas as pd
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 # Load data
 data_df = pd.read_csv("data.csv", parse_dates=["date"])
@@ -193,8 +193,8 @@ from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 
 with pm.Model(coords=coords) as custom_mmm:
     channel_data_ = pm.Data("channel_data", channel_scaled, dims=("date", "geo", "channel"))
-    adstocked = adstock.apply(channel_data_, dims=("geo", "channel"))
-    channel_contribution = saturation.apply(adstocked, dims=("geo", "channel"))
+    adstocked = adstock.apply(channel_data_, core_dim="date")
+    channel_contribution = saturation.apply(adstocked, core_dim="date")
     # ... add intercept, controls, seasonality, likelihood
 ```
 
@@ -205,9 +205,9 @@ See [references/custom_model.md](references/custom_model.md) for standalone comp
 ## Budget Optimization
 
 ```python
-from pymc_marketing.mmm.multidimensional import MultiDimensionalBudgetOptimizerWrapper
+from pymc_marketing.mmm.mmm import BudgetOptimizerWrapper
 
-optimizable_model = MultiDimensionalBudgetOptimizerWrapper(
+optimizable_model = BudgetOptimizerWrapper(
     model=mmm, start_date=str(start_date), end_date=str(end_date),
 )
 

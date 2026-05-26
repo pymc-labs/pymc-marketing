@@ -28,10 +28,10 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from pymc_marketing.data.idata import MMMIDataWrapper
+from pymc_marketing.mmm.plotting._helpers import _ensure_chain_draw_dims
 from pymc_marketing.mmm.plotting.transformations import (
     _SCALED_SPACE_MAX_THRESHOLD,
     TransformationPlots,
-    _ensure_chain_draw_dims,
 )
 
 matplotlib.use("Agg")

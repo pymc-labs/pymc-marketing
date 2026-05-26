@@ -146,7 +146,7 @@ from pymc_marketing.pytensor_utils import extract_response_distribution
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
 
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 
 class Incrementality:

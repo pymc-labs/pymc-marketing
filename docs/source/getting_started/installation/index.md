@@ -1,3 +1,5 @@
+# Installation
+
 ## Installing PyMC-Marketing
 
 PyMC-Marketing requires **Python 3.10 or greater**.

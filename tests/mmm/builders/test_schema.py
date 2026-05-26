@@ -268,7 +268,7 @@ class TestFromYamlFile:
     def test_valid_file(self, tmp_path):
         config = {
             "model": {
-                "class": "pymc_marketing.mmm.multidimensional.MMM",
+                "class": "pymc_marketing.mmm.mmm.MMM",
                 "kwargs": {"date_column": "date"},
             }
         }
@@ -276,7 +276,7 @@ class TestFromYamlFile:
         path.write_text(yaml.dump(config))
 
         cfg = MMMYamlConfig.from_yaml_file(path)
-        assert cfg.model.class_ == "pymc_marketing.mmm.multidimensional.MMM"
+        assert cfg.model.class_ == "pymc_marketing.mmm.mmm.MMM"
 
     def test_invalid_file_raises_validation_error(self, tmp_path):
         config = {"modle": {"class": "some.Class"}}

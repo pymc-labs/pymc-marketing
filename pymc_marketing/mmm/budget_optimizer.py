@@ -21,7 +21,7 @@ Optimize how to allocate a total budget across channels (and optional extra dims
 maximize an expected response derived from a fitted MMM posterior.
 
 Quickstart (multi‑dimensional MMM)
----------------------------------
+----------------------------------
 
 .. code-block:: python
 
@@ -29,9 +29,9 @@ Quickstart (multi‑dimensional MMM)
     import pandas as pd
     import xarray as xr
     from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-    from pymc_marketing.mmm.multidimensional import (
+    from pymc_marketing.mmm.mmm import (
         MMM,
-        MultiDimensionalBudgetOptimizerWrapper,
+        BudgetOptimizerWrapper,
     )
 
     # 1) Fit a model (toy example)
@@ -56,7 +56,7 @@ Quickstart (multi‑dimensional MMM)
     mmm.fit(X, y)
 
     # 2) Wrap the fitted model for allocation over a future window
-    wrapper = MultiDimensionalBudgetOptimizerWrapper(
+    wrapper = BudgetOptimizerWrapper(
         model=mmm,
         start_date=X["date"].max() + pd.Timedelta(weeks=1),
         end_date=X["date"].max() + pd.Timedelta(weeks=8),
@@ -120,7 +120,7 @@ in monetary units.
     # cost_per_unit internally before feeding into the model.
 
 Use a custom pymc model with any dimensionality
-----------------------------------------------
+-----------------------------------------------
 
 .. code-block:: python
 
@@ -136,7 +136,7 @@ Use a custom pymc model with any dimensionality
 
     # 1) Build and fit any PyMC model that exposes:
     #    - a variable named 'channel_data' with dims ("date", "channel", ...)
-    #    - a deterministic named 'total_contribution' with dim "date"
+    #    - a deterministic named 'total_media_contribution_original_scale' (scalar)
     #    - optionally a deterministic named 'channel_contribution' with dims ("date", "channel", ...)
     #      so the optimizer can auto-detect optimizable cells; otherwise pass budgets_to_optimize.
 
@@ -156,7 +156,7 @@ Use a custom pymc model with any dimensionality
         # Per-period contribution
         pm.Deterministic("total_contribution_per_period", mu, dims="date")
         # For optimization: sum over all dimensions to get a scalar
-        pm.Deterministic("total_contribution", mu.sum(), dims=())
+        pm.Deterministic("total_media_contribution_original_scale", mu.sum(), dims=())
         pm.Deterministic(
             "channel_contribution",
             channel_contrib,
@@ -193,13 +193,15 @@ Requirements
 ------------
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
+
   - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
   - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
     model where a variable named `channel_data` exists with dims including `"date"` and all
     budget dims (e.g., `("channel", "geo")`).
     The optimizer replaces `channel_data` with the optimization variable under the hood.
-- Posterior must contain a response variable (default: `"total_contribution"`) or any custom
-  `response_variable` you pass, and the required MMM deterministics (e.g. `channel_contribution`).
+- Posterior must contain a response variable (default: `"total_media_contribution_original_scale"`)
+  or any custom `response_variable` you pass, and the required MMM deterministics (e.g.
+  `channel_contribution`).
 - For time distribution: pass a DataArray with dims `("date", *budget_dims)` and values along
   `date` summing to 1 for each budget cell.
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an xarray.DataArray
@@ -229,7 +231,7 @@ from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
-from pytensor.compile.sharedvalue import shared
+from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -243,6 +245,7 @@ from pymc_marketing.mmm.constraints import (
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
+from pymc_marketing.version import __version__
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -331,7 +334,8 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
     """Merge multiple optimizer-compatible models into a single model.
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
-    - Merging their posterior `InferenceData` with per-model prefixes
+
+    - Merging their posterior ``InferenceData`` with per-model prefixes
     - Optionally thinning posterior draws via ``use_every_n_draw``
     - Exposing a persistent merged PyMC ``Model`` for optimization through
       ``_set_predictors_for_optimization`` and a dynamic ``model`` property for
@@ -376,9 +380,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
     .. code-block:: python
 
-        from pymc_marketing.mmm.multidimensional import (
+        from pymc_marketing.mmm.mmm import (
             MMM,
-            MultiDimensionalBudgetOptimizerWrapper,
+            BudgetOptimizerWrapper,
         )
         from pymc_marketing.mmm.budget_optimizer import (
             BuildMergedModel,
@@ -386,15 +390,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
         )
 
         # Assume m1, m2, m3 are already fitted MMM instances
-        w1 = MultiDimensionalBudgetOptimizerWrapper(
-            model=m1, start_date=start, end_date=end
-        )
-        w2 = MultiDimensionalBudgetOptimizerWrapper(
-            model=m2, start_date=start, end_date=end
-        )
-        w3 = MultiDimensionalBudgetOptimizerWrapper(
-            model=m3, start_date=start, end_date=end
-        )
+        w1 = BudgetOptimizerWrapper(model=m1, start_date=start, end_date=end)
+        w2 = BudgetOptimizerWrapper(model=m2, start_date=start, end_date=end)
+        w3 = BudgetOptimizerWrapper(model=m3, start_date=start, end_date=end)
 
         merged = BuildMergedModel(
             models=[w1, w2, w3],
@@ -609,7 +607,8 @@ class BudgetOptimizer(BaseModel):
     model : MMMModel
         The marketing mix model to optimize.
     response_variable : str, optional
-        The response variable to optimize. Default is "total_contribution".
+        The response variable to optimize. Default is
+        ``"total_media_contribution_original_scale"``.
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -645,7 +644,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="total_contribution",
+        default="total_media_contribution_original_scale",
         description="The response variable to optimize.",
     )
 
@@ -697,20 +696,33 @@ class BudgetOptimizer(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    _total_budget: SharedVariable = PrivateAttr()
+    _budget_dims: list[str] = PrivateAttr()
+    _budget_coords: dict[str, list] = PrivateAttr()
+    _budget_shape: tuple[int, ...] = PrivateAttr()
+    _budgets_flat: XTensorVariable = PrivateAttr()
+    _budgets: XTensorVariable = PrivateAttr()
+    _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
+    _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
+    _pymc_model: Model = PrivateAttr()
+    _compiled_functions: dict = PrivateAttr()
+    _constraints: dict = PrivateAttr()
+    _compiled_constraints: list[dict] = PrivateAttr()
+
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
         "options": {"ftol": 1e-9, "maxiter": 1_000},
     }
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def model_post_init(self, context: Any, /) -> None:
+        """Build optimization tensors and compile objective after Field validation."""
         # 1. Prepare model with time dimension for optimization
         pymc_model = self.mmm_model._set_predictors_for_optimization(
             self.num_periods
         )  # TODO: Once multidimensional class becomes the main class.
 
-        # 2. Shared variable for total_budget: Use annotation to avoid type checking
-        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")  # type: ignore
+        # 2. Shared variable for total_budget
+        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
@@ -799,11 +811,23 @@ class BudgetOptimizer(BaseModel):
             pymc_model
         )
 
-        # 7. Compile objective & gradient
+        # 7. Validate that the requested response variable actually exists in
+        # the underlying PyMC model. ``extract_response_distribution`` looks
+        # up ``pymc_model[response_variable]``; raising here turns an opaque
+        # ``KeyError`` deep in graph extraction into an actionable error.
+        if self.response_variable not in self._pymc_model.named_vars:
+            available = sorted(self._pymc_model.named_vars)
+            raise ValueError(
+                f"response_variable={self.response_variable!r} is not in the "
+                f"PyMC model. Available variables: {available}. "
+                "Pass an explicit response_variable to BudgetOptimizer."
+            )
+
+        # 8. Compile objective & gradient
         self._compiled_functions = {}
         self._compile_objective_and_grad()
 
-        # 8. Build constraints
+        # 9. Build constraints
         self._constraints = {}
         self.set_constraints(
             default=self.default_constraints, constraints=self.custom_constraints
@@ -1136,7 +1160,8 @@ class BudgetOptimizer(BaseModel):
         budget_bounds : DataArray or dict, optional
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
-            - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
+            - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
+              specifying [low, high] per channel cell.
         x0 : np.ndarray, optional
             Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
             None, the total budget is spread uniformly across all drivers to be optimized.
@@ -1316,6 +1341,7 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
+            optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
             if callback:
                 return optimal_budgets, result, callback_info
