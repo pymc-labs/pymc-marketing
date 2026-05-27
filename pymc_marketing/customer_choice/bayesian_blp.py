@@ -162,32 +162,62 @@ class BayesianBLP(ModelBuilder):
     map to the model symbols as follows. See the synthetic notebook for the
     full index conventions and a more detailed table.
 
-    =======================  =======================  ==========================
-    Code name                Math                     Role
-    =======================  =======================  ==========================
-    ``alpha`` / ``alpha_r``  α, α_r                   Price coefficient (population, per-region)
-    ``beta`` / ``beta_r``    β, β_r                   Characteristic utility weights
-    ``alpha_pop``,           α_pop, τ_α,              Cross-region hyperparameters
-    ``tau_alpha`` etc.       β_pop, τ_β               (only when ``region_col`` is set)
-    ``sigma_random``         σ_d                      Consumer heterogeneity scale per random-coef dim
-    ``model._halton[:, d]``  ν_id                     Consumer i's standardised N(0,1) taste shock on
-                                                      dimension d, drawn from the Halton grid (fixed)
-    (internal ``mu_dev``)    μ_ijm                    Consumer-level utility deviation
-                                                      Σ_d σ_d ν_id c_jmd; not exposed as a variable
-    ``xi`` / ``xi_j`` /      ξ_jm, ξ_j, ξ̃_jm        Product-market quality shock decomposed as
-    ``xi_tilde``                                      product fixed effect + centered residual
-    ``sigma_xi``,            σ_ξ, σ_{ξ_j}            Marginal scales of ξ_jm and ξ_j
-    ``sigma_xi_j``
-    ``eta`` / ``sigma_eta``  η_jm, σ_η                First-stage price residual and its scale
-    ``pi_0`` / ``pi_z``      π_0, π_z                 First-stage intercepts / instrument coefs
-    ``rho_price_xi``         ρ                        Endogeneity correlation between ξ and η
-    ``gamma_xi_eta``,        γ, ω                     Slope-residual coordinates the sampler uses;
-    ``omega_xi``                                      (ρ, σ_ξ) are derived Deterministics
-    ``delta``                δ_jm                     Mean utility (only if ``track_delta=True``)
-    ``s_inside`` /           ŝ_jm, ŝ_0m              Halton-averaged predicted shares
-    ``s_outside``
-    ``log_share_ratio``      log s_jm − log s_0m      Likelihood's observed quantity
-    =======================  =======================  ==========================
+    .. list-table::
+       :header-rows: 1
+       :widths: 25 20 55
+
+       * - Code name
+         - Math
+         - Role
+       * - ``alpha`` / ``alpha_r``
+         - α, α_r
+         - Price coefficient (population, per-region)
+       * - ``beta`` / ``beta_r``
+         - β, β_r
+         - Characteristic utility weights
+       * - ``alpha_pop``, ``tau_alpha``, ``beta_pop``, ``tau_beta``
+         - α_pop, τ_α, β_pop, τ_β
+         - Cross-region hyperparameters (only when ``region_col`` is set)
+       * - ``sigma_random``
+         - σ_d
+         - Consumer heterogeneity scale per random-coefficient dimension
+       * - ``model._halton[:, d]``
+         - ν_id
+         - Consumer i's standardised N(0,1) taste shock on dimension d,
+           drawn from the Halton grid (fixed data, not sampled)
+       * - *internal* ``mu_dev``
+         - μ_ijm
+         - Consumer-level utility deviation
+           Σ_d σ_d · ν_id · c_jmd; not exposed as a posterior variable
+       * - ``xi`` / ``xi_j`` / ``xi_tilde``
+         - ξ_jm, ξ_j, ξ̃_jm
+         - Product-market quality shock decomposed as product fixed effect
+           + centered residual
+       * - ``sigma_xi``, ``sigma_xi_j``
+         - σ_ξ, σ_{ξ_j}
+         - Marginal scales of ξ_jm and ξ_j
+       * - ``eta`` / ``sigma_eta``
+         - η_jm, σ_η
+         - First-stage price residual and its scale
+       * - ``pi_0`` / ``pi_z``
+         - π_0, π_z
+         - First-stage intercepts / instrument coefficients
+       * - ``rho_price_xi``
+         - ρ
+         - Endogeneity correlation between ξ and η
+       * - ``gamma_xi_eta``, ``omega_xi``
+         - γ, ω
+         - Slope-residual coordinates the sampler uses; (ρ, σ_ξ) are
+           derived Deterministics
+       * - ``delta``
+         - δ_jm
+         - Mean utility (only if ``track_delta=True``)
+       * - ``s_inside`` / ``s_outside``
+         - ŝ_jm, ŝ_0m
+         - Halton-averaged predicted shares
+       * - ``log_share_ratio``
+         - log s_jm − log s_0m
+         - Likelihood's observed quantity
     """
 
     _model_type = "Bayesian BLP"
