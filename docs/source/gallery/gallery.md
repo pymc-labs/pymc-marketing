@@ -54,6 +54,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 
+:::{grid-item-card} Additive vs Log vs Log-Log MMMs
+:img-top: ../gallery/images/mmm_multiplicative.png
+:link: ../notebooks/mmm/mmm_multiplicative.html
+:::
+
 :::{grid-item-card} Interactive MMM Visualizations
 :img-top: ../gallery/images/plot_interactive.png
 :link: ../notebooks/mmm/plot_interactive.html
@@ -62,11 +67,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Cost-per-Unit: Model What Drives Revenue, Report What You Spend
 :img-top: ../gallery/images/mmm_cost_per_unit.png
 :link: ../notebooks/mmm/mmm_cost_per_unit.html
-:::
-
-:::{grid-item-card} Comparison of Additive, Log, and Log-Log Models
-:img-top: ../gallery/images/mmm_multiplicative.png
-:link: ../notebooks/mmm/mmm_multiplicative.html
 :::
 
 :::{grid-item-card} Parameter Recovery

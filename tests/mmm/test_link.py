@@ -11,16 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Tests for the link module and multiplicative MMM functionality.
-
-Covers the phased test plan:
-    Layer 1: API validation (link parameter, LinkSpec, guardrails)
-    Layer 2: LogSaturation component
-    Layer 3: build_model deterministics
-    Layer 4: Decomposition consistency
-    Layer 5: Budget optimizer under log link
-    Layer 6: Serialization and backward compatibility
-"""
 
 import warnings
 
@@ -394,7 +384,9 @@ class TestDecomposition:
         """Fit an identity-link MMM and return (mmm, contributions_df)."""
         mmm = _make_mmm(link="identity")
         X, y = _make_positive_panel()
-        mmm.fit(X, y)
+        # Seed the mock fit so downstream sign/value assertions are
+        # deterministic regardless of global RNG state / test ordering.
+        mmm.fit(X, y, random_seed=42)
         return mmm, mmm.compute_mean_contributions_over_time()
 
     @pytest.fixture()
@@ -402,7 +394,9 @@ class TestDecomposition:
         """Fit a log-link MMM and return (mmm, contributions_df)."""
         mmm = _make_mmm(link="log")
         X, y = _make_positive_panel()
-        mmm.fit(X, y)
+        # Seed the mock fit so downstream sign/value assertions are
+        # deterministic regardless of global RNG state / test ordering.
+        mmm.fit(X, y, random_seed=42)
         return mmm, mmm.compute_mean_contributions_over_time()
 
     def test_identity_returns_dataframe_with_expected_columns(
@@ -661,3 +655,139 @@ class TestBudgetOptimizerLogLog:
         np.testing.assert_allclose(
             float(optimal_budgets.sum()), total_budget, rtol=1e-4
         )
+
+
+class TestDecompositionRelationship:
+    """The conserving (wrapper) and counterfactual (MMM) decompositions differ by design."""
+
+    def test_conserving_vs_counterfactual_log(self, mock_pymc_sample):
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+
+        wrapper_ds = mmm.data.get_contributions(original_scale=True)
+        posterior = mmm.idata.posterior
+        target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+        y_hat = np.exp(posterior["mu"]) * target_scale
+
+        # (i) The conserving decomposition sums exactly to y_hat.
+        xr.testing.assert_allclose(
+            wrapper_ds["channels"].sum("channel") + wrapper_ds["baseline"], y_hat
+        )
+
+        # (ii) Its channel total equals the total media counterfactual lift.
+        media_total = posterior["channel_contribution"].sum("channel")
+        total_lift = (
+            np.exp(posterior["mu"]) - np.exp(posterior["mu"] - media_total)
+        ) * target_scale
+        xr.testing.assert_allclose(wrapper_ds["channels"].sum("channel"), total_lift)
+
+        # (iii) The per-channel counterfactual split differs from the
+        # proportional (conserving) split: per-component counterfactuals
+        # overlap on interactions and do not match the proportional shares.
+        cf_ds = mmm.compute_counterfactual_contributions_dataset()
+        channel_names = [
+            str(c) for c in posterior["channel_contribution"].coords["channel"].values
+        ]
+        cf_channels_sum = sum(cf_ds[ch] for ch in channel_names)
+        assert not np.allclose(
+            cf_channels_sum.values,
+            wrapper_ds["channels"].sum("channel").values,
+        )
+
+
+class TestCentralTendency:
+    """C1: mean vs median log-link contributions."""
+
+    def test_mean_equals_median_times_sigma_correction_log(self, mock_pymc_sample):
+        """Mean contributions equal median contributions times exp(sigma**2/2)."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+
+        median_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="median"
+        )
+        mean_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+
+        correction = np.exp(mmm.idata.posterior["y_sigma"] ** 2 / 2)
+        for var in median_ds.data_vars:
+            xr.testing.assert_allclose(mean_ds[var], median_ds[var] * correction)
+
+    def test_central_tendency_noop_for_identity(self, mock_pymc_sample):
+        """Identity link: mean and median contributions are identical."""
+        mmm = _make_mmm(link="identity")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+
+        median_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="median"
+        )
+        mean_ds = mmm.compute_counterfactual_contributions_dataset(
+            central_tendency="mean"
+        )
+        for var in median_ds.data_vars:
+            xr.testing.assert_allclose(mean_ds[var], median_ds[var])
+
+    def test_mean_correction_raises_without_sampled_sigma(self, mock_pymc_sample):
+        """A clear error is raised when the likelihood sigma is not in the posterior."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.fit(X, y, random_seed=42)
+        del mmm.idata.posterior["y_sigma"]
+        with pytest.raises(ValueError, match="sampled likelihood scale"):
+            mmm.compute_counterfactual_contributions_dataset(central_tendency="mean")
+
+
+class TestMuEffectsDecomposition:
+    """C3: mu_effects must appear in the counterfactual decomposition."""
+
+    def test_linear_trend_effect_appears_in_log_decomposition(self, mock_pymc_sample):
+        from pymc_marketing.mmm.additive_effect import LinearTrendEffect
+        from pymc_marketing.mmm.linear_trend import LinearTrend
+
+        mmm = _make_mmm(link="log", dims=None)
+        mmm.mu_effects.append(
+            LinearTrendEffect(
+                trend=LinearTrend(),
+                prefix="trend",
+                date_dim_name="date",
+            )
+        )
+        X, y = _make_positive_panel(countries=("A",))
+        X = X.drop(columns=["country"])
+        with pytest.warns(UserWarning, match="mu_effects"):
+            mmm.fit(X, y, random_seed=42)
+
+        df = mmm.compute_mean_contributions_over_time()
+        assert "trend_effect" in df.columns
+
+
+class TestOriginalScaleGuardLogLink:
+    """C4: per-component *_original_scale under log link warns; output var does not."""
+
+    def test_log_warns_for_component(self, mock_pymc_sample):
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        with pytest.warns(UserWarning, match="multiplicative factors"):
+            mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+    def test_log_no_component_warning_for_output_var(self, mock_pymc_sample):
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            mmm.add_original_scale_contribution_variable([mmm.output_var])
+        assert not any("multiplicative factors" in str(w.message) for w in caught)
+
+    def test_identity_no_warning(self, mock_pymc_sample):
+        mmm = _make_mmm(link="identity")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.add_original_scale_contribution_variable(["channel_contribution"])

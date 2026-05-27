@@ -435,12 +435,24 @@ class MMMIDataWrapper:
         include_controls: bool = True,
         include_seasonality: bool = True,
     ) -> xr.Dataset:
-        """Get all contribution variables in a single dataset.
+        r"""Get all contribution variables in a single dataset.
 
         For identity-link models, contributions are computed by multiplying
-        log-space values by ``target_scale``.  For log-link models, a hybrid
-        decomposition is used: counterfactual total media lift with
-        proportional log-space channel shares.
+        log-space values by ``target_scale``.  For log-link models, a
+        **conserving** decomposition is used: the total media counterfactual
+        lift is split across channels proportionally to their log-space
+        shares, and all non-media effects are folded into ``baseline``, so
+        the returned components sum exactly to :math:`\hat y`.
+
+        This conserving decomposition differs from the **counterfactual**
+        decomposition in
+        :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
+        whose per-component lifts do *not* sum to :math:`\hat y` under the
+        log link.  See
+        :meth:`_get_conserving_contributions_log_link` for the precise
+        relationship.  Under the log link the prediction uses
+        :math:`\exp(\mu)`, the conditional **median** of the LogNormal
+        response (not its mean).
 
         Parameters
         ----------
@@ -473,7 +485,7 @@ class MMMIDataWrapper:
                     UserWarning,
                     stacklevel=2,
                 )
-            return self._get_contributions_log_link(
+            return self._get_conserving_contributions_log_link(
                 include_baseline=include_baseline,
             )
         return self._get_contributions_identity(
@@ -550,11 +562,30 @@ class MMMIDataWrapper:
 
         return xr.Dataset(contributions)
 
-    def _get_contributions_log_link(
+    def _get_conserving_contributions_log_link(
         self,
         include_baseline: bool = True,
     ) -> xr.Dataset:
-        r"""Hybrid decomposition for log-link models (always original-scale).
+        r"""Conserving (proportional-share) decomposition for log-link models.
+
+        This is the **conserving** counterpart to
+        :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`
+        (the **counterfactual** decomposition).  The two differ by design:
+
+        * The counterfactual method returns a per-component
+          ``what-if-removed`` lift; under the log link these overlap on
+          shared interactions and therefore sum to *more* than
+          :math:`\hat y`.
+        * This method distributes the *total* media counterfactual lift
+          across channels **proportionally** to each channel's log-space
+          share (a proportional allocation, **not** a per-channel
+          counterfactual), and folds all non-media effects into
+          ``baseline``.  As a result ``channels.sum("channel") + baseline``
+          equals :math:`\hat y` exactly (it conserves).
+
+        Use the counterfactual method to answer *"how much would sales drop
+        if we removed channel j?"*; use this method when you need an exact
+        additive breakdown of :math:`\hat y` (e.g. a stacked area chart).
 
         For log-link (multiplicative) models the linear predictor lives in
         log-space:

@@ -26,6 +26,7 @@ from enum import StrEnum
 
 import numpy as np
 import pymc.dims as pmd
+import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
@@ -109,6 +110,36 @@ class LinkSpec(ABC):
         Creates ``total_media_contribution_original_scale`` (and, for the log
         link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
         nodes.
+        """
+
+    @abstractmethod
+    def mean_correction(
+        self,
+        posterior: xr.Dataset,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        """Per-draw factor converting median-scale outputs to the response mean.
+
+        Counterfactual contributions are computed on the **conditional
+        median** of the response (the inverse link applied to ``mu``).  For
+        links whose conditional mean differs from the median, multiplying by
+        this factor rescales the median-based quantity to the conditional
+        mean ``E[y | mu, ...]``.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``InferenceData``.
+        output_var : str, default ``"y"``
+            Name of the observed variable, used to locate the likelihood
+            scale parameter in the posterior.
+
+        Returns
+        -------
+        xr.DataArray
+            The multiplicative correction with ``(chain, draw, ...)`` dims
+            (broadcasting over ``date``).  It is identically ``1`` for links
+            whose mean equals the median (e.g. the identity link).
         """
 
     @staticmethod
@@ -197,9 +228,24 @@ class IdentityLinkSpec(LinkSpec):
             (channel_contribution.sum(dim="date") * target_scale).sum(),
         )
 
+    def mean_correction(
+        self,
+        posterior: xr.Dataset,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        """Return ``1`` -- for the Normal likelihood the mean equals the median."""
+        return xr.DataArray(1.0)
+
 
 class LogLinkSpec(LinkSpec):
-    r"""Log link: ``E[y] = exp(mu) * target_scale``.
+    r"""Log link: ``median(y) = exp(mu) * target_scale``.
+
+    The likelihood is ``LogNormal(mu, sigma)``, so ``exp(mu)`` is the
+    conditional **median** of the response, not its mean
+    (``E[y] = exp(mu + sigma**2 / 2) * target_scale``).  All predictions and
+    counterfactual contributions are computed on this median scale; use the
+    ``central_tendency="mean"`` option (which applies :meth:`mean_correction`,
+    the ``exp(sigma**2 / 2)`` factor) to obtain mean-scale quantities.
 
     When used with :class:`~pymc_marketing.mmm.components.saturation.LogSaturation`,
     the model becomes a log-log specification where the coefficients have an
@@ -212,7 +258,7 @@ class LogLinkSpec(LinkSpec):
     link = LinkFunction.LOG
 
     def inverse_link(self, mu: XTensorVariable) -> XTensorVariable:
-        """Return ``exp(mu)``."""
+        """Return ``exp(mu)`` (the conditional median of the LogNormal response)."""
         return ptxm.exp(mu)
 
     def default_likelihood(self, dims: tuple[str, ...]) -> Prior:
@@ -265,6 +311,35 @@ class LogLinkSpec(LinkSpec):
             f"{output_var}_original_scale",
             y_hat.transpose("date", ...),
         )
+
+    def mean_correction(
+        self,
+        posterior: xr.Dataset,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        r"""Return ``exp(sigma**2 / 2)``, the LogNormal mean/median ratio.
+
+        For ``y \sim \text{LogNormal}(\mu, \sigma)`` the conditional median is
+        ``exp(mu)`` while the conditional mean is ``exp(mu + sigma**2 / 2)``.
+        The ratio ``exp(sigma**2 / 2)`` therefore rescales a median-based
+        quantity to the mean.
+
+        Raises
+        ------
+        ValueError
+            If the likelihood scale ``f"{output_var}_sigma"`` is not present
+            in the posterior (e.g. a fixed-sigma likelihood), so the mean
+            correction cannot be computed.
+        """
+        sigma_name = f"{output_var}_sigma"
+        if sigma_name not in posterior:
+            raise ValueError(
+                f"Mean-scale contributions require a sampled likelihood scale "
+                f"'{sigma_name}' in the posterior, which was not found. This "
+                f"happens when the LogNormal sigma is fixed rather than given a "
+                f"prior. Use central_tendency='median' or give sigma a prior."
+            )
+        return np.exp(posterior[sigma_name] ** 2 / 2)
 
 
 LINK_SPECS: dict[LinkFunction, type[LinkSpec]] = {

@@ -1268,7 +1268,10 @@ class MMM(RegressionModelBuilder):
 
         return MMMIDataWrapper.from_mmm(self)
 
-    def compute_counterfactual_contributions_dataset(self) -> xr.Dataset:
+    def compute_counterfactual_contributions_dataset(
+        self,
+        central_tendency: Literal["median", "mean"] = "median",
+    ) -> xr.Dataset:
         r"""Full-posterior counterfactual contributions as an :class:`xr.Dataset`.
 
         For each component :math:`j` with value :math:`v_j(t)` in the
@@ -1305,17 +1308,45 @@ class MMM(RegressionModelBuilder):
             = \bigl[\exp\!\bigl(\mu^{(d)}(t)\bigr)
             - \exp\!\bigl(\mu^{(d)}(t) - v_j^{(d)}(t)\bigr)\bigr] \cdot s
 
+        Here :math:`\exp(\mu)` is the **conditional median** of the
+        ``LogNormal`` response, not its mean.  With
+        ``central_tendency="mean"`` each per-draw contribution is
+        multiplied by :math:`\exp(\sigma^2 / 2)` (the LogNormal
+        mean/median ratio), giving a counterfactual on the
+        conditional-mean scale :math:`\mathbb{E}[y \mid \mu, \sigma]`.
+        The factor cancels in component *shares* and does not change the
+        budget-optimisation optimum, but it does shift absolute
+        contributions.
+
+        Note also that :math:`\mathbb{E}[\cdot]` above denotes averaging
+        over posterior draws, not the likelihood expectation.
+
         The returned dataset retains the full ``(chain, draw)``
         dimensions so that downstream code can compute arbitrary
         summaries (HDI, quantiles, etc.).
+
+        This is the **counterfactual** decomposition: per-component
+        ``what-if-removed`` lifts that, under the log link, do *not* sum
+        to :math:`\hat y` (interactions are counted by every component
+        they touch).  For a **conserving** decomposition whose components
+        sum exactly to :math:`\hat y`, see
+        :meth:`MMMIDataWrapper.get_contributions`.
+
+        Parameters
+        ----------
+        central_tendency : {"median", "mean"}, default "median"
+            Response summary the counterfactual is expressed on.  For the
+            identity link the two are identical (Normal mean == median).
+            For the log link, ``"median"`` uses :math:`\exp(\mu)` and
+            ``"mean"`` applies the :math:`\exp(\sigma^2 / 2)` correction.
 
         Returns
         -------
         xr.Dataset
             One data variable per component (channels, controls,
-            ``yearly_seasonality``, ``intercept``).  Dimensions are
-            ``(chain, draw, date, ...)`` where ``...`` are any extra
-            model dimensions (e.g. ``geo``).
+            ``yearly_seasonality``, any ``mu_effects``, ``intercept``).
+            Dimensions are ``(chain, draw, date, ...)`` where ``...`` are
+            any extra model dimensions (e.g. ``geo``).
 
         Raises
         ------
@@ -1394,11 +1425,39 @@ class MMM(RegressionModelBuilder):
                 posterior["yearly_seasonality_contribution"]
             )
 
+        for mu_effect in self.mu_effects:
+            var_name = mu_effect.contribution_var_name
+            label = (
+                var_name[: -len("_contribution")]
+                if var_name.endswith("_contribution")
+                else var_name
+            )
+            if var_name in posterior:
+                parts[label] = counterfactual_fn(posterior[var_name])
+            else:
+                warnings.warn(
+                    f"mu_effect contribution '{var_name}' was not found in the "
+                    f"posterior, so it is excluded from the decomposition. Its "
+                    f"effect is still present in 'mu'.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         parts["intercept"] = counterfactual_fn(posterior["intercept_contribution"])
 
-        return xr.Dataset(parts)
+        dataset = xr.Dataset(parts)
 
-    def compute_mean_contributions_over_time(self) -> pd.DataFrame:
+        if central_tendency == "mean":
+            dataset = dataset * self._link_spec.mean_correction(
+                posterior, self.output_var
+            )
+
+        return dataset
+
+    def compute_mean_contributions_over_time(
+        self,
+        central_tendency: Literal["median", "mean"] = "median",
+    ) -> pd.DataFrame:
         r"""Posterior-mean counterfactual contributions as a DataFrame.
 
         Convenience wrapper around
@@ -1437,11 +1496,20 @@ class MMM(RegressionModelBuilder):
         counted by every component that participates in them, the columns
         sum to *more* than :math:`\hat y(t)`.  This is an expected
         property of per-component counterfactuals in a multiplicative
-        model, not a defect.
+        model, not a defect.  Under the log link :math:`\exp(\mu)` is the
+        conditional **median**; pass ``central_tendency="mean"`` for the
+        conditional-mean scale (see
+        :meth:`compute_counterfactual_contributions_dataset`).
 
         This method does **not** require
         :meth:`add_original_scale_contribution_variable` to have been
         called.
+
+        Parameters
+        ----------
+        central_tendency : {"median", "mean"}, default "median"
+            Forwarded to
+            :meth:`compute_counterfactual_contributions_dataset`.
 
         Returns
         -------
@@ -1455,6 +1523,7 @@ class MMM(RegressionModelBuilder):
             - One column per channel (named after channel coordinate labels)
             - One column per control variable (if present)
             - ``yearly_seasonality`` (if yearly seasonality is enabled)
+            - One column per ``mu_effect`` (if present)
             - ``intercept``
 
         Raises
@@ -1480,42 +1549,9 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        if self.link == LinkFunction.IDENTITY:
-            idata: az.InferenceData = cast(az.InferenceData, self.idata)
-            posterior: xr.Dataset = idata.posterior
-            target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
-                drop=True
-            )
-
-            parts: dict[str, xr.DataArray] = {}
-            channel_mean = (posterior["channel_contribution"] * target_scale).mean(
-                ("chain", "draw")
-            )
-            for ch in channel_mean.coords["channel"].values:
-                parts[str(ch)] = channel_mean.sel(channel=ch).drop_vars(
-                    "channel", errors="ignore"
-                )
-
-            if "control_contribution" in posterior:
-                control_mean = (posterior["control_contribution"] * target_scale).mean(
-                    ("chain", "draw")
-                )
-                for ctrl in control_mean.coords["control"].values:
-                    parts[str(ctrl)] = control_mean.sel(control=ctrl).drop_vars(
-                        "control", errors="ignore"
-                    )
-
-            if "yearly_seasonality_contribution" in posterior:
-                parts["yearly_seasonality"] = (
-                    posterior["yearly_seasonality_contribution"] * target_scale
-                ).mean(("chain", "draw"))
-
-            parts["intercept"] = (
-                posterior["intercept_contribution"] * target_scale
-            ).mean(("chain", "draw"))
-            return xr.Dataset(parts).to_dataframe().reset_index()
-
-        dataset: xr.Dataset = self.compute_counterfactual_contributions_dataset()
+        dataset: xr.Dataset = self.compute_counterfactual_contributions_dataset(
+            central_tendency=central_tendency
+        )
         return dataset.mean(("chain", "draw")).to_dataframe().reset_index()
 
     @property
@@ -2233,6 +2269,19 @@ class MMM(RegressionModelBuilder):
         For identity-link models: ``variable * target_scale``.
         For log-link models: ``exp(variable) * target_scale``.
 
+        .. warning::
+            For **log-link** models, applying this to an individual component
+            (e.g. ``channel_contribution``) yields ``exp(variable) *
+            target_scale`` -- a bare *multiplicative factor* on the response
+            scale, **not** that component's incremental contribution to
+            :math:`y`.  Because components combine multiplicatively under the
+            log link, a single component has no standalone additive
+            contribution.  For per-component contributions use
+            :meth:`compute_counterfactual_contributions_dataset` (or the
+            conserving :meth:`MMMIDataWrapper.get_contributions`).  Applying
+            this to the output variable (``y``) is fine: it gives the
+            median prediction on the original scale.
+
         Parameters
         ----------
         var : list[str]
@@ -2248,6 +2297,20 @@ class MMM(RegressionModelBuilder):
 
         """
         self._validate_model_was_built()
+
+        if self.link == LinkFunction.LOG:
+            non_output_vars = [v for v in var if v != self.output_var]
+            if non_output_vars:
+                warnings.warn(
+                    "Under link='log', the *_original_scale variables for "
+                    f"per-component inputs {non_output_vars} are multiplicative "
+                    "factors exp(variable) * target_scale, not additive "
+                    "contributions to y. For contributions use "
+                    "compute_counterfactual_contributions_dataset() or "
+                    "MMMIDataWrapper.get_contributions().",
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         target_scale = self.model["target_scale"]
         with self.model:

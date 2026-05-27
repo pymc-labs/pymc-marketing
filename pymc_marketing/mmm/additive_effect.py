@@ -243,6 +243,30 @@ class MuEffect(SerializableBaseModel, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
+    @property
+    def contribution_var_name(self) -> str:
+        """Name of the posterior deterministic holding this effect's contribution.
+
+        Used by :meth:`MMM.compute_counterfactual_contributions_dataset` to
+        locate the effect's linear-predictor contribution and include it in
+        the decomposition.  The default assumes the effect registers
+        ``f"{self.prefix}_effect_contribution"`` (the convention used by
+        :class:`LinearTrendEffect` and :class:`EventEffect`); effects that
+        register a different name must override this property.
+
+        Raises
+        ------
+        NotImplementedError
+            If the effect has no ``prefix`` attribute and does not override
+            this property.
+        """
+        prefix = getattr(self, "prefix", None)
+        if prefix is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define 'contribution_var_name'."
+            )
+        return f"{prefix}_effect_contribution"
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in InferenceData.
 
@@ -266,6 +290,11 @@ class FourierEffect(MuEffect):
 
     fourier: InstanceOf[FourierBase]
     date_dim_name: str = Field("date")
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Fourier effects register ``f"{fourier.prefix}_contribution"``."""
+        return f"{self.fourier.prefix}_contribution"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
