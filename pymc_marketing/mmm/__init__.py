@@ -62,6 +62,7 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
@@ -100,6 +101,7 @@ __all__ = [
     "LogSaturation",
     "LogisticSaturation",
     "MMMBuilder",
+    "MMMPlotSuiteFacade",
     "MediaConfig",
     "MediaConfigList",
     "MediaTransformation",

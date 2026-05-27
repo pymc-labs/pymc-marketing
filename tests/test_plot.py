@@ -24,6 +24,7 @@ from pymc_marketing.plot import (
     plot_samples,
     random_samples,
     selections,
+    set_subplot_kwargs_defaults,
 )
 
 
@@ -192,6 +193,39 @@ def test_plot_curve_exposed_parameters(mock_curve, kwargs) -> None:
     plt.close(fig)
 
 
+@pytest.fixture(scope="module")
+def mock_curve_combined(mock_curve) -> xr.DataArray:
+    return mock_curve.stack(sample=("chain", "draw"))
+
+
+@pytest.mark.parametrize(
+    "plot_func", [plot_curve, plot_samples, plot_hdi], ids=lambda f: f.__name__
+)
+@pytest.mark.parametrize(
+    "same_axes", [True, False], ids=["same_axes", "different_axes"]
+)
+def test_plot_functions_combined_sample(
+    mock_curve_combined, plot_func, same_axes: bool
+) -> None:
+    fig, axes = plot_func(
+        mock_curve_combined, non_grid_names={"day"}, same_axes=same_axes
+    )
+
+    assert axes.size == (1 if same_axes else mock_curve_combined.sizes["geo"])
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_curve_combined_sample_n_samples(mock_curve_combined) -> None:
+    fig, axes = plot_curve(
+        mock_curve_combined, non_grid_names={"day"}, n_samples=3, hdi_probs=[0.5, 0.9]
+    )
+
+    assert axes.size == mock_curve_combined.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
 @pytest.fixture
 def mock_curve_with_scalars() -> xr.DataArray:
     coords = {
@@ -221,3 +255,24 @@ def test_drop_scalar_coords(mock_curve_with_scalars) -> None:
 
     # Ensure the original DataArray was not modified
     xr.testing.assert_identical(mock_curve_with_scalars, original_curve)
+
+
+@pytest.mark.parametrize(
+    "subplot_kwargs, total_size, expected",
+    [
+        ({"ncols": 4}, 9, {"ncols": 4, "nrows": 3}),
+        ({"nrows": 4}, 9, {"nrows": 4, "ncols": 3}),
+        ({"ncols": 4}, 8, {"ncols": 4, "nrows": 2}),
+        ({"ncols": 1}, 5, {"ncols": 1, "nrows": 5}),
+        ({"ncols": 3}, 1, {"ncols": 3, "nrows": 1}),
+        ({}, 4, {"ncols": 4, "nrows": 1}),
+    ],
+)
+def test_set_subplot_kwargs_defaults(subplot_kwargs, total_size, expected) -> None:
+    set_subplot_kwargs_defaults(subplot_kwargs, total_size)
+    assert subplot_kwargs == expected
+
+
+def test_set_subplot_kwargs_defaults_rejects_both() -> None:
+    with pytest.raises(ValueError):
+        set_subplot_kwargs_defaults({"ncols": 2, "nrows": 2}, total_size=4)

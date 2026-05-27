@@ -11,7 +11,9 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import copy
 import os
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 
@@ -19,12 +21,13 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Prior
-from pytensor.xtensor.type import XTensorVariable
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -35,7 +38,11 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     SoftPlusHSGP,
 )
-from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
+from pymc_marketing.mmm.additive_effect import (
+    EventAdditiveEffect,
+    LinearTrendEffect,
+    MuEffect,
+)
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -43,11 +50,14 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.serialization import serialization
 
 
 @pytest.fixture
@@ -375,6 +385,36 @@ class TestMultidimMMMEdgeCases:
         with pytest.raises(ValueError, match=r"y length must match X"):
             mmm.build_model(X, y)
 
+    def test_unnamed_y_series_builds_model(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename(None)
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert "_target" in mmm.xarray_dataset
+        assert int(mmm.xarray_dataset.sizes["date"]) == X["date"].nunique()
+
+    def test_y_series_with_target_column_name_builds_model(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename("target")
+        mmm = self._build_basic_mmm()
+
+        mmm.build_model(X, y)
+
+        assert "_target" in mmm.xarray_dataset
+        assert int(mmm.xarray_dataset.sizes["date"]) == X["date"].nunique()
+
+    def test_y_series_with_mismatched_name_raises_clear_error(self, simple_mmm_data):
+        X = simple_mmm_data["X"].copy()
+        y = simple_mmm_data["y"].copy().rename("not_target")
+        mmm = self._build_basic_mmm()
+
+        with pytest.raises(
+            ValueError, match=r"y has name 'not_target'.*target_column is 'target'"
+        ):
+            mmm.build_model(X, y)
+
 
 def test_save_load(fit_mmm: MMM):
     file = "test.nc"
@@ -384,6 +424,39 @@ def test_save_load(fit_mmm: MMM):
     assert isinstance(loaded, MMM)
 
     os.remove(file)
+
+
+def test_save_load_roundtrip_with_unnamed_y_series(
+    simple_mmm_data, mock_pymc_sample, tmp_path
+):
+    """Unnamed ``y`` at fit time is normalized; save/load still round-trips fit_data.
+
+    :meth:`MMM.create_fit_data` names the target by ``target_column`` in
+    ``idata.fit_data``; :meth:`MMM.load` rebuilds from that group, so the
+    original call-time series name does not need to match.
+    """
+    X = simple_mmm_data["X"].copy()
+    y = simple_mmm_data["y"].copy().rename(None)
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=10),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y)
+
+    file = str(tmp_path / "unnamed_y_roundtrip.nc")
+    mmm.save(file)
+    loaded = MMM.load(file)
+
+    assert loaded.target_column == "target"
+    assert "target" in loaded.idata.fit_data.data_vars
+    assert loaded.model is not None
+    assert int(loaded.idata.fit_data.sizes["date"]) == int(
+        mmm.idata.fit_data.sizes["date"]
+    )
 
 
 @pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
@@ -695,6 +768,42 @@ class TestRegistryDeserialization:
             mmm.build_from_idata(idata)
 
 
+class _CustomEffectWithSuppData(MuEffect):
+    """MuEffect with supplementary data for testing the generic idata_groups path."""
+
+    df: pd.DataFrame = pd.DataFrame()
+    prefix: str = "custom_supp"
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def create_data(self, mmm):
+        pass
+
+    def create_effect(self, mmm):
+        return as_xtensor(pt.zeros(1), dims=["date"])
+
+    def set_data(self, mmm, model, X):
+        pass
+
+    def to_dict(self):
+        return {
+            "prefix": self.prefix,
+            "df_group": f"supplementary_data_{self.prefix}",
+        }
+
+    def idata_groups(self):
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df.reset_index(drop=True)
+            ),
+        }
+
+
+def _deserialize_custom_supp_effect(data, context):
+    df = context.idata[data["df_group"]].to_dataframe().reset_index(drop=True)
+    return _CustomEffectWithSuppData(prefix=data["prefix"], df=df)
+
+
 class TestSerializationIntegration:
     """End-to-end save/load tests using the new TypeRegistry-based system."""
 
@@ -859,6 +968,47 @@ class TestSerializationIntegration:
         custom_effect = loaded.mu_effects[2]
         assert isinstance(custom_effect, _TestCustomEffect)
         assert custom_effect.my_param == 42.0
+
+    @pytest.fixture
+    def _custom_supp_effect_registered(self):
+        """Register custom deserializer for _CustomEffectWithSuppData, then clean up."""
+        type_key = (
+            f"{_CustomEffectWithSuppData.__module__}."
+            f"{_CustomEffectWithSuppData.__qualname__}"
+        )
+        serialization.register(
+            type_key,
+            _CustomEffectWithSuppData,
+            deserializer=_deserialize_custom_supp_effect,
+        )
+        yield
+        serialization._registry.pop(type_key, None)
+
+    def test_roundtrip_with_custom_effect_and_supplementary_data(
+        self,
+        minimal_fit_data,
+        tmp_path,
+        mock_pymc_sample,
+        _custom_supp_effect_registered,
+    ):
+        """A custom MuEffect with idata_groups() survives save/load round-trip."""
+        df = pd.DataFrame({"key": [1, 2, 3]})
+        X, y = minimal_fit_data
+        mmm = self._base_mmm().add_mu_effect(
+            _CustomEffectWithSuppData(df=df, prefix="custom_supp")
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "custom_supp_data.nc"
+        mmm.save(fname)
+
+        raw_idata = az.from_netcdf(fname)
+        assert hasattr(raw_idata, "supplementary_data_custom_supp")
+
+        loaded = MMM.load(str(fname))
+        effect = loaded.mu_effects[0]
+        assert isinstance(effect, _CustomEffectWithSuppData)
+        assert list(effect.df["key"]) == [1, 2, 3]
 
 
 def test_single_channel():
@@ -6048,3 +6198,64 @@ def test_iterative_workflow(multi_dim_data, mock_pymc_sample):
     mmm.sample_posterior_predictive(X)
     assert dict(mmm.idata.posterior_predictive.sizes) == full_pp_sizes
     assert dict(mmm.idata.posterior_predictive_constant_data.sizes) == full_cd_sizes
+
+
+# ---------------------------------------------------------------------------
+# Task 3: plot_suite property and updated .plot property
+# ---------------------------------------------------------------------------
+
+
+def test_mmm_plot_suite_defaults_to_legacy(fit_mmm):
+    """MMM.plot_suite property defaults to 'legacy'."""
+    assert fit_mmm.plot_suite == "legacy"
+
+
+def test_mmm_plot_suite_setter(fit_mmm):
+    """MMM.plot_suite setter stores the value."""
+    mmm = copy.copy(fit_mmm)
+    mmm.plot_suite = "new"
+    assert mmm.plot_suite == "new"
+
+
+def test_mmm_plot_suite_setter_rejects_invalid(fit_mmm):
+    """MMM.plot_suite setter raises ValueError for unknown values."""
+    mmm = copy.copy(fit_mmm)
+    with pytest.raises(ValueError, match="plot_suite must be"):
+        mmm.plot_suite = "invalid"
+
+
+def test_mmm_plot_legacy_returns_legacy_suite(fit_mmm):
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        result = fit_mmm.plot
+    assert isinstance(result, MMMPlotSuite)
+
+
+def test_mmm_plot_legacy_emits_future_warning(fit_mmm):
+    fit_mmm._plot_suite_warned = False  # reset flag
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fit_mmm.plot
+    assert any(issubclass(warning.category, FutureWarning) for warning in w)
+    assert any("2.0.0" in str(warning.message) for warning in w)
+
+
+def test_mmm_plot_legacy_warns_only_once(fit_mmm):
+    fit_mmm._plot_suite_warned = False
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fit_mmm.plot
+        fit_mmm.plot
+    future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+    assert len(future_warnings) == 1
+
+
+def test_mmm_plot_new_returns_facade(fit_mmm):
+    mmm = copy.copy(fit_mmm)
+    mmm.plot_suite = "new"
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        result = mmm.plot
+    assert isinstance(result, MMMPlotSuiteFacade)
+    future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
+    assert len(future_warnings) == 0

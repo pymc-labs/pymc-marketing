@@ -60,8 +60,9 @@ class NestedLogit(ModelBuilder):
         each product alternative. The formulas should be in Wilkinson
         style notation and allow the target product to be specified as
         as a function of the alternative specific attributes and the individual
-        specific attributes:
-        target_product ~ target_attribute1 + target_attribute2 | individual_attribute
+        specific attributes::
+
+            target_product ~ target_attribute1 + target_attribute2 | individual_attribute
 
     depvar : str
         The name of the dependent variable in the choice_df.
@@ -80,10 +81,8 @@ class NestedLogit(ModelBuilder):
     sampler_config : dict, optional
         Sampler configuration. If None, the default config is used.
 
-    Notes
-    -----
-    Example:
-    -------
+    Examples
+    --------
     The format of `choice_df`:
 
         +------------+------------+------------+------------+------------+
@@ -451,10 +450,10 @@ class NestedLogit(ModelBuilder):
 
         Notes
         -----
-        - Updates internal state: assigns `X_data`, `F`, `alternatives`, `fixed_covar`, `y`,
-        `prod_indices`, `nest_indices`, `all_nests`, `lambda_lkup`, and `coords`.
+        - Updates internal state: assigns ``X_data``, ``F``, ``alternatives``, ``fixed_covar``,
+          ``y``, ``prod_indices``, ``nest_indices``, ``all_nests``, ``lambda_lkup``, and ``coords``.
         - Handles single-layer nesting structures only.
-        - Assumes the existence of instance attributes `depvar`, `covariates`, and `nesting_structure`.
+        - Assumes the existence of instance attributes ``depvar``, ``covariates``, and ``nesting_structure``.
 
         """
         X, F, alternatives, fixed_covar = self.prepare_X_matrix(

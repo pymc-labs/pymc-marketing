@@ -74,7 +74,7 @@ Each component's `.apply()` method registers its priors in the enclosing `pm.Mod
 import pymc as pm
 
 with pm.Model(coords=coords) as model:
-    saturated_spends = saturation.apply(df_spends, dims="channel")
+    saturated_spends = saturation.apply(df_spends, core_dim="date")
 ```
 
 The posterior can be passed to `sample_curve` and `plot_curve` instead of the prior, and any additional coordinates from the parameters are handled automatically.
@@ -129,7 +129,7 @@ with pm.Model(coords=geo_coords) as geo_model:
     geo_data = pm.Data("geo_data", geo_spends.to_numpy(), dims=("date", "channel", "geo"))
     saturated_geo_spends = pm.Deterministic(
         "saturated_geo_spends",
-        saturation.apply(geo_data, dims=("channel", "geo")),
+        saturation.apply(geo_data, core_dim="date"),
         dims=("date", "channel", "geo"),
     )
 ```
@@ -209,10 +209,10 @@ with pm.Model(coords=coords) as custom_mmm:
     intercept = Prior("Normal", mu=2.5, sigma=0.25, dims="geo").create_variable("intercept")
 
     # Media: adstock -> saturation
-    adstocked_media = adstock.apply(channel_data_, dims=("geo", "channel"))
+    adstocked_media = adstock.apply(channel_data_, core_dim="date")
     channel_contribution = pm.Deterministic(
         "channel_contribution",
-        saturation.apply(adstocked_media, dims=("geo", "channel")),
+        saturation.apply(adstocked_media, core_dim="date"),
         dims=("date", "geo", "channel"),
     )
     total_media = channel_contribution.sum(axis=-1)

@@ -295,8 +295,8 @@ class MMMIDataWrapper:
         Returns
         -------
         xr.DataArray
-            Channel spend values with dims (date, channel) or
-            (date, *custom_dims, channel).
+            Channel spend values with dims ``(date, channel)`` or
+            ``(date, *custom_dims, channel)``.
 
         Raises
         ------
@@ -332,8 +332,8 @@ class MMMIDataWrapper:
         Returns
         -------
         xr.DataArray
-            Raw channel data with dims (date, channel) or
-            (date, *custom_dims, channel).
+            Raw channel data with dims ``(date, channel)`` or
+            ``(date, *custom_dims, channel)``.
 
         Raises
         ------

@@ -20,6 +20,7 @@
   model_config
   model_graph
   paths
+  pie
   plot
   prior
   pytensor_utils

@@ -56,8 +56,9 @@ class MNLogit(ModelBuilder):
         each product alternative. The formulas should be in Wilkinson
         style notation and allow the target product to be specified as
         as a function of the alternative specific attributes and the individual
-        specific attributes:
-        target_product ~ target_attribute1 + target_attribute2 | individual_attribute
+        specific attributes::
+
+            target_product ~ target_attribute1 + target_attribute2 | individual_attribute
 
     depvar : str
         The name of the dependent variable in the choice_df.
@@ -71,10 +72,8 @@ class MNLogit(ModelBuilder):
     sampler_config : dict, optional
         Sampler configuration. If None, the default config is used.
 
-    Notes
-    -----
-    Example:
-    -------
+    Examples
+    --------
     The format of `choice_df`:
 
         +------------+------------+------------+------------+------------+

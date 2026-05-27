@@ -214,6 +214,31 @@ def test_log_data_no_data(no_input_model) -> None:
     basic_logging_checks(run_data)
 
 
+def test_run_id_attached_to_idata(model_with_likelihood, tmp_path) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-run-id-attr")
+    with mlflow.start_run() as run:
+        idata = pm.sample(
+            model=model_with_likelihood,
+            chains=1,
+            draws=25,
+            tune=10,
+        )
+
+    assert idata.attrs["mlflow_run_id"] == run.info.run_id
+
+    save_path = tmp_path / "idata.nc"
+    idata.to_netcdf(str(save_path))
+    reloaded = az.from_netcdf(str(save_path))
+    assert reloaded.attrs["mlflow_run_id"] == run.info.run_id
+
+
+def test_attach_run_id_no_active_run_is_noop() -> None:
+    assert mlflow.active_run() is None
+    idata = az.InferenceData()
+    pmm_mlflow._attach_run_id(idata)
+    assert "mlflow_run_id" not in idata.attrs
+
+
 def test_multi_likelihood_type(multi_likelihood_model) -> None:
     mlflow.set_experiment("pymc-marketing-test-suite-multi-likelihood")
     with mlflow.start_run() as run:

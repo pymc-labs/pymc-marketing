@@ -117,7 +117,7 @@ class SensitivityAnalysis:
     def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
         """Compute non-date dims order directly from the model's var_input dims.
 
-        The var_input dims convention is (date, *dims, arbitrary_last_dim_name).
+        The var_input dims convention is ``(date, *dims, arbitrary_last_dim_name)``.
         We drop any occurrence of 'date' and preserve the remaining order as-is.
         """
         var_dims = tuple(self.model.named_vars_to_dims.get(var_input, ()))
@@ -277,7 +277,7 @@ class SensitivityAnalysis:
         ----------
         var_input : str
             Name of the pm.Data variable (e.g., "channel_data").
-            Expected shape: (date, *dims, arbitrary_dim) that match var_input dims.
+            Expected shape: ``(date, *dims, arbitrary_dim)`` that match var_input dims.
         sweep_values : np.ndarray
             Values to sweep over.
         var_names : str
@@ -298,7 +298,7 @@ class SensitivityAnalysis:
         -------
         xarray.DataArray | None
             If extend_idata is False, returns an xarray.DataArray with shape
-            (sample, sweep, *dims_order), where `dims_order` are the non-date
+            ``(sample, sweep, *dims_order)``, where ``dims_order`` are the non-date
             dims of `var_input` in the same order as in the model. The response
             is averaged over the `date` axis as in the draft example. If
             extend_idata is True, stores the result under

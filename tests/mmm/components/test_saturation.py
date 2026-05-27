@@ -77,7 +77,7 @@ def test_apply_method(
     x = as_xtensor(x, dims=dims)
 
     with model:
-        y = saturation.apply(x, dims=dims)
+        y = saturation.apply(x)
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape

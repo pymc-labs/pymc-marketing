@@ -111,10 +111,7 @@ class VariableScaling(SerializableBaseModel, ABC):
         included implicitly).
     """
 
-    dims: str | tuple[str, ...] = Field(
-        ...,
-        description="The dimensions to perform operation through.",
-    )
+    dims: str | tuple[str, ...] = Field(...)
 
     @abstractmethod
     def scaling_description(self) -> str:
@@ -161,7 +158,7 @@ class DataDerivedScaling(VariableScaling):
         DataDerivedScaling(method="mean", dims=("country",))
     """
 
-    method: Literal["max", "mean"] = Field(..., description="The scaling method.")
+    method: Literal["max", "mean"] = Field(...)
 
     def scaling_description(self) -> str:
         """Human-readable summary of the scaling strategy."""
@@ -233,10 +230,7 @@ class FixedScaling(VariableScaling):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    value: float | dict[str, float] | xr.DataArray = Field(
-        ...,
-        description="Fixed scaling constant(s). All values must be positive.",
-    )
+    value: float | dict[str, float] | xr.DataArray = Field(...)
 
     @property
     def method(self) -> str:
@@ -442,14 +436,8 @@ class Scaling(SerializableBaseModel):
         )
     """
 
-    target: VariableScaling = Field(
-        ...,
-        description="The scaling for the target variable.",
-    )
-    channel: VariableScaling = Field(
-        ...,
-        description="The scaling for the channel variable.",
-    )
+    target: VariableScaling = Field(...)
+    channel: VariableScaling = Field(...)
 
     @model_validator(mode="before")
     @classmethod

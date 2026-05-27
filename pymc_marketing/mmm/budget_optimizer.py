@@ -21,7 +21,7 @@ Optimize how to allocate a total budget across channels (and optional extra dims
 maximize an expected response derived from a fitted MMM posterior.
 
 Quickstart (multi‑dimensional MMM)
----------------------------------
+----------------------------------
 
 .. code-block:: python
 
@@ -120,7 +120,7 @@ in monetary units.
     # cost_per_unit internally before feeding into the model.
 
 Use a custom pymc model with any dimensionality
-----------------------------------------------
+-----------------------------------------------
 
 .. code-block:: python
 
@@ -193,6 +193,7 @@ Requirements
 ------------
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
+
   - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
   - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
     model where a variable named `channel_data` exists with dims including `"date"` and all
@@ -230,7 +231,7 @@ from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
-from pytensor.compile.sharedvalue import shared
+from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -244,6 +245,7 @@ from pymc_marketing.mmm.constraints import (
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
+from pymc_marketing.version import __version__
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -332,7 +334,8 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
     """Merge multiple optimizer-compatible models into a single model.
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
-    - Merging their posterior `InferenceData` with per-model prefixes
+
+    - Merging their posterior ``InferenceData`` with per-model prefixes
     - Optionally thinning posterior draws via ``use_every_n_draw``
     - Exposing a persistent merged PyMC ``Model`` for optimization through
       ``_set_predictors_for_optimization`` and a dynamic ``model`` property for
@@ -693,20 +696,33 @@ class BudgetOptimizer(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    _total_budget: SharedVariable = PrivateAttr()
+    _budget_dims: list[str] = PrivateAttr()
+    _budget_coords: dict[str, list] = PrivateAttr()
+    _budget_shape: tuple[int, ...] = PrivateAttr()
+    _budgets_flat: XTensorVariable = PrivateAttr()
+    _budgets: XTensorVariable = PrivateAttr()
+    _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
+    _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
+    _pymc_model: Model = PrivateAttr()
+    _compiled_functions: dict = PrivateAttr()
+    _constraints: dict = PrivateAttr()
+    _compiled_constraints: list[dict] = PrivateAttr()
+
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
         "options": {"ftol": 1e-9, "maxiter": 1_000},
     }
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    def model_post_init(self, context: Any, /) -> None:
+        """Build optimization tensors and compile objective after Field validation."""
         # 1. Prepare model with time dimension for optimization
         pymc_model = self.mmm_model._set_predictors_for_optimization(
             self.num_periods
         )  # TODO: Once multidimensional class becomes the main class.
 
-        # 2. Shared variable for total_budget: Use annotation to avoid type checking
-        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")  # type: ignore
+        # 2. Shared variable for total_budget
+        self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
 
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
@@ -1144,7 +1160,8 @@ class BudgetOptimizer(BaseModel):
         budget_bounds : DataArray or dict, optional
             - If None, default bounds of [0, total_budget] per channel are assumed.
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
-            - If an xarray.DataArray, must have dims (*budget_dims, "bound"), specifying [low, high] per channel cell.
+            - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
+              specifying [low, high] per channel cell.
         x0 : np.ndarray, optional
             Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
             None, the total budget is spread uniformly across all drivers to be optimized.
@@ -1324,6 +1341,7 @@ class BudgetOptimizer(BaseModel):
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
+            optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
             if callback:
                 return optimal_budgets, result, callback_info
