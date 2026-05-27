@@ -106,3 +106,55 @@ def test_safe_proportional_share_matches_normal_division_when_denominator_nonzer
     result = safe_proportional_share(numerator=numerator, denominator=denominator)
     expected = numerator / denominator
     xr.testing.assert_allclose(result, expected)
+
+
+def _toy_log_posterior() -> tuple[xr.DataArray, xr.DataArray, xr.DataArray]:
+    """Small (chain, draw) log-link posterior for difference-of-means checks."""
+    rng = np.random.default_rng(0)
+    mu = xr.DataArray(
+        rng.normal(0.0, 0.5, size=(2, 50, 3)),
+        dims=("chain", "draw", "date"),
+    )
+    component = xr.DataArray(
+        rng.normal(0.0, 0.2, size=(2, 50, 3)),
+        dims=("chain", "draw", "date"),
+    )
+    target_scale = xr.DataArray(100.0)
+    return mu, component, target_scale
+
+
+def test_mean_is_difference_of_means_for_finite_samples():
+    r"""E[exp(mu)*s - exp(mu-v)*s] equals E[exp(mu)]*s - E[exp(mu-v)]*s exactly.
+
+    Locks in the linearity-of-expectation identity invoked in the docstrings:
+    the implemented per-draw form and the difference-of-means form share the
+    same posterior mean.
+    """
+    mu, component, target_scale = _toy_log_posterior()
+
+    per_draw = log_counterfactual_remove_component(
+        mu_total=mu, component=component, target_scale=target_scale
+    )
+    mean_of_difference = per_draw.mean(("chain", "draw"))
+
+    y_hat_mean = (np.exp(mu) * target_scale).mean(("chain", "draw"))
+    y_hat_no_comp_mean = (np.exp(mu - component) * target_scale).mean(("chain", "draw"))
+    difference_of_means = y_hat_mean - y_hat_no_comp_mean
+
+    xr.testing.assert_allclose(mean_of_difference, difference_of_means)
+
+
+def test_per_draw_form_differs_from_difference_of_means_in_spread():
+    """The per-draw form carries draw-level variation the mean-difference loses.
+
+    Credible intervals are only well defined for the per-draw counterfactual,
+    so its variance across draws must be strictly positive (whereas a
+    difference of two posterior means is a single number with no spread).
+    """
+    mu, component, target_scale = _toy_log_posterior()
+
+    per_draw = log_counterfactual_remove_component(
+        mu_total=mu, component=component, target_scale=target_scale
+    )
+    spread = per_draw.std(("chain", "draw"))
+    assert (spread.values > 0).all()

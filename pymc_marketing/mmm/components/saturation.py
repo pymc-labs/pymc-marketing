@@ -169,6 +169,18 @@ class SaturationTransformation(Transformation):
 
     prefix: str = "saturation"
 
+    requires_unscaled_input: bool = False
+    """Whether the saturation must receive raw (unscaled) channel inputs.
+
+    Most saturations operate on channel data divided by ``channel_scale``
+    (see :class:`~pymc_marketing.mmm.scaling.Scaling`).  A saturation that
+    sets this flag to ``True`` instead receives the *raw* channel data, and
+    the MMM forces ``channel_scale`` to one for those channels.  This is
+    required by scale-sensitive transformations such as
+    :class:`LogSaturation`, whose coefficients only carry their intended
+    interpretation (an elasticity) when the input is not rescaled.
+    """
+
     @classmethod
     def from_dict(cls, data: dict) -> SaturationTransformation:
         """Reconstruct a saturation transformation from a dict."""
@@ -600,10 +612,27 @@ class RootSaturation(SaturationTransformation):
 class LogSaturation(SaturationTransformation):
     r"""Logarithmic saturation for log-log models.
 
-    Applies :math:`\beta \, \log(1 + x)`, mapping spend through a concave
-    logarithmic curve with diminishing returns.  When combined with
-    ``link="log"`` in the MMM, the coefficient :math:`\beta` has an
-    elasticity-like interpretation.
+    Applies :math:`\beta \, \log(1 + x)` to the **raw** (unscaled) channel
+    input, mapping spend through a concave logarithmic curve with
+    diminishing returns.
+
+    When combined with ``link="log"`` in the MMM, the model becomes a
+    log-log specification and :math:`\beta` is an approximate
+    *elasticity* -- the percentage change in the response per one percent
+    change in spend.  For this interpretation to hold, the channel input
+    must **not** be rescaled: an elasticity is dimensionless, so dividing
+    spend by an arbitrary ``channel_scale`` would change :math:`\beta`
+    (because :math:`\log(1 + x)` is not invariant under multiplicative
+    rescaling of :math:`x`).  This class therefore sets
+    :attr:`~SaturationTransformation.requires_unscaled_input` to ``True``,
+    which makes the MMM feed raw spend to the saturation and force
+    ``channel_scale = 1`` for the affected channels.
+
+    ``log(1 + x)`` (rather than ``log(x)``) is used so that the transform
+    is finite at ``x = 0`` -- common for paused or cold-start channels --
+    while remaining numerically indistinguishable from ``log(x)`` once
+    spend is large, where the elasticity interpretation is exact in the
+    limit :math:`\partial \log y / \partial \log x \to \beta`.
 
     .. plot::
         :context: close-figs
@@ -621,6 +650,8 @@ class LogSaturation(SaturationTransformation):
         plt.show()
 
     """
+
+    requires_unscaled_input: bool = True
 
     def function(self, x, beta, *, dim: str | None = None):
         """Logarithmic saturation function: beta * log(1 + x)."""

@@ -22,6 +22,8 @@ Covers the phased test plan:
     Layer 6: Serialization and backward compatibility
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -37,7 +39,8 @@ from pymc_marketing.mmm.link import (
     LogLinkSpec,
     get_link_spec,
 )
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
+from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, Scaling
 
 
 def _make_positive_panel(
@@ -232,6 +235,103 @@ class TestLogSaturation:
         sat2 = saturation_from_dict(d)
         assert isinstance(sat2, LogSaturation)
         assert sat2.to_dict() == d
+        # The unscaled-input contract must survive a round trip.
+        assert sat2.requires_unscaled_input is True
+
+    def test_requires_unscaled_input_flag(self):
+        """LogSaturation opts into raw inputs; the default does not."""
+        assert LogSaturation().requires_unscaled_input is True
+        assert LogisticSaturation().requires_unscaled_input is False
+
+    def test_log_saturation_skips_channel_scaling(self, mock_pymc_sample):
+        """A log-log MMM forces channel_scale to one (raw inputs)."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+
+        np.testing.assert_allclose(mmm.scalers["_channel"].values, 1.0)
+        np.testing.assert_allclose(mmm.model["channel_scale"].get_value(), 1.0)
+
+    def test_log_saturation_feeds_raw_channel_data(self, mock_pymc_sample):
+        """With channel_scale == 1 the forward pass receives raw spend."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+
+        stored = np.sort(mmm.model["channel_data"].get_value().ravel())
+        raw = np.sort(X[["C1", "C2"]].to_numpy().ravel())
+        np.testing.assert_allclose(stored, raw)
+
+    def test_logistic_saturation_keeps_channel_scaling(self, mock_pymc_sample):
+        """A non-flagged saturation keeps data-derived channel scaling (!= 1)."""
+        mmm = _make_mmm(link="identity")
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        assert not np.allclose(mmm.scalers["_channel"].values, 1.0)
+
+    def test_log_saturation_warns_when_channel_scaling_overridden(
+        self, mock_pymc_sample
+    ):
+        """Explicit channel scaling triggers a UserWarning (it is ignored)."""
+        scaling = Scaling(
+            target=DataDerivedScaling(method="max", dims=("country",)),
+            channel=FixedScaling(dims=("country",), value=10.0),
+        )
+        mmm = _make_mmm(link="log", scaling=scaling)
+        X, y = _make_positive_panel()
+        with pytest.warns(UserWarning, match="channel scaling"):
+            mmm.build_model(X, y)
+        np.testing.assert_allclose(mmm.scalers["_channel"].values, 1.0)
+
+    def test_log_saturation_no_warning_with_default_scaling(self, mock_pymc_sample):
+        """Default (implicit) channel scaling is overridden silently."""
+        mmm = _make_mmm(link="log")
+        X, y = _make_positive_panel()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            mmm.build_model(X, y)
+
+    def test_log_saturation_elasticity_function_limit(self):
+        """beta is the high-spend elasticity: d log f / d log x -> beta."""
+        beta = 0.7
+        x = np.array([1e5, 1e6])
+        elasticity = beta * x / (1.0 + x)  # d/dlog x of beta*log(1+x)
+        np.testing.assert_allclose(elasticity, beta, rtol=1e-4)
+
+    @pytest.mark.slow
+    def test_log_saturation_elasticity_recovery(self):
+        """A real (small) fit recovers a known elasticity within tolerance."""
+        rng = np.random.default_rng(42)
+        n = 120
+        dates = pd.date_range("2021-01-04", periods=n, freq="W-MON")
+        x = rng.uniform(100, 2000, n)
+        beta_true, alpha_true = 0.6, 1.2
+        mu = alpha_true + beta_true * np.log1p(x)
+        y = np.exp(mu) * np.exp(rng.normal(0, 0.05, n))
+
+        df = pd.DataFrame({"date": dates, "C1": x})
+        y_series = pd.Series(y, name="y")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogSaturation(),
+            link="log",
+        )
+        mmm.fit(
+            df,
+            y_series,
+            draws=300,
+            tune=300,
+            chains=2,
+            cores=2,
+            target_accept=0.9,
+            random_seed=0,
+            progressbar=False,
+        )
+        beta_hat = float(mmm.idata.posterior["saturation_beta"].mean())
+        assert abs(beta_hat - beta_true) < 0.1
 
 
 class TestBuildModelDeterministics:
@@ -502,3 +602,62 @@ class TestSerialization:
         }
         kwargs = MMM.attrs_to_init_kwargs(attrs)
         assert kwargs["link"] == "identity"
+
+
+class TestBudgetOptimizerLogLog:
+    """Budget optimization must keep working under the log link (channel_scale == 1)."""
+
+    @pytest.mark.slow
+    def test_optimize_budget_log_log_runs_and_conserves_budget(self):
+        """A log-log model optimizes without double-scaling and conserves the budget.
+
+        Uses a real (small) fit rather than ``mock_pymc_sample`` because a
+        mocked posterior draws coefficients from the (wide) prior, which sends
+        ``exp(mu)`` to extreme values and makes the optimization landscape
+        ill-conditioned.  A genuine fit anchors the coefficients to the data
+        and exercises the realistic ``channel_scale == 1`` path.
+        """
+        rng = np.random.default_rng(7)
+        n = 80
+        dates = pd.date_range("2021-01-04", periods=n, freq="W-MON")
+        x1 = rng.uniform(100, 1000, n)
+        x2 = rng.uniform(100, 1000, n)
+        mu = 1.0 + 0.5 * np.log1p(x1) + 0.2 * np.log1p(x2)
+        y = np.exp(mu) * np.exp(rng.normal(0, 0.05, n))
+
+        X = pd.DataFrame({"date": dates, "C1": x1, "C2": x2})
+        y_series = pd.Series(y, name="y")
+
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            adstock=GeometricAdstock(l_max=1),
+            saturation=LogSaturation(),
+            link="log",
+        )
+        mmm.fit(
+            X,
+            y_series,
+            draws=200,
+            tune=200,
+            chains=2,
+            cores=2,
+            random_seed=0,
+            progressbar=False,
+        )
+
+        optimizable = BudgetOptimizerWrapper(
+            model=mmm,
+            start_date=X["date"].max() + pd.Timedelta(weeks=1),
+            end_date=X["date"].max() + pd.Timedelta(weeks=5),
+        )
+
+        total_budget = 1000.0
+        optimal_budgets, result = optimizable.optimize_budget(budget=total_budget)
+
+        assert result.success
+        assert isinstance(optimal_budgets, xr.DataArray)
+        assert (optimal_budgets.values >= -1e-8).all()
+        np.testing.assert_allclose(
+            float(optimal_budgets.sum()), total_budget, rtol=1e-4
+        )

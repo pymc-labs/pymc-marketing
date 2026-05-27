@@ -202,13 +202,11 @@ class LogLinkSpec(LinkSpec):
     r"""Log link: ``E[y] = exp(mu) * target_scale``.
 
     When used with :class:`~pymc_marketing.mmm.components.saturation.LogSaturation`,
-    the model becomes a log-log specification where coefficients have an
-    elasticity-like interpretation.  Note that under the default scaling
-    pipeline (``y_scaled = y / target_scale``), the intercept absorbs
-    ``log(target_scale)`` and channel data is divided by ``channel_scale``,
-    so the beta coefficients are **approximate** elasticities with respect
-    to *scaled* spend rather than strict textbook elasticities with respect
-    to raw spend.
+    the model becomes a log-log specification where the coefficients have an
+    elasticity interpretation.  ``LogSaturation`` requests raw (unscaled)
+    channel inputs, so the elasticity is taken with respect to actual spend
+    and the intercept absorbs ``log(target_scale)`` from the target scaling
+    pipeline.
     """
 
     link = LinkFunction.LOG

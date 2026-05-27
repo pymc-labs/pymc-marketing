@@ -484,6 +484,14 @@ class MMM(RegressionModelBuilder):
 
         self.dims = dims
 
+        # Track whether the user explicitly configured channel scaling so
+        # that saturations requiring unscaled input (e.g. LogSaturation) can
+        # warn only when overriding a deliberate choice, not the default.
+        if isinstance(scaling, dict):
+            self._channel_scaling_explicit = "channel" in scaling
+        else:
+            self._channel_scaling_explicit = scaling is not None
+
         if isinstance(scaling, dict):
             scaling = deepcopy(scaling)
 
@@ -1274,7 +1282,14 @@ class MMM(RegressionModelBuilder):
 
         where :math:`\text{inv}` is the inverse link function,
         :math:`s` is ``target_scale``, and :math:`d` indexes a
-        posterior draw.
+        posterior draw.  The difference is taken **inside** each draw and
+        only afterwards averaged, i.e. the estimand is
+        :math:`\mathbb{E}\bigl[\text{inv}(\mu) \cdot s
+        - \text{inv}(\mu - v_j) \cdot s\bigr]`, *not*
+        :math:`\mathbb{E}[\text{inv}(\mu)] \cdot s
+        - \mathbb{E}[\text{inv}(\mu - v_j)] \cdot s`.  By linearity of
+        expectation the two posterior means coincide, but only the
+        per-draw form yields correct credible intervals.
 
         **Identity link** (:math:`\text{inv} = \text{id}`):
 
@@ -1401,11 +1416,17 @@ class MMM(RegressionModelBuilder):
         .. math::
 
             \text{contribution}_j(t)
-            = \mathbb{E}\bigl[\text{inv}(\mu) \cdot s\bigr]
-            - \mathbb{E}\bigl[\text{inv}(\mu - v_j) \cdot s\bigr]
+            = \mathbb{E}\bigl[\text{inv}(\mu) \cdot s
+            - \text{inv}(\mu - v_j) \cdot s\bigr]
 
         where :math:`\text{inv}` is the inverse link function and
-        :math:`s` is ``target_scale``.
+        :math:`s` is ``target_scale``.  The difference is formed per
+        draw before averaging; by linearity of expectation this equals
+        :math:`\mathbb{E}[\text{inv}(\mu)] \cdot s
+        - \mathbb{E}[\text{inv}(\mu - v_j)] \cdot s` for the posterior
+        mean returned here, while keeping the full-posterior form
+        (see :meth:`compute_counterfactual_contributions_dataset`)
+        correct for credible intervals.
 
         For **identity-link** (additive) models this reduces to
         :math:`\mathbb{E}[v_j] \cdot s`, and the columns sum exactly
@@ -2021,6 +2042,26 @@ class MMM(RegressionModelBuilder):
             self.xarray_dataset["_target"],
             self.scaling.target,
         )
+
+        # Scale-sensitive saturations (e.g. LogSaturation) must see raw spend
+        # so their coefficients keep their intended interpretation. Forcing the
+        # channel scale to one feeds raw data to the forward pass (because
+        # ``channel_data / 1 == channel_data``) and keeps every downstream
+        # consumer of ``channel_scale`` -- including the budget optimizer --
+        # consistent without any special-casing.
+        if getattr(self.saturation, "requires_unscaled_input", False):
+            if self._channel_scaling_explicit:
+                warnings.warn(
+                    f"Saturation {type(self.saturation).__name__} requires "
+                    "unscaled channel inputs, so the channel scaling you "
+                    "configured is ignored and channel_scale is set to 1. "
+                    "This preserves the elasticity interpretation of the "
+                    "coefficients, which would otherwise change under "
+                    "multiplicative rescaling of the inputs.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            self.scalers["_channel"] = xr.ones_like(self.scalers["_channel"])
 
     def _compute_scale_for_variable(
         self,
