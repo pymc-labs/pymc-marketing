@@ -394,8 +394,6 @@ class TestDecomposition:
         """Fit a log-link MMM and return (mmm, contributions_df)."""
         mmm = _make_mmm(link="log")
         X, y = _make_positive_panel()
-        # Seed the mock fit so downstream sign/value assertions are
-        # deterministic regardless of global RNG state / test ordering.
         mmm.fit(X, y, random_seed=42)
         return mmm, mmm.compute_mean_contributions_over_time()
 
@@ -543,9 +541,6 @@ class TestEquality:
         assert mmm1 == mmm2
 
 
-# ===========================================================================
-# Layer 6: Serialization and backward compatibility
-# ===========================================================================
 class TestSerialization:
     """Test save/load round-trip for link parameter."""
 
@@ -697,7 +692,7 @@ class TestDecompositionRelationship:
 
 
 class TestCentralTendency:
-    """C1: mean vs median log-link contributions."""
+    """Mean vs median log-link contributions."""
 
     def test_mean_equals_median_times_sigma_correction_log(self, mock_pymc_sample):
         """Mean contributions equal median contributions times exp(sigma**2/2)."""
@@ -742,7 +737,7 @@ class TestCentralTendency:
 
 
 class TestMuEffectsDecomposition:
-    """C3: mu_effects must appear in the counterfactual decomposition."""
+    """mu_effects must appear in the counterfactual decomposition."""
 
     def test_linear_trend_effect_appears_in_log_decomposition(self, mock_pymc_sample):
         from pymc_marketing.mmm.additive_effect import LinearTrendEffect
@@ -766,7 +761,7 @@ class TestMuEffectsDecomposition:
 
 
 class TestOriginalScaleGuardLogLink:
-    """C4: per-component *_original_scale under log link warns; output var does not."""
+    """per-component *_original_scale under log link warns; output var does not."""
 
     def test_log_warns_for_component(self, mock_pymc_sample):
         mmm = _make_mmm(link="log")
