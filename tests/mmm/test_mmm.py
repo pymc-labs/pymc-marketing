@@ -912,7 +912,8 @@ class TestSerializationIntegration:
                 import pytensor.tensor as pt
                 from pytensor.xtensor.type import as_xtensor
 
-                return as_xtensor(pt.zeros(1), dims=["date"])
+                n_obs = mmm.model.dim_lengths["date"]
+                return as_xtensor(pt.zeros(n_obs), dims=["date"])
 
             def set_data(self, mmm, model, X):
                 pass
