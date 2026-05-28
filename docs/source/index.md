@@ -47,6 +47,26 @@ Powered by
 :class: only-light
 :::
 
+## Get started
+
+```bash
+pip install pymc-marketing
+```
+
+```python
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, MMM
+
+mmm = MMM(
+    adstock=GeometricAdstock(l_max=8),
+    saturation=LogisticSaturation(),
+    date_column="date_week",
+    channel_columns=["x1", "x2"],
+    control_columns=["event_1", "event_2", "t"],
+    yearly_seasonality=2,
+)
+```
+
+See how PyMC-Marketing compares to [Robyn, LightweightMMM, and other MMM frameworks](guide/mmm/comparison).
 
 ## Quick links
 
