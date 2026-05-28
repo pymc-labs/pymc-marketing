@@ -27,43 +27,9 @@ og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Ma
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
 :::
 
-<h1 style="text-align: center;">Powered by</h1>
-
-:::{image} _static/labs-logo-dark.png
-:align: center
-:target: https://www.pymc-labs.com
-:scale: 20 %
-:alt: PyMC Labs logo
-:class: only-dark
+:::{div} sd-text-center sd-text-muted sd-fs-6
+Powered by [PyMC Labs](https://www.pymc-labs.com)
 :::
-
-:::{image} _static/labs-logo-light.png
-:align: center
-:target: https://www.pymc-labs.com
-:scale: 20 %
-:alt: PyMC Labs logo
-:class: only-light
-:::
-
----
-
-## 📞 Schedule a Free Strategy Consultation
-
-Maximize your marketing ROI with a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our PyMC-Marketing experts or [send us a message](https://www.pymc-labs.com/contact). Learn how Bayesian Marketing Mix Modeling and Customer Lifetime Value analytics can boost your organization by making smarter, data-driven decisions.
-
-For businesses looking to integrate PyMC-Marketing into their operational framework, [PyMC Labs](https://www.pymc-labs.com) offers expert consulting and training. Our team is proficient in state-of-the-art Bayesian modeling techniques, with a focus on Marketing Mix Models (MMMs) and Customer Lifetime Value (CLV).
-
-We provide the following professional services:
-
-- **Custom Models**: Bespoke Bayesian models tailored to your business requirements and data structure.
-- **Training & Coaching**: Comprehensive training programs to master PyMC-Marketing and Bayesian marketing analytics.
-- **Implementation Support**: End-to-end integration into your existing data infrastructure and workflows.
-- **Strategic Advisory**: Expert guidance on marketing measurement strategy and data-driven decision frameworks.
-- **SaaS Solutions**: State-of-the-art software solutions to streamline your data-driven marketing initiatives.
-
-### PyMC Labs Client Testimonials
-
-<iframe width="800" height="450" src="https://www.youtube.com/embed/_CVEygFxFRA" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 
 
 ## Quick links
