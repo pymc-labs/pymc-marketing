@@ -27,8 +27,24 @@ og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Ma
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
 :::
 
-:::{div} sd-text-center sd-text-muted sd-fs-6
-Powered by [PyMC Labs](https://www.pymc-labs.com)
+:::{div} sd-text-center sd-text-muted
+Powered by
+:::
+
+:::{image} _static/labs-logo-dark.png
+:align: center
+:target: https://www.pymc-labs.com
+:scale: 10 %
+:alt: PyMC Labs logo
+:class: only-dark
+:::
+
+:::{image} _static/labs-logo-light.png
+:align: center
+:target: https://www.pymc-labs.com
+:scale: 10 %
+:alt: PyMC Labs logo
+:class: only-light
 :::
 
 
@@ -208,6 +224,12 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 - [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
 
 For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
+
+---
+
+## Need help with PyMC-Marketing?
+
+Book a [free 30-minute strategy session](https://calendly.com/niall-oulton) with our experts or [send us a message](https://www.pymc-labs.com/contact).
 
 :::{toctree}
 :hidden:
