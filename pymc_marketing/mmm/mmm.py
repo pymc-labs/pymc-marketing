@@ -171,7 +171,9 @@ Save, load, and plot:
 Notes
 -----
 - X must include `date`, the `channel_columns`, and any extra `dims` columns.
-- y is a Series with name equal to `target_column`.
+- ``y`` may be a :class:`pandas.Series` aligned with ``X``. An unnamed series is
+  accepted and treated as ``target_column``; if ``y.name`` is set, it must match
+  ``target_column``.
 - Call `add_events` before fitting/building.
 """
 
@@ -182,7 +184,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Self, cast
+from typing import Annotated, Any, Literal, Self, cast
 
 import arviz as az
 import numpy as np
@@ -222,6 +224,8 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.plot import MMMPlotSuite
+from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
+from pymc_marketing.mmm.plotting.budget import BudgetPlots
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -237,13 +241,11 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     create_zero_dataset,
 )
-from pymc_marketing.model_builder import (
-    RegressionModelBuilder,
-    _handle_deprecate_pred_argument,
-)
+from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.version import __version__
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -573,6 +575,8 @@ class MMM(RegressionModelBuilder):
                     self.yearly_seasonality = None
 
         self._cost_per_unit_input = cost_per_unit
+        self._plot_suite: Literal["legacy", "new"] = "legacy"
+        self._plot_suite_warned: bool = False
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -887,6 +891,19 @@ class MMM(RegressionModelBuilder):
         )
 
     @property
+    def plot_suite(self) -> Literal["legacy", "new"]:
+        """Which plot suite to use: 'legacy' (default) or 'new'."""
+        return self._plot_suite
+
+    @plot_suite.setter
+    def plot_suite(self, value: Literal["legacy", "new"]) -> None:
+        if value not in ("legacy", "new"):
+            raise ValueError(f"plot_suite must be 'legacy' or 'new', got {value!r}")
+        self._plot_suite = value
+        if value == "legacy":
+            self._plot_suite_warned = False
+
+    @property
     def default_sampler_config(self) -> dict:
         """Default sampler configuration."""
         return {}
@@ -1018,17 +1035,13 @@ class MMM(RegressionModelBuilder):
         return attrs
 
     def save(self, fname: str, **kwargs) -> None:
-        """Save the model, including supplementary data for MuEffects."""
+        """Save the model, including supplementary idata groups from mu_effects."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
         for effect in self.mu_effects:
-            if isinstance(effect, EventAdditiveEffect):
-                group_name = f"supplementary_data_{effect.prefix}"
+            for group_name, ds in effect.idata_groups().items():
                 if not hasattr(self.idata, group_name):
-                    ds = xr.Dataset.from_dataframe(
-                        effect.df_events.reset_index(drop=True)
-                    )
                     self.idata.add_groups({group_name: ds})
 
         # Persist the base names of any *_original_scale Deterministics so they
@@ -1115,14 +1128,25 @@ class MMM(RegressionModelBuilder):
         }
 
     @property
-    def plot(self) -> MMMPlotSuite:
-        """Use the MMMPlotSuite to plot the results."""
+    def plot(self) -> MMMPlotSuite | MMMPlotSuiteFacade:
+        """Access the plot suite for visualizing MMM results."""
         self._validate_model_was_built()
         self._validate_idata_exists()
-        data = self.data
-        # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
-        # However the schema is not very flexiable and the plot suite is (too) flexiable.
-        return MMMPlotSuite(data=data)
+        if self.plot_suite == "legacy":
+            if not self._plot_suite_warned:
+                warnings.warn(
+                    "The legacy MMMPlotSuite will be removed in pymc-marketing 2.0.0. "
+                    "Set mmm.plot_suite = 'new' to opt in to the new namespace-based API. "
+                    "See the migration guide: "
+                    "https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_plot_suite_migration_guide.html",
+                    FutureWarning,
+                    stacklevel=2,
+                )
+                self._plot_suite_warned = True
+            # TODO: We would like to validate the data here for the plot suite using data.validate_or_raise()
+            # However the schema is not very flexible and the plot suite is (too) flexible.
+            return MMMPlotSuite(data=self.data)
+        return MMMPlotSuiteFacade(data=self.data)
 
     @property
     def plot_interactive(self):  # type: ignore[no-any-return]
@@ -1686,7 +1710,7 @@ class MMM(RegressionModelBuilder):
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame,  # type: ignore
-        y: pd.Series,  # type: ignore
+        y: pd.Series | np.ndarray,  # type: ignore
     ):
         # Convert ndarray-like ``y`` into a pandas Series so the downstream
         # ``pd.concat`` call below produces an actionable error rather than a
@@ -1698,6 +1722,15 @@ class MMM(RegressionModelBuilder):
                     f" (got len(y)={len(y)} and len(X)={len(X)})"
                 )
             y = pd.Series(y, index=X.index, name=self.target_column)
+        elif isinstance(y, pd.Series):
+            if y.name is None:
+                y = y.rename(self.target_column)
+            elif y.name != self.target_column:
+                raise ValueError(
+                    f"y has name '{y.name}' but the model's target_column is "
+                    f"'{self.target_column}'. Pass an unnamed Series or rename "
+                    f"it to '{self.target_column}'."
+                )
 
         self.X = X  # type: ignore
         self.y = y  # type: ignore
@@ -2076,10 +2109,12 @@ class MMM(RegressionModelBuilder):
         **kwargs : dict
             Additional keyword arguments that might be required by underlying methods or utilities.
 
-        Attributes Set
-        ---------------
-        model : pm.Model
-            The PyMC model object containing all the defined stochastic and deterministic variables.
+        Notes
+        -----
+        Sets the following attributes on the instance:
+
+        - ``model``: a :class:`pymc.Model` containing all defined stochastic
+          and deterministic variables.
 
         Examples
         --------
@@ -2493,15 +2528,13 @@ class MMM(RegressionModelBuilder):
         include_last_observations: bool = False,  # type: ignore
         clone_model: bool = True,  # type: ignore
         **sample_posterior_predictive_kwargs,  # type: ignore
-    ) -> xr.DataArray:
+    ) -> xr.Dataset:
         """Sample from the model's posterior predictive distribution.
 
         Parameters
         ----------
         X : pd.DataFrame
             Input data for prediction, with the same structure as the training data.
-        y : pd.Series, optional
-            Optional target data for validation or alignment. Default is None.
         extend_idata : bool, optional
             Whether to add predictions to the inference data object. Defaults to True.
         combined : bool, optional
@@ -2516,10 +2549,9 @@ class MMM(RegressionModelBuilder):
 
         Returns
         -------
-        xr.DataArray
+        xr.Dataset
             Posterior predictive samples.
         """
-        X = _handle_deprecate_pred_argument(X, "X", sample_posterior_predictive_kwargs)
         # Update model data with xarray
         if X is None:
             raise ValueError("X values must be provided")
@@ -2629,8 +2661,9 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled saturation curves with dimensions:
-            - Simple model: (chain, draw, x, channel)
-            - Panel model: (chain, draw, x, *custom_dims, channel)
+
+            - Simple model: ``(chain, draw, x, channel)``
+            - Panel model: ``(chain, draw, x, *custom_dims, channel)``
 
             When subsampling (``num_samples`` < total posterior draws), the
             ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
@@ -2772,8 +2805,9 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataArray
             Sampled adstock curves with dimensions:
-            - Simple model: (chain, draw, time since exposure, channel)
-            - Panel model: (chain, draw, time since exposure, *custom_dims, channel)
+
+            - Simple model: ``(chain, draw, time since exposure, channel)``
+            - Panel model: ``(chain, draw, time since exposure, *custom_dims, channel)``
 
             When subsampling (``num_samples`` < total posterior draws), the
             ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
@@ -3167,9 +3201,11 @@ class MMM(RegressionModelBuilder):
             same ``date`` and any model ``dims`` columns.
         calibration_data : pd.DataFrame
             DataFrame with rows specifying calibration targets. Must include:
-              - ``channel``: channel name in ``self.channel_columns``
-              - ``cost_per_target``: desired CPT value
-              - ``sigma``: accepted deviation; larger => weaker penalty
+
+            - ``channel``: channel name in ``self.channel_columns``
+            - ``cost_per_target``: desired CPT value
+            - ``sigma``: accepted deviation; larger => weaker penalty
+
             and one column per dimension in ``self.dims``.
         cpt_variable_name : str
             Name for the cost-per-target Deterministic in the model.
@@ -3579,6 +3615,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         # Adding missing dependencies for compatibility with BudgetOptimizer
         self._channel_scales = 1.0
 
+    @property
+    def plot(self) -> BudgetPlots | MMMPlotSuite | MMMPlotSuiteFacade:
+        """Access budget plotting functionality."""
+        if self.model_class.plot_suite == "new":
+            return BudgetPlots()
+        return self.model_class.plot
+
     def __getattr__(self, name):
         """Delegate attribute access to the wrapped MMM model."""
         try:
@@ -3920,7 +3963,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         include_last_observations: bool = False,
         include_carryover: bool = True,
         budget_distribution_over_period: xr.DataArray | None = None,
-    ) -> az.InferenceData:
+    ) -> xr.Dataset:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
         Parameters
@@ -3947,7 +3990,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Returns
         -------
-        az.InferenceData
+        xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
         data = create_zero_dataset(
@@ -3975,7 +4018,21 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if include_carryover:
             data_with_noise = self._apply_carryover_effect(data_with_noise)
 
-        constant_data = allocation_strategy.to_dataset(name="allocation")
+        if "channel_contribution_original_scale" not in self.model.named_vars:
+            raise ValueError(
+                "'channel_contribution_original_scale' is not in the model. "
+                "Call `mmm.add_original_scale_contribution_variable(['channel_contribution'])` "
+                "before calling `sample_response_distribution`."
+            )
+
+        constant_data = xr.merge(
+            [
+                allocation_strategy.to_dataset(name="allocation"),
+                (allocation_strategy * self.num_periods).to_dataset(
+                    name="total_allocation"
+                ),
+            ]
+        )
         _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
             self.channel_columns
         ].to_xarray()
@@ -3983,12 +4040,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         var_names = [
             self.output_var,
             "channel_contribution",
+            "channel_contribution_original_scale",
             "total_media_contribution_original_scale",
         ]
         if additional_var_names is not None:
             var_names.extend(additional_var_names)
 
-        return (
+        response = (
             self.sample_posterior_predictive(
                 X=data_with_noise,
                 extend_idata=False,
@@ -3999,3 +4057,5 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             .merge(constant_data)
             .merge(_dataset)
         )
+        response.attrs["pymc_marketing_version"] = __version__
+        return response

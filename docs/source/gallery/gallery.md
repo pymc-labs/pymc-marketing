@@ -3,6 +3,9 @@
 
 ```{toctree}
 :hidden:
+:glob:
+
+/notebooks/**
 ```
 
 ## Introduction
@@ -75,9 +78,15 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_dims_migration_guide.png
 :link: ../notebooks/mmm/mmm_dims_migration_guide.html
 :::
+
+:::{grid-item-card} MMM Plot Suite Migration Guide
+:img-top: ../gallery/images/mmm_plot_suite_migration_guide.png
+:link: ../notebooks/mmm/mmm_plot_suite_migration_guide.html
+:::
 ::::
 
 ### Custom Models
+
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -216,8 +225,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
 :::
-
-:::::
+::::
 
 ### Case Studies
 

@@ -21,6 +21,7 @@ This module provides event transformations for use in Marketing Mix Models.
     import numpy as np
     import pandas as pd
     import pymc as pm
+    import pymc.dims as pmd
 
     import matplotlib.pyplot as plt
 
@@ -77,7 +78,8 @@ This module provides event transformations for use in Marketing Mix Models.
 
     coords = {"date": dates, "event": df_events["event"].to_numpy()}
     with pm.Model(coords=coords) as model:
-        pm.Deterministic("effect", effect.apply(X), dims=("date", "event"))
+        X_data = pmd.Data("X", X, dims=("date", "event"))
+        pmd.Deterministic("effect", effect.apply(X_data), dims=("date", "event"))
 
         idata = pm.sample_prior_predictive(random_seed=rng)
 

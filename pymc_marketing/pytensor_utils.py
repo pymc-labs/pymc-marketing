@@ -288,8 +288,8 @@ def extract_response_distribution(
     pt.TensorVariable
         The response distribution graph.
 
-    Example
-    -------
+    Examples
+    --------
     `extract_response_distribution(model, idata, "channel_contribution")`
     returns a graph that computes `"channel_contribution"` as a function of both
     the newly introduced budgets and the posterior of model parameters.

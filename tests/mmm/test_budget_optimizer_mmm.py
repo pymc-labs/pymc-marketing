@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -25,6 +27,7 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
+from pymc_marketing.version import __version__
 
 
 @pytest.fixture(scope="module")
@@ -214,6 +217,7 @@ def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
     assert isinstance(optimal_budgets, xr.DataArray)
     assert optimal_budgets.shape == (2, 2)  # 2 channels, 2 geos
     assert result.success
+    assert optimal_budgets.attrs.get("pymc_marketing_version") == __version__
 
 
 @compile_kwargs
@@ -1125,6 +1129,8 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
     """Test that total spend is the same with and without time distribution patterns."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up common parameters
     num_periods = 4
     total_budget = 100
@@ -1254,6 +1260,8 @@ def test_time_distribution_with_carryover_total_spend_preserved(
     """Test that total spend is preserved when using both carryover and time distribution patterns."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up common parameters
     num_periods = 4
     total_budget = 100
@@ -1343,6 +1351,8 @@ def test_budget_distribution_carryover_interaction_issue(
     """Test that budget distribution and carryover interaction preserves total spend correctly."""
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
     # Set up a simple scenario
     num_periods = 4
 
@@ -1408,6 +1418,45 @@ def test_budget_distribution_carryover_interaction_issue(
         np.abs(channel_1_spend_with_carryover - channel_1_allocation * num_periods)
         < 0.1
     ), "With carryover: total spend should still equal allocation * num_periods"
+
+
+@compile_kwargs
+def test_sample_response_distribution_includes_total_allocation(
+    dummy_df, fitted_mmm, compile_kwargs
+):
+    """total_allocation == allocation * num_periods, regardless of include_carryover."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    fitted_mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+    num_periods = 4
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=num_periods),
+        compile_kwargs=compile_kwargs,
+    )
+
+    allocation_strategy = xr.DataArray(
+        np.full((2, 2), 10.0),
+        dims=["channel", "geo"],
+        coords={
+            "channel": ["channel_1", "channel_2"],
+            "geo": ["A", "B"],
+        },
+    )
+
+    for include_carryover in [False, True]:
+        result = optimizable_model.sample_response_distribution(
+            allocation_strategy=allocation_strategy,
+            include_carryover=include_carryover,
+        )
+        assert "total_allocation" in result, (
+            f"total_allocation missing from output with include_carryover={include_carryover}"
+        )
+        expected = allocation_strategy * optimizable_model.num_periods
+        xr.testing.assert_allclose(result["total_allocation"], expected)
+        assert result.attrs.get("pymc_marketing_version") == __version__
 
 
 @compile_kwargs
@@ -1638,3 +1687,36 @@ def test_optimize_budget_asymmetric_dims_with_mask(fitted_mmm_asymmetric):
     assert set(optimal_budgets.dims) == {"geo", "channel"}
     assert optimal_budgets.sizes["geo"] == 3
     assert optimal_budgets.sizes["channel"] == 2
+
+
+def test_budget_optimizer_plot_legacy_returns_mmm_plot_suite(fitted_mmm, dummy_df):
+    """In legacy mode, BudgetOptimizerWrapper.plot returns the legacy MMMPlotSuite."""
+    from pymc_marketing.mmm.plot import MMMPlotSuite
+
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+    optimizable_model.model_class.plot_suite = "legacy"
+    optimizable_model.model_class._plot_suite_warned = False
+    with warnings.catch_warnings(record=True):
+        warnings.simplefilter("always")
+        result = optimizable_model.plot
+    assert isinstance(result, MMMPlotSuite)
+
+
+def test_budget_optimizer_plot_new_returns_budget_plots(fitted_mmm, dummy_df):
+    """In new mode, BudgetOptimizerWrapper.plot returns BudgetPlots."""
+    from pymc_marketing.mmm.plotting.budget import BudgetPlots
+
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+    )
+    optimizable_model.model_class.plot_suite = "new"
+    result = optimizable_model.plot
+    assert isinstance(result, BudgetPlots)

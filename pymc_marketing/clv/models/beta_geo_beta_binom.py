@@ -50,23 +50,23 @@ class BetaGeoBetaBinomModel(CLVModel):
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
-        * `customer_id`: Unique customer identifier
-        * `frequency`: Number of repeat purchases
-        * `recency`: Purchase opportunities between the first and the last purchase
-        * `T`: Total purchase opportunities.
-          Model assumptions require *T >= recency* and all customers share the same value for *T.
+        * ``customer_id``: Unique customer identifier
+        * ``frequency``: Number of repeat purchases
+        * ``recency``: Purchase opportunities between the first and the last purchase
+        * ``T``: Total purchase opportunities.
+          Model assumptions require *T >= recency* and all customers share the same value for *T*.
 
     model_config : dict, optional
         Dictionary containing model parameters:
 
-        * `alpha`: Shape parameter of purchase process; defaults to `phi_purchase` * `kappa_purchase`
-        * `beta`: Shape parameter of purchase process; defaults to `1-phi_purchase` * `kappa_purchase`
-        * `gamma`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
-        * `delta`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-        * `phi_purchase`: Nested prior for alpha and beta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-        * `kappa_purchase`: Nested prior for alpha and beta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-        * `phi_dropout`: Nested prior for gamma and delta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-        * `kappa_dropout`: Nested prior for gamma and delta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+        * ``alpha``: Shape parameter of purchase process; defaults to ``phi_purchase * kappa_purchase``
+        * ``beta``: Shape parameter of purchase process; defaults to ``(1 - phi_purchase) * kappa_purchase``
+        * ``gamma``: Shape parameter of dropout process; defaults to ``phi_purchase * kappa_purchase``
+        * ``delta``: Shape parameter of dropout process; defaults to ``(1 - phi_dropout) * kappa_dropout``
+        * ``phi_purchase``: Nested prior for alpha and beta priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_purchase``: Nested prior for alpha and beta priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
+        * ``phi_dropout``: Nested prior for gamma and delta priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_dropout``: Nested prior for gamma and delta priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
 
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config : dict, optional
@@ -367,7 +367,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         * `frequency`: Number of repeat purchases
         * `recency`: Purchase opportunities between the first and the last purchase
         * `T`: Total purchase opportunities.
-          Model assumptions require *T >= recency* and all customers share the same value for *T.
+          Model assumptions require *T >= recency* and all customers share the same value for *T*.
         * `future_t`: Optional column for *future_t* parametrization.
 
         If not provided, predictions will be ran with data used to fit model.
@@ -444,7 +444,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             * `frequency`: Number of repeat purchases
             * `recency`: Purchase opportunities between the first and the last purchase
             * `T`: Total purchase opportunities.
-              Model assumptions require *T >= recency* and all customers share the same value for *T.
+              Model assumptions require *T >= recency* and all customers share the same value for *T*.
             * `future_t`: Optional column for *future_t* parametrization.
 
             If not provided, predictions will be ran with data used to fit model.
