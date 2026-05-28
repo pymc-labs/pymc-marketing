@@ -1,12 +1,12 @@
 ---
-og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+og:description: "PyMC-Marketing is an open-source Python library for Bayesian Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV), and media spend optimization. Built on PyMC by PyMC Labs, it provides adstock transformations, saturation curves, budget allocation, and CLV forecasting with full uncertainty quantification."
 ---
 
-# PyMC-Marketing
+# PyMC-Marketing: Open Source Bayesian Marketing Mix Modeling & CLV in Python
 
 ```{eval-rst}
 .. meta::
-   :description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) and Customer Choice Analysis (CSA) analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+   :description: PyMC-Marketing is an open-source Python library for Bayesian Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV), and media spend optimization. Built on PyMC by PyMC Labs, it provides adstock transformations, saturation curves, budget allocation, and CLV forecasting with full uncertainty quantification.
 ```
 
 :::{image} _static/marketing-logo-dark.jpg
@@ -19,7 +19,7 @@ og:description: Marketing Analytics Tools from PyMC Labs. Unlock the power of Ma
 :class: only-light
 :::
 
-<h1 style="text-align: center;">Open Source Marketing Analytics Solution</h1>
+PyMC-Marketing is an open-source Python library for Bayesian marketing analytics, built and maintained by [PyMC Labs](https://www.pymc-labs.com). It provides production-ready implementations of Marketing Mix Modeling (MMM) and Customer Lifetime Value (CLV) models, enabling data scientists to measure media effectiveness, optimize marketing spend, and forecast customer value — all with full Bayesian uncertainty quantification. Whether you call it marketing mix modeling or media mix modeling, PyMC-Marketing is the most comprehensive open-source MMM solution available in Python.
 
 :::{div} sd-text-center
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
@@ -244,6 +244,30 @@ For more videos, webinars and resources, check out the [PyMC Labs YouTube channe
 - [Bayesian inference at scale: Running A/B tests with millions of observations](https://www.pymc-labs.com/blog-posts/bayesian-inference-at-scale-running-ab-tests-with-millions-of-observations/)
 
 For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pymc-labs.com/blog-posts/).
+
+---
+
+## Frequently Asked Questions
+
+### What is PyMC-Marketing?
+
+PyMC-Marketing is an open-source Python library for Bayesian marketing analytics. It includes production-ready implementations of Marketing Mix Modeling (MMM) for measuring media effectiveness and optimizing marketing spend, as well as Customer Lifetime Value (CLV) models for forecasting customer value over time.
+
+### How does PyMC-Marketing compare to Google Meridian or Meta Robyn?
+
+PyMC-Marketing is the only open-source framework that combines MMM and CLV in a single library, with full Bayesian uncertainty quantification via [PyMC](https://www.pymc.io). Unlike Robyn (frequentist ridge regression) or Meridian (limited to MMM), PyMC-Marketing gives you posterior distributions over all parameters, custom priors for incorporating domain knowledge, and a unified API for both media mix modeling and customer lifetime value. See the [full comparison](guide/mmm/comparison).
+
+### Is PyMC-Marketing free to use?
+
+Yes. PyMC-Marketing is completely free and open source under the [Apache 2.0 license](https://github.com/pymc-labs/pymc-marketing/blob/main/LICENSE). You can install it with `pip install pymc-marketing`.
+
+### What Python version does PyMC-Marketing require?
+
+PyMC-Marketing supports Python 3.10 and above.
+
+### Can PyMC-Marketing optimize my marketing budget?
+
+Yes. PyMC-Marketing includes built-in [budget optimization](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html) that allocates spend across channels to maximize ROI, accounting for diminishing returns via saturation curves and carry-over effects via adstock transformations.
 
 ---
 
