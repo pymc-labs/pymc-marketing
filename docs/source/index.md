@@ -66,7 +66,7 @@ mmm = MMM(
 )
 ```
 
-See how PyMC-Marketing compares to [Robyn, LightweightMMM, and other MMM frameworks](guide/mmm/comparison).
+See how PyMC-Marketing compares to [Google Meridian, Meta Robyn, and other MMM frameworks](guide/mmm/comparison), or read the [benchmark comparison to Meridian](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian).
 
 ## Quick links
 
@@ -251,11 +251,11 @@ For more blogposts and resources, check out the [PyMC Labs Blog](https://www.pym
 
 ### What is PyMC-Marketing?
 
-PyMC-Marketing is an open-source Python library for Bayesian marketing analytics. It includes production-ready implementations of Marketing Mix Modeling (MMM) for measuring media effectiveness and optimizing marketing spend, as well as Customer Lifetime Value (CLV) models for forecasting customer value over time.
+PyMC-Marketing is an open-source Python library for Bayesian marketing analytics. It includes production-ready implementations of Marketing Mix Modeling (MMM) for measuring media effectiveness and optimizing marketing spend, Customer Lifetime Value (CLV) models for forecasting customer value over time, Customer Choice models for analyzing product launch impacts, and a Bass Diffusion Model for forecasting new product adoption.
 
 ### How does PyMC-Marketing compare to Google Meridian or Meta Robyn?
 
-PyMC-Marketing is the only open-source framework that combines MMM and CLV in a single library, with full Bayesian uncertainty quantification via [PyMC](https://www.pymc.io). Unlike Robyn (frequentist ridge regression) or Meridian (limited to MMM), PyMC-Marketing gives you posterior distributions over all parameters, custom priors for incorporating domain knowledge, and a unified API for both media mix modeling and customer lifetime value. See the [full comparison](guide/mmm/comparison).
+PyMC-Marketing is the only open-source framework that combines MMM, CLV, Customer Choice, and Bass Diffusion models in a single library, with full Bayesian uncertainty quantification via [PyMC](https://www.pymc.io). Unlike Robyn (frequentist ridge regression) or Meridian (limited to MMM), PyMC-Marketing gives you posterior distributions over all parameters, custom priors for incorporating domain knowledge, and a unified API across all model types. See the [full comparison](guide/mmm/comparison) and the [benchmark comparison to Meridian](https://www.pymc-labs.com/blog-posts/pymc-marketing-vs-google-meridian).
 
 ### Is PyMC-Marketing free to use?
 
