@@ -270,3 +270,26 @@ def test_panel_channel_fixed_scaling_remaining_dims():
 
 def test_abstract_variable_scaling_not_registered():
     assert "pymc_marketing.mmm.scaling.VariableScaling" not in serialization._registry
+
+
+def test_legacy_variable_scaling_type_key_deserializes():
+    payload = {
+        "__type__": "pymc_marketing.mmm.scaling.VariableScaling",
+        "method": "max",
+        "dims": ["geo"],
+    }
+    restored = Scaling.from_dict(
+        {
+            "target": payload,
+            "channel": {
+                "__type__": "pymc_marketing.mmm.scaling.VariableScaling",
+                "method": "fixed",
+                "dims": [],
+                "value": 100.0,
+            },
+        }
+    )
+    assert isinstance(restored.target, DataDerivedScaling)
+    assert restored.target.method == "max"
+    assert isinstance(restored.channel, FixedScaling)
+    assert restored.channel.value == 100.0
