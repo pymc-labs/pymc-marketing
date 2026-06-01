@@ -246,13 +246,6 @@ class LogLinkSpec(LinkSpec):
     counterfactual contributions are computed on this median scale; use the
     ``central_tendency="mean"`` option (which applies :meth:`mean_correction`,
     the ``exp(sigma**2 / 2)`` factor) to obtain mean-scale quantities.
-
-    When used with :class:`~pymc_marketing.mmm.components.saturation.LogSaturation`,
-    the model becomes a log-log specification where the coefficients have an
-    elasticity interpretation.  ``LogSaturation`` requests raw (unscaled)
-    channel inputs, so the elasticity is taken with respect to actual spend
-    and the intercept absorbs ``log(target_scale)`` from the target scaling
-    pipeline.
     """
 
     link = LinkFunction.LOG

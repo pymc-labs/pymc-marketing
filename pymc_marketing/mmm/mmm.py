@@ -446,8 +446,8 @@ class MMM(RegressionModelBuilder):
         outcome_node: str | None = Field(
             None, description="Name of the outcome variable."
         ),
-        link: str = Field(
-            "identity",
+        link: Literal["identity", "log"] = Field(
+            default="identity",
             description=(
                 "Link function relating the linear predictor to the "
                 "response scale. 'identity' (default) gives an additive "
@@ -468,6 +468,14 @@ class MMM(RegressionModelBuilder):
     ) -> None:
         """Define the constructor method."""
         self.link = LinkFunction(link)
+        if self.link == LinkFunction.LOG:
+            warnings.warn(
+                "The 'log' link is experimental and under active "
+                "development. Its API and behavior may change in future "
+                "releases without deprecation warnings.",
+                UserWarning,
+                stacklevel=2,
+            )
         self._link_spec: LinkSpec = get_link_spec(self.link)
 
         self.control_columns = control_columns

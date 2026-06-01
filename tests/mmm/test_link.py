@@ -90,6 +90,16 @@ class TestLinkAPI:
         with pytest.raises((ValueError, ValidationError)):
             _make_mmm(link="sqrt", dims=None)
 
+    def test_log_link_emits_experimental_warning(self):
+        with pytest.warns(UserWarning, match="experimental"):
+            _make_mmm(link="log", dims=None)
+
+    def test_identity_link_does_not_emit_experimental_warning(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _make_mmm(link="identity", dims=None)
+        assert not any("experimental" in str(w.message) for w in caught)
+
     def test_log_link_default_likelihood_is_lognormal(self):
         mmm = _make_mmm(link="log", dims=None)
         assert mmm.model_config["likelihood"].distribution == "LogNormal"
