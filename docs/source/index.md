@@ -263,7 +263,7 @@ Yes. PyMC-Marketing is completely free and open source under the [Apache 2.0 lic
 
 ### What Python version does PyMC-Marketing require?
 
-PyMC-Marketing supports Python 3.10 and above.
+PyMC-Marketing supports Python 3.12 and above.
 
 ### Can PyMC-Marketing optimize my marketing budget?
 
