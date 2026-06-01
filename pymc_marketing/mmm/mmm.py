@@ -193,6 +193,7 @@ import pymc as pm
 import pymc.dims as pmd
 import xarray as xr
 from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
+from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
@@ -2332,6 +2333,9 @@ class MMM(RegressionModelBuilder):
                 )
 
         return self
+
+    def _get_sampling_model(self) -> pm.Model:
+        return freeze_dims_and_data(self.model)
 
     def fit(  # type: ignore[override]
         self,
