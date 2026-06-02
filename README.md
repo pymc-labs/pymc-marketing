@@ -47,11 +47,10 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 
 ## Quick Installation Guide
 
-To dive into PyMC-Marketing, set up a specialized Python environment, `marketing_env`, via conda-forge:
+Install PyMC-Marketing with pip:
 
 ```bash
-conda create -c conda-forge -n marketing_env pymc-marketing
-conda activate marketing_env
+pip install pymc-marketing
 ```
 
 For a comprehensive installation guide, refer to the [official PyMC installation documentation](https://www.pymc.io/projects/docs/en/latest/installation.html).
