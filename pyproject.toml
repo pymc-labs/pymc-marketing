@@ -93,6 +93,7 @@ test = [
     "polars>=1.0.0",
     "pyprojroot",
     "pytest-cov>=3.0.0",
+    "coverage>=7.1",
     "pytest-mock>=3.14.0",
     "pytest>=7.0.1",
     "pytest-split",
@@ -183,7 +184,10 @@ addopts = [
     "--durations=50",
     "--color=yes",
 ]
-filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
+filterwarnings = [
+    "ignore::DeprecationWarning:bokeh.core.property.primitive:37",
+    "ignore::SyntaxWarning:dowhy.*",
+]
 testpaths = "tests"
 
 [tool.mypy]
