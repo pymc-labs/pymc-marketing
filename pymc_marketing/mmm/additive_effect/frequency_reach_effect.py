@@ -160,7 +160,10 @@ class FrequencyReachAdditiveEffect(BaseModel):
         (``reach × saturated_frequency``).
     beta_prior : Prior, optional
         Prior for the per-channel scaling coefficient ``beta``.
-        Defaults to ``Normal(mu=0, sigma=1)``.
+        Defaults to ``HalfNormal(sigma=1)``, which enforces non-negative
+        contributions (semantically appropriate for R&F channels). Any
+        ``Prior`` instance is accepted; dims must not be set — they are
+        assigned automatically to ``"rf_channel"`` at model build time.
     cost_per_unit : pd.DataFrame, optional
         Cost per impression for each R&F channel, optionally varying by date.
         Wide-format DataFrame with a ``date`` column and one column per channel
@@ -193,7 +196,7 @@ class FrequencyReachAdditiveEffect(BaseModel):
     df_frequency_reach: InstanceOf[pd.DataFrame]
     saturation: InstanceOf[HillShapeSaturation]
     adstock: InstanceOf[AdstockTransformation]
-    beta_prior: Prior = Field(default_factory=lambda: Prior("Normal", mu=0, sigma=1))
+    beta_prior: Prior = Field(default_factory=lambda: Prior("HalfNormal", sigma=1))
     cost_per_unit: InstanceOf[pd.DataFrame] | None = None
     assumed_frequency: float | dict[str, float] | None = None
     prefix: str = "frequency_reach"
