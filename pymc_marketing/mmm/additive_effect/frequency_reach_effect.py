@@ -113,6 +113,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
@@ -340,12 +341,12 @@ class FrequencyReachAdditiveEffect(BaseModel):
         pymc_model.add_coord(RF_CHANNEL_COORD, channels)
 
         freq_np, reach_np = self._build_raw_arrays(self.df_frequency_reach.copy(), mmm)
-        pm.Data(
+        pmd.Data(
             f"{self.prefix}_frequency_raw",
             freq_np,
             dims=(self.date_column, *mmm.dims, RF_CHANNEL_COORD),
         )
-        pm.Data(
+        pmd.Data(
             f"{self.prefix}_reach_raw",
             reach_np,
             dims=(self.date_column, *mmm.dims, RF_CHANNEL_COORD),
@@ -373,36 +374,30 @@ class FrequencyReachAdditiveEffect(BaseModel):
             Tensor with dims ``(date, *mmm.dims)`` to be added to mu.
         """
         model = mmm.model
-        _freq_raw_tensor = model[f"{self.prefix}_frequency_raw"]
-        _reach_raw_tensor = model[f"{self.prefix}_reach_raw"]
-        data_dims = (self.date_column, *mmm.dims, RF_CHANNEL_COORD)
-        freq_raw = ptx.as_xtensor(_freq_raw_tensor, dims=data_dims)
-        reach_raw = ptx.as_xtensor(_reach_raw_tensor, dims=data_dims)
+        freq_raw = model[f"{self.prefix}_frequency_raw"]
+        reach_raw = model[f"{self.prefix}_reach_raw"]
 
         # 1. Saturate frequency ONLY (reach is linear)
         frequency_sat = self.saturation.apply(x=freq_raw, core_dim=self.date_column)
-        pm.Deterministic(
+        pmd.Deterministic(
             f"{self.prefix}_frequency_sat",
             frequency_sat,
-            dims=(self.date_column, *mmm.dims, RF_CHANNEL_COORD),
         )
 
         # 2. Element-wise product with linear reach
         effective_exposure_raw = reach_raw * frequency_sat
-        pm.Deterministic(
+        pmd.Deterministic(
             f"{self.prefix}_effective_exposure_raw",
             effective_exposure_raw,
-            dims=(self.date_column, *mmm.dims, RF_CHANNEL_COORD),
         )
 
         # 3. Adstock over the exposure signal (core dim is date, not rf_channel)
         effective_exposure_adstocked = self.adstock.apply(
             x=effective_exposure_raw, core_dim=self.date_column
         )
-        pm.Deterministic(
+        pmd.Deterministic(
             f"{self.prefix}_effective_exposure_adstocked",
             effective_exposure_adstocked,
-            dims=(self.date_column, *mmm.dims, RF_CHANNEL_COORD),
         )
 
         # 4. Per-channel beta scaling — ensure beta_prior has rf_channel dim
@@ -412,20 +407,16 @@ class FrequencyReachAdditiveEffect(BaseModel):
             f"{self.prefix}_beta",
             xdist=True,
         )
-        channel_contribution = pm.Deterministic(
+        channel_contribution = pmd.Deterministic(
             f"{self.prefix}_channel_contribution",
             beta * effective_exposure_adstocked,
-            dims=(self.date_column, *mmm.dims, RF_CHANNEL_COORD),
         )
 
         # 5. Aggregate over rf_channel → shape (date, *mmm.dims)
-        total_effect = pm.Deterministic(
+        return pmd.Deterministic(
             f"{self.prefix}_total_effect",
             channel_contribution.sum(dim=RF_CHANNEL_COORD),
-            dims=(self.date_column, *mmm.dims),
         )
-
-        return total_effect
 
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Update reach & frequency data for prediction (e.g. future) dates.
@@ -485,13 +476,10 @@ class FrequencyReachAdditiveEffect(BaseModel):
                 )
 
         freq_np, reach_np = self._build_raw_arrays(df_extended, mmm, model=model)
-        pm.set_data(
-            {
-                f"{self.prefix}_frequency_raw": freq_np,
-                f"{self.prefix}_reach_raw": reach_np,
-            },
-            model=model,
-        )
+        # pmd.Data creates XTensorSharedVariable; pm.set_data doesn't handle it,
+        # so update the shared variables directly via set_value.
+        model[f"{self.prefix}_frequency_raw"].set_value(freq_np)
+        model[f"{self.prefix}_reach_raw"].set_value(reach_np)
 
     # ------------------------------------------------------------------
     # Optimizer support
