@@ -50,6 +50,8 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: Marketing Funnel Effects with MuEffect
+            notebook: mmm/mmm_mu_effect_funnel
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
