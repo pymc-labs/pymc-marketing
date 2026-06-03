@@ -31,10 +31,6 @@ from pymc_marketing.mmm import (
 )
 from pymc_marketing.prior import Prior
 
-# ---------------------------------------------------------------------------
-# Shared fixtures
-# ---------------------------------------------------------------------------
-
 N_DATES = 12
 CHANNELS = ["youtube", "display"]
 DATES = pd.date_range("2024-01-01", periods=N_DATES, freq="W-MON")
@@ -112,10 +108,6 @@ def effect_with_cpu(rf_df, saturation, adstock, cpu_df):
     )
 
 
-# ---------------------------------------------------------------------------
-# Minimal fitted MMM fixture
-# ---------------------------------------------------------------------------
-
 N_MMM_DATES = N_DATES
 MMM_CHANNELS = ["tv", "radio"]
 
@@ -159,11 +151,6 @@ def fitted_mmm(dummy_mmm_df):
         progressbar=False,
     )
     return mmm
-
-
-# ---------------------------------------------------------------------------
-# HillShapeSaturation tests
-# ---------------------------------------------------------------------------
 
 
 class TestHillShapeSaturation:
@@ -218,11 +205,6 @@ class TestHillShapeSaturation:
         d = sat.to_dict()
         sat2 = saturation_from_dict(d)
         assert type(sat2) is HillShapeSaturation
-
-
-# ---------------------------------------------------------------------------
-# FrequencyReachAdditiveEffect — validation tests
-# ---------------------------------------------------------------------------
 
 
 class TestFrequencyReachValidation:
@@ -295,11 +277,6 @@ class TestFrequencyReachValidation:
         assert effect.saturation.prefix == f"{effect.prefix}_saturation"
 
 
-# ---------------------------------------------------------------------------
-# FrequencyReachAdditiveEffect — properties
-# ---------------------------------------------------------------------------
-
-
 class TestFrequencyReachProperties:
     def test_rf_channels_sorted(self, effect):
         assert effect.rf_channels == sorted(CHANNELS)
@@ -370,11 +347,6 @@ class TestFrequencyReachProperties:
             beta_prior=custom_prior,
         )
         assert eff.beta_prior == custom_prior
-
-
-# ---------------------------------------------------------------------------
-# FrequencyReachAdditiveEffect — model integration (create_data / create_effect)
-# ---------------------------------------------------------------------------
 
 
 class TestFrequencyReachModelIntegration:
@@ -463,10 +435,30 @@ class TestFrequencyReachModelIntegration:
         std_channels = set(minimal_mmm.model.coords["channel"])
         assert rf_channels.isdisjoint(std_channels)
 
-
-# ---------------------------------------------------------------------------
-# set_data — future date zero-fill
-# ---------------------------------------------------------------------------
+    def test_create_data_raises_on_channel_overlap(
+        self, dummy_mmm_df, saturation, adstock
+    ):
+        """create_data must raise ValueError when an R&F channel name matches a
+        standard channel_column — mirroring Meridian's InputData validation."""
+        df, y = dummy_mmm_df
+        # Use one of the MMM channel names as an R&F channel to force overlap.
+        overlapping_channel = MMM_CHANNELS[0]
+        overlap_df = _make_rf_df(channels=[overlapping_channel, "youtube"])
+        effect = FrequencyReachAdditiveEffect(
+            df_frequency_reach=overlap_df,
+            saturation=saturation,
+            adstock=adstock,
+        )
+        mmm = MMM(
+            date_column="date",
+            channel_columns=MMM_CHANNELS,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(df, y)
+        with pytest.raises(ValueError, match="R&F channel names must be disjoint"):
+            with mmm.model:
+                effect.create_data(mmm)
 
 
 class TestSetData:
@@ -523,11 +515,6 @@ class TestSetData:
 
         freq_after = mmm.model[f"{effect.prefix}_frequency_raw"].get_value()
         np.testing.assert_array_equal(freq_before, freq_after)
-
-
-# ---------------------------------------------------------------------------
-# build_rf_optimization_tensors
-# ---------------------------------------------------------------------------
 
 
 class TestBuildRFOptimizationTensors:
@@ -614,11 +601,6 @@ class TestBuildRFOptimizationTensors:
         reach_val = reach_t.values.eval()
         # Non-carryover periods should be positive
         assert np.all(reach_val[:-l_max] > 0)
-
-
-# ---------------------------------------------------------------------------
-# _replace_rf_data_by_optimization_variable (no-op when no R&F effects)
-# ---------------------------------------------------------------------------
 
 
 class TestBudgetOptimizerRFNoop:

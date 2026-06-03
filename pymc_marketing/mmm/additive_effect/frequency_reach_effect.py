@@ -39,8 +39,13 @@ Optionally additional dimensions aligned with ``mmm.dims`` can be included
 and will be preserved (e.g. geo). They must exactly match those dims' names.
 
 R&F channels are independent of the standard MMM ``channel_columns``. They use
-a dedicated ``rf_channel`` coordinate in the PyMC model, so there is no risk
-of double-counting with standard media channels.
+a dedicated ``rf_channel`` coordinate in the PyMC model. R&F is an *alternative*
+representation of media activity for those channels — the reach and frequency
+data replaces impressions or spend, not supplements it.  Any channel name that
+appears in ``df_frequency_reach`` **must not** also appear in
+``channel_columns`` of the parent MMM: ``create_data`` raises a ``ValueError``
+if this constraint is violated, mirroring Meridian's own
+``InputData._validate_media_channels`` check.
 
 Transformation Logic (Meridian-style)
 --------------------------------------
@@ -335,6 +340,21 @@ class FrequencyReachAdditiveEffect(BaseModel):
         """
         self._mmm_dims = mmm.dims
         channels = self.rf_channels
+
+        # Validate disjointness with standard media channels (mirrors Meridian's
+        # InputData._validate_media_channels which raises ValueError on overlap).
+        # Use getattr so this works when mmm does not have channel_columns (e.g.
+        # non-MMM models that satisfy the Model protocol).
+        mmm_channel_columns: list[str] = getattr(mmm, "channel_columns", [])
+        overlap = set(channels) & set(mmm_channel_columns)
+        if overlap:
+            raise ValueError(
+                "R&F channel names must be disjoint from MMM channel_columns. "
+                f"Found overlap: {sorted(overlap)}. "
+                "R&F data is an alternative representation to impressions/spend "
+                "for those channels — including both would double-count their "
+                "contribution to the model."
+            )
 
         # Add rf_channel coordinate to the model
         pymc_model = pm.modelcontext(None)
