@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Unit and parametric-recovery tests for MaxDiffMixedLogit."""
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -341,7 +340,7 @@ class TestPriorPredictive:
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         prior = model.sample_prior_predictive(samples=10, random_seed=42)
-        assert "prior_predictive" in prior.groups()
+        assert "/prior_predictive" in prior.groups
         assert "best_pick" in prior["prior_predictive"]
         assert "worst_pick" in prior["prior_predictive"]
 
@@ -390,7 +389,7 @@ class TestPosteriorPredictive:
         assert idata is not None
 
         post_pred = model.sample_posterior_predictive(random_seed=42)
-        assert "posterior_predictive" in post_pred.groups()
+        assert "/posterior_predictive" in post_pred.groups
         pp = post_pred["posterior_predictive"]
         assert "best_pick" in pp
         assert "worst_pick" in pp
@@ -972,8 +971,8 @@ class TestApplyIntervention:
         task_df, _items, model = fitted_intercept_model
         result = model.apply_intervention(task_df, random_seed=0)
         assert isinstance(result, xr.Dataset)
-        assert isinstance(model.intervention_idata, az.InferenceData)
-        assert "posterior_predictive" in model.intervention_idata.groups()
+        assert isinstance(model.intervention_idata, xr.DataTree)
+        assert "/posterior_predictive" in model.intervention_idata.groups
 
     def test_auto_generates_dummy_flags(self, fitted_intercept_model):
         """Calling without is_best/is_worst columns must succeed and warn."""
@@ -1047,8 +1046,8 @@ class TestScoreNewItems:
         )
         result = model.score_new_items(new_item)
         assert isinstance(result, xr.Dataset)
-        assert isinstance(model.intervention_idata, az.InferenceData)
-        assert "posterior_predictive" in model.intervention_idata.groups()
+        assert isinstance(model.intervention_idata, xr.DataTree)
+        assert "/posterior_predictive" in model.intervention_idata.groups
 
     def test_requires_partworths_mode(self, fitted_intercept_model):
         _task_df, _items, model = fitted_intercept_model
@@ -1305,9 +1304,9 @@ class TestSampleConvenienceWrapper:
         # sample() returns self for chaining.
         assert result is model
         assert model.idata is not None
-        assert "prior_predictive" in model.idata.groups()
-        assert "posterior" in model.idata.groups()
-        assert "posterior_predictive" in model.idata.groups()
+        assert "/prior_predictive" in model.idata.groups
+        assert "/posterior" in model.idata.groups
+        assert "/posterior_predictive" in model.idata.groups
 
     def test_sample_builds_model_if_needed(self, small_maxdiff):
         """sample() must build the model automatically when not yet built."""

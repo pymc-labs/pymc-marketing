@@ -71,7 +71,7 @@ Wrap a custom PyMC model
 
 Requirements
 
-- posterior_predictive plots: an `az.InferenceData` with a `posterior_predictive` group
+- posterior_predictive plots: an `xr.DataTree` with a `posterior_predictive` group
   containing the variable(s) you want to plot with a `date` coordinate.
 - residuals plots: a `posterior_predictive` group with `y_original_scale` variable (with `date`)
   and a `constant_data` group with `target_data` variable.
@@ -215,7 +215,7 @@ class MMMPlotSuite:
 
     def __init__(
         self,
-        idata: xr.Dataset | az.InferenceData | None = None,
+        idata: xr.Dataset | xr.DataTree | None = None,
         data: MMMIDataWrapper | None = None,
     ):
 
@@ -229,7 +229,7 @@ class MMMPlotSuite:
             self.idata = idata
             self.data = MMMIDataWrapper(idata)
         else:
-            self.idata = cast(az.InferenceData, idata)
+            self.idata = cast(xr.DataTree, idata)
             self.data = cast(MMMIDataWrapper, data)
 
     def _spend_or_data_label(self, apply_cost_per_unit: bool) -> str:
@@ -2677,7 +2677,7 @@ class MMMPlotSuite:
 
     def _prepare_allocated_contribution_data(
         self,
-        samples: xr.Dataset | az.InferenceData,
+        samples: xr.Dataset | xr.DataTree,
         dims: dict[str, str | int | list] | None = None,
         split_by: str | list[str] | None = None,
         original_scale: bool = True,
@@ -2690,9 +2690,9 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        samples : xr.Dataset or az.InferenceData
+        samples : xr.Dataset or xr.DataTree
             The dataset containing the samples of channel contributions.
-            Can be an xr.Dataset with 'sample' dimension, or an az.InferenceData
+            Can be an xr.Dataset with 'sample' dimension, or an xr.DataTree
             with 'chain' and 'draw' dimensions (from posterior_predictive).
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"geo": "US"}.
@@ -2719,13 +2719,13 @@ class MMMPlotSuite:
         ValueError
             If required dimensions or variables are missing.
         """
-        # Handle InferenceData input - extract posterior_predictive
-        if isinstance(samples, az.InferenceData):
-            if hasattr(samples, "posterior_predictive"):
-                samples = samples.posterior_predictive
+        # Handle xr.DataTree input - extract posterior_predictive
+        if isinstance(samples, xr.DataTree):
+            if "/posterior_predictive" in samples.groups:
+                samples = samples["/posterior_predictive"].to_dataset()
             else:
                 raise ValueError(
-                    "InferenceData must contain 'posterior_predictive' group."
+                    "xr.DataTree must contain 'posterior_predictive' group."
                 )
 
         # Stack chain and draw into sample if present
@@ -2862,7 +2862,7 @@ class MMMPlotSuite:
 
             for j, date in enumerate(dates):
                 date_samples = channel_data.sel(date=date).values.flatten()
-                hdi_result = az.hdi(date_samples, hdi_prob=hdi_prob)
+                hdi_result = az.hdi(date_samples, prob=hdi_prob)
                 hdi_lower[j] = hdi_result[0]
                 hdi_upper[j] = hdi_result[1]
 
@@ -2880,7 +2880,7 @@ class MMMPlotSuite:
 
     def allocated_contribution_by_channel_over_time(
         self,
-        samples: xr.Dataset | az.InferenceData,
+        samples: xr.Dataset | xr.DataTree,
         hdi_prob: float = 0.94,
         dims: dict[str, str | int | list] | None = None,
         split_by: str | list[str] | None = None,
@@ -2898,9 +2898,9 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        samples : xr.Dataset or az.InferenceData
+        samples : xr.Dataset or xr.DataTree
             The dataset containing the samples of channel contributions.
-            Can be an xr.Dataset with 'sample' dimension, or az.InferenceData
+            Can be an xr.Dataset with 'sample' dimension, or xr.DataTree
             (e.g., from sample_response_distribution) with 'chain' and 'draw' dims.
         hdi_prob : float, default 0.94
             The probability mass for the HDI interval.
@@ -3351,7 +3351,7 @@ class MMMPlotSuite:
                 mean = mean.sum(dim=reduce_dims)
 
             if "sample" in line_data.dims:
-                hdi = az.hdi(line_data, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
+                hdi = az.hdi(line_data, prob=hdi_prob, input_core_dims=[["sample"]])
                 if isinstance(hdi, xr.Dataset):
                     hdi = hdi[next(iter(hdi.data_vars))]
             else:
@@ -4270,7 +4270,7 @@ class MMMPlotSuite:
         return fig, ax
 
     def cv_predictions(
-        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
+        self, results: xr.DataTree, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot posterior predictive predictions across CV folds.
 
@@ -4280,7 +4280,7 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        results : arviz.InferenceData
+        results : xr.DataTree
             Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
             Must contain:
 
@@ -4305,7 +4305,7 @@ class MMMPlotSuite:
         Raises
         ------
         TypeError
-            If ``results`` is not an ``arviz.InferenceData`` object.
+            If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If required groups or variables are missing from ``results``.
             If unsupported dimensions are specified in ``dims``.
@@ -4324,10 +4324,10 @@ class MMMPlotSuite:
         param_stability : Plot parameter stability across folds.
         cv_crps : Plot CRPS scores across folds.
         """
-        # Expect an arviz.InferenceData with cv coord and cv_metadata
-        if not isinstance(results, az.InferenceData):
+        # Expect an xr.DataTree with cv coord and cv_metadata
+        if not isinstance(results, xr.DataTree):
             raise TypeError(
-                "plot_cv_predictions expects an arviz.InferenceData object for 'results'."
+                "plot_cv_predictions expects an xr.DataTree object for 'results'."
             )
 
         # Validate presence of cv metadata and posterior predictive
@@ -4463,7 +4463,11 @@ class MMMPlotSuite:
                 ax = axes[ax_i]
 
                 # Select posterior predictive array for this CV and this panel
-                arr = results.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+                arr = (
+                    results["/posterior_predictive"]
+                    .to_dataset()["y_original_scale"]
+                    .sel(cv=cv_label)
+                )
                 try:
                     arr = arr.sel(**panel_indexer) if panel_indexer else arr
                 except (KeyError, ValueError) as exc:
@@ -4644,7 +4648,7 @@ class MMMPlotSuite:
 
     def param_stability(
         self,
-        results: az.InferenceData,
+        results: xr.DataTree,
         parameter: list[str],
         dims: dict[str, list[str]] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
@@ -4655,7 +4659,7 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        results : arviz.InferenceData
+        results : xr.DataTree
             Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
             Must contain a coordinate named 'cv' which labels each CV fold.
         parameter : list of str
@@ -4676,7 +4680,7 @@ class MMMPlotSuite:
         Raises
         ------
         TypeError
-            If ``results`` is not an ``arviz.InferenceData`` object.
+            If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If the InferenceData does not contain a 'cv' coordinate.
             If unable to select specified dimensions from posterior.
@@ -4700,10 +4704,10 @@ class MMMPlotSuite:
         ...     combined_idata, parameter=["beta_channel"], dims={"geo": ["US", "UK"]}
         ... )
         """
-        # Ensure the provided input is an arviz.InferenceData with a 'cv' coord
-        if not isinstance(results, az.InferenceData):
+        # Ensure the provided input is an xr.DataTree with a 'cv' coord
+        if not isinstance(results, xr.DataTree):
             raise TypeError(
-                "plot_param_stability expects an `arviz.InferenceData` returned by TimeSliceCrossValidator.run(...)"
+                "plot_param_stability expects an `xr.DataTree` returned by TimeSliceCrossValidator.run(...)"
             )
 
         idata = results
@@ -4814,7 +4818,7 @@ class MMMPlotSuite:
             return last_fig_ax
 
     def cv_crps(
-        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
+        self, results: xr.DataTree, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot CRPS scores for train and test sets across CV splits.
 
@@ -4824,7 +4828,7 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        results : arviz.InferenceData
+        results : xr.DataTree
             Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
             Must contain:
 
@@ -4850,7 +4854,7 @@ class MMMPlotSuite:
         Raises
         ------
         TypeError
-            If ``results`` is not an ``arviz.InferenceData`` object.
+            If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If required groups or variables are missing from ``results``.
             If no 'cv' coordinate is found in the InferenceData.
@@ -4868,33 +4872,39 @@ class MMMPlotSuite:
         indicate better predictions.
         """
         # Validate input is combined InferenceData
-        if not isinstance(results, az.InferenceData):
+        if not isinstance(results, xr.DataTree):
             raise TypeError(
-                "cv_crps expects an arviz.InferenceData returned by TimeSliceCrossValidator._combine_idata(...)"
+                "cv_crps expects an xr.DataTree returned by TimeSliceCrossValidator._combine_idata(...)"
             )
-        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+        if (
+            "/cv_metadata" not in results.groups
+            or "metadata" not in results["/cv_metadata"].to_dataset().data_vars
+        ):
             raise ValueError(
                 "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
-            not hasattr(results, "posterior_predictive")
-            or "y_original_scale" not in results.posterior_predictive
+            "/posterior_predictive" not in results.groups
+            or "y_original_scale"
+            not in results["/posterior_predictive"].to_dataset().data_vars
         ):
             raise ValueError(
                 "Provided InferenceData must include posterior_predictive['y_original_scale']."
             )
 
         # Helper: build prediction matrix for a given cv label and rows DataFrame
-        def _pred_matrix_for_rows(
-            idata: az.InferenceData, cv_label, rows_df: pd.DataFrame
-        ):
+        def _pred_matrix_for_rows(idata: xr.DataTree, cv_label, rows_df: pd.DataFrame):
             """Build (n_samples, n_rows) prediction matrix for given rows DataFrame and CV label.
 
             Selects posterior_predictive['y_original_scale'] for the given cv and then
             behaves like the legacy helper: find date coord, select by date (and any
             other matching row-level coords), and assemble a (n_samples, n_rows) matrix.
             """
-            da = idata.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+            da = (
+                idata["/posterior_predictive"]
+                .to_dataset()["y_original_scale"]
+                .sel(cv=cv_label)
+            )
             da_s = da.stack(sample=("chain", "draw"))
 
             # Ensure 'sample' is first axis

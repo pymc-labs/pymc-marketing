@@ -36,7 +36,7 @@ from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.prior import Prior, VariableFactory
-from pytensor import Variable
+from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 

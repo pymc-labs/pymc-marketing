@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -43,10 +42,17 @@ def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_v
 
     alpha_draws = np.full((1, n_draws, n_channels), alpha_val, dtype=np.float64)
     lam_draws = np.full((1, n_draws, n_channels), lam_val, dtype=np.float64)
-    dims = ["channel"]
-    idata = az.from_dict(
-        posterior={"alpha": alpha_draws, "lam": lam_draws},
-        dims={"alpha": dims, "lam": dims},
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "alpha": xr.DataArray(
+                        alpha_draws, dims=["chain", "draw", "channel"]
+                    ),
+                    "lam": xr.DataArray(lam_draws, dims=["chain", "draw", "channel"]),
+                }
+            ),
+        }
     )
     assert set(idata.posterior.dims) == {"chain", "draw", "channel"}
     return model, idata

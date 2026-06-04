@@ -13,7 +13,6 @@
 #   limitations under the License.
 import os
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -374,7 +373,7 @@ class TestBetaGeoModel:
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -397,12 +396,12 @@ class TestBetaGeoModel:
 
         bg_model = BetaGeoModel()
         bg_model.build_model(data=data)
-        bg_model.idata = az.from_dict(
+        bg_model.idata = xr.DataTree.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "/a": np.full((2, 5), self.a_true),
+                "/b": np.full((2, 5), self.b_true),
+                "/alpha": np.full((2, 5), self.alpha_true),
+                "/r": np.full((2, 5), self.r_true),
             }
         )
 
@@ -429,12 +428,12 @@ class TestBetaGeoModel:
 
         bg_model = BetaGeoModel()
         bg_model.build_model(data=data)
-        bg_model.idata = az.from_dict(
+        bg_model.idata = xr.DataTree.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "/a": np.full((2, 5), self.a_true),
+                "/b": np.full((2, 5), self.b_true),
+                "/alpha": np.full((2, 5), self.alpha_true),
+                "/r": np.full((2, 5), self.r_true),
             }
         )
 
@@ -460,12 +459,12 @@ class TestBetaGeoModel:
 
         bg_model = BetaGeoModel()
         bg_model.build_model(data=data)
-        bg_model.idata = az.from_dict(
+        bg_model.idata = xr.DataTree.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "/a": np.full((2, 5), self.a_true),
+                "/b": np.full((2, 5), self.b_true),
+                "/alpha": np.full((2, 5), self.alpha_true),
+                "/r": np.full((2, 5), self.r_true),
             }
         )
 
@@ -491,12 +490,12 @@ class TestBetaGeoModel:
 
         bg_model = BetaGeoModel()
         bg_model.build_model(data=data)
-        bg_model.idata = az.from_dict(
+        bg_model.idata = xr.DataTree.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "/a": np.full((2, 5), self.a_true),
+                "/b": np.full((2, 5), self.b_true),
+                "/alpha": np.full((2, 5), self.alpha_true),
+                "/r": np.full((2, 5), self.r_true),
             }
         )
 
@@ -623,12 +622,12 @@ class TestBetaGeoModel:
             data=self.data,
         )
         mock_model.build_model()
-        mock_model.idata = az.from_dict(
+        mock_model.idata = xr.DataTree.from_dict(
             {
-                "a": [self.a_true],
-                "b": [self.b_true],
-                "alpha": [self.alpha_true],
-                "r": [self.r_true],
+                "/a": [self.a_true],
+                "/b": [self.b_true],
+                "/alpha": [self.alpha_true],
+                "/r": [self.r_true],
             }
         )
 
@@ -756,17 +755,8 @@ class TestBetaGeoModelWithCovariates:
                 size=(chains, draws, n_dropout_covariates),
             ),
         }
-        mock_fit_with_covariates = az.from_dict(
-            mock_fit_dict,
-            dims={
-                "purchase_coefficient_alpha": ["purchase_covariate"],
-                "dropout_coefficient_a": ["dropout_covariate"],
-                "dropout_coefficient_b": ["dropout_covariate"],
-            },
-            coords={
-                "purchase_covariate": purchase_covariate_cols,
-                "dropout_covariate": dropout_covariate_cols,
-            },
+        mock_fit_with_covariates = xr.DataTree.from_dict(
+            {f"/{k}": v for k, v in mock_fit_dict.items()}
         )
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
 
@@ -780,12 +770,12 @@ class TestBetaGeoModelWithCovariates:
         cls.model_without_covariates = BetaGeoModel(
             data, model_config=non_nested_priors
         )
-        mock_fit_without_covariates = az.from_dict(
+        mock_fit_without_covariates = xr.DataTree.from_dict(
             {
-                "r": mock_fit_dict["r"],
-                "alpha": mock_fit_dict["alpha_scale"],
-                "a": mock_fit_dict["a_scale"],
-                "b": mock_fit_dict["b_scale"],
+                "/r": mock_fit_dict["r"],
+                "/alpha": mock_fit_dict["alpha_scale"],
+                "/a": mock_fit_dict["a_scale"],
+                "/b": mock_fit_dict["b_scale"],
             }
         )
         set_model_fit(cls.model_without_covariates, mock_fit_without_covariates)

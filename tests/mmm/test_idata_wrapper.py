@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Tests for InferenceData wrapper and utility functions."""
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
@@ -34,80 +33,90 @@ rng = np.random.default_rng(seed=SEED)
 
 
 @pytest.fixture(scope="module")
-def multidim_idata() -> az.InferenceData:
+def multidim_idata() -> xr.DataTree:
     """Create InferenceData with custom dimensions (country)."""
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
     channels = ["TV", "Radio", "Facebook", "Instagram", "Social"]
     countries = ["US", "UK", "DE"]
 
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3, 5)),
-                    dims=("date", "country", "channel"),
-                    coords={"date": dates, "country": countries, "channel": channels},
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "channel_scale": xr.DataArray(
-                    rng.uniform(50, 150, size=(3, 5)),
-                    dims=("country", "channel"),
-                    coords={"country": countries, "channel": channels},
-                ),
-                "target_scale": xr.DataArray(
-                    [500.0, 550.0, 480.0],
-                    dims=("country",),
-                    coords={"country": countries},
-                ),
-                "dayofyear": xr.DataArray(
-                    np.arange(1, len(dates) + 1),  # Day of year values
-                    dims=("date",),
-                    coords={"date": dates},
-                ),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3, 5)),
-                    dims=("chain", "draw", "date", "country", "channel"),
-                    coords={"date": dates, "country": countries, "channel": channels},
-                ),
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-            }
-        ),
-        fit_data=xr.Dataset(
-            {
-                "TV": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "Radio": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "target": xr.DataArray(
-                    rng.uniform(100, 1000, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-            }
-        ),
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3, 5)),
+                        dims=("date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        rng.uniform(50, 150, size=(3, 5)),
+                        dims=("country", "channel"),
+                        coords={"country": countries, "channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(
+                        [500.0, 550.0, 480.0],
+                        dims=("country",),
+                        coords={"country": countries},
+                    ),
+                    "dayofyear": xr.DataArray(
+                        np.arange(1, len(dates) + 1),  # Day of year values
+                        dims=("date",),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3, 5)),
+                        dims=("chain", "draw", "date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "TV": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "Radio": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "target": xr.DataArray(
+                        rng.uniform(100, 1000, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                }
+            ),
+        }
     )
 
 
 @pytest.fixture(scope="module")
-def idata_with_original_scale(multidim_idata) -> az.InferenceData:
+def idata_with_original_scale(multidim_idata) -> xr.DataTree:
     """Create InferenceData with _original_scale variables already computed."""
     idata = multidim_idata.copy()
 
@@ -121,91 +130,109 @@ def idata_with_original_scale(multidim_idata) -> az.InferenceData:
 
 
 @pytest.fixture(scope="module")
-def idata_with_all_contributions() -> az.InferenceData:
+def idata_with_all_contributions() -> xr.DataTree:
     """Create InferenceData with all contribution types (baseline, controls, seasonality) and custom dims."""
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
     channels = ["TV", "Radio"]
     controls = ["price", "promotion"]
     countries = ["US", "UK", "DE"]
 
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3, 2)),
-                    dims=("date", "country", "channel"),
-                    coords={"date": dates, "country": countries, "channel": channels},
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "control_data_": xr.DataArray(
-                    rng.uniform(0, 10, size=(52, 3, 2)),
-                    dims=("date", "country", "control"),
-                    coords={"date": dates, "country": countries, "control": controls},
-                ),
-                "channel_scale": xr.DataArray(
-                    rng.uniform(50, 150, size=(3, 2)),
-                    dims=("country", "channel"),
-                    coords={"country": countries, "channel": channels},
-                ),
-                "target_scale": xr.DataArray(
-                    [500.0, 550.0, 480.0],
-                    dims=("country",),
-                    coords={"country": countries},
-                ),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3, 2)),
-                    dims=("chain", "draw", "date", "country", "channel"),
-                    coords={"date": dates, "country": countries, "channel": channels},
-                ),
-                "intercept_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "control_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3, 2)),
-                    dims=("chain", "draw", "date", "country", "control"),
-                    coords={"date": dates, "country": countries, "control": controls},
-                ),
-                "yearly_seasonality_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-            }
-        ),
-        fit_data=xr.Dataset(
-            {
-                "TV": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "Radio": xr.DataArray(
-                    rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "target": xr.DataArray(
-                    rng.uniform(100, 1000, size=(52, 3)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-            }
-        ),
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3, 2)),
+                        dims=("date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "control_data_": xr.DataArray(
+                        rng.uniform(0, 10, size=(52, 3, 2)),
+                        dims=("date", "country", "control"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "control": controls,
+                        },
+                    ),
+                    "channel_scale": xr.DataArray(
+                        rng.uniform(50, 150, size=(3, 2)),
+                        dims=("country", "channel"),
+                        coords={"country": countries, "channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(
+                        [500.0, 550.0, 480.0],
+                        dims=("country",),
+                        coords={"country": countries},
+                    ),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3, 2)),
+                        dims=("chain", "draw", "date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "intercept_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "control_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3, 2)),
+                        dims=("chain", "draw", "date", "country", "control"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "control": controls,
+                        },
+                    ),
+                    "yearly_seasonality_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "TV": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "Radio": xr.DataArray(
+                        rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "target": xr.DataArray(
+                        rng.uniform(100, 1000, size=(52, 3)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                }
+            ),
+        }
     )
 
 
@@ -1078,8 +1105,8 @@ def test_compute_posterior_summary_returns_dataframe(multidim_idata):
     # Should have standard arviz.summary columns
     assert "mean" in summary.columns
     assert "sd" in summary.columns
-    assert "hdi_3%" in summary.columns
-    assert "hdi_97%" in summary.columns
+    assert "eti94_lb" in summary.columns
+    assert "eti94_ub" in summary.columns
 
 
 def test_compute_posterior_summary_with_original_scale(multidim_idata):
@@ -1268,20 +1295,24 @@ def test_compare_coords_detects_aggregated_labels(multidim_idata):
     dates = multidim_idata.constant_data.date.values
 
     # Build fresh idata with an aggregated country label ("All")
-    aggregated_idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    multidim_idata.constant_data.channel_data.isel(country=[0]).values,
-                    dims=("date", "country", "channel"),
-                    coords={
-                        "date": dates,
-                        "country": ["All"],
-                        "channel": channels,
-                    },
-                ),
-            }
-        ),
+    aggregated_idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        multidim_idata.constant_data.channel_data.isel(
+                            country=[0]
+                        ).values,
+                        dims=("date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": ["All"],
+                            "channel": channels,
+                        },
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(aggregated_idata, validate_on_init=False)
@@ -1307,25 +1338,27 @@ def test_filter_idata_by_dates_preserves_groups_without_date_dim():
     """Test that groups without date dimension are preserved unchanged."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
-        # sample_stats typically doesn't have date dimension
-        sample_stats=xr.Dataset(
-            {
-                "lp": xr.DataArray(
-                    rng.normal(size=(2, 10)),
-                    dims=("chain", "draw"),
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+            # sample_stats typically doesn't have date dimension
+            "/sample_stats": xr.Dataset(
+                {
+                    "lp": xr.DataArray(
+                        rng.normal(size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+        }
     )
 
     filtered = filter_idata_by_dates(idata, "2024-02-01", "2024-03-01")
@@ -1339,16 +1372,18 @@ def test_aggregate_idata_time_all_time_mean_method():
     """Test all_time aggregation with mean method."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    np.ones((2, 10, 10)) * 5.0,  # All 5s for predictable mean
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        np.ones((2, 10, 10)) * 5.0,  # All 5s for predictable mean
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     aggregated = aggregate_idata_time(idata, period="all_time", method="mean")
@@ -1363,24 +1398,26 @@ def test_aggregate_idata_time_all_time_preserves_groups_without_date():
     """Test that all_time aggregation preserves groups without date dimension."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
-        sample_stats=xr.Dataset(
-            {
-                "lp": xr.DataArray(
-                    rng.normal(size=(2, 10)),
-                    dims=("chain", "draw"),
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+            "/sample_stats": xr.Dataset(
+                {
+                    "lp": xr.DataArray(
+                        rng.normal(size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+        }
     )
 
     aggregated = aggregate_idata_time(idata, period="all_time", method="sum")
@@ -1392,16 +1429,18 @@ def test_aggregate_idata_time_all_time_unknown_method_raises():
     """Test that unknown aggregation method raises ValueError for all_time."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     with pytest.raises(ValueError, match="Unknown aggregation method"):
@@ -1412,24 +1451,26 @@ def test_aggregate_idata_time_periodic_preserves_groups_without_date():
     """Test that periodic aggregation preserves groups without date dimension."""
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
-        sample_stats=xr.Dataset(
-            {
-                "lp": xr.DataArray(
-                    rng.normal(size=(2, 10)),
-                    dims=("chain", "draw"),
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+            "/sample_stats": xr.Dataset(
+                {
+                    "lp": xr.DataArray(
+                        rng.normal(size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+        }
     )
 
     aggregated = aggregate_idata_time(idata, period="monthly", method="sum")
@@ -1441,16 +1482,18 @@ def test_aggregate_idata_time_periodic_unknown_method_raises():
     """Test that unknown aggregation method raises ValueError for periodic."""
     dates = pd.date_range("2024-01-01", periods=52, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     with pytest.raises(ValueError, match="Unknown aggregation method"):
@@ -1462,16 +1505,18 @@ def test_aggregate_idata_dims_unknown_method_raises():
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                }
+            ),
+        }
     )
 
     with pytest.raises(ValueError, match="Unknown aggregation method"):
@@ -1489,16 +1534,18 @@ def test_aggregate_idata_dims_all_values_aggregated():
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                }
+            ),
+        }
     )
 
     combined = aggregate_idata_dims(
@@ -1547,16 +1594,18 @@ def test_get_target_raises_when_target_data_missing():
     """Test that get_target raises when constant_data/target_data is missing."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1569,16 +1618,18 @@ def test_get_channel_spend_raises_when_channel_data_missing():
     """Test that get_channel_spend raises when channel_data is missing."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1615,36 +1666,38 @@ def test_get_contributions_controls_with_original_scale_variable():
     # Create control_contribution_original_scale with distinct values
     control_orig_scale_values = rng.normal(size=(2, 10, 10, 1)) * 999
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(0, 100, size=(10, 2)),
-                    dims=("date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "control_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 1)),
-                    dims=("chain", "draw", "date", "control"),
-                    coords={"date": dates, "control": controls},
-                ),
-                "control_contribution_original_scale": xr.DataArray(
-                    control_orig_scale_values,
-                    dims=("chain", "draw", "date", "control"),
-                    coords={"date": dates, "control": controls},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(0, 100, size=(10, 2)),
+                        dims=("date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "control_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 1)),
+                        dims=("chain", "draw", "date", "control"),
+                        coords={"date": dates, "control": controls},
+                    ),
+                    "control_contribution_original_scale": xr.DataArray(
+                        control_orig_scale_values,
+                        dims=("chain", "draw", "date", "control"),
+                        coords={"date": dates, "control": controls},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1688,36 +1741,38 @@ def test_get_contributions_seasonality_with_original_scale_variable():
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(0, 100, size=(10, 2)),
-                    dims=("date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "yearly_seasonality_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-                "yearly_seasonality_contribution_original_scale": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)) * 999,  # Distinct values
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(0, 100, size=(10, 2)),
+                        dims=("date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "yearly_seasonality_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                    "yearly_seasonality_contribution_original_scale": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)) * 999,  # Distinct values
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1758,21 +1813,23 @@ def test_to_original_scale_raises_when_original_scale_var_not_found():
     """Test to_original_scale raises when _original_scale variable doesn't exist."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1785,21 +1842,23 @@ def test_to_original_scale_raises_when_var_not_found():
     """Test to_original_scale raises when variable doesn't exist."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1812,22 +1871,24 @@ def test_to_scaled_raises_when_base_var_not_found():
     """Test to_scaled raises when base variable for _original_scale doesn't exist."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                # Has nonexistent_original_scale but NOT 'nonexistent'
-                "nonexistent_original_scale": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    # Has nonexistent_original_scale but NOT 'nonexistent'
+                    "nonexistent_original_scale": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1840,21 +1901,23 @@ def test_to_scaled_raises_when_var_not_found():
     """Test to_scaled raises when variable doesn't exist."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1867,21 +1930,23 @@ def test_compute_posterior_summary_scaled_raises_when_var_not_found():
     """Test compute_posterior_summary with original_scale=False raises when var not found."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_scale": xr.DataArray(100.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_scale": xr.DataArray(100.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1909,16 +1974,18 @@ def test_validate_raises_when_no_schema():
     """Test validate raises when no schema provided."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata, schema=None)
@@ -1931,16 +1998,18 @@ def test_dates_property_from_posterior_when_no_constant_data():
     """Test dates property falls back to posterior when constant_data missing."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1954,15 +2023,17 @@ def test_dates_property_from_posterior_when_no_constant_data():
 
 def test_dates_property_raises_when_no_date_coord():
     """Test dates property raises when no date coordinate found."""
-    idata = az.InferenceData(
-        sample_stats=xr.Dataset(
-            {
-                "lp": xr.DataArray(
-                    rng.normal(size=(2, 10)),
-                    dims=("chain", "draw"),
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/sample_stats": xr.Dataset(
+                {
+                    "lp": xr.DataArray(
+                        rng.normal(size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1976,16 +2047,18 @@ def test_channels_property_from_posterior_when_no_constant_data():
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio", "Facebook"]
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 3)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -1998,15 +2071,17 @@ def test_channels_property_from_posterior_when_no_constant_data():
 
 def test_channels_property_raises_when_no_channel_coord():
     """Test channels property raises when no channel coordinate found."""
-    idata = az.InferenceData(
-        sample_stats=xr.Dataset(
-            {
-                "lp": xr.DataArray(
-                    rng.normal(size=(2, 10)),
-                    dims=("chain", "draw"),
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/sample_stats": xr.Dataset(
+                {
+                    "lp": xr.DataArray(
+                        rng.normal(size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -2019,16 +2094,18 @@ def test_custom_dims_returns_empty_when_no_constant_data():
     """Test custom_dims returns empty list when no constant_data."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -2075,26 +2152,28 @@ def test_get_channel_scale_raises_when_missing():
     """Test that get_channel_scale raises when channel_scale is missing."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(10,)),
-                    dims=("date",),
-                    coords={"date": dates},
-                ),
-                # channel_scale intentionally missing
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(10,)),
+                        dims=("date",),
+                        coords={"date": dates},
+                    ),
+                    # channel_scale intentionally missing
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -2117,26 +2196,28 @@ def test_get_target_scale_raises_when_missing():
     """Test that get_target_scale raises when target_scale is missing."""
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
 
-    idata = az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "target_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(10,)),
-                    dims=("date",),
-                    coords={"date": dates},
-                ),
-                # target_scale intentionally missing
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "target_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(10,)),
+                        dims=("date",),
+                        coords={"date": dates},
+                    ),
+                    # target_scale intentionally missing
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
     wrapper = MMMIDataWrapper(idata)
@@ -2156,36 +2237,38 @@ def idata_without_target_scale():
     dates = pd.date_range("2024-01-01", periods=10, freq="W")
     channels = ["TV", "Radio"]
 
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(0, 100, size=(10, 2)),
-                    dims=("date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(10,)),
-                    dims=("date",),
-                    coords={"date": dates},
-                ),
-                # Note: target_scale is intentionally missing!
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    rng.normal(size=(2, 10, 10, 2)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "mu": xr.DataArray(
-                    rng.normal(size=(2, 10, 10)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": dates},
-                ),
-            }
-        ),
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(0, 100, size=(10, 2)),
+                        dims=("date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(10,)),
+                        dims=("date",),
+                        coords={"date": dates},
+                    ),
+                    # Note: target_scale is intentionally missing!
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        rng.normal(size=(2, 10, 10, 2)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "mu": xr.DataArray(
+                        rng.normal(size=(2, 10, 10)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": dates},
+                    ),
+                }
+            ),
+        }
     )
 
 
@@ -2278,7 +2361,7 @@ _log_rng = np.random.default_rng(seed=sum(map(ord, "log_link_tests")))
 
 
 @pytest.fixture(scope="module")
-def idata_log_link_with_all_contributions() -> az.InferenceData:
+def idata_log_link_with_all_contributions() -> xr.DataTree:
     """InferenceData for a log-link model with controls and seasonality."""
     dates = pd.date_range("2024-01-01", periods=20, freq="W")
     channels = ["TV", "Radio"]
@@ -2309,62 +2392,79 @@ def idata_log_link_with_all_contributions() -> az.InferenceData:
         + seasonality
     )
 
-    return az.InferenceData(
-        attrs={"link": "log"},
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    _log_rng.uniform(0, 100, size=(n_dates, n_countries, n_channels)),
-                    dims=("date", "country", "channel"),
-                    coords={"date": dates, "country": countries, "channel": channels},
-                ),
-                "target_data": xr.DataArray(
-                    _log_rng.uniform(100, 1000, size=(n_dates, n_countries)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "channel_scale": xr.DataArray(
-                    _log_rng.uniform(50, 150, size=(n_countries, n_channels)),
-                    dims=("country", "channel"),
-                    coords={"country": countries, "channel": channels},
-                ),
-                "target_scale": xr.DataArray(
-                    [500.0, 550.0],
-                    dims=("country",),
-                    coords={"country": countries},
-                ),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    channel_contrib,
-                    dims=("chain", "draw", "date", "country", "channel"),
-                    coords={"date": dates, "country": countries, "channel": channels},
-                ),
-                "intercept_contribution": xr.DataArray(
-                    intercept,
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "control_contribution": xr.DataArray(
-                    control_contrib,
-                    dims=("chain", "draw", "date", "country", "control"),
-                    coords={"date": dates, "country": countries, "control": controls},
-                ),
-                "yearly_seasonality_contribution": xr.DataArray(
-                    seasonality,
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "mu": xr.DataArray(
-                    mu,
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        _log_rng.uniform(
+                            0, 100, size=(n_dates, n_countries, n_channels)
+                        ),
+                        dims=("date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "target_data": xr.DataArray(
+                        _log_rng.uniform(100, 1000, size=(n_dates, n_countries)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        _log_rng.uniform(50, 150, size=(n_countries, n_channels)),
+                        dims=("country", "channel"),
+                        coords={"country": countries, "channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(
+                        [500.0, 550.0],
+                        dims=("country",),
+                        coords={"country": countries},
+                    ),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        channel_contrib,
+                        dims=("chain", "draw", "date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "intercept_contribution": xr.DataArray(
+                        intercept,
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "control_contribution": xr.DataArray(
+                        control_contrib,
+                        dims=("chain", "draw", "date", "country", "control"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "control": controls,
+                        },
+                    ),
+                    "yearly_seasonality_contribution": xr.DataArray(
+                        seasonality,
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "mu": xr.DataArray(
+                        mu,
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                }
+            ),
+        }
     )
+    idata.attrs = {"link": "log"}
+    return idata
 
 
 def test_log_link_contributions_only_channels_and_baseline(

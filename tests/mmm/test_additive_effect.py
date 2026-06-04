@@ -135,11 +135,11 @@ def test_fourier_effect(
         set_new_model_dates(new_dates)
         effect.set_data(mmm, mmm.model, None)
 
-        idata.extend(
+        idata.update(
             pm.sample_posterior_predictive(
                 idata.prior,
                 var_names=[f"{fourier.prefix}_contribution"],
-            )
+            ),
         )
 
     effect_predictions = idata.posterior_predictive[f"{fourier.prefix}_contribution"]
@@ -206,7 +206,7 @@ def test_fourier_components_sum_to_contribution(
     with mmm.model:
         effect.create_data(mmm)
         effect.create_effect(mmm)
-        idata = pm.sample_prior_predictive(samples=5)
+        idata = pm.sample_prior_predictive(draws=5)
 
     components = idata.prior[f"{prefix}_components"]  # dims: chain, draw, date, fourier
     contribution = idata.prior[f"{prefix}_contribution"]  # dims: chain, draw, date
@@ -288,11 +288,11 @@ def test_linear_trend_effect(
         set_new_model_dates(new_dates)
         effect.set_data(mmm, mmm.model, None)
 
-        idata.extend(
+        idata.update(
             pm.sample_posterior_predictive(
                 idata.prior,
                 var_names=["effect"],
-            )
+            ),
         )
 
     effect_predictions = idata.posterior_predictive.effect

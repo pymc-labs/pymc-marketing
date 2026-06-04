@@ -19,7 +19,6 @@ import itertools
 import warnings
 from typing import Any
 
-import arviz as az
 import arviz_plots as azp
 import matplotlib.dates as mdates
 import numpy as np
@@ -39,17 +38,15 @@ from pymc_marketing.mmm.plotting._helpers import (
 )
 
 
-def _validate_cv_results(cv_data: az.InferenceData) -> None:
+def _validate_cv_results(cv_data: xr.DataTree) -> None:
     """Raise if cv_data is not a valid CV InferenceData.
 
     Minimum required: correct type + cv_metadata group present.
     Method-specific checks (e.g. posterior_predictive contents) are
     performed inside each method.
     """
-    if not isinstance(cv_data, az.InferenceData):
-        raise TypeError(
-            f"cv_data must be az.InferenceData, got {type(cv_data).__name__}."
-        )
+    if not isinstance(cv_data, xr.DataTree):
+        raise TypeError(f"cv_data must be xr.DataTree, got {type(cv_data).__name__}.")
     if not hasattr(cv_data, "cv_metadata"):
         raise ValueError(
             "cv_data must have a 'cv_metadata' group. "
@@ -58,13 +55,13 @@ def _validate_cv_results(cv_data: az.InferenceData) -> None:
         )
 
 
-def _extract_cv_labels(cv_data: az.InferenceData) -> list[str]:
+def _extract_cv_labels(cv_data: xr.DataTree) -> list[str]:
     """Return the list of CV fold labels from cv_metadata coords."""
     return list(cv_data.cv_metadata.coords["cv"].values)
 
 
 def _read_fold_meta(
-    cv_data: az.InferenceData, cv_label: str
+    cv_data: xr.DataTree, cv_label: str
 ) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """Return (X_train, y_train, X_test, y_test) for a given fold label."""
     meta = cv_data.cv_metadata["metadata"].sel(cv=cv_label).values.item()
@@ -72,14 +69,14 @@ def _read_fold_meta(
 
 
 def _build_predictions_arrays(
-    cv_data: az.InferenceData,
+    cv_data: xr.DataTree,
     pp: xr.DataArray,
 ) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
     """Build stacked train/test/observed/train-end arrays across all CV folds.
 
     Parameters
     ----------
-    cv_data : az.InferenceData
+    cv_data : xr.DataTree
         Full CV InferenceData (already validated by the caller).
     pp : xr.DataArray
         ``posterior_predictive["y_original_scale"]`` with dims
@@ -146,7 +143,7 @@ def _build_predictions_arrays(
 
 
 def _pred_matrix_for_rows(
-    cv_data: az.InferenceData,
+    cv_data: xr.DataTree,
     cv_label: str,
     rows_df: pd.DataFrame,
 ) -> np.ndarray:
@@ -161,7 +158,7 @@ def _pred_matrix_for_rows(
 
     Parameters
     ----------
-    cv_data : az.InferenceData
+    cv_data : xr.DataTree
         Full CV InferenceData (already validated by the caller).
     cv_label : str
         Label identifying the CV fold to select.
@@ -173,7 +170,11 @@ def _pred_matrix_for_rows(
     -------
     np.ndarray, shape (n_samples, n_rows)
     """
-    da = cv_data.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+    da = (
+        cv_data["/posterior_predictive"]
+        .to_dataset()["y_original_scale"]
+        .sel(cv=cv_label)
+    )
 
     # Identify dimensions beyond the sample and date dims; these must be
     # matched against columns in rows_df for correct scalar selection.
@@ -232,7 +233,7 @@ def _filter_rows_and_y(
 
 
 def _crps_for_split(
-    cv_data: az.InferenceData,
+    cv_data: xr.DataTree,
     cv_label: str,
     X: pd.DataFrame,
     y: pd.Series,
@@ -259,18 +260,18 @@ class MMMCVPlotSuite:
 
     Parameters
     ----------
-    cv_data : az.InferenceData
+    cv_data : xr.DataTree
         Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
         Must contain a ``cv_metadata`` group with per-fold metadata.
     """
 
-    def __init__(self, cv_data: az.InferenceData) -> None:
+    def __init__(self, cv_data: xr.DataTree) -> None:
         _validate_cv_results(cv_data)
         self.cv_data = cv_data
 
     def predictions(
         self,
-        cv_data: az.InferenceData | None = None,
+        cv_data: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         hdi_prob: float = 0.94,
         figsize: tuple[float, float] | None = None,
@@ -287,7 +288,7 @@ class MMMCVPlotSuite:
 
         Parameters
         ----------
-        cv_data : az.InferenceData or None
+        cv_data : xr.DataTree or None
             Override the stored ``self.cv_data`` for this call only.
             ``_validate_cv_results`` is re-run on the override.
         dims : dict or None
@@ -355,7 +356,7 @@ class MMMCVPlotSuite:
             **pc_kwargs,
         )
 
-        hdi_ds = split_ds.azstats.hdi(hdi_prob)
+        hdi_ds = split_ds.azstats.hdi(prob=hdi_prob)
         date_da = split_ds["train"].coords["date"]
 
         pc.map(
@@ -394,7 +395,7 @@ class MMMCVPlotSuite:
 
     def param_stability(
         self,
-        cv_data: az.InferenceData | None = None,
+        cv_data: xr.DataTree | None = None,
         var_names: list[str] | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
@@ -407,7 +408,7 @@ class MMMCVPlotSuite:
 
         Parameters
         ----------
-        cv_data : az.InferenceData or None
+        cv_data : xr.DataTree or None
             Override the stored ``self.cv_data`` for this call only.
         var_names : list[str] or None
             Variables to include (passed directly to ``azp.plot_forest``).
@@ -451,7 +452,7 @@ class MMMCVPlotSuite:
         if dims_to_end:
             posterior = posterior.transpose(..., *dims_to_end)
 
-        idata_for_plot = az.InferenceData(posterior=posterior)
+        idata_for_plot = xr.DataTree.from_dict({"/posterior": posterior})
 
         fig_kw: dict[str, Any] = {
             "width_ratios": [1, 2],
@@ -462,7 +463,7 @@ class MMMCVPlotSuite:
             fig_kw["figsize"] = figsize
 
         pc = azp.plot_forest(
-            idata_for_plot.to_datatree(),
+            idata_for_plot,
             var_names=var_names,
             aes={"color": ["cv"]},
             figure_kwargs=fig_kw,
@@ -475,7 +476,7 @@ class MMMCVPlotSuite:
 
     def crps(
         self,
-        cv_data: az.InferenceData | None = None,
+        cv_data: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -492,7 +493,7 @@ class MMMCVPlotSuite:
 
         Parameters
         ----------
-        cv_data : az.InferenceData or None
+        cv_data : xr.DataTree or None
             Override the stored ``self.cv_data`` for this call only.
         dims : dict or None
             Filters which coordinate values of extra dimensions appear as rows

@@ -541,7 +541,7 @@ class TestShiftedBetaGeoModel:
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -1338,14 +1338,12 @@ class TestShiftedBetaGeoModelIndividual:
         model.build_model()
         model.fit(method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
-        model.idata = az.from_dict(
-            posterior={
-                "alpha": np.ones((2, 500)),  # Two chains, 500 draws each
-                "beta": np.ones((2, 500)),
-                "theta": np.full((2, 500, 3), customer_thetas),
-            },
-            coords={"customer_id": [0, 1, 2]},
-            dims={"theta": ["customer_id"]},
+        model.idata = xr.DataTree.from_dict(
+            {
+                "/alpha": np.ones((2, 500)),
+                "/beta": np.ones((2, 500)),
+                "/theta": np.full((2, 500, 3), customer_thetas),
+            }
         )
 
         res = model.distribution_customer_churn_time(
@@ -1371,11 +1369,8 @@ class TestShiftedBetaGeoModelIndividual:
         model.build_model()
         model.fit(method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
-        model.idata = az.from_dict(
-            {
-                "alpha": np.full((2, 500), 7000),  # Two chains, 500 draws each
-                "beta": np.full((2, 500), 3000),
-            }
+        model.idata = xr.DataTree.from_dict(
+            {"/alpha": np.full((2, 500), 7000), "/beta": np.full((2, 500), 3000)}
         )
 
         res = model.distribution_new_customer_theta(random_seed=141)

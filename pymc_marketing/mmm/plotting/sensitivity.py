@@ -67,7 +67,6 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-import arviz as az
 import arviz_plots as azp
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
@@ -104,7 +103,7 @@ class SensitivityPlots:
 
     def analysis(
         self,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         aggregation: dict[str, str | list[str]] | None = None,
         x_sweep_axis: Literal["relative", "absolute"] = "relative",
@@ -121,7 +120,7 @@ class SensitivityPlots:
 
         Parameters
         ----------
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.  When provided, an ``MMMIDataWrapper`` is
             constructed from this ``idata`` and used for this call only.
         dims : dict, optional
@@ -190,7 +189,7 @@ class SensitivityPlots:
 
     def uplift(
         self,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         aggregation: dict[str, str | list[str]] | None = None,
         x_sweep_axis: Literal["relative", "absolute"] = "relative",
@@ -207,7 +206,7 @@ class SensitivityPlots:
 
         Parameters
         ----------
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict, optional
             Dimension filters.
@@ -312,7 +311,7 @@ class SensitivityPlots:
 
     def marginal(
         self,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         aggregation: dict[str, str | list[str]] | None = None,
         x_sweep_axis: Literal["relative", "absolute"] = "relative",
@@ -329,7 +328,7 @@ class SensitivityPlots:
 
         Parameters
         ----------
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict, optional
             Dimension filters.
@@ -461,7 +460,7 @@ class SensitivityPlots:
         )
 
         # Step 7: HDI band
-        hdi_da = sa_ds.azstats.hdi(hdi_prob)
+        hdi_da = sa_ds.azstats.hdi(prob=hdi_prob)
         pc.map(
             azp.visuals.fill_between_y,
             x=sweep_x,

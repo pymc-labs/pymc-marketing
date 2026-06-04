@@ -13,7 +13,6 @@
 #   limitations under the License.
 from unittest.mock import patch
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -62,33 +61,63 @@ def dummy_df():
 
 
 @pytest.fixture(scope="module")
-def dummy_idata(dummy_df) -> az.InferenceData:
+def dummy_idata(dummy_df) -> xr.DataTree:
     df_kwargs, _df, _y = dummy_df
 
-    return az.from_dict(
-        posterior={
-            "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
-            "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
-            "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
-            "channel_contribution": np.array(
-                [
-                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
-                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
-                ]
-            ),  # dims: chain, draw, channel, date
-        },
-        coords={
-            "chain": [0, 1],
-            "draw": [0, 1],
-            "channel": df_kwargs["channel_columns"],
-            "date": [0, 1],
-        },
-        dims={
-            "saturation_lam": ["chain", "draw", "channel"],
-            "saturation_beta": ["chain", "draw", "channel"],
-            "adstock_alpha": ["chain", "draw", "channel"],
-            "channel_contribution": ["chain", "draw", "channel", "date"],
-        },
+    channels = df_kwargs["channel_columns"]
+    chain_coord = [0, 1]
+    draw_coord = [0, 1]
+    date_coord = [0, 1]
+
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "saturation_lam": xr.DataArray(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "saturation_beta": xr.DataArray(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "adstock_alpha": xr.DataArray(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.array(
+                            [
+                                [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                                [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                            ]
+                        ),
+                        dims=["chain", "draw", "channel", "date"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                            "date": date_coord,
+                        },
+                    ),
+                }
+            ),
+        }
     )
 
 

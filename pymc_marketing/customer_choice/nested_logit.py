@@ -17,7 +17,6 @@ import json
 import warnings
 from typing import Self
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -28,7 +27,10 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import (
+    ModelBuilder,
+    create_sample_kwargs,
+)
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
@@ -771,12 +773,12 @@ class NestedLogit(ModelBuilder):
         return model
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create the attributes for the InferenceData object.
+        """Create the attributes for the DataTree.
 
         Returns
         -------
         dict[str, str]
-            The attributes for the InferenceData object.
+            The attributes for the DataTree.
 
         """
         attrs = super().create_idata_attrs()
@@ -796,7 +798,7 @@ class NestedLogit(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """
         Sample from prior predictive distribution.
 
@@ -815,7 +817,7 @@ class NestedLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Prior predictive samples
         """
         if choice_df is not None:
@@ -834,7 +836,7 @@ class NestedLogit(ModelBuilder):
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
@@ -842,7 +844,7 @@ class NestedLogit(ModelBuilder):
 
     def _create_fit_data(self) -> xr.Dataset:
         """
-        Create xarray Dataset for storing choice_df in InferenceData.
+        Create xarray Dataset for storing choice_df in DataTree.
 
         This allows the model to be reconstructed when loading from file.
 
@@ -862,7 +864,7 @@ class NestedLogit(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """
         Fit the discrete choice model.
 
@@ -881,7 +883,7 @@ class NestedLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Fitted model with posterior samples
         """
         # Allow updating data at fit time
@@ -909,7 +911,7 @@ class NestedLogit(ModelBuilder):
         # Store and extend results
         if self.idata:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
@@ -917,8 +919,8 @@ class NestedLogit(ModelBuilder):
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         # Add fit_data group
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self._create_fit_data()
 
@@ -928,25 +930,25 @@ class NestedLogit(ModelBuilder):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            self.idata.add_groups(fit_data=fit_data)
+            self.idata["/fit_data"] = fit_data
 
         # Set attributes for save/load
         self.set_idata_attrs(self.idata)
 
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """
-        Build model from loaded InferenceData.
+        Build model from loaded DataTree.
 
         This is called by load() after the model is initialized.
 
         Parameters
         ----------
-        idata : az.InferenceData
+        idata : xr.DataTree
             Loaded inference data
         """
-        self.choice_df = idata["fit_data"].to_dataframe()
+        self.choice_df = idata["fit_data"].to_dataset().to_dataframe()
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -955,7 +957,7 @@ class NestedLogit(ModelBuilder):
         choice_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """
         Sample from posterior predictive distribution.
 
@@ -970,7 +972,7 @@ class NestedLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Posterior predictive samples
         """
         if choice_df is not None:
@@ -992,7 +994,7 @@ class NestedLogit(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         return post_pred
 
@@ -1050,7 +1052,7 @@ class NestedLogit(ModelBuilder):
         new_choice_df: pd.DataFrame,
         new_utility_equations: list[str] | None = None,
         fit_kwargs: dict | None = None,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         r"""Apply one of two types of intervention.
 
         This method supports two intervention strategies:
@@ -1078,7 +1080,7 @@ class NestedLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             The posterior or full predictive distribution under the intervention, including
             predicted probabilities (`"p"`) and likelihood draws (`"likelihood"`).
 
@@ -1118,11 +1120,11 @@ class NestedLogit(ModelBuilder):
             new_model = self.make_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.extend(pm.sample(**fit_kwargs))
-                idata_new_policy.extend(
+                idata_new_policy.update(pm.sample(**fit_kwargs))
+                idata_new_policy.update(
                     pm.sample_posterior_predictive(
                         idata_new_policy, var_names=["p", "likelihood"]
-                    )
+                    ),
                 )
 
             self.intervention_idata = idata_new_policy
@@ -1131,18 +1133,18 @@ class NestedLogit(ModelBuilder):
 
     @staticmethod
     def calculate_share_change(
-        idata: az.InferenceData, new_idata: az.InferenceData
+        idata: xr.DataTree, new_idata: xr.DataTree
     ) -> pd.DataFrame:
         """Calculate difference in market share due to market intervention.
 
         Parameters
         ----------
-        idata : az.InferenceData
+        idata : xr.DataTree
             Posterior predictive samples under the baseline (pre-intervention) policy.
             Must contain a "posterior_predictive" group with a "p" variable representing
             predicted market shares.
 
-        new_idata : az.InferenceData
+        new_idata : xr.DataTree
             Posterior predictive samples under the new (post-intervention) policy.
             Structure should match `idata`, with a "posterior_predictive" group containing "p".
 

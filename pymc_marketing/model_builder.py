@@ -28,10 +28,11 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
-from pymc_extras.printing import model_table
-from rich.table import Table
 
-from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
+from pymc_marketing.data.idata.utils import (
+    idata_from_zarr,
+    idata_to_zarr,
+)
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -69,10 +70,10 @@ def create_idata_accessor(value: str, message: str):
     """
 
     def accessor(self) -> xr.Dataset:
-        if self.idata is None or value not in self.idata:
+        if self.idata is None or f"/{value}" not in self.idata.groups:
             raise RuntimeError(message)
 
-        return self.idata[value]
+        return self.idata[f"/{value}"].to_dataset()
 
     return property(
         accessor,
@@ -143,7 +144,7 @@ class ModelIO:
 
     _model_type: str
     version: str
-    idata: az.InferenceData | None
+    idata: xr.DataTree | None
     sampler_config: dict
     model_config: dict
 
@@ -255,15 +256,13 @@ class ModelIO:
 
         return attrs
 
-    def set_idata_attrs(
-        self, idata: az.InferenceData | None = None
-    ) -> az.InferenceData:
+    def set_idata_attrs(self, idata: xr.DataTree | None = None) -> xr.DataTree:
         """Set attributes on an InferenceData object.
 
         Parameters
         ----------
-        idata : arviz.InferenceData, optional
-            The InferenceData object to set attributes on.
+        idata : xr.DataTree, optional
+            The DataTree object to set attributes on.
 
         Raises
         ------
@@ -274,8 +273,8 @@ class ModelIO:
 
         Returns
         -------
-        InferenceData
-            The InferenceData instance with the attrs set
+        DataTree
+            The DataTree instance with the attrs set
 
         Examples
         --------
@@ -283,7 +282,7 @@ class ModelIO:
 
         .. code-block:: python
 
-            idata: az.InferenceData = ...
+            idata: xr.DataTree = ...
             model.set_idata_attrs(idata=idata)
 
         """
@@ -309,7 +308,7 @@ class ModelIO:
             raise ValueError(msg)
 
         init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
-        # Remove data attr since it will be stored in the fit_data group of InferenceData
+        # Remove data attr since it will be stored in the fit_data group of DataTree
         init_parameters -= {"data"}
 
         if missing_keys := init_parameters - attrs_keys:
@@ -374,10 +373,22 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
+            groups = kwargs.pop("groups", None)
+            idata_to_save = self.idata
+            if groups is not None:
+                groups_with_slash = {
+                    g if g.startswith("/") else f"/{g}" for g in groups
+                }
+                nodes_to_drop = [
+                    node[1:]
+                    for node in self.idata.groups
+                    if node != "/" and node not in groups_with_slash
+                ]
+                idata_to_save = self.idata.drop_nodes(nodes_to_drop)
             if file.suffix == ".zarr" or file.is_dir():
-                idata_to_zarr(self.idata, file, **kwargs)
+                idata_to_zarr(idata_to_save, file, **kwargs)
             else:
-                self.idata.to_netcdf(str(file), **kwargs)
+                idata_to_save.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -421,7 +432,7 @@ class ModelIO:
         }
 
     @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
+    def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict[str, Any]:
         """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
 
         This method must be overridden in child classes to add additional keyword arguments.
@@ -429,7 +440,7 @@ class ModelIO:
         return cls.attrs_to_init_kwargs(idata.attrs)
 
     @abstractmethod
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Build the model from the InferenceData object."""
 
     @classmethod
@@ -476,7 +487,7 @@ class ModelIO:
         if filepath.suffix == ".zarr" or filepath.is_dir():
             idata = idata_from_zarr(filepath)
         else:
-            idata = az.from_netcdf(str(filepath))
+            idata = xr.open_datatree(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
@@ -489,7 +500,7 @@ class ModelIO:
             raise DifferentModelError(error_msg) from e
 
     @classmethod
-    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> "ModelIO":
+    def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> "ModelIO":
         """Create a ModelBuilder instance from an InferenceData object.
 
         This class method has a few steps:
@@ -500,8 +511,8 @@ class ModelIO:
 
         Parameters
         ----------
-        idata : az.InferenceData
-            The InferenceData object to load the model from.
+        idata : xr.DataTree
+            The DataTree object to load the model from.
         check : bool, optional
             Whether to check if the model id matches the id in the InferenceData loaded.
             Defaults to True.
@@ -620,8 +631,22 @@ class ModelBuilder(ABC, ModelIO):
         )  # parameters for priors etc.
 
         self.model: pm.Model
-        self.idata: az.InferenceData | None = None  # idata is generated during fitting
+        self.idata: xr.DataTree | None = None  # idata is generated during fitting
         self.is_fitted_ = False
+
+    @property
+    def fit_result(self) -> xr.Dataset:
+        if self.idata is None or "/posterior" not in self.idata.groups:
+            raise RuntimeError("The model hasn't been fit yet")
+        return self.idata["/posterior"].to_dataset()
+
+    @fit_result.setter
+    def fit_result(self, value: xr.DataTree) -> None:
+        if self.idata is not None and "/posterior" in self.idata.groups:
+            warnings.warn("Overriding pre-existing fit_result", UserWarning)
+        if "/posterior" not in value.groups and "/prior" in value.groups:
+            value["/posterior"] = value["/prior"].to_dataset()
+        self.idata = value
 
     @property
     @abstractmethod
@@ -684,6 +709,54 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
+    posterior = create_idata_accessor("posterior", "The model hasn't been fit yet")
+    prior = create_idata_accessor("prior", "The model hasn't been sampled yet")
+    prior_predictive = create_idata_accessor(
+        "prior_predictive", "The model hasn't been sampled yet"
+    )
+    posterior_predictive = create_idata_accessor(
+        "posterior_predictive", "The model hasn't been fit yet"
+    )
+    predictions = create_idata_accessor(
+        "predictions",
+        "Call the 'sample_posterior_predictive' method first",
+    )
+
+    @requires_model
+    def graphviz(self, **kwargs):
+        """Get the graphviz representation of the model.
+
+        Parameters
+        ----------
+        **kwargs
+            Keyword arguments for the `pm.model_to_graphviz` function
+
+        Returns
+        -------
+        graphviz.Digraph
+
+        """
+        return pm.model_to_graphviz(self.model, **kwargs)
+
+    @requires_model
+    def table(self, **model_table_kwargs):
+        """Get the summary table of the model.
+
+        Parameters
+        ----------
+        **model_table_kwargs
+            Keyword arguments for the `model_table` function
+
+        Returns
+        -------
+        rich.table.Table
+            A rich table containing the summary of the model.
+
+        """
+        from pymc_extras.printing import model_table
+
+        return model_table(self.model, **model_table_kwargs)
+
     @abstractmethod
     def build_model(
         self,
@@ -713,107 +786,528 @@ class ModelBuilder(ABC, ModelIO):
     def fit(
         self,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit a model using the data passed as a parameter.
 
         Sets attrs to inference data of the model.
 
         Returns
         -------
-        self : az.InferenceData
+        self : xr.DataTree
             Returns inference data of the fitted model.
 
         """
 
-    @requires_model
-    def graphviz(self, **kwargs):
-        """Get the graphviz representation of the model.
+    def fit(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        **kwargs: Any,
+    ) -> xr.DataTree:
+        """Fit a model using the data passed as a parameter.
+
+        Sets attrs to inference data of the model.
 
         Parameters
         ----------
-        **kwargs
-            Keyword arguments for the `pm.model_to_graphviz` function
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
+        progressbar : bool, optional
+            Specifies whether the fit progress bar should be displayed. Defaults to True.
+        random_seed : Optional[RandomState]
+            Provides sampler with initial random seed for obtaining reproducible samples.
+        **kwargs : Any
+            Custom sampler settings can be provided in form of keyword arguments.
 
         Returns
         -------
-        graphviz.Digraph
+        self : xr.DataTree
+            Returns inference data of the fitted model.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            Auto-assigning NUTS sampler...
+            Initializing NUTS using jitter+adapt_diag...
 
         """
-        return pm.model_to_graphviz(self.model, **kwargs)
+        if (
+            isinstance(y, pd.Series)
+            and isinstance(X, pd.DataFrame)
+            and not X.index.equals(y.index)
+        ):
+            raise ValueError("Index of X and y must match.")
 
-    @requires_model
-    def table(self, **model_table_kwargs) -> Table:
-        """Get the summary table of the model.
+        if y is None:
+            y = np.zeros(X.shape[0])
 
-        Parameters
-        ----------
-        **model_table_kwargs
-            Keyword arguments for the `model_table` function
+        if self.output_var in X:
+            raise ValueError(
+                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
+            )
 
-        Returns
-        -------
-        rich.table.Table
-            A rich table containing the summary of the model.
+        if not hasattr(self, "model"):
+            self.build_model(X, y)
 
-        """
-        return model_table(self.model, **model_table_kwargs)
+        sampler_kwargs = create_sample_kwargs(
+            self.sampler_config,
+            progressbar,
+            random_seed,
+            **kwargs,
+        )
 
-    @property
-    def fit_result(self) -> xr.Dataset:
-        """Get the posterior fit_result.
+        sampling_model = self._get_sampling_model()
 
-        Returns
-        -------
-        InferenceData object.
+        # Sample without deterministics first
+        var_names = [var.name for var in sampling_model.free_RVs]
+        with sampling_model:
+            idata = pm.sample(var_names=var_names, **sampler_kwargs)
 
-        """
-        return create_idata_accessor(
-            "posterior", "The model hasn't been fit yet, call .fit() first"
-        ).__get__(self)
+        # Compute deterministics after sampling
+        with sampling_model:
+            idata.posterior = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
 
-    @fit_result.setter
-    def fit_result(self, res: az.InferenceData) -> None:
-        """Create a setter method to overwrite the pre-existing fit_result.
-
-        Parameters
-        ----------
-        res : az.InferenceData
-            The inferencedata object to be set
-
-        Returns
-        -------
-        property
-            The property setter for the InferenceData object.
-
-        """
-        if self.idata is None:
-            self.idata = res
-        elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
-            self.idata.posterior = res
+        if self.idata:
+            self.idata.update(idata)
         else:
-            self.idata.posterior = res
+            self.idata = idata
 
-    prior = create_idata_accessor(
-        "prior",
-        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
-    )
-    prior_predictive = create_idata_accessor(
-        "prior_predictive",
-        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
-    )
-    posterior = create_idata_accessor(
-        "posterior", "The model hasn't been fit yet, call .fit() first"
-    )
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
-    posterior_predictive = create_idata_accessor(
-        "posterior_predictive",
-        "The model hasn't been fit yet, call .sample_posterior_predictive() first",
-    )
-    predictions = create_idata_accessor(
-        "predictions",
-        "Call the 'sample_posterior_predictive' method with predictions=True first.",
-    )
+        if "fit_data" in self.idata:
+            del self.idata["fit_data"]
+
+        fit_data = self.create_fit_data(X, y)
+
+        self.idata["/fit_data"] = fit_data
+        self.set_idata_attrs(self.idata)
+        return self.idata  # type: ignore
+
+    def predict(
+        self,
+        X: np.ndarray | pd.DataFrame | pd.Series,
+        extend_idata: bool = True,
+        **kwargs,
+    ) -> np.ndarray:
+        """Use a model to predict on unseen data and return point prediction of all the samples.
+
+        The point prediction for each input row is the expected output value, computed as the mean of MCMC samples.
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_pred, n_features)
+            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
+            Defaults to True.
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
+
+        Returns
+        -------
+        ndarray, shape (n_pred,)
+            Predicted output corresponding to input X.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            x_pred = []
+            prediction_data = pd.DataFrame({"input": x_pred})
+            pred_mean = model.predict(prediction_data)
+
+        """
+        posterior_predictive_samples = self.sample_posterior_predictive(
+            X,
+            extend_idata=extend_idata,
+            combined=False,
+            **kwargs,
+        )
+
+        if self.output_var not in posterior_predictive_samples:
+            raise KeyError(
+                f"Output variable {self.output_var} not found in posterior predictive samples."
+            )
+
+        posterior_means = posterior_predictive_samples[self.output_var].mean(
+            dim=["chain", "draw"], keep_attrs=True
+        )
+        return posterior_means.data
+
+    def approximate_fit(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        *,
+        fit_kwargs: dict[str, Any] | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
+    ) -> xr.DataTree:
+        """Fit a model using Variational Inference and return DataTree.
+
+        This performs variational inference via `pymc.fit`, then draws posterior samples
+        from the fitted approximation via `Approximation.sample`, returning a
+        DataTree compatible with the rest of the API (same structure as `.fit`).
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers).
+        progressbar : bool, optional
+            Specifies whether the fitting/sample progress bar should be displayed.
+        random_seed : Optional[RandomState]
+            Provides stochastic procedures with initial random seed for reproducibility.
+        fit_kwargs : dict, optional
+            Extra keyword arguments forwarded to `pymc.fit`.
+        sample_kwargs : dict, optional
+            Extra keyword arguments forwarded to `Approximation.sample`.
+
+        Returns
+        -------
+        xr.DataTree
+            Inference data of the variationally fitted model.
+        """
+        if (
+            isinstance(y, pd.Series)
+            and isinstance(X, pd.DataFrame)
+            and not X.index.equals(y.index)
+        ):
+            raise ValueError("Index of X and y must match.")
+
+        if y is None:
+            y = np.zeros(X.shape[0])
+
+        if self.output_var in X:
+            raise ValueError(
+                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
+            )
+
+        if not hasattr(self, "model"):
+            self.build_model(X, y)
+
+        _fit_kwargs: dict[str, Any] = {}
+        if fit_kwargs is not None:
+            _fit_kwargs.update(fit_kwargs)
+        if progressbar is not None:
+            _fit_kwargs["progressbar"] = progressbar
+        if random_seed is not None:
+            _fit_kwargs["random_seed"] = random_seed
+
+        with self.model:
+            approximation = pm.fit(**_fit_kwargs)
+
+            _sample_kwargs: dict[str, Any] = {}
+            if sample_kwargs is not None:
+                _sample_kwargs.update(sample_kwargs)
+            _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
+            if random_seed is not None:
+                _sample_kwargs.setdefault("random_seed", random_seed)
+            _sample_kwargs.setdefault("return_inferencedata", True)
+
+            idata: xr.DataTree = approximation.sample(**_sample_kwargs)
+
+        with self.model:
+            idata["/posterior"] = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
+
+        self.post_sample_model_transformation()
+
+        if self.idata:
+            self.idata.update(idata)
+        else:
+            self.idata = idata
+
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
+
+        fit_data = self.create_fit_data(X, y)
+        self.idata["/fit_data"] = fit_data
+
+        self.set_idata_attrs(self.idata)
+        return self.idata  # type: ignore
+
+    def approximate_fit(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        *,
+        fit_kwargs: dict[str, Any] | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
+    ) -> xr.DataTree:
+        """Fit a model using Variational Inference and return a DataTree.
+
+        This performs variational inference via `pymc.fit`, then draws posterior samples
+        from the fitted approximation via `Approximation.sample`, returning an
+        `xr.DataTree` compatible with the rest of the API (same structure as `.fit`).
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
+        progressbar : bool, optional
+            Specifies whether the fitting/sample progress bar should be displayed. Defaults to True.
+        random_seed : Optional[RandomState]
+            Provides stochastic procedures with initial random seed for reproducibility.
+        fit_kwargs : dict, optional
+            Extra keyword arguments forwarded to `pymc.fit` (e.g., {"n": 10_000, "method": "advi"}).
+        sample_kwargs : dict, optional
+            Extra keyword arguments forwarded to `Approximation.sample` (e.g., {"draws": 1_000}).
+
+        Returns
+        -------
+        xr.DataTree
+            DataTree of the variationally fitted model.
+        """
+        if (
+            isinstance(y, pd.Series)
+            and isinstance(X, pd.DataFrame)
+            and not X.index.equals(y.index)
+        ):
+            raise ValueError("Index of X and y must match.")
+
+        if y is None:
+            y = np.zeros(X.shape[0])
+
+        if self.output_var in X:
+            raise ValueError(
+                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
+            )
+
+        if not hasattr(self, "model"):
+            self.build_model(X, y)
+
+        # Prepare kwargs for pymc.fit
+        _fit_kwargs: dict[str, Any] = {}
+        if fit_kwargs is not None:
+            _fit_kwargs.update(fit_kwargs)
+        if progressbar is not None:
+            _fit_kwargs["progressbar"] = progressbar
+        if random_seed is not None:
+            _fit_kwargs["random_seed"] = random_seed
+
+        # Run variational inference and then sample from the approximation
+        with self.model:
+            approximation = pm.fit(**_fit_kwargs)
+
+            _sample_kwargs: dict[str, Any] = {}
+            if sample_kwargs is not None:
+                _sample_kwargs.update(sample_kwargs)
+            # Use sampler_config draws if not explicitly provided
+            _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
+            if random_seed is not None:
+                _sample_kwargs.setdefault("random_seed", random_seed)
+            _sample_kwargs.setdefault("return_inferencedata", True)
+
+            idata: xr.DataTree = approximation.sample(**_sample_kwargs)  # type: ignore[assignment]
+
+        # Compute deterministics after sampling for parity with MCMC `.fit`
+        with self.model:
+            idata.posterior = pm.compute_deterministics(
+                idata.posterior, merge_dataset=True
+            )
+
+        self.post_sample_model_transformation()
+
+        # Extend or set self.idata
+        if self.idata:
+            self.idata.update(idata)
+        else:
+            self.idata = idata
+
+        # Annotate, attach fit_data, and set attrs
+        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+
+        if "fit_data" in self.idata:
+            del self.idata["fit_data"]
+
+        fit_data = self.create_fit_data(X, y)
+
+        self.idata["/fit_data"] = fit_data
+
+        self.set_idata_attrs(self.idata)
+        return self.idata  # type: ignore
+
+    def sample_prior_predictive(
+        self,
+        X,
+        y=None,
+        samples: int | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ):
+        """Sample from the model's prior predictive distribution.
+
+        Parameters
+        ----------
+        X : array, shape (n_pred, n_features)
+            The input data used for prediction using prior distribution.
+        y : array, shape (n_pred,), optional
+            The target values (real numbers) used for prediction using prior distribution.
+            If not set, defaults to an array of zeros.
+        samples : int
+            Number of samples from the prior parameter distributions to generate.
+            If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
+            Defaults to True.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+            Defaults to True.
+        **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
+
+        Returns
+        -------
+        prior_predictive_samples : DataArray, shape (n_pred, samples)
+            Prior predictive samples for each input X
+
+        """
+        if y is None:
+            y = np.zeros(len(X))
+        if samples is None:
+            samples = self.sampler_config.get("draws", 500)
+
+        if not hasattr(self, "model"):
+            self.build_model(X, y)
+
+        with self.model:  # sample with new input data
+            prior_pred: xr.DataTree = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
+            self.set_idata_attrs(prior_pred)
+
+        if extend_idata:
+            if self.idata is not None:
+                self.idata.update(prior_pred)
+            else:
+                self.idata = prior_pred
+
+        prior_predictive_samples = az.extract(
+            prior_pred, "prior_predictive", combined=combined
+        )
+
+        if isinstance(prior_predictive_samples, xr.DataArray):
+            prior_predictive_samples = prior_predictive_samples.to_dataset()
+
+        return prior_predictive_samples
+
+    def sample_posterior_predictive(
+        self,
+        X,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **sample_posterior_predictive_kwargs,
+    ):
+        """Sample from the model's posterior predictive distribution.
+
+        Parameters
+        ----------
+        X : array, shape (n_pred, n_features)
+            The input data used for prediction using prior distribution..
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
+            Defaults to True.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+            Defaults to True.
+        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
+
+        Returns
+        -------
+        posterior_predictive_samples : DataArray, shape (n_pred, samples)
+            Posterior predictive samples for each input X
+
+        """
+        self._data_setter(X)
+
+        with self.model:
+            post_pred = pm.sample_posterior_predictive(
+                self.idata, **sample_posterior_predictive_kwargs
+            )
+
+        if extend_idata:
+            self.idata.update(post_pred)  # type: ignore
+
+        variable_name = (
+            "predictions"
+            if sample_posterior_predictive_kwargs.get("predictions")
+            else "posterior_predictive"
+        )
+
+        result = az.extract(post_pred, variable_name, combined=combined)
+        if isinstance(result, xr.DataArray):
+            result = result.to_dataset()
+        return result
+
+    def predict_proba(
+        self,
+        X: np.ndarray | pd.DataFrame | pd.Series,
+        extend_idata: bool = True,
+        combined: bool = False,
+        **kwargs,
+    ) -> xr.DataArray:
+        """Alias for `predict_posterior`, for consistency with scikit-learn probabilistic estimators."""
+        return self.predict_posterior(X, extend_idata, combined, **kwargs)
+
+    def predict_posterior(
+        self,
+        X: np.ndarray | pd.DataFrame | pd.Series,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ) -> xr.DataArray:
+        """Generate posterior predictive samples on unseen data.
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_pred, n_features)
+            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
+        extend_idata : Boolean
+            Determine whether the predictions should be added to inference data object.
+            Defaults to True.
+        combined: Boolean
+            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
+            Defaults to True.
+        **kwargs: Additional arguments to pass to sample_posterior_predictive method
+
+        Returns
+        -------
+        y_pred : DataArray
+            Posterior predictive samples for each input X.
+            Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
+
+        """
+        X = self._validate_data(X)
+        posterior_predictive_samples = self.sample_posterior_predictive(
+            X, extend_idata, combined, **kwargs
+        )
+
+        if self.output_var not in posterior_predictive_samples:
+            raise KeyError(
+                f"Output variable {self.output_var} not found in posterior predictive samples."
+            )
+
+        return posterior_predictive_samples[self.output_var]
 
 
 class RegressionModelBuilder(ModelBuilder):
@@ -913,8 +1407,8 @@ class RegressionModelBuilder(ModelBuilder):
 
         """
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Build model from the InferenceData object.
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build model from the DataTree object.
 
         This is part of the :func:`load` method. See :func:`load` for more larger context.
 
@@ -923,11 +1417,11 @@ class RegressionModelBuilder(ModelBuilder):
 
         Parameters
         ----------
-        idata : az.InferenceData
-            The InferenceData object to build the model from.
+        idata : xr.DataTree
+            The DataTree object to build the model from.
 
         """
-        dataset = idata.fit_data.to_dataframe()  # type: ignore
+        dataset = idata.fit_data.to_dataset().to_dataframe()  # type: ignore
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]
 
@@ -966,7 +1460,7 @@ class RegressionModelBuilder(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit a model using the data passed as a parameter.
 
         Sets attrs to inference data of the model.
@@ -986,7 +1480,7 @@ class RegressionModelBuilder(ModelBuilder):
 
         Returns
         -------
-        self : az.InferenceData
+        self : xr.DataTree
             Returns inference data of the fitted model.
 
         Examples
@@ -1026,356 +1520,27 @@ class RegressionModelBuilder(ModelBuilder):
 
         sampling_model = self._get_sampling_model()
 
-        # Sample without deterministics first
         var_names = [var.name for var in sampling_model.free_RVs]
         with sampling_model:
             idata = pm.sample(var_names=var_names, **sampler_kwargs)
 
-        # Compute deterministics after sampling
         with sampling_model:
-            idata.posterior = pm.compute_deterministics(
+            idata["/posterior"] = pm.compute_deterministics(
                 idata.posterior, merge_dataset=True
             )
 
         if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
-
-    def predict(
-        self,
-        X: np.ndarray | pd.DataFrame | pd.Series,
-        extend_idata: bool = True,
-        **kwargs,
-    ) -> np.ndarray:
-        """Use a model to predict on unseen data and return point prediction of all the samples.
-
-        The point prediction for each input row is the expected output value, computed as the mean of MCMC samples.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_pred, n_features)
-            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
-        extend_idata : Boolean
-            Determine whether the predictions should be added to inference data object.
-            Defaults to True.
-        **kwargs: Additional arguments to pass to sample_posterior_predictive method
-
-        Returns
-        -------
-        ndarray, shape (n_pred,)
-            Predicted output corresponding to input X.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            model = MyModel()
-            idata = model.fit(X, y)
-            x_pred = []
-            prediction_data = pd.DataFrame({"input": x_pred})
-            pred_mean = model.predict(prediction_data)
-
-        """
-        posterior_predictive_samples = self.sample_posterior_predictive(
-            X,
-            extend_idata=extend_idata,
-            combined=False,
-            **kwargs,
-        )
-
-        if self.output_var not in posterior_predictive_samples:
-            raise KeyError(
-                f"Output variable {self.output_var} not found in posterior predictive samples."
-            )
-
-        posterior_means = posterior_predictive_samples[self.output_var].mean(
-            dim=["chain", "draw"], keep_attrs=True
-        )
-        return posterior_means.data
-
-    def approximate_fit(
-        self,
-        X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        *,
-        fit_kwargs: dict[str, Any] | None = None,
-        sample_kwargs: dict[str, Any] | None = None,
-    ) -> az.InferenceData:
-        """Fit a model using Variational Inference and return InferenceData.
-
-        This performs variational inference via `pymc.fit`, then draws posterior samples
-        from the fitted approximation via `Approximation.sample`, returning an
-        `arviz.InferenceData` compatible with the rest of the API (same structure as `.fit`).
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool, optional
-            Specifies whether the fitting/sample progress bar should be displayed. Defaults to True.
-        random_seed : Optional[RandomState]
-            Provides stochastic procedures with initial random seed for reproducibility.
-        fit_kwargs : dict, optional
-            Extra keyword arguments forwarded to `pymc.fit` (e.g., {"n": 10_000, "method": "advi"}).
-        sample_kwargs : dict, optional
-            Extra keyword arguments forwarded to `Approximation.sample` (e.g., {"draws": 1_000}).
-
-        Returns
-        -------
-        az.InferenceData
-            Inference data of the variationally fitted model.
-        """
-        if (
-            isinstance(y, pd.Series)
-            and isinstance(X, pd.DataFrame)
-            and not X.index.equals(y.index)
-        ):
-            raise ValueError("Index of X and y must match.")
-
-        if y is None:
-            y = np.zeros(X.shape[0])
-
-        if self.output_var in X:
-            raise ValueError(
-                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
-            )
-
-        if not hasattr(self, "model"):
-            self.build_model(X, y)
-
-        # Prepare kwargs for pymc.fit
-        _fit_kwargs: dict[str, Any] = {}
-        if fit_kwargs is not None:
-            _fit_kwargs.update(fit_kwargs)
-        if progressbar is not None:
-            _fit_kwargs["progressbar"] = progressbar
-        if random_seed is not None:
-            _fit_kwargs["random_seed"] = random_seed
-
-        # Run variational inference and then sample from the approximation
-        with self.model:
-            approximation = pm.fit(**_fit_kwargs)
-
-            _sample_kwargs: dict[str, Any] = {}
-            if sample_kwargs is not None:
-                _sample_kwargs.update(sample_kwargs)
-            # Use sampler_config draws if not explicitly provided
-            _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
-            if random_seed is not None:
-                _sample_kwargs.setdefault("random_seed", random_seed)
-            _sample_kwargs.setdefault("return_inferencedata", True)
-
-            idata: az.InferenceData = approximation.sample(**_sample_kwargs)  # type: ignore[assignment]
-
-        # Compute deterministics after sampling for parity with MCMC `.fit`
-        with self.model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
-
-        self.post_sample_model_transformation()
-
-        # Extend or set self.idata
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
-        else:
-            self.idata = idata
-
-        # Annotate, attach fit_data, and set attrs
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
-
-        fit_data = self.create_fit_data(X, y)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
+        self.idata["/fit_data"] = fit_data
 
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
-
-    def sample_prior_predictive(
-        self,
-        X,
-        y=None,
-        samples: int | None = None,
-        extend_idata: bool = True,
-        combined: bool = True,
-        **kwargs,
-    ):
-        """Sample from the model's prior predictive distribution.
-
-        Parameters
-        ----------
-        X : array, shape (n_pred, n_features)
-            The input data used for prediction using prior distribution.
-        y : array, shape (n_pred,), optional
-            The target values (real numbers) used for prediction using prior distribution.
-            If not set, defaults to an array of zeros.
-        samples : int
-            Number of samples from the prior parameter distributions to generate.
-            If not set, uses sampler_config['draws'] if that is available, otherwise defaults to 500.
-        extend_idata : Boolean
-            Determine whether the predictions should be added to inference data object.
-            Defaults to True.
-        combined: Boolean
-            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
-            Defaults to True.
-        **kwargs: Additional arguments to pass to pymc.sample_prior_predictive
-
-        Returns
-        -------
-        prior_predictive_samples : DataArray, shape (n_pred, samples)
-            Prior predictive samples for each input X
-
-        """
-        if y is None:
-            y = np.zeros(len(X))
-        if samples is None:
-            samples = self.sampler_config.get("draws", 500)
-
-        if not hasattr(self, "model"):
-            self.build_model(X, y)
-
-        with self.model:  # sample with new input data
-            prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
-            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
-            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
-            self.set_idata_attrs(prior_pred)
-
-        if extend_idata:
-            if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
-            else:
-                self.idata = prior_pred
-
-        prior_predictive_samples = az.extract(
-            prior_pred, "prior_predictive", combined=combined
-        )
-
-        return prior_predictive_samples
-
-    def sample_posterior_predictive(
-        self,
-        X,
-        extend_idata: bool = True,
-        combined: bool = True,
-        **sample_posterior_predictive_kwargs,
-    ):
-        """Sample from the model's posterior predictive distribution.
-
-        Parameters
-        ----------
-        X : array, shape (n_pred, n_features)
-            The input data used for prediction using prior distribution..
-        extend_idata : Boolean
-            Determine whether the predictions should be added to inference data object.
-            Defaults to True.
-        combined: Boolean
-            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
-            Defaults to True.
-        **sample_posterior_predictive_kwargs: Additional arguments to pass to pymc.sample_posterior_predictive
-
-        Returns
-        -------
-        posterior_predictive_samples : DataArray, shape (n_pred, samples)
-            Posterior predictive samples for each input X
-
-        """
-        self._data_setter(X)
-
-        with self.model:
-            post_pred = pm.sample_posterior_predictive(
-                self.idata, **sample_posterior_predictive_kwargs
-            )
-
-        if extend_idata:
-            self.idata.extend(post_pred, join="right")  # type: ignore
-
-        variable_name = (
-            "predictions"
-            if sample_posterior_predictive_kwargs.get("predictions")
-            else "posterior_predictive"
-        )
-
-        return az.extract(post_pred, variable_name, combined=combined)
-
-    def predict_proba(
-        self,
-        X: np.ndarray | pd.DataFrame | pd.Series,
-        extend_idata: bool = True,
-        combined: bool = False,
-        **kwargs,
-    ) -> xr.DataArray:
-        """Alias for `predict_posterior`, for consistency with scikit-learn probabilistic estimators."""
-        return self.predict_posterior(X, extend_idata, combined, **kwargs)
-
-    def predict_posterior(
-        self,
-        X: np.ndarray | pd.DataFrame | pd.Series,
-        extend_idata: bool = True,
-        combined: bool = True,
-        **kwargs,
-    ) -> xr.DataArray:
-        """Generate posterior predictive samples on unseen data.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_pred, n_features)
-            The input data used for prediction. If scikit-learn is available, array-like, otherwise array.
-        extend_idata : Boolean
-            Determine whether the predictions should be added to inference data object.
-            Defaults to True.
-        combined: Boolean
-            Combine chain and draw dims into sample. Won't work if a dim named sample already exists.
-            Defaults to True.
-        **kwargs: Additional arguments to pass to sample_posterior_predictive method
-
-        Returns
-        -------
-        y_pred : DataArray
-            Posterior predictive samples for each input X.
-            Shape is (n_pred, chains * draws) if combined is True, otherwise (chains, draws, n_pred).
-
-        """
-        X = self._validate_data(X)
-        posterior_predictive_samples = self.sample_posterior_predictive(
-            X, extend_idata, combined, **kwargs
-        )
-
-        if self.output_var not in posterior_predictive_samples:
-            raise KeyError(
-                f"Output variable {self.output_var} not found in posterior predictive samples."
-            )
-
-        return posterior_predictive_samples[self.output_var]

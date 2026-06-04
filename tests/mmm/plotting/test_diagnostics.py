@@ -13,7 +13,6 @@
 #   limitations under the License.
 from __future__ import annotations
 
-import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,7 +42,7 @@ def close_figures():
 
 
 @pytest.fixture(scope="module")
-def simple_idata() -> az.InferenceData:
+def simple_idata() -> xr.DataTree:
     """InferenceData with (chain, draw, date) dims — no extra dims.
 
     Layout mirrors real PyMC output from pm.sample_prior_predictive():
@@ -99,16 +98,18 @@ def simple_idata() -> az.InferenceData:
             "target_scale": xr.DataArray(1000.0),
         }
     )
-    return az.InferenceData(
-        posterior_predictive=pp,
-        prior_predictive=prior_predictive,
-        prior=prior,
-        constant_data=const,
+    return xr.DataTree.from_dict(
+        {
+            "/posterior_predictive": pp,
+            "/prior_predictive": prior_predictive,
+            "/prior": prior,
+            "/constant_data": const,
+        }
     )
 
 
 @pytest.fixture(scope="module")
-def panel_idata() -> az.InferenceData:
+def panel_idata() -> xr.DataTree:
     """InferenceData with extra 'geo' dim — (chain, draw, date, geo).
 
     Layout mirrors real PyMC output from pm.sample_prior_predictive():
@@ -170,11 +171,13 @@ def panel_idata() -> az.InferenceData:
             "target_scale": xr.DataArray(1000.0),
         }
     )
-    return az.InferenceData(
-        posterior_predictive=pp,
-        prior_predictive=prior_predictive,
-        prior=prior,
-        constant_data=const,
+    return xr.DataTree.from_dict(
+        {
+            "/posterior_predictive": pp,
+            "/prior_predictive": prior_predictive,
+            "/prior": prior,
+            "/constant_data": const,
+        }
     )
 
 
@@ -199,7 +202,7 @@ def panel_plots(panel_data) -> DiagnosticsPlots:
 
 
 @pytest.fixture(scope="module")
-def posterior_idata() -> az.InferenceData:
+def posterior_idata() -> xr.DataTree:
     """InferenceData with posterior + prior groups for distribution plot tests."""
     rng = np.random.default_rng(SEED)
     n_chain, n_draw = 2, 50
@@ -236,7 +239,9 @@ def posterior_idata() -> az.InferenceData:
         }
     )
     const = xr.Dataset(coords={"channel": channels})
-    return az.InferenceData(posterior=posterior, prior=prior, constant_data=const)
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior, "/prior": prior, "/constant_data": const}
+    )
 
 
 @pytest.fixture(scope="module")
@@ -254,7 +259,7 @@ class TestGetPosteriorPredictive:
 
     def test_raises_when_missing(self):
         with pytest.raises(ValueError, match="posterior_predictive"):
-            get_posterior_predictive(az.InferenceData())
+            get_posterior_predictive(xr.DataTree.from_dict({}))
 
 
 class TestGetPriorPredictive:
@@ -265,7 +270,7 @@ class TestGetPriorPredictive:
 
     def test_raises_when_missing(self):
         with pytest.raises(ValueError, match="prior_predictive"):
-            get_prior_predictive(az.InferenceData())
+            get_prior_predictive(xr.DataTree.from_dict({}))
 
 
 class TestGetPrior:
@@ -276,7 +281,7 @@ class TestGetPrior:
 
     def test_raises_when_missing(self):
         with pytest.raises(ValueError, match="No prior data"):
-            get_prior(az.InferenceData())
+            get_prior(xr.DataTree.from_dict({}))
 
 
 class TestComputeResiduals:
@@ -347,7 +352,9 @@ class TestPosteriorPredictiveBasic:
                 "target_scale": xr.DataArray(1.0),
             }
         )
-        idata = az.InferenceData(posterior_predictive=pp, constant_data=const)
+        idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": pp, "/constant_data": const}
+        )
         data = MMMIDataWrapper(idata, validate_on_init=False)
         plots = DiagnosticsPlots(data)
         with pytest.raises(ValueError, match="y_original_scale"):
@@ -381,7 +388,9 @@ class TestPosteriorPredictiveBasic:
                 "target_scale": xr.DataArray(1.0),
             }
         )
-        idata = az.InferenceData(posterior_predictive=pp, constant_data=const)
+        idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": pp, "/constant_data": const}
+        )
         data = MMMIDataWrapper(idata, validate_on_init=False)
         plots = DiagnosticsPlots(data)
         with pytest.raises(ValueError, match="'y' not found"):
@@ -600,8 +609,12 @@ class TestPriorPredictiveBasic:
                 "target_scale": xr.DataArray(1.0),
             }
         )
-        idata = az.InferenceData(
-            prior_predictive=prior_predictive, prior=prior, constant_data=const
+        idata = xr.DataTree.from_dict(
+            {
+                "/prior_predictive": prior_predictive,
+                "/prior": prior,
+                "/constant_data": const,
+            }
         )
         data = MMMIDataWrapper(idata, validate_on_init=False)
         plots = DiagnosticsPlots(data)
@@ -623,7 +636,7 @@ class TestPriorPredictiveBasic:
     def test_error_messages_reference_prior(self):
         """prior_predictive error messages must say 'prior', not 'posterior'."""
         with pytest.raises(ValueError, match="prior"):
-            data = MMMIDataWrapper(az.InferenceData(), validate_on_init=False)
+            data = MMMIDataWrapper(xr.DataTree.from_dict({}), validate_on_init=False)
             DiagnosticsPlots(data).prior_predictive()
 
 
@@ -1015,7 +1028,7 @@ class TestPosterior:
         assert len(axes_filtered) < len(axes_all)
 
     def test_raises_when_posterior_missing(self, dist_plots):
-        empty_idata = az.InferenceData()
+        empty_idata = xr.DataTree.from_dict({})
         with pytest.raises(ValueError, match="posterior"):
             dist_plots.posterior(idata=empty_idata)
 
@@ -1044,11 +1057,15 @@ class TestPriorVsPosterior:
         assert len(axes_filtered) < len(axes_all)
 
     def test_raises_when_prior_missing(self, dist_plots):
-        no_prior_idata = az.InferenceData(posterior=dist_plots._data.idata.posterior)
+        no_prior_idata = xr.DataTree.from_dict(
+            {"/posterior": dist_plots._data.idata.posterior}
+        )
         with pytest.raises(ValueError, match="prior"):
             dist_plots.prior_vs_posterior(idata=no_prior_idata)
 
     def test_raises_when_posterior_missing(self, dist_plots):
-        no_posterior_idata = az.InferenceData(prior=dist_plots._data.idata.prior)
+        no_posterior_idata = xr.DataTree.from_dict(
+            {"/prior": dist_plots._data.idata.prior}
+        )
         with pytest.raises(ValueError, match="posterior"):
             dist_plots.prior_vs_posterior(idata=no_posterior_idata)

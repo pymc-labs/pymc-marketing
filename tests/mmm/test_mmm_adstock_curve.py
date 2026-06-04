@@ -258,7 +258,6 @@ def test_sample_adstock_curve_raises_when_no_posterior(simple_mmm_data):
 
     This can happen if only sample_prior_predictive() was called but not fit().
     """
-    import arviz as az
 
     # Arrange - Create MMM with idata but no posterior
     X = simple_mmm_data["X"]
@@ -274,7 +273,7 @@ def test_sample_adstock_curve_raises_when_no_posterior(simple_mmm_data):
 
     # Build model and create empty idata (simulating prior-only sampling)
     mmm.build_model(X, y)
-    mmm.idata = az.InferenceData()  # Empty idata without posterior
+    mmm.idata = xr.DataTree.from_dict({})  # Empty idata without posterior
 
     # Act & Assert
     with pytest.raises(ValueError, match="posterior not found in idata"):

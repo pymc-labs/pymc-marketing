@@ -331,15 +331,15 @@ def _log_and_remove_artifact(path: str | Path) -> None:
     os.remove(path)
 
 
-def _force_load_idata_groups(idata: az.InferenceData) -> None:
+def _force_load_idata_groups(idata: xr.DataTree) -> None:
     """Force load all groups into memory since ArviZ does lazy loading.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object to force load.
+    idata : xr.DataTree
+        The DataTree object to force load.
     """
-    for group in idata.groups():
+    for group in idata.groups:
         # Convert each group to an in-memory dataset
         if hasattr(idata, group):
             group_data = getattr(idata, group)
@@ -347,15 +347,15 @@ def _force_load_idata_groups(idata: az.InferenceData) -> None:
                 group_data.load()
 
 
-def _attach_run_id(idata: az.InferenceData) -> None:
+def _attach_run_id(idata: xr.DataTree) -> None:
     """Stamp the active MLflow run id onto ``idata.attrs``.
 
     No-op when no MLflow run is active.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object to stamp.
+    idata : xr.DataTree
+        The DataTree object to stamp.
     """
     run = mlflow.active_run()
     if run is None:
@@ -364,7 +364,7 @@ def _attach_run_id(idata: az.InferenceData) -> None:
 
 
 def log_arviz_summary(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     path: str | Path,
     var_names: list[str] | None = None,
     **summary_kwargs,
@@ -375,13 +375,13 @@ def log_arviz_summary(
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
     path : str | Path
         The path to save the summary as HTML.
     var_names : list[str], optional
         The names of the variables to include in the summary. Default is
-        all the variables in the InferenceData object.
+        all the variables in the DataTree object.
     summary_kwargs : dict
         Additional keyword arguments to pass to `az.summary`.
 
@@ -392,7 +392,7 @@ def log_arviz_summary(
     os.remove(path)
 
 
-def log_metadata(model: Model, idata: az.InferenceData) -> None:
+def log_metadata(model: Model, idata: xr.DataTree) -> None:
     """Log the metadata of the data used in the model to MLflow.
 
     Saved in the form of numpy arrays based on all the constant and observed data
@@ -402,8 +402,8 @@ def log_metadata(model: Model, idata: az.InferenceData) -> None:
     ----------
     model : Model
         The PyMC model object.
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
 
     """
     data_vars: list[TensorVariable] = model.data_vars
@@ -534,7 +534,7 @@ def log_model_derived_info(model: Model) -> None:
 
 
 def log_sample_diagnostics(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     tune: int | None = None,
 ) -> None:
     """Log sample diagnostics to MLflow.
@@ -553,8 +553,8 @@ def log_sample_diagnostics(
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
     tune : int, optional
         The number of tuning steps used in sampling. Derived from the
         inference data if not provided.
@@ -603,15 +603,15 @@ def log_sample_diagnostics(
 
 
 def log_inference_data(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     save_file: str | Path = "idata.nc",
 ) -> None:
     """Log the InferenceData to MLflow.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
     save_file : str | Path
         The path to save the InferenceData object as a netCDF file.
 

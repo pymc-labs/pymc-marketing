@@ -13,13 +13,13 @@
 #   limitations under the License.
 
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 
 from pymc_marketing.customer_choice.mnl_logit import MNLogit
 
@@ -168,7 +168,7 @@ def test_sample(mnl, mock_pymc_sample):
     assert "fit_data" in mnl.idata
 
     mnl.sample_posterior_predictive(choice_df=mnl.choice_df, extend_idata=True)
-    assert isinstance(mnl.idata, az.InferenceData)
+    assert isinstance(mnl.idata, xr.DataTree)
 
     mnl.fit(choice_df=mnl.choice_df, utility_equations=mnl.utility_equations)
 

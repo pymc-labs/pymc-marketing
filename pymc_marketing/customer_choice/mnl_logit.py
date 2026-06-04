@@ -18,7 +18,6 @@ import warnings
 from collections.abc import Sequence
 from typing import Self
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -29,7 +28,10 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import (
+    ModelBuilder,
+    create_sample_kwargs,
+)
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
@@ -470,7 +472,7 @@ class MNLogit(ModelBuilder):
         return model
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create attributes for InferenceData."""
+        """Create attributes for DataTree."""
         attrs = super().create_idata_attrs()
         attrs["covariates"] = json.dumps(self.covariates)
         attrs["depvar"] = json.dumps(self.depvar)
@@ -485,7 +487,7 @@ class MNLogit(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """
         Sample from prior predictive distribution.
 
@@ -504,7 +506,7 @@ class MNLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Prior predictive samples
         """
         if choice_df is not None:
@@ -523,7 +525,7 @@ class MNLogit(ModelBuilder):
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
@@ -531,7 +533,7 @@ class MNLogit(ModelBuilder):
 
     def _create_fit_data(self) -> xr.Dataset:
         """
-        Create xarray Dataset for storing choice_df in InferenceData.
+        Create xarray Dataset for storing choice_df in DataTree.
 
         This allows the model to be reconstructed when loading from file.
 
@@ -551,7 +553,7 @@ class MNLogit(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """
         Fit the discrete choice model.
 
@@ -570,7 +572,7 @@ class MNLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Fitted model with posterior samples
         """
         # Allow updating data at fit time
@@ -598,7 +600,7 @@ class MNLogit(ModelBuilder):
         # Store and extend results
         if self.idata:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
@@ -606,8 +608,8 @@ class MNLogit(ModelBuilder):
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         # Add fit_data group
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self._create_fit_data()
 
@@ -617,25 +619,25 @@ class MNLogit(ModelBuilder):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            self.idata.add_groups(fit_data=fit_data)
+            self.idata["/fit_data"] = fit_data
 
         # Set attributes for save/load
         self.set_idata_attrs(self.idata)
 
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """
-        Build model from loaded InferenceData.
+        Build model from loaded DataTree.
 
         This is called by load() after the model is initialized.
 
         Parameters
         ----------
-        idata : az.InferenceData
+        idata : xr.DataTree
             Loaded inference data
         """
-        self.choice_df = idata["fit_data"].to_dataframe()
+        self.choice_df = idata["fit_data"].to_dataset().to_dataframe()
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -644,7 +646,7 @@ class MNLogit(ModelBuilder):
         choice_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """
         Sample from posterior predictive distribution.
 
@@ -659,7 +661,7 @@ class MNLogit(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Posterior predictive samples
         """
         if choice_df is not None:
@@ -681,7 +683,7 @@ class MNLogit(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         return post_pred
 
@@ -734,7 +736,7 @@ class MNLogit(ModelBuilder):
 
     def apply_intervention(
         self, new_choice_df, new_utility_equations=None
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Apply one of two types of intervention.
 
         The first type of intervention assumes we have a fitted model and
@@ -769,18 +771,18 @@ class MNLogit(ModelBuilder):
             new_model = self.make_model(new_X, new_F, new_y)
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.extend(
+                idata_new_policy.update(
                     pm.sample(
                         target_accept=0.99,
                         tune=2000,
                         idata_kwargs={"log_likelihood": True},
                         random_seed=101,
-                    )
+                    ),
                 )
-                idata_new_policy.extend(
+                idata_new_policy.update(
                     pm.sample_posterior_predictive(
                         idata_new_policy, var_names=["p", "likelihood"]
-                    )
+                    ),
                 )
 
             self.intervention_idata = idata_new_policy

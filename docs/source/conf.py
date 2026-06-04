@@ -115,7 +115,7 @@ plot_pre_code = (
     "import numpy as np\n"
     "import arviz  # registers arviz styles with matplotlib\n"
     "from matplotlib import pyplot as plt\n"
-    "plt.style.use('arviz-darkgrid')\n"
+    "plt.style.use('arviz-vibrant')\n"
 )
 
 # myst config

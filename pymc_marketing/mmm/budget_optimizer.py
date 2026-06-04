@@ -194,7 +194,7 @@ Requirements
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
 
-  - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
+  - Attributes: `adstock`, `_channel_scales`, `idata` (xr.DataTree with posterior)
   - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
     model where a variable named `channel_data` exists with dims including `"date"` and all
     budget dims (e.g., `("channel", "geo")`).
@@ -225,7 +225,6 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
-from arviz import InferenceData
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
 from pymc import Model, do
 from pymc.model.fgraph import clone_model
@@ -324,7 +323,7 @@ class OptimizerCompatibleModelWrapper(Protocol):
 
     adstock: Any
     _channel_scales: Any
-    idata: InferenceData
+    idata: xr.DataTree
 
     def _set_predictors_for_optimization(self, num_periods: int) -> Model:
         """Set the predictors for optimization."""
@@ -367,7 +366,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
         Number of models being merged.
     num_periods : int | None
         Number of forecast periods inferred from the primary model (if available).
-    idata : arviz.InferenceData
+    idata : xr.DataTree
         The merged and prefixed posterior (and data) container.
     adstock : Any
         Carried over from the primary model when available.
@@ -1361,7 +1360,7 @@ class CustomModelWrapper(BaseModel):
         ...,
         description="Underlying PyMC model to be cloned for optimization.",
     )
-    idata: InferenceData
+    idata: xr.DataTree
     channel_columns: list[str] = Field(
         ...,
         description="Channel labels used for budget optimization.",
@@ -1376,7 +1375,7 @@ class CustomModelWrapper(BaseModel):
     def __init__(
         self,
         base_model: Model,
-        idata: InferenceData,
+        idata: xr.DataTree,
         channels: Sequence[str],
     ) -> None:
         super().__init__(

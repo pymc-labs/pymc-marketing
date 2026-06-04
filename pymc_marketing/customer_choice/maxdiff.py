@@ -26,7 +26,6 @@ import json
 import warnings
 from typing import Any, Literal, Self, TypedDict
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import patsy
@@ -675,7 +674,9 @@ class MaxDiffMixedLogit(ModelBuilder):
             new_respondents=new_respondents,
             draw_batch_size=draw_batch_size,
         )
-        self.intervention_idata = az.InferenceData(posterior_predictive=result)
+        self.intervention_idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": result}
+        )
         return result
 
     def score_new_items(
@@ -757,7 +758,9 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "items": all_items,
             },
         )
-        self.intervention_idata = az.InferenceData(posterior_predictive=result)
+        self.intervention_idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": result}
+        )
         return result
 
     @property
@@ -1121,9 +1124,11 @@ class MaxDiffMixedLogit(ModelBuilder):
         df_xr = df_xr.rename({"index": "row"})
         return df_xr
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Rebuild the PyMC model from a loaded InferenceData."""
-        self.task_df = idata["fit_data"].to_dataframe().reset_index(drop=True)
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Rebuild the PyMC model from a loaded DataTree."""
+        self.task_df = (
+            idata["fit_data"].to_dataset().to_dataframe().reset_index(drop=True)
+        )
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -1133,7 +1138,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from the prior predictive distribution."""
         if task_df is not None:
             self.task_df = task_df
@@ -1149,7 +1154,7 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
@@ -1161,7 +1166,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the model via NUTS and attach the result to ``self.idata``."""
         if task_df is not None:
             self.task_df = task_df
@@ -1181,14 +1186,14 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         if self.idata:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self._create_fit_data()
         with warnings.catch_warnings():
@@ -1197,7 +1202,7 @@ class MaxDiffMixedLogit(ModelBuilder):
                 category=UserWarning,
                 message="The group fit_data is not defined in the InferenceData scheme",
             )
-            self.idata.add_groups(fit_data=fit_data)
+            self.idata["/fit_data"] = fit_data
 
         self.set_idata_attrs(self.idata)
         return self.idata
@@ -1207,7 +1212,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         task_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from the posterior predictive distribution.
 
         Appropriate for **in-sample posterior predictive checks** on training
@@ -1263,7 +1268,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         return post_pred
 

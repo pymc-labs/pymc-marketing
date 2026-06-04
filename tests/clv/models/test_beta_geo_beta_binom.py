@@ -13,7 +13,6 @@
 #   limitations under the License.
 import os
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -317,7 +316,7 @@ class TestBetaGeoBetaBinomModel:
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -469,12 +468,12 @@ class TestBetaGeoBetaBinomModel:
             data=self.sample_data,
         )
         mock_model.build_model()
-        mock_model.idata = az.from_dict(
+        mock_model.idata = xr.DataTree.from_dict(
             {
-                "alpha": [self.alpha_true],
-                "beta": [self.beta_true],
-                "delta": [self.delta_true],
-                "gamma": [self.gamma_true],
+                "/alpha": [self.alpha_true],
+                "/beta": [self.beta_true],
+                "/delta": [self.delta_true],
+                "/gamma": [self.gamma_true],
             }
         )
 

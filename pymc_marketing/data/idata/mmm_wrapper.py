@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""MMMIDataWrapper class for validated access to InferenceData."""
+"""MMMIDataWrapper class for validated access to DataTree."""
 
 from __future__ import annotations
 
@@ -30,14 +30,14 @@ if TYPE_CHECKING:
 
 
 class MMMIDataWrapper:
-    """Codified wrapper around InferenceData for MMM models.
+    """Codified wrapper around DataTree for MMM models.
 
     Provides validated access to data and common transformations.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object from fitted MMM model
+    idata : xr.DataTree
+        DataTree from fitted MMM model
     schema : MMMIdataSchema, optional
         Schema to validate against. If None, validation skipped.
     validate_on_init : bool, default True
@@ -56,7 +56,7 @@ class MMMIDataWrapper:
 
     def __init__(
         self,
-        idata: az.InferenceData,
+        idata: xr.DataTree,
         schema: Any | None = None,
         validate_on_init: bool = True,
     ):
@@ -73,19 +73,19 @@ class MMMIDataWrapper:
     def from_mmm(
         cls,
         mmm: MMM,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
     ) -> MMMIDataWrapper:
         """Create an MMMIDataWrapper from a fitted MMM model.
 
         Builds the appropriate schema from the model configuration
-        and wraps the provided (or model's own) InferenceData.
+        and wraps the provided (or model's own) DataTree.
 
         Parameters
         ----------
         mmm : MMM
             Fitted MMM model instance.
-        idata : az.InferenceData, optional
-            InferenceData to wrap. If None, uses ``mmm.idata``.
+        idata : xr.DataTree, optional
+            DataTree to wrap. If None, uses ``mmm.idata``.
 
         Returns
         -------
@@ -1034,7 +1034,7 @@ class MMMIDataWrapper:
                 raise ValueError(f"Variable '{var}' not found in posterior")
 
         # Use arviz for summary
-        summary = az.summary(data, hdi_prob=hdi_prob, kind="stats")
+        summary = az.summary(data, ci_prob=hdi_prob, kind="stats")
 
         return summary
 
@@ -1087,7 +1087,7 @@ class MMMIDataWrapper:
         elif hasattr(self.idata, "posterior"):
             return pd.DatetimeIndex(self.idata.posterior.coords["date"].values)
         else:
-            raise ValueError("Could not find date coordinate in InferenceData")
+            raise ValueError("Could not find date coordinate in DataTree")
 
     @property
     def channels(self) -> list[str]:
@@ -1097,7 +1097,7 @@ class MMMIDataWrapper:
         elif hasattr(self.idata, "posterior"):
             return self.idata.posterior.coords["channel"].values.tolist()
         else:
-            raise ValueError("Could not find channel coordinate in InferenceData")
+            raise ValueError("Could not find channel coordinate in DataTree")
 
     @property
     def custom_dims(self) -> list[str]:

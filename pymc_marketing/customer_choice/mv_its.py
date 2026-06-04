@@ -358,13 +358,14 @@ class MVITS(RegressionModelBuilder):
         zero_sales = np.zeros_like(self.y, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
-            self.idata.extend(  # type: ignore
+            self.idata.update(  # type: ignore
+                self.idata,
                 pm.sample_posterior_predictive(
                     self.posterior,
                     var_names=["mu", self.output_var],
                     random_seed=random_seed,
                     predictions=True,
-                )
+                ),
             )
 
     def sample(

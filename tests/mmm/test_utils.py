@@ -12,7 +12,6 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
@@ -712,7 +711,7 @@ class TestBuildContributions:
                 ),
             }
         )
-        idata = az.InferenceData(posterior=posterior)
+        idata = xr.DataTree.from_dict({"/posterior": posterior})
         return idata
 
     @pytest.fixture
@@ -747,7 +746,7 @@ class TestBuildContributions:
                 ),
             }
         )
-        idata = az.InferenceData(posterior=posterior)
+        idata = xr.DataTree.from_dict({"/posterior": posterior})
         return idata
 
     def test_build_contributions_basic(self, mock_idata_simple):

@@ -270,42 +270,44 @@ def test_prior_predictive(mmm_with_prior_predictive, hdi_prob):
 
 def test_prior_predictive_raises_when_missing():
     """Plotting prior predictive without sampled data must give an actionable error."""
-    suite = MMMPlotSuite(idata=az.InferenceData())
+    suite = MMMPlotSuite(idata=xr.DataTree.from_dict({}))
     with pytest.raises(ValueError, match=r"prior_predictive"):
         suite.prior_predictive()
 
 
 @pytest.fixture(scope="module")
-def mock_idata() -> az.InferenceData:
+def mock_idata() -> xr.DataTree:
     seed = sum(map(ord, "Fake posterior"))
     rng = np.random.default_rng(seed)
     normal = rng.normal
 
     dates = pd.date_range("2025-01-01", periods=52, freq="W-MON")
-    return az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "intercept": xr.DataArray(
-                    normal(size=(4, 100, 52, 3)),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={
-                        "chain": np.arange(4),
-                        "draw": np.arange(100),
-                        "date": dates,
-                        "country": ["A", "B", "C"],
-                    },
-                ),
-                "linear_trend": xr.DataArray(
-                    normal(size=(4, 100, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={
-                        "chain": np.arange(4),
-                        "draw": np.arange(100),
-                        "date": dates,
-                    },
-                ),
-            }
-        )
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "intercept": xr.DataArray(
+                        normal(size=(4, 100, 52, 3)),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={
+                            "chain": np.arange(4),
+                            "draw": np.arange(100),
+                            "date": dates,
+                            "country": ["A", "B", "C"],
+                        },
+                    ),
+                    "linear_trend": xr.DataArray(
+                        normal(size=(4, 100, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={
+                            "chain": np.arange(4),
+                            "draw": np.arange(100),
+                            "date": dates,
+                        },
+                    ),
+                }
+            )
+        }
     )
 
 
@@ -427,7 +429,7 @@ def mock_idata_with_sensitivity_and_channels():
         }
     )
 
-    idata = az.InferenceData(constant_data=constant_data)
+    idata = xr.DataTree.from_dict({"/constant_data": constant_data})
     idata.sensitivity_analysis = sensitivity_analysis
     return idata
 
@@ -452,7 +454,7 @@ def test_contributions_over_time_expand_dims(mock_suite: MMMPlotSuite):
 
 
 @pytest.fixture(scope="module")
-def mock_idata_with_constant_data() -> az.InferenceData:
+def mock_idata_with_constant_data() -> xr.DataTree:
     """Create mock InferenceData with constant_data and posterior for saturation tests."""
     seed = sum(map(ord, "Saturation tests"))
     rng = np.random.default_rng(seed)
@@ -515,7 +517,9 @@ def mock_idata_with_constant_data() -> az.InferenceData:
         }
     )
 
-    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior, "/constant_data": constant_data}
+    )
 
 
 @pytest.fixture(scope="module")
@@ -872,7 +876,7 @@ def test_saturation_curves_scatter_deprecation_warning(mock_suite_with_constant_
 
 
 @pytest.fixture(scope="module")
-def mock_idata_with_constant_data_single_dim() -> az.InferenceData:
+def mock_idata_with_constant_data_single_dim() -> xr.DataTree:
     """Mock InferenceData where channel_data has only ('date','channel') dims."""
     seed = sum(map(ord, "Saturation single-dim tests"))
     rng = np.random.default_rng(seed)
@@ -922,7 +926,9 @@ def mock_idata_with_constant_data_single_dim() -> az.InferenceData:
         }
     )
 
-    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior, "/constant_data": constant_data}
+    )
 
 
 @pytest.fixture(scope="module")
@@ -1207,7 +1213,7 @@ def test_sensitivity_analysis_x_sweep_axis_absolute_missing_channel_scale():
         }
     )
 
-    idata = az.InferenceData(constant_data=constant_data)
+    idata = xr.DataTree.from_dict({"/constant_data": constant_data})
     idata.sensitivity_analysis = sensitivity_analysis
 
     suite = MMMPlotSuite(idata=idata)
@@ -1360,7 +1366,7 @@ def test__dim_list_handler_mixed():
 
 
 @pytest.fixture(scope="module")
-def mock_idata_with_errors_data() -> az.InferenceData:
+def mock_idata_with_errors_data() -> xr.DataTree:
     """Create mock InferenceData with data needed for errors plot."""
     seed = sum(map(ord, "Errors plot tests"))
     rng = np.random.default_rng(seed)
@@ -1398,8 +1404,8 @@ def mock_idata_with_errors_data() -> az.InferenceData:
         }
     )
 
-    return az.InferenceData(
-        posterior_predictive=posterior_predictive, constant_data=constant_data
+    return xr.DataTree.from_dict(
+        {"/posterior_predictive": posterior_predictive, "/constant_data": constant_data}
     )
 
 
@@ -1440,16 +1446,22 @@ class TestResidualsOverTime:
         """Test that residuals over time raises error without y_original_scale."""
         # Create idata with posterior_predictive but without y_original_scale
         dates = pd.date_range("2025-01-01", periods=20, freq="W-MON")
-        idata = az.InferenceData(
-            posterior_predictive=xr.Dataset(
-                {
-                    "y": xr.DataArray(
-                        np.random.randn(2, 50, 20),
-                        dims=("chain", "draw", "date"),
-                        coords={"chain": [0, 1], "draw": np.arange(50), "date": dates},
-                    )
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior_predictive": xr.Dataset(
+                    {
+                        "y": xr.DataArray(
+                            np.random.randn(2, 50, 20),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                            },
+                        )
+                    }
+                )
+            }
         )
         suite = MMMPlotSuite(idata=idata)
 
@@ -1589,40 +1601,42 @@ class TestWaterfallPlot:
         channels = ["C1", "C2"]
         controls = ["control1"]
 
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "intercept_contribution_original_scale": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 100, 20)),
-                        dims=("chain", "draw", "date"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(100),
-                            "date": dates,
-                        },
-                    ),
-                    "channel_contribution_original_scale": xr.DataArray(
-                        np.random.normal(30, 10, size=(2, 100, 20, 2)),
-                        dims=("chain", "draw", "date", "channel"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(100),
-                            "date": dates,
-                            "channel": channels,
-                        },
-                    ),
-                    "control_contribution_original_scale": xr.DataArray(
-                        np.random.normal(10, 3, size=(2, 100, 20, 1)),
-                        dims=("chain", "draw", "date", "control"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(100),
-                            "date": dates,
-                            "control": controls,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "intercept_contribution_original_scale": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 100, 20)),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(100),
+                                "date": dates,
+                            },
+                        ),
+                        "channel_contribution_original_scale": xr.DataArray(
+                            np.random.normal(30, 10, size=(2, 100, 20, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(100),
+                                "date": dates,
+                                "channel": channels,
+                            },
+                        ),
+                        "control_contribution_original_scale": xr.DataArray(
+                            np.random.normal(10, 3, size=(2, 100, 20, 1)),
+                            dims=("chain", "draw", "date", "control"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(100),
+                                "date": dates,
+                                "control": controls,
+                            },
+                        ),
+                    }
+                )
+            }
         )
         return idata
 
@@ -1670,7 +1684,7 @@ class TestWaterfallPlot:
     def test_waterfall_missing_posterior_error(self):
         """Test error when posterior data is missing."""
         # Create InferenceData without posterior
-        idata_no_posterior = az.InferenceData()
+        idata_no_posterior = xr.DataTree.from_dict({})
         suite = MMMPlotSuite(idata=idata_no_posterior)
 
         with pytest.raises(ValueError, match=r"No posterior data found"):
@@ -1745,32 +1759,34 @@ class TestWaterfallPlot:
         channels = ["C1", "C2"]
         geos = ["US", "UK"]
 
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "intercept_contribution": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 50, 10, 2)),
-                        dims=("chain", "draw", "date", "geo"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "geo": geos,
-                        },
-                    ),
-                    "channel_contribution": xr.DataArray(
-                        np.random.normal(30, 10, size=(2, 50, 10, 2, 2)),
-                        dims=("chain", "draw", "date", "channel", "geo"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "channel": channels,
-                            "geo": geos,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "intercept_contribution": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "geo"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "geo": geos,
+                            },
+                        ),
+                        "channel_contribution": xr.DataArray(
+                            np.random.normal(30, 10, size=(2, 50, 10, 2, 2)),
+                            dims=("chain", "draw", "date", "channel", "geo"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "channel": channels,
+                                "geo": geos,
+                            },
+                        ),
+                    }
+                )
+            }
         )
 
         suite = MMMPlotSuite(idata=idata)
@@ -1789,32 +1805,34 @@ class TestWaterfallPlot:
         channels = ["C1", "C2"]
         geos = ["US", "UK", "DE"]
 
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "intercept_contribution_original_scale": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 50, 10, 3)),
-                        dims=("chain", "draw", "date", "geo"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "geo": geos,
-                        },
-                    ),
-                    "channel_contribution_original_scale": xr.DataArray(
-                        np.random.normal(30, 10, size=(2, 50, 10, 2, 3)),
-                        dims=("chain", "draw", "date", "channel", "geo"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "channel": channels,
-                            "geo": geos,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "intercept_contribution_original_scale": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 50, 10, 3)),
+                            dims=("chain", "draw", "date", "geo"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "geo": geos,
+                            },
+                        ),
+                        "channel_contribution_original_scale": xr.DataArray(
+                            np.random.normal(30, 10, size=(2, 50, 10, 2, 3)),
+                            dims=("chain", "draw", "date", "channel", "geo"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "channel": channels,
+                                "geo": geos,
+                            },
+                        ),
+                    }
+                )
+            }
         )
         return idata
 
@@ -1964,49 +1982,51 @@ class TestWaterfallPlot:
         channels = ["C1", "C2"]
 
         # Create idata with both original and non-original scale variables
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "intercept_contribution": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 50, 10)),
-                        dims=("chain", "draw", "date"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                        },
-                    ),
-                    "channel_contribution": xr.DataArray(
-                        np.random.normal(30, 10, size=(2, 50, 10, 2)),
-                        dims=("chain", "draw", "date", "channel"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "channel": channels,
-                        },
-                    ),
-                    "intercept_contribution_original_scale": xr.DataArray(
-                        np.random.normal(500, 50, size=(2, 50, 10)),
-                        dims=("chain", "draw", "date"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                        },
-                    ),
-                    "channel_contribution_original_scale": xr.DataArray(
-                        np.random.normal(300, 100, size=(2, 50, 10, 2)),
-                        dims=("chain", "draw", "date", "channel"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "channel": channels,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "intercept_contribution": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                            },
+                        ),
+                        "channel_contribution": xr.DataArray(
+                            np.random.normal(30, 10, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "channel": channels,
+                            },
+                        ),
+                        "intercept_contribution_original_scale": xr.DataArray(
+                            np.random.normal(500, 50, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                            },
+                        ),
+                        "channel_contribution_original_scale": xr.DataArray(
+                            np.random.normal(300, 100, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "channel": channels,
+                            },
+                        ),
+                    }
+                )
+            }
         )
 
         suite = MMMPlotSuite(idata=idata)
@@ -2029,20 +2049,22 @@ class TestWaterfallPlot:
         dates = pd.date_range("2025-01-01", periods=5, freq="W-MON")
 
         # Create idata without any contribution variables
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "some_other_var": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 50, 5)),
-                        dims=("chain", "draw", "date"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "some_other_var": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 50, 5)),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                            },
+                        ),
+                    }
+                )
+            }
         )
 
         suite = MMMPlotSuite(idata=idata)
@@ -2056,40 +2078,42 @@ class TestWaterfallPlot:
         channels = ["C1", "C2"]
 
         # Create idata with total_media_contribution_original_scale
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "intercept_contribution_original_scale": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 50, 10)),
-                        dims=("chain", "draw", "date"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                        },
-                    ),
-                    "channel_contribution_original_scale": xr.DataArray(
-                        np.random.normal(30, 10, size=(2, 50, 10, 2)),
-                        dims=("chain", "draw", "date", "channel"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "channel": channels,
-                        },
-                    ),
-                    # This should be excluded - it's a sum of channel contributions
-                    "total_media_contribution_original_scale": xr.DataArray(
-                        np.random.normal(60, 15, size=(2, 50, 10)),
-                        dims=("chain", "draw", "date"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "intercept_contribution_original_scale": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                            },
+                        ),
+                        "channel_contribution_original_scale": xr.DataArray(
+                            np.random.normal(30, 10, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "channel": channels,
+                            },
+                        ),
+                        # This should be excluded - it's a sum of channel contributions
+                        "total_media_contribution_original_scale": xr.DataArray(
+                            np.random.normal(60, 15, size=(2, 50, 10)),
+                            dims=("chain", "draw", "date"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                            },
+                        ),
+                    }
+                )
+            }
         )
 
         suite = MMMPlotSuite(idata=idata)
@@ -2189,34 +2213,36 @@ class TestWaterfallPlot:
         geos = ["US", "UK"]
         products = ["A", "B"]
 
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "intercept_contribution_original_scale": xr.DataArray(
-                        np.random.normal(50, 5, size=(2, 20, 5, 2, 2)),
-                        dims=("chain", "draw", "date", "geo", "product"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(20),
-                            "date": dates,
-                            "geo": geos,
-                            "product": products,
-                        },
-                    ),
-                    "channel_contribution_original_scale": xr.DataArray(
-                        np.random.normal(30, 10, size=(2, 20, 5, 2, 2, 2)),
-                        dims=("chain", "draw", "date", "channel", "geo", "product"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(20),
-                            "date": dates,
-                            "channel": channels,
-                            "geo": geos,
-                            "product": products,
-                        },
-                    ),
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "intercept_contribution_original_scale": xr.DataArray(
+                            np.random.normal(50, 5, size=(2, 20, 5, 2, 2)),
+                            dims=("chain", "draw", "date", "geo", "product"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(20),
+                                "date": dates,
+                                "geo": geos,
+                                "product": products,
+                            },
+                        ),
+                        "channel_contribution_original_scale": xr.DataArray(
+                            np.random.normal(30, 10, size=(2, 20, 5, 2, 2, 2)),
+                            dims=("chain", "draw", "date", "channel", "geo", "product"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(20),
+                                "date": dates,
+                                "channel": channels,
+                                "geo": geos,
+                                "product": products,
+                            },
+                        ),
+                    }
+                )
+            }
         )
         return idata
 
@@ -2243,7 +2269,7 @@ class TestPosteriorDistribution:
     """Tests for the posterior_distribution plotting method."""
 
     @pytest.fixture(scope="class")
-    def mock_idata_for_posterior_dist(self) -> az.InferenceData:
+    def mock_idata_for_posterior_dist(self) -> xr.DataTree:
         """Mock InferenceData with parameter variables for testing."""
         seed = sum(map(ord, "Posterior distribution tests"))
         rng = np.random.default_rng(seed)
@@ -2276,7 +2302,7 @@ class TestPosteriorDistribution:
             }
         )
 
-        return az.InferenceData(posterior=posterior)
+        return xr.DataTree.from_dict({"/posterior": posterior})
 
     @pytest.fixture(scope="class")
     def mock_suite_for_posterior_dist(self, mock_idata_for_posterior_dist):
@@ -2384,7 +2410,7 @@ class TestPosteriorDistribution:
 
     def test_posterior_distribution_no_posterior(self):
         """Test that missing posterior data raises error."""
-        idata = az.InferenceData()
+        idata = xr.DataTree.from_dict({})
         suite = MMMPlotSuite(idata=idata)
         with pytest.raises(ValueError, match=r"No posterior data found"):
             suite.posterior_distribution(var="lam", plot_dim="channel")
@@ -2449,7 +2475,7 @@ class TestChannelParameter:
             }
         )
 
-        return az.InferenceData(posterior=posterior)
+        return xr.DataTree.from_dict({"/posterior": posterior})
 
     @pytest.fixture(scope="class")
     def mock_suite_with_channel_params(self, mock_idata_with_channel_params):
@@ -2546,7 +2572,7 @@ class TestChannelParameter:
 
     def test_channel_parameter_no_posterior(self):
         """Test that missing posterior data raises error."""
-        idata = az.InferenceData()
+        idata = xr.DataTree.from_dict({})
         suite = MMMPlotSuite(idata=idata)
         with pytest.raises(ValueError, match=r"No posterior data found"):
             suite.channel_parameter(param_name="saturation_alpha")
@@ -2585,7 +2611,7 @@ class TestPriorVsPosterior:
     """Tests for the prior_vs_posterior plotting method."""
 
     @pytest.fixture(scope="class")
-    def mock_idata_for_prior_vs_posterior(self) -> az.InferenceData:
+    def mock_idata_for_prior_vs_posterior(self) -> xr.DataTree:
         """Mock InferenceData with prior and posterior for testing."""
         seed = sum(map(ord, "Prior vs Posterior tests"))
         rng = np.random.default_rng(seed)
@@ -2643,7 +2669,7 @@ class TestPriorVsPosterior:
             }
         )
 
-        return az.InferenceData(prior=prior, posterior=posterior)
+        return xr.DataTree.from_dict({"/prior": prior, "/posterior": posterior})
 
     @pytest.fixture(scope="class")
     def mock_suite_for_prior_vs_posterior(self, mock_idata_for_prior_vs_posterior):
@@ -2753,7 +2779,7 @@ class TestPriorVsPosterior:
                 ),
             }
         )
-        idata = az.InferenceData(posterior=posterior)
+        idata = xr.DataTree.from_dict({"/posterior": posterior})
         suite = MMMPlotSuite(idata=idata)
         with pytest.raises(ValueError, match=r"No prior data found"):
             suite.prior_vs_posterior(var="lam", plot_dim="channel")
@@ -2773,7 +2799,7 @@ class TestPriorVsPosterior:
                 ),
             }
         )
-        idata = az.InferenceData(prior=prior)
+        idata = xr.DataTree.from_dict({"/prior": prior})
         suite = MMMPlotSuite(idata=idata)
         with pytest.raises(ValueError, match=r"No posterior data found"):
             suite.prior_vs_posterior(var="lam", plot_dim="channel")
@@ -2830,7 +2856,7 @@ class TestPriorVsPosterior:
                 ),
             }
         )
-        idata = az.InferenceData(prior=prior, posterior=posterior)
+        idata = xr.DataTree.from_dict({"/prior": prior, "/posterior": posterior})
         suite = MMMPlotSuite(idata=idata)
 
         # Should work without error for scalar variable
@@ -2872,7 +2898,7 @@ class TestPriorVsPosterior:
                 ),
             }
         )
-        idata = az.InferenceData(prior=prior, posterior=posterior)
+        idata = xr.DataTree.from_dict({"/prior": prior, "/posterior": posterior})
         suite = MMMPlotSuite(idata=idata)
 
         # plot_dim="channel" doesn't exist, but geo does - should handle gracefully
@@ -2912,7 +2938,7 @@ class TestPriorVsPosterior:
                 ),
             }
         )
-        idata = az.InferenceData(prior=prior, posterior=posterior)
+        idata = xr.DataTree.from_dict({"/prior": prior, "/posterior": posterior})
         suite = MMMPlotSuite(idata=idata)
 
         # Use geo as plot_dim
@@ -2971,7 +2997,7 @@ class TestChannelContributionShareHDI:
 
     def test_channel_contribution_share_hdi_no_posterior(self):
         """Test that channel_contribution_share_hdi raises error without posterior."""
-        idata = az.InferenceData()
+        idata = xr.DataTree.from_dict({})
         suite = MMMPlotSuite(idata=idata)
 
         with pytest.raises(ValueError, match=r"No posterior data found"):
@@ -3140,7 +3166,7 @@ def test_filter_df_by_indexer_behaviour():
 
 
 def _build_cv_results_for_cv_predictions():
-    """Helper to build a minimal arviz.InferenceData suitable for cv_predictions tests."""
+    """Helper to build a minimal xarray.DataTree suitable for cv_predictions tests."""
     # Single CV fold and a single extra dim 'country' with one country value
     cv_labels = ["cv1"]
     countries = ["A"]
@@ -3178,7 +3204,9 @@ def _build_cv_results_for_cv_predictions():
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
 
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
     return results
 
 
@@ -3277,7 +3305,9 @@ def _build_cv_results_multi(cv_labels=("cv1", "cv2"), countries=("A", "B")):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    return az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    return xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
 
 def test_cv_predictions_single_axis_wrapped_into_list():
@@ -3542,7 +3572,7 @@ def test_cv_predictions_plots_observed_and_train_end(monkeypatch):
 
 def _build_param_stability_idata(
     cv_labels=("cv1", "cv2"), countries=("A", "B")
-) -> az.InferenceData:
+) -> xr.DataTree:
     """Helper to create InferenceData suitable for param_stability tests."""
     arr = np.random.default_rng(3).normal(size=(1, 2, len(cv_labels), len(countries)))
     da = xr.DataArray(
@@ -3557,12 +3587,12 @@ def _build_param_stability_idata(
         name="beta",
     )
     posterior = xr.Dataset({"beta": da})
-    return az.InferenceData(posterior=posterior)
+    return xr.DataTree.from_dict({"/posterior": posterior})
 
 
 def _build_param_stability_idata_no_country(
     cv_labels=("cv1", "cv2"),
-) -> az.InferenceData:
+) -> xr.DataTree:
     arr = np.random.default_rng(4).normal(size=(1, 2, len(cv_labels)))
     da = xr.DataArray(
         arr,
@@ -3571,7 +3601,7 @@ def _build_param_stability_idata_no_country(
         name="beta",
     )
     posterior = xr.Dataset({"beta": da})
-    return az.InferenceData(posterior=posterior)
+    return xr.DataTree.from_dict({"/posterior": posterior})
 
 
 def test_param_stability_no_dims_calls_plot_forest(monkeypatch):
@@ -3675,7 +3705,7 @@ def test_cv_crps_missing_cv_metadata_raises():
         name="y_original_scale",
     )
     ds_pp = xr.Dataset({"y_original_scale": da})
-    results = az.InferenceData(posterior_predictive=ds_pp)
+    results = xr.DataTree.from_dict({"/posterior_predictive": ds_pp})
     with pytest.raises(ValueError, match=r"cv_metadata"):
         suite.cv_crps(results)
 
@@ -3703,7 +3733,9 @@ def test_cv_crps_missing_y_original_scale_raises():
         name="y_other",
     )
     ds_pp = xr.Dataset({"y_other": da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
     with pytest.raises(ValueError, match=r"y_original_scale"):
         suite.cv_crps(results)
 
@@ -3739,7 +3771,9 @@ def test_cv_crps_date_coord_detection_and_pred_matrix(monkeypatch):
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
 
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Monkeypatch crps to a deterministic function so plotting proceeds
     def fake_crps(y_true, y_pred):
@@ -3791,7 +3825,9 @@ def test_cv_crps_filter_rows_and_y_empty_and_mismatch(monkeypatch):
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
 
-    results2 = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results2 = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # monkeypatch crps to simple function
     monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
@@ -3842,7 +3878,9 @@ def test_cv_crps_dim_selection_casting_succeeds(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Make crps deterministic and validate shapes inside
     def fake_crps(y_true, y_pred):
@@ -3960,7 +3998,9 @@ def test_pred_matrix_transpose_fallback_with_custom_order():
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Monkeypatch transpose to fail with ellipsis but succeed with explicit order
     original_transpose = xr.DataArray.transpose
@@ -4020,7 +4060,9 @@ def test_pred_matrix_date_coord_detection_exception_warns():
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Monkeypatch to make dtype check fail for the coordinate
     original_check = pd.api.types.is_datetime64_any_dtype
@@ -4077,7 +4119,9 @@ def test_pred_matrix_no_date_coord_raises(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Mock crps to track if it was called (it shouldn't be if ValueError was raised)
     crps_called = []
@@ -4139,7 +4183,9 @@ def test_pred_matrix_date_column_detection_with_exception(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Monkeypatch to make dtype check fail for 'period_id' column
     original_check = pd.api.types.is_datetime64_any_dtype
@@ -4200,7 +4246,9 @@ def test_pred_matrix_no_date_column_in_dataframe_raises(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Mock crps to track if it was called (it shouldn't be if ValueError was raised)
     crps_called = []
@@ -4261,7 +4309,9 @@ def test_pred_matrix_dim_selection_first_attempt_fails_second_succeeds(monkeypat
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Monkeypatch crps to simple function so cv_crps completes
     monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
@@ -4310,7 +4360,9 @@ def test_pred_matrix_dim_selection_both_attempts_fail_warns(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Mock crps to track if it was called (it shouldn't be when selection fails)
     crps_called = []
@@ -4370,7 +4422,9 @@ def test_pred_matrix_scalar_prediction_raises(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Mock crps to track if it was called (it shouldn't be if ValueError was raised)
     crps_called = []
@@ -4436,7 +4490,9 @@ def test_pred_matrix_multidimensional_array_reshapes():
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Should complete, using reshape to flatten extra dimensions
     fig, _axes = suite.cv_predictions(results, dims=None)
@@ -4477,7 +4533,9 @@ def test_pred_matrix_date_column_found_via_lower_check(monkeypatch):
         name="metadata",
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
-    results = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    results = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     # Monkeypatch crps to simple function so cv_crps completes
     monkeypatch.setattr("pymc_marketing.mmm.plot.crps", lambda y_true, y_pred: 0.5)
@@ -4493,7 +4551,7 @@ def test_cv_predictions_invalid_input_type_raises():
     suite = MMMPlotSuite(idata=None)
     with pytest.raises(
         TypeError,
-        match=r"plot_cv_predictions expects an arviz.InferenceData object for 'results'",
+        match=r"plot_cv_predictions expects an xarray.DataTree object for 'results'",
     ):
         suite.cv_predictions("not an InferenceData object")
 
@@ -4503,7 +4561,7 @@ def test_param_stability_invalid_input_type_raises():
     suite = MMMPlotSuite(idata=None)
     with pytest.raises(
         TypeError,
-        match=r"plot_param_stability expects an `arviz.InferenceData` returned by TimeSliceCrossValidator.run(...)",
+        match=r"plot_param_stability expects an `xarray.DataTree` returned by TimeSliceCrossValidator.run(...)",
     ):
         suite.param_stability("not an InferenceData object", parameter=[])
 
@@ -4512,7 +4570,7 @@ def test_cv_predictions_missing_posterior_predictive_raises():
     """Test that cv_predictions raises ValueError when posterior_predictive is missing."""
     suite = MMMPlotSuite(idata=None)
     # Create InferenceData without posterior_predictive
-    idata = az.InferenceData()
+    idata = xr.DataTree.from_dict({})
     with pytest.raises(
         ValueError,
         match=r"Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray",
@@ -4532,7 +4590,7 @@ def test_cv_predictions_missing_cv_metadata_raises():
         name="y_original_scale",
     )
     ds_pp = xr.Dataset({"y_original_scale": da})
-    idata = az.InferenceData(posterior_predictive=ds_pp)
+    idata = xr.DataTree.from_dict({"/posterior_predictive": ds_pp})
 
     with pytest.raises(ValueError, match=r"cv_metadata"):
         suite.cv_predictions(idata)
@@ -4563,7 +4621,9 @@ def test_cv_predictions_missing_y_original_scale_raises():
     )
     ds_meta = xr.Dataset({"metadata": meta_da})
 
-    idata = az.InferenceData(posterior_predictive=ds_pp, cv_metadata=ds_meta)
+    idata = xr.DataTree.from_dict(
+        {"/posterior_predictive": ds_pp, "/cv_metadata": ds_meta}
+    )
 
     with pytest.raises(ValueError, match=r"y_original_scale"):
         suite.cv_predictions(idata)
@@ -4609,7 +4669,7 @@ def test_param_stability_fallback_uses_posterior_predictive_and_returns_fig_ax()
             "draw": np.arange(4),
         },
     )
-    results = az.InferenceData(posterior_predictive=pp)
+    results = xr.DataTree.from_dict({"/posterior_predictive": pp})
 
     suite = object.__new__(MMMPlotSuite)
     # call method; should not raise and should return (fig, ax)
@@ -4693,7 +4753,7 @@ class TestAllocatedContributionByChannelOverTime:
     def mock_suite_basic(self):
         """Create minimal MMMPlotSuite for testing."""
         # We just need an idata to instantiate; actual plotting uses samples
-        idata = az.InferenceData()
+        idata = xr.DataTree.from_dict({})
         return MMMPlotSuite(idata=idata)
 
     def test_basic_plot_no_extra_dims(self, mock_suite_basic, mock_samples_basic):
@@ -4978,21 +5038,23 @@ class TestAllocatedContributionByChannelOverTime:
         channels = ["C1", "C2"]
 
         # Create InferenceData with chain and draw dimensions (like sample_response_distribution)
-        idata = az.InferenceData(
-            posterior_predictive=xr.Dataset(
-                {
-                    "channel_contribution": xr.DataArray(
-                        rng.normal(100, 20, size=(2, 50, 10, 2)),
-                        dims=("chain", "draw", "date", "channel"),
-                        coords={
-                            "chain": [0, 1],
-                            "draw": np.arange(50),
-                            "date": dates,
-                            "channel": channels,
-                        },
-                    )
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior_predictive": xr.Dataset(
+                    {
+                        "channel_contribution": xr.DataArray(
+                            rng.normal(100, 20, size=(2, 50, 10, 2)),
+                            dims=("chain", "draw", "date", "channel"),
+                            coords={
+                                "chain": [0, 1],
+                                "draw": np.arange(50),
+                                "date": dates,
+                                "channel": channels,
+                            },
+                        )
+                    }
+                )
+            }
         )
 
         fig, ax = mock_suite_basic.allocated_contribution_by_channel_over_time(
@@ -5005,7 +5067,7 @@ class TestAllocatedContributionByChannelOverTime:
 
     def test_inference_data_without_posterior_predictive_error(self, mock_suite_basic):
         """Test error when InferenceData has no posterior_predictive."""
-        idata = az.InferenceData()
+        idata = xr.DataTree.from_dict({})
 
         with pytest.raises(
             ValueError, match=r"InferenceData must contain 'posterior_predictive'"
@@ -5043,41 +5105,43 @@ def cpu_simple_idata(cpu_dates, cpu_channels):
         "date": cpu_dates,
         "channel": cpu_channels,
     }
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(n_dates, n_channels)),
-                    dims=("date", "channel"),
-                    coords={"date": cpu_dates, "channel": cpu_channels},
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(500, 2000, size=(n_dates,)),
-                    dims=("date",),
-                    coords={"date": cpu_dates},
-                ),
-                "channel_scale": xr.DataArray(
-                    [500.0, 300.0],
-                    dims=("channel",),
-                    coords={"channel": cpu_channels},
-                ),
-                "target_scale": xr.DataArray(1000.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    contrib,
-                    dims=("chain", "draw", "date", "channel"),
-                    coords=contrib_coords,
-                ),
-                "channel_contribution_original_scale": xr.DataArray(
-                    contrib * 1000.0,
-                    dims=("chain", "draw", "date", "channel"),
-                    coords=contrib_coords,
-                ),
-            }
-        ),
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(n_dates, n_channels)),
+                        dims=("date", "channel"),
+                        coords={"date": cpu_dates, "channel": cpu_channels},
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(500, 2000, size=(n_dates,)),
+                        dims=("date",),
+                        coords={"date": cpu_dates},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [500.0, 300.0],
+                        dims=("channel",),
+                        coords={"channel": cpu_channels},
+                    ),
+                    "target_scale": xr.DataArray(1000.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        contrib,
+                        dims=("chain", "draw", "date", "channel"),
+                        coords=contrib_coords,
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        contrib * 1000.0,
+                        dims=("chain", "draw", "date", "channel"),
+                        coords=contrib_coords,
+                    ),
+                }
+            ),
+        }
     )
 
 

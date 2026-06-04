@@ -11,23 +11,21 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Pydantic schemas for validating InferenceData structure."""
+"""Pydantic schemas for validating DataTree structure."""
 
 from typing import Literal
 
-import arviz as az
 import xarray as xr
 from pydantic import BaseModel, Field
 
-# Type aliases for time aggregation
 Frequency = Literal["original", "weekly", "monthly", "quarterly", "yearly", "all_time"]
 
 
 class VariableSchema(BaseModel):
-    """Schema for a single variable in InferenceData.
+    """Schema for a single variable in DataTree group.
 
     Validates the structure (dimensions and dtype) of xarray.DataArray
-    variables within InferenceData groups.
+    variables within DataTree groups.
 
     Parameters
     ----------
@@ -83,7 +81,6 @@ class VariableSchema(BaseModel):
         """
         errors = []
 
-        # Check dimensions
         if self.dims != "*":
             if set(data_array.dims) != set(self.dims):
                 errors.append(
@@ -91,7 +88,6 @@ class VariableSchema(BaseModel):
                     f"expected {self.dims}"
                 )
 
-        # Check dtype
         if self.dtype:
             if isinstance(self.dtype, str):
                 allowed_dtypes: tuple[str, ...] = (self.dtype,)
@@ -108,7 +104,7 @@ class VariableSchema(BaseModel):
 
 
 class InferenceDataGroupSchema(BaseModel):
-    """Schema for a single InferenceData group.
+    """Schema for a single DataTree group.
 
     Validates that a group exists (if required) and contains expected
     variables with correct structure.
@@ -152,13 +148,13 @@ class InferenceDataGroupSchema(BaseModel):
     required: bool = True
     variables: dict[str, VariableSchema] = Field(default_factory=dict)
 
-    def validate_group(self, idata: az.InferenceData) -> list[str]:
+    def validate_group(self, idata: xr.DataTree) -> list[str]:
         """Validate group exists and contains expected variables.
 
         Parameters
         ----------
-        idata : az.InferenceData
-            InferenceData object to validate
+        idata : xr.DataTree
+            DataTree to validate
 
         Returns
         -------
@@ -167,31 +163,28 @@ class InferenceDataGroupSchema(BaseModel):
         """
         errors = []
 
-        # Check group exists
         if self.required and not hasattr(idata, self.name):
-            errors.append(f"Required group '{self.name}' not found in InferenceData")
+            errors.append(f"Required group '{self.name}' not found in DataTree")
             return errors
 
         if not hasattr(idata, self.name):
-            return errors  # Optional group not present
+            return errors
 
         group = getattr(idata, self.name)
 
-        # Check variables
         for var_name, var_schema in self.variables.items():
             if var_schema.required and var_name not in group:
                 errors.append(
                     f"Required variable '{var_name}' not found in group '{self.name}'"
                 )
             elif var_name in group:
-                # Validate variable structure
                 errors.extend(var_schema.validate_variable(group[var_name]))
 
         return errors
 
 
 class MMMIdataSchema(BaseModel):
-    """Complete schema for multidimensional MMM InferenceData.
+    """Complete schema for multidimensional MMM DataTree.
 
     Defines expected groups and variables for a fitted MMM model,
     with configuration based on model settings.
@@ -201,7 +194,7 @@ class MMMIdataSchema(BaseModel):
     model_type : Literal["mmm"], default "mmm"
         Model type (currently only MMM supported)
     groups : dict of str to InferenceDataGroupSchema
-        Schema for each InferenceData group
+        Schema for each DataTree group
     custom_dims : tuple of str, default ()
         Custom dimensions beyond standard (date, channel)
 
@@ -263,7 +256,6 @@ class MMMIdataSchema(BaseModel):
         """
         groups = {}
 
-        # Constant data group
         constant_data_vars = {
             "channel_data": VariableSchema(
                 name="channel_data",
@@ -281,14 +273,14 @@ class MMMIdataSchema(BaseModel):
             ),
             "channel_scale": VariableSchema(
                 name="channel_scale",
-                dims="*",  # Varies by scaling config
+                dims="*",
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factors for channels",
                 required=True,
             ),
             "target_scale": VariableSchema(
                 name="target_scale",
-                dims="*",  # Varies by scaling config
+                dims="*",
                 dtype=("float64", "float32", "int64", "int32"),
                 description="Scaling factor for target",
                 required=True,
@@ -338,8 +330,6 @@ class MMMIdataSchema(BaseModel):
             name="constant_data", required=True, variables=constant_data_vars
         )
 
-        # Posterior group
-        # Note: Posterior variables include 'chain' and 'draw' dimensions from MCMC sampling
         posterior_vars = {
             "channel_contribution": VariableSchema(
                 name="channel_contribution",
@@ -379,17 +369,15 @@ class MMMIdataSchema(BaseModel):
             name="posterior", required=False, variables=posterior_vars
         )
 
-        # Fit data group (dynamic variables, just check it exists)
         groups["fit_data"] = InferenceDataGroupSchema(
             name="fit_data",
             required=False,
-            variables={},  # Dynamic based on input columns
+            variables={},
         )
 
-        # Posterior predictive group (optional)
         groups["posterior_predictive"] = InferenceDataGroupSchema(
             name="posterior_predictive",
-            required=False,  # Only after prediction
+            required=False,
             variables={
                 "y": VariableSchema(
                     name="y",
@@ -403,13 +391,13 @@ class MMMIdataSchema(BaseModel):
 
         return cls(groups=groups, custom_dims=custom_dims)
 
-    def validate(self, idata: az.InferenceData) -> list[str]:
-        """Validate InferenceData against schema.
+    def validate(self, idata: xr.DataTree) -> list[str]:
+        """Validate DataTree against schema.
 
         Parameters
         ----------
-        idata : az.InferenceData
-            InferenceData object to validate
+        idata : xr.DataTree
+            DataTree to validate
 
         Returns
         -------
@@ -431,13 +419,13 @@ class MMMIdataSchema(BaseModel):
 
         return all_errors
 
-    def validate_or_raise(self, idata: az.InferenceData) -> None:
-        """Validate InferenceData, raising detailed exception if invalid.
+    def validate_or_raise(self, idata: xr.DataTree) -> None:
+        """Validate DataTree, raising detailed exception if invalid.
 
         Parameters
         ----------
-        idata : az.InferenceData
-            InferenceData object to validate
+        idata : xr.DataTree
+            DataTree to validate
 
         Raises
         ------
@@ -451,7 +439,7 @@ class MMMIdataSchema(BaseModel):
         errors = self.validate(idata)
 
         if errors:
-            error_msg = "InferenceData validation failed:\n" + "\n".join(
+            error_msg = "DataTree validation failed:\n" + "\n".join(
                 f"  - {e}" for e in errors
             )
             raise ValueError(error_msg)

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import warnings
 
-import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -40,7 +39,7 @@ def close_figures():
 
 
 @pytest.fixture(scope="module")
-def simple_idata() -> az.InferenceData:
+def simple_idata() -> xr.DataTree:
     """Minimal idata with channels + baseline contributions, no extra dims.
 
     posterior:
@@ -87,11 +86,11 @@ def simple_idata() -> az.InferenceData:
             "target_scale": xr.DataArray(1000.0),
         }
     )
-    return az.InferenceData(posterior=posterior, constant_data=const)
+    return xr.DataTree.from_dict({"/posterior": posterior, "/constant_data": const})
 
 
 @pytest.fixture(scope="module")
-def panel_idata() -> az.InferenceData:
+def panel_idata() -> xr.DataTree:
     """idata with geo extra dim.
 
     posterior:
@@ -169,7 +168,7 @@ def panel_idata() -> az.InferenceData:
             "target_scale": xr.DataArray(1000.0),
         }
     )
-    return az.InferenceData(posterior=posterior, constant_data=const)
+    return xr.DataTree.from_dict({"/posterior": posterior, "/constant_data": const})
 
 
 @pytest.fixture(scope="module")
@@ -391,7 +390,9 @@ class TestWaterfall:
                 "target_scale": xr.DataArray(1000.0),
             }
         )
-        idata = az.InferenceData(posterior=posterior, constant_data=const)
+        idata = xr.DataTree.from_dict(
+            {"/posterior": posterior, "/constant_data": const}
+        )
         data = MMMIDataWrapper(idata, validate_on_init=False)
         plots = DecompositionPlots(data)
 

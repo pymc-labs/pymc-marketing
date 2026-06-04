@@ -548,7 +548,7 @@ class BassModel(ModelBuilder):
         extend_idata: bool = True,
         combined: bool = True,
         **sample_posterior_predictive_kwargs: Any,
-    ) -> xr.Dataset:
+    ) -> xr.DataArray:
         """Sample from the model's posterior predictive distribution.
 
         Parameters
@@ -602,7 +602,7 @@ class BassModel(ModelBuilder):
             )
 
         if extend_idata and self.idata is not None:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         variable_name = (
             "predictions"
@@ -668,7 +668,7 @@ class BassModel(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the Bass diffusion model via MCMC.
 
         Parameters
@@ -684,7 +684,7 @@ class BassModel(ModelBuilder):
 
         Returns
         -------
-        arviz.InferenceData
+        xr.DataTree
             Posterior with parameters and deterministics (adopters,
             innovators, imitators, peak) plus a ``fit_data`` group.
 
@@ -728,20 +728,20 @@ class BassModel(ModelBuilder):
 
         if self.idata is not None:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
-        self.idata.add_groups(fit_data=ds)
+        self.idata["/fit_data"] = ds
         self.set_idata_attrs(self.idata)
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the model from an ``InferenceData`` object.
 
         Used internally by :meth:`ModelBuilder.load`.

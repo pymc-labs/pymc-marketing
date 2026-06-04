@@ -468,7 +468,7 @@ class PIEModel(RegressionModelBuilder):
             group[self.output_var] = group[self.output_var] * self._target_scale
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")  # type: ignore[union-attr]
+            self.idata.update(post_pred)  # type: ignore[union-attr]
 
         return az.extract(post_pred, variable_name, combined=combined)
 
@@ -513,7 +513,7 @@ class PIEModel(RegressionModelBuilder):
             )
         return posterior_predictive_samples[self.output_var]
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the model from saved inference data.
 
         Calls the inherited :meth:`RegressionModelBuilder.build_from_idata`

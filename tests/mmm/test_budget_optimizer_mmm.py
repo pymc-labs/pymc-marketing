@@ -823,7 +823,7 @@ def test_merge_idata_assigns_missing_group(tmp_path, fitted_mmm):
             {"y": (date_col, np.zeros(dates_da.sizes[date_col], dtype=float))},
             coords={date_col: dates_da},
         )
-        m2.idata.add_groups({"observed_data": obs})  # type: ignore[arg-type]
+        m2.idata["/observed_data"] = obs
 
     # Wrap and merge
     date_col = m1.date_column

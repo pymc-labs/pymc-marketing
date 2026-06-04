@@ -90,7 +90,6 @@ import math
 import warnings
 from typing import Literal
 
-import arviz as az
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
@@ -108,7 +107,7 @@ class SensitivityAnalysis:
     """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
 
     def __init__(
-        self, pymc_model: Model, idata: az.InferenceData, dims: tuple[str, ...] = ()
+        self, pymc_model: Model, idata: xr.DataTree, dims: tuple[str, ...] = ()
     ):
         self.model = pymc_model
         self.idata = idata
@@ -255,7 +254,7 @@ class SensitivityAnalysis:
                 # Legacy case: replace DataArray with Dataset for consistency
                 self.idata.sensitivity_analysis = dataset  # type: ignore[attr-defined]
         else:
-            self.idata.add_groups({"sensitivity_analysis": dataset})
+            self.idata["/sensitivity_analysis"] = dataset
 
     def run_sweep(
         self,

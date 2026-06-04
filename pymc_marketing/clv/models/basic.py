@@ -20,6 +20,7 @@ from typing import Literal, cast
 import arviz as az
 import pandas as pd
 import pymc as pm
+import xarray as xr
 from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
@@ -106,14 +107,8 @@ class CLVModel(ModelBuilder):
             return f"{self._model_type}\n{self.model.str_repr()}"
 
     def _add_fit_data_group(self, data: pd.DataFrame) -> None:
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            assert self.idata is not None  # noqa: S101
-            self.idata.add_groups(fit_data=data.to_xarray())
+        assert self.idata is not None  # noqa: S101
+        self.idata["/fit_data"] = data.to_xarray()
 
     def fit(  # type: ignore
         self,
@@ -121,7 +116,7 @@ class CLVModel(ModelBuilder):
         method: str = "mcmc",
         fit_method: str | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Infer model posterior.
 
         Parameters
@@ -192,7 +187,7 @@ class CLVModel(ModelBuilder):
 
         return self.idata
 
-    def _fit_mcmc(self, **kwargs) -> az.InferenceData:
+    def _fit_mcmc(self, **kwargs) -> xr.DataTree:
         """Fit a model with NUTS."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -200,7 +195,7 @@ class CLVModel(ModelBuilder):
         sampler_config.update(**kwargs)
         return pm.sample(**sampler_config, model=self.model)
 
-    def _fit_MAP(self, **kwargs) -> az.InferenceData:
+    def _fit_MAP(self, **kwargs) -> xr.DataTree:
         """Find model maximum a posteriori using scipy optimizer."""
         model = self.model
         map_res = pm.find_MAP(model=model, **kwargs)
@@ -218,7 +213,7 @@ class CLVModel(ModelBuilder):
         trace = MultiTrace([map_strace])
         return pm.to_inference_data(trace, model=model)
 
-    def _fit_DEMZ(self, **kwargs) -> az.InferenceData:
+    def _fit_DEMZ(self, **kwargs) -> xr.DataTree:
         """Fit a model with DEMetropolisZ gradient-free sampler."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -229,7 +224,7 @@ class CLVModel(ModelBuilder):
 
     def _fit_approx(
         self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit a model with ADVI."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -251,7 +246,6 @@ class CLVModel(ModelBuilder):
         with self.model:
             approx = pm.fit(
                 method=method,
-                callbacks=[pm.callbacks.CheckParametersConvergence(diff="absolute")],
                 **{
                     k: v
                     for k, v in sampler_config.items()
@@ -289,17 +283,17 @@ class CLVModel(ModelBuilder):
 
     # TODO: Remove for v1.0
     @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
+    def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict:
         """Create the initialization kwargs from an InferenceData object."""
         kwargs = cls.attrs_to_init_kwargs(idata.attrs)
         if "fit_data" in idata:
-            kwargs["data"] = idata.fit_data.to_dataframe()
+            kwargs["data"] = idata.fit_data.to_dataset().to_dataframe()
 
         return kwargs
 
     # TODO: Revise/remove for v1.0
     @classmethod
-    def build_from_idata(cls, idata: az.InferenceData) -> None:
+    def build_from_idata(cls, idata: xr.DataTree) -> None:
         """Build the model from the InferenceData object."""
         kwargs = cls.idata_to_init_kwargs(idata)
         with warnings.catch_warnings():
@@ -311,7 +305,7 @@ class CLVModel(ModelBuilder):
 
         model.idata = idata
         model._rename_posterior_variables()
-        model.data = idata.fit_data.to_dataframe()
+        model.data = idata.fit_data.to_dataset().to_dataframe()
 
         model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
@@ -331,12 +325,11 @@ class CLVModel(ModelBuilder):
         This is used to support the old model configuration format, which used
         to include a _prior suffix for each parameter.
         """
-        prior_vars = [
-            var for var in self.idata.posterior.data_vars if var.endswith("_prior")
-        ]
+        posterior_ds = self.idata["/posterior"].to_dataset()
+        prior_vars = [var for var in posterior_ds.data_vars if var.endswith("_prior")]
         rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
-        self.idata.posterior = self.idata.posterior.rename(rename_dict)
-        return self.idata.posterior
+        self.idata["/posterior"] = posterior_ds.rename(rename_dict)
+        return self.idata["/posterior"].to_dataset()
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.

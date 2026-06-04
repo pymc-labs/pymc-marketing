@@ -129,7 +129,7 @@ def summarize_metric_distributions(
     """
     metric_summaries = {}
     for metric, distribution in metric_distributions.items():
-        hdi = az.hdi(distribution, hdi_prob=hdi_prob)
+        hdi = az.hdi(distribution, prob=hdi_prob)
         metric_summaries[metric] = {
             "mean": np.mean(distribution),
             "median": np.median(distribution),
