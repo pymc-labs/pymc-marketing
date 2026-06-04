@@ -799,7 +799,6 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
-    @abstractmethod
     def _data_setter(
         self,
         X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
