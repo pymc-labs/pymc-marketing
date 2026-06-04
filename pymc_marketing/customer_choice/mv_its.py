@@ -327,7 +327,7 @@ class MVITS(RegressionModelBuilder):
                 observed=_existing_sales,
             )
 
-    def _data_setter(
+    def _data_setter(  # type: ignore[override]
         self,
         X: np.ndarray | pd.DataFrame,
         y: np.ndarray | pd.Series | None = None,

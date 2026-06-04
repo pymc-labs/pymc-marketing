@@ -657,7 +657,7 @@ class NestedLogit(ModelBuilder):
         U: pt.TensorVariable,
         lambdas: pt.TensorVariable,
         nest_indices: dict[str, np.ndarray],
-        alphas_nest: pt.TensorVariable | None = None,
+        alphas_nest: pt.TensorVariable,
     ) -> tuple[dict[str, pt.TensorVariable], dict[str, pt.TensorVariable]]:
         """Calculate nest selection probabilities and conditional probabilities.
 
@@ -791,7 +791,7 @@ class NestedLogit(ModelBuilder):
 
         return attrs
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
         utility_equations: list[str] | None = None,
@@ -857,7 +857,7 @@ class NestedLogit(ModelBuilder):
         df_xr = df_xr.rename({"index": "obs"})
         return df_xr
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
         utility_equations: list[str] | None = None,
@@ -952,7 +952,7 @@ class NestedLogit(ModelBuilder):
         if not hasattr(self, "model"):
             self.build_model()
 
-    def sample_posterior_predictive(
+    def sample_posterior_predictive(  # type: ignore[override]
         self,
         choice_df: pd.DataFrame | None = None,
         extend_idata: bool = True,

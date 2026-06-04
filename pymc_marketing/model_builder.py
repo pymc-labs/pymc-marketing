@@ -636,6 +636,7 @@ class ModelBuilder(ABC, ModelIO):
 
     @property
     def fit_result(self) -> xr.Dataset:
+        """Get the posterior dataset from the fitted model."""
         if self.idata is None or "/posterior" not in self.idata.groups:
             raise RuntimeError("The model hasn't been fit yet")
         return self.idata["/posterior"].to_dataset()
@@ -643,7 +644,9 @@ class ModelBuilder(ABC, ModelIO):
     @fit_result.setter
     def fit_result(self, value: xr.DataTree) -> None:
         if self.idata is not None and "/posterior" in self.idata.groups:
-            warnings.warn("Overriding pre-existing fit_result", UserWarning)
+            warnings.warn(
+                "Overriding pre-existing fit_result", UserWarning, stacklevel=2
+            )
         if "/posterior" not in value.groups and "/prior" in value.groups:
             value["/posterior"] = value["/prior"].to_dataset()
         self.idata = value
@@ -760,6 +763,7 @@ class ModelBuilder(ABC, ModelIO):
     @abstractmethod
     def build_model(
         self,
+        *args,
         **kwargs,
     ) -> None:
         """Create an instance of `pm.Model` based on provided data and model_config.
@@ -768,6 +772,8 @@ class ModelBuilder(ABC, ModelIO):
 
         Parameters
         ----------
+        *args
+            Positional arguments for model configuration.
         kwargs : dict
             data arguments for model configuration.
 
@@ -781,24 +787,76 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
-    # TODO: Convert from abstract method into a base fitter for all models.
+    @property
     @abstractmethod
-    def fit(
-        self,
-        **kwargs,
-    ) -> xr.DataTree:
-        """Fit a model using the data passed as a parameter.
-
-        Sets attrs to inference data of the model.
+    def output_var(self) -> str:
+        """Returns the name of the output variable of the model.
 
         Returns
         -------
-        self : xr.DataTree
-            Returns inference data of the fitted model.
+        output_var : str
+            Name of the output variable of the model.
 
         """
 
-    def fit(  # type: ignore[override]
+    @abstractmethod
+    def _data_setter(
+        self,
+        X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray | None = None,
+    ) -> None:
+        """Set new data in the model.
+
+        Parameters
+        ----------
+        X : array, shape (n_obs, n_features)
+            The training input samples.
+        y : array, shape (n_obs,)
+            The target values (real numbers).
+
+        Returns
+        -------
+        None
+
+        """
+
+    def _validate_data(self, *args, **kwargs):
+        X = args[0] if args else kwargs.get("X")
+        y = kwargs.get("y")
+        if y is not None:
+            return check_X_y(
+                X, y, accept_sparse=False, y_numeric=True, multi_output=False
+            )
+        else:
+            return check_array(X, accept_sparse=False)
+
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        pass
+
+    def _get_sampling_model(self) -> pm.Model:
+        return self.model
+
+    def create_fit_data(
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: np.ndarray | pd.Series | xr.DataArray,
+    ) -> xr.Dataset:
+        """Create the fit_data group based on the input data."""
+        if isinstance(y, np.ndarray):
+            y = pd.Series(y, index=X.index, name=self.output_var)
+
+        y.name = self.output_var
+
+        if isinstance(X, pd.DataFrame):
+            X = X.to_xarray()
+
+        if isinstance(y, pd.Series):
+            y = y.to_xarray()
+
+        return xr.merge([X, y])
+
+    def fit(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
@@ -872,8 +930,8 @@ class ModelBuilder(ABC, ModelIO):
 
         # Compute deterministics after sampling
         with sampling_model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
+            idata["/posterior"] = pm.compute_deterministics(
+                idata["/posterior"], merge_dataset=True
             )
 
         if self.idata:
@@ -881,7 +939,7 @@ class ModelBuilder(ABC, ModelIO):
         else:
             self.idata = idata
 
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
             del self.idata["fit_data"]
@@ -943,104 +1001,6 @@ class ModelBuilder(ABC, ModelIO):
             dim=["chain", "draw"], keep_attrs=True
         )
         return posterior_means.data
-
-    def approximate_fit(
-        self,
-        X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        *,
-        fit_kwargs: dict[str, Any] | None = None,
-        sample_kwargs: dict[str, Any] | None = None,
-    ) -> xr.DataTree:
-        """Fit a model using Variational Inference and return DataTree.
-
-        This performs variational inference via `pymc.fit`, then draws posterior samples
-        from the fitted approximation via `Approximation.sample`, returning a
-        DataTree compatible with the rest of the API (same structure as `.fit`).
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers).
-        progressbar : bool, optional
-            Specifies whether the fitting/sample progress bar should be displayed.
-        random_seed : Optional[RandomState]
-            Provides stochastic procedures with initial random seed for reproducibility.
-        fit_kwargs : dict, optional
-            Extra keyword arguments forwarded to `pymc.fit`.
-        sample_kwargs : dict, optional
-            Extra keyword arguments forwarded to `Approximation.sample`.
-
-        Returns
-        -------
-        xr.DataTree
-            Inference data of the variationally fitted model.
-        """
-        if (
-            isinstance(y, pd.Series)
-            and isinstance(X, pd.DataFrame)
-            and not X.index.equals(y.index)
-        ):
-            raise ValueError("Index of X and y must match.")
-
-        if y is None:
-            y = np.zeros(X.shape[0])
-
-        if self.output_var in X:
-            raise ValueError(
-                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
-            )
-
-        if not hasattr(self, "model"):
-            self.build_model(X, y)
-
-        _fit_kwargs: dict[str, Any] = {}
-        if fit_kwargs is not None:
-            _fit_kwargs.update(fit_kwargs)
-        if progressbar is not None:
-            _fit_kwargs["progressbar"] = progressbar
-        if random_seed is not None:
-            _fit_kwargs["random_seed"] = random_seed
-
-        with self.model:
-            approximation = pm.fit(**_fit_kwargs)
-
-            _sample_kwargs: dict[str, Any] = {}
-            if sample_kwargs is not None:
-                _sample_kwargs.update(sample_kwargs)
-            _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
-            if random_seed is not None:
-                _sample_kwargs.setdefault("random_seed", random_seed)
-            _sample_kwargs.setdefault("return_inferencedata", True)
-
-            idata: xr.DataTree = approximation.sample(**_sample_kwargs)
-
-        with self.model:
-            idata["/posterior"] = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
-
-        self.post_sample_model_transformation()
-
-        if self.idata:
-            self.idata.update(idata)
-        else:
-            self.idata = idata
-
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "/fit_data" in self.idata.groups:
-            self.idata = self.idata.drop_nodes("fit_data")
-
-        fit_data = self.create_fit_data(X, y)
-        self.idata["/fit_data"] = fit_data
-
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
 
     def approximate_fit(
         self,
@@ -1122,8 +1082,8 @@ class ModelBuilder(ABC, ModelIO):
 
         # Compute deterministics after sampling for parity with MCMC `.fit`
         with self.model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
+            idata["/posterior"] = pm.compute_deterministics(
+                idata["/posterior"], merge_dataset=True
             )
 
         self.post_sample_model_transformation()
@@ -1135,7 +1095,7 @@ class ModelBuilder(ABC, ModelIO):
             self.idata = idata
 
         # Annotate, attach fit_data, and set attrs
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
             del self.idata["fit_data"]
@@ -1372,7 +1332,7 @@ class RegressionModelBuilder(ModelBuilder):
         """
 
     @abstractmethod
-    def build_model(  # type: ignore[override]
+    def build_model(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | np.ndarray | xr.DataArray,
@@ -1453,7 +1413,7 @@ class RegressionModelBuilder(ModelBuilder):
     def _get_sampling_model(self) -> pm.Model:
         return self.model
 
-    def fit(  # type: ignore[override]
+    def fit(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
@@ -1526,7 +1486,7 @@ class RegressionModelBuilder(ModelBuilder):
 
         with sampling_model:
             idata["/posterior"] = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
+                idata["/posterior"], merge_dataset=True
             )
 
         if self.idata:
@@ -1534,7 +1494,7 @@ class RegressionModelBuilder(ModelBuilder):
         else:
             self.idata = idata
 
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "/fit_data" in self.idata.groups:
             self.idata = self.idata.drop_nodes("fit_data")

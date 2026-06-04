@@ -742,7 +742,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         posterior = self.idata["posterior"]
         beta_feat_vals = posterior["beta_feat"].values  # (C, D, P)
         # (C, D, I+N) — softmax is location-invariant so centering is unnecessary.
-        U_all = np.einsum("cdp,ip->cdi", beta_feat_vals, X_all)
+        U_all = np.einsum("cdp,ip->cdi", np.asarray(beta_feat_vals), X_all)
         U_shift = U_all - U_all.max(axis=-1, keepdims=True)
         exp_u = np.exp(U_shift)
         shares = exp_u / exp_u.sum(axis=-1, keepdims=True)
@@ -1132,7 +1132,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         if not hasattr(self, "model"):
             self.build_model()
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         samples: int = 500,
@@ -1160,7 +1160,7 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         return prior_pred
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         progressbar: bool | None = None,
@@ -1207,7 +1207,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         self.set_idata_attrs(self.idata)
         return self.idata
 
-    def sample_posterior_predictive(
+    def sample_posterior_predictive(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
@@ -1354,7 +1354,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             reference_item=self.reference_item,
         )
 
-        posterior = self.idata["posterior"]
+        posterior = self.idata["/posterior"].to_dataset()
         rng = (
             random_seed
             if isinstance(random_seed, np.random.Generator)
