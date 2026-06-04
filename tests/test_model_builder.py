@@ -247,6 +247,10 @@ class ModelBuilderTest(ModelBuilder):
             "target_accept": 0.95,
         }
 
+    @property
+    def output_var(self) -> str:
+        return "output"
+
     def fit(self, **kwargs):
         """Override fit method for ModelBuilderTest."""
         if not hasattr(self, "model"):

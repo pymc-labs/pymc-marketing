@@ -260,8 +260,10 @@ def _plot_sample_selection(df, ax: Axes, color: str, **plot_kwargs) -> Axes:
 
 def _create_get_hdi_plot_data(hdi_kwargs) -> GetPlotData:
     def get_plot_data(data: xr.DataArray) -> xr.DataArray:
-        hdi: xr.Dataset = az.hdi(data, **hdi_kwargs)
-        return hdi[data.name]
+        hdi = az.hdi(data, **hdi_kwargs)
+        if isinstance(hdi, xr.Dataset) and data.name is not None:
+            return hdi[data.name]
+        return hdi  # DataArray case
 
     return get_plot_data
 
@@ -279,7 +281,7 @@ def _plot_hdi_selection(
     ax.fill_between(
         x=df.index,
         y1=df["lower"],
-        y2=df["higher"],
+        y2=df["upper"],
         color=color,
         **plot_kwargs,
     )
@@ -387,7 +389,7 @@ def _plot_across_coord(
 
     plot_coords = get_plot_coords(
         data.coords,
-        non_grid_names=non_grid_names.union({"chain", "draw", "hdi"}),
+        non_grid_names=non_grid_names.union({"chain", "draw", "ci_bound"}),
     )
     total_size = get_total_coord_size(plot_coords)
 
@@ -491,7 +493,7 @@ def plot_hdi(
 
     """
     hdi_kwargs = hdi_kwargs or {}
-    hdi_kwargs = {**dict(hdi_prob=hdi_prob), **hdi_kwargs}
+    hdi_kwargs = {**dict(prob=hdi_prob), **hdi_kwargs}
     get_plot_data = _create_get_hdi_plot_data(hdi_kwargs)
     make_selection = _make_hdi_selection
     plot_selection = _plot_hdi_selection
