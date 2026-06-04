@@ -331,107 +331,8 @@ def test_non_empty_constraints_skips_default(mmm_wrapper):
     assert "cap" in optimizer._constraints
 
 
-def test_custom_constraints_kwarg_is_deprecated(mmm_wrapper):
-    """The legacy ``custom_constraints`` kwarg must warn but still work."""
-    custom = [
-        Constraint(
-            key="cap",
-            constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
-                budgets_sym.sum() - total_budget_sym
-            ),
-            constraint_type="eq",
-        )
-    ]
-    with pytest.warns(DeprecationWarning, match="custom_constraints"):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-            custom_constraints=custom,
-            default_constraints=False,
-        )
-    assert "cap" in optimizer._constraints
-    assert "default" not in optimizer._constraints
-
-
-def test_constraints_and_legacy_kwargs_conflict(mmm_wrapper):
-    """Passing ``constraints`` alongside legacy kwargs must raise."""
-    with pytest.raises(TypeError, match="not both"):
-        BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-            constraints=(),
-            default_constraints=True,
-        )
-
-
-def test_legacy_custom_with_implicit_default_keeps_both(mmm_wrapper):
-    """Legacy: ``custom_constraints=[c]`` without ``default_constraints`` keeps both."""
-    cap = Constraint(
-        key="cap",
-        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
-            budgets_sym.sum() - total_budget_sym
-        ),
-        constraint_type="eq",
-    )
-    with pytest.warns(DeprecationWarning, match="custom_constraints"):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-            custom_constraints=[cap],
-        )
-    assert "cap" in optimizer._constraints
-    assert "default" in optimizer._constraints
-
-
-def test_legacy_default_only_adds_default(mmm_wrapper):
-    """Legacy: ``default_constraints=True`` alone behaves like the new empty case."""
-    with pytest.warns(DeprecationWarning, match="default_constraints"):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
-        )
-    assert "default" in optimizer._constraints
-
-
-def test_migrate_legacy_constraint_kwargs_passes_non_dict_through():
-    """Non-dict inputs (e.g., model-copy scenarios) bypass the legacy translation."""
-    sentinel = object()
-    assert BudgetOptimizer._migrate_legacy_constraint_kwargs(sentinel) is sentinel
-
-
-def test_legacy_default_false_with_empty_custom_raises(mmm_wrapper):
-    """Legacy: ``default_constraints=False`` with empty custom must keep raising."""
-    with (
-        pytest.warns(DeprecationWarning, match="custom_constraints"),
-        pytest.raises(ValueError, match="leaves the optimizer without any constraint"),
-    ):
-        BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-            custom_constraints=(),
-            default_constraints=False,
-        )
-
-
-def test_set_constraints_default_kwarg_is_deprecated(mmm_wrapper):
-    """The ``default`` kwarg on ``set_constraints`` is deprecated."""
-    optimizer = BudgetOptimizer(
-        model=mmm_wrapper,
-        num_periods=4,
-        response_variable="total_media_contribution_original_scale",
-    )
-    with pytest.warns(DeprecationWarning, match="`default` parameter"):
-        optimizer.set_constraints(constraints=(), default=True)
-
-
-def test_constraint_instance_round_trips_through_legacy_kwargs(mmm_wrapper):
-    """A ``Constraint`` passed via the legacy kwarg lands in ``_constraints`` by key."""
+def test_constraint_instance_round_trips_into_constraints(mmm_wrapper):
+    """A ``Constraint`` passed via ``constraints`` lands in ``_constraints`` by key."""
     cap = Constraint(
         key="cap",
         constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
@@ -439,14 +340,12 @@ def test_constraint_instance_round_trips_through_legacy_kwargs(mmm_wrapper):
         ),
         constraint_type="ineq",
     )
-    with pytest.warns(DeprecationWarning):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            response_variable="total_media_contribution_original_scale",
-            custom_constraints=[cap],
-            default_constraints=False,
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[cap],
+    )
     stored = optimizer._constraints["cap"]
     assert stored.key == cap.key
     assert stored.constraint_fun is cap.constraint_fun

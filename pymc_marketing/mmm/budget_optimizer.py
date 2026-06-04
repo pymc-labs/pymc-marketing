@@ -226,14 +226,7 @@ import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
 from arviz import InferenceData
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    InstanceOf,
-    PrivateAttr,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
 from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
@@ -717,72 +710,6 @@ class BudgetOptimizer(BaseModel):
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
 
-    @model_validator(mode="before")
-    @classmethod
-    def _migrate_legacy_constraint_kwargs(cls, data: Any) -> Any:
-        """Translate deprecated ``custom_constraints``/``default_constraints`` to ``constraints``.
-
-        .. deprecated:: 0.20.0
-            ``custom_constraints`` and ``default_constraints`` are deprecated
-            and will be removed in 0.21.0. Use ``constraints`` instead.
-        """
-        if not isinstance(data, dict):
-            return data
-
-        has_custom = "custom_constraints" in data
-        has_default = "default_constraints" in data
-        if not (has_custom or has_default):
-            return data
-
-        if "constraints" in data:
-            # Pydantic v2 wraps `ValueError` raised from a `mode="before"`
-            # validator into `pydantic.ValidationError` (itself a `ValueError`).
-            # `TypeError` is re-raised as-is, which is what we want here:
-            # passing mutually exclusive kwargs is a programming error, not a
-            # value error.
-            raise TypeError(
-                "Pass either `constraints` or the deprecated "
-                "`custom_constraints`/`default_constraints`, not both."
-            )
-
-        custom = data.pop("custom_constraints", ())
-        # `default_constraints` defaulted to True under the old API.
-        default_flag = data.pop("default_constraints", True)
-
-        warnings.warn(
-            "`custom_constraints` and `default_constraints` are deprecated and "
-            "will be removed in 0.21.0. Use `constraints` instead: an empty "
-            "`constraints` auto-adds the default sum constraint; a non-empty "
-            "one means the caller is in charge. To keep the default sum "
-            "constraint alongside custom ones, append "
-            "`build_default_sum_constraint()` to your list.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-        if default_flag and custom:
-            data["constraints"] = [*custom, build_default_sum_constraint()]
-        elif default_flag:
-            # custom is empty; the new contract auto-adds the default on empty.
-            data["constraints"] = ()
-        elif custom:
-            # User opted out of the default sum constraint.
-            data["constraints"] = list(custom)
-        else:
-            # Legacy edge case: `default_constraints=False` with empty
-            # `custom_constraints` used to raise in compile_constraints_for_scipy
-            # because no constraint was installed. Under the new contract, an
-            # empty `constraints` would auto-add the default; preserve the
-            # legacy error here so callers hitting this combination see a
-            # clear message instead of a silent behaviour change.
-            raise ValueError(
-                "`default_constraints=False` with empty `custom_constraints` "
-                "leaves the optimizer without any constraint. Pass at least "
-                "one constraint via `constraints=[...]`, or omit "
-                "`default_constraints` to use the default sum constraint."
-            )
-        return data
-
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
         "options": {"ftol": 1e-9, "maxiter": 1_000},
@@ -905,35 +832,13 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
-    def set_constraints(self, constraints, default=None) -> None:
+    def set_constraints(self, constraints) -> None:
         """Set constraints for the optimizer.
 
         An empty ``constraints`` auto-adds the default sum constraint; a
         non-empty one means the caller is in charge.
-
-        Parameters
-        ----------
-        constraints : Sequence[Constraint]
-            Constraints to install. See the contract above.
-        default : bool, optional
-            .. deprecated:: 0.20.0
-                The ``default`` parameter is redundant under the new contract
-                and will be removed in 0.21.0. Append
-                ``build_default_sum_constraint()`` to ``constraints`` to keep
-                the default alongside custom ones.
         """
-        if default is not None:
-            warnings.warn(
-                "The `default` parameter of `set_constraints` is deprecated "
-                "and will be removed in 0.21.0. Empty `constraints` already "
-                "auto-adds the default sum constraint; append "
-                "`build_default_sum_constraint()` to your list to keep it "
-                "alongside custom ones.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        else:
-            default = False if constraints else True
+        add_default = not constraints
 
         self._constraints = {}
         for c in constraints:
@@ -944,7 +849,7 @@ class BudgetOptimizer(BaseModel):
             )
             self._constraints[c.key] = new_constraint
 
-        if default:
+        if add_default:
             self._constraints["default"] = build_default_sum_constraint("default")
 
         # Compile constraints to be used by SciPy

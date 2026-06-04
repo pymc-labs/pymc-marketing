@@ -198,10 +198,15 @@ compile_kwargs = pytest.mark.parametrize(
 
 
 @compile_kwargs
-def test_optimize_budget_default_constraints_kwarg_is_deprecated(
-    dummy_df, fitted_mmm, compile_kwargs
-):
-    """Passing ``default_constraints`` to ``optimize_budget`` warns but still works."""
+def test_optimize_budget_forwards_constraints(dummy_df, fitted_mmm, compile_kwargs):
+    """`optimize_budget` forwards `constraints` to the BudgetOptimizer.
+
+    An infeasible custom constraint must surface as a failed optimization,
+    proving the constraint reached the optimizer through the wrapper.
+    """
+    from pymc_marketing.mmm.budget_optimizer import MinimizeException
+    from pymc_marketing.mmm.constraints import Constraint
+
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
     optimizable_model = BudgetOptimizerWrapper(
@@ -211,14 +216,17 @@ def test_optimize_budget_default_constraints_kwarg_is_deprecated(
         compile_kwargs=compile_kwargs,
     )
 
-    with pytest.warns(DeprecationWarning, match="default_constraints"):
-        optimal_budgets, result = optimizable_model.optimize_budget(
-            budget=1,
-            default_constraints=True,
-        )
+    # sum(budgets) == 1e6 is unreachable with budget=1 and default (0, 1) bounds.
+    infeasible = Constraint(
+        key="too_much",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - 1e6
+        ),
+        constraint_type="eq",
+    )
 
-    assert isinstance(optimal_budgets, xr.DataArray)
-    assert result.success
+    with pytest.raises(MinimizeException):
+        optimizable_model.optimize_budget(budget=1, constraints=[infeasible])
 
 
 @compile_kwargs
