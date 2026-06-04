@@ -329,7 +329,7 @@ class ModelIO:
         fname : str
             The name and path of the file to save the inference data with model parameters.
         **kwargs
-            Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
+            Additional keyword arguments to pass to xr.DataTree.to_netcdf().
             Common options include:
 
             - ``engine`` : str, optional (default ``"netcdf4"``)
