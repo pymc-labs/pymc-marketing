@@ -1735,6 +1735,8 @@ class MMM(RegressionModelBuilder):
                 f"it to '{self.target_column}'."
             )
 
+        self.X = X
+
         self.xarray_dataset = to_mmm_dataset(
             X,
             y,
