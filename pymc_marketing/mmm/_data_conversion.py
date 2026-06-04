@@ -74,14 +74,10 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-# ---------------------------------------------------------------------------
-# Public API — single entry point
-# ---------------------------------------------------------------------------
-
 
 def to_mmm_dataset(
     X: pd.DataFrame | xr.Dataset | xr.DataArray,
-    y: pd.Series | xr.DataArray | np.ndarray | None = None,
+    y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
     *,
     date_column: str,
     dims: tuple[str, ...] = (),
@@ -120,7 +116,11 @@ def to_mmm_dataset(
         Dataset with variables ``_channel``, (optional) ``_target``, and
         (optional) ``_control`` and coordinates for each dimension.
     """
-    # 1. Normalise X.
+    # 1. Coerce date column to datetime for DataFrame inputs.
+    if isinstance(X, pd.DataFrame) and date_column in X.columns:
+        X[date_column] = pd.to_datetime(X[date_column])
+
+    # 2. Normalise X.
     ds = _to_mmm_xarray(
         X,
         date_column=date_column,
@@ -139,14 +139,9 @@ def to_mmm_dataset(
                 date_column=date_column,
                 dims=dims,
             )
-        _add_target_to_dataset(ds, y_da, date_column=date_column, dims=dims)
+        _add_target_to_dataset(ds, y_da)
 
     return ds
-
-
-# ---------------------------------------------------------------------------
-# X normalisation (internal singledispatch)
-# ---------------------------------------------------------------------------
 
 
 @singledispatch
@@ -205,17 +200,21 @@ def _(X, /, **params) -> xr.Dataset:
     return ds
 
 
-# ---------------------------------------------------------------------------
-# y normalisation (internal)
-# ---------------------------------------------------------------------------
-
-
 @singledispatch
 def _to_mmm_target(y, /) -> xr.DataArray:
     raise TypeError(
         f"Unsupported y type: {type(y)}. "
-        f"Supported: xr.DataArray, pd.Series, np.ndarray."
+        f"Supported: xr.DataArray, pd.Series, pd.DataFrame, np.ndarray."
     )
+
+
+@_to_mmm_target.register(pd.DataFrame)
+def _(y, /) -> xr.DataArray:
+    if y.shape[1] != 1:
+        raise ValueError(
+            f"y as DataFrame must have exactly one column, got {y.shape[1]}"
+        )
+    return _to_mmm_target(y.squeeze(axis=1))
 
 
 @_to_mmm_target.register(xr.DataArray)
@@ -247,34 +246,30 @@ def _reshape_flat_target(
     Uses pandas MultiIndex + sort_index to ensure correct alignment with
     xarray's sorted coordinate order.  The date column is normalised to
     the canonical name ``"date"`` to match ``_to_mmm_xarray``.
+
+    When *X* contains extra columns that are not included in *dims*
+    (e.g. a ``market`` column when only ``date`` is used), duplicate
+    dates may appear.  We deduplicate by keeping the first occurrence so
+    the resulting date coordinate aligns with the channel dataset, which
+    also deduplicates during the melt step.
     """
-    idx_cols = [date_column] + [d for d in dims if d in X.columns]
+    dim_cols = [d for d in dims if d in X.columns]
+    idx_cols = [date_column, *dim_cols]
     y_df = pd.DataFrame(
         {"_target": y_da.values, **{col: X[col].values for col in idx_cols}}
     )
-    return (
-        y_df.rename(columns={date_column: "date"})
-        .set_index(["date"] + [d for d in dims if d in X.columns])
-        .sort_index()
-        .to_xarray()["_target"]
-    )
-    return y_df.set_index(idx_cols).sort_index().to_xarray()["_target"]
+    y_df = y_df.rename(columns={date_column: "date"})
+    index_cols = ["date", *dim_cols]
+    y_df = y_df.drop_duplicates(subset=index_cols, keep="first")
+    return y_df.set_index(index_cols).sort_index().to_xarray()["_target"]
 
 
 def _add_target_to_dataset(
     ds: xr.Dataset,
     y_da: xr.DataArray,
-    *,
-    date_column: str,
-    dims: tuple[str, ...],
 ) -> None:
     """Add *y_da* as ``_target`` to *ds* (in-place)."""
     ds["_target"] = y_da
-
-
-# ---------------------------------------------------------------------------
-# Dataset validation
-# ---------------------------------------------------------------------------
 
 
 def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
@@ -303,11 +298,6 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
             f"data variable name because xarray promotes it to a dimension "
             f"coordinate. Use '_control' instead."
         )
-
-
-# ---------------------------------------------------------------------------
-# DataFrame → xarray helpers
-# ---------------------------------------------------------------------------
 
 
 def _validate_dims_in_multiindex(

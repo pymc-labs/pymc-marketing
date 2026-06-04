@@ -188,6 +188,7 @@ from typing import Annotated, Any, Literal, Self, cast
 
 import arviz as az
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
@@ -1704,8 +1705,15 @@ class MMM(RegressionModelBuilder):
     def _generate_and_preprocess_model_data(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
     ):
+        if isinstance(y, pd.DataFrame):
+            if y.shape[1] != 1:
+                raise ValueError(
+                    f"y as DataFrame must have exactly one column, got {y.shape[1]}"
+                )
+            y = y.squeeze(axis=1)
+
         if (
             isinstance(y, np.ndarray)
             and isinstance(X, pd.DataFrame)
@@ -1748,6 +1756,19 @@ class MMM(RegressionModelBuilder):
             dates = pd.DatetimeIndex(self.xarray_dataset.coords["date"].values)
             self._time_index = xr.DataArray(np.arange(len(dates)), dims=("date",))
             self._time_resolution = (dates[1] - dates[0]).days
+
+    @property
+    def y(self) -> npt.NDArray[np.floating]:
+        """Return the target values as a numpy array.
+
+        Backwards-compatible accessor for the ``_target`` variable in
+        the internal ``xr.Dataset``.
+        """
+        self._validate_model_was_built()
+        return cast(
+            npt.NDArray[np.floating],
+            self.xarray_dataset["_target"].values,
+        )
 
     def forward_pass(
         self,
@@ -2064,7 +2085,7 @@ class MMM(RegressionModelBuilder):
     def fit(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
@@ -2102,7 +2123,7 @@ class MMM(RegressionModelBuilder):
     def build_model(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
         **kwargs,
     ) -> None:
         """Build a probabilistic model using PyMC for marketing mix modeling.
@@ -2393,7 +2414,7 @@ class MMM(RegressionModelBuilder):
     def _posterior_predictive_data_transformation(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
         include_last_observations: bool = False,
     ) -> xr.Dataset:
         ds = to_mmm_dataset(
@@ -3300,7 +3321,7 @@ class MMM(RegressionModelBuilder):
     def create_fit_data(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: np.ndarray | pd.Series | xr.DataArray | None = None,
+        y: np.ndarray | pd.Series | pd.DataFrame | xr.DataArray | None = None,
     ) -> xr.Dataset:
         """Create a fit dataset aligned on date and present dimensions.
 
