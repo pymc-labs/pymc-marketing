@@ -243,6 +243,23 @@ class MuEffect(SerializableBaseModel, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return supplementary data groups to store in InferenceData.
+
+        Override in subclasses that need to persist large DataFrames or
+        other non-JSON-serializable data alongside the model.
+
+        Each entry is stored as a top-level group in the InferenceData
+        netCDF file during ``save()`` and is available to custom
+        deserializers via ``DeserializationContext(idata=...)``.
+
+        Returns
+        -------
+        dict[str, xr.Dataset]
+            Group name to xarray Dataset mapping.
+        """
+        return {}
+
 
 class FourierEffect(MuEffect):
     """Fourier seasonality additive effect for MMM."""
@@ -705,6 +722,14 @@ class EventAdditiveEffect(MuEffect):
             "days": days_from_reference(new_dates, self.reference_date),
         }
         pm.set_data(new_data=new_data, model=model)
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return the events DataFrame as a supplementary idata group."""
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df_events.reset_index(drop=True)
+            ),
+        }
 
 
 def _deserialize_event_additive_effect(

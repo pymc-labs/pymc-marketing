@@ -245,6 +245,7 @@ from pymc_marketing.model_builder import RegressionModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.version import __version__
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -1034,17 +1035,13 @@ class MMM(RegressionModelBuilder):
         return attrs
 
     def save(self, fname: str, **kwargs) -> None:
-        """Save the model, including supplementary data for MuEffects."""
+        """Save the model, including supplementary idata groups from mu_effects."""
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
         for effect in self.mu_effects:
-            if isinstance(effect, EventAdditiveEffect):
-                group_name = f"supplementary_data_{effect.prefix}"
+            for group_name, ds in effect.idata_groups().items():
                 if not hasattr(self.idata, group_name):
-                    ds = xr.Dataset.from_dataframe(
-                        effect.df_events.reset_index(drop=True)
-                    )
                     self.idata.add_groups({group_name: ds})
 
         # Persist the base names of any *_original_scale Deterministics so they
@@ -2531,7 +2528,7 @@ class MMM(RegressionModelBuilder):
         include_last_observations: bool = False,  # type: ignore
         clone_model: bool = True,  # type: ignore
         **sample_posterior_predictive_kwargs,  # type: ignore
-    ) -> xr.DataArray:
+    ) -> xr.Dataset:
         """Sample from the model's posterior predictive distribution.
 
         Parameters
@@ -2552,7 +2549,7 @@ class MMM(RegressionModelBuilder):
 
         Returns
         -------
-        xr.DataArray
+        xr.Dataset
             Posterior predictive samples.
         """
         # Update model data with xarray
@@ -3966,7 +3963,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         include_last_observations: bool = False,
         include_carryover: bool = True,
         budget_distribution_over_period: xr.DataArray | None = None,
-    ) -> az.InferenceData:
+    ) -> xr.Dataset:
         """Generate synthetic dataset and sample posterior predictive based on allocation.
 
         Parameters
@@ -3993,7 +3990,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
         Returns
         -------
-        az.InferenceData
+        xr.Dataset
             The posterior predictive samples based on the synthetic dataset.
         """
         data = create_zero_dataset(
@@ -4049,7 +4046,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if additional_var_names is not None:
             var_names.extend(additional_var_names)
 
-        return (
+        response = (
             self.sample_posterior_predictive(
                 X=data_with_noise,
                 extend_idata=False,
@@ -4060,3 +4057,5 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             .merge(constant_data)
             .merge(_dataset)
         )
+        response.attrs["pymc_marketing_version"] = __version__
+        return response

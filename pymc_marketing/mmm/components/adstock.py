@@ -196,7 +196,14 @@ class AdstockTransformation(Transformation):
 class BinomialAdstock(AdstockTransformation):
     """Wrapper around the binomial adstock function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.binomial_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.binomial_adstock` with the wrapper's
+    ``l_max``, ``normalize`` and ``mode`` settings.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Retention rate of the ad effect; must be between 0 and 1. Default prior:
+        ``Prior("Beta", alpha=1, beta=3)``.
 
     .. plot::
         :context: close-figs
@@ -233,7 +240,14 @@ class BinomialAdstock(AdstockTransformation):
 class GeometricAdstock(AdstockTransformation):
     """Wrapper around geometric adstock function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.geometric_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.geometric_adstock` with the wrapper's
+    ``l_max``, ``normalize`` and ``mode`` settings.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Retention rate of the ad effect; must be between 0 and 1. Default prior:
+        ``Prior("Beta", alpha=1, beta=3)``.
 
     .. plot::
         :context: close-figs
@@ -270,7 +284,17 @@ class GeometricAdstock(AdstockTransformation):
 class DelayedAdstock(AdstockTransformation):
     """Wrapper around delayed adstock function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.delayed_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.delayed_adstock` with the wrapper's
+    ``l_max``, ``normalize`` and ``mode`` settings.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Retention rate of the ad effect; must be between 0 and 1. Default prior:
+        ``Prior("Beta", alpha=1, beta=3)``.
+    theta : tensor
+        Delay of the peak effect; must be between 0 and ``l_max - 1``. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -311,7 +335,18 @@ class DelayedAdstock(AdstockTransformation):
 class WeibullPDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with PDF function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.weibull_adstock` with
+    ``type=WeibullType.PDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
+    settings.
+
+    Parameters
+    ----------
+    lam : tensor
+        Scale parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=2, sigma=1)``.
+    k : tensor
+        Shape parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=3, sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -353,7 +388,18 @@ class WeibullPDFAdstock(AdstockTransformation):
 class WeibullCDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with CDF function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.weibull_adstock` with
+    ``type=WeibullType.CDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
+    settings.
+
+    Parameters
+    ----------
+    lam : tensor
+        Scale parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=2, sigma=2.5)``.
+    k : tensor
+        Shape parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=2, sigma=2.5)``.
 
     .. plot::
         :context: close-figs
@@ -393,7 +439,11 @@ class WeibullCDFAdstock(AdstockTransformation):
 
 @serialization.register
 class NoAdstock(AdstockTransformation):
-    """Wrapper around no adstock transformation."""
+    """Wrapper around no adstock transformation.
+
+    Identity transformation that returns the input unchanged. Useful as a no-op
+    placeholder when carryover is not modelled. Takes no priors.
+    """
 
     def function(self, x, *, dim: str | None = None):
         """No adstock function."""
