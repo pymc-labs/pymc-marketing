@@ -364,6 +364,7 @@ class MVITS(RegressionModelBuilder):
                 random_seed=random_seed,
                 predictions=True,
             )
+            counterfactual_idata.attrs = dict(self.idata.attrs)  # type: ignore[union-attr]
             counterfactual_idata.update(self.idata)
             self.idata = counterfactual_idata  # type: ignore
 
@@ -491,17 +492,19 @@ class MVITS(RegressionModelBuilder):
         x = self.X.index.values  # type: ignore
         existing_products = self.coords["existing_product"]
         for i, existing_product in enumerate(existing_products):
-            az.plot_hdi(
-                x,
+            hdi = az.hdi(
                 self.posterior_predictive[variable]  # type: ignore
                 .transpose(..., "time")
                 .sel(existing_product=existing_product),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": f"{existing_product} - Posterior predictive (HDI)",
-                },
-                smooth=False,
+                prob=0.94,
+            )
+            ax.fill_between(
+                x,
+                hdi.sel(ci_bound="lower"),
+                hdi.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
 
         # formatting
@@ -552,17 +555,19 @@ class MVITS(RegressionModelBuilder):
         x = cast(pd.DataFrame, self.X).index.values
         existing_products = self.coords["existing_product"]
         for i, existing_product in enumerate(existing_products):
-            az.plot_hdi(
-                x,
+            hdi = az.hdi(
                 self.predictions[variable]  # type: ignore
                 .transpose(..., "time")
                 .sel(existing_product=existing_product),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": f"{existing_product} - Posterior predictive (HDI)",
-                },
-                smooth=False,
+                prob=0.94,
+            )
+            ax.fill_between(
+                x,
+                hdi.sel(ci_bound="lower"),
+                hdi.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
 
         # formatting
@@ -604,17 +609,19 @@ class MVITS(RegressionModelBuilder):
         existing_products = self.coords["existing_product"]
 
         for i, existing_product in enumerate(existing_products):
-            az.plot_hdi(
-                x,
+            hdi = az.hdi(
                 self.causal_impact(variable=variable)
                 .transpose(..., "time")
                 .sel(existing_product=existing_product),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": f"{existing_product} - Posterior predictive (HDI)",
-                },
-                smooth=False,
+                prob=0.94,
+            )
+            ax.fill_between(
+                x,
+                hdi.sel(ci_bound="lower"),
+                hdi.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
         ax.set(ylabel="Change in sales caused by new product")
 
@@ -668,15 +675,17 @@ class MVITS(RegressionModelBuilder):
             )
             causal_impact_market_share = (causal_impact / total_sales) * 100
 
-            az.plot_hdi(
-                x,
+            hdi = az.hdi(
                 causal_impact_market_share,
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": f"{existing_product} - Posterior predictive (HDI)",
-                },
-                smooth=False,
+                prob=0.94,
+            )
+            ax.fill_between(
+                x,
+                hdi.sel(ci_bound="lower"),
+                hdi.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
         ax.set(ylabel="Change in market share caused by new product")
         ax.yaxis.set_major_formatter(mtick.PercentFormatter())
