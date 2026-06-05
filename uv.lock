@@ -4071,6 +4071,7 @@ dev = [
     { name = "h5py" },
     { name = "mypy" },
     { name = "pandas-stubs" },
+    { name = "pyyaml" },
 ]
 
 [package.metadata]
@@ -4163,6 +4164,7 @@ dev = [
     { name = "h5py", specifier = ">=3.16.0" },
     { name = "mypy", specifier = ">=2.1.0" },
     { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 
 [[package]]
