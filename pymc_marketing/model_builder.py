@@ -28,11 +28,10 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from pymc.util import RandomState
+from pymc_extras.printing import model_table
+from rich.table import Table
 
-from pymc_marketing.data.idata.utils import (
-    idata_from_zarr,
-    idata_to_zarr,
-)
+from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 from pymc_marketing.version import __version__
 
 # If scikit-learn is available, use its data validator
@@ -257,7 +256,7 @@ class ModelIO:
         return attrs
 
     def set_idata_attrs(self, idata: xr.DataTree | None = None) -> xr.DataTree:
-        """Set attributes on an InferenceData object.
+        """Set attributes on a DataTree object.
 
         Parameters
         ----------
@@ -269,7 +268,7 @@ class ModelIO:
         ValueError
             If the attrs are missing for a property initialization of the class
         RuntimeError
-            If no InferenceData object is provided.
+            If no DataTree object is provided.
 
         Returns
         -------
@@ -278,7 +277,7 @@ class ModelIO:
 
         Examples
         --------
-        Set the attrs for an InferenceData object manually.
+        Set the attrs for a DataTree object manually.
 
         .. code-block:: python
 
@@ -441,7 +440,7 @@ class ModelIO:
 
     @abstractmethod
     def build_from_idata(self, idata: xr.DataTree) -> None:
-        """Build the model from the InferenceData object."""
+        """Build the model from the DataTree object."""
 
     @classmethod
     def load(cls, fname: str, check: bool = True):
@@ -451,17 +450,17 @@ class ModelIO:
 
         This class method has a few steps:
 
-        - Load the InferenceData from the file.
-        - Construct a new instance of the model using the InferenceData attrs
-        - Build the model from the InferenceData
-        - Check if the model id matches the id in the InferenceData loaded.
+        - Load the DataTree from the file.
+        - Construct a new instance of the model using the DataTree attrs
+        - Build the model from the DataTree
+        - Check if the model id matches the id in the DataTree loaded.
 
         Parameters
         ----------
         fname : string
             This denotes the name with path from where idata should be loaded from.
         check : bool, optional
-            Whether to check if the model id matches the id in the InferenceData loaded.
+            Whether to check if the model id matches the id in the DataTree loaded.
             Defaults to True.
 
         Returns
@@ -494,27 +493,27 @@ class ModelIO:
         except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
-                "an InferenceData of the same model "
+                "a DataTree of the same model "
                 f"or configuration as '{cls._model_type}'"
             )
             raise DifferentModelError(error_msg) from e
 
     @classmethod
     def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> "ModelIO":
-        """Create a ModelBuilder instance from an InferenceData object.
+        """Create a ModelBuilder instance from a DataTree object.
 
         This class method has a few steps:
 
-        - Construct a new instance of the model using the InferenceData attrs
-        - Build the model from the InferenceData
-        - Check if the model id matches the id in the InferenceData loaded.
+        - Construct a new instance of the model using the DataTree attrs
+        - Build the model from the DataTree
+        - Check if the model id matches the id in the DataTree loaded.
 
         Parameters
         ----------
         idata : xr.DataTree
             The DataTree object to load the model from.
         check : bool, optional
-            Whether to check if the model id matches the id in the InferenceData loaded.
+            Whether to check if the model id matches the id in the DataTree loaded.
             Defaults to True.
 
         Returns
@@ -525,7 +524,7 @@ class ModelIO:
         Raises
         ------
         DifferentModelError
-            If the model id in the InferenceData does not match the model id built.
+            If the model id in the DataTree does not match the model id built.
 
         """
         init_kwargs = cls.idata_to_init_kwargs(idata)
@@ -635,23 +634,6 @@ class ModelBuilder(ABC, ModelIO):
         self.is_fitted_ = False
 
     @property
-    def fit_result(self) -> xr.Dataset:
-        """Get the posterior dataset from the fitted model."""
-        if self.idata is None or "/posterior" not in self.idata.groups:
-            raise RuntimeError("The model hasn't been fit yet")
-        return self.idata["/posterior"].to_dataset()
-
-    @fit_result.setter
-    def fit_result(self, value: xr.DataTree) -> None:
-        if self.idata is not None and "/posterior" in self.idata.groups:
-            warnings.warn(
-                "Overriding pre-existing fit_result", UserWarning, stacklevel=2
-            )
-        if "/posterior" not in value.groups and "/prior" in value.groups:
-            value["/posterior"] = value["/prior"].to_dataset()
-        self.idata = value
-
-    @property
     @abstractmethod
     def default_model_config(self) -> dict:
         """Return a class default configuration dictionary.
@@ -712,18 +694,46 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
-    posterior = create_idata_accessor("posterior", "The model hasn't been fit yet")
-    prior = create_idata_accessor("prior", "The model hasn't been sampled yet")
-    prior_predictive = create_idata_accessor(
-        "prior_predictive", "The model hasn't been sampled yet"
-    )
-    posterior_predictive = create_idata_accessor(
-        "posterior_predictive", "The model hasn't been fit yet"
-    )
-    predictions = create_idata_accessor(
-        "predictions",
-        "Call the 'sample_posterior_predictive' method first",
-    )
+    @abstractmethod
+    def build_model(
+        self,
+        **kwargs,
+    ) -> None:
+        """Create an instance of `pm.Model` based on provided data and model_config.
+
+        It attaches the model to self.model.
+
+        Parameters
+        ----------
+        kwargs : dict
+            data arguments for model configuration.
+
+        See Also
+        --------
+        default_model_config : returns default model config
+
+        Returns
+        -------
+        None
+
+        """
+
+    # TODO: Convert from abstract method into a base fitter for all models.
+    @abstractmethod
+    def fit(
+        self,
+        **kwargs,
+    ) -> xr.DataTree:
+        """Fit a model using the data passed as a parameter.
+
+        Sets attrs to inference data of the model.
+
+        Returns
+        -------
+        self : xr.DataTree
+            Returns inference data of the fitted model.
+
+        """
 
     @requires_model
     def graphviz(self, **kwargs):
@@ -742,7 +752,7 @@ class ModelBuilder(ABC, ModelIO):
         return pm.model_to_graphviz(self.model, **kwargs)
 
     @requires_model
-    def table(self, **model_table_kwargs):
+    def table(self, **model_table_kwargs) -> Table:
         """Get the summary table of the model.
 
         Parameters
@@ -756,49 +766,88 @@ class ModelBuilder(ABC, ModelIO):
             A rich table containing the summary of the model.
 
         """
-        from pymc_extras.printing import model_table
-
         return model_table(self.model, **model_table_kwargs)
 
-    @abstractmethod
-    def build_model(
-        self,
-        *args,
-        **kwargs,
-    ) -> None:
-        """Create an instance of `pm.Model` based on provided data and model_config.
+    @property
+    def fit_result(self) -> xr.Dataset:
+        """Get the posterior fit_result.
 
-        It attaches the model to self.model.
+        Returns
+        -------
+        InferenceData object.
+
+        """
+        return create_idata_accessor(
+            "posterior", "The model hasn't been fit yet, call .fit() first"
+        ).__get__(self)
+
+    @fit_result.setter
+    def fit_result(self, res: xr.DataTree) -> None:
+        """Create a setter method to overwrite the pre-existing fit_result.
 
         Parameters
         ----------
-        *args
-            Positional arguments for model configuration.
-        kwargs : dict
-            data arguments for model configuration.
-
-        See Also
-        --------
-        default_model_config : returns default model config
-
-        Returns
-        -------
-        None
+        res : xr.DataTree
+            The DataTree object to be set
 
         """
+        if self.idata is None:
+            self.idata = res
+        elif "/posterior" in self.idata.groups:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=2)
+            self.idata["/posterior"] = res["/posterior"].to_dataset()
+        else:
+            if "/posterior" in res.groups:
+                self.idata["/posterior"] = res["/posterior"].to_dataset()
+            else:
+                posterior_flat = xr.Dataset()
+                for g in res.groups:
+                    if g == "/":
+                        continue
+                    for var_name, var in res[g].to_dataset().variables.items():
+                        if var_name not in posterior_flat:
+                            posterior_flat[var_name] = var
+                self.idata["/posterior"] = posterior_flat
 
-    @property
+    prior = create_idata_accessor(
+        "prior",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
+    )
+    prior_predictive = create_idata_accessor(
+        "prior_predictive",
+        "The model hasn't been sampled yet, call .sample_prior_predictive() first",
+    )
+    posterior = create_idata_accessor(
+        "posterior", "The model hasn't been fit yet, call .fit() first"
+    )
+
+    posterior_predictive = create_idata_accessor(
+        "posterior_predictive",
+        "The model hasn't been fit yet, call .sample_posterior_predictive() first",
+    )
+    predictions = create_idata_accessor(
+        "predictions",
+        "Call the 'sample_posterior_predictive' method with predictions=True first.",
+    )
+
+
+class RegressionModelBuilder(ModelBuilder):
+    """ModelBuilder class providing an easy-to-use API similar to scikit-learn for regression models.
+
+    Training data is provided in the fit method and must follow the following convention:
+    - X: Matrix containing predictor variables
+    - y: Target variable array
+    """
+
+    def _validate_data(self, X, y=None):
+        if y is not None:
+            return check_X_y(
+                X, y, accept_sparse=False, y_numeric=True, multi_output=False
+            )
+        else:
+            return check_array(X, accept_sparse=False)
+
     @abstractmethod
-    def output_var(self) -> str:
-        """Returns the name of the output variable of the model.
-
-        Returns
-        -------
-        output_var : str
-            Name of the output variable of the model.
-
-        """
-
     def _data_setter(
         self,
         X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -817,24 +866,87 @@ class ModelBuilder(ABC, ModelIO):
         -------
         None
 
+        Examples
+        --------
+        .. code-block:: python
+
+            def _data_setter(self, data: pd.DataFrame):
+                with self.model:
+                    pm.set_data({"x": X["x"].values})
+                    try:  # if y values in new data
+                        pm.set_data({"y_data": y.values})
+                    except:  # dummies otherwise
+                        pm.set_data({"y_data": np.zeros(len(data))})
+
         """
 
-    def _validate_data(self, *args, **kwargs):
-        X = args[0] if args else kwargs.get("X")
-        y = kwargs.get("y")
-        if y is not None:
-            return check_X_y(
-                X, y, accept_sparse=False, y_numeric=True, multi_output=False
-            )
-        else:
-            return check_array(X, accept_sparse=False)
+    @property
+    @abstractmethod
+    def output_var(self) -> str:
+        """Returns the name of the output variable of the model.
 
-    def post_sample_model_transformation(self) -> None:
-        """Perform transformation on the model after sampling."""
-        pass
+        Returns
+        -------
+        output_var : str
+            Name of the output variable of the model.
 
-    def _get_sampling_model(self) -> pm.Model:
-        return self.model
+        """
+
+    @abstractmethod
+    def build_model(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | np.ndarray | xr.DataArray,
+        **kwargs,
+    ) -> None:
+        """Create an instance of `pm.Model` based on provided data and model_config.
+
+        It attaches the model to self.model.
+
+        Parameters
+        ----------
+        X : pd.DataFrame | xr.Dataset | xr.DataArray
+            The input data that is going to be used in the model. This should be a DataFrame
+            containing the features (predictors) for the model. For efficiency reasons, it should
+            only contain the necessary data columns, not the entire available dataset, as this
+            will be encoded into the data used to recreate the model.
+
+        y : pd.Series | np.ndarray | xr.DataArray
+            The target data for the model. This should be a Series representing the output
+            or dependent variable for the model.
+
+        kwargs : dict
+            Additional keyword arguments that may be used for model configuration.
+
+        See Also
+        --------
+        default_model_config : returns default model config
+
+        Returns
+        -------
+        None
+
+        """
+
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build model from the DataTree object.
+
+        This is part of the :func:`load` method. See :func:`load` for more larger context.
+
+        Usually a wrapper around the :func:`build_model` method unless the model
+        has some additional steps to be built.
+
+        Parameters
+        ----------
+        idata : xr.DataTree
+            The DataTree object to build the model from.
+
+        """
+        dataset = idata.fit_data.to_dataset().to_dataframe()  # type: ignore
+        X = dataset.drop(columns=[self.output_var])
+        y = dataset[self.output_var]
+
+        self.build_model(X, y)  # type: ignore
 
     def create_fit_data(
         self,
@@ -855,7 +967,14 @@ class ModelBuilder(ABC, ModelIO):
 
         return xr.merge([X, y])
 
-    def fit(
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+        pass
+
+    def _get_sampling_model(self) -> pm.Model:
+        return self.model
+
+    def fit(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
@@ -940,11 +1059,10 @@ class ModelBuilder(ABC, ModelIO):
 
         self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata["fit_data"]
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)
-
         self.idata["/fit_data"] = fit_data
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
@@ -1096,13 +1214,11 @@ class ModelBuilder(ABC, ModelIO):
         # Annotate, attach fit_data, and set attrs
         self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata["fit_data"]
+        if "/fit_data" in self.idata.groups:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)
-
         self.idata["/fit_data"] = fit_data
-
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
@@ -1151,8 +1267,10 @@ class ModelBuilder(ABC, ModelIO):
 
         with self.model:  # sample with new input data
             prior_pred: xr.DataTree = pm.sample_prior_predictive(samples, **kwargs)
-            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
-            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["/prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["/prior_predictive"].attrs["pymc_marketing_version"] = (
+                __version__
+            )
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
@@ -1161,14 +1279,11 @@ class ModelBuilder(ABC, ModelIO):
             else:
                 self.idata = prior_pred
 
-        prior_predictive_samples = az.extract(
-            prior_pred, "prior_predictive", combined=combined
-        )
+        result = az.extract(prior_pred, "prior_predictive", combined=combined)
+        if isinstance(result, xr.DataArray):
+            result = result.to_dataset()
 
-        if isinstance(prior_predictive_samples, xr.DataArray):
-            prior_predictive_samples = prior_predictive_samples.to_dataset()
-
-        return prior_predictive_samples
+        return result
 
     def sample_posterior_predictive(
         self,
@@ -1267,239 +1382,3 @@ class ModelBuilder(ABC, ModelIO):
             )
 
         return posterior_predictive_samples[self.output_var]
-
-
-class RegressionModelBuilder(ModelBuilder):
-    """ModelBuilder class providing an easy-to-use API similar to scikit-learn for regression models.
-
-    Training data is provided in the fit method and must follow the following convention:
-    - X: Matrix containing predictor variables
-    - y: Target variable array
-    """
-
-    def _validate_data(self, X, y=None):
-        if y is not None:
-            return check_X_y(
-                X, y, accept_sparse=False, y_numeric=True, multi_output=False
-            )
-        else:
-            return check_array(X, accept_sparse=False)
-
-    @abstractmethod
-    def _data_setter(
-        self,
-        X: np.ndarray | pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: np.ndarray | pd.Series | xr.DataArray | None = None,
-    ) -> None:
-        """Set new data in the model.
-
-        Parameters
-        ----------
-        X : array, shape (n_obs, n_features)
-            The training input samples.
-        y : array, shape (n_obs,)
-            The target values (real numbers).
-
-        Returns
-        -------
-        None
-
-        Examples
-        --------
-        .. code-block:: python
-
-            def _data_setter(self, data: pd.DataFrame):
-                with self.model:
-                    pm.set_data({"x": X["x"].values})
-                    try:  # if y values in new data
-                        pm.set_data({"y_data": y.values})
-                    except:  # dummies otherwise
-                        pm.set_data({"y_data": np.zeros(len(data))})
-
-        """
-
-    @property
-    @abstractmethod
-    def output_var(self) -> str:
-        """Returns the name of the output variable of the model.
-
-        Returns
-        -------
-        output_var : str
-            Name of the output variable of the model.
-
-        """
-
-    @abstractmethod
-    def build_model(
-        self,
-        X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | np.ndarray | xr.DataArray,
-        **kwargs,
-    ) -> None:
-        """Create an instance of `pm.Model` based on provided data and model_config.
-
-        It attaches the model to self.model.
-
-        Parameters
-        ----------
-        X : pd.DataFrame | xr.Dataset | xr.DataArray
-            The input data that is going to be used in the model. This should be a DataFrame
-            containing the features (predictors) for the model. For efficiency reasons, it should
-            only contain the necessary data columns, not the entire available dataset, as this
-            will be encoded into the data used to recreate the model.
-
-        y : pd.Series | np.ndarray | xr.DataArray
-            The target data for the model. This should be a Series representing the output
-            or dependent variable for the model.
-
-        kwargs : dict
-            Additional keyword arguments that may be used for model configuration.
-
-        See Also
-        --------
-        default_model_config : returns default model config
-
-        Returns
-        -------
-        None
-
-        """
-
-    def build_from_idata(self, idata: xr.DataTree) -> None:
-        """Build model from the DataTree object.
-
-        This is part of the :func:`load` method. See :func:`load` for more larger context.
-
-        Usually a wrapper around the :func:`build_model` method unless the model
-        has some additional steps to be built.
-
-        Parameters
-        ----------
-        idata : xr.DataTree
-            The DataTree object to build the model from.
-
-        """
-        dataset = idata.fit_data.to_dataset().to_dataframe()  # type: ignore
-        X = dataset.drop(columns=[self.output_var])
-        y = dataset[self.output_var]
-
-        self.build_model(X, y)  # type: ignore
-
-    def create_fit_data(
-        self,
-        X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: np.ndarray | pd.Series | xr.DataArray,
-    ) -> xr.Dataset:
-        """Create the fit_data group based on the input data."""
-        if isinstance(y, np.ndarray):
-            y = pd.Series(y, index=X.index, name=self.output_var)
-
-        y.name = self.output_var
-
-        if isinstance(X, pd.DataFrame):
-            X = X.to_xarray()
-
-        if isinstance(y, pd.Series):
-            y = y.to_xarray()
-
-        return xr.merge([X, y])
-
-    def post_sample_model_transformation(self) -> None:
-        """Perform transformation on the model after sampling."""
-        pass
-
-    def _get_sampling_model(self) -> pm.Model:
-        return self.model
-
-    def fit(
-        self,
-        X: pd.DataFrame | xr.Dataset | xr.DataArray,
-        y: pd.Series | xr.DataArray | np.ndarray | None = None,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs: Any,
-    ) -> xr.DataTree:
-        """Fit a model using the data passed as a parameter.
-
-        Sets attrs to inference data of the model.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool, optional
-            Specifies whether the fit progress bar should be displayed. Defaults to True.
-        random_seed : Optional[RandomState]
-            Provides sampler with initial random seed for obtaining reproducible samples.
-        **kwargs : Any
-            Custom sampler settings can be provided in form of keyword arguments.
-
-        Returns
-        -------
-        self : xr.DataTree
-            Returns inference data of the fitted model.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            model = MyModel()
-            idata = model.fit(X, y)
-            Auto-assigning NUTS sampler...
-            Initializing NUTS using jitter+adapt_diag...
-
-        """
-        if (
-            isinstance(y, pd.Series)
-            and isinstance(X, pd.DataFrame)
-            and not X.index.equals(y.index)
-        ):
-            raise ValueError("Index of X and y must match.")
-
-        if y is None:
-            y = np.zeros(X.shape[0])
-
-        if self.output_var in X:
-            raise ValueError(
-                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
-            )
-
-        if not hasattr(self, "model"):
-            self.build_model(X, y)
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
-            **kwargs,
-        )
-
-        sampling_model = self._get_sampling_model()
-
-        var_names = [var.name for var in sampling_model.free_RVs]
-        with sampling_model:
-            idata = pm.sample(var_names=var_names, **sampler_kwargs)
-
-        with sampling_model:
-            idata["/posterior"] = pm.compute_deterministics(
-                idata["/posterior"], merge_dataset=True
-            )
-
-        if self.idata:
-            self.idata.update(idata)
-        else:
-            self.idata = idata
-
-        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "/fit_data" in self.idata.groups:
-            self.idata = self.idata.drop_nodes("fit_data")
-
-        fit_data = self.create_fit_data(X, y)
-        self.idata["/fit_data"] = fit_data
-
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
