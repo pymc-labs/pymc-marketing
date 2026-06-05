@@ -1,9 +1,9 @@
 name: PyPI
 on:
   pull_request:
-    branches: [main]
+    branches: [main, v1.0.0]
   push:
-    branches: [main]
+    branches: [main, v1.0.0]
   release:
     types: [published]
 

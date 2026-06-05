@@ -17,7 +17,7 @@ import pymc_marketing  # isort:skip
 project = "PyMC-Marketing"
 author = "PyMC Labs"
 copyright = f"2022-%Y, {author}"
-html_title = "Open Source Marketing Analytics Solution"
+html_title = "PyMC-Marketing — Open Source Bayesian MMM & CLV Library for Python"
 
 # The master toctree document.
 master_doc = "index"
