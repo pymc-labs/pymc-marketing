@@ -205,7 +205,6 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import SoftPlusHSGP
-from pymc_marketing.mmm._data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
@@ -216,6 +215,7 @@ from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.mmm.decomposition import (
     identity_counterfactual_component,
     log_counterfactual_remove_component,

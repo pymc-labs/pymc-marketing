@@ -46,7 +46,7 @@ Examples
 
     import xarray as xr
     import pandas as pd
-    from pymc_marketing.mmm._data_conversion import to_mmm_dataset
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 
     # From a DataFrame
     df = pd.DataFrame(
