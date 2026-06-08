@@ -242,3 +242,108 @@ class TestToMmmDatasetDateCoercion:
         y = pd.Series([10, 20, 30])
         ds = to_mmm_dataset(X, y, date_column="date", channel_columns=["channel_1"])
         assert np.issubdtype(ds.coords["date"].values.dtype, np.datetime64)
+
+
+class TestToMmmDatasetMultiIndex:
+    """to_mmm_dataset handles MultiIndex Series inputs for panel data."""
+
+    def test_multiindex_series_as_y(self):
+        dates = pd.date_range("2023-01-01", periods=2, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": list(dates) * 2,
+                "country": ["US", "US", "UK", "UK"],
+                "channel_1": [1.0, 2.0, 3.0, 4.0],
+            }
+        )
+        idx = pd.MultiIndex.from_tuples(
+            [(d, c) for d in dates for c in ["US", "UK"]],
+            names=["date", "country"],
+        )
+        y = pd.Series([10, 20, 30, 40], index=idx, name="sales")
+        ds = to_mmm_dataset(
+            X,
+            y,
+            date_column="date",
+            dims=("country",),
+            channel_columns=["channel_1"],
+        )
+        assert "_target" in ds.data_vars
+        assert ds["_target"].dims == ("date", "country")
+        assert ds["_target"].shape == (2, 2)
+
+
+class TestToMmmDatasetValidation:
+    """to_mmm_dataset raises clear errors for invalid inputs.
+
+    These error messages are part of the public API contract for users
+    constructing xr.Dataset inputs by hand.
+    """
+
+    def test_dataset_missing_channel_variable_raises(self):
+        ds = xr.Dataset(
+            {"other": xr.DataArray([1], dims=("date",))},
+            coords={"date": ["2023-01-01"]},
+        )
+        with pytest.raises(ValueError, match="_channel"):
+            to_mmm_dataset(ds, date_column="date", channel_columns=["tv"])
+
+    def test_dataset_missing_date_coord_raises(self):
+        ds = xr.Dataset(
+            {"_channel": xr.DataArray([[1]], dims=("a", "channel"))},
+            coords={"channel": ["tv"]},
+        )
+        with pytest.raises(ValueError, match="date"):
+            to_mmm_dataset(ds, date_column="date", channel_columns=["tv"])
+
+    def test_dataset_missing_channel_coord_raises(self):
+        ds = xr.Dataset(
+            {"_channel": xr.DataArray([1], dims=("date",))},
+            coords={"date": ["2023-01-01"]},
+        )
+        with pytest.raises(ValueError, match="channel"):
+            to_mmm_dataset(ds, date_column="date", channel_columns=["tv"])
+
+    def test_dataset_missing_control_variable_raises(self):
+        ds = xr.Dataset(
+            {"_channel": xr.DataArray([[1]], dims=("date", "channel"))},
+            coords={
+                "date": pd.date_range("2023-01-01", periods=1, freq="W"),
+                "channel": ["tv"],
+            },
+        )
+        with pytest.raises(ValueError, match="_control"):
+            to_mmm_dataset(
+                ds,
+                date_column="date",
+                channel_columns=["tv"],
+                control_columns=["price"],
+            )
+
+    def test_dataframe_missing_date_column_raises(self):
+        X = pd.DataFrame({"channel_1": [1.0, 2.0, 3.0]})
+        with pytest.raises(ValueError, match="date_column"):
+            to_mmm_dataset(X, date_column="date", channel_columns=["channel_1"])
+
+
+class TestToMmmDatasetUnsupportedTypes:
+    """to_mmm_dataset raises TypeError for completely unsupported inputs."""
+
+    def test_unsupported_x_type_raises(self):
+        with pytest.raises(TypeError, match="Unsupported X type"):
+            to_mmm_dataset([1, 2, 3], date_column="date", channel_columns=["tv"])
+
+    def test_unsupported_y_type_raises(self):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=3, freq="W"),
+                "channel_1": [1.0, 2.0, 3.0],
+            }
+        )
+        with pytest.raises(TypeError, match="Unsupported y type"):
+            to_mmm_dataset(
+                X,
+                y="not_a_valid_type",
+                date_column="date",
+                channel_columns=["channel_1"],
+            )
