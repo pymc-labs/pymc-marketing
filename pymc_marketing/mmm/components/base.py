@@ -429,7 +429,10 @@ class Transformation:
         coords = coords or {}
         with pm.Model(coords=coords):
             self._create_distributions()
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+            prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
+            if isinstance(prior_pred, xr.DataTree):
+                return prior_pred["/prior"].to_dataset()
+            return prior_pred.prior
 
     def plot_curve(
         self,
@@ -524,8 +527,14 @@ class Transformation:
                 self.apply(x, core_dim=x_dim),
             )
 
+            dt_cls = getattr(xr, "DataTree", None)
+            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
+                idata = dt_cls.from_dict({"/posterior": parameters})
+            else:
+                idata = parameters
+
             return pm.sample_posterior_predictive(
-                parameters,
+                idata,
                 var_names=[var_name],
                 **sample_prior_predictive_kwargs,
             ).posterior_predictive[var_name]

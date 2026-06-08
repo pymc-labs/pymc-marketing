@@ -142,7 +142,7 @@ class Basis(Transformation):
     @validate_call
     def sample_curve(
         self,
-        parameters: InstanceOf[xr.Dataset] = Field(
+        parameters: InstanceOf[xr.Dataset] | InstanceOf[xr.DataTree] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
         days: int = Field(

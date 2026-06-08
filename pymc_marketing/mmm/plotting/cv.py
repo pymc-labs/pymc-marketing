@@ -442,7 +442,7 @@ class MMMCVPlotSuite:
                 "Ensure the InferenceData was produced by TimeSliceCrossValidator.run()."
             )
 
-        posterior = data.posterior
+        posterior = data["/posterior"].to_dataset()
         if dims:
             posterior = _select_dims(posterior, dims)
 

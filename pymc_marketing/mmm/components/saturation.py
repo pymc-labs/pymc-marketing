@@ -194,7 +194,7 @@ class SaturationTransformation(Transformation):
     @validate_call
     def sample_curve(
         self,
-        parameters: InstanceOf[xr.Dataset] = Field(
+        parameters: InstanceOf[xr.Dataset] | InstanceOf[xr.DataTree] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
         max_value: float = Field(1.0, gt=0, description="Maximum range value."),

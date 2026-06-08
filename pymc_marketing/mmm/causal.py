@@ -930,7 +930,7 @@ class TBFPC:
         resid_solve = self.y_sh - pt.dot(X, beta_solve)
         rss_solve = pt.sum(resid_solve**2)
 
-        beta_pinv = pt.nlinalg.pinv(X) @ self.y_sh
+        beta_pinv = pt.linalg.pinv(X) @ self.y_sh
         resid_pinv = self.y_sh - pt.dot(X, beta_pinv)
         rss_pinv = pt.sum(resid_pinv**2)
 
