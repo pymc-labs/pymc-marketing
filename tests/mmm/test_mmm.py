@@ -189,6 +189,14 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     mmm.build_model(X=dataset, y=None)
 
     assert "_target" in mmm.xarray_dataset.data_vars
+    assert "_channel" in mmm.xarray_dataset.data_vars
+    assert "date" in mmm.xarray_dataset.coords
+    assert "channel" in mmm.xarray_dataset.coords
+    assert mmm.xarray_dataset["_target"].dims == ("date",)
+    assert mmm.xarray_dataset["_target"].shape == (14,)
+    assert mmm.model is not None
+    assert hasattr(mmm, "model_coords")
+    assert "date" in mmm.model_coords
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
