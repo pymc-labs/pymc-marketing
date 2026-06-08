@@ -29,6 +29,8 @@ from pymc_marketing.customer_choice.synthetic_data import (
     generate_maxdiff_data,
 )
 
+PYTENSOR_NUMBA_ISSUE = "pymc-devs/pytensor#2201"
+
 
 def _small_maxdiff_df(
     n_respondents: int = 6,
@@ -228,6 +230,9 @@ class TestBuildModel:
         ref_pos = items.index(items[-1])
         assert beta_item[ref_pos] == 0.0
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_model_logp_finite(self, small_maxdiff):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -267,6 +272,9 @@ class TestBuildModel:
         det_names = [d.name for d in model.model.deterministics]
         assert "beta_item_r" not in det_names
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_ragged_subset_sizes(self, ragged_maxdiff):
         task_df, items = ragged_maxdiff
         arrays = prepare_maxdiff_data(task_df, items=items)
@@ -677,6 +685,9 @@ class TestPartWorthsBuild:
         assert {"beta_feat", "sigma_feat", "z_feat", "U_item_r"}.issubset(rv_names)
         assert model.coords["random_features"] == ["price"]
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_logp_finite(self, partworths_fixture):
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
@@ -1366,6 +1377,9 @@ class TestFullCovariance:
         assert "items_bis" in model.coords
         assert list(model.coords["items_bis"]) == items
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_logp_finite(self, full_cov_fixture):
         """Log-probability at the initial point must be finite."""
         task_df, items, _ = full_cov_fixture
