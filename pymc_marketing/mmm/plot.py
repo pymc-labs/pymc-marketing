@@ -189,6 +189,7 @@ from collections.abc import Iterable
 from typing import Any, Literal, cast
 
 import arviz as az
+import arviz_plots as azp
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
@@ -4284,18 +4285,17 @@ class MMMPlotSuite:
             )
 
         # Create the forest plot
-        lower = (1 - hdi_prob) / 2
-        upper = 1 - lower
-        pc = az.plot_forest(
-            dt=xr.DataTree.from_dict(
+        pc = azp.plot_forest(
+            xr.DataTree.from_dict(
                 {
-                    "posterior": channel_contribution_share.to_dataset(
+                    "/posterior": channel_contribution_share.to_dataset(
                         name="channel_contribution_share"
                     )
                 }
             ),
             combined=True,
-            ci_probs=[lower, upper],
+            ci_kind="hdi",
+            ci_probs=(0.5, hdi_prob),
             figure_kwargs=dict(figsize=figsize),
         )
 
@@ -4809,11 +4809,11 @@ class MMMPlotSuite:
         if dims is None:
             # No dims: standard forest plot
             forest_data = {
-                name: xr.DataTree.from_dict({"posterior": ds})
+                name: xr.DataTree.from_dict({"/posterior": ds})
                 for name, ds in zip(model_names, posterior_list, strict=True)
             }
-            pc = az.plot_forest(
-                dt=forest_data,
+            pc = azp.plot_forest(
+                forest_data,
                 var_names=parameter,
                 combined=True,
                 figure_kwargs={"figsize": (9, 6)},
@@ -4843,11 +4843,11 @@ class MMMPlotSuite:
                             ) from exc
 
                     forest_data = {
-                        name: xr.DataTree.from_dict({"posterior": ds})
+                        name: xr.DataTree.from_dict({"/posterior": ds})
                         for name, ds in zip(model_names, sel_data, strict=True)
                     }
-                    pc = az.plot_forest(
-                        dt=forest_data,
+                    pc = azp.plot_forest(
+                        forest_data,
                         var_names=parameter,
                         combined=True,
                         figure_kwargs={"figsize": (9, 6)},
@@ -4865,11 +4865,11 @@ class MMMPlotSuite:
             # If dims provided but empty, fall back to the no-dims behavior
             if last_fig_ax is None:
                 forest_data = {
-                    name: xr.DataTree.from_dict({"posterior": ds})
+                    name: xr.DataTree.from_dict({"/posterior": ds})
                     for name, ds in zip(model_names, posterior_list, strict=True)
                 }
-                pc = az.plot_forest(
-                    dt=forest_data,
+                pc = azp.plot_forest(
+                    forest_data,
                     var_names=parameter,
                     combined=True,
                     figure_kwargs={"figsize": (9, 6)},

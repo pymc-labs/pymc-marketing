@@ -14,6 +14,7 @@
 import warnings
 
 import arviz as az
+import arviz_plots as azp
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -3695,7 +3696,7 @@ def test_param_stability_no_dims_calls_plot_forest(monkeypatch):
         recorded.append({"args": args, "kwargs": kwargs})
         return _make_mock_plot_collection(fig)
 
-    monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
+    monkeypatch.setattr(azp, "plot_forest", fake_plot_forest)
 
     _fig, _ax = suite.param_stability(results, parameter=["beta"], dims=None)
 
@@ -3718,7 +3719,7 @@ def test_param_stability_with_dims_calls_plot_forest_per_coord(monkeypatch):
         recorded.append({"args": args, "kwargs": kwargs})
         return _make_mock_plot_collection(fig)
 
-    monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
+    monkeypatch.setattr(azp, "plot_forest", fake_plot_forest)
 
     fig_ax = suite.param_stability(
         results, parameter=["beta"], dims={"country": ["A", "B"]}
@@ -3751,7 +3752,7 @@ def test_param_stability_empty_dims_falls_back_to_no_dims(monkeypatch):
         called.update(kwargs)
         return _make_mock_plot_collection(fig)
 
-    monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
+    monkeypatch.setattr(azp, "plot_forest", fake_plot_forest)
 
     fig_ax = suite.param_stability(results, parameter=["beta"], dims={})
     assert fig_ax == (fig, ax)
