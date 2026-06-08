@@ -365,8 +365,7 @@ class MVITS(RegressionModelBuilder):
                 predictions=True,
             )
             counterfactual_idata.attrs = dict(self.idata.attrs)  # type: ignore[union-attr]
-            counterfactual_idata.update(self.idata)
-            self.idata = counterfactual_idata  # type: ignore
+            self.idata.update(counterfactual_idata)  # type: ignore
 
     def sample(
         self,

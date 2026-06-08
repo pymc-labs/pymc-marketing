@@ -393,9 +393,7 @@ class HSGPBase(BaseModel):
             model=model,
             **sample_prior_predictive_kwargs,
         )
-        if isinstance(prior_pred, xr.DataTree):
-            return prior_pred["/prior"].to_dataset()
-        return prior_pred.prior
+        return prior_pred["/prior"].to_dataset()
 
     def plot_curve(
         self,

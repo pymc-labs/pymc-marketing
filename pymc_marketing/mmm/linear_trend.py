@@ -378,9 +378,7 @@ class LinearTrend(BaseModel):
                 param.create_variable(key, xdist=True)
 
             prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
-            if isinstance(prior_pred, xr.DataTree):
-                return prior_pred["/prior"].to_dataset()
-            return prior_pred.prior
+            return prior_pred["/prior"].to_dataset()
 
     def sample_curve(
         self,
