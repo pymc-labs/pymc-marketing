@@ -410,18 +410,22 @@ class MMMPlotSuite:
         if label is None:
             label = var
         median = data.median(dim="sample") if "sample" in data.dims else data.median()
-        hdi = az.hdi(
-            data,
-            hdi_prob=hdi_prob,
-            input_core_dims=[["sample"]] if "sample" in data.dims else None,
-        )
 
         if "date" not in data.dims:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
         dates = data.coords["date"].values
-        # Add median and HDI to the plot
         ax.plot(dates, median, label=label, alpha=0.9)
-        ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
+
+        if "sample" in data.dims:
+            hdi = az.hdi(data, prob=hdi_prob, dim="sample")
+            ax.fill_between(
+                dates, hdi.sel(ci_bound="lower"), hdi.sel(ci_bound="upper"), alpha=0.2
+            )
+        elif "chain" in data.dims and "draw" in data.dims:
+            hdi = az.hdi(data, prob=hdi_prob)
+            ax.fill_between(
+                dates, hdi.sel(ci_bound="lower"), hdi.sel(ci_bound="upper"), alpha=0.2
+            )
         return ax
 
     def _validate_dims(
@@ -807,18 +811,18 @@ class MMMPlotSuite:
             # 6. Plot HDI bands (wider bands first with lighter alpha)
             alphas = [0.2 + i * 0.2 for i in range(len(hdi_prob))]
             for prob, alpha in zip(hdi_prob, alphas, strict=True):
+                hdi_kwargs = {}
+                if "sample" in residuals_subset.dims:
+                    hdi_kwargs["dim"] = "sample"
                 residuals_hdi = az.hdi(
                     residuals_subset,
-                    hdi_prob=prob,
-                    input_core_dims=[["sample"]]
-                    if "sample" in residuals_subset.dims
-                    else None,
+                    prob=prob,
+                    **hdi_kwargs,
                 )
-
                 ax.fill_between(
                     dates,
-                    residuals_hdi["residuals"].sel(hdi="lower"),
-                    residuals_hdi["residuals"].sel(hdi="higher"),
+                    residuals_hdi.sel(ci_bound="lower"),
+                    residuals_hdi.sel(ci_bound="upper"),
                     color="C3",
                     alpha=alpha,
                     label=f"${100 * prob:.0f}\\%$ HDI",
@@ -932,13 +936,21 @@ class MMMPlotSuite:
 
             # Create single plot
             fig, ax = plt.subplots(figsize=(8, 6))
-            az.plot_dist(
-                residuals_agg,
-                quantiles=quantiles,
+            residuals_values = residuals_agg.values.ravel()
+            sns.kdeplot(
+                x=residuals_values,
                 color="C3",
-                fill_kwargs={"alpha": 0.7},
+                fill=True,
+                alpha=0.7,
                 ax=ax,
             )
+            for q in quantiles:
+                ax.axvline(
+                    np.quantile(residuals_values, q),
+                    color="C3",
+                    linestyle="--",
+                    linewidth=0.8,
+                )
             ax.axvline(x=0, color="black", linestyle="--", linewidth=1, label="zero")
             ax.legend()
             ax.set_title(f"Residuals Posterior Distribution ({aggregation})")
@@ -979,13 +991,21 @@ class MMMPlotSuite:
                 residuals_flat = residuals_subset.stack(all_samples=("chain", "draw"))
 
             # Plot distribution
-            az.plot_dist(
-                residuals_flat,
-                quantiles=quantiles,
+            residuals_values = residuals_flat.values.ravel()
+            sns.kdeplot(
+                x=residuals_values,
                 color="C3",
-                fill_kwargs={"alpha": 0.7},
+                fill=True,
+                alpha=0.7,
                 ax=ax,
             )
+            for q in quantiles:
+                ax.axvline(
+                    np.quantile(residuals_values, q),
+                    color="C3",
+                    linestyle="--",
+                    linewidth=0.8,
+                )
             ax.axvline(x=0, color="black", linestyle="--", linewidth=1, label="zero")
             ax.legend()
 
@@ -3359,30 +3379,30 @@ class MMMPlotSuite:
                 mean = mean.sum(dim=reduce_dims)
 
             if "sample" in line_data.dims:
-                hdi = az.hdi(line_data, prob=hdi_prob, input_core_dims=[["sample"]])
+                hdi = az.hdi(line_data, prob=hdi_prob, dim="sample")
                 if isinstance(hdi, xr.Dataset):
                     hdi = hdi[next(iter(hdi.data_vars))]
             else:
-                hdi = xr.concat([mean, mean], dim="hdi").assign_coords(
-                    hdi=np.array([0, 1])
+                hdi = xr.concat([mean, mean], dim="ci_bound").assign_coords(
+                    ci_bound=["lower", "upper"]
                 )
 
-            reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "hdi")]
+            reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "ci_bound")]
             if reduce_hdi:
                 hdi = hdi.sum(dim=reduce_hdi)
-            if set(hdi.dims) == {sweep_dim, "hdi"} and list(hdi.dims) != [
+            if set(hdi.dims) == {sweep_dim, "ci_bound"} and list(hdi.dims) != [
                 sweep_dim,
-                "hdi",
+                "ci_bound",
             ]:
-                hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
+                hdi = hdi.transpose(sweep_dim, "ci_bound")  # type: ignore
 
             current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **line_kwargs)
-            az.plot_hdi(
-                x=sweep,
-                hdi_data=np.asarray(hdi.values, dtype=float),
-                hdi_prob=hdi_prob,
+            current_ax.fill_between(
+                sweep,
+                np.asarray(hdi.sel(ci_bound="lower").values, dtype=float),
+                np.asarray(hdi.sel(ci_bound="upper").values, dtype=float),
+                alpha=0.25,
                 color=line_color,
-                ax=current_ax,
             )
 
         # Get sweep coordinate values for absolute x-axis computation
@@ -4225,7 +4245,8 @@ class MMMPlotSuite:
 
         # Extract the variable
         channel_contribution_original_scale = az.extract(
-            data=self.idata.posterior.to_dataset(),
+            data=self.idata,
+            group="posterior",
             var_names=["channel_contribution_original_scale"],
             combined=False,
         )
@@ -4263,19 +4284,33 @@ class MMMPlotSuite:
             )
 
         # Create the forest plot
-        ax, *_ = az.plot_forest(
-            data=channel_contribution_share,
+        lower = (1 - hdi_prob) / 2
+        upper = 1 - lower
+        pc = az.plot_forest(
+            dt=xr.DataTree.from_dict(
+                {
+                    "posterior": channel_contribution_share.to_dataset(
+                        name="channel_contribution_share"
+                    )
+                }
+            ),
             combined=True,
-            hdi_prob=hdi_prob,
-            figsize=figsize,
-            **plot_kwargs,
+            ci_probs=[lower, upper],
+            figure_kwargs=dict(figsize=figsize),
+        )
+
+        # Extract figure and axes from PlotCollection
+        fig: Figure = pc.viz["figure"].values.item()
+        ax: Axes = (
+            pc.viz["plot"].values.flat[-1]
+            if len(pc.viz["plot"].values) > 1
+            else pc.viz["plot"].values.flat[0]
         )
 
         # Format x-axis as percentages
         ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y: 0.0%}"))
 
-        # Get the figure and set title
-        fig: Figure = plt.gcf()
+        # Set title
         fig.suptitle("Channel Contribution Share", fontsize=16, y=1.05)
 
         return fig, ax
@@ -4455,19 +4490,28 @@ class MMMPlotSuite:
                     else None
                 )
 
-            # Ensure x is at least 1D array (arviz.plot_hdi fails on 0-dim arrays)
+            # Ensure x is at least 1D array
             if x is not None:
                 x = np.atleast_1d(x)
 
-            az.plot_hdi(
-                y=arr,
-                x=x,
-                ax=ax,
-                hdi_prob=0.94,
+            # Compute HDI and median, then plot
+            da = xr.DataArray(arr, dims=["sample", "date"], coords={"date": x})
+            hdi = az.hdi(da, prob=0.94, dim="sample")
+            median = da.median(dim="sample")
+            ax.fill_between(
+                x,
+                np.asarray(hdi.sel(ci_bound="lower").values, dtype=float),
+                np.asarray(hdi.sel(ci_bound="upper").values, dtype=float),
+                alpha=0.25,
                 color=color,
-                smooth=False,
-                fill_kwargs={"alpha": 0.25, "label": label},
-                plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
+                label=label,
+            )
+            ax.plot(
+                x,
+                np.asarray(median.values, dtype=float),
+                color=color,
+                linestyle="--",
+                linewidth=1,
             )
 
         # Iterate panels x folds
@@ -4764,14 +4808,18 @@ class MMMPlotSuite:
 
         if dims is None:
             # No dims: standard forest plot
-            fig, ax = plt.subplots(figsize=(9, 6))
-            az.plot_forest(
-                data=posterior_list,
-                model_names=model_names,
+            forest_data = {
+                name: xr.DataTree.from_dict({"posterior": ds})
+                for name, ds in zip(model_names, posterior_list, strict=True)
+            }
+            pc = az.plot_forest(
+                dt=forest_data,
                 var_names=parameter,
                 combined=True,
-                ax=ax,
+                figure_kwargs={"figsize": (9, 6)},
             )
+            fig: Figure = pc.viz["figure"].values.item()
+            ax = fig.axes[0]
             fig.suptitle(
                 f"Parameter Stability: {parameter}",
                 fontsize=18,
@@ -4785,8 +4833,6 @@ class MMMPlotSuite:
             last_fig_ax = None
             for dim_name, coord_values in dims.items():
                 for coord in coord_values:
-                    fig, ax = plt.subplots(figsize=(9, 6))
-                    # Select the coordinate value from each posterior fold
                     sel_data = []
                     for p in posterior_list:
                         try:
@@ -4796,13 +4842,18 @@ class MMMPlotSuite:
                                 f"Unable to select dims from posterior for one or more folds: {exc}"  # noqa: S608
                             ) from exc
 
-                    az.plot_forest(
-                        data=sel_data,
-                        model_names=model_names,
+                    forest_data = {
+                        name: xr.DataTree.from_dict({"posterior": ds})
+                        for name, ds in zip(model_names, sel_data, strict=True)
+                    }
+                    pc = az.plot_forest(
+                        dt=forest_data,
                         var_names=parameter,
                         combined=True,
-                        ax=ax,
+                        figure_kwargs={"figsize": (9, 6)},
                     )
+                    fig = pc.viz["figure"].values.item()
+                    ax = fig.axes[0]
                     fig.suptitle(
                         f"Parameter Stability: {parameter} | {dim_name}={coord}",
                         fontsize=18,
@@ -4813,14 +4864,18 @@ class MMMPlotSuite:
 
             # If dims provided but empty, fall back to the no-dims behavior
             if last_fig_ax is None:
-                fig, ax = plt.subplots(figsize=(9, 6))
-                az.plot_forest(
-                    data=posterior_list,
-                    model_names=model_names,
+                forest_data = {
+                    name: xr.DataTree.from_dict({"posterior": ds})
+                    for name, ds in zip(model_names, posterior_list, strict=True)
+                }
+                pc = az.plot_forest(
+                    dt=forest_data,
                     var_names=parameter,
                     combined=True,
-                    ax=ax,
+                    figure_kwargs={"figsize": (9, 6)},
                 )
+                fig = pc.viz["figure"].values.item()
+                ax = fig.axes[0]
                 fig.suptitle(
                     f"Parameter Stability: {parameter}",
                     fontsize=18,

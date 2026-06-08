@@ -607,9 +607,10 @@ class TestSaturationScatterplot:
         """Test that saturation_scatterplot raises error when original_scale=True but no original scale data."""
         # Remove the original scale contribution from the mock data
         idata_copy = mock_suite_with_constant_data.idata.copy()
-        idata_copy.posterior = idata_copy.posterior.drop_vars(
+        posterior_ds = idata_copy.posterior.to_dataset().drop_vars(
             "channel_contribution_original_scale"
         )
+        idata_copy["/posterior"] = xr.DataTree(dataset=posterior_ds)
         suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
 
         with pytest.raises(
@@ -792,9 +793,10 @@ class TestSaturationCurves:
         """Test that saturation_curves raises error when original_scale=True but no original scale data."""
         # Remove the original scale contribution from the mock data
         idata_copy = mock_suite_with_constant_data.idata.copy()
-        idata_copy.posterior = idata_copy.posterior.drop_vars(
+        posterior_ds = idata_copy.posterior.to_dataset().drop_vars(
             "channel_contribution_original_scale"
         )
+        idata_copy["/posterior"] = xr.DataTree(dataset=posterior_ds)
         suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
 
         with pytest.raises(
@@ -1225,7 +1227,7 @@ def test_sensitivity_analysis_x_sweep_axis_absolute_missing_channel_scale():
 
 def test_budget_allocation_with_dims(mock_suite_with_constant_data):
     # Use dims to filter to a single country
-    samples = mock_suite_with_constant_data.idata.posterior
+    samples = mock_suite_with_constant_data.idata.posterior.to_dataset()
     # Add a fake 'allocation' variable for testing
     samples = samples.copy()
     samples["allocation"] = (
@@ -1242,7 +1244,7 @@ def test_budget_allocation_with_dims(mock_suite_with_constant_data):
 
 def test_budget_allocation_with_dims_list(mock_suite_with_constant_data):
     """Test that passing a list to dims creates a subplot for each value."""
-    samples = mock_suite_with_constant_data.idata.posterior.copy()
+    samples = mock_suite_with_constant_data.idata.posterior.to_dataset().copy()
     # Add a fake 'allocation' variable for testing
     samples["allocation"] = (
         samples["channel_contribution"].dims,
@@ -1279,6 +1281,9 @@ def test__validate_dims_valid():
     class DummyPosterior:
         coords = DummyCoords()
 
+        def to_dataset(self):
+            return self
+
     suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
     # Should not raise
     suite._validate_dims({"country": "A", "region": "X"}, ["country", "region"])
@@ -1303,6 +1308,9 @@ def test__validate_dims_invalid_dim():
     class DummyPosterior:
         coords = DummyCoords()
 
+        def to_dataset(self):
+            return self
+
     suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
     with pytest.raises(ValueError, match=r"Dimension 'region' not found"):
         suite._validate_dims({"region": "X"}, ["country"])
@@ -1325,6 +1333,9 @@ def test__validate_dims_invalid_value():
 
     class DummyPosterior:
         coords = DummyCoords()
+
+        def to_dataset(self):
+            return self
 
     suite.idata = type("idata", (), {"posterior": DummyPosterior()})()
     with pytest.raises(ValueError, match=r"Value 'C' not found in dimension 'country'"):
@@ -1490,9 +1501,10 @@ class TestResidualsOverTime:
         )
 
         # Remove target_data from constant_data
-        idata.constant_data = idata.constant_data.drop_vars(
+        constant_data_ds = idata.constant_data.to_dataset().drop_vars(
             "target_data", errors="ignore"
         )
+        idata["/constant_data"] = xr.DataTree(dataset=constant_data_ds)
 
         suite = MMMPlotSuite(idata=idata)
         with pytest.raises(ValueError, match=r"Variable 'target_data' not found"):
@@ -3009,9 +3021,10 @@ class TestChannelContributionShareHDI:
         """Test that channel_contribution_share_hdi raises error without original scale contribution."""
         # Remove the original scale contribution from the mock data
         idata_copy = mock_suite_with_constant_data.idata.copy()
-        idata_copy.posterior = idata_copy.posterior.drop_vars(
+        posterior_ds = idata_copy.posterior.to_dataset().drop_vars(
             "channel_contribution_original_scale"
         )
+        idata_copy["/posterior"] = xr.DataTree(dataset=posterior_ds)
         suite_without_original_scale = MMMPlotSuite(idata=idata_copy)
 
         with pytest.raises(
@@ -3361,10 +3374,19 @@ def test_align_y_to_df_skips_observed_when_y_train_none(monkeypatch):
         coords={"cv": ["cv1"]},
         name="metadata",
     )
-    results.cv_metadata = xr.Dataset({"metadata": meta_da})
+    results.cv_metadata = xr.DataTree(dataset=xr.Dataset({"metadata": meta_da}))
 
-    # Monkeypatch az.plot_hdi to be a no-op so test is focused on observed plotting behavior
-    monkeypatch.setattr(az, "plot_hdi", lambda *a, **k: None)
+    # Monkeypatch az.hdi to return mock HDI results so test is focused on observed plotting behavior
+    def mock_hdi(*args, **kwargs):
+        data = args[0] if args else kwargs.get("data")
+        n_date = data.shape[1] if hasattr(data, "shape") and data.ndim > 1 else 1
+        return xr.DataArray(
+            np.stack([np.zeros(n_date), np.ones(n_date)], axis=-1),
+            dims=["date", "ci_bound"],
+            coords={"ci_bound": ["lower", "upper"]},
+        )
+
+    monkeypatch.setattr(az, "hdi", mock_hdi)
 
     _fig, axes = suite.cv_predictions(results, dims=None)
 
@@ -3374,24 +3396,40 @@ def test_align_y_to_df_skips_observed_when_y_train_none(monkeypatch):
         assert "observed" not in labels
 
 
-def test_plot_hdi_from_sel_calls_az_plot_hdi(monkeypatch):
-    """Ensure the helper that wraps az.plot_hdi ends up calling az.plot_hdi with expected kwargs (hdi_prob=0.94)."""
+def test_plot_hdi_from_sel_calls_az_hdi(monkeypatch):
+    """Ensure the helper that wraps HDI computation ends up calling az.hdi with prob=0.94."""
     suite = MMMPlotSuite(idata=None)
     results = _build_cv_results_for_cv_predictions()
 
     recorded = []
 
-    def fake_plot_hdi(*args, **kwargs):
+    def fake_hdi(*args, **kwargs):
         recorded.append({"args": args, "kwargs": kwargs})
+        # Return a minimal valid HDI result with the expected structure
+        import numpy as np
+        import xarray as xr
 
-    monkeypatch.setattr(az, "plot_hdi", fake_plot_hdi)
+        data = args[0] if args else kwargs.get("data")
+        if hasattr(data, "shape"):
+            n_date = data.shape[1] if data.ndim > 1 else 1
+        else:
+            n_date = 1
+        lower = np.zeros(n_date)
+        upper = np.ones(n_date)
+        return xr.DataArray(
+            np.stack([lower, upper], axis=-1),
+            dims=["date", "ci_bound"],
+            coords={"ci_bound": ["lower", "upper"]},
+        )
+
+    monkeypatch.setattr(az, "hdi", fake_hdi)
 
     _fig, _axes = suite.cv_predictions(results, dims=None)
 
-    # We expect at least one call to az.plot_hdi from _plot_hdi_from_sel
+    # We expect at least one call to az.hdi from _plot_hdi_from_sel
     assert len(recorded) >= 1
-    # Check that at least one call used the expected hdi_prob
-    assert any(call["kwargs"].get("hdi_prob") == 0.94 for call in recorded)
+    # Check that at least one call used prob=0.94
+    assert any(call["kwargs"].get("prob") == 0.94 for call in recorded)
 
 
 def test_cv_predictions_panel_selection_failure_skips_panel(monkeypatch):
@@ -3499,6 +3537,9 @@ def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
 
             self.coords = {"cv": _C(self._meta_da._cv)}
 
+        def to_dataset(self):
+            return self
+
         def __contains__(self, key):
             return key in ("metadata", 0)
 
@@ -3515,7 +3556,16 @@ def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
     results.cv_metadata = FakeMetaDataset(fake_meta_da)
 
     # Avoid HDI plotting noise
-    monkeypatch.setattr(az, "plot_hdi", lambda *a, **k: None)
+    def mock_hdi(*args, **kwargs):
+        data = args[0] if args else kwargs.get("data")
+        n_date = data.shape[1] if hasattr(data, "shape") and data.ndim > 1 else 1
+        return xr.DataArray(
+            np.stack([np.zeros(n_date), np.ones(n_date)], axis=-1),
+            dims=["date", "ci_bound"],
+            coords={"ci_bound": ["lower", "upper"]},
+        )
+
+    monkeypatch.setattr(az, "hdi", mock_hdi)
 
     _fig, axes = suite.cv_predictions(results, dims=None)
 
@@ -3526,15 +3576,14 @@ def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
 
 
 def test_cv_predictions_hdi_failure_warns(monkeypatch):
-    """If az.plot_hdi (called by _plot_hdi_from_sel) raises, cv_predictions should warn and continue."""
+    """If az.hdi (called by _plot_hdi_from_sel) raises, cv_predictions should warn and continue."""
     suite = MMMPlotSuite(idata=None)
     results = _build_cv_results_for_cv_predictions()
 
-    def raise_plot_hdi(*args, **kwargs):
-        # Code catches (KeyError, ValueError, TypeError), so raise TypeError
+    def raise_hdi(*args, **kwargs):
         raise TypeError("forced hdi failure")
 
-    monkeypatch.setattr(az, "plot_hdi", raise_plot_hdi)
+    monkeypatch.setattr(az, "hdi", raise_hdi)
 
     with pytest.warns(
         UserWarning, match=r"Could not compute HDI for (train|test) range"
@@ -3551,8 +3600,22 @@ def test_cv_predictions_plots_observed_and_train_end(monkeypatch):
     suite = MMMPlotSuite(idata=None)
     results = _build_cv_results_for_cv_predictions()
 
-    # Make HDI plotting a no-op so only observed/train-end lines are relevant
-    monkeypatch.setattr(az, "plot_hdi", lambda *a, **k: None)
+    # Make HDI computation a no-op so only observed/train-end lines are relevant
+    def mock_hdi(*args, **kwargs):
+        data = args[0] if args else kwargs.get("data")
+        if hasattr(data, "shape"):
+            n_date = data.shape[1] if data.ndim > 1 else 1
+        else:
+            n_date = 1
+        lower = np.zeros(n_date)
+        upper = np.ones(n_date)
+        return xr.DataArray(
+            np.stack([lower, upper], axis=-1),
+            dims=["date", "ci_bound"],
+            coords={"ci_bound": ["lower", "upper"]},
+        )
+
+    monkeypatch.setattr(az, "hdi", mock_hdi)
 
     _fig, axes = suite.cv_predictions(results, dims=None)
 
@@ -3604,15 +3667,33 @@ def _build_param_stability_idata_no_country(
     return xr.DataTree.from_dict({"/posterior": posterior})
 
 
+def _make_mock_plot_collection(fig):
+    """Create a minimal mock PlotCollection from a figure for monkeypatched tests."""
+
+    class MockPlotCollection:
+        def __init__(self, fig):
+            self._fig = fig
+
+        @property
+        def viz(self):
+            # Create a minimal DataTree-like structure that behaves like pc.viz['figure'].values.item()
+            ds = xr.Dataset({"figure": (("x",), [self._fig])})
+            return xr.DataTree.from_dict({"/": ds})
+
+    return MockPlotCollection(fig)
+
+
 def test_param_stability_no_dims_calls_plot_forest(monkeypatch):
     """When no dims provided, a single forest plot over posterior_list should be produced."""
     suite = MMMPlotSuite(idata=None)
     results = _build_param_stability_idata()
 
+    fig, _ = plt.subplots()
     recorded = []
 
     def fake_plot_forest(*args, **kwargs):
         recorded.append({"args": args, "kwargs": kwargs})
+        return _make_mock_plot_collection(fig)
 
     monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
 
@@ -3630,10 +3711,12 @@ def test_param_stability_with_dims_calls_plot_forest_per_coord(monkeypatch):
         cv_labels=("cv1", "cv2"), countries=("A", "B")
     )
 
+    fig, _ = plt.subplots()
     recorded = []
 
     def fake_plot_forest(*args, **kwargs):
         recorded.append({"args": args, "kwargs": kwargs})
+        return _make_mock_plot_collection(fig)
 
     monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
 
@@ -3661,19 +3744,14 @@ def test_param_stability_empty_dims_falls_back_to_no_dims(monkeypatch):
     suite = MMMPlotSuite(idata=None)
     results = _build_param_stability_idata()
 
+    fig, ax = plt.subplots()
     called = {}
 
     def fake_plot_forest(*args, **kwargs):
         called.update(kwargs)
-        return kwargs.get("ax")
-
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots()
+        return _make_mock_plot_collection(fig)
 
     monkeypatch.setattr(az, "plot_forest", fake_plot_forest)
-    monkeypatch.setattr(plt, "subplots", lambda figsize: (fig, ax))
-    monkeypatch.setattr(plt, "show", lambda: None)
 
     fig_ax = suite.param_stability(results, parameter=["beta"], dims={})
     assert fig_ax == (fig, ax)
@@ -4551,7 +4629,7 @@ def test_cv_predictions_invalid_input_type_raises():
     suite = MMMPlotSuite(idata=None)
     with pytest.raises(
         TypeError,
-        match=r"plot_cv_predictions expects an xarray.DataTree object for 'results'",
+        match=r"plot_cv_predictions expects an xr.DataTree object for 'results'",
     ):
         suite.cv_predictions("not an InferenceData object")
 
@@ -4561,7 +4639,7 @@ def test_param_stability_invalid_input_type_raises():
     suite = MMMPlotSuite(idata=None)
     with pytest.raises(
         TypeError,
-        match=r"plot_param_stability expects an `xarray.DataTree` returned by TimeSliceCrossValidator.run(...)",
+        match=r"plot_param_stability expects an `xr.DataTree` returned by TimeSliceCrossValidator.run(...)",
     ):
         suite.param_stability("not an InferenceData object", parameter=[])
 
@@ -5070,7 +5148,7 @@ class TestAllocatedContributionByChannelOverTime:
         idata = xr.DataTree.from_dict({})
 
         with pytest.raises(
-            ValueError, match=r"InferenceData must contain 'posterior_predictive'"
+            ValueError, match=r"xr.DataTree must contain 'posterior_predictive' group."
         ):
             mock_suite_basic.allocated_contribution_by_channel_over_time(samples=idata)
 

@@ -131,8 +131,8 @@ class TestCLVModel:
             compute_convergence_checks=False,
         )
         assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().dims["chain"] == 2
-        assert idata["/posterior"].to_dataset().dims["draw"] == 10
+        assert idata["/posterior"].to_dataset().sizes["chain"] == 2
+        assert idata["/posterior"].to_dataset().sizes["draw"] == 10
         assert model.fit_result.equals(idata["/posterior"].to_dataset())
         assert isinstance(model.fit_result, xr.Dataset)
 
@@ -143,8 +143,8 @@ class TestCLVModel:
         idata = model.fit(method="map")
 
         assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().dims["chain"] == 1
-        assert idata["/posterior"].to_dataset().dims["draw"] == 1
+        assert idata["/posterior"].to_dataset().sizes["chain"] == 1
+        assert idata["/posterior"].to_dataset().sizes["draw"] == 1
         assert model.fit_result.equals(idata["/posterior"].to_dataset())
         assert isinstance(model.fit_result, xr.Dataset)
         # Check that summary only includes single value
@@ -166,8 +166,8 @@ class TestCLVModel:
         )
 
         assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().dims["chain"] == 2
-        assert idata["/posterior"].to_dataset().dims["draw"] == 10
+        assert idata["/posterior"].to_dataset().sizes["chain"] == 2
+        assert idata["/posterior"].to_dataset().sizes["draw"] == 10
         assert model.fit_result.equals(idata["/posterior"].to_dataset())
         assert isinstance(model.fit_result, xr.Dataset)
 
@@ -181,8 +181,8 @@ class TestCLVModel:
             draws=10,
         )
         assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().dims["chain"] == 1
-        assert idata["/posterior"].to_dataset().dims["draw"] == 10
+        assert idata["/posterior"].to_dataset().sizes["chain"] == 1
+        assert idata["/posterior"].to_dataset().sizes["draw"] == 10
 
     def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker):
         model = CLVModelTest()

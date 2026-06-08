@@ -49,7 +49,16 @@ def test_summary_data() -> pd.DataFrame:
 
 def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
     if isinstance(fit, xr.DataTree):
-        assert "/posterior" in fit.groups
+        if "/posterior" in fit.groups:
+            pass
+        elif "/prior" in fit.groups:
+            ds = fit["/prior"].to_dataset()
+            fit = xr.DataTree.from_dict({"/posterior": ds})
+        else:
+            raise ValueError(
+                f"Cannot fit model. Expected /posterior or /prior group, "
+                f"got {fit.groups}"
+            )
     else:
         fit = xr.DataTree.from_dict({"/posterior": fit})
     if not hasattr(model, "model"):
@@ -118,10 +127,9 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         "r": Prior("DiracDelta", c=0.16385072),
     }
     model = BetaGeoModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    model.build_model()
+    model.build_model(data=test_summary_data)
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
     # posterior group required to pass L80 assert check
     fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
@@ -144,10 +152,9 @@ def fitted_mbg(test_summary_data) -> ModifiedBetaGeoModel:
         "r": Prior("DiracDelta", c=0.16385072),
     }
     model = ModifiedBetaGeoModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    model.build_model()
+    model.build_model(data=test_summary_data)
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
     # posterior group required to pass L80 assert check
     fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
@@ -170,10 +177,9 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
         "beta": Prior("DiracDelta", c=9.756),
     }
     pnbd_model = ParetoNBDModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    pnbd_model.build_model()
+    pnbd_model.build_model(data=test_summary_data)
 
     # Mock an idata object for tests requiring a fitted model
     # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.

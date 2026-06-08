@@ -90,8 +90,8 @@ class TestShiftedBetaGeoModel:
                 ),
             }
         )
-        cls.erl_model = ShiftedBetaGeoModel(cls.erl_data)
-        cls.erl_model.build_model()
+        cls.erl_model = ShiftedBetaGeoModel()
+        cls.erl_model.build_model(data=cls.erl_data)
         cls.erl_cohorts = ["case1", "case2"]
         # Mock a fitted model with [case1, case2] cohort parameters
         # for testing expected_residual_lifetime, expected_retention_elasticity
@@ -130,7 +130,7 @@ class TestShiftedBetaGeoModel:
             )
             for param in zip(alpha_beta_sim, ["alpha", "beta"], strict=False)
         ]
-        posterior = az.convert_to_inference_data(xr.merge(param_arrays))
+        posterior = xr.DataTree.from_dict({"/posterior": xr.merge(param_arrays)})
         # Set idata and add fit data group
         model.idata = posterior
         model.set_idata_attrs(model.idata)
@@ -473,8 +473,8 @@ class TestShiftedBetaGeoModel:
             "ShiftedBeta-Geometric"
             "\nphi~Uniform(0,1)"
             "\nkappa~Pareto(1,1)"
-            "\nalpha~Deterministic(f(kappa,phi))"
-            "\nbeta~Deterministic(f(kappa,phi))"
+            "\nalpha=Deterministic(f(kappa,phi))"
+            "\nbeta=Deterministic(f(kappa,phi))"
             "\ndropout~Censored(ShiftedBetaGeometric(f(kappa,phi),f(kappa,phi)),-inf,<constant>)"
         )
 
@@ -1338,11 +1338,13 @@ class TestShiftedBetaGeoModelIndividual:
         model.build_model()
         model.fit(method="map")
         customer_thetas = np.array([0.1, 0.5, 0.9])
-        model.idata = xr.DataTree.from_dict(
+        model.idata = az.from_dict(
             {
-                "/alpha": np.ones((2, 500)),
-                "/beta": np.ones((2, 500)),
-                "/theta": np.full((2, 500, 3), customer_thetas),
+                "posterior": {
+                    "alpha": np.ones((2, 500)),
+                    "beta": np.ones((2, 500)),
+                    "theta": np.full((2, 500, 3), customer_thetas),
+                }
             }
         )
 
@@ -1369,8 +1371,13 @@ class TestShiftedBetaGeoModelIndividual:
         model.build_model()
         model.fit(method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
-        model.idata = xr.DataTree.from_dict(
-            {"/alpha": np.full((2, 500), 7000), "/beta": np.full((2, 500), 3000)}
+        model.idata = az.from_dict(
+            {
+                "posterior": {
+                    "alpha": np.full((2, 500), 7000),
+                    "beta": np.full((2, 500), 3000),
+                }
+            }
         )
 
         res = model.distribution_new_customer_theta(random_seed=141)

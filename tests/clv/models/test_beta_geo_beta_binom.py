@@ -13,6 +13,7 @@
 #   limitations under the License.
 import os
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -75,8 +76,8 @@ class TestBetaGeoBetaBinomModel:
         cls.pred_data_N = len(test_customer_ids)
 
         # Instantiate model with CDNOW data for testing
-        cls.model = BetaGeoBetaBinomModel(cls.data)
-        cls.model.build_model()
+        cls.model = BetaGeoBetaBinomModel()
+        cls.model.build_model(data=cls.data)
 
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.data)
@@ -255,10 +256,10 @@ class TestBetaGeoBetaBinomModel:
                 "\nkappa_purchase~Pareto(1,1)"
                 "\nphi_dropout~Uniform(0,1)"
                 "\nkappa_dropout~Pareto(1,1)"
-                "\nalpha~Deterministic(f(kappa_purchase,phi_purchase))"
-                "\nbeta~Deterministic(f(kappa_purchase,phi_purchase))"
-                "\ngamma~Deterministic(f(kappa_dropout,phi_dropout))"
-                "\ndelta~Deterministic(f(kappa_dropout,phi_dropout))"
+                "\nalpha=Deterministic(f(kappa_purchase,phi_purchase))"
+                "\nbeta=Deterministic(f(kappa_purchase,phi_purchase))"
+                "\ngamma=Deterministic(f(kappa_dropout,phi_dropout))"
+                "\ndelta=Deterministic(f(kappa_dropout,phi_dropout))"
                 "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
             )
         model = BetaGeoBetaBinomModel(
@@ -468,12 +469,14 @@ class TestBetaGeoBetaBinomModel:
             data=self.sample_data,
         )
         mock_model.build_model()
-        mock_model.idata = xr.DataTree.from_dict(
+        mock_model.idata = az.from_dict(
             {
-                "/alpha": [self.alpha_true],
-                "/beta": [self.beta_true],
-                "/delta": [self.delta_true],
-                "/gamma": [self.gamma_true],
+                "posterior": {
+                    "alpha": np.array([[self.alpha_true]]),
+                    "beta": np.array([[self.beta_true]]),
+                    "delta": np.array([[self.delta_true]]),
+                    "gamma": np.array([[self.gamma_true]]),
+                }
             }
         )
 
