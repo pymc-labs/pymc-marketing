@@ -804,7 +804,7 @@ class ModelBuilder(ABC, ModelIO):
                 for g in res.groups:
                     if g == "/":
                         continue
-                    for var_name, var in res[g].to_dataset().variables.items():
+                    for var_name, var in res[g].dataset.variables.items():
                         if var_name not in posterior_flat:
                             posterior_flat[var_name] = var
                 self.idata["/posterior"] = posterior_flat
@@ -942,7 +942,7 @@ class RegressionModelBuilder(ModelBuilder):
             The DataTree object to build the model from.
 
         """
-        dataset = idata.fit_data.to_dataset().to_dataframe()  # type: ignore
+        dataset = idata.fit_data.dataset.to_dataframe()  # type: ignore
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]
 

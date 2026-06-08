@@ -170,11 +170,7 @@ def _pred_matrix_for_rows(
     -------
     np.ndarray, shape (n_samples, n_rows)
     """
-    da = (
-        cv_data["/posterior_predictive"]
-        .to_dataset()["y_original_scale"]
-        .sel(cv=cv_label)
-    )
+    da = cv_data["/posterior_predictive"].dataset["y_original_scale"].sel(cv=cv_label)
 
     # Identify dimensions beyond the sample and date dims; these must be
     # matched against columns in rows_df for correct scalar selection.
@@ -442,7 +438,7 @@ class MMMCVPlotSuite:
                 "Ensure the InferenceData was produced by TimeSliceCrossValidator.run()."
             )
 
-        posterior = data["/posterior"].to_dataset()
+        posterior = data["/posterior"].dataset
         if dims:
             posterior = _select_dims(posterior, dims)
 

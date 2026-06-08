@@ -348,7 +348,7 @@ class Incrementality:
 
         # Subsample posterior if needed (correctly across chain x draw)
         posterior_sub = subsample_draws(
-            self.idata.posterior.to_dataset(),
+            self.idata.posterior.dataset,
             num_samples=num_samples,
             random_state=random_state,
         )

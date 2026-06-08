@@ -1126,9 +1126,7 @@ class MaxDiffMixedLogit(ModelBuilder):
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the PyMC model from a loaded DataTree."""
-        self.task_df = (
-            idata["fit_data"].to_dataset().to_dataframe().reset_index(drop=True)
-        )
+        self.task_df = idata["fit_data"].dataset.to_dataframe().reset_index(drop=True)
         if not hasattr(self, "model"):
             self.build_model()
 
@@ -1354,7 +1352,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             reference_item=self.reference_item,
         )
 
-        posterior = self.idata["/posterior"].to_dataset()
+        posterior = self.idata["/posterior"].dataset
         rng = (
             random_seed
             if isinstance(random_seed, np.random.Generator)

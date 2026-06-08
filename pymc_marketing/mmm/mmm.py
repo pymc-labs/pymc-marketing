@@ -3055,7 +3055,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = subsample_draws(
-            idata.posterior.to_dataset(),
+            idata.posterior.dataset,
             num_samples=num_samples,
             random_state=random_state,
         )
@@ -3193,7 +3193,7 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = subsample_draws(
-            idata.posterior.to_dataset(),
+            idata.posterior.dataset,
             num_samples=num_samples,
             random_state=random_state,
         )
@@ -3777,7 +3777,7 @@ class MMM(RegressionModelBuilder):
                 for effect_data in mu_effects_data
             ]
 
-        dataset = idata.fit_data.to_dataset().to_dataframe()
+        dataset = idata.fit_data.dataset.to_dataframe()
 
         if isinstance(dataset.index, pd.MultiIndex) or isinstance(
             dataset.index, pd.DatetimeIndex

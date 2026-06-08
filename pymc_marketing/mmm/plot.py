@@ -441,7 +441,7 @@ class MMMPlotSuite:
                     raise ValueError(
                         f"Dimension '{key}' not found in idata dimensions."
                     )
-                valid_values = self.idata.posterior.to_dataset().coords[key].values
+                valid_values = self.idata.posterior.dataset.coords[key].values
                 if isinstance(val, (list, tuple, np.ndarray)):
                     for v in val:
                         if v not in valid_values:
@@ -1080,7 +1080,7 @@ class MMMPlotSuite:
 
         coords = {
             key: value.to_numpy()
-            for key, value in self.idata.posterior.to_dataset()[var].coords.items()
+            for key, value in self.idata.posterior.dataset[var].coords.items()
         }
 
         # Apply user-specified filters (`dims`)
@@ -1095,7 +1095,7 @@ class MMMPlotSuite:
         # Identify combos for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.posterior.to_dataset().coords[dim].values  # type: ignore
+                self.idata.posterior.dataset.coords[dim].values  # type: ignore
                 for dim in additional_dims
             ]
             dim_combinations = list(itertools.product(*additional_coords))
@@ -1278,10 +1278,10 @@ class MMMPlotSuite:
                 "Please ensure 'self.idata' contains a 'posterior' group."
             )
 
-        if var not in self.idata.posterior.to_dataset():
+        if var not in self.idata.posterior.dataset:
             raise ValueError(
                 f"Variable '{var}' not found in posterior. "
-                f"Available variables: {list(self.idata.posterior.to_dataset().data_vars)}"
+                f"Available variables: {list(self.idata.posterior.dataset.data_vars)}"
             )
 
         var_data = self.idata.posterior[var]
@@ -1312,7 +1312,7 @@ class MMMPlotSuite:
         # Get combinations for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.posterior.to_dataset().coords[dim].values
+                self.idata.posterior.dataset.coords[dim].values
                 for dim in additional_dims
             ]
             additional_combos = list(itertools.product(*additional_coords))
@@ -1470,10 +1470,10 @@ class MMMPlotSuite:
                 "Please ensure 'self.idata' contains a 'posterior' group."
             )
 
-        if param_name not in self.idata.posterior.to_dataset():
+        if param_name not in self.idata.posterior.dataset:
             raise ValueError(
                 f"Parameter '{param_name}' not found in posterior. "
-                f"Available variables: {list(self.idata.posterior.to_dataset().data_vars)}"
+                f"Available variables: {list(self.idata.posterior.dataset.data_vars)}"
             )
 
         var_data = self.idata.posterior[param_name]
@@ -1500,7 +1500,7 @@ class MMMPlotSuite:
         # Get combinations for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.posterior.to_dataset().coords[dim].values
+                self.idata.posterior.dataset.coords[dim].values
                 for dim in additional_dims
             ]
             additional_combos = list(itertools.product(*additional_coords))
@@ -1686,16 +1686,16 @@ class MMMPlotSuite:
             )
 
         # Validate variable exists in both prior and posterior
-        if var not in self.idata.prior.to_dataset():
+        if var not in self.idata.prior.dataset:
             raise ValueError(
                 f"Variable '{var}' not found in prior. "
-                f"Available variables: {list(self.idata.prior.to_dataset().data_vars)}"
+                f"Available variables: {list(self.idata.prior.dataset.data_vars)}"
             )
 
-        if var not in self.idata.posterior.to_dataset():
+        if var not in self.idata.posterior.dataset:
             raise ValueError(
                 f"Variable '{var}' not found in posterior. "
-                f"Available variables: {list(self.idata.posterior.to_dataset().data_vars)}"
+                f"Available variables: {list(self.idata.posterior.dataset.data_vars)}"
             )
 
         prior_data = self.idata.prior[var]
@@ -1726,7 +1726,7 @@ class MMMPlotSuite:
             # Get combinations for additional dims
             if additional_dims:
                 additional_coords = [
-                    self.idata.prior.to_dataset().coords[dim].values
+                    self.idata.prior.dataset.coords[dim].values
                     for dim in additional_dims
                 ]
                 additional_combos = list(itertools.product(*additional_coords))
@@ -1843,8 +1843,7 @@ class MMMPlotSuite:
         # Get combinations for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.prior.to_dataset().coords[dim].values
-                for dim in additional_dims
+                self.idata.prior.dataset.coords[dim].values for dim in additional_dims
             ]
             additional_combos = list(itertools.product(*additional_coords))
         else:
@@ -2079,7 +2078,7 @@ class MMMPlotSuite:
         )
 
         if original_scale and not hasattr(
-            self.idata.posterior.to_dataset(), channel_contribution
+            self.idata.posterior.dataset, channel_contribution
         ):
             raise ValueError(
                 f"""No posterior.{channel_contribution} data found in 'self.idata'. \n
@@ -2232,9 +2231,7 @@ class MMMPlotSuite:
             else "channel_contribution"
         )
 
-        if original_scale and not hasattr(
-            self.idata.posterior.to_dataset(), contrib_var
-        ):
+        if original_scale and not hasattr(self.idata.posterior.dataset, contrib_var):
             raise ValueError(
                 f"""No posterior.{contrib_var} data found in 'self.idata'.\n"
                 "Add a original scale deterministic:\n"
@@ -2751,7 +2748,7 @@ class MMMPlotSuite:
         # Handle xr.DataTree input - extract posterior_predictive
         if isinstance(samples, xr.DataTree):
             if "/posterior_predictive" in samples.groups:
-                samples = samples["/posterior_predictive"].to_dataset()
+                samples = samples["/posterior_predictive"].dataset
             else:
                 raise ValueError(
                     "xr.DataTree must contain 'posterior_predictive' group."
@@ -3795,7 +3792,7 @@ class MMMPlotSuite:
 
         # Auto-detect contribution variables if not specified
         if var is None:
-            posterior_vars = list(self.idata.posterior.to_dataset().data_vars)
+            posterior_vars = list(self.idata.posterior.dataset.data_vars)
             # Variables to exclude - total_media_contribution is a sum of channels
             # and would double-count if included
             excluded_vars = {
@@ -4232,10 +4229,7 @@ class MMMPlotSuite:
             )
 
         # Check if channel_contribution_original_scale exists
-        if (
-            "channel_contribution_original_scale"
-            not in self.idata.posterior.to_dataset()
-        ):
+        if "channel_contribution_original_scale" not in self.idata.posterior.dataset:
             raise ValueError(
                 "Variable 'channel_contribution_original_scale' not found in posterior. "
                 "Add it using:\n"
@@ -4379,21 +4373,21 @@ class MMMPlotSuite:
         # Validate presence of cv metadata and posterior predictive
         if (
             not hasattr(results, "cv_metadata")
-            or "metadata" not in results.cv_metadata.to_dataset()
+            or "metadata" not in results.cv_metadata.dataset
         ):
             raise ValueError(
                 "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
             not hasattr(results, "posterior_predictive")
-            or "y_original_scale" not in results.posterior_predictive.to_dataset()
+            or "y_original_scale" not in results.posterior_predictive.dataset
         ):
             raise ValueError(
                 "Provided InferenceData must include posterior_predictive['y_original_scale']."
             )
 
         # Discover posterior_predictive dataarray we'll be working with
-        pp = results.posterior_predictive.to_dataset()["y_original_scale"]
+        pp = results.posterior_predictive.dataset["y_original_scale"]
 
         # Determine which coordinate dims are available for paneling (exclude technical dims)
         technical_dims = {"chain", "draw", "sample", "date", "cv"}
@@ -4431,7 +4425,7 @@ class MMMPlotSuite:
                     indexer.update(dict(zip(additional_dims, addl_combo, strict=False)))
                 total_panels.append(indexer)
 
-        cv_labels = list(results.cv_metadata.to_dataset().coords["cv"].values)
+        cv_labels = list(results.cv_metadata.dataset.coords["cv"].values)
         n_folds = len(cv_labels)
         n_panels = len(total_panels)
         n_axes = max(1, n_panels * n_folds)
@@ -4523,7 +4517,7 @@ class MMMPlotSuite:
                 # Select posterior predictive array for this CV and this panel
                 arr = (
                     results["/posterior_predictive"]
-                    .to_dataset()["y_original_scale"]
+                    .dataset["y_original_scale"]
                     .sel(cv=cv_label)
                 )
                 try:
@@ -4784,8 +4778,8 @@ class MMMPlotSuite:
                 ds = None
             if ds is None:
                 continue
-            if "cv" in ds.to_dataset().coords:
-                cv_labels = list(ds.to_dataset().coords["cv"].values)
+            if "cv" in ds.dataset.coords:
+                cv_labels = list(ds.dataset.coords["cv"].values)
                 break
 
         if cv_labels is None:
@@ -4798,10 +4792,10 @@ class MMMPlotSuite:
         model_names: list[str] = []
         for lbl in cv_labels:
             try:
-                p = idata.posterior.to_dataset().sel(cv=lbl)
+                p = idata.posterior.dataset.sel(cv=lbl)
             except (KeyError, AttributeError):
                 # fallback to selecting from posterior_predictive if posterior missing
-                p = idata.posterior_predictive.to_dataset().sel(cv=lbl)
+                p = idata.posterior_predictive.dataset.sel(cv=lbl)
 
             posterior_list.append(p)
             model_names.append(str(lbl))
@@ -4947,7 +4941,7 @@ class MMMPlotSuite:
             )
         if (
             "/cv_metadata" not in results.groups
-            or "metadata" not in results["/cv_metadata"].to_dataset().data_vars
+            or "metadata" not in results["/cv_metadata"].dataset.data_vars
         ):
             raise ValueError(
                 "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
@@ -4955,7 +4949,7 @@ class MMMPlotSuite:
         if (
             "/posterior_predictive" not in results.groups
             or "y_original_scale"
-            not in results["/posterior_predictive"].to_dataset().data_vars
+            not in results["/posterior_predictive"].dataset.data_vars
         ):
             raise ValueError(
                 "Provided InferenceData must include posterior_predictive['y_original_scale']."
@@ -4971,7 +4965,7 @@ class MMMPlotSuite:
             """
             da = (
                 idata["/posterior_predictive"]
-                .to_dataset()["y_original_scale"]
+                .dataset["y_original_scale"]
                 .sel(cv=cv_label)
             )
             da_s = da.stack(sample=("chain", "draw"))
@@ -5061,16 +5055,14 @@ class MMMPlotSuite:
         # discover cv labels from cv_metadata (preferred) or posterior_predictive coords
         if (
             hasattr(results, "cv_metadata")
-            and "cv" in results.cv_metadata.to_dataset().coords
+            and "cv" in results.cv_metadata.dataset.coords
         ):
-            cv_labels = list(results.cv_metadata.to_dataset().coords["cv"].values)
+            cv_labels = list(results.cv_metadata.dataset.coords["cv"].values)
         elif (
             hasattr(results, "posterior_predictive")
-            and "cv" in results.posterior_predictive.to_dataset().coords
+            and "cv" in results.posterior_predictive.dataset.coords
         ):
-            cv_labels = list(
-                results.posterior_predictive.to_dataset().coords["cv"].values
-            )
+            cv_labels = list(results.posterior_predictive.dataset.coords["cv"].values)
         else:
             raise ValueError(
                 "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"

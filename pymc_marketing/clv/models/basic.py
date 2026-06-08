@@ -305,7 +305,7 @@ class CLVModel(ModelBuilder):
 
         model.idata = idata
         model._rename_posterior_variables()
-        model.data = idata.fit_data.to_dataset().to_dataframe()
+        model.data = idata.fit_data.dataset.to_dataframe()
 
         model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
@@ -325,7 +325,7 @@ class CLVModel(ModelBuilder):
         This is used to support the old model configuration format, which used
         to include a _prior suffix for each parameter.
         """
-        posterior_ds = self.idata["/posterior"].to_dataset()
+        posterior_ds = self.idata["/posterior"].dataset
         prior_vars = [var for var in posterior_ds.data_vars if var.endswith("_prior")]
         rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
         self.idata["/posterior"] = posterior_ds.rename(rename_dict)

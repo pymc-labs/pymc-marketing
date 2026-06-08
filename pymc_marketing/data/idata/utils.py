@@ -100,7 +100,7 @@ def filter_idata_by_dates(
 
     filtered_groups = {}
     for name, child in idata.children.items():
-        ds = child.to_dataset()
+        ds = child.dataset
         if "date" in ds.dims:
             ds = ds.sel(**date_slice)
         filtered_groups[name] = ds
@@ -150,7 +150,7 @@ def filter_idata_by_dims(
     for path in idata.groups:
         if path == "/":
             continue
-        ds = idata[path].to_dataset()
+        ds = idata[path].dataset
         all_dims.update(ds.dims)
 
     for dim in dim_filters:
@@ -165,7 +165,7 @@ def filter_idata_by_dims(
         if path == "/":
             continue
         group_name = path.lstrip("/")
-        ds = idata[path].to_dataset()
+        ds = idata[path].dataset
 
         group_sel = {}
         for dim, values in dim_filters.items():
@@ -221,7 +221,7 @@ def aggregate_idata_time(
             if path == "/":
                 continue
             group_name = path.lstrip("/")
-            ds = idata[path].to_dataset()
+            ds = idata[path].dataset
 
             if "date" not in ds.dims:
                 aggregated_groups[group_name] = ds
@@ -255,7 +255,7 @@ def aggregate_idata_time(
         if path == "/":
             continue
         group_name = path.lstrip("/")
-        ds = idata[path].to_dataset()
+        ds = idata[path].dataset
 
         if "date" not in ds.dims:
             aggregated_groups[group_name] = ds
@@ -323,7 +323,7 @@ def aggregate_idata_dims(
     for path in idata.groups:
         if path == "/":
             continue
-        ds = idata[path].to_dataset()
+        ds = idata[path].dataset
         all_dims.update(ds.dims)
 
     if dim not in all_dims:
@@ -335,7 +335,7 @@ def aggregate_idata_dims(
     for path in idata.groups:
         if path == "/":
             continue
-        ds = idata[path].to_dataset()
+        ds = idata[path].dataset
         if dim in ds.dims:
             existing_coords = set(ds[dim].values)
             non_aggregated = existing_coords - set(values)
@@ -352,7 +352,7 @@ def aggregate_idata_dims(
         if path == "/":
             continue
         group_name = path.lstrip("/")
-        ds = idata[path].to_dataset()
+        ds = idata[path].dataset
 
         if dim not in ds.dims:
             aggregated_groups[group_name] = ds

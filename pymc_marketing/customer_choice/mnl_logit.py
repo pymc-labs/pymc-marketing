@@ -637,7 +637,7 @@ class MNLogit(ModelBuilder):
         idata : xr.DataTree
             Loaded inference data
         """
-        self.choice_df = idata["fit_data"].to_dataset().to_dataframe()
+        self.choice_df = idata["fit_data"].dataset.to_dataframe()
         if not hasattr(self, "model"):
             self.build_model()
 
