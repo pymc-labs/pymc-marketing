@@ -491,17 +491,16 @@ class MVITS(RegressionModelBuilder):
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
         existing_products = self.coords["existing_product"]
+        hdi = az.hdi(
+            self.posterior_predictive[variable].transpose(..., "time"),  # type: ignore
+            prob=0.94,
+        )
         for i, existing_product in enumerate(existing_products):
-            hdi = az.hdi(
-                self.posterior_predictive[variable]  # type: ignore
-                .transpose(..., "time")
-                .sel(existing_product=existing_product),
-                prob=0.94,
-            )
+            hdi_product = hdi.sel(existing_product=existing_product)
             ax.fill_between(
                 x,
-                hdi.sel(ci_bound="lower"),
-                hdi.sel(ci_bound="upper"),
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
                 alpha=HDI_ALPHA,
                 color=f"C{i}",
                 label=f"{existing_product} - Posterior predictive (HDI)",
@@ -554,17 +553,16 @@ class MVITS(RegressionModelBuilder):
         # plot posterior predictive distribution of sales for each of the existing products
         x = cast(pd.DataFrame, self.X).index.values
         existing_products = self.coords["existing_product"]
+        hdi = az.hdi(
+            self.predictions[variable].transpose(..., "time"),  # type: ignore
+            prob=0.94,
+        )
         for i, existing_product in enumerate(existing_products):
-            hdi = az.hdi(
-                self.predictions[variable]  # type: ignore
-                .transpose(..., "time")
-                .sel(existing_product=existing_product),
-                prob=0.94,
-            )
+            hdi_product = hdi.sel(existing_product=existing_product)
             ax.fill_between(
                 x,
-                hdi.sel(ci_bound="lower"),
-                hdi.sel(ci_bound="upper"),
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
                 alpha=HDI_ALPHA,
                 color=f"C{i}",
                 label=f"{existing_product} - Posterior predictive (HDI)",
@@ -608,17 +606,16 @@ class MVITS(RegressionModelBuilder):
         x = self.X.index.values  # type: ignore
         existing_products = self.coords["existing_product"]
 
+        hdi = az.hdi(
+            self.causal_impact(variable=variable).transpose(..., "time"),
+            prob=0.94,
+        )
         for i, existing_product in enumerate(existing_products):
-            hdi = az.hdi(
-                self.causal_impact(variable=variable)
-                .transpose(..., "time")
-                .sel(existing_product=existing_product),
-                prob=0.94,
-            )
+            hdi_product = hdi.sel(existing_product=existing_product)
             ax.fill_between(
                 x,
-                hdi.sel(ci_bound="lower"),
-                hdi.sel(ci_bound="upper"),
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
                 alpha=HDI_ALPHA,
                 color=f"C{i}",
                 label=f"{existing_product} - Posterior predictive (HDI)",
@@ -662,27 +659,21 @@ class MVITS(RegressionModelBuilder):
 
         # divide the causal impact change in sales by the counterfactual predicted sales
         variable = "mu"
-        for i, existing_product in enumerate(existing_products):
-            causal_impact = (
-                self.causal_impact(variable=variable)
-                .transpose(..., "time")
-                .sel(existing_product=existing_product)
-            )
-            total_sales = (
-                self.predictions[variable]  # type: ignore
-                .transpose(..., "time")
-                .sum(dim="existing_product")
-            )
-            causal_impact_market_share = (causal_impact / total_sales) * 100
+        causal_impact = self.causal_impact(variable=variable).transpose(..., "time")
+        total_sales = (
+            self.predictions[variable]  # type: ignore
+            .transpose(..., "time")
+            .sum(dim="existing_product")
+        )
+        causal_impact_market_share = (causal_impact / total_sales) * 100
 
-            hdi = az.hdi(
-                causal_impact_market_share,
-                prob=0.94,
-            )
+        hdi = az.hdi(causal_impact_market_share, prob=0.94)
+        for i, existing_product in enumerate(existing_products):
+            hdi_product = hdi.sel(existing_product=existing_product)
             ax.fill_between(
                 x,
-                hdi.sel(ci_bound="lower"),
-                hdi.sel(ci_bound="upper"),
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
                 alpha=HDI_ALPHA,
                 color=f"C{i}",
                 label=f"{existing_product} - Posterior predictive (HDI)",

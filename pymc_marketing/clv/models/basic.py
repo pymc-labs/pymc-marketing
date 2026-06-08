@@ -287,7 +287,7 @@ class CLVModel(ModelBuilder):
         """Create the initialization kwargs from an InferenceData object."""
         kwargs = cls.attrs_to_init_kwargs(idata.attrs)
         if "fit_data" in idata:
-            kwargs["data"] = idata.fit_data.to_dataset().to_dataframe()
+            kwargs["data"] = idata.fit_data.dataset.to_dataframe()
 
         return kwargs
 

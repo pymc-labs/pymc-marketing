@@ -44,12 +44,7 @@ def idata_to_zarr(
         Groups to save. If None, all groups are saved.
     """
     if groups is not None:
-        filtered = {
-            f"/{g}": idata[f"/{g}"].to_dataset()
-            for g in groups
-            if f"/{g}" in idata.groups
-        }
-        idata = xr.DataTree.from_dict(filtered)
+        idata = idata.filter(lambda g: g.name in groups)
         idata.attrs = idata.attrs.copy() if hasattr(idata, "attrs") else {}
 
     idata.to_zarr(store)
@@ -104,14 +99,11 @@ def filter_idata_by_dates(
     date_slice = {"date": slice(start_date, end_date)}
 
     filtered_groups = {}
-    for path in idata.groups:
-        if path == "/":
-            continue
-        group_name = path.lstrip("/")
-        ds = idata[path].to_dataset()
+    for name, child in idata.children.items():
+        ds = child.to_dataset()
         if "date" in ds.dims:
             ds = ds.sel(**date_slice)
-        filtered_groups[group_name] = ds
+        filtered_groups[name] = ds
 
     result = xr.DataTree.from_dict({f"/{k}": v for k, v in filtered_groups.items()})
     result.attrs = idata.attrs.copy()
