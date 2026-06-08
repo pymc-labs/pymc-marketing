@@ -1282,6 +1282,10 @@ def test__validate_dims_valid():
     class DummyPosterior:
         coords = DummyCoords()
 
+        @property
+        def dataset(self):
+            return self
+
         def to_dataset(self):
             return self
 
@@ -1309,6 +1313,10 @@ def test__validate_dims_invalid_dim():
     class DummyPosterior:
         coords = DummyCoords()
 
+        @property
+        def dataset(self):
+            return self
+
         def to_dataset(self):
             return self
 
@@ -1334,6 +1342,10 @@ def test__validate_dims_invalid_value():
 
     class DummyPosterior:
         coords = DummyCoords()
+
+        @property
+        def dataset(self):
+            return self
 
         def to_dataset(self):
             return self
@@ -3537,6 +3549,10 @@ def test_cv_predictions_metadata_values_item_fallback(monkeypatch):
                     self.values = np.array(values)
 
             self.coords = {"cv": _C(self._meta_da._cv)}
+
+        @property
+        def dataset(self):
+            return self
 
         def to_dataset(self):
             return self
