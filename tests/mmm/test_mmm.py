@@ -160,6 +160,37 @@ def test_simple_fit(fit_mmm):
     assert isinstance(cd, xr.Dataset)
 
 
+def test_fit_with_dataset_embedded_target(single_dim_data):
+    """Fit with an xr.Dataset that already contains the target variable.
+
+    Exercises the guard in :meth:`MMM.build_model` that reads ``_target``
+    from the canonical dataset rather than from the raw ``y`` parameter.
+    """
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X_df, y = single_dim_data
+    dataset = to_mmm_dataset(
+        X_df,
+        y,
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+    )
+    assert "_target" in dataset.data_vars
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Call build_model directly (bypassing RegressionModelBuilder.fit,
+    # which can't handle xr.Dataset's lack of .shape)
+    mmm.build_model(X=dataset, y=None)
+
+    assert "_target" in mmm.xarray_dataset.data_vars
+
+
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
     X = df.drop(columns=[target_column])
     y = df[target_column]

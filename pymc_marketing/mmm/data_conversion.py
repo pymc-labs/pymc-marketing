@@ -139,7 +139,7 @@ def to_mmm_dataset(
                 date_column=date_column,
                 dims=dims,
             )
-        _add_target_to_dataset(ds, y_da)
+        ds["_target"] = y_da
 
     return ds
 
@@ -264,14 +264,6 @@ def _reshape_flat_target(
     return y_df.set_index(index_cols).sort_index().to_xarray()["_target"]
 
 
-def _add_target_to_dataset(
-    ds: xr.Dataset,
-    y_da: xr.DataArray,
-) -> None:
-    """Add *y_da* as ``_target`` to *ds* (in-place)."""
-    ds["_target"] = y_da
-
-
 def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
     if "_channel" not in X.data_vars:
         raise ValueError(
@@ -300,16 +292,6 @@ def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
         )
 
 
-def _validate_dims_in_multiindex(
-    index: pd.MultiIndex,
-    dims: tuple[str, ...],
-    date_column: str,
-) -> list[str]:
-    if date_column not in index.names:
-        raise ValueError(f"date_column '{date_column}' not found in index")
-    return [dim for dim in dims if dim in index.names]
-
-
 def _validate_dims_in_dataframe(
     df: pd.DataFrame,
     dims: tuple[str, ...],
@@ -321,38 +303,10 @@ def _validate_dims_in_dataframe(
 
 
 def _validate_metrics(
-    data: pd.DataFrame | pd.Series,
+    data: pd.DataFrame,
     metric_list: list[str],
 ) -> list[str]:
-    if isinstance(data, pd.DataFrame):
-        return [m for m in metric_list if m in data.columns]
-    else:
-        return [m for m in metric_list if m in data.index.names]
-
-
-def _process_multiindex_series(
-    series: pd.Series,
-    date_column: str,
-    valid_dims: list[str],
-    metric_coordinate_name: str,
-) -> xr.Dataset:
-    df = series.reset_index()
-    df_long = pd.DataFrame(
-        {
-            **{col: df[col] for col in [date_column, *valid_dims]},
-            metric_coordinate_name: series.name,
-            f"_{metric_coordinate_name}": series.values,
-        }
-    )
-    df_long = df_long.drop_duplicates(
-        subset=[date_column, *valid_dims, metric_coordinate_name]
-    )
-    df_long = df_long.rename(columns={date_column: "date"})
-    if valid_dims:
-        return df_long.set_index(
-            ["date", *valid_dims, metric_coordinate_name]
-        ).to_xarray()
-    return df_long.set_index(["date", metric_coordinate_name]).to_xarray()
+    return [m for m in metric_list if m in data.columns]
 
 
 def _process_dataframe(
@@ -393,21 +347,14 @@ def _reindex_to_user_order(
 
 
 def _pandas_to_xarray_dataarray(
-    data: pd.DataFrame | pd.Series,
+    data: pd.DataFrame,
     date_column: str,
     dims: tuple[str, ...],
     metric_list: list[str],
     metric_coordinate_name: str,
 ) -> xr.Dataset:
-    """Standalone version of ``MMM._create_xarray_from_pandas``."""
-    if isinstance(data, pd.Series):
-        valid_dims = _validate_dims_in_multiindex(data.index, dims, date_column)  # type: ignore[arg-type]
-        return _process_multiindex_series(
-            data, date_column, valid_dims, metric_coordinate_name
-        )
-    else:
-        valid_dims = _validate_dims_in_dataframe(data, dims, date_column)
-        valid_metrics = _validate_metrics(data, metric_list)
-        return _process_dataframe(
-            data, date_column, valid_dims, valid_metrics, metric_coordinate_name
-        )
+    valid_dims = _validate_dims_in_dataframe(data, dims, date_column)
+    valid_metrics = _validate_metrics(data, metric_list)
+    return _process_dataframe(
+        data, date_column, valid_dims, valid_metrics, metric_coordinate_name
+    )

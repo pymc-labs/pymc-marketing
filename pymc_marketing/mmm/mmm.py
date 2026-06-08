@@ -2198,7 +2198,8 @@ class MMM(RegressionModelBuilder):
             y=y,
         )
 
-        self._link_spec.validate_target(np.asarray(y))
+        if "_target" in self.xarray_dataset.data_vars:
+            self._link_spec.validate_target(self.xarray_dataset["_target"].values)
         LinkSpec.validate_likelihood_compatibility(
             self.link, self.model_config["likelihood"]
         )
