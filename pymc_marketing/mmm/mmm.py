@@ -2900,15 +2900,17 @@ class MMM(RegressionModelBuilder):
         )
 
         if extend_idata and self.idata is not None:
-            if hasattr(self.idata, "posterior_predictive"):
-                del self.idata.posterior_predictive
-            if hasattr(self.idata, "posterior_predictive_constant_data"):
-                del self.idata.posterior_predictive_constant_data
+            if "posterior_predictive" in self.idata:
+                del self.idata["posterior_predictive"]
+            if "posterior_predictive_constant_data" in self.idata:
+                del self.idata["posterior_predictive_constant_data"]
             self.idata["/posterior_predictive"] = post_pred.posterior_predictive
             self.idata["/posterior_predictive_constant_data"] = post_pred.constant_data
 
         group = "posterior_predictive"
-        posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
+        posterior_predictive_samples = az.extract(
+            post_pred, group, combined=combined, keep_dataset=True
+        )
 
         if include_last_observations:
             # Remove extra observations used for adstock continuity

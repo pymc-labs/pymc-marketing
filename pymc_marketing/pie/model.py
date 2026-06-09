@@ -434,7 +434,7 @@ class PIEModel(RegressionModelBuilder):
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs: Any,
-    ):
+    ) -> xr.Dataset:
         """Sample posterior predictive draws and return in the original target scale.
 
         Parameters
@@ -470,7 +470,12 @@ class PIEModel(RegressionModelBuilder):
         if extend_idata:
             self.idata.update(post_pred)  # type: ignore[union-attr]
 
-        return az.extract(post_pred, variable_name, combined=combined)
+        return az.extract(
+            post_pred,
+            variable_name,
+            combined=combined,
+            keep_dataset=True,
+        )
 
     def predict_posterior(  # type: ignore[override]
         self,

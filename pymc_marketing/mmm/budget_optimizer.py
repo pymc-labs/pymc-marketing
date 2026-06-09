@@ -533,7 +533,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
                     if dim not in shared_dims and not dim.startswith(f"{prefix}_"):
                         rename_dict[dim] = f"{prefix}_{dim}"
                 if rename_dict:
-                    prefixed_idata[group] = prefixed_idata[group].rename(rename_dict)
+                    prefixed_idata[group] = prefixed_idata[group].dataset.rename(
+                        rename_dict
+                    )
 
         return prefixed_idata
 

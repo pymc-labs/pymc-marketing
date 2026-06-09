@@ -56,7 +56,7 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
         if v.name in exclude_vars:
             v_dims = extract_dims(v)
             for dim in v_dims:
-                exclude_dims.add(dim.name)
+                exclude_dims.add(dim.data)
 
     # Track dims and build a mapping from base variable names to prefixed names
     dims = set()
@@ -92,10 +92,12 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
             base_to_prefixed[name] = new_name
 
     # Don't rename dimensions that belong to excluded variables
+    from pymc.pytensorf import StringConstant
+
     dims_rename = {
-        dim: _as_symbolic(f"{prefix}_{dim.name}")
+        dim: StringConstant(dim.type, f"{prefix}_{dim.data}")
         for dim in dims
-        if dim.name not in exclude_dims
+        if dim.data not in exclude_dims
     }
     if dims_rename:
         f2.replace_all(tuple(dims_rename.items()))

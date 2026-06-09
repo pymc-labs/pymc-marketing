@@ -344,7 +344,7 @@ class TimeSliceCrossValidator:
                     # if concat fails, try to align then concat without coords
                     combined_ds = xr.concat(
                         [
-                            d.assign_coords({"cv": [n]})
+                            d.dataset.assign_coords({"cv": [n]})
                             for d, n in zip(ds_list, model_names, strict=False)
                         ],
                         dim="cv",
@@ -517,10 +517,10 @@ class TimeSliceCrossValidator:
         # Remove existing posterior_predictive groups if they exist to avoid conflicts
         # when extending idata with new predictions
         if mmm.idata is not None:
-            if "posterior_predictive" in mmm.idata.groups():
-                del mmm.idata.posterior_predictive
-            if "posterior_predictive_constant_data" in mmm.idata.groups():
-                del mmm.idata.posterior_predictive_constant_data
+            if "posterior_predictive" in mmm.idata:
+                del mmm.idata["posterior_predictive"]
+            if "posterior_predictive_constant_data" in mmm.idata:
+                del mmm.idata["posterior_predictive_constant_data"]
 
         # Run posterior predictions on combined data with extend_idata=True
         _ = mmm.sample_posterior_predictive(

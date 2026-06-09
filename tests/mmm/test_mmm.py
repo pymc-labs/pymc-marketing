@@ -154,7 +154,10 @@ def test_reserved_dims():
 
 def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
-    assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
+    cd = fit_mmm.idata.constant_data
+    if hasattr(cd, "dataset"):
+        cd = cd.dataset
+    assert isinstance(cd, xr.Dataset)
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
@@ -799,7 +802,10 @@ class _CustomEffectWithSuppData(MuEffect):
 
 
 def _deserialize_custom_supp_effect(data, context):
-    df = context.idata[data["df_group"]].to_dataframe().reset_index(drop=True)
+    ds = context.idata[data["df_group"]]
+    if hasattr(ds, "dataset"):
+        ds = ds.dataset
+    df = ds.to_dataframe().reset_index(drop=True)
     return _CustomEffectWithSuppData(prefix=data["prefix"], df=df)
 
 

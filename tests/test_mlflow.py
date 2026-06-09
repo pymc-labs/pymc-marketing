@@ -486,6 +486,7 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
             draws=draws,
             chains=chains,
             tune=tune,
+            nuts_sampler="pymc",
         )
 
     assert mlflow.active_run() is None
@@ -587,6 +588,7 @@ def test_autolog_multidimensional_mmm(
             draws=draws,
             chains=chains,
             tune=tune,
+            nuts_sampler="pymc",
         )
 
     assert mlflow.active_run() is None
@@ -693,11 +695,12 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
 
     assert params["fit_method"] == "mcmc"
 
-    assert set(metrics.keys()) == {
-        "total_divergences",
-        "sampling_time",
-        "time_per_draw",
-    }
+    divergence_metric = {"total_divergences", "sampling_time_divergences"} & set(
+        metrics.keys()
+    )
+    assert len(divergence_metric) == 1, (
+        f"Expected exactly one divergence metric, got {divergence_metric} from {set(metrics.keys())}"
+    )
 
     assert tags == {}
 

@@ -296,9 +296,9 @@ class TestComputeResiduals:
 
     def test_raises_on_missing_pp_var(self, simple_plots, simple_idata):
         idata = simple_idata.copy()
-        idata.posterior_predictive = idata.posterior_predictive.drop_vars(
-            "y_original_scale"
-        )
+        pp_ds = idata["posterior_predictive"].dataset
+        pp_ds = pp_ds.drop_vars("y_original_scale")
+        idata["posterior_predictive"] = pp_ds
         data = MMMIDataWrapper(idata, validate_on_init=False)
         with pytest.raises(ValueError, match="y_original_scale"):
             simple_plots._compute_residuals(data)

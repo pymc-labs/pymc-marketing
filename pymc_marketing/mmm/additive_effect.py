@@ -778,6 +778,8 @@ def _deserialize_event_additive_effect(
 
     try:
         ds = context.idata[group_name]
+        if hasattr(ds, "dataset"):
+            ds = ds.dataset
         df_events = ds.to_dataframe().reset_index()
     except (KeyError, AttributeError) as e:
         raise SerializationError(

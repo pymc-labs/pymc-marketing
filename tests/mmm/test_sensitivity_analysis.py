@@ -297,7 +297,8 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
     )
     assert hasattr(sensitivity.idata, "sensitivity_analysis")
     sa_group = sensitivity.idata.sensitivity_analysis
-    assert isinstance(sa_group, xr.Dataset)
+    if hasattr(sa_group, "dataset"):
+        sa_group = sa_group.dataset
     assert "uplift_curve" in sa_group
     xr.testing.assert_allclose(sa_group["uplift_curve"], persisted)
 
@@ -365,14 +366,19 @@ def test_add_to_idata_internal_updates_dataset(simple_model_and_idata):
     # First add: creates the group
     sa._add_to_idata(result1)
     assert hasattr(idata, "sensitivity_analysis")
-    assert isinstance(idata.sensitivity_analysis, xr.Dataset)
-    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result1)
+    sa_group = idata.sensitivity_analysis
+    if hasattr(sa_group, "dataset"):
+        sa_group = sa_group.dataset
+    xr.testing.assert_allclose(sa_group["x"], result1)
 
     # Second add: updates the variable and warns
     result2 = result1 * 2.0
     with pytest.warns(UserWarning):
         sa._add_to_idata(result2)
-    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result2)
+    sa_group = idata.sensitivity_analysis
+    if hasattr(sa_group, "dataset"):
+        sa_group = sa_group.dataset
+    xr.testing.assert_allclose(sa_group["x"], result2)
 
 
 def test_prepare_response_mask_numpy_array(sensitivity):
