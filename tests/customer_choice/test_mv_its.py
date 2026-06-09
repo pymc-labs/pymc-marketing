@@ -194,8 +194,8 @@ def test_MVITS_unsaturated(request, model_name, plot_method):
     plt.close()
 
 
-def test_save_load(fit_model, saturated_data) -> None:
-    test_file = "test-mvits.nc"
+def test_save_load(fit_model, saturated_data, tmp_path) -> None:
+    test_file = tmp_path / "test-mvits.nc"
     fit_model.save(test_file)
 
     loaded = MVITS.load(test_file)
