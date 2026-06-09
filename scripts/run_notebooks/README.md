@@ -93,3 +93,15 @@ metadata:
 ```bash
 uv run jupyter nbconvert --clear-output docs/source/notebooks/mmm/mmm_quickstart.ipynb
 ```
+
+### Known pitfalls
+
+- **`.ipynb_checkpoints`**: `jupyter execute` creates auto-save checkpoint
+  files under `.ipynb_checkpoints/`. The gallery validation pre-commit hook
+  (`gallery-in-sync`) scans the filesystem and will fail if it finds
+  checkpoint files not listed in `gallery.yaml`. Clean them up before
+  committing:
+
+  ```bash
+  find docs/source/notebooks -name .ipynb_checkpoints -type d -exec rm -rf {} +
+  ```
