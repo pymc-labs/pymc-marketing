@@ -1,0 +1,23 @@
+docs/source/gallery/gallery.md
+  s_26cecd4efa1218::t_61d084270442f1 140-144
+docs/source/gallery/gallery.yaml
+  s_26cecd4efa1218::t_61d084270442f1 61-62
+docs/source/notebooks/mmm/mmm_discounted_events.ipynb
+  s_26cecd4efa1218::t_61fda794233e66 1-1375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "0f7e4896cb450bb720671aaf523eaa9adb27d112",
+  "prompts": {},
+  "sessions": {
+    "s_26cecd4efa1218": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a20d2644ffeJIOwIKzvtriCYG",
+        "model": "mlx-community/Qwen3.5-4B-MLX-4bit"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
