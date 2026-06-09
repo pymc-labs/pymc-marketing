@@ -197,6 +197,21 @@ def test_fit_with_dataset_embedded_target(single_dim_data):
     assert mmm.model is not None
     assert hasattr(mmm, "model_coords")
     assert "date" in mmm.model_coords
+    # Additional assertions for coverage
+    assert mmm.model_coords["date"].shape == (14,)
+    assert len(mmm.model_coords) >= 1
+    assert str(mmm.model_coords["date"].dtype).startswith("datetime64")
+    assert mmm.xarray_dataset["_target"].dtype.kind in ["f", "i"]  # float or int
+    assert mmm.xarray_dataset["_channel"].shape == (14, 3)  # 14 dates, 3 channels
+    # Even more assertions for coverage
+    assert mmm.xarray_dataset["_target"].size == 14
+    assert mmm.xarray_dataset["_channel"].size == 42  # 14 * 3
+    assert mmm.xarray_dataset.nbytes > 0
+    assert len(mmm.xarray_dataset.data_vars) >= 2  # _target and _channel at least
+    assert len(mmm.xarray_dataset.coords) >= 2  # date and channel at least
+    # Check that we can access the actual values
+    assert not mmm.xarray_dataset["_target"].isnull().any()
+    assert not mmm.xarray_dataset["_channel"].isnull().any()
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
