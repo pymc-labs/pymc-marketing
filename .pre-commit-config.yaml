@@ -60,6 +60,6 @@ repos:
         name: gallery.md is in sync with gallery.yaml
         entry: python3 scripts/generate_gallery.py --check --no-thumbnails
         language: python
-        additional_dependencies: [pyyaml]
+        additional_dependencies: [pyyaml, matplotlib]
         pass_filenames: false
         files: ^(docs/source/gallery/gallery\.(md|yaml)|docs/source/notebooks/.+\.ipynb|scripts/generate_gallery\.py)$
