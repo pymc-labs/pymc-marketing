@@ -3208,6 +3208,8 @@ class MMMPlotSuite:
                 "No sensitivity analysis results found. Call .sensitivity.run_sweep() first."
             )
         sa = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa, xr.DataTree):
+            sa = sa.to_dataset()
         x = sa["x"] if isinstance(sa, xr.Dataset) else sa
         # Coerce numeric dtype
         try:
