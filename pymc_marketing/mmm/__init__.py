@@ -14,6 +14,11 @@
 """Marketing Mix Models (MMM)."""
 
 from pymc_marketing.mmm import preprocessing, validating
+from pymc_marketing.mmm.additive_effect import (
+    DiscountedEventEffect,
+    MuEffect,
+    OptimizableMuEffect,
+)
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -88,6 +93,7 @@ __all__ = [
     "CovFunc",
     "DataDerivedScaling",
     "DelayedAdstock",
+    "DiscountedEventEffect",
     "FancyLinearRegression",
     "FixedScaling",
     "GeometricAdstock",
@@ -105,8 +111,10 @@ __all__ = [
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "MuEffect",
     "NoAdstock",
     "NoSaturation",
+    "OptimizableMuEffect",
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",

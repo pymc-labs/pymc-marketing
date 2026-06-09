@@ -67,7 +67,6 @@ def compile_constraints_for_scipy(constraints: list[Constraint] | dict, optimize
     """Compile constraints for scipy."""
     compiled_constraints = []
 
-    budgets = optimizer._budgets
     budgets_flat = optimizer._budgets_flat
     total_budget = optimizer._total_budget
 
@@ -86,7 +85,7 @@ def compile_constraints_for_scipy(constraints: list[Constraint] | dict, optimize
 
         # Pass the required arguments to constraint_fun
         constraint_fun_output = constraint.constraint_fun(
-            budgets, total_budget, optimizer
+            budgets_flat, total_budget, optimizer
         )
         # Gradients not implement for XTensorVariables
         constraint_fun_output_tensor = rewrite_graph(
