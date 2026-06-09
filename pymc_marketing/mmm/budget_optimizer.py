@@ -841,9 +841,6 @@ class BudgetOptimizer(BaseModel):
         """
         add_default = not constraints
 
-        # Out of scope for the rename, applied per review on #2570: store the
-        # Constraint objects directly (the old per-item copy was redundant) and
-        # reject duplicate keys instead of silently overwriting.
         self._constraints = {}
         for c in constraints:
             if c.key in self._constraints:
