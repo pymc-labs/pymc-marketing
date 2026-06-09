@@ -833,7 +833,7 @@ class BudgetOptimizer(BaseModel):
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
-    def set_constraints(self, constraints) -> None:
+    def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
 
         An empty ``constraints`` auto-adds the default sum constraint; a
@@ -841,14 +841,16 @@ class BudgetOptimizer(BaseModel):
         """
         add_default = not constraints
 
+        # Out of scope for the rename, applied per review on #2570: store the
+        # Constraint objects directly (the old per-item copy was redundant) and
+        # reject duplicate keys instead of silently overwriting.
         self._constraints = {}
         for c in constraints:
-            new_constraint = Constraint(
-                key=c.key,
-                constraint_fun=c.constraint_fun,
-                constraint_type=c.constraint_type if c.constraint_type else "eq",
-            )
-            self._constraints[c.key] = new_constraint
+            if c.key in self._constraints:
+                raise ValueError(
+                    f"Duplicate constraint key {c.key!r}. Constraint keys must be unique."
+                )
+            self._constraints[c.key] = c
 
         if add_default:
             self._constraints["default"] = build_default_sum_constraint("default")

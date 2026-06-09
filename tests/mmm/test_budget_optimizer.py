@@ -346,10 +346,65 @@ def test_constraint_instance_round_trips_into_constraints(mmm_wrapper):
         response_variable="total_media_contribution_original_scale",
         constraints=[cap],
     )
-    stored = optimizer._constraints["cap"]
-    assert stored.key == cap.key
-    assert stored.constraint_fun is cap.constraint_fun
-    assert stored.constraint_type == cap.constraint_type
+    # Stored object is the same instance, not a copy.
+    assert optimizer._constraints["cap"] is cap
+
+
+def test_constraints_empty_list_matches_default(mmm_wrapper):
+    """An explicit empty list behaves like the default empty tuple."""
+    opt_default = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    opt_empty_list = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[],
+    )
+    assert (
+        set(opt_default._constraints) == set(opt_empty_list._constraints) == {"default"}
+    )
+
+
+def test_set_constraints_is_reentrant(mmm_wrapper):
+    """Re-calling ``set_constraints`` clears prior state and recompiles."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert set(optimizer._constraints) == {"default"}
+
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="ineq",
+    )
+    optimizer.set_constraints([cap])
+
+    # Old "default" is gone, only the new constraint remains, recompiled.
+    assert set(optimizer._constraints) == {"cap"}
+    assert len(optimizer._compiled_constraints) == 1
+
+
+def test_duplicate_constraint_keys_raise(mmm_wrapper):
+    """Two constraints sharing a key must raise, not silently clobber."""
+    fun = lambda budgets_sym, total_budget_sym, optimizer: budgets_sym.sum()  # noqa: E731
+    dup = [
+        Constraint(key="cap", constraint_fun=fun, constraint_type="ineq"),
+        Constraint(key="cap", constraint_fun=fun, constraint_type="ineq"),
+    ]
+    with pytest.raises(ValueError, match="Duplicate constraint key"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            constraints=dup,
+        )
 
 
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")

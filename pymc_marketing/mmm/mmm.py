@@ -4045,11 +4045,12 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Response variable to optimize.
         utility_function : UtilityFunctionType
             Utility function to maximize.
-        constraints : Sequence[Constraint]
+        constraints : Sequence[Constraint], optional
             Constraints for the optimizer. Each element must be a
-            :class:`~pymc_marketing.mmm.constraints.Constraint`. If empty, a
-            default sum-equals-total-budget constraint is added automatically.
-            If non-empty, the caller is in charge: no default is added. Pass
+            :class:`~pymc_marketing.mmm.constraints.Constraint`. If empty (the
+            default, ``()``), a default sum-equals-total-budget constraint is
+            added automatically. If non-empty, the caller is in charge: no
+            default is added. Pass
             :func:`~pymc_marketing.mmm.constraints.build_default_sum_constraint`
             explicitly to keep the sum constraint alongside custom ones.
         budgets_to_optimize : xr.DataArray | None
