@@ -137,6 +137,46 @@ class TestBuild:
             )
 
 
+class TestLikelihoodVariance:
+    def test_sigma_obs_matches_delta_method_formula(self, blp_panel_small):
+        """The likelihood logp equals a hand-computed Normal logp with
+        ``Var = 1/(n s_j) + 1/(n s_0)`` — the delta-method variance of the
+        log share *ratio* under multinomial sampling. Pins the formula so
+        the outside-good term cannot silently be dropped again.
+        """
+        from scipy import stats
+
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        point = m.model.initial_point()
+
+        logp_fn = m.model.compile_logp(vars=[m.model["log_share_ratio"]], sum=False)
+        logp_vals = np.asarray(logp_fn(point)[0])  # (M, J)
+
+        # Deterministic graphs contain the RVs themselves; substitute the
+        # value variables so the predicted shares can be evaluated at the
+        # same point the logp was.
+        outs = m.model.replace_rvs_by_values(
+            [m.model["s_inside"], m.model["s_outside"]]
+        )
+        pred_fn = m.model.compile_fn(outs, inputs=m.model.value_vars)
+        s_in_pred, s_out_pred = pred_fn(point)
+        mu = np.log(s_in_pred) - np.log(s_out_pred)[:, None]
+        obs = np.log(m._inside_share) - np.log(m._outside_share)[:, None]
+        sigma = np.sqrt(
+            (1.0 / m._inside_share + 1.0 / m._outside_share[:, None]) / m._n[:, None]
+        )
+        expected = stats.norm.logpdf(obs, loc=mu, scale=sigma)
+        np.testing.assert_allclose(logp_vals, expected, rtol=1e-8)
+
+
 class TestValidation:
     def test_unknown_random_coef_raises(self, blp_panel_small):
         df, truth = blp_panel_small

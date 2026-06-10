@@ -109,7 +109,12 @@ class BayesianBLP(ModelBuilder):
         ``False`` is not supported in this v1 release; pass ``True``.
     likelihood : {"normal_logshare"}
         Aggregate-share likelihood. Currently only the Berry (1994)
-        heteroskedastic Normal-on-log-share-ratio formulation is wired up.
+        heteroskedastic Normal-on-log-share-ratio formulation is wired up:
+        ``log s_jm - log s_0m`` is Normal around the predicted log-share
+        ratio with the delta-method multinomial-sampling variance
+        ``1/(n_m s_jm) + 1/(n_m s_0m)``. The within-market covariance
+        across products induced by the shared outside share is ignored
+        (diagonal likelihood).
     min_share : float
         Floor applied to observed shares to avoid ``log(0)``. A warning is
         emitted when the floor is hit.
@@ -852,7 +857,18 @@ class BayesianBLP(ModelBuilder):
                 pt.log(inside_share_data) - pt.log(outside_share_data)[:, None]
             )
             log_share_ratio_pred = pt.log(s_inside) - pt.log(s_outside)[:, None]
-            sigma2 = (1.0 - inside_share_data) / (n_data[:, None] * inside_share_data)
+            # Delta-method variance of log(s_j) - log(s_0) under multinomial
+            # sampling of n_m consumers:
+            #   Var = 1/(n s_j) + 1/(n s_0)
+            # (the -1/n corrections of the two marginal variances cancel
+            # against the +2/n covariance term). The outside-good term is
+            # the same order as the inside term whenever s_0 is not large,
+            # so it cannot be dropped. The within-market covariance across
+            # products (1/(n s_0), from the shared noisy log s_0) is still
+            # ignored — the likelihood is diagonal.
+            sigma2 = (
+                1.0 / inside_share_data + 1.0 / outside_share_data[:, None]
+            ) / n_data[:, None]
             sigma_obs = pt.sqrt(sigma2)
 
             pm.Normal(
