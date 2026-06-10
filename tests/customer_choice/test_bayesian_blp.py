@@ -122,18 +122,19 @@ class TestBuild:
         # for free dims, so we eval to check the concrete shape.
         assert m.model.named_vars["delta"].eval().shape == (m._M, m._J)
 
-    def test_market_size_col_none_uses_zero_array(self, blp_panel_small):
-        """``market_size_col=None`` triggers the all-zeros fallback for n_jt."""
+    def test_market_size_col_none_raises(self, blp_panel_small):
+        """``market_size_col=None`` is rejected: n=0 would make the
+        log-share-ratio likelihood variance infinite."""
         df, truth = blp_panel_small
-        m = BayesianBLP(
-            market_data=df,
-            characteristics=truth["characteristic_cols"],
-            instruments=truth["instrument_cols"],
-            market_size_col=None,
-            n_mc_draws=10,
-            random_seed=0,
-        )
-        np.testing.assert_array_equal(m._n, np.zeros(m._M))
+        with pytest.raises(ValueError, match="market_size_col"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                market_size_col=None,
+                n_mc_draws=10,
+                random_seed=0,
+            )
 
 
 class TestValidation:

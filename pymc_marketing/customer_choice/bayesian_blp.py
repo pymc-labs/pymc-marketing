@@ -70,7 +70,9 @@ class BayesianBLP(ModelBuilder):
     product_col, market_col, region_col, share_col, market_size_col, price_col : str
         Column names. ``region_col=None`` (default) collapses the region
         hierarchy to a single bucket. ``market_col`` must uniquely identify a
-        (region, period) cell.
+        (region, period) cell. ``market_size_col`` must name a column with
+        the number of sampled consumers ``n_m`` per market — it scales the
+        likelihood variance and may not be ``None``.
     characteristics : list of str
         Columns holding product characteristics ``x_jt``.
     instruments : list of str, optional
@@ -262,6 +264,14 @@ class BayesianBLP(ModelBuilder):
                 "hierarchical_parameterisation must be 'centered' or "
                 f"'noncentered', got {hierarchical_parameterisation!r}"
             )
+        if market_size_col is None:
+            raise ValueError(
+                "market_size_col=None is not supported: the 'normal_logshare' "
+                "likelihood scales its variance by the per-market sample size "
+                "n_m, so a zero/absent n makes the likelihood degenerate. "
+                "Provide a column with the number of sampled consumers per "
+                "market."
+            )
 
         self.market_data = market_data
         self.product_col = product_col
@@ -341,9 +351,13 @@ class BayesianBLP(ModelBuilder):
 
     def _preprocess(self) -> None:
         df = self.market_data
-        required = [self.product_col, self.market_col, self.share_col, self.price_col]
-        if self.market_size_col is not None:
-            required.append(self.market_size_col)
+        required = [
+            self.product_col,
+            self.market_col,
+            self.share_col,
+            self.price_col,
+            self.market_size_col,
+        ]
         if self.region_col is not None:
             required.append(self.region_col)
         if self.time_col is not None:
@@ -435,15 +449,12 @@ class BayesianBLP(ModelBuilder):
         else:
             z = None
 
-        if self.market_size_col is not None:
-            n = (
-                df.drop_duplicates(self.market_col)
-                .set_index(self.market_col)[self.market_size_col]
-                .reindex(markets)
-                .to_numpy(dtype=float)
-            )
-        else:
-            n = np.zeros(M)
+        n = (
+            df.drop_duplicates(self.market_col)
+            .set_index(self.market_col)[self.market_size_col]
+            .reindex(markets)
+            .to_numpy(dtype=float)
+        )
 
         # Time-aware extension: validate, build period index, and permute
         # all M-axis arrays so markets are sorted lexicographically by
