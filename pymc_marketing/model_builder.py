@@ -956,6 +956,9 @@ class RegressionModelBuilder(ModelBuilder):
         """Perform transformation on the model after sampling."""
         pass
 
+    def _get_sampling_model(self) -> pm.Model:
+        return self.model
+
     def fit(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -1021,13 +1024,15 @@ class RegressionModelBuilder(ModelBuilder):
             **kwargs,
         )
 
+        sampling_model = self._get_sampling_model()
+
         # Sample without deterministics first
-        var_names = [var.name for var in self.model.free_RVs]
-        with self.model:
+        var_names = [var.name for var in sampling_model.free_RVs]
+        with sampling_model:
             idata = pm.sample(var_names=var_names, **sampler_kwargs)
 
         # Compute deterministics after sampling
-        with self.model:
+        with sampling_model:
             idata.posterior = pm.compute_deterministics(
                 idata.posterior, merge_dataset=True
             )

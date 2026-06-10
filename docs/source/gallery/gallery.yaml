@@ -25,6 +25,8 @@ sections:
             notebook: mmm/mmm_build_from_yml_example
           - title: Sensitivity Analysis and Marginal Effects
             notebook: mmm/mmm_sensitivity_analysis
+          - title: Additive vs Log vs Log-Log MMMs
+            notebook: mmm/mmm_multiplicative
           - title: Interactive MMM Visualizations
             notebook: mmm/plot_interactive
           - title: "Cost-per-Unit: Model What Drives Revenue, Report What You Spend"

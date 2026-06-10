@@ -49,6 +49,7 @@ _SATURATION_TYPE_MAP = {
     "hill_sigmoid": "pymc_marketing.mmm.components.saturation.HillSaturationSigmoid",
     "inverse_scaled_logistic": "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
     "root": "pymc_marketing.mmm.components.saturation.RootSaturation",
+    "log_saturation": "pymc_marketing.mmm.components.saturation.LogSaturation",
     "no_saturation": "pymc_marketing.mmm.components.saturation.NoSaturation",
 }
 

@@ -6,7 +6,7 @@ on:
   schedule:
     - cron: '0 12 * * 1'
   pull_request:
-    branches: [main]
+    branches: [main, v1.0.0]
     paths:
       - ".github/workflows/install-conda-env.yml"
       - "environment.yml"
