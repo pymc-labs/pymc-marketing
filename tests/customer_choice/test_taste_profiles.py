@@ -91,6 +91,84 @@ class TestValidation:
 
 
 # --------------------------------------------------------------------------- #
+# Random-coefficient configuration guards
+# --------------------------------------------------------------------------- #
+class TestRandomCoefGuards:
+    """Models without the taste dimensions a function needs raise clearly.
+
+    Fits are mocked (``pymc.testing.mock_sample``) — these tests exercise
+    the guard paths, not posterior quality.
+    """
+
+    @staticmethod
+    def _mock_fit(model):
+        from functools import partial
+        from unittest.mock import patch
+
+        import pymc as pm
+        import pymc.testing
+
+        with patch.object(
+            pm,
+            "sample",
+            partial(
+                pymc.testing.mock_sample,
+                sample_stats={"diverging": lambda size: np.zeros(size, dtype=int)},
+            ),
+        ):
+            model.fit(draws=10, tune=10, chains=2, progressbar=False, random_seed=0)
+        return model
+
+    @pytest.fixture(scope="class")
+    def fitted_no_price_rc(self, blp_panel_small):
+        """Random coefficient on a characteristic only — no price RC."""
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=[truth["characteristic_cols"][0]],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        return self._mock_fit(model)
+
+    @pytest.fixture(scope="class")
+    def fitted_no_rc(self, blp_panel_small):
+        """No random coefficients at all (plain logit)."""
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=[],
+            n_mc_draws=10,
+            random_seed=0,
+        )
+        return self._mock_fit(model)
+
+    def test_price_bucket_functions_raise_without_price_rc(self, fitted_no_price_rc):
+        with pytest.raises(ValueError, match="random coefficient on price"):
+            taste_profiles.taste_type_demand_share(fitted_no_price_rc, n_samples=10)
+        with pytest.raises(ValueError, match="random coefficient on price"):
+            taste_profiles.plot_taste_profile_stacked(fitted_no_price_rc, n_samples=10)
+
+    def test_dimension_agnostic_functions_work_without_price_rc(
+        self, fitted_no_price_rc
+    ):
+        out = taste_profiles.buyer_nu_posterior(fitted_no_price_rc, n_samples=10)
+        assert out.shape == (10, fitted_no_price_rc._M, 1)
+        grid = taste_profiles.consumer_taste_grid(fitted_no_price_rc)
+        assert list(grid.columns) == list(fitted_no_price_rc._random_coef_names)
+
+    def test_no_random_coefs_raises_clear_error(self, fitted_no_rc):
+        with pytest.raises(RuntimeError, match="at least one random coefficient"):
+            taste_profiles.buyer_nu_posterior(fitted_no_rc, n_samples=10)
+        with pytest.raises(RuntimeError, match="at least one random coefficient"):
+            taste_profiles.consumer_taste_grid(fitted_no_rc)
+
+
+# --------------------------------------------------------------------------- #
 # Shapes (1-D RC, via existing fitted_blp fixture)
 # --------------------------------------------------------------------------- #
 class TestComputeShapes:

@@ -55,6 +55,34 @@ def _require_fitted(model: BayesianBLP, fn_name: str) -> None:
         )
 
 
+def _require_random_coefs(model: BayesianBLP) -> None:
+    """Raise ``RuntimeError`` if ``model`` has no random coefficients."""
+    if model._n_random == 0:
+        raise RuntimeError(
+            "Taste-profile analyses require at least one random coefficient, "
+            "but this model was constructed with random_coef_on=[] — there "
+            "is no consumer-heterogeneity dimension to profile."
+        )
+
+
+def _price_dim_index(model: BayesianBLP, fn_name: str) -> int:
+    """Index of the price dimension in the model's random-coefficient grid.
+
+    Raises ``ValueError`` when the model has no random coefficient on price,
+    since the calling function's sensitivity buckets / x-axis are defined on
+    the price taste shock specifically.
+    """
+    try:
+        return model._random_coef_names.index("price")
+    except ValueError:
+        raise ValueError(
+            f"{fn_name}() profiles consumers along the price taste dimension, "
+            "but this model has no random coefficient on price "
+            f"(random_coef_on={model._random_coef_names!r}). Construct the "
+            "model with 'price' in random_coef_on to use this function."
+        ) from None
+
+
 def _compute_inside_choice_probs(
     model: BayesianBLP, n_samples: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -76,6 +104,7 @@ def _compute_inside_choice_probs(
     module delegate here so any future change to the inside-choice contract
     only requires touching one place.
     """
+    _require_random_coefs(model)
     alpha_M, beta_M, xi_M, sigma_M = model.iterate_posterior_samples(n_samples)
     s_in_per_draw, _, s_out_per_draw, _, _ = model.batch_shares(
         alpha_M, beta_M, xi_M, sigma_M, model._price
@@ -101,7 +130,14 @@ def consumer_taste_grid(model: BayesianBLP) -> pd.DataFrame:
         names, in the same order as ``model._random_coef_names``. Each row is
         one consumer type; column ``d`` carries the standard-normal taste draw
         for that random-coefficient dimension.
+
+    Raises
+    ------
+    RuntimeError
+        If the model was constructed with ``random_coef_on=[]`` (no
+        consumer-heterogeneity dimensions exist).
     """
+    _require_random_coefs(model)
     return pd.DataFrame(
         model._halton[: model.n_mc_draws],
         columns=list(model._random_coef_names),
@@ -260,15 +296,18 @@ def taste_type_demand_share(
     Raises
     ------
     ValueError
-        If ``threshold`` is not strictly positive.
+        If ``threshold`` is not strictly positive, or if the model has no
+        random coefficient on price (the buckets are defined on the price
+        taste shock).
     """
     _require_fitted(model, "taste_type_demand_share")
     if threshold <= 0:
         raise ValueError(f"threshold must be > 0; got {threshold}.")
+    price_dim = _price_dim_index(model, "taste_type_demand_share")
 
     s_in_per_draw, _, halton = _compute_inside_choice_probs(model, n_samples)
     s_avg = s_in_per_draw.mean(axis=(0, 2))  # (M, R), averaged over draws and products
-    nu_price = halton[:, 0]
+    nu_price = halton[:, price_dim]
     sensitive = nu_price < -threshold
     insensitive = nu_price > threshold
     modal = ~sensitive & ~insensitive
@@ -334,8 +373,15 @@ def plot_taste_profile_stacked(
     Returns
     -------
     matplotlib.figure.Figure
+
+    Raises
+    ------
+    ValueError
+        If the model has no random coefficient on price (the x-axis is the
+        price taste shock).
     """
     _require_fitted(model, "plot_taste_profile_stacked")
+    price_dim = _price_dim_index(model, "plot_taste_profile_stacked")
     if market_indices is None:
         market_indices = _default_price_span_markets(model, n=4)
 
@@ -345,7 +391,7 @@ def plot_taste_profile_stacked(
     s_avg = s_in_per_draw.mean(axis=0)  # (M, J, R)
     s_out_avg = s_out_per_draw.mean(axis=0)  # (M, R)
 
-    nu = halton[:, 0]
+    nu = halton[:, price_dim]
     order = np.argsort(nu)
     nu_sorted = nu[order]
 
