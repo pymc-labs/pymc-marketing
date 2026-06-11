@@ -11,8 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -214,21 +212,21 @@ class TestCLVModel:
         ):
             model.fit(fit_method="mcmc")
 
-    def test_load(self, mocker):
+    def test_load(self, mocker, tmp_path):
         model = CLVModelTest()
+        save_path = tmp_path / "test_model"
 
         mocker.patch("pymc.sample", mock_sample)
 
         model.fit(tune=0, chains=2, draws=5)
-        model.save("test_model")
-        model2 = model.load("test_model")
+        model.save(save_path)
+        model2 = model.load(save_path)
 
         assert model2.fit_result is not None
 
         # TODO: Add this to the model_builder.py load method?
         model2.build_model()
         assert model2.model is not None
-        os.remove("test_model")
 
     def test_load_from_idata_without_fit_data_warns(self, mocker):
         mocker.patch("pymc.sample", mock_sample)
@@ -263,25 +261,25 @@ class TestCLVModel:
         assert isinstance(serializable_config, dict)
         assert serializable_config == model.model_config
 
-    def test_fail_id_after_load(self, mocker, monkeypatch):
+    def test_fail_id_after_load(self, mocker, monkeypatch, tmp_path):
         # This is the new behavior for the property
         def mock_property(self):
             return "for sure not correct id"
 
         # Now create an instance of MyClass
         mock_basic = CLVModelTest()
+        save_path = tmp_path / "test_model"
         mocker.patch("pymc.sample", mock_sample)
         mock_basic.fit(tune=0, chains=2, draws=5)
-        mock_basic.save("test_model")
+        mock_basic.save(save_path)
 
         # Apply the monkeypatch for the property
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
             DifferentModelError,
-            match=r"The file 'test_model'",
+            match=r"The file '.*test_model'",
         ):
-            CLVModelTest.load("test_model")
-        os.remove("test_model")
+            CLVModelTest.load(save_path)
 
     def test_thin_fit_result(self):
         data = pd.DataFrame(dict(y=[-3, -2, -1]))
@@ -309,7 +307,7 @@ class TestCLVModel:
             "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
 
-    def test_backwards_compatibility_with_old_config(self):
+    def test_backwards_compatibility_with_old_config(self, tmp_path):
         model = CLVModelTest()
         model.build_model()
 
@@ -317,15 +315,13 @@ class TestCLVModel:
         set_model_fit(model, old_posterior)
         assert "alpha_prior" in model.idata.posterior
 
-        save_path = "test_model"
+        save_path = tmp_path / "test_model"
         model.save(save_path)
 
         loaded_model = CLVModelTest.load(save_path)
 
         assert "alpha" in loaded_model.idata.posterior
         assert "alpha_prior" not in loaded_model.idata.posterior
-
-        os.remove("test_model")
 
     def test_deprecation_warning_on_old_config(self):
         old_model_config = {

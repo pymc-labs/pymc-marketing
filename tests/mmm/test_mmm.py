@@ -21,12 +21,13 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pymc.model_graph import fast_eval
 from pymc_extras.prior import Prior
-from pytensor.xtensor.type import XTensorVariable
+from pytensor.xtensor.type import XTensorVariable, as_xtensor
 from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -37,7 +38,11 @@ from pymc_marketing.mmm import (
     LogisticSaturation,
     SoftPlusHSGP,
 )
-from pymc_marketing.mmm.additive_effect import EventAdditiveEffect, LinearTrendEffect
+from pymc_marketing.mmm.additive_effect import (
+    EventAdditiveEffect,
+    LinearTrendEffect,
+    MuEffect,
+)
 from pymc_marketing.mmm.events import EventEffect, GaussianBasis, HalfGaussianBasis
 from pymc_marketing.mmm.lift_test import _swap_columns_and_last_index_level
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -52,6 +57,7 @@ from pymc_marketing.mmm.scaling import (
     FixedScaling,
     Scaling,
 )
+from pymc_marketing.serialization import serialization
 
 
 @pytest.fixture
@@ -762,6 +768,42 @@ class TestRegistryDeserialization:
             mmm.build_from_idata(idata)
 
 
+class _CustomEffectWithSuppData(MuEffect):
+    """MuEffect with supplementary data for testing the generic idata_groups path."""
+
+    df: pd.DataFrame = pd.DataFrame()
+    prefix: str = "custom_supp"
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def create_data(self, mmm):
+        pass
+
+    def create_effect(self, mmm):
+        return as_xtensor(pt.zeros(1), dims=["date"])
+
+    def set_data(self, mmm, model, X):
+        pass
+
+    def to_dict(self):
+        return {
+            "prefix": self.prefix,
+            "df_group": f"supplementary_data_{self.prefix}",
+        }
+
+    def idata_groups(self):
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df.reset_index(drop=True)
+            ),
+        }
+
+
+def _deserialize_custom_supp_effect(data, context):
+    df = context.idata[data["df_group"]].to_dataframe().reset_index(drop=True)
+    return _CustomEffectWithSuppData(prefix=data["prefix"], df=df)
+
+
 class TestSerializationIntegration:
     """End-to-end save/load tests using the new TypeRegistry-based system."""
 
@@ -870,7 +912,8 @@ class TestSerializationIntegration:
                 import pytensor.tensor as pt
                 from pytensor.xtensor.type import as_xtensor
 
-                return as_xtensor(pt.zeros(1), dims=["date"])
+                n_obs = mmm.model.dim_lengths["date"]
+                return as_xtensor(pt.zeros(n_obs), dims=["date"])
 
             def set_data(self, mmm, model, X):
                 pass
@@ -926,6 +969,47 @@ class TestSerializationIntegration:
         custom_effect = loaded.mu_effects[2]
         assert isinstance(custom_effect, _TestCustomEffect)
         assert custom_effect.my_param == 42.0
+
+    @pytest.fixture
+    def _custom_supp_effect_registered(self):
+        """Register custom deserializer for _CustomEffectWithSuppData, then clean up."""
+        type_key = (
+            f"{_CustomEffectWithSuppData.__module__}."
+            f"{_CustomEffectWithSuppData.__qualname__}"
+        )
+        serialization.register(
+            type_key,
+            _CustomEffectWithSuppData,
+            deserializer=_deserialize_custom_supp_effect,
+        )
+        yield
+        serialization._registry.pop(type_key, None)
+
+    def test_roundtrip_with_custom_effect_and_supplementary_data(
+        self,
+        minimal_fit_data,
+        tmp_path,
+        mock_pymc_sample,
+        _custom_supp_effect_registered,
+    ):
+        """A custom MuEffect with idata_groups() survives save/load round-trip."""
+        df = pd.DataFrame({"key": [1, 2, 3]})
+        X, y = minimal_fit_data
+        mmm = self._base_mmm().add_mu_effect(
+            _CustomEffectWithSuppData(df=df, prefix="custom_supp")
+        )
+        mmm.fit(X, y)
+
+        fname = tmp_path / "custom_supp_data.nc"
+        mmm.save(fname)
+
+        raw_idata = az.from_netcdf(fname)
+        assert hasattr(raw_idata, "supplementary_data_custom_supp")
+
+        loaded = MMM.load(str(fname))
+        effect = loaded.mu_effects[0]
+        assert isinstance(effect, _CustomEffectWithSuppData)
+        assert list(effect.df["key"]) == [1, 2, 3]
 
 
 def test_single_channel():
@@ -5810,6 +5894,28 @@ class TestComputeMeanContributionsOverTime:
         np.testing.assert_allclose(
             result["intercept"].values, expected_intercept, rtol=1e-6
         )
+
+    def test_no_target_scale_dim_in_output(
+        self, single_dim_data, mock_pymc_sample
+    ) -> None:
+        """Synthetic target_scale dimensions must not leak into the DataFrame."""
+        X, y = single_dim_data
+        mmm = MMM(
+            date_column="date",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.fit(X, y)
+
+        ts = mmm.idata.constant_data["target_scale"]
+        mmm.idata.constant_data["target_scale"] = ts.expand_dims("target_scale_dim_0")
+
+        result = mmm.compute_mean_contributions_over_time()
+
+        leak_cols = [c for c in result.columns if "target_scale" in c]
+        assert leak_cols == [], f"Unexpected columns: {leak_cols}"
 
     def test_raises_without_idata(self) -> None:
         """Method raises ValueError before fitting."""
