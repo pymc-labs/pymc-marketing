@@ -31,6 +31,7 @@ from pymc_marketing.mmm.link import (
 )
 from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
 from pymc_marketing.mmm.scaling import DataDerivedScaling, FixedScaling, Scaling
+from pymc_marketing.serialization import serialization
 
 
 def _make_positive_panel(
@@ -230,9 +231,7 @@ class TestLogSaturation:
     def test_log_saturation_serialization_round_trip(self):
         sat = LogSaturation()
         d = sat.to_dict()
-        from pymc_marketing.mmm.components.saturation import saturation_from_dict
-
-        sat2 = saturation_from_dict(d)
+        sat2 = serialization.deserialize(d)
         assert isinstance(sat2, LogSaturation)
         assert sat2.to_dict() == d
         # The unscaled-input contract must survive a round trip.

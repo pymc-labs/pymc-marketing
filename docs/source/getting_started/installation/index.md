@@ -4,11 +4,10 @@
 
 PyMC-Marketing requires **Python 3.10 or greater**.
 
-Install and activate an environment (e.g. `marketing_env`) with the `pymc-marketing` package from [conda-forge](https://conda-forge.org). It may look something like the following:
+Install the `pymc-marketing` package with pip:
 
 ```bash
-conda create -c conda-forge -n marketing_env pymc-marketing
-conda activate marketing_env
+pip install pymc-marketing
 ```
 
 You can also install the development version of PyMC-Marketing with:
@@ -17,26 +16,26 @@ You can also install the development version of PyMC-Marketing with:
 pip install git+https://github.com/pymc-labs/pymc-marketing.git
 ```
 
-Next, we you can create a new Jupyter notebook with either JupyterLab or VS Code.
+Next, you can create a new Jupyter notebook with either JupyterLab or VS Code.
 
 ### JupyterLab Notebook
 
-After installing the `pymc-marketing` package (see above), run the following with `marketing_env` activated:
+After installing the `pymc-marketing` package, install JupyterLab and launch it:
 
 ```bash
-conda install -c conda-forge jupyterlab
+pip install jupyterlab
 jupyter lab
 ```
 
 ### VS Code Notebook
 
-After installing the `pymc-marketing` package (see above), run the following with `marketing_env` activated:
+After installing the `pymc-marketing` package, install ipykernel:
 
 ```bash
-conda install -c conda-forge ipykernel
+pip install ipykernel
 ```
 
-Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl + Shift + P and type "Python: Select Interpreter". Ensure that `marketing_env` is selected. Press Ctrl + Shift + P and type "Create: New Jupyter Notebook".
+Start VS Code and ensure that the "Jupyter" extension is installed. Press Ctrl + Shift + P and type "Python: Select Interpreter". Press Ctrl + Shift + P and type "Create: New Jupyter Notebook".
 
 ## Installation for developers
 
