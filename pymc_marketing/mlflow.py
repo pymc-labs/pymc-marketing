@@ -483,6 +483,10 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         logging.info(msg)
 
         return None
+    except Exception as e:
+        msg = f"Unable to render the model graph. {e}"
+        logging.info(msg)
+        return None
 
     try:
         saved_path = graph.render(path)
