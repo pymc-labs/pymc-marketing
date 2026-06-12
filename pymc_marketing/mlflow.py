@@ -164,6 +164,8 @@ Autologging for a PyMC-Marketing Bass model:
 
     import mlflow
 
+    from pymc_extras.prior import Prior
+
     from pymc_marketing.bass import BassModel
 
     import pymc_marketing.mlflow
@@ -174,7 +176,12 @@ Autologging for a PyMC-Marketing Bass model:
 
     adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
 
-    model = BassModel()
+    # Positive prior on the market size m keeps the Poisson rate valid
+    model_config = {
+        "m": Prior("Normal", mu=500, sigma=100),
+    }
+
+    model = BassModel(model_config=model_config)
 
     with mlflow.start_run():
         idata = model.fit(data=adoption)
@@ -1054,8 +1061,9 @@ def log_mmm_configuration(mmm: MMM) -> None:
 def log_bass_configuration(model: BassModel) -> None:
     """Log the configuration of the Bass model to MLflow.
 
-    Logs the model type, version, and the prior configuration
-    (``m``, ``p``, ``q``, ``likelihood``) for reproducibility.
+    Logs the model's idata attributes: id, model type, version,
+    sampler config, and the prior configuration
+    (``m``, ``p``, ``q``, ``likelihood``).
     """
     attrs = model.create_idata_attrs()
     mlflow.log_params(attrs)
@@ -1275,6 +1283,8 @@ def autolog(
 
         import mlflow
 
+        from pymc_extras.prior import Prior
+
         from pymc_marketing.bass import BassModel
 
         import pymc_marketing.mlflow
@@ -1285,7 +1295,12 @@ def autolog(
 
         adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
 
-        model = BassModel()
+        # Positive prior on the market size m keeps the Poisson rate valid
+        model_config = {
+            "m": Prior("Normal", mu=500, sigma=100),
+        }
+
+        model = BassModel(model_config=model_config)
 
         with mlflow.start_run():
             idata = model.fit(data=adoption)
