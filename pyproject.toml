@@ -48,7 +48,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
-pie = ["pymc-bart"]
+pie = ["pymc-bart>=0.12.0"]
 docs = [
     "blackjax",
     "fastprogress",
@@ -103,7 +103,7 @@ test = [
     "pygraphviz",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
-    "pymc-bart",
+    "pymc-bart>=0.12.0",
 ]
 
 [tool.hatch.build.targets.sdist]

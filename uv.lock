@@ -3942,7 +3942,7 @@ wheels = [
 
 [[package]]
 name = "pymc-bart"
-version = "0.11.0"
+version = "0.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "arviz-stats", extra = ["xarray"] },
@@ -3951,9 +3951,9 @@ dependencies = [
     { name = "numpy" },
     { name = "pymc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/d1/0de1909cc35f7b5df98fa5bd93585f1489a1bb59161d10e023acfa7c6c59/pymc_bart-0.11.0.tar.gz", hash = "sha256:fc107a29f12c7a4345fca33ae3fda5208da4788e0f5e776a37a71cb871097d95", size = 43418, upload-time = "2025-10-21T10:27:59.548Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/63/39e2b6365fbd7c7c2c7de52256e4a31c2879074bd42ce863eca1ecadb1d5/pymc_bart-0.12.0.tar.gz", hash = "sha256:0335d5f6beffd78a4e8cff4bc8b73ce6537b47a7017f90c36996c29c37733083", size = 43600, upload-time = "2026-05-13T10:29:26.731Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/1a/c2c8f28f9522d4e08c402949b350e11249be492663f7e95ac209d1979dd8/pymc_bart-0.11.0-py3-none-any.whl", hash = "sha256:c07ec5cf854a39c6f7328998d01d96da9ba956fb27020f691f90a1dc65c1855f", size = 32758, upload-time = "2025-10-21T10:27:58.738Z" },
+    { url = "https://files.pythonhosted.org/packages/c5/28/c2528470957342a04db193aeef92924087c74cf075ab9f6e9f5e177286e1/pymc_bart-0.12.0-py3-none-any.whl", hash = "sha256:7eb92e4090180533b4a802960667cb4496b13b3699b70750226b61d2993406a1", size = 32811, upload-time = "2026-05-13T10:29:25.751Z" },
 ]
 
 [[package]]
@@ -4130,8 +4130,8 @@ requires-dist = [
     { name = "pygraphviz", marker = "extra == 'test'" },
     { name = "pylint", marker = "extra == 'docs'" },
     { name = "pymc", specifier = ">=6.0.0" },
-    { name = "pymc-bart", marker = "extra == 'pie'" },
-    { name = "pymc-bart", marker = "extra == 'test'" },
+    { name = "pymc-bart", marker = "extra == 'pie'", specifier = ">=0.12.0" },
+    { name = "pymc-bart", marker = "extra == 'test'", specifier = ">=0.12.0" },
     { name = "pymc-extras", git = "https://github.com/pymc-devs/pymc-extras.git" },
     { name = "pyprojroot" },
     { name = "pyprojroot", marker = "extra == 'test'" },

@@ -458,7 +458,11 @@ class PIEModel(RegressionModelBuilder):
         self._data_setter(X)
 
         with self.model:
-            post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
+            post_pred = pm.sample_posterior_predictive(
+                self.idata,
+                sample_vars=["bart", self.output_var],
+                **kwargs,
+            )
 
         variable_name = (
             "predictions" if kwargs.get("predictions") else "posterior_predictive"
