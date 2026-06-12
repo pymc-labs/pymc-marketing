@@ -137,11 +137,14 @@ Create a basic Bass model for multiple products:
 from typing import Any, TypedDict, cast
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from matplotlib.axes import Axes
 from numpy.typing import (
     ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
@@ -149,6 +152,7 @@ from pymc.model import Model
 from pymc.util import RandomState
 from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 
+from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.version import __version__
@@ -740,6 +744,63 @@ class BassModel(ModelBuilder):
         self.idata.add_groups(fit_data=ds)
         self.set_idata_attrs(self.idata)
         return self.idata
+
+    def plot_adoption_curve(
+        self, **kwargs: Any
+    ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior adoption curve with the observed data.
+
+        See :func:`pymc_marketing.bass.plotting.plot_adoption_curve` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_adoption_curve(self, **kwargs)
+
+    def plot_cumulative(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the cumulative adoption S-curve with the observed data.
+
+        See :func:`pymc_marketing.bass.plotting.plot_cumulative` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_cumulative(self, **kwargs)
+
+    def plot_decomposition(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the adoption decomposition into innovators and imitators.
+
+        Per-period innovators and imitators go on the left y-axis and
+        cumulative adoption on a twin right y-axis.
+
+        See :func:`pymc_marketing.bass.plotting.plot_decomposition` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the primary (left) axes.
+        """
+        return plotting.plot_decomposition(self, **kwargs)
+
+    def plot_peak(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior distribution of the peak adoption time.
+
+        See :func:`pymc_marketing.bass.plotting.plot_peak` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_peak(self, **kwargs)
 
     def build_from_idata(self, idata: az.InferenceData) -> None:
         """Rebuild the model from an ``InferenceData`` object.

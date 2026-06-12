@@ -52,10 +52,20 @@ Generate synthetic data from the prior, then fit the model:
 
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.bass.model import BassModel, BassPriors, create_bass_model
+from pymc_marketing.bass.plotting import (
+    plot_adoption_curve,
+    plot_cumulative,
+    plot_decomposition,
+    plot_peak,
+)
 
 __all__ = [
     "BassModel",
     "BassPriors",
     "create_bass_model",
+    "plot_adoption_curve",
+    "plot_cumulative",
+    "plot_decomposition",
+    "plot_peak",
     "to_bass_dataset",
 ]
