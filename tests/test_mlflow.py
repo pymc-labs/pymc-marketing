@@ -269,8 +269,13 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
             Exception("Unknown error occurred"),
             "Unable to render the model graph. Unknown error occurred",
         ),
+        (
+            "pymc.model_to_graphviz",
+            ValueError("lam < 0 or lam contains NaNs"),
+            "Unable to render the model graph. lam < 0 or lam contains NaNs",
+        ),
     ],
-    ids=["no_graphviz", "render_error"],
+    ids=["no_graphviz", "render_error", "graph_creation_error"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
