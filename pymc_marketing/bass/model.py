@@ -155,6 +155,7 @@ from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handl
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
@@ -489,6 +490,16 @@ class BassModel(ModelBuilder):
 
     _model_type = "BassModel"
     version = __version__
+
+    def __init__(
+        self,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
+    ):
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        # Restore Prior objects from the dicts produced by the JSON
+        # round-trip in save/load
+        self.model_config = parse_model_config(self.model_config)
 
     @property
     def default_model_config(self) -> dict:
