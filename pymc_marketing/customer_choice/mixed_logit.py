@@ -1042,7 +1042,7 @@ class MixedLogit(ModelBuilder):
             self.build_model()
 
         with self.model:
-            prior_pred = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred = pm.sample_prior_predictive(draws=samples, **kwargs)
             prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
             prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)

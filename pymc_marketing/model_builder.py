@@ -1266,7 +1266,9 @@ class RegressionModelBuilder(ModelBuilder):
             self.build_model(X, y)
 
         with self.model:  # sample with new input data
-            prior_pred: xr.DataTree = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred: xr.DataTree = pm.sample_prior_predictive(
+                draws=samples, **kwargs
+            )
             prior_pred["/prior"].attrs["pymc_marketing_version"] = __version__
             prior_pred["/prior_predictive"].attrs["pymc_marketing_version"] = (
                 __version__
