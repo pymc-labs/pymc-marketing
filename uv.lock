@@ -4099,7 +4099,7 @@ requires-dist = [
     { name = "ipywidgets", marker = "extra == 'docs'" },
     { name = "jax", marker = "extra == 'test'" },
     { name = "labs-sphinx-theme", marker = "extra == 'docs'" },
-    { name = "matplotlib", specifier = ">=3.5.1" },
+    { name = "matplotlib", specifier = ">=3.5.1,<3.11" },
     { name = "mlflow", marker = "extra == 'docs'", specifier = ">=2.0.0" },
     { name = "mlflow", marker = "extra == 'test'", specifier = ">=2.0.0" },
     { name = "mypy", marker = "extra == 'lint'" },
