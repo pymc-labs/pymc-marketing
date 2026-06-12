@@ -4137,7 +4137,7 @@ requires-dist = [
     { name = "pymc", specifier = ">=5.28.5,<6.0.0" },
     { name = "pymc-bart", marker = "extra == 'pie'" },
     { name = "pymc-bart", marker = "extra == 'test'" },
-    { name = "pymc-extras", specifier = ">=0.9.2" },
+    { name = "pymc-extras", specifier = ">=0.9.2,<0.11.0" },
     { name = "pyprojroot" },
     { name = "pyprojroot", marker = "extra == 'test'" },
     { name = "pytensor", specifier = ">=2.38.2,<3.0.0" },
