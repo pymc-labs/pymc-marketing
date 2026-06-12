@@ -7,7 +7,7 @@ dependencies:
   # Base dependencies
   - python=3.12
   - arviz>=0.13.0,<1.0.0
-  - matplotlib>=3.5.1
+  - matplotlib>=3.5.1,<3.11
   - narwhals
   - numpy>=1.17
   - scipy>=1.15
