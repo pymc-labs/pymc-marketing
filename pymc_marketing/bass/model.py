@@ -552,8 +552,9 @@ class BassModel(ModelBuilder):
         if "observed" in ds:
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
-            dtype = self.model["y_obs"].get_value().dtype
-            set_data["y_obs"] = np.zeros(len(new_t), dtype=dtype)
+            old_value = self.model["y_obs"].get_value()
+            new_shape = (len(new_t), *old_value.shape[1:])
+            set_data["y_obs"] = np.zeros(new_shape, dtype=old_value.dtype)
         with self.model:
             pm.set_data(set_data, coords={"T": new_t})
 

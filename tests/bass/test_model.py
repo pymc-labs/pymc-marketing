@@ -836,6 +836,24 @@ class TestBassModelClass:
         assert isinstance(loaded.model_config["m"].dist, Prior)
         xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
 
+    def test_multi_product_forecast_without_observed(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+
+        assert pp["y"].sizes["T"] == 10
+        assert pp["y"].sizes["product"] == 3
+
     def test_posterior_predictive_in_sample(self, fitted_model_positive_m: BassModel):
         with fitted_model_positive_m.model:
             pp = pm.sample_posterior_predictive(
