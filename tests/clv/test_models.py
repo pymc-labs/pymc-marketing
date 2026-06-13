@@ -18,7 +18,10 @@ from pymc_extras.prior import Prior
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from pymc_marketing.clv.models.beta_geo_beta_binom import BetaGeoBetaBinomModel
-from pymc_marketing.clv.models.gamma_gamma import GammaGammaModel
+from pymc_marketing.clv.models.gamma_gamma import (
+    GammaGammaModel,
+    GammaGammaModelIndividual,
+)
 from pymc_marketing.clv.models.modified_beta_geo import ModifiedBetaGeoModel
 from pymc_marketing.clv.models.pareto_nbd import ParetoNBDModel
 from pymc_marketing.clv.models.shifted_beta_geo import (
@@ -323,10 +326,61 @@ def test_gamma_gamma_model_validate_data_errors(data, expected_error, match):
             ValueError,
             "t_churn must respect 0 < t_churn <= T",
         ),
+        (
+            pd.DataFrame({"customer_id": [1], "t_churn": [pd.NA], "T": [10]}),
+            ValueError,
+            "t_churn must respect 0 < t_churn <= T",
+        ),
     ],
 )
 def test_shifted_beta_geo_individual_validate_data_errors(data, expected_error, match):
     model = ShiftedBetaGeoModelIndividual.__new__(ShiftedBetaGeoModelIndividual)
+    model.model_config = {}
+    with pytest.raises(expected_error, match=match):
+        model._validate_data(data)
+
+
+@pytest.mark.parametrize(
+    "data, expected_warning, match",
+    [
+        (
+            pd.DataFrame(
+                {
+                    "customer_id": [1],
+                    "individual_transaction_value": [0],
+                }
+            ),
+            UserWarning,
+            "Non-positive individual transaction values are practically problematic.",
+        ),
+    ],
+)
+def test_gamma_gamma_model_individual_validate_data_warnings(
+    data, expected_warning, match
+):
+    model = GammaGammaModelIndividual.__new__(GammaGammaModelIndividual)
+    model.model_config = {}
+    with pytest.warns(expected_warning, match=match):
+        model._validate_data(data)
+
+
+@pytest.mark.parametrize(
+    "data, expected_error, match",
+    [
+        (
+            pd.DataFrame(
+                {
+                    "customer_id": [1],
+                    "individual_transaction_value": [-1],
+                }
+            ),
+            ValueError,
+            "Column individual_transaction_value has negative values",
+        ),
+    ],
+)
+def test_gamma_gamma_model_individual_validate_data_errors(data, expected_error, match):
+    model = GammaGammaModelIndividual.__new__(GammaGammaModelIndividual)
     model.model_config = {}
     with pytest.raises(expected_error, match=match):
         model._validate_data(data)
