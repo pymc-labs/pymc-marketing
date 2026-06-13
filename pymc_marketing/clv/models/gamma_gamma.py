@@ -13,6 +13,8 @@
 #   limitations under the License.
 """Gamma-Gamma Model for expected future monetary value."""
 
+import warnings
+
 import numpy as np
 import pandas
 import pymc as pm
@@ -173,7 +175,8 @@ class BaseGammaGammaModel(CLVModel):
         Parameters
         ----------
         transaction_model : ~CLVModel
-            Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+            Predictive model for future transactions. `BetaGeoModel`,
+            `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
 
@@ -325,7 +328,6 @@ class GammaGammaModel(BaseGammaGammaModel):
             "v": Prior("HalfFlat"),
         }
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma-specific data requirements."""
         self._validate_cols(
@@ -333,6 +335,13 @@ class GammaGammaModel(BaseGammaGammaModel):
             required_cols=["customer_id", "monetary_value", "frequency"],
             must_be_unique=["customer_id"],
         )
+        self._validate_frequency(data)
+        if (data["monetary_value"] <= 0).any():
+            warnings.warn(
+                "Non-positive monetary values are practically problematic.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def build_model(self, data: pandas.DataFrame | None = None) -> None:  # type: ignore[override]
         """Build the model.
@@ -495,6 +504,14 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self._validate_cols(
             data, required_cols=["customer_id", "individual_transaction_value"]
         )
+        if (data["individual_transaction_value"] < 0).any():
+            raise ValueError("Column individual_transaction_value has negative values")
+        if (data["individual_transaction_value"] <= 0).any():
+            warnings.warn(
+                "Non-positive individual transaction values are practically problematic.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def build_model(self, data: pandas.DataFrame | None = None) -> None:  # type: ignore[override]
         """Build the model.
