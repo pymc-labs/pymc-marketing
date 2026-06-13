@@ -77,7 +77,7 @@ def test_apply_method(
     x = as_xtensor(x, dims=dims)
 
     with model:
-        y = saturation.apply(x, dims=dims)
+        y = saturation.apply(x)
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape
@@ -362,6 +362,7 @@ class TestSaturationRoundtrips:
         "pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation",
         "pymc_marketing.mmm.components.saturation.RootSaturation",
         "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.LogSaturation",
         "pymc_marketing.mmm.components.saturation.NoSaturation",
     ],
     ids=lambda s: s.rsplit(".", 1)[-1],

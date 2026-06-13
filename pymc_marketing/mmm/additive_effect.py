@@ -243,12 +243,58 @@ class MuEffect(SerializableBaseModel, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
+    @property
+    def contribution_var_name(self) -> str:
+        """Name of the posterior deterministic holding this effect's contribution.
+
+        Used by :meth:`MMM.compute_counterfactual_contributions_dataset` to
+        locate the effect's linear-predictor contribution and include it in
+        the decomposition.  The default assumes the effect registers
+        ``f"{self.prefix}_effect_contribution"`` (the convention used by
+        :class:`LinearTrendEffect` and :class:`EventEffect`); effects that
+        register a different name must override this property.
+
+        Raises
+        ------
+        NotImplementedError
+            If the effect has no ``prefix`` attribute and does not override
+            this property.
+        """
+        prefix = getattr(self, "prefix", None)
+        if prefix is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define 'contribution_var_name'."
+            )
+        return f"{prefix}_effect_contribution"
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return supplementary data groups to store in InferenceData.
+
+        Override in subclasses that need to persist large DataFrames or
+        other non-JSON-serializable data alongside the model.
+
+        Each entry is stored as a top-level group in the InferenceData
+        netCDF file during ``save()`` and is available to custom
+        deserializers via ``DeserializationContext(idata=...)``.
+
+        Returns
+        -------
+        dict[str, xr.Dataset]
+            Group name to xarray Dataset mapping.
+        """
+        return {}
+
 
 class FourierEffect(MuEffect):
     """Fourier seasonality additive effect for MMM."""
 
     fourier: InstanceOf[FourierBase]
     date_dim_name: str = Field("date")
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Fourier effects register ``f"{fourier.prefix}_contribution"``."""
+        return f"{self.fourier.prefix}_contribution"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
@@ -705,6 +751,14 @@ class EventAdditiveEffect(MuEffect):
             "days": days_from_reference(new_dates, self.reference_date),
         }
         pm.set_data(new_data=new_data, model=model)
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return the events DataFrame as a supplementary idata group."""
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df_events.reset_index(drop=True)
+            ),
+        }
 
 
 def _deserialize_event_additive_effect(

@@ -54,6 +54,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 
+:::{grid-item-card} Additive vs Log vs Log-Log MMMs
+:img-top: ../gallery/images/mmm_multiplicative.png
+:link: ../notebooks/mmm/mmm_multiplicative.html
+:::
+
 :::{grid-item-card} Interactive MMM Visualizations
 :img-top: ../gallery/images/plot_interactive.png
 :link: ../notebooks/mmm/plot_interactive.html
@@ -322,6 +327,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} MaxDiff (Best-Worst Scaling)
 :img-top: ../gallery/images/maxdiff.png
 :link: ../notebooks/customer_choice/maxdiff.html
+:::
+
+:::{grid-item-card} Bayesian BLP: Structural Demand on Aggregate Shares
+:img-top: ../gallery/images/bayesian_blp.png
+:link: ../notebooks/customer_choice/bayesian_blp.html
+:::
+
+:::{grid-item-card} Bayesian BLP on the Nevo Cereal Panel
+:img-top: ../gallery/images/bayesian_blp_nevo.png
+:link: ../notebooks/customer_choice/bayesian_blp_nevo.html
 :::
 ::::
 

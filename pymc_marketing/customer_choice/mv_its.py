@@ -499,7 +499,7 @@ class MVITS(RegressionModelBuilder):
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
+                    "label": f"{existing_product} - Posterior predictive (HDI)",
                 },
                 smooth=False,
             )
@@ -560,7 +560,7 @@ class MVITS(RegressionModelBuilder):
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
+                    "label": f"{existing_product} - Posterior predictive (HDI)",
                 },
                 smooth=False,
             )
@@ -612,7 +612,7 @@ class MVITS(RegressionModelBuilder):
                 fill_kwargs={
                     "alpha": HDI_ALPHA,
                     "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
+                    "label": f"{existing_product} - Posterior predictive (HDI)",
                 },
                 smooth=False,
             )
