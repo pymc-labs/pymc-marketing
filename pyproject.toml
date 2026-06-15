@@ -84,6 +84,7 @@ test = [
     "blackjax",
     "fastprogress",
     "h5netcdf>=1.8.1",
+    "h5py>=3.16.0",
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
