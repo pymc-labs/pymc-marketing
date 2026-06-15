@@ -614,10 +614,11 @@ class BudgetOptimizer(BaseModel):
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
         Mask defining a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.
-    custom_constraints : Sequence[Constraint], optional
-        Custom constraints for the optimizer.
-    default_constraints : bool, optional
-        Whether to add a default sum constraint on the total budget. Default is True.
+    constraints : Sequence[Constraint], optional
+        Constraints for the optimizer. If empty, a default sum-equals-total-budget
+        constraint is added automatically. If non-empty, the caller is in charge:
+        no default is added. Pass ``build_default_sum_constraint()`` explicitly
+        to keep the sum constraint alongside custom ones.
     budget_distribution_over_period : xarray.DataArray, optional
         Fixed temporal distribution of each budget cell across periods.
         Must have dims ``("date", *budget_dims)`` where the ``"date"``
@@ -659,14 +660,15 @@ class BudgetOptimizer(BaseModel):
         description="Mask defining a subset of budgets to optimize. Non-optimized budgets remain fixed at 0.",
     )
 
-    custom_constraints: Sequence[Constraint] = Field(
+    constraints: Sequence[Constraint] = Field(
         default=(),
-        description="Custom constraints for the optimizer.",
-    )
-
-    default_constraints: bool = Field(
-        default=True,
-        description="Whether to add a default sum constraint on the total budget.",
+        description=(
+            "Constraints for the optimizer. Empty means the default sum "
+            "constraint is added automatically; non-empty means the caller "
+            "is in charge (no default is added). Pass "
+            "`build_default_sum_constraint()` explicitly to keep the sum "
+            "constraint alongside custom ones."
+        ),
     )
 
     budget_distribution_over_period: DataArray | None = Field(
@@ -830,31 +832,26 @@ class BudgetOptimizer(BaseModel):
 
         # 9. Build constraints
         self._constraints = {}
-        self.set_constraints(
-            default=self.default_constraints, constraints=self.custom_constraints
-        )
+        self.set_constraints(constraints=self.constraints)
 
-    def set_constraints(self, constraints, default=None) -> None:
-        """Set constraints for the optimizer."""
+    def set_constraints(self, constraints: Sequence[Constraint]) -> None:
+        """Set constraints for the optimizer.
+
+        An empty ``constraints`` auto-adds the default sum constraint; a
+        non-empty one means the caller is in charge.
+        """
+        add_default = not constraints
+
         self._constraints = {}
-        if default is None:
-            default = False if constraints else True
-
         for c in constraints:
-            new_constraint = Constraint(
-                key=c.key,
-                constraint_fun=c.constraint_fun,
-                constraint_type=c.constraint_type if c.constraint_type else "eq",
-            )
-            self._constraints[c.key] = new_constraint
+            if c.key in self._constraints:
+                raise ValueError(
+                    f"Duplicate constraint key {c.key!r}. Constraint keys must be unique."
+                )
+            self._constraints[c.key] = c
 
-        if default:
+        if add_default:
             self._constraints["default"] = build_default_sum_constraint("default")
-            warnings.warn(
-                "Using default equality constraint",
-                UserWarning,
-                stacklevel=2,
-            )
 
         # Compile constraints to be used by SciPy
         self._compiled_constraints = compile_constraints_for_scipy(

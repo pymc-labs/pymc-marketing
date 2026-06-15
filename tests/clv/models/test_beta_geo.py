@@ -11,8 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -675,11 +673,12 @@ class TestBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_save_load(self):
-        self.model.save("test_model")
+    def test_save_load(self, tmp_path):
+        save_path = tmp_path / "test_model"
+        self.model.save(save_path)
         # Testing the valid case.
 
-        model2 = BetaGeoModel.load("test_model")
+        model2 = BetaGeoModel.load(save_path)
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(self.model, BetaGeoModel)
@@ -688,7 +687,6 @@ class TestBetaGeoModel:
         assert self.model.model_config == model2.model_config
         assert self.model.sampler_config == model2.sampler_config
         assert self.model.idata == model2.idata
-        os.remove("test_model")
 
 
 class TestBetaGeoModelWithCovariates:

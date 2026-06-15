@@ -608,13 +608,12 @@ class TestBudgetOptimizerCostPerUnitIntegration:
                 coords={"date": range(num_periods), "channel": channel_columns},
             )
 
-            with pytest.warns(UserWarning, match="Using default equality constraint"):
-                optimizer = BudgetOptimizer(
-                    model=wrapper,
-                    num_periods=num_periods,
-                    cost_per_unit=cpu,
-                    response_variable=self.RESPONSE_VAR,
-                )
+            optimizer = BudgetOptimizer(
+                model=wrapper,
+                num_periods=num_periods,
+                cost_per_unit=cpu,
+                response_variable=self.RESPONSE_VAR,
+            )
 
             budget_bounds = {ch: (0.0, 500.0) for ch in channel_columns}
             optimal_budgets, _ = optimizer.allocate_budget(
