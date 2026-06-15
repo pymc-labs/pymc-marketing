@@ -83,6 +83,7 @@ lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
     "blackjax",
     "fastprogress",
+    "h5netcdf>=1.8.1",
     "nutpie>=0.16.7",
     "numpyro",
     "ipykernel",
