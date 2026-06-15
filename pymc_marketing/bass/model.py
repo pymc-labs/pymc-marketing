@@ -602,7 +602,7 @@ class BassModel(ModelBuilder):
             )
 
         if extend_idata and self.idata is not None:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         variable_name = (
             "predictions"
@@ -728,16 +728,16 @@ class BassModel(ModelBuilder):
 
         if self.idata is not None:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
-            del self.idata.fit_data
+            del self.idata["fit_data"]
 
-        self.idata.add_groups(fit_data=ds)
+        self.idata["fit_data"] = xr.DataTree(ds)
         self.set_idata_attrs(self.idata)
         return self.idata
 
