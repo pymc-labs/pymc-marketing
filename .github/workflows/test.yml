@@ -11,8 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *[>=]' pyproject.toml | sed -n 's/.*[>=]=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
   # NOTE: .test_durations is managed manually (committed to repo)
   # - pytest-split uses this file to balance test execution times
   # - Update by running the "Generate Test Durations" workflow manually
@@ -63,10 +61,14 @@ jobs:
           uv pip install -e .[test]
       - name: Pin oldest versions of PyMC and extras
         if: ${{ matrix.config.oldest-pymc }}
-        run: uv pip install 'pymc-extras>=0.9.3,<0.11.0' 'pymc==${{ env.OLDEST_PYMC_VERSION }}'
+        run: |
+          OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
+          uv pip install 'pymc-extras>=0.9.3,<0.11.0' "pymc==${OLDEST}"
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
-        run: uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
+        run: |
+          OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
+          uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
       - name: Run tests
         run: |
           uv run --no-sync --frozen pytest --splits 6 \
