@@ -27,6 +27,7 @@ Use these existing labels when appropriate:
 - `priority: low` - Low priority issues
 - `maintenance` - Maintenance/refactoring issues
 - `dependencies` - Dependency-related issues
+- `no releasenotes` - Internal/CI/test changes excluded from release notes
 
 ## Triage Rules
 
@@ -67,6 +68,17 @@ Add labels based on issue content (title + body):
 11. **Dependencies** (add `dependencies`):
     - Contains: "dependency", "version", "requirement", "import"
 
+12. **No Release Notes** (add `no releasenotes`):
+    - Issue is purely about internal development process (CI/CD, test
+      infrastructure, automation workflows, pre-commit, version bump process,
+      internal agent/tooling config, UML diagrams, test duration metadata)
+    - Contains: "CI", "workflow", "pre-commit", "dependabot", "version bump",
+      "release process", "test runner", "UML diagram", "agent prompt"
+    - Apply **only** when the issue does NOT affect package source code,
+      public API, user-facing features, documentation, or bug fixes
+    - Never use alongside `bug`, `enhancement`, `docs`, `API`, `MMM`, or `CLV`
+    - When unsure, run for reference: `gh pr list --label "no releasenotes" --state merged --limit 10`
+
 ### Priority Assignment
 
 - **priority: high** - Performance issues, crashes, critical bugs
@@ -105,6 +117,9 @@ format and placement at the end of the response are not optional.
 3. If no specific labels match, add `enhancement` as default (new issues are enhancements until proven otherwise)
 4. Use comma-separated label names for multiple labels
 5. Never assign to users - only add labels
+6. The `no releasenotes` label is reserved for internal/process-only changes.
+   Never add it alongside `bug`, `enhancement`, `docs`, `API`, `MMM`, or `CLV`
+   — those indicate package-affecting changes that belong in release notes.
 
 ## Input Format
 

@@ -11,6 +11,7 @@ coverage:
        # advanced settings
         branches:
           - main
+          - v1.0.0
         if_ci_failed: error #success, failure, error, ignore
         informational: false
         only_pulls: false

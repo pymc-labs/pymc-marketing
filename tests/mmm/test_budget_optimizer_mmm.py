@@ -199,6 +199,38 @@ compile_kwargs = pytest.mark.parametrize(
 
 
 @compile_kwargs
+def test_optimize_budget_forwards_constraints(dummy_df, fitted_mmm, compile_kwargs):
+    """`optimize_budget` forwards `constraints` to the BudgetOptimizer.
+
+    An infeasible custom constraint must surface as a failed optimization,
+    proving the constraint reached the optimizer through the wrapper.
+    """
+    from pymc_marketing.mmm.budget_optimizer import MinimizeException
+    from pymc_marketing.mmm.constraints import Constraint
+
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    optimizable_model = BudgetOptimizerWrapper(
+        model=fitted_mmm,
+        start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+        end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        compile_kwargs=compile_kwargs,
+    )
+
+    # sum(budgets) == 1e6 is unreachable with budget=1 and default (0, 1) bounds.
+    infeasible = Constraint(
+        key="too_much",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - 1e6
+        ),
+        constraint_type="eq",
+    )
+
+    with pytest.raises(MinimizeException):
+        optimizable_model.optimize_budget(budget=1, constraints=[infeasible])
+
+
+@compile_kwargs
 def test_budget_optimizer_no_mask(dummy_df, fitted_mmm, compile_kwargs):
     _df_kwargs, X_dummy, _y_dummy = dummy_df
 
@@ -389,7 +421,6 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
             num_periods=4,
             budget_distribution_over_period=time_factors_geo_only,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -438,7 +469,6 @@ def test_time_distribution_by_geo_only(dummy_df, fitted_mmm, compile_kwargs):
         budget_distribution_over_period=budget_distribution_over_period,
         response_variable="total_media_contribution_original_scale",
         # No custom utility function needed with fitted model!
-        default_constraints=True,
         compile_kwargs=compile_kwargs,
     )
 
@@ -507,7 +537,6 @@ def test_time_distribution_by_channel_geo(dummy_df, fitted_mmm, compile_kwargs):
         num_periods=4,
         budget_distribution_over_period=budget_distribution_over_period,
         response_variable="total_media_contribution_original_scale",
-        default_constraints=True,
         compile_kwargs=compile_kwargs,
     )
 
@@ -593,7 +622,6 @@ def test_time_distribution_with_zero_bounds(dummy_df, fitted_mmm, compile_kwargs
         num_periods=4,
         budget_distribution_over_period=budget_distribution_over_period,
         response_variable="total_media_contribution_original_scale",
-        default_constraints=True,
         compile_kwargs=compile_kwargs,
     )
 
@@ -652,7 +680,6 @@ def test_budget_distribution_over_period_wrong_dims_multidimensional(
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -927,15 +954,13 @@ def test_time_distribution_multidim(dummy_df, fitted_mmm, compile_kwargs):
     from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
     # Create the budget optimizer with time factors
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer = BudgetOptimizer(
-            model=optimizable_model,
-            num_periods=4,
-            budget_distribution_over_period=budget_distribution_over_period,
-            response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
-            compile_kwargs=compile_kwargs,
-        )
+    optimizer = BudgetOptimizer(
+        model=optimizable_model,
+        num_periods=4,
+        budget_distribution_over_period=budget_distribution_over_period,
+        response_variable="total_media_contribution_original_scale",
+        compile_kwargs=compile_kwargs,
+    )
 
     optimal_budgets, result = optimizer.allocate_budget(
         total_budget=100,
@@ -1015,15 +1040,13 @@ def test_time_distribution_channel_specific_pattern(
 
     from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer = BudgetOptimizer(
-            model=optimizable_model,
-            num_periods=4,
-            budget_distribution_over_period=budget_distribution_over_period,
-            response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
-            compile_kwargs=compile_kwargs,
-        )
+    optimizer = BudgetOptimizer(
+        model=optimizable_model,
+        num_periods=4,
+        budget_distribution_over_period=budget_distribution_over_period,
+        response_variable="total_media_contribution_original_scale",
+        compile_kwargs=compile_kwargs,
+    )
 
     optimal_budgets, result = optimizer.allocate_budget(
         total_budget=80,
@@ -1089,7 +1112,6 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
             num_periods=4,
             budget_distribution_over_period=bad_factors,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1119,7 +1141,6 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
             num_periods=4,
             budget_distribution_over_period=wrong_periods_factors,
             response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
             compile_kwargs=compile_kwargs,
         )
 
@@ -1145,15 +1166,13 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
     # Run optimization WITHOUT time distribution pattern
     from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer_no_pattern = BudgetOptimizer(
-            model=optimizable_model,
-            num_periods=num_periods,
-            budget_distribution_over_period=None,  # No pattern
-            response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
-            compile_kwargs=compile_kwargs,
-        )
+    optimizer_no_pattern = BudgetOptimizer(
+        model=optimizable_model,
+        num_periods=num_periods,
+        budget_distribution_over_period=None,  # No pattern
+        response_variable="total_media_contribution_original_scale",
+        compile_kwargs=compile_kwargs,
+    )
 
     optimal_budgets_no_pattern, result_no_pattern = (
         optimizer_no_pattern.allocate_budget(
@@ -1184,15 +1203,13 @@ def test_time_distribution_total_spend_preserved(dummy_df, fitted_mmm, compile_k
         },
     )
 
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer_with_pattern = BudgetOptimizer(
-            model=optimizable_model,
-            num_periods=num_periods,
-            budget_distribution_over_period=budget_distribution_over_period,
-            response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
-            compile_kwargs=compile_kwargs,
-        )
+    optimizer_with_pattern = BudgetOptimizer(
+        model=optimizable_model,
+        num_periods=num_periods,
+        budget_distribution_over_period=budget_distribution_over_period,
+        response_variable="total_media_contribution_original_scale",
+        compile_kwargs=compile_kwargs,
+    )
 
     optimal_budgets_with_pattern, result_with_pattern = (
         optimizer_with_pattern.allocate_budget(
@@ -1298,15 +1315,13 @@ def test_time_distribution_with_carryover_total_spend_preserved(
     # Create an optimal budget allocation
     from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer = BudgetOptimizer(
-            model=optimizable_model,
-            num_periods=num_periods,
-            budget_distribution_over_period=budget_distribution_over_period,
-            response_variable="total_media_contribution_original_scale",
-            default_constraints=True,
-            compile_kwargs=compile_kwargs,
-        )
+    optimizer = BudgetOptimizer(
+        model=optimizable_model,
+        num_periods=num_periods,
+        budget_distribution_over_period=budget_distribution_over_period,
+        response_variable="total_media_contribution_original_scale",
+        compile_kwargs=compile_kwargs,
+    )
 
     optimal_budgets, result = optimizer.allocate_budget(
         total_budget=total_budget,
@@ -1537,12 +1552,11 @@ def test_float_channel_data_optimized(simple_fitted_mmm):
     wrapper = BudgetOptimizerWrapper(
         model=simple_fitted_mmm, start_date="2025-01-06", end_date="2025-02-03"
     )
-    with pytest.warns(UserWarning, match="Using default equality constraint"):
-        optimizer = BudgetOptimizer(
-            model=wrapper,
-            num_periods=wrapper.num_periods,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=wrapper,
+        num_periods=wrapper.num_periods,
+        response_variable="total_media_contribution_original_scale",
+    )
     budget_bounds = {
         ch: (0.0, total_budget) for ch in simple_fitted_mmm.channel_columns
     }
