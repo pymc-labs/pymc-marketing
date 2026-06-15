@@ -4064,6 +4064,7 @@ test = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "pytest-split" },
+    { name = "watermark" },
 ]
 
 [package.dev-dependencies]
@@ -4154,6 +4155,7 @@ requires-dist = [
     { name = "sphinxext-opengraph", marker = "extra == 'docs'" },
     { name = "tqdm" },
     { name = "watermark", marker = "extra == 'docs'" },
+    { name = "watermark", marker = "extra == 'test'" },
     { name = "xarray", specifier = ">=2024.1.0" },
     { name = "xarray-einstats", specifier = ">=0.5.1" },
 ]
