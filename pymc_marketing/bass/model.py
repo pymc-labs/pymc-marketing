@@ -668,7 +668,7 @@ class BassModel(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the Bass diffusion model via MCMC.
 
         Parameters
@@ -741,7 +741,7 @@ class BassModel(ModelBuilder):
         self.set_idata_attrs(self.idata)
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the model from an ``InferenceData`` object.
 
         Used internally by :meth:`ModelBuilder.load`.
