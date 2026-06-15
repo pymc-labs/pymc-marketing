@@ -41,7 +41,7 @@ dependencies = [
     "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
     "pyprojroot",
-    "pymc-extras>=0.9.3,<0.11.0",
+    "pymc-extras>=0.11.0,<0.12.0",
     "preliz>=0.20.0",
     "pyyaml",
 ]
