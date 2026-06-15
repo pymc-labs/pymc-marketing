@@ -10,12 +10,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  # NOTE: .test_durations is managed manually (committed to repo)
-  # - pytest-split uses this file to balance test execution times
-  # - Update by running the "Generate Test Durations" workflow manually
-  # - Only needed every few weeks or after major test changes
-
 jobs:
   changes:
     runs-on: ubuntu-latest
