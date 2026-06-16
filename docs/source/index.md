@@ -50,21 +50,10 @@ Powered by
 
 ## Trusted in production
 
-PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. It isn't a research prototype: data science teams use it to plan and defend real marketing budgets, with every result validated against experiments and lift tests rather than back-tested in isolation.
+PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. Data science teams use it to plan and defend real marketing budgets, with results validated against experiments and lift tests.
 
 :::{div} sd-text-center
 **750,000+ downloads** · **1,100+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
-:::
-
-- **[Bolt](https://www.youtube.com/watch?v=djXoPq60bRM)** — the mobility super-app evolved its marketing measurement towards Bayesian MMM with PyMC-Marketing, validating spend decisions against experiments and quasi-experiments.
-- **[HelloFresh](https://www.pymc-labs.com/blog-posts/reducing-customer-acquisition-costs-how-we-helped-optimizing-hellofreshs-marketing-budget/)** — runs Bayesian MMM in production for live budget planning. Putting the model into production cut inference time from **20 minutes to 2 minutes** and reduced prediction variance by **60%** — fast and stable enough to use inside ongoing planning cycles.
-
-:::{div} sd-text-center
-```{button-link} https://calendly.com/niall-oulton
-:color: primary
-:shadow:
-📞 Take your marketing models to production — book a free 30-min session with the team behind PyMC-Marketing
-```
 :::
 
 ## Get started
