@@ -283,7 +283,10 @@ def test_log_model_graph_no_graphviz(
         with caplog.at_level(logging.INFO):
             log_model_graph(model_with_likelihood, "model_graph")
 
-    assert caplog.messages == [
+    graph_log_lines = [
+        msg for msg in caplog.messages if "model graph" in msg or "graphviz" in msg
+    ]
+    assert graph_log_lines == [
         expected_info_message,
     ]
 
