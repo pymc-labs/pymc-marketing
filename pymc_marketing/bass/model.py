@@ -684,7 +684,7 @@ class BassModel(ModelBuilder):
 
         Returns
         -------
-        arviz.InferenceData
+        xarray.DataTree
             Posterior with parameters and deterministics (adopters,
             innovators, imitators, peak) plus a ``fit_data`` group.
 
@@ -742,7 +742,7 @@ class BassModel(ModelBuilder):
         return self.idata
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
-        """Rebuild the model from an ``InferenceData`` object.
+        """Rebuild the model from a ``DataTree`` object.
 
         Used internally by :meth:`ModelBuilder.load`.
         """
