@@ -15,12 +15,11 @@
 
 from collections.abc import Sequence
 
-import xarray as xr
-
 import numpy as np
 import pandas as pd
 import pymc as pm
 import xarray
+import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from scipy.special import gammaln, hyp2f1
@@ -965,9 +964,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
         if "theta" in var_names:
             theta = rng.beta(alpha[:, None], beta[:, None], size=(n_samples, n))
-            data_vars["theta"] = xr.DataArray(
-                theta, dims=("sample", "new_customer_id")
-            )
+            data_vars["theta"] = xr.DataArray(theta, dims=("sample", "new_customer_id"))
 
         if "churn" in var_names:
             theta_for_churn = (
@@ -976,9 +973,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 else rng.beta(alpha[:, None], beta[:, None], size=(n_samples, n))
             )
             churn = rng.geometric(theta_for_churn.T).T
-            data_vars["churn"] = xr.DataArray(
-                churn, dims=("sample", "new_customer_id")
-            )
+            data_vars["churn"] = xr.DataArray(churn, dims=("sample", "new_customer_id"))
 
         return xr.Dataset(data_vars, coords=coords)
 

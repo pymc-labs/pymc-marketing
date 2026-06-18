@@ -1427,9 +1427,7 @@ class TestShiftedBetaGeoModelIndividual:
 
     def test_distribution_new_customer_var_names_subset(self):
         """Requesting only 'theta' should not return 'churn'."""
-        dataset = pd.DataFrame(
-            {"customer_id": [1], "t_churn": [10], "T": [10]}
-        )
+        dataset = pd.DataFrame({"customer_id": [1], "t_churn": [10], "T": [10]})
         model = ShiftedBetaGeoModelIndividual(data=dataset)
         model.build_model()
         model.fit(method="map")
@@ -1444,18 +1442,14 @@ class TestShiftedBetaGeoModelIndividual:
             }
         )
 
-        res = model._distribution_new_customer(
-            n=5, random_seed=99, var_names=["theta"]
-        )
+        res = model._distribution_new_customer(n=5, random_seed=99, var_names=["theta"])
         assert "theta" in res
         assert "churn" not in res
         assert res["theta"].sizes["new_customer_id"] == 5
 
     def test_distribution_new_customer_reproducible(self):
         """Same seed should produce identical results."""
-        dataset = pd.DataFrame(
-            {"customer_id": [1], "t_churn": [10], "T": [10]}
-        )
+        dataset = pd.DataFrame({"customer_id": [1], "t_churn": [10], "T": [10]})
         model = ShiftedBetaGeoModelIndividual(data=dataset)
         model.build_model()
         model.fit(method="map")
@@ -1476,9 +1470,7 @@ class TestShiftedBetaGeoModelIndividual:
 
     def test_distribution_new_customer_map_fit(self):
         """MAP fit (single draw) should still work."""
-        dataset = pd.DataFrame(
-            {"customer_id": [1], "t_churn": [10], "T": [10]}
-        )
+        dataset = pd.DataFrame({"customer_id": [1], "t_churn": [10], "T": [10]})
         model = ShiftedBetaGeoModelIndividual(data=dataset)
         model.build_model()
         model.fit(method="map")
