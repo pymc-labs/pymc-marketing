@@ -960,11 +960,13 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             theta = pm.Beta("theta", alpha, beta, dims=("new_customer_id",))
             pm.Geometric("churn", theta, dims=("new_customer_id",))
 
-            return pm.sample_posterior_predictive(
+            result = pm.sample_posterior_predictive(
                 self.idata,
                 var_names=var_names,
                 random_seed=random_seed,
             ).posterior_predictive
+
+            return result.assign_coords(coords)
 
     def distribution_new_customer_churn_time(
         self, n: int = 1, random_seed: RandomState = None
