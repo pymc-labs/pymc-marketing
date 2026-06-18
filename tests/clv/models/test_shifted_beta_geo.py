@@ -1356,6 +1356,7 @@ class TestShiftedBetaGeoModelIndividual:
         )
 
     def test_distribution_new_customer(self):
+        """Default n=1: theta and churn distributions for a single new customer."""
         dataset = pd.DataFrame(
             {
                 "customer_id": [1],
@@ -1369,24 +1370,134 @@ class TestShiftedBetaGeoModelIndividual:
         model.build_model()
         model.fit(method="map")
         # theta ~ beta(7000, 3000) ~ 0.7
-        model.idata = az.from_dict(
+        model.idata = xr.DataTree.from_dict(
             {
-                "posterior": {
-                    "alpha": np.full((2, 500), 7000),
-                    "beta": np.full((2, 500), 3000),
-                }
+                "/posterior": xr.Dataset(
+                    {
+                        "alpha": (("chain", "draw"), np.full((2, 500), 7000)),
+                        "beta": (("chain", "draw"), np.full((2, 500), 3000)),
+                    }
+                )
             }
         )
 
         res = model.distribution_new_customer_theta(random_seed=141)
-        np.testing.assert_allclose(res.mean(("chain", "draw")), 0.7, rtol=0.001)
+        np.testing.assert_allclose(res.mean("sample"), 0.7, rtol=0.001)
+        # Result should have a 'sample' dimension (flattened chain/draw)
+        assert "sample" in res.dims
+        assert res.sizes["new_customer_id"] == 1
 
         res = model.distribution_new_customer_churn_time(n=2, random_seed=146)
         np.testing.assert_allclose(
-            res.mean(("chain", "draw", "new_customer_id")),
+            res.mean(("sample", "new_customer_id")),
             stats.geom(0.7).mean(),
             rtol=0.05,
         )
+
+    def test_distribution_new_customer_n_differs_from_data(self):
+        """n larger than training data size should still work."""
+        dataset = pd.DataFrame(
+            {
+                "customer_id": [1, 2, 3],
+                "t_churn": [10, 8, 12],
+                "T": [15, 15, 15],
+            }
+        )
+        model = ShiftedBetaGeoModelIndividual(data=dataset)
+        model.build_model()
+        model.fit(method="map")
+        model.idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "alpha": (("chain", "draw"), np.full((2, 500), 7000)),
+                        "beta": (("chain", "draw"), np.full((2, 500), 3000)),
+                    }
+                )
+            }
+        )
+
+        # n=10, but training had 3 customers
+        res = model.distribution_new_customer_theta(n=10, random_seed=42)
+        assert res.sizes["new_customer_id"] == 10
+        assert "sample" in res.dims
+        # All values should be in [0, 1] (theta is a probability)
+        assert (res >= 0).all()
+        assert (res <= 1).all()
+
+    def test_distribution_new_customer_var_names_subset(self):
+        """Requesting only 'theta' should not return 'churn'."""
+        dataset = pd.DataFrame(
+            {"customer_id": [1], "t_churn": [10], "T": [10]}
+        )
+        model = ShiftedBetaGeoModelIndividual(data=dataset)
+        model.build_model()
+        model.fit(method="map")
+        model.idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "alpha": (("chain", "draw"), np.full((2, 500), 7000)),
+                        "beta": (("chain", "draw"), np.full((2, 500), 3000)),
+                    }
+                )
+            }
+        )
+
+        res = model._distribution_new_customer(
+            n=5, random_seed=99, var_names=["theta"]
+        )
+        assert "theta" in res
+        assert "churn" not in res
+        assert res["theta"].sizes["new_customer_id"] == 5
+
+    def test_distribution_new_customer_reproducible(self):
+        """Same seed should produce identical results."""
+        dataset = pd.DataFrame(
+            {"customer_id": [1], "t_churn": [10], "T": [10]}
+        )
+        model = ShiftedBetaGeoModelIndividual(data=dataset)
+        model.build_model()
+        model.fit(method="map")
+        model.idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "alpha": (("chain", "draw"), np.full((2, 500), 7000)),
+                        "beta": (("chain", "draw"), np.full((2, 500), 3000)),
+                    }
+                )
+            }
+        )
+
+        res1 = model.distribution_new_customer_theta(n=5, random_seed=42)
+        res2 = model.distribution_new_customer_theta(n=5, random_seed=42)
+        np.testing.assert_array_equal(res1.values, res2.values)
+
+    def test_distribution_new_customer_map_fit(self):
+        """MAP fit (single draw) should still work."""
+        dataset = pd.DataFrame(
+            {"customer_id": [1], "t_churn": [10], "T": [10]}
+        )
+        model = ShiftedBetaGeoModelIndividual(data=dataset)
+        model.build_model()
+        model.fit(method="map")
+        model.idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "alpha": (("chain", "draw"), np.array([[1.0]])),
+                        "beta": (("chain", "draw"), np.array([[1.0]])),
+                    }
+                )
+            }
+        )
+
+        res = model.distribution_new_customer_theta(n=3, random_seed=42)
+        assert res.sizes["new_customer_id"] == 3
+        # With alpha=beta=1, theta ~ Uniform (beta(1,1)), mean ≈ 0.5
+        mean_theta = float(res.mean())
+        assert 0.3 < mean_theta < 0.7
 
     def test_save_load(self, data, tmp_path):
         model = ShiftedBetaGeoModelIndividual(

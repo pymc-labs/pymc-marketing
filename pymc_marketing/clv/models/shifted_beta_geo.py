@@ -15,6 +15,8 @@
 
 from collections.abc import Sequence
 
+import xarray as xr
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -953,20 +955,32 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         var_names: Sequence[str] = ("theta", "churn"),
     ) -> xarray.Dataset:
         coords = {"new_customer_id": np.arange(n)}
-        with pm.Model(coords=coords):
-            alpha = pm.HalfFlat("alpha")
-            beta = pm.HalfFlat("beta")
+        rng = np.random.default_rng(random_seed)
 
-            theta = pm.Beta("theta", alpha, beta, dims=("new_customer_id",))
-            pm.Geometric("churn", theta, dims=("new_customer_id",))
+        alpha = self.idata["/posterior"].dataset["alpha"].values.flatten()
+        beta = self.idata["/posterior"].dataset["beta"].values.flatten()
+        n_samples = len(alpha)
 
-            result = pm.sample_posterior_predictive(
-                self.idata,
-                var_names=var_names,
-                random_seed=random_seed,
-            ).posterior_predictive
+        data_vars: dict[str, xr.DataArray] = {}
 
-            return result.dataset.assign_coords(coords)
+        if "theta" in var_names:
+            theta = rng.beta(alpha[:, None], beta[:, None], size=(n_samples, n))
+            data_vars["theta"] = xr.DataArray(
+                theta, dims=("sample", "new_customer_id")
+            )
+
+        if "churn" in var_names:
+            theta_for_churn = (
+                data_vars["theta"].values
+                if "theta" in data_vars
+                else rng.beta(alpha[:, None], beta[:, None], size=(n_samples, n))
+            )
+            churn = rng.geometric(theta_for_churn.T).T
+            data_vars["churn"] = xr.DataArray(
+                churn, dims=("sample", "new_customer_id")
+            )
+
+        return xr.Dataset(data_vars, coords=coords)
 
     def distribution_new_customer_churn_time(
         self, n: int = 1, random_seed: RandomState = None
