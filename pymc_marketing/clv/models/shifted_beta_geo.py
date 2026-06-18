@@ -956,8 +956,9 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         coords = {"new_customer_id": np.arange(n)}
         rng = np.random.default_rng(random_seed)
 
-        alpha = self.idata["/posterior"].dataset["alpha"].values.flatten()
-        beta = self.idata["/posterior"].dataset["beta"].values.flatten()
+        posterior = self.idata["/posterior"]  # type: ignore[index]
+        alpha: np.ndarray = posterior.dataset["alpha"].values.flatten()  # type: ignore[assignment]
+        beta: np.ndarray = posterior.dataset["beta"].values.flatten()  # type: ignore[assignment]
         n_samples = len(alpha)
 
         data_vars: dict[str, xr.DataArray] = {}
