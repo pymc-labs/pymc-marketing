@@ -219,7 +219,6 @@ class MMMPlotSuite:
         idata: xr.Dataset | xr.DataTree | None = None,
         data: MMMIDataWrapper | None = None,
     ):
-
         if idata is not None and data is not None:
             raise ValueError("Provide either 'idata' or 'data', not both.")
 
