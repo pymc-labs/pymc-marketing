@@ -966,7 +966,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 random_seed=random_seed,
             ).posterior_predictive
 
-            return result.assign_coords(coords)
+            return result.dataset.assign_coords(coords)
 
     def distribution_new_customer_churn_time(
         self, n: int = 1, random_seed: RandomState = None
