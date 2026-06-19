@@ -89,8 +89,6 @@ run_notebook(Path('docs/source/notebooks/mmm/mmm_example.ipynb'), mock=False)
 
 ## 4. Common Notebook Failure Patterns
 
-Reference: `PYMC6_MIGRATION_GUIDE.md` sections B10-B26 for full details.
-
 ### B10: Bare DataArray/ndarray passed to plot_dist/plot_forest
 
 ```python
