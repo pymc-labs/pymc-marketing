@@ -1222,11 +1222,12 @@ def hill_saturation_sigmoid(
 def root_saturation(
     x: XTensorLike,
     alpha: XTensorLike,
+    eps: float = 1e-6,
 ) -> XTensorVariable:
     r"""Root saturation transformation.
 
     .. math::
-        f(x) = x^{\alpha}
+        f(x) = (x + \epsilon)^{\alpha}
 
     .. plot::
         :context: close-figs
@@ -1256,6 +1257,16 @@ def root_saturation(
         Input tensor.
     alpha : float
         Exponent for the root transformation. Must be non-negative.
+    eps : float, by default 1e-6
+        Small constant added to ``x`` before exponentiation. For ``alpha < 1``
+        the derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is
+        infinite at ``x == 0``. In an MMM the input is a function of random
+        variables (e.g. adstocked spend) and channels have exact zero-spend
+        periods, so this singularity produces NaN gradients and breaks
+        gradient-based samplers such as NUTS. Shifting by a tiny ``eps`` keeps
+        the gradient finite. Inputs are typically scaled to ``[0, 1]``, against
+        which ``eps`` is negligible, although note that ``f(0) = eps ** alpha``
+        is no longer exactly zero.
 
     Returns
     -------
@@ -1265,4 +1276,4 @@ def root_saturation(
     """
     x = as_xtensor(x)
     alpha = as_xtensor(alpha)
-    return x**alpha
+    return (x + eps) ** alpha
