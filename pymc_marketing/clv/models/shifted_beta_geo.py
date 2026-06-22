@@ -963,6 +963,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             post_pred = pm.sample_posterior_predictive(
                 self.idata,
                 var_names=list(var_names),
+                sample_vars=["theta", "churn"],
                 random_seed=random_seed,
             )
             result = post_pred["posterior_predictive"].dataset

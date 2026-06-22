@@ -1038,6 +1038,30 @@ def test_uplift_curve(mock_suite_with_sensitivity):
     assert all(isinstance(ax, Axes) for ax in axes.flat[: len(regions)])
 
 
+def test_uplift_curve_datatree_child_storage():
+    """Regression: uplift_curve works when sensitivity_analysis is a DataTree child."""
+    dt = xr.DataTree()
+    ds = xr.Dataset({"x": (("sample", "sweep"), np.ones((2, 3)))})
+    ds["uplift_curve"] = ds["x"]
+    dt["/sensitivity_analysis"] = ds
+
+    suite = MMMPlotSuite(idata=dt)
+    result = suite.uplift_curve()
+    assert isinstance(result, (Figure, Axes))
+
+
+def test_marginal_curve_datatree_child_storage():
+    """Regression: marginal_curve works when sensitivity_analysis is a DataTree child."""
+    dt = xr.DataTree()
+    ds = xr.Dataset({"x": (("sample", "sweep"), np.ones((2, 3)))})
+    ds["marginal_effects"] = ds["x"]
+    dt["/sensitivity_analysis"] = ds
+
+    suite = MMMPlotSuite(idata=dt)
+    result = suite.marginal_curve()
+    assert isinstance(result, (Figure, Axes))
+
+
 def test_sensitivity_analysis_multi_panel(mock_suite_with_sensitivity):
     # The fixture provides an extra 'region' dimension, so multiple panels should be produced
     fig, axes = mock_suite_with_sensitivity.sensitivity_analysis(

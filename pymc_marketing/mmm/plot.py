@@ -3549,6 +3549,8 @@ class MMMPlotSuite:
             )
 
         sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.DataTree):
+            sa_group = sa_group.to_dataset()
         if isinstance(sa_group, xr.Dataset):
             if "uplift_curve" not in sa_group:
                 raise ValueError(
@@ -3648,6 +3650,8 @@ class MMMPlotSuite:
             )
 
         sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.DataTree):
+            sa_group = sa_group.to_dataset()
         if isinstance(sa_group, xr.Dataset):
             if "marginal_effects" not in sa_group:
                 raise ValueError(
