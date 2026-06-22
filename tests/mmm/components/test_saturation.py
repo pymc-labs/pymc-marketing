@@ -92,8 +92,8 @@ def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
     derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is infinite at
     ``x == 0`` for ``alpha < 1``, so the resulting NaN propagated into the
     log-probability gradient of every upstream parameter and broke NUTS. The
-    transformation shifts its input by a tiny ``eps`` to keep the gradient
-    finite.
+    transformation guards the gradient with ``pt.where`` so that ``f(0) = 0``
+    exactly and the derivative is finite everywhere.
     """
     x = np.linspace(0.0, 1.0, 30)
     x[:5] = 0.0  # exact zero-spend periods
