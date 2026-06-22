@@ -654,7 +654,7 @@ class MVITS(RegressionModelBuilder):
 
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
-        existing_products = list(self.idata.observed_data.existing_product.data)  # type: ignore
+        existing_products = list(self.idata.observed_data["existing_product"].data)  # type: ignore
 
         # divide the causal impact change in sales by the counterfactual predicted sales
         variable = "mu"

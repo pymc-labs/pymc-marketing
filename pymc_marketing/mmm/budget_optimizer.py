@@ -755,15 +755,17 @@ class BudgetOptimizer(BaseModel):
             else:
                 # If no mask is provided, optimize all non-zero channels in the model
                 self.budgets_to_optimize = (
-                    self.mmm_model.idata.posterior.channel_contribution.mean(
-                        ("chain", "draw", "date")
-                    ).astype(bool)
+                    self.mmm_model.idata.posterior["channel_contribution"]
+                    .mean(("chain", "draw", "date"))
+                    .astype(bool)
                 )
         elif not is_wrapper:
             # If a mask is provided for MMM instances, ensure it has the correct shape
-            expected_mask = self.mmm_model.idata.posterior.channel_contribution.mean(
-                ("chain", "draw", "date")
-            ).astype(bool)
+            expected_mask = (
+                self.mmm_model.idata.posterior["channel_contribution"]
+                .mean(("chain", "draw", "date"))
+                .astype(bool)
+            )
 
             # Check if we are asking to optimize over channels that are not present in the model
             if np.any((self.budgets_to_optimize > expected_mask).values):

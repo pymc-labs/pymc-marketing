@@ -707,7 +707,7 @@ class MMMPlotSuite:
             )
 
         # Compute residuals
-        target_data = self.idata.constant_data.target_data  # type: ignore
+        target_data = self.idata.constant_data["target_data"]  # type: ignore
         predictions = pp_data["y_original_scale"]
         residuals = target_data - predictions
         residuals.name = "residuals"
@@ -2020,15 +2020,17 @@ class MMMPlotSuite:
             )
 
         # Identify additional dimensions beyond 'date' and 'channel'
-        cdims = self.idata.constant_data.channel_data.dims
+        cdims = self.idata.constant_data["channel_data"].dims
         additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
 
         # Validate dims and remove filtered dims from additional_dims
         if dims:
-            self._validate_dims(dims, list(self.idata.constant_data.channel_data.dims))
+            self._validate_dims(
+                dims, list(self.idata.constant_data["channel_data"].dims)
+            )
             additional_dims = [d for d in additional_dims if d not in dims]
         else:
-            self._validate_dims({}, list(self.idata.constant_data.channel_data.dims))
+            self._validate_dims({}, list(self.idata.constant_data["channel_data"].dims))
 
         # Build all combinations for dims with lists
         dims_keys, dims_combos = self._dim_list_handler(dims)
@@ -2243,12 +2245,14 @@ class MMMPlotSuite:
                 """
             )
         curve_data = (
-            curve * self.idata.constant_data.target_scale if original_scale else curve
+            curve * self.idata.constant_data["target_scale"]
+            if original_scale
+            else curve
         )
         curve_data = curve_data.rename("saturation_curve")
 
         # — 1. figure out grid shape based on scatter data dimensions / identify dims and combos
-        cdims = self.idata.constant_data.channel_data.dims
+        cdims = self.idata.constant_data["channel_data"].dims
         all_dims = list(cdims)
         additional_dims = [d for d in cdims if d not in ("date", "channel")]
         # Validate dims and remove filtered dims from additional_dims

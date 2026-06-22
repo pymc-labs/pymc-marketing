@@ -214,7 +214,7 @@ class MMMIDataWrapper:
                 "channel_scale not found in constant_data. "
                 "Expected 'channel_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data.channel_scale.copy()
+        return self.idata.constant_data["channel_scale"].copy()
 
     def get_target_scale(self) -> xr.DataArray:
         """Get target scaling factor used during model fitting.
@@ -244,7 +244,7 @@ class MMMIDataWrapper:
                 "target_scale not found in constant_data. "
                 "Expected 'target_scale' variable in idata.constant_data."
             )
-        return self.idata.constant_data.target_scale.copy()
+        return self.idata.constant_data["target_scale"].copy()
 
     # ==================== Observed Data Access ====================
 
@@ -276,7 +276,7 @@ class MMMIDataWrapper:
                 "Expected 'target_data' variable in idata.constant_data."
             )
 
-        data = self.idata.constant_data.target_data
+        data = self.idata.constant_data["target_data"]
         if original_scale:
             return data
         else:
@@ -307,7 +307,7 @@ class MMMIDataWrapper:
             hasattr(self.idata, "constant_data")
             and "channel_spend" in self.idata.constant_data
         ):
-            return self.idata.constant_data.channel_spend
+            return self.idata.constant_data["channel_spend"]
 
         if not (
             hasattr(self.idata, "constant_data")
@@ -319,7 +319,7 @@ class MMMIDataWrapper:
                 "in idata.constant_data."
             )
 
-        return self.idata.constant_data.channel_data
+        return self.idata.constant_data["channel_data"]
 
     def get_channel_data(self) -> xr.DataArray:
         """Get raw channel data in original units (not spend-converted).
@@ -348,7 +348,7 @@ class MMMIDataWrapper:
                 "Channel data not found in constant_data. "
                 "Expected 'channel_data' variable in idata.constant_data."
             )
-        return self.idata.constant_data.channel_data
+        return self.idata.constant_data["channel_data"]
 
     @property
     def cost_per_unit(self) -> xr.DataArray | None:
@@ -370,8 +370,8 @@ class MMMIDataWrapper:
         ):
             return None
 
-        channel_spend = self.idata.constant_data.channel_spend
-        channel_data = self.idata.constant_data.channel_data
+        channel_spend = self.idata.constant_data["channel_spend"]
+        channel_data = self.idata.constant_data["channel_data"]
         return xr.where(channel_data == 0, np.nan, channel_spend / channel_data)
 
     def get_avg_cost_per_unit(self) -> xr.DataArray:
@@ -507,15 +507,15 @@ class MMMIDataWrapper:
 
         if original_scale:
             if "channel_contribution_original_scale" in self.idata.posterior:
-                contributions["channels"] = (
-                    self.idata.posterior.channel_contribution_original_scale
-                )
+                contributions["channels"] = self.idata.posterior[
+                    "channel_contribution_original_scale"
+                ]
             else:
-                channel_contrib = self.idata.posterior.channel_contribution
+                channel_contrib = self.idata.posterior["channel_contribution"]
                 target_scale = self.get_target_scale()
                 contributions["channels"] = channel_contrib * target_scale
         else:
-            contributions["channels"] = self.idata.posterior.channel_contribution
+            contributions["channels"] = self.idata.posterior["channel_contribution"]
 
         if include_baseline:
             for var in ["intercept_contribution", "intercept_baseline"]:
@@ -529,12 +529,12 @@ class MMMIDataWrapper:
                     break
 
         if include_controls and "control_contribution" in self.idata.posterior:
-            control = self.idata.posterior.control_contribution
+            control = self.idata.posterior["control_contribution"]
             if original_scale:
                 if "control_contribution_original_scale" in self.idata.posterior:
-                    contributions["controls"] = (
-                        self.idata.posterior.control_contribution_original_scale
-                    )
+                    contributions["controls"] = self.idata.posterior[
+                        "control_contribution_original_scale"
+                    ]
                 else:
                     target_scale = self.get_target_scale()
                     contributions["controls"] = control * target_scale
@@ -545,15 +545,15 @@ class MMMIDataWrapper:
             include_seasonality
             and "yearly_seasonality_contribution" in self.idata.posterior
         ):
-            seasonality = self.idata.posterior.yearly_seasonality_contribution
+            seasonality = self.idata.posterior["yearly_seasonality_contribution"]
             if original_scale:
                 if (
                     "yearly_seasonality_contribution_original_scale"
                     in self.idata.posterior
                 ):
-                    contributions["seasonality"] = (
-                        self.idata.posterior.yearly_seasonality_contribution_original_scale
-                    )
+                    contributions["seasonality"] = self.idata.posterior[
+                        "yearly_seasonality_contribution_original_scale"
+                    ]
                 else:
                     target_scale = self.get_target_scale()
                     contributions["seasonality"] = seasonality * target_scale
