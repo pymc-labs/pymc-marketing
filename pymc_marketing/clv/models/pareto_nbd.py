@@ -238,9 +238,9 @@ class ParetoNBDModel(CLVModel):
         """All covariate column names."""
         return self.purchase_covariate_cols + self.dropout_covariate_cols
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate Pareto/NBD-specific data requirements."""
+        super()._validate_data(data)
         self._validate_cols(
             data,
             required_cols=[

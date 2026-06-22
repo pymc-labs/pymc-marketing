@@ -279,10 +279,12 @@ class ShiftedBetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        if np.any(
-            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
-        ):
-            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
+        if (data["recency"] < 1).any():
+            raise ValueError("Column recency must be at least 1")
+        if (data["recency"] > data["T"]).any():
+            raise ValueError("recency cannot be greater than T")
+        if (data["T"] < 2).any():
+            raise ValueError("Column T must be at least 2")
 
         self._validate_cohorts(data, check_param_dims=("alpha", "beta"))
 
@@ -863,7 +865,6 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             "beta": Prior("HalfFlat"),
         }
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate Shifted Beta-Geometric Individual-specific data requirements."""
         self._validate_cols(
@@ -872,13 +873,14 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        if np.any(
-            (data["t_churn"] < 0)
+        invalid_t_churn = (
+            (data["t_churn"] <= 0)
             | (data["t_churn"] > data["T"])
-            | np.isnan(data["t_churn"])
-        ):
+            | data["t_churn"].isna()
+        )
+        if invalid_t_churn.any():
             raise ValueError(
-                "t_churn must respect 0 < t_churn <= T.\n"
+                "t_churn must respect 0 < t_churn <= T. "
                 "Customers that are still alive should have t_churn = T"
             )
 

@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from typing import Literal, cast
 
 import arviz as az
+import numpy as np
 import pandas as pd
 import pymc as pm
 from pydantic import ConfigDict, InstanceOf, validate_call
@@ -97,6 +98,41 @@ class CLVModel(ModelBuilder):
             if col in must_be_homogenous:
                 if data[col].nunique() != 1:
                     raise ValueError(f"Column {col} has non-homogeneous entries")
+
+    def _validate_frequency(self, data: pd.DataFrame) -> None:
+        """Validate frequency column values shared across BTYD and Gamma-Gamma models."""
+        if (data["frequency"] < 0).any():
+            raise ValueError("Column frequency has negative values")
+
+        if not (np.mod(data["frequency"], 1) == 0).all():
+            raise ValueError("frequency column must contain only integer values")
+
+    def _validate_rfm_data(self, data: pd.DataFrame) -> None:
+        """Validate frequency, recency, and T columns shared by BTYD transaction models."""
+        self._validate_cols(data, required_cols=["frequency", "recency", "T"])
+        self._validate_frequency(data)
+
+        if (data["recency"] < 0).any():
+            raise ValueError("Column recency has negative values")
+        if (data["T"] < 0).any():
+            raise ValueError("Column T has negative values")
+
+        if ((data["frequency"] == 0) & (data["recency"] > 0)).any():
+            raise ValueError("recency cannot be greater than 0 if frequency is 0")
+
+        if (data["recency"] > data["T"]).any():
+            raise ValueError("recency cannot be greater than T")
+
+        if (data["T"] == 0).any():
+            warnings.warn(
+                "T=0 is mathematically valid but practically useless.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+    def _validate_data(self, data: pd.DataFrame) -> None:
+        """Validate model input data. Child classes should override and call super()."""
+        self._validate_rfm_data(data)
 
     def __repr__(self) -> str:
         """Representation of the model."""
