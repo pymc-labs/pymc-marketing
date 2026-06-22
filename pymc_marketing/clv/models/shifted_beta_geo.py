@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import xarray
-import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from scipy.special import gammaln, hyp2f1
@@ -954,29 +953,20 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
         var_names: Sequence[str] = ("theta", "churn"),
     ) -> xarray.Dataset:
         coords = {"new_customer_id": np.arange(n)}
-        rng = np.random.default_rng(random_seed)
+        with pm.Model(coords=coords):
+            alpha = pm.HalfFlat("alpha")
+            beta = pm.HalfFlat("beta")
 
-        posterior = self.idata["/posterior"]  # type: ignore[index]
-        alpha: np.ndarray = posterior.dataset["alpha"].values.flatten()  # type: ignore[assignment]
-        beta: np.ndarray = posterior.dataset["beta"].values.flatten()  # type: ignore[assignment]
-        n_samples = len(alpha)
+            theta = pm.Beta("theta", alpha, beta, dims=("new_customer_id",))
+            pm.Geometric("churn", theta, dims=("new_customer_id",))
 
-        data_vars: dict[str, xr.DataArray] = {}
-
-        if "theta" in var_names:
-            theta = rng.beta(alpha[:, None], beta[:, None], size=(n_samples, n))
-            data_vars["theta"] = xr.DataArray(theta, dims=("sample", "new_customer_id"))
-
-        if "churn" in var_names:
-            theta_for_churn = (
-                data_vars["theta"].values
-                if "theta" in data_vars
-                else rng.beta(alpha[:, None], beta[:, None], size=(n_samples, n))
+            post_pred = pm.sample_posterior_predictive(
+                self.idata,
+                var_names=list(var_names),
+                random_seed=random_seed,
             )
-            churn = rng.geometric(theta_for_churn.T).T
-            data_vars["churn"] = xr.DataArray(churn, dims=("sample", "new_customer_id"))
-
-        return xr.Dataset(data_vars, coords=coords)
+            result = post_pred["posterior_predictive"].dataset
+            return result.stack(sample=("chain", "draw")).reset_index("sample")
 
     def distribution_new_customer_churn_time(
         self, n: int = 1, random_seed: RandomState = None
