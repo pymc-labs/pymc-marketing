@@ -515,9 +515,13 @@ def weibull_adstock(
 
     if type == WeibullType.PDF:
         w = density(Weibull, value=t, alpha=k, beta=lam)
-        w = (w - w.min(dim=kernel_dim)) / (
-            w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
-        )
+        # Min-max normalize the kernel. ``w.min`` is expressed via ``max`` because
+        # the xtensor ``min`` reduction lowers to a PyTensor ``Min`` Op that has no
+        # gradient implemented, which silently breaks gradient-based samplers such
+        # as NUTS. ``-((-w).max())`` is mathematically identical and differentiable.
+        w_min = -((-w).max(dim=kernel_dim))
+        w_max = w.max(dim=kernel_dim)
+        w = (w - w_min) / (w_max - w_min)
     elif type == WeibullType.CDF:
         w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
         padded_w = ptx.concat([1, w], dim=kernel_dim)

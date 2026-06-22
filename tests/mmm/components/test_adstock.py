@@ -116,6 +116,31 @@ def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
     assert curve.shape == (1, 500, adstock.l_max)
 
 
+@pytest.mark.parametrize(
+    "adstock",
+    adstocks(),
+)
+def test_adstock_logp_is_differentiable(adstock: AdstockTransformation) -> None:
+    """Adstock parameters must support gradient-based samplers such as NUTS.
+
+    Regression test for the WeibullPDFAdstock min-max normalization, which used
+    ``.min()``. The corresponding PyTensor ``Min`` Op has no gradient, so
+    ``model.compile_dlogp`` raised ``NotImplementedError`` and the model could
+    not be sampled with NUTS.
+    """
+    rng = np.random.default_rng(0)
+    y_obs = rng.normal(size=x.shape[0])
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        x_tensor = as_xtensor(x, dims=("time",))
+        mu = adstock.apply(x_tensor, core_dim="time")
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal("obs", mu=mu.values, sigma=sigma, observed=y_obs, dims=("time",))
+
+    dlogp = model.compile_dlogp()
+    grad = dlogp(model.initial_point())
+    assert np.all(np.isfinite(grad))
+
+
 def test_adstock_from_dict() -> None:
     data = {
         "lookup_name": "geometric",
