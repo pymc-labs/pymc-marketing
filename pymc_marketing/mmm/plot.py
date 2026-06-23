@@ -3212,7 +3212,7 @@ class MMMPlotSuite:
             )
         sa = self.idata.sensitivity_analysis  # type: ignore
         if isinstance(sa, xr.DataTree):
-            sa = sa.to_dataset()
+            sa = sa.dataset
         x = sa["x"] if isinstance(sa, xr.Dataset) else sa
         # Coerce numeric dtype
         try:
@@ -3554,7 +3554,7 @@ class MMMPlotSuite:
 
         sa_group = self.idata.sensitivity_analysis  # type: ignore
         if isinstance(sa_group, xr.DataTree):
-            sa_group = sa_group.to_dataset()
+            sa_group = sa_group.dataset
         if isinstance(sa_group, xr.Dataset):
             if "uplift_curve" not in sa_group:
                 raise ValueError(
@@ -3655,7 +3655,7 @@ class MMMPlotSuite:
 
         sa_group = self.idata.sensitivity_analysis  # type: ignore
         if isinstance(sa_group, xr.DataTree):
-            sa_group = sa_group.to_dataset()
+            sa_group = sa_group.dataset
         if isinstance(sa_group, xr.Dataset):
             if "marginal_effects" not in sa_group:
                 raise ValueError(
