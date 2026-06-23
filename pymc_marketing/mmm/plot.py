@@ -98,8 +98,8 @@ Requirements
         pm.Normal("y", 0.0, sigma, observed=y_obs, dims="date")
 
         idata = pm.sample_prior_predictive(random_seed=1)
-        idata.extend(pm.sample(draws=200, chains=2, tune=200, random_seed=1))
-        idata.extend(pm.sample_posterior_predictive(idata, random_seed=1))
+        idata.update(pm.sample(draws=200, chains=2, tune=200, random_seed=1))
+        idata.update(pm.sample_posterior_predictive(idata, random_seed=1))
 
     plot = MMMPlotSuite(idata)
     _ = plot.posterior_predictive(var=["y"], hdi_prob=0.9)
@@ -121,7 +121,7 @@ Custom contributions_over_time
     with pm.Model(coords={"date": dates}):
         pm.Deterministic("component", series, dims="date")
         idata = pm.sample_prior_predictive(random_seed=2)
-        idata.extend(pm.sample(draws=50, chains=1, tune=0, random_seed=2))
+        idata.update(pm.sample(draws=50, chains=1, tune=0, random_seed=2))
 
     plot = MMMPlotSuite(idata)
     _ = plot.contributions_over_time(var=["component"], hdi_prob=0.9)
@@ -161,7 +161,7 @@ Saturation plots with a custom model
         contrib = pm.Normal("channel_contribution", 0.0, 1.0, dims=("date", "channel"))
 
         idata = pm.sample_prior_predictive(random_seed=3)
-        idata.extend(pm.sample(draws=50, chains=1, tune=0, random_seed=3))
+        idata.update(pm.sample(draws=50, chains=1, tune=0, random_seed=3))
 
     # Attach constant_data to idata
     idata.constant_data = xr.Dataset(

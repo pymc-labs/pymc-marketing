@@ -480,7 +480,7 @@ class BassModel(ModelBuilder):
 
     .. code-block:: python
 
-        az.plot_forest(idata.posterior["peak"], combined=True)
+        azp.plot_forest(idata.posterior["peak"], combined=True)
     """
 
     _model_type = "BassModel"
@@ -701,10 +701,10 @@ class BassModel(ModelBuilder):
             az.summary(idata, var_names=["m", "p", "q"])
 
             # Trace plots
-            az.plot_trace(idata, var_names=["m", "p", "q"])
+            azp.plot_trace(idata, var_names=["m", "p", "q"])
 
             # Forest plots of peak adoption time
-            az.plot_forest(idata.posterior["peak"], combined=True)
+            azp.plot_forest(idata.posterior["peak"], combined=True)
 
         For posterior predictive sampling with new time points:
 

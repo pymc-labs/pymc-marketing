@@ -268,12 +268,12 @@ class MuEffect(SerializableBaseModel, ABC):
         return f"{prefix}_effect_contribution"
 
     def idata_groups(self) -> dict[str, xr.Dataset]:
-        """Return supplementary data groups to store in InferenceData.
+        """Return supplementary data groups to store in DataTree.
 
         Override in subclasses that need to persist large DataFrames or
         other non-JSON-serializable data alongside the model.
 
-        Each entry is stored as a top-level group in the InferenceData
+        Each entry is stored as a top-level group in the DataTree
         netCDF file during ``save()`` and is available to custom
         deserializers via ``DeserializationContext(idata=...)``.
 
@@ -493,8 +493,8 @@ class LinearTrendEffect(MuEffect):
         draw = rng.choice(range(idata.posterior.sizes["draw"]))
         sel = dict(chain=0, draw=draw)
 
-        before = idata.posterior.effect.sel(sel).to_series()
-        after = idata.posterior_predictive.effect.sel(sel).to_series()
+        before = idata.posterior["effect"].sel(sel).to_series()
+        after = idata.posterior_predictive["effect"].sel(sel).to_series()
 
         ax = before.plot(color="C0")
         after.plot(color="C0", linestyle="dashed", ax=ax)
@@ -771,7 +771,7 @@ def _deserialize_event_additive_effect(
 
     if context is None or context.idata is None:
         raise SerializationError(
-            f"Cannot deserialize EventAdditiveEffect: no InferenceData "
+            f"Cannot deserialize EventAdditiveEffect: no DataTree "
             f"provided. The df_events DataFrame is stored in idata group "
             f"'{group_name}' and requires a DeserializationContext with idata."
         )

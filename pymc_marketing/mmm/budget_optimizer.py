@@ -210,7 +210,7 @@ Requirements
 Notes
 -----
 - If `budgets_to_optimize` is not provided, the optimizer auto‑detects cells with historical
-  information using `idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)`.
+  information using `idata.posterior["channel_contribution"].mean(("chain","draw","date")).astype(bool)`.
 - Default bounds are `[0, total_budget]` on each optimized cell.
 - Set `callback=True` in `allocate_budget(...)` to receive per‑iteration diagnostics
   (objective, gradient, constraints) for monitoring.
@@ -334,7 +334,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
 
-    - Merging their posterior ``InferenceData`` with per-model prefixes
+    - Merging their posterior ``DataTree`` with per-model prefixes
     - Optionally thinning posterior draws via ``use_every_n_draw``
     - Exposing a persistent merged PyMC ``Model`` for optimization through
       ``_set_predictors_for_optimization`` and a dynamic ``model`` property for

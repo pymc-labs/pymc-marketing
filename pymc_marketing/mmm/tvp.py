@@ -82,8 +82,9 @@ Create a basic PyMC model using the time-varying GP multiplier:
 
     # Plot results
     import matplotlib.pyplot as plt
+    import arviz_plots as azp
 
-    pm.plot_trace(trace, var_names=["base_sales"])
+    azp.plot_trace(trace, var_names=["base_sales"])
     plt.show()
 
 """
