@@ -25,6 +25,7 @@ from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
+from pymc.variational.callbacks import CheckParametersConvergence
 
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
@@ -246,6 +247,7 @@ class CLVModel(ModelBuilder):
         with self.model:
             approx = pm.fit(
                 method=method,
+                callbacks=[CheckParametersConvergence(diff="absolute")],
                 **{
                     k: v
                     for k, v in sampler_config.items()
