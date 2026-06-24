@@ -91,12 +91,10 @@ Novel methodological contributions include: (1) time-varying coefficients using 
 
 Generative AI tools were used during paper preparation. OpenCode (v1.0.220) with Claude Opus 4.5 and OpenCode (v1.14.48) with Claude Sonnet 4.6 via GitHub Copilot assisted with gathering information from existing documentation and codebase, drafting text, and incorporating peer reviewer feedback. The PyMC-Marketing software itself was developed by human contributors. All paper content was reviewed, edited, and validated by the human authors.
 
-# Funding
-
-PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding from both consulting engagements on marketing analytics and its internal budget.
-
 # Acknowledgments
 
 We acknowledge the PyMC development team for the foundational probabilistic programming framework and the broader PyData ecosystem contributors. Special recognition goes to the marketing science research community for developing the theoretical frameworks that PyMC-Marketing operationalizes [@jin2017bayesian; @fader2005counting; @bass1969new; @train2009discrete].
+
+PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding from both consulting engagements on marketing analytics and its internal budget.
 
 # References
