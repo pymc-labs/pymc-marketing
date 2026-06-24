@@ -184,6 +184,8 @@ from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
 from pymc_marketing.version import __version__
 
+logger = logging.getLogger(__name__)
+
 # MLflow 3.0.0+ deprecated artifact_path in favor of name
 _MLFLOW_SUPPORTS_NAME_PARAM = version.parse(mlflow.__version__) >= version.parse(
     "3.0.0"
@@ -450,7 +452,7 @@ def log_model_graph(model: Model, path: str | Path) -> None:
             "Unable to render the model graph. Please install the graphviz package. "
             f"{e}"
         )
-        logging.info(msg)
+        logger.info(msg)
 
         return None
 
@@ -458,7 +460,7 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         saved_path = graph.render(path)
     except Exception as e:
         msg = f"Unable to render the model graph. {e}"
-        logging.info(msg)
+        logger.info(msg)
         return None
     else:
         _log_and_remove_artifact(saved_path)
