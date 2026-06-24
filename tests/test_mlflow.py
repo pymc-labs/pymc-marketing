@@ -658,9 +658,33 @@ def mock_idata() -> xr.DataTree:
 def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -> None:
     idata = xr.DataTree.from_dict({f"/{selected_group}": mock_idata[selected_group]})
     missing_group = "sample_stats" if selected_group == "posterior" else "posterior"
-    match = rf"InferenceData object does not contain the group {missing_group}."
+    match = rf"DataTree object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
+
+
+def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
+    """Regression test: ``_force_load_idata_groups`` must load every group.
+
+    ``DataTree.groups`` yields ``/``-prefixed paths (e.g. ``"/posterior"``),
+    so the previous ``hasattr(idata, group)`` guard was always ``False`` and
+    the function silently loaded nothing. Spy on ``Dataset.load`` to assert
+    each group's dataset is actually materialized.
+    """
+    loaded_vars: list[set[str]] = []
+    original_load = xr.Dataset.load
+
+    def spy_load(self, *args, **kwargs):
+        loaded_vars.append(set(self.data_vars))
+        return original_load(self, *args, **kwargs)
+
+    monkeypatch.setattr(xr.Dataset, "load", spy_load)
+
+    pmm_mlflow._force_load_idata_groups(mock_idata)
+
+    all_loaded = set().union(*loaded_vars) if loaded_vars else set()
+    assert {"mu", "sigma"} <= all_loaded
+    assert {"diverging", "energy"} <= all_loaded
 
 
 @pytest.fixture

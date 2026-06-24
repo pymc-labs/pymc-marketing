@@ -3959,7 +3959,7 @@ wheels = [
 [[package]]
 name = "pymc-extras"
 version = "0.12.2.dev1+gee8cc37df"
-source = { git = "https://github.com/pymc-devs/pymc-extras.git#ee8cc37df25f177ae7aea8a76587fb26da261a80" }
+source = { git = "https://github.com/pymc-devs/pymc-extras.git?rev=ee8cc37df25f177ae7aea8a76587fb26da261a80#ee8cc37df25f177ae7aea8a76587fb26da261a80" }
 dependencies = [
     { name = "arviz" },
     { name = "better-optimize" },
@@ -4137,7 +4137,7 @@ requires-dist = [
     { name = "pymc", specifier = ">=6.0.0" },
     { name = "pymc-bart", marker = "extra == 'pie'", specifier = ">=0.12.0" },
     { name = "pymc-bart", marker = "extra == 'test'", specifier = ">=0.12.0" },
-    { name = "pymc-extras", git = "https://github.com/pymc-devs/pymc-extras.git" },
+    { name = "pymc-extras", git = "https://github.com/pymc-devs/pymc-extras.git?rev=ee8cc37df25f177ae7aea8a76587fb26da261a80" },
     { name = "pyprojroot" },
     { name = "pyprojroot", marker = "extra == 'test'" },
     { name = "pytensor", specifier = ">=3.0.0" },

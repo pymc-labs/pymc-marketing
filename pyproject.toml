@@ -211,8 +211,11 @@ ignore_missing_imports = true
 [tool.mypy-scipy]
 ignore_missing_imports = true
 
+# Temporary: pin pymc-extras to a specific commit until a release containing
+# the pymc>=6 / DataTree changes is published on PyPI. Pinning the commit keeps
+# the build reproducible (an unpinned branch would resolve to a moving target).
 [tool.uv.sources]
-pymc-extras = { git = "https://github.com/pymc-devs/pymc-extras.git" }
+pymc-extras = { git = "https://github.com/pymc-devs/pymc-extras.git", rev = "ee8cc37df25f177ae7aea8a76587fb26da261a80" }
 
 [dependency-groups]
 dev = [

@@ -332,19 +332,21 @@ def _log_and_remove_artifact(path: str | Path) -> None:
 
 
 def _force_load_idata_groups(idata: xr.DataTree) -> None:
-    """Force load all groups into memory since ArviZ does lazy loading.
+    """Force load all groups into memory since the store is read lazily.
+
+    netCDF/Zarr-backed ``DataTree`` objects load their groups lazily, so we
+    materialize every group in the tree before logging to MLflow.
 
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object to force load.
     """
-    for group in idata.groups:
-        # Convert each group to an in-memory dataset
-        if hasattr(idata, group):
-            group_data = getattr(idata, group)
-            if hasattr(group_data, "load"):
-                group_data.load()
+    # ``DataTree.groups`` yields ``/``-prefixed paths (e.g. ``"/posterior"``),
+    # which are not attribute names, so iterate the nodes directly and load
+    # each group's dataset in place.
+    for node in idata.subtree:
+        node.dataset.load()
 
 
 def _attach_run_id(idata: xr.DataTree) -> None:
@@ -561,10 +563,10 @@ def log_sample_diagnostics(
 
     """
     if "posterior" not in idata:
-        raise KeyError("InferenceData object does not contain the group posterior.")
+        raise KeyError("DataTree object does not contain the group posterior.")
 
     if "sample_stats" not in idata:
-        raise KeyError("InferenceData object does not contain the group sample_stats.")
+        raise KeyError("DataTree object does not contain the group sample_stats.")
 
     posterior = idata["posterior"]
     sample_stats = idata["sample_stats"]
@@ -606,14 +608,14 @@ def log_inference_data(
     idata: xr.DataTree,
     save_file: str | Path = "idata.nc",
 ) -> None:
-    """Log the InferenceData to MLflow.
+    """Log the DataTree to MLflow.
 
     Parameters
     ----------
     idata : xr.DataTree
         The DataTree object returned by the sampling method.
     save_file : str | Path
-        The path to save the InferenceData object as a netCDF file.
+        The path to save the DataTree object as a netCDF file.
 
     """
     idata.to_netcdf(str(save_file))
@@ -1103,7 +1105,7 @@ def autolog(
         None, the error will not be logged. Default is "sample-error.txt".
     summary_var_names : list[str], optional
         The names of the variables to include in the ArviZ summary. Default is
-        all the variables in the InferenceData object.
+        all the variables in the DataTree object.
     arviz_summary_kwargs : dict, optional
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional

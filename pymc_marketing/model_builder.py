@@ -50,21 +50,21 @@ except ImportError:
 
 
 def create_idata_accessor(value: str, message: str):
-    """Create a property accessor for an InferenceData object.
+    """Create a property accessor for a group of the model's DataTree.
 
-    Underlying object must have an InferenceData object attribute named 'idata'.
+    Underlying object must have a ``xr.DataTree`` attribute named 'idata'.
 
     Parameters
     ----------
     value : str
-        The value to access in the InferenceData object.
+        The group to access in the DataTree.
     message : str
-        The error message to raise if the value is not found in the InferenceData object.
+        The error message to raise if the group is not found in the DataTree.
 
     Returns
     -------
     property
-        The property accessor for the InferenceData object.
+        The property accessor for the DataTree group.
 
     """
 
@@ -76,7 +76,7 @@ def create_idata_accessor(value: str, message: str):
 
     return property(
         accessor,
-        doc=f"Access the '{value}' attribute of the InferenceData object.",
+        doc=f"Access the '{value}' group of the DataTree.",
     )
 
 
@@ -800,6 +800,10 @@ class ModelBuilder(ABC, ModelIO):
             if "/posterior" in res.groups:
                 self.idata["/posterior"] = res["/posterior"].to_dataset()
             else:
+                # ``res`` has no explicit posterior group (e.g. a flat DataTree
+                # built from a bare Dataset): flatten every group's variables
+                # into a single posterior Dataset, keeping the first occurrence
+                # of each variable name.
                 posterior_flat = xr.Dataset()
                 for g in res.groups:
                     if g == "/":

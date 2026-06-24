@@ -36,11 +36,6 @@ from pytensor.xtensor import xtensor_constant
 from pytensor.xtensor.vectorization import vectorize_graph
 
 
-def _as_symbolic(name: str):
-    var = Variable(name)
-    return var
-
-
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
     """Prefix variable and dimension names in a FunctionGraph.
 
