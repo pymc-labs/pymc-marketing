@@ -47,13 +47,13 @@ authors:
     orcid: 0000-0002-3565-6961
     affiliation: 4
 affiliations:
- - name: PyMC Labs
+ - name: PyMC Labs, Estonia
    index: 1
- - name: InferenceWorks Ltd
+ - name: InferenceWorks Ltd, UK
    index: 2
- - name: PLC Tech d.o.o.
+ - name: PLC Tech d.o.o., Slovenia
    index: 3
- - name: Independent Researcher
+ - name: Independent Researcher, UK
    index: 4
 date: 14 May 2026
 bibliography: paper.bib
