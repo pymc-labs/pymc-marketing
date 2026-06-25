@@ -32,6 +32,7 @@ from pymc_marketing.mmm.components.saturation import (
     SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
     SaturationTransformation,
     saturation_from_dict,
 )
@@ -81,6 +82,34 @@ def test_apply_method(
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape
+
+
+def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
+    """RootSaturation gradients must stay finite at exactly-zero input.
+
+    In an MMM the saturation input is a function of random variables (e.g.
+    adstocked spend), and channels routinely have zero-spend periods. The
+    derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is infinite at
+    ``x == 0`` for ``alpha < 1``, so the resulting NaN propagated into the
+    log-probability gradient of every upstream parameter and broke NUTS. The
+    transformation guards the gradient with ``pt.where`` so that ``f(0) = 0``
+    exactly and the derivative is finite everywhere.
+    """
+    x = np.linspace(0.0, 1.0, 30)
+    x[:5] = 0.0  # exact zero-spend periods
+    rng = np.random.default_rng(0)
+    y_obs = rng.normal(size=x.shape[0])
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        # The input depends on a free RV, as it does after adstock in an MMM.
+        scale = pm.HalfNormal("scale", 1)
+        x_tensor = as_xtensor(x, dims=("time",)) * scale
+        mu = RootSaturation().apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal("obs", mu=mu.values, sigma=sigma, observed=y_obs, dims=("time",))
+
+    dlogp = model.compile_dlogp()
+    grad = dlogp(model.initial_point())
+    assert np.all(np.isfinite(grad))
 
 
 @pytest.mark.parametrize(
