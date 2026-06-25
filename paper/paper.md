@@ -43,6 +43,9 @@ authors:
   - name: Imri Sofer
     orcid: 0009-0002-5367-3850
     affiliation: 1
+  - name: Larry Dong
+    orcid: 0000-0001-7775-7798
+    affiliation: 5
   - name: Erik J. Ringen
     orcid: 0000-0002-3565-6961
     affiliation: 4
@@ -55,6 +58,8 @@ affiliations:
    index: 3
  - name: Independent Researcher, UK
    index: 4
+ - name: Dalla Lana School of Public Health, University of Toronto, Toronto, Canada
+   index: 5
 date: 14 May 2026
 bibliography: paper.bib
 ---
@@ -95,6 +100,6 @@ Generative AI tools were used during paper preparation. OpenCode (v1.0.220) with
 
 We acknowledge the PyMC development team for the foundational probabilistic programming framework and the broader PyData ecosystem contributors. Special recognition goes to the marketing science research community for developing the theoretical frameworks that PyMC-Marketing operationalizes [@jin2017bayesian; @fader2005counting; @bass1969new; @train2009discrete].
 
-PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding from both consulting engagements on marketing analytics and its internal budget.
+PyMC-Marketing is a community-driven project built primarily through volunteer contributions from over 70 developers. Some contributions by PyMC Labs affiliates have received partial funding from both consulting engagements on marketing analytics and its internal budget. Larry Dong acknowledges support from the Dalla Lana School of Public Health, University of Toronto.
 
 # References
