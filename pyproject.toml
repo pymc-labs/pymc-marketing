@@ -25,16 +25,16 @@ classifiers = [
 ]
 
 dependencies = [
-    "arviz>=1.1.0",
+    "arviz>=1.1.0,<2.0",
     "arviz-plots[matplotlib]>=1.0.0,<2.0",
     "matplotlib>=3.5.1,<3.11",
     "narwhals",
-    "numpy>=2.0",
+    "numpy>=2.0,<3.0",
     "pandas",
     "patsy",
     "pydantic>=2.1.0",
-    "pymc>=6.0.0",
-    "pytensor>=3.0.0",
+    "pymc>=6.0.0,<6.1.0",
+    "pytensor>=3.0.0,<4.0",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "tqdm",
@@ -42,7 +42,7 @@ dependencies = [
     "xarray-einstats>=0.5.1",
     "pyprojroot",
     "pymc-extras>=0.11.0,<0.12.0",
-    "preliz>=0.20.0",
+    "preliz>=0.20.0,<1.0",
     "pyyaml",
 ]
 

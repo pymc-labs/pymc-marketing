@@ -26,7 +26,7 @@ from pymc.model.fgraph import (
     fgraph_from_model,
     model_from_fgraph,
 )
-from pymc.pytensorf import rvs_in_graph
+from pymc.pytensorf import StringConstant, rvs_in_graph
 from pytensor.graph.basic import Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
@@ -87,8 +87,6 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
             base_to_prefixed[name] = new_name
 
     # Don't rename dimensions that belong to excluded variables
-    from pymc.pytensorf import StringConstant
-
     dims_rename = {
         dim: StringConstant(dim.type, f"{prefix}_{dim.data}")
         for dim in dims
