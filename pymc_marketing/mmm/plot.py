@@ -2750,7 +2750,7 @@ class MMMPlotSuite:
         """
         # Handle xr.DataTree input - extract posterior_predictive
         if isinstance(samples, xr.DataTree):
-            if "/posterior_predictive" in samples.groups:
+            if "posterior_predictive" in samples.children:
                 samples = samples["/posterior_predictive"].dataset
             else:
                 raise ValueError(
@@ -4949,14 +4949,14 @@ class MMMPlotSuite:
                 "cv_crps expects an xr.DataTree returned by TimeSliceCrossValidator._combine_idata(...)"
             )
         if (
-            "/cv_metadata" not in results.groups
+            "cv_metadata" not in results.children
             or "metadata" not in results["/cv_metadata"].dataset.data_vars
         ):
             raise ValueError(
                 "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
-            "/posterior_predictive" not in results.groups
+            "posterior_predictive" not in results.children
             or "y_original_scale"
             not in results["/posterior_predictive"].dataset.data_vars
         ):

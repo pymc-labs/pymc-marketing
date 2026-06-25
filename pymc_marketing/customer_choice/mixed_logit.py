@@ -1132,7 +1132,7 @@ class MixedLogit(ModelBuilder):
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         # Add fit_data group
-        if "/fit_data" in self.idata.groups:
+        if "fit_data" in self.idata.children:
             self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self._create_fit_data()

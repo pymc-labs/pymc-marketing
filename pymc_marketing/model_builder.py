@@ -69,7 +69,7 @@ def create_idata_accessor(value: str, message: str):
     """
 
     def accessor(self) -> xr.Dataset:
-        if self.idata is None or f"/{value}" not in self.idata.groups:
+        if self.idata is None or value not in self.idata.children:
             raise RuntimeError(message)
 
         return self.idata[f"/{value}"].to_dataset()
@@ -793,11 +793,11 @@ class ModelBuilder(ABC, ModelIO):
         """
         if self.idata is None:
             self.idata = res
-        elif "/posterior" in self.idata.groups:
+        elif "posterior" in self.idata.children:
             warnings.warn("Overriding pre-existing fit_result", stacklevel=2)
             self.idata["/posterior"] = res["/posterior"].to_dataset()
         else:
-            if "/posterior" in res.groups:
+            if "posterior" in res.children:
                 self.idata["/posterior"] = res["/posterior"].to_dataset()
             else:
                 # ``res`` has no explicit posterior group (e.g. a flat DataTree
@@ -1063,7 +1063,7 @@ class RegressionModelBuilder(ModelBuilder):
 
         self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "/fit_data" in self.idata.groups:
+        if "fit_data" in self.idata.children:
             self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)
@@ -1218,7 +1218,7 @@ class RegressionModelBuilder(ModelBuilder):
         # Annotate, attach fit_data, and set attrs
         self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "/fit_data" in self.idata.groups:
+        if "fit_data" in self.idata.children:
             self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)

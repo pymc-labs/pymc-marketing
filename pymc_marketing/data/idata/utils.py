@@ -411,7 +411,7 @@ def get_posterior_predictive(idata: xr.DataTree) -> xr.Dataset:
     ValueError
         If posterior_predictive is absent from idata.
     """
-    if "/posterior_predictive" not in idata.groups:
+    if "posterior_predictive" not in idata.children:
         raise ValueError(
             "No posterior_predictive data found in idata. "
             "Run MMM.sample_posterior_predictive() first."
@@ -437,7 +437,7 @@ def get_prior_predictive(idata: xr.DataTree) -> xr.Dataset:
     ValueError
         If prior_predictive is absent from idata.
     """
-    if "/prior_predictive" not in idata.groups:
+    if "prior_predictive" not in idata.children:
         raise ValueError(
             "No prior_predictive data found in idata. "
             "Run MMM.sample_prior_predictive() first."
@@ -463,7 +463,7 @@ def get_prior(idata: xr.DataTree) -> xr.Dataset:
     ValueError
         If prior is absent from idata.
     """
-    if "/prior" not in idata.groups:
+    if "prior" not in idata.children:
         raise ValueError(
             "No prior data found in idata. Run MMM.sample_prior_predictive() first."
         )
