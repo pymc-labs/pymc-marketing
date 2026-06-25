@@ -49,7 +49,7 @@ authors:
 affiliations:
  - name: PyMC Labs, Estonia
    index: 1
- - name: InferenceWorks Ltd, UK
+ - name: InferenceWorks Ltd, Scotland
    index: 2
  - name: PLC Tech d.o.o., Slovenia
    index: 3
