@@ -26,7 +26,7 @@ jobs:
     outputs:
       should_test: ${{ steps.filter.outputs.code }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -50,7 +50,7 @@ jobs:
     env:
       PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -93,7 +93,7 @@ jobs:
     env:
       PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
