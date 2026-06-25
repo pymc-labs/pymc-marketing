@@ -24,8 +24,10 @@ from pytensor.graph import vectorize_graph
 from pytensor.tensor.random.op import RandomVariable
 
 __all__ = [
+    "BetaDiscreteWeibull",
     "BetaGeoBetaBinom",
     "BetaGeoNBD",
+    "DiscreteWeibull",
     "ModifiedBetaGeoNBD",
     "ParetoNBD",
 ]
@@ -777,6 +779,355 @@ class ShiftedBetaGeometric(Discrete):
                 alpha / (alpha + beta)  # expected value of the beta distribution
             )  # expected value of the geometric distribution
         )
+        if not rv_size_is_none(size):
+            geo_mean = pt.full(size, geo_mean)
+        return geo_mean
+
+
+# ---------------------------------------------------------------------------
+# Discrete-Weibull and Beta-discrete-Weibull (BdW) duration distributions.
+# The BdW is the duration-dependence generalization of ShiftedBetaGeometric
+# (Fader, Hardie, Liu, Davin & Steenburgh, 2018).
+# ---------------------------------------------------------------------------
+
+
+class DiscreteWeibullRV(RandomVariable):
+    """Random variable op for the discrete Weibull (Nakagawa & Osaki)."""
+
+    name = "discrete_weibull"
+    signature = "(),()->()"
+    dtype = "int64"
+    _print_name = ("DiscreteWeibull", "\\operatorname{DiscreteWeibull}")
+
+    @classmethod
+    def rng_fn(cls, rng, theta, c, size):
+        if size is None:
+            size = np.broadcast_shapes(theta.shape, c.shape)
+        theta = np.broadcast_to(theta, size).astype(np.float64)
+        c = np.broadcast_to(c, size).astype(np.float64)
+
+        # Clip to avoid log(0).  theta is the *churn* probability so
+        # theta in (0, 1); we additionally clip c away from zero.
+        theta = np.clip(theta, 1e-12, 1.0 - 1e-12)
+        c_safe = np.clip(c, 1e-6, None)
+
+        # Inverse-CDF sampling.  For U ~ Uniform(0, 1),
+        #   P(T <= t) = 1 - (1 - theta)^(t^c)  >=  U
+        # ⇔ t >= (log(1-U) / log(1-theta)) ** (1/c)
+        u = rng.uniform(size=size)
+        # Clip U to avoid log(0) at the boundary.
+        u = np.clip(u, 1e-300, 1 - 1e-300)
+        raw = np.log1p(-u) / np.log1p(-theta)  # log(1-U)/log(1-theta)
+        t = np.ceil(raw ** (1.0 / c_safe))
+        # ``ceil`` of a non-negative real always yields an integer; we
+        # enforce a minimum support of 1 (the distribution is shifted).
+        t = np.maximum(t, 1).astype(np.int64)
+        return t
+
+
+discrete_weibull = DiscreteWeibullRV()
+
+
+class DiscreteWeibull(Discrete):
+    r"""Discrete Weibull distribution (Nakagawa & Osaki, 1975).
+
+    A shifted discrete lifetime distribution with support
+    :math:`T \in \{1, 2, 3, \dots\}` whose survivor function is
+
+    .. math::
+
+        S(t\mid\theta, c) = (1 - \theta)^{t^{c}}, \qquad
+        0 < \theta < 1,\; c > 0,\; t = 0, 1, 2, \dots
+
+    and whose probability mass function is
+
+    .. math::
+
+        \mathbb{P}(T = t\mid\theta, c) =
+            (1 - \theta)^{(t-1)^{c}} - (1 - \theta)^{t^{c}},
+        \qquad t = 1, 2, 3, \dots
+
+    When :math:`c = 1` the distribution reduces to a
+    :class:`Geometric(\theta)` — i.e., a constant individual-level hazard.
+    For :math:`c > 1` the individual-level churn probability *increases*
+    with tenure (positive duration dependence), whereas for :math:`c < 1`
+    it *decreases* with tenure (negative duration dependence).
+
+    The individual-level retention probability at period ``t``
+    (the probability that a subscriber who has completed ``t-1`` renewals
+    renews at the next opportunity) is
+
+    .. math::
+
+        \rho(t\mid\theta, c) = (1 - \theta)^{t^{c} - (t-1)^{c}}.
+
+    ========  ===============================================
+    Support   :math:`t \in \mathbb{N}_{>0}`
+    ========  ===============================================
+
+    Parameters
+    ----------
+    theta : tensor_like of float
+        Churn probability (0 < theta < 1).
+    c : tensor_like of float
+        Shape / duration-dependence parameter (c > 0).  ``c == 1`` yields
+        the geometric distribution; ``c > 1`` gives increasing churn
+        propensity with tenure; ``c < 1`` gives decreasing churn
+        propensity with tenure.
+
+    References
+    ----------
+    .. [1] Nakagawa, T., & Osaki, S. (1975).  The Discrete Weibull
+       Distribution.  *IEEE Transactions on Reliability*, 24 (5), 300-301.
+    .. [2] Fader, P. S., Hardie, B. G. S., Liu, Y., Davin, J., &
+       Steenburgh, T. (2018).  "How to Project Customer Retention"
+       Revisited: The Role of Duration Dependence.
+       https://brucehardie.com/papers/037/
+    """
+
+    rv_op = discrete_weibull
+
+    @classmethod
+    def dist(cls, theta, c, *args, **kwargs):
+        """Create a DiscreteWeibull distribution."""
+        theta = pt.as_tensor_variable(theta)
+        c = pt.as_tensor_variable(c)
+        return super().dist([theta, c], *args, **kwargs)
+
+    def logp(value, theta, c):
+        """Log-pmf of the discrete Weibull distribution.
+
+        Adapted from equation (8) of Fader et al. (2018).  Implemented in
+        log-space using ``log1mexp`` for numerical stability.
+        """
+        t = pt.cast(value, "floatX")
+        # (t-1)^c  with the convention 0^c = 0 for c > 0 and a safe zero
+        # when t == 1.  Using ``switch`` avoids pytensor evaluating 0**c
+        # for every element of the sample.
+        t_minus_1_c = pt.switch(pt.gt(t, 1), pt.power(pt.maximum(t - 1, 0.0), c), 0.0)
+        t_c = pt.power(t, c)
+
+        # log(1 - theta) computed as log1p(-theta) for numerical stability.
+        log_q = pt.log1p(-theta)
+
+        # logS(t-1) and logS(t) where S(t) = (1 - theta)^{t^c}.
+        log_S_t_minus_1 = log_q * t_minus_1_c
+        log_S_t = log_q * t_c
+
+        # log P(T=t) = log(S(t-1) - S(t))
+        #            = log_S_t_minus_1 + log(1 - exp(log_S_t - log_S_t_minus_1))
+        #
+        # ``pt.log1mexp(x)`` returns ``log(1 - exp(x))`` and expects x <= 0.
+        # We have log_S_t <= log_S_t_minus_1 so the argument is non-positive.
+        logp = log_S_t_minus_1 + pt.log1mexp(log_S_t - log_S_t_minus_1)
+
+        logp = pt.switch(
+            pt.or_(pt.lt(value, 1), pt.or_(theta <= 0, theta >= 1)),
+            -np.inf,
+            logp,
+        )
+        return check_parameters(
+            logp,
+            theta > 0,
+            theta < 1,
+            c > 0,
+            msg="0 < theta < 1, c > 0",
+        )
+
+    def logcdf(value, theta, c):
+        """Log-cdf of the discrete Weibull distribution.
+
+        ``log CDF(t) = log(1 - S(t)) = log(1 - (1 - theta)^{t^c})``.
+        """
+        t = pt.cast(value, "floatX")
+        t_c = pt.power(t, c)
+        log_q = pt.log1p(-theta)
+        logS = log_q * t_c
+        return pt.log1mexp(logS)
+
+    def support_point(rv, size, theta, c):
+        """Return a reasonable starting point for samplers.
+
+        We use the median of the continuous Weibull with the equivalent
+        scale/shape (``λ = -log(1 - theta)``) rounded up to the next
+        integer.  This gives a smooth mode-like value for small ``theta``
+        without special-casing the discrete support.
+        """
+        log_q = pt.log1p(-theta)
+        median = pt.ceil(pt.power(pt.log(2.0) / (-log_q), pt.reciprocal(c)))
+        median = pt.maximum(median, 1)
+        if not rv_size_is_none(size):
+            median = pt.full(size, median)
+        return median
+
+
+# ---------------------------------------------------------------------------
+# Beta-discrete-Weibull — population-level duration distribution obtained by
+# mixing the DiscreteWeibull over a Beta(alpha, beta) heterogeneity
+# distribution on ``theta``.  This is the direct extension of
+# ``ShiftedBetaGeometric`` described by Fader et al. (2018).
+# ---------------------------------------------------------------------------
+
+
+class BetaDiscreteWeibullRV(RandomVariable):
+    """Random variable op for the Beta-discrete-Weibull (BdW) distribution."""
+
+    name = "beta_discrete_weibull"
+    signature = "(),(),()->()"
+    dtype = "int64"
+    _print_name = ("BetaDiscreteWeibull", "\\operatorname{BetaDiscreteWeibull}")
+
+    @classmethod
+    def rng_fn(cls, rng, alpha, beta, c, size):
+        if size is None:
+            size = np.broadcast_shapes(alpha.shape, beta.shape, c.shape)
+        alpha = np.broadcast_to(alpha, size)
+        beta = np.broadcast_to(beta, size)
+        c = np.broadcast_to(c, size).astype(np.float64)
+
+        # Draw theta ~ Beta(alpha, beta) per observation, then sample a
+        # discrete Weibull with parameters (theta, c) via inverse CDF.
+        theta = rng.beta(a=alpha, b=beta, size=size)
+        theta = np.clip(theta, 1e-12, 1.0 - 1e-12)
+        c_safe = np.clip(c, 1e-6, None)
+
+        u = rng.uniform(size=size)
+        u = np.clip(u, 1e-300, 1 - 1e-300)
+
+        raw = np.log1p(-u) / np.log1p(-theta)
+        t = np.ceil(raw ** (1.0 / c_safe))
+        t = np.maximum(t, 1).astype(np.int64)
+        return t
+
+
+beta_discrete_weibull = BetaDiscreteWeibullRV()
+
+
+class BetaDiscreteWeibull(Discrete):
+    r"""Beta-discrete-Weibull distribution (Fader et al., 2018).
+
+    Population-level duration distribution for contractual customer
+    relationships.  Obtained by compounding a discrete Weibull lifetime
+    with a Beta-distributed heterogeneity on the churn probability:
+
+    .. math::
+
+        \theta \sim \mathrm{Beta}(\alpha, \beta), \qquad
+        T \mid \theta, c \sim \mathrm{DiscreteWeibull}(\theta, c).
+
+    The resulting survivor and probability-mass functions are
+
+    .. math::
+
+        S(t \mid \alpha, \beta, c) &=
+            \frac{B(\alpha, \beta + t^{c})}{B(\alpha, \beta)}, \\[4pt]
+        \mathbb{P}(T = t \mid \alpha, \beta, c) &=
+            \frac{B(\alpha, \beta + (t-1)^{c}) -
+                  B(\alpha, \beta + t^{c})}{B(\alpha, \beta)},
+        \qquad t = 1, 2, 3, \dots
+
+    When :math:`c = 1` the BdW collapses to the shifted beta-geometric
+    (sBG) distribution of Fader & Hardie (2007) — the two families share
+    the same :math:`(\alpha, \beta)` parameterisation used in
+    pymc-marketing.
+
+    Cohort-level retention rate (equation 12 of [1]_):
+
+    .. math::
+
+        r(t \mid \alpha, \beta, c) =
+            \frac{S(t)}{S(t-1)}
+            = \frac{B(\alpha, \beta + t^{c})}{B(\alpha, \beta + (t-1)^{c})}.
+
+    ========  ===============================================
+    Support   :math:`t \in \mathbb{N}_{>0}`
+    ========  ===============================================
+
+    Parameters
+    ----------
+    alpha : tensor_like of float
+        Shape parameter of the Beta mixing distribution (``alpha > 0``).
+    beta : tensor_like of float
+        Shape parameter of the Beta mixing distribution (``beta > 0``).
+    c : tensor_like of float
+        Duration-dependence shape parameter (``c > 0``).  ``c == 1`` gives
+        the shifted-beta-geometric (sBG) model; ``c > 1`` corresponds to
+        increasing individual-level churn propensity with tenure; ``c < 1``
+        corresponds to decreasing individual-level churn propensity.
+
+    References
+    ----------
+    .. [1] Fader, P. S., Hardie, B. G. S., Liu, Y., Davin, J.,
+       & Steenburgh, T. (2018).  "How to Project Customer Retention"
+       Revisited: The Role of Duration Dependence.
+       https://brucehardie.com/papers/037/
+    .. [2] Fader, P. S., & Hardie, B. G. S. (2007).  How to project
+       customer retention.  *Journal of Interactive Marketing*, 21 (1),
+       76-90.
+    """
+
+    rv_op = beta_discrete_weibull
+
+    @classmethod
+    def dist(cls, alpha, beta, c, *args, **kwargs):
+        """Create a BetaDiscreteWeibull distribution."""
+        alpha = pt.as_tensor_variable(alpha)
+        beta = pt.as_tensor_variable(beta)
+        c = pt.as_tensor_variable(c)
+        return super().dist([alpha, beta, c], *args, **kwargs)
+
+    def logp(value, alpha, beta, c):
+        """Log-pmf of the BdW, equation (11) of Fader et al. (2018).
+
+        Numerically stable computation using log-space differences and
+        ``log1mexp``.
+        """
+        t = pt.cast(value, "floatX")
+        t_c = pt.power(t, c)
+        t_minus_1_c = pt.switch(pt.gt(t, 1), pt.power(pt.maximum(t - 1, 0.0), c), 0.0)
+
+        log_S_t_minus_1 = betaln(alpha, beta + t_minus_1_c) - betaln(alpha, beta)
+        log_S_t = betaln(alpha, beta + t_c) - betaln(alpha, beta)
+
+        # log P(T=t) = log(S(t-1) - S(t))
+        logp = log_S_t_minus_1 + pt.log1mexp(log_S_t - log_S_t_minus_1)
+
+        logp = pt.switch(
+            pt.or_(
+                pt.lt(value, 1),
+                pt.or_(alpha <= 0, pt.or_(beta <= 0, c <= 0)),
+            ),
+            -np.inf,
+            logp,
+        )
+        return check_parameters(
+            logp,
+            alpha > 0,
+            beta > 0,
+            c > 0,
+            msg="alpha > 0, beta > 0, c > 0",
+        )
+
+    def logcdf(value, alpha, beta, c):
+        """Log-cdf of the BdW.
+
+        ``log CDF(t) = log(1 - S(t))`` with
+        ``log S(t) = log B(alpha, beta + t^c) - log B(alpha, beta)``.
+        """
+        t = pt.cast(value, "floatX")
+        t_c = pt.power(t, c)
+        logS = betaln(alpha, beta + t_c) - betaln(alpha, beta)
+        return pt.log1mexp(logS)
+
+    def support_point(rv, size, alpha, beta, c):
+        r"""Return a starting point for samplers.
+
+        Uses the same heuristic as :class:`ShiftedBetaGeometric` (the
+        reciprocal of the prior mean of :math:`\theta`) since the BdW
+        reduces to the sBG at ``c = 1`` and the sBG starting point is
+        already a sensible default across the parameter space.
+        """
+        geo_mean = pt.ceil(pt.reciprocal(alpha / (alpha + beta)))
         if not rv_size_is_none(size):
             geo_mean = pt.full(size, geo_mean)
         return geo_mean

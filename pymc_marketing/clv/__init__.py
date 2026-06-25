@@ -14,6 +14,8 @@
 """CLV models and utilities."""
 
 from pymc_marketing.clv.models import (
+    BetaDiscreteWeibullModel,
+    BetaDiscreteWeibullModelIndividual,
     BetaGeoBetaBinomModel,
     BetaGeoModel,
     GammaGammaModel,
@@ -38,6 +40,8 @@ from pymc_marketing.clv.utils import (
 )
 
 __all__ = (
+    "BetaDiscreteWeibullModel",
+    "BetaDiscreteWeibullModelIndividual",
     "BetaGeoBetaBinomModel",
     "BetaGeoModel",
     "GammaGammaModel",
