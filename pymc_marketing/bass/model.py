@@ -137,11 +137,14 @@ Create a basic Bass model for multiple products:
 from typing import Any, TypedDict, cast
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from matplotlib.axes import Axes
 from numpy.typing import (
     ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
@@ -149,8 +152,10 @@ from pymc.model import Model
 from pymc.util import RandomState
 from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 
+from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
@@ -486,6 +491,16 @@ class BassModel(ModelBuilder):
     _model_type = "BassModel"
     version = __version__
 
+    def __init__(
+        self,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
+    ):
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        # Restore Prior objects from the dicts produced by the JSON
+        # round-trip in save/load
+        self.model_config = parse_model_config(self.model_config)
+
     @property
     def default_model_config(self) -> dict:
         """Default model configuration with weakly informative priors."""
@@ -537,8 +552,9 @@ class BassModel(ModelBuilder):
         if "observed" in ds:
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
-            dtype = self.model["y_obs"].get_value().dtype
-            set_data["y_obs"] = np.zeros(len(new_t), dtype=dtype)
+            old_value = self.model["y_obs"].get_value()
+            new_shape = (len(new_t), *old_value.shape[1:])
+            set_data["y_obs"] = np.zeros(new_shape, dtype=old_value.dtype)
         with self.model:
             pm.set_data(set_data, coords={"T": new_t})
 
@@ -740,6 +756,63 @@ class BassModel(ModelBuilder):
         self.idata.add_groups(fit_data=ds)
         self.set_idata_attrs(self.idata)
         return self.idata
+
+    def plot_adoption_curve(
+        self, **kwargs: Any
+    ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior adoption curve with the observed data.
+
+        See :func:`pymc_marketing.bass.plotting.plot_adoption_curve` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_adoption_curve(self, **kwargs)
+
+    def plot_cumulative(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the cumulative adoption S-curve with the observed data.
+
+        See :func:`pymc_marketing.bass.plotting.plot_cumulative` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_cumulative(self, **kwargs)
+
+    def plot_decomposition(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the adoption decomposition into innovators and imitators.
+
+        Per-period innovators and imitators go on the left y-axis and
+        cumulative adoption on a twin right y-axis.
+
+        See :func:`pymc_marketing.bass.plotting.plot_decomposition` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the primary (left) axes.
+        """
+        return plotting.plot_decomposition(self, **kwargs)
+
+    def plot_peak(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior distribution of the peak adoption time.
+
+        See :func:`pymc_marketing.bass.plotting.plot_peak` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_peak(self, **kwargs)
 
     def build_from_idata(self, idata: az.InferenceData) -> None:
         """Rebuild the model from an ``InferenceData`` object.

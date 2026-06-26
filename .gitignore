@@ -1,6 +1,7 @@
 # MLflow logging
 mlruns/
 mlruns.db
+mlflow.db
 
 # InferenceData
 *.nc
