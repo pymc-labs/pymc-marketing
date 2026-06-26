@@ -49,6 +49,12 @@ are patched:
     - Model type and fit method
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
+- `BassModel.fit`:
+
+    - All parameters, metrics, and artifacts from `pymc.sample`
+    - :func:`log_bass_configuration`: Log the configuration of the Bass model.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+
 Examples
 --------
 Autologging for a PyMC model:
@@ -150,6 +156,36 @@ Autologging for a PyMC-Marketing CLV model:
     with mlflow.start_run():
         model.fit()
 
+Autologging for a PyMC-Marketing Bass model:
+
+.. code-block:: python
+
+    import numpy as np
+
+    import mlflow
+
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.bass import BassModel
+
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog(log_bass=True)
+
+    mlflow.set_experiment("Bass Experiment")
+
+    adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
+
+    # Positive prior on the market size m keeps the Poisson rate valid
+    model_config = {
+        "m": Prior("Normal", mu=500, sigma=100),
+    }
+
+    model = BassModel(model_config=model_config)
+
+    with mlflow.start_run():
+        idata = model.fit(data=adoption)
+
 """
 
 import logging
@@ -179,6 +215,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 from packaging import version
 
+from pymc_marketing.bass import BassModel
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
@@ -454,6 +491,10 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         )
         logger.info(msg)
 
+        return None
+    except Exception as e:
+        msg = f"Unable to render the model graph. {e}"
+        logging.info(msg)
         return None
 
     try:
@@ -1019,6 +1060,17 @@ def log_mmm_configuration(mmm: MMM) -> None:
     mlflow.log_param("saturation_name", saturation_name)
 
 
+def log_bass_configuration(model: BassModel) -> None:
+    """Log the configuration of the Bass model to MLflow.
+
+    Logs the model's idata attributes: id, model type, version,
+    sampler config, and the prior configuration
+    (``m``, ``p``, ``q``, ``likelihood``).
+    """
+    attrs = model.create_idata_attrs()
+    mlflow.log_params(attrs)
+
+
 def log_error(func: Callable, file_name: str):
     """Log arbitrary caught error and traceback to MLflow.
 
@@ -1081,6 +1133,7 @@ def autolog(
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
     log_clv: bool = True,
+    log_bass: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -1112,6 +1165,8 @@ def autolog(
         Whether to log PyMC-Marketing MMM models. Default is True.
     log_clv : bool, optional
         Whether to log PyMC-Marketing CLV models. Default is True.
+    log_bass : bool, optional
+        Whether to log PyMC-Marketing Bass models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -1222,6 +1277,36 @@ def autolog(
         with mlflow.start_run():
             model.fit(fit_method="map")
 
+    Autologging for a PyMC-Marketing Bass model:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        import mlflow
+
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.bass import BassModel
+
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog(log_bass=True)
+
+        mlflow.set_experiment("Bass Experiment")
+
+        adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
+
+        # Positive prior on the market size m keeps the Poisson rate valid
+        model_config = {
+            "m": Prior("Normal", mu=500, sigma=100),
+        }
+
+        model = BassModel(model_config=model_config)
+
+        with mlflow.start_run():
+            idata = model.fit(data=adoption)
+
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
 
@@ -1315,3 +1400,20 @@ def autolog(
 
     if log_clv:
         CLVModel.fit = patch_clv_fit(CLVModel.fit)
+
+    def patch_bass_fit(fit: Callable) -> Callable:
+        @wraps(fit)
+        def new_fit(self, *args, **kwargs):
+            log_bass_configuration(self)
+
+            idata = fit(self, *args, **kwargs)
+            _attach_run_id(idata)
+
+            log_inference_data(idata, save_file="idata.nc")
+
+            return idata
+
+        return new_fit
+
+    if log_bass:
+        BassModel.fit = patch_bass_fit(BassModel.fit)  # type: ignore[method-assign]
