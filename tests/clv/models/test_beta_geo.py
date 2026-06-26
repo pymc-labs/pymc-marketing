@@ -710,8 +710,8 @@ class TestBetaGeoModelWithCovariates:
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
         non_nested_priors = dict(
-            a_prior=Prior("Beta", alpha=20, beta=20),
-            b_prior=Prior("Beta", alpha=20, beta=20),
+            a=Prior("Beta", alpha=20, beta=20),
+            b=Prior("Beta", alpha=20, beta=20),
         )
         covariate_config = dict(
             purchase_covariate_cols=purchase_covariate_cols,
@@ -1002,12 +1002,12 @@ class TestBetaGeoModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something broader here
         custom_priors = {
-            "r_prior": Prior("Exponential", scale=10),
-            "alpha_prior": Prior("Exponential", scale=10),
-            "a_prior": Prior("Exponential", scale=10),
-            "b_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=4),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=4),
+            "r": Prior("Exponential", scale=10),
+            "alpha": Prior("Exponential", scale=10),
+            "a": Prior("Exponential", scale=10),
+            "b": Prior("Exponential", scale=10),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=4),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=4),
         }
         new_model = BetaGeoModel(
             synthetic_data,
@@ -1044,12 +1044,12 @@ class TestBetaGeoModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something broader here
         custom_priors = {
-            "r_prior": Prior("Exponential", scale=10),
-            "alpha_prior": Prior("Exponential", scale=10),
-            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=5),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=5),
+            "r": Prior("Exponential", scale=10),
+            "alpha": Prior("Exponential", scale=10),
+            "phi_dropout": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=5),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=5),
         }
         new_model = BetaGeoModel(
             synthetic_data,
