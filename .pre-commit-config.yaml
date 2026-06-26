@@ -49,6 +49,12 @@ repos:
         language: system
         pass_filenames: false
         files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
+      - id: validate-watermark
+        name: Validate notebooks have watermark in last cell
+        entry: python3 scripts/validate_notebook_watermark.py
+        language: system
+        files: \.ipynb$
+        exclude: ^docs/source/notebooks/.*/dev/
       - id: validate-notebooks
         name: Validate Jupyter notebooks (nbformat)
         entry: python -c "import sys, nbformat; [nbformat.validate(nbformat.read(p, as_version=4)) for p in sys.argv[1:]]"
@@ -59,7 +65,6 @@ repos:
       - id: gallery-in-sync
         name: gallery.md is in sync with gallery.yaml
         entry: python3 scripts/generate_gallery.py --check --no-thumbnails
-        language: python
-        additional_dependencies: [pyyaml, matplotlib]
+        language: system
         pass_filenames: false
         files: ^(docs/source/gallery/gallery\.(md|yaml)|docs/source/notebooks/.+\.ipynb|scripts/generate_gallery\.py)$
