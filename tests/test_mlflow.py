@@ -29,6 +29,7 @@ from pymc.exceptions import SamplingError
 import pymc_marketing.mlflow as pmm_mlflow
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
+    _resolve_parameter,
     autolog,
     create_log_callback,
     log_error,
@@ -868,6 +869,45 @@ def test_logging_callback(model_with_likelihood) -> None:
         for value in ["energy", "mu"]:
             history = client.get_metric_history(run_id, f"chain_{chain}/{value}")
             assert len(history) == 10
+
+
+def test_logging_callback_resolves_log_transform(model_with_likelihood) -> None:
+    # `sigma` is a HalfNormal so it is sampled as `sigma_log__`. The user
+    # passes the model-level name and the callback resolves it.
+    mlflow.set_experiment("pymc-marketing-test-suite-log-transform-resolve")
+
+    callback = create_log_callback(
+        parameters=["mu", "sigma"],
+        take_every=10,
+    )
+    with mlflow.start_run() as run:
+        pm.sample(
+            model=model_with_likelihood,
+            draws=100,
+            tune=1,
+            chains=1,
+            callback=callback,
+        )
+
+    client = MlflowClient()
+    for value in ["mu", "sigma"]:
+        history = client.get_metric_history(run.info.run_id, f"chain_0/{value}")
+        assert len(history) == 10
+
+
+def test_resolve_parameter_exact_match_wins() -> None:
+    point = {"sigma": 1.0, "sigma_log__": 0.0}
+    assert _resolve_parameter("sigma", point) == "sigma"
+
+
+def test_resolve_parameter_falls_back_to_log_suffix() -> None:
+    point = {"mu": 0.0, "sigma_log__": 0.1}
+    assert _resolve_parameter("sigma", point) == "sigma_log__"
+
+
+def test_resolve_parameter_unknown_raises() -> None:
+    with pytest.raises(KeyError, match=r"not found in draw\.point"):
+        _resolve_parameter("nope", {"mu": 0.0, "sigma_log__": 0.1})
 
 
 def test_log_error() -> None:
