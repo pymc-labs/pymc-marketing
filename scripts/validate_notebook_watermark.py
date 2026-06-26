@@ -29,6 +29,8 @@ WATERMARK_RE = re.compile(
     r"-p (?P<packages>[a-zA-Z_][a-zA-Z0-9_.]*(?:,[a-zA-Z_][a-zA-Z0-9_.]*)*)"
 )
 
+IMPORT_RE = re.compile(r"(?:^|\n)\s*(?:import pymc_marketing|from pymc_marketing)")
+
 
 def is_excluded(path: Path) -> bool:
     return any(
@@ -40,6 +42,22 @@ def is_excluded(path: Path) -> bool:
 def load_notebook(path: Path) -> dict:
     with open(path) as f:
         return json.load(f)
+
+
+def _imports_pymc_marketing(data: dict) -> bool:
+    for cell in data.get("cells", []):
+        if cell.get("cell_type") != "code":
+            continue
+        source = "".join(cell.get("source", []))
+        if IMPORT_RE.search(source):
+            return True
+    return False
+
+
+def _check_imported_packages(notebook_data: dict, packages: set[str]) -> str | None:
+    if _imports_pymc_marketing(notebook_data) and "pymc_marketing" not in packages:
+        return "Missing pymc_marketing in -p (notebook imports pymc_marketing)"
+    return None
 
 
 def check_notebook(path: Path) -> str | None:
@@ -80,11 +98,16 @@ def check_notebook(path: Path) -> str | None:
     if not match:
         return "Missing -p flag with packages in watermark (e.g. -p pymc_marketing,pytensor)"
 
+    actual_packages = set(match.group("packages").split(","))
+
     if REQUIRED_PACKAGES:
-        actual_packages = set(match.group("packages").split(","))
         missing = REQUIRED_PACKAGES - actual_packages
         if missing:
             return f"Missing required packages in -p: {sorted(missing)}"
+
+    imported_error = _check_imported_packages(data, actual_packages)
+    if imported_error:
+        return imported_error
 
     return None
 
