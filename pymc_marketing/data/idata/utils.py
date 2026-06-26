@@ -44,8 +44,9 @@ def idata_to_zarr(
         Groups to save. If None, all groups are saved.
     """
     if groups is not None:
+        attrs = idata.attrs.copy()
         idata = idata.filter(lambda g: g.name in groups)
-        idata.attrs = idata.attrs.copy() if hasattr(idata, "attrs") else {}
+        idata.attrs = attrs
 
     idata.to_zarr(store)
 

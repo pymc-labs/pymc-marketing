@@ -1386,7 +1386,7 @@ class MMM(RegressionModelBuilder):
         self._validate_idata_exists()
 
         idata: xr.DataTree = cast(xr.DataTree, self.idata)
-        posterior: xr.Dataset = idata.posterior
+        posterior: xr.Dataset = idata["/posterior"].dataset
         target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
             drop=True
         )
