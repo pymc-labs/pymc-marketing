@@ -113,9 +113,7 @@ def check_notebook(path: Path) -> str | None:
 
 
 def collect_notebooks() -> list[Path]:
-    return sorted(
-        p for p in DOC_SOURCE.rglob("*.ipynb") if not is_excluded(p)
-    )
+    return sorted(p for p in DOC_SOURCE.rglob("*.ipynb") if not is_excluded(p))
 
 
 def _resolve(path: Path) -> Path:
