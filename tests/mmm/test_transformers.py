@@ -347,7 +347,12 @@ class TestsAdstockTransformers:
     @pytest.mark.parametrize(
         "type",
         [
-            WeibullType.PDF,
+            pytest.param(
+                WeibullType.PDF,
+                marks=pytest.mark.xfail(
+                    reason="PyTensor Blockwise bug: ptx.signal.convolve1d batched PDF with Numba linker"
+                ),
+            ),
             WeibullType.CDF,
         ],
     )

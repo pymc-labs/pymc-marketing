@@ -25,7 +25,6 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from typing import Any, Literal, overload
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -51,8 +50,8 @@ class TimeSliceCrossValidationResult:
         Feature matrix used for testing in this fold.
     y_test : pd.Series
         Target variable used for testing in this fold.
-    idata : az.InferenceData
-        ArviZ InferenceData object containing posterior samples and predictions
+    idata : xr.DataTree
+        InferenceData object containing posterior samples and predictions
         from the fitted model for this fold.
     """
 
@@ -60,7 +59,7 @@ class TimeSliceCrossValidationResult:
     y_train: pd.Series
     X_test: pd.DataFrame
     y_test: pd.Series
-    idata: az.InferenceData
+    idata: xr.DataTree
     mmm: MMMBuilder | None = None
 
 
@@ -281,7 +280,7 @@ class TimeSliceCrossValidator:
         self,
         results: list[TimeSliceCrossValidationResult],
         model_names: list[str],
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Combine InferenceData objects from multiple CV results.
 
         Parameters
@@ -293,7 +292,7 @@ class TimeSliceCrossValidator:
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Combined InferenceData with folds concatenated along 'cv' coordinate.
 
         Raises
@@ -301,7 +300,7 @@ class TimeSliceCrossValidator:
         ValueError
             If no InferenceData objects were produced during CV.
         """
-        cv_idata: az.InferenceData | None = None
+        cv_idata: xr.DataTree | None = None
         if results:
             # try to discover available groups from the first idata
             first_idata = results[0].idata
@@ -345,7 +344,7 @@ class TimeSliceCrossValidator:
                     # if concat fails, try to align then concat without coords
                     combined_ds = xr.concat(
                         [
-                            d.assign_coords({"cv": [n]})
+                            d.dataset.assign_coords({"cv": [n]})
                             for d, n in zip(ds_list, model_names, strict=False)
                         ],
                         dim="cv",
@@ -358,7 +357,9 @@ class TimeSliceCrossValidator:
             combined_kwargs["cv_metadata"] = ds_meta
 
             if combined_kwargs:
-                cv_idata = az.InferenceData(**combined_kwargs)
+                cv_idata = xr.DataTree.from_dict(
+                    {"/" + k: v for k, v in combined_kwargs.items()}
+                )
                 # persist for plot helpers
                 self.cv_idata = cv_idata
         # Also expose the last fold's idata (if any) for compatibility
@@ -366,7 +367,7 @@ class TimeSliceCrossValidator:
             last = results[-1]
             if hasattr(last, "idata") and last.idata is not None:
                 self.idata = last.idata
-        # Always return the combined arviz.InferenceData. If none could be
+        # Always return the combined xr.DataTree. If none could be
         # constructed (e.g. folds did not produce idata), raise an error so the
         # caller knows something went wrong.
         if cv_idata is None:
@@ -516,10 +517,10 @@ class TimeSliceCrossValidator:
         # Remove existing posterior_predictive groups if they exist to avoid conflicts
         # when extending idata with new predictions
         if mmm.idata is not None:
-            if "posterior_predictive" in mmm.idata.groups():
-                del mmm.idata.posterior_predictive
-            if "posterior_predictive_constant_data" in mmm.idata.groups():
-                del mmm.idata.posterior_predictive_constant_data
+            if "posterior_predictive" in mmm.idata:
+                del mmm.idata["posterior_predictive"]
+            if "posterior_predictive_constant_data" in mmm.idata:
+                del mmm.idata["posterior_predictive_constant_data"]
 
         # Run posterior predictions on combined data with extend_idata=True
         _ = mmm.sample_posterior_predictive(
@@ -643,7 +644,7 @@ class TimeSliceCrossValidator:
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
         return_models: Literal[False] = ...,
-    ) -> az.InferenceData: ...
+    ) -> xr.DataTree: ...
 
     @overload
     def run(
@@ -658,7 +659,7 @@ class TimeSliceCrossValidator:
         df_lift_test: pd.DataFrame | None = ...,
         lift_test_date_column: str | None = ...,
         return_models: Literal[True] = ...,
-    ) -> tuple[az.InferenceData, list[MMMBuilder]]: ...
+    ) -> tuple[xr.DataTree, list[MMMBuilder]]: ...
 
     def run(
         self,
@@ -672,7 +673,7 @@ class TimeSliceCrossValidator:
         df_lift_test: pd.DataFrame | None = None,
         lift_test_date_column: str | None = None,
         return_models: bool = False,
-    ) -> az.InferenceData | tuple[az.InferenceData, list[MMMBuilder]]:
+    ) -> xr.DataTree | tuple[xr.DataTree, list[MMMBuilder]]:
         """Run the complete time-slice cross-validation loop.
 
         Executes cross-validation by iterating through all folds, fitting a model
@@ -721,12 +722,12 @@ class TimeSliceCrossValidator:
 
         Returns
         -------
-        arviz.InferenceData
+        xr.DataTree
             Combined InferenceData where each fold is concatenated along a new
             coordinate named 'cv'. Includes a 'cv_metadata' group with per-fold
             train/test data. Returned when ``return_models`` is ``False``
             (the default).
-        tuple[arviz.InferenceData, list[MMMBuilder]]
+        tuple[xr.DataTree, list[MMMBuilder]]
             A tuple of the combined InferenceData and a list of fitted MMM
             instances (one per fold). Returned when ``return_models`` is
             ``True``.

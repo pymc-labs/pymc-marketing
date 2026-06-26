@@ -840,7 +840,7 @@ def test_merge_idata_assigns_missing_group(tmp_path, fitted_mmm):
 
     # Ensure observed_data exists only in m2
     if "observed_data" in m1.idata:
-        delattr(m1.idata, "observed_data")
+        del m1.idata["observed_data"]
 
     if "observed_data" not in m2.idata:
         # Minimal observed_data group aligned to fit_data date coordinate
@@ -850,7 +850,7 @@ def test_merge_idata_assigns_missing_group(tmp_path, fitted_mmm):
             {"y": (date_col, np.zeros(dates_da.sizes[date_col], dtype=float))},
             coords={date_col: dates_da},
         )
-        m2.idata.add_groups({"observed_data": obs})  # type: ignore[arg-type]
+        m2.idata["/observed_data"] = obs
 
     # Wrap and merge
     date_col = m1.date_column
@@ -896,7 +896,7 @@ def test_model_property_single_model_training_fallback():
             with pm.Model() as m:
                 pm.Normal("beta", 0.0, 1.0)
             self.model = m
-            self.idata = az.from_dict(posterior={"beta": np.random.randn(1, 10)})
+            self.idata = az.from_dict({"posterior": {"beta": np.random.randn(1, 10)}})
 
     w = SimpleWrapper()
     merged = BuildMergedModel(models=[w], prefixes=None, merge_on=None)

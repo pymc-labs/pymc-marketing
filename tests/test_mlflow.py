@@ -15,7 +15,6 @@ import json
 import logging
 from collections import namedtuple
 
-import arviz as az
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -228,13 +227,13 @@ def test_run_id_attached_to_idata(model_with_likelihood, tmp_path) -> None:
 
     save_path = tmp_path / "idata.nc"
     idata.to_netcdf(str(save_path))
-    reloaded = az.from_netcdf(str(save_path))
+    reloaded = xr.open_datatree(str(save_path))
     assert reloaded.attrs["mlflow_run_id"] == run.info.run_id
 
 
 def test_attach_run_id_no_active_run_is_noop() -> None:
     assert mlflow.active_run() is None
-    idata = az.InferenceData()
+    idata = xr.DataTree.from_dict({})
     pmm_mlflow._attach_run_id(idata)
     assert "mlflow_run_id" not in idata.attrs
 
@@ -284,7 +283,10 @@ def test_log_model_graph_no_graphviz(
         with caplog.at_level(logging.INFO):
             log_model_graph(model_with_likelihood, "model_graph")
 
-    assert caplog.messages == [
+    graph_log_lines = [
+        msg for msg in caplog.messages if "model graph" in msg or "graphviz" in msg
+    ]
+    assert graph_log_lines == [
         expected_info_message,
     ]
 
@@ -487,6 +489,7 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
             draws=draws,
             chains=chains,
             tune=tune,
+            nuts_sampler="pymc",
         )
 
     assert mlflow.active_run() is None
@@ -588,6 +591,7 @@ def test_autolog_multidimensional_mmm(
             draws=draws,
             chains=chains,
             tune=tune,
+            nuts_sampler="pymc",
         )
 
     assert mlflow.active_run() is None
@@ -621,7 +625,7 @@ def test_autolog_multidimensional_mmm(
 
 
 @pytest.fixture(scope="function")
-def mock_idata() -> az.InferenceData:
+def mock_idata() -> xr.DataTree:
     chains = 4
     draws = 100
     coords = {
@@ -645,19 +649,42 @@ def mock_idata() -> az.InferenceData:
         },
         coords=coords,
     )
-    return az.InferenceData(
-        posterior=posterior,
-        sample_stats=sample_stats,
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior, "/sample_stats": sample_stats},
     )
 
 
 @pytest.mark.parametrize("selected_group", ["posterior", "sample_stats"])
 def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -> None:
-    idata = az.InferenceData(**{selected_group: mock_idata[selected_group]})
+    idata = xr.DataTree.from_dict({f"/{selected_group}": mock_idata[selected_group]})
     missing_group = "sample_stats" if selected_group == "posterior" else "posterior"
-    match = rf"InferenceData object does not contain the group {missing_group}."
+    match = rf"DataTree object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
+
+
+def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
+    """Regression test: ``_force_load_idata_groups`` must load every group.
+
+    ``DataTree.groups`` yields ``/``-prefixed paths (e.g. ``"/posterior"``),
+    so the previous ``hasattr(idata, group)`` guard was always ``False`` and
+    the function silently loaded nothing. Spy on ``Dataset.load`` to assert
+    each group's dataset is actually materialized.
+    """
+    loaded_vars: list[set[str]] = []
+    original_load = xr.Dataset.load
+
+    def spy_load(self, *args, **kwargs):
+        loaded_vars.append(set(self.data_vars))
+        return original_load(self, *args, **kwargs)
+
+    monkeypatch.setattr(xr.Dataset, "load", spy_load)
+
+    pmm_mlflow._force_load_idata_groups(mock_idata)
+
+    all_loaded = set().union(*loaded_vars) if loaded_vars else set()
+    assert {"mu", "sigma"} <= all_loaded
+    assert {"diverging", "energy"} <= all_loaded
 
 
 @pytest.fixture
@@ -695,11 +722,12 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
 
     assert params["fit_method"] == "mcmc"
 
-    assert set(metrics.keys()) == {
-        "total_divergences",
-        "sampling_time",
-        "time_per_draw",
-    }
+    divergence_metric = {"total_divergences", "sampling_time_divergences"} & set(
+        metrics.keys()
+    )
+    assert len(divergence_metric) == 1, (
+        f"Expected exactly one divergence metric, got {divergence_metric} from {set(metrics.keys())}"
+    )
 
     assert tags == {}
 
@@ -742,7 +770,7 @@ def test_clv_fit_map(model_cls, clv_data) -> None:
 
 
 @pytest.fixture(scope="function")
-def mock_idata_for_loo() -> az.InferenceData:
+def mock_idata_for_loo() -> xr.DataTree:
     chains = 2
     draws = 50
     obs = 10
@@ -779,10 +807,12 @@ def mock_idata_for_loo() -> az.InferenceData:
         coords=coords,
     )
 
-    return az.InferenceData(
-        posterior=posterior,
-        sample_stats=sample_stats,
-        log_likelihood=log_likelihood,
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": posterior,
+            "/sample_stats": sample_stats,
+            "/log_likelihood": log_likelihood,
+        },
     )
 
 

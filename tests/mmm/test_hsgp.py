@@ -484,12 +484,12 @@ def test_soft_plus_hsgp_continous_with_new_data() -> None:
     with deterministics_to_flat(model, names=hsgp.deterministics_to_replace("f")):
         pm.set_data({"X": outsample}, coords={"date": outsample})
 
-        idata.extend(
+        idata.update(
             pm.sample_posterior_predictive(
                 idata,
                 var_names=["f"],
                 random_seed=rng,
-            )
+            ),
         )
 
     jump = idata.posterior_predictive["f"].isel(date=0) - idata.prior["f"].isel(date=-1)

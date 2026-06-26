@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Unit and parametric-recovery tests for MaxDiffMixedLogit."""
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -29,6 +28,8 @@ from pymc_marketing.customer_choice.synthetic_data import (
     generate_maxdiff_conjoint_data,
     generate_maxdiff_data,
 )
+
+PYTENSOR_NUMBA_ISSUE = "pymc-devs/pytensor#2201"
 
 
 def _small_maxdiff_df(
@@ -229,6 +230,9 @@ class TestBuildModel:
         ref_pos = items.index(items[-1])
         assert beta_item[ref_pos] == 0.0
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_model_logp_finite(self, small_maxdiff):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -268,6 +272,9 @@ class TestBuildModel:
         det_names = [d.name for d in model.model.deterministics]
         assert "beta_item_r" not in det_names
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_ragged_subset_sizes(self, ragged_maxdiff):
         task_df, items = ragged_maxdiff
         arrays = prepare_maxdiff_data(task_df, items=items)
@@ -341,13 +348,13 @@ class TestPriorPredictive:
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         prior = model.sample_prior_predictive(samples=10, random_seed=42)
-        assert "prior_predictive" in prior.groups()
+        assert "/prior_predictive" in prior.groups
         assert "best_pick" in prior["prior_predictive"]
         assert "worst_pick" in prior["prior_predictive"]
 
 
 class TestSaveLoadRoundtrip:
-    def test_save_load_roundtrip(self, small_maxdiff, tmp_path):
+    def test_save_load_roundtrip(self, small_maxdiff, tmp_path, mock_pymc_sample):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         model.fit(random_seed=42, **FAST_FIT_KWARGS)
@@ -371,7 +378,7 @@ class TestSaveLoadRoundtrip:
         for col in ("respondent_id", "task_id", "item_id", "is_best", "is_worst"):
             assert col in loaded.task_df.columns
 
-    def test_task_id_dtype_preserved(self, small_maxdiff, tmp_path):
+    def test_task_id_dtype_preserved(self, small_maxdiff, tmp_path, mock_pymc_sample):
         task_df, items, _ = small_maxdiff
         original_dtype = task_df["task_id"].dtype
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -383,14 +390,14 @@ class TestSaveLoadRoundtrip:
 
 
 class TestPosteriorPredictive:
-    def test_posterior_predictive_shapes(self, small_maxdiff):
+    def test_posterior_predictive_shapes(self, small_maxdiff, mock_pymc_sample):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         idata = model.fit(random_seed=42, **FAST_FIT_KWARGS)
         assert idata is not None
 
         post_pred = model.sample_posterior_predictive(random_seed=42)
-        assert "posterior_predictive" in post_pred.groups()
+        assert "/posterior_predictive" in post_pred.groups
         pp = post_pred["posterior_predictive"]
         assert "best_pick" in pp
         assert "worst_pick" in pp
@@ -401,7 +408,7 @@ class TestPosteriorPredictive:
         assert pp["best_pick"].shape == (chains, draws, n_tasks)
         assert pp["worst_pick"].shape == (chains, draws, n_tasks)
 
-    def test_shape_mismatch_k_max_raises(self):
+    def test_shape_mismatch_k_max_raises(self, mock_pymc_sample):
         # Train on subset_size=3 (k_max=3), then predict with subset_size=5 (k_max=5)
         task_df_train, items, _ = _small_maxdiff_df(
             n_respondents=4, n_items=5, n_tasks_per_resp=3, subset_size=3
@@ -430,7 +437,7 @@ class TestPosteriorPredictive:
         with pytest.raises(ValueError, match="k_max"):
             model.sample_posterior_predictive(task_df=big_task_df)
 
-    def test_shape_mismatch_n_tasks_raises(self):
+    def test_shape_mismatch_n_tasks_raises(self, mock_pymc_sample):
         # Train on 3 tasks per respondent, then predict with 2 tasks per respondent
         task_df_train, items, _ = _small_maxdiff_df(
             n_respondents=4, n_items=5, n_tasks_per_resp=3, subset_size=3
@@ -450,7 +457,7 @@ class TestPosteriorPredictive:
 
 
 class TestPredictChoices:
-    def test_counterfactual_predict_choices(self, small_maxdiff):
+    def test_counterfactual_predict_choices(self, small_maxdiff, mock_pymc_sample):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         model.fit(random_seed=42, **FAST_FIT_KWARGS)
@@ -561,7 +568,7 @@ class TestSingleItemTaskValidation:
 
 
 class TestPredictChoicesBatched:
-    def test_batched_equivalence(self, small_maxdiff):
+    def test_batched_equivalence(self, small_maxdiff, mock_pymc_sample):
         """draw_batch_size must not change the output for a fixed seed."""
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -585,7 +592,7 @@ class TestPredictChoicesBatched:
 
 class TestPredictChoicesNewRespondents:
     @pytest.fixture
-    def fitted_model(self, small_maxdiff):
+    def fitted_model(self, small_maxdiff, mock_pymc_sample):
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
         model.fit(random_seed=42, **FAST_FIT_KWARGS)
@@ -612,7 +619,9 @@ class TestPredictChoicesNewRespondents:
             ds["p_best"].sum(dim="positions").values, 1.0, atol=1e-10
         )
 
-    def test_population_ignored_when_no_random_intercepts(self, small_maxdiff):
+    def test_population_ignored_when_no_random_intercepts(
+        self, small_maxdiff, mock_pymc_sample
+    ):
         """With random_intercepts=False, unknown respondents are trivially ok."""
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items, random_intercepts=False)
@@ -676,6 +685,9 @@ class TestPartWorthsBuild:
         assert {"beta_feat", "sigma_feat", "z_feat", "U_item_r"}.issubset(rv_names)
         assert model.coords["random_features"] == ["price"]
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_logp_finite(self, partworths_fixture):
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
@@ -781,7 +793,7 @@ class TestPartWorthsBuild:
 
 
 class TestPartWorthsPosterior:
-    def test_posterior_predictive_shapes(self, partworths_fixture):
+    def test_posterior_predictive_shapes(self, partworths_fixture, mock_pymc_sample):
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
             task_df=task_df,
@@ -799,7 +811,7 @@ class TestPartWorthsPosterior:
             n_tasks,
         )
 
-    def test_predict_choices_shapes(self, partworths_fixture):
+    def test_predict_choices_shapes(self, partworths_fixture, mock_pymc_sample):
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
             task_df=task_df,
@@ -828,7 +840,9 @@ class TestPartWorthsPosterior:
             ds["p_best"].sum(dim="positions").values, 1.0, atol=1e-10
         )
 
-    def test_predict_choices_new_respondent_population(self, partworths_fixture):
+    def test_predict_choices_new_respondent_population(
+        self, partworths_fixture, mock_pymc_sample
+    ):
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
             task_df=task_df,
@@ -845,7 +859,9 @@ class TestPartWorthsPosterior:
         ds = model.predict_choices(new_df, random_seed=0, new_respondents="population")
         assert "best_pick" in ds
 
-    def test_new_respondent_draws_centered_like_population(self, partworths_fixture):
+    def test_new_respondent_draws_centered_like_population(
+        self, partworths_fixture, mock_pymc_sample
+    ):
         """New-respondent utility draws must be on the same scale as U_item_pop."""
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
@@ -866,7 +882,7 @@ class TestPartWorthsPosterior:
 
 
 class TestPartWorthsSaveLoad:
-    def test_save_load_roundtrip(self, partworths_fixture, tmp_path):
+    def test_save_load_roundtrip(self, partworths_fixture, tmp_path, mock_pymc_sample):
         task_df, attrs, gt = partworths_fixture
         model = MaxDiffMixedLogit(
             task_df=task_df,
@@ -937,7 +953,7 @@ class TestPartWorthsRecovery:
 
 
 @pytest.fixture
-def fitted_intercept_model(small_maxdiff):
+def fitted_intercept_model(small_maxdiff, mock_pymc_sample):
     """Fitted item-intercept model for intervention tests."""
     task_df, items, _ = small_maxdiff
     model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -946,7 +962,7 @@ def fitted_intercept_model(small_maxdiff):
 
 
 @pytest.fixture
-def fitted_partworths_model(partworths_fixture):
+def fitted_partworths_model(partworths_fixture, mock_pymc_sample):
     """Fitted part-worths model for intervention tests."""
     task_df, attrs, gt = partworths_fixture
     model = MaxDiffMixedLogit(
@@ -972,8 +988,8 @@ class TestApplyIntervention:
         task_df, _items, model = fitted_intercept_model
         result = model.apply_intervention(task_df, random_seed=0)
         assert isinstance(result, xr.Dataset)
-        assert isinstance(model.intervention_idata, az.InferenceData)
-        assert "posterior_predictive" in model.intervention_idata.groups()
+        assert isinstance(model.intervention_idata, xr.DataTree)
+        assert "/posterior_predictive" in model.intervention_idata.groups
 
     def test_auto_generates_dummy_flags(self, fitted_intercept_model):
         """Calling without is_best/is_worst columns must succeed and warn."""
@@ -1047,8 +1063,8 @@ class TestScoreNewItems:
         )
         result = model.score_new_items(new_item)
         assert isinstance(result, xr.Dataset)
-        assert isinstance(model.intervention_idata, az.InferenceData)
-        assert "posterior_predictive" in model.intervention_idata.groups()
+        assert isinstance(model.intervention_idata, xr.DataTree)
+        assert "/posterior_predictive" in model.intervention_idata.groups
 
     def test_requires_partworths_mode(self, fitted_intercept_model):
         _task_df, _items, model = fitted_intercept_model
@@ -1294,7 +1310,7 @@ class TestGenerateMaxdiffConjointData:
 
 
 class TestSampleConvenienceWrapper:
-    def test_sample_runs_and_populates_idata(self, small_maxdiff):
+    def test_sample_runs_and_populates_idata(self, small_maxdiff, mock_pymc_sample):
         """sample() must run prior predictive, fit, and posterior predictive."""
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -1305,11 +1321,11 @@ class TestSampleConvenienceWrapper:
         # sample() returns self for chaining.
         assert result is model
         assert model.idata is not None
-        assert "prior_predictive" in model.idata.groups()
-        assert "posterior" in model.idata.groups()
-        assert "posterior_predictive" in model.idata.groups()
+        assert "/prior_predictive" in model.idata.groups
+        assert "/posterior" in model.idata.groups
+        assert "/posterior_predictive" in model.idata.groups
 
-    def test_sample_builds_model_if_needed(self, small_maxdiff):
+    def test_sample_builds_model_if_needed(self, small_maxdiff, mock_pymc_sample):
         """sample() must build the model automatically when not yet built."""
         task_df, items, _ = small_maxdiff
         model = MaxDiffMixedLogit(task_df=task_df, items=items)
@@ -1335,7 +1351,7 @@ def full_cov_fixture():
 
 
 @pytest.fixture
-def fitted_full_cov_model(full_cov_fixture):
+def fitted_full_cov_model(full_cov_fixture, mock_pymc_sample):
     """Fitted full-covariance model."""
     task_df, items, _ = full_cov_fixture
     model = MaxDiffMixedLogit(
@@ -1361,6 +1377,9 @@ class TestFullCovariance:
         assert "items_bis" in model.coords
         assert list(model.coords["items_bis"]) == items
 
+    @pytest.mark.skip(
+        reason=f"Numba JIT issue with pt.where + shared indices, see {PYTENSOR_NUMBA_ISSUE}"
+    )
     def test_logp_finite(self, full_cov_fixture):
         """Log-probability at the initial point must be finite."""
         task_df, items, _ = full_cov_fixture

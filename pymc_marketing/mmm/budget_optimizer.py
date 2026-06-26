@@ -194,7 +194,7 @@ Requirements
 
 - The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
 
-  - Attributes: `adstock`, `_channel_scales`, `idata` (arviz.InferenceData with posterior)
+  - Attributes: `adstock`, `_channel_scales`, `idata` (xr.DataTree with posterior)
   - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
     model where a variable named `channel_data` exists with dims including `"date"` and all
     budget dims (e.g., `("channel", "geo")`).
@@ -210,7 +210,7 @@ Requirements
 Notes
 -----
 - If `budgets_to_optimize` is not provided, the optimizer auto‑detects cells with historical
-  information using `idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)`.
+  information using `idata.posterior["channel_contribution"].mean(("chain","draw","date")).astype(bool)`.
 - Default bounds are `[0, total_budget]` on each optimized cell.
 - Set `callback=True` in `allocate_budget(...)` to receive per‑iteration diagnostics
   (objective, gradient, constraints) for monitoring.
@@ -225,7 +225,6 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
-from arviz import InferenceData
 from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
 from pymc import Model, do
 from pymc.model.fgraph import clone_model
@@ -324,7 +323,7 @@ class OptimizerCompatibleModelWrapper(Protocol):
 
     adstock: Any
     _channel_scales: Any
-    idata: InferenceData
+    idata: xr.DataTree
 
     def _set_predictors_for_optimization(self, num_periods: int) -> Model:
         """Set the predictors for optimization."""
@@ -335,7 +334,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
 
-    - Merging their posterior ``InferenceData`` with per-model prefixes
+    - Merging their posterior ``DataTree`` with per-model prefixes
     - Optionally thinning posterior draws via ``use_every_n_draw``
     - Exposing a persistent merged PyMC ``Model`` for optimization through
       ``_set_predictors_for_optimization`` and a dynamic ``model`` property for
@@ -367,7 +366,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
         Number of models being merged.
     num_periods : int | None
         Number of forecast periods inferred from the primary model (if available).
-    idata : arviz.InferenceData
+    idata : xr.DataTree
         The merged and prefixed posterior (and data) container.
     adstock : Any
         Carried over from the primary model when available.
@@ -534,7 +533,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
                     if dim not in shared_dims and not dim.startswith(f"{prefix}_"):
                         rename_dict[dim] = f"{prefix}_{dim}"
                 if rename_dict:
-                    prefixed_idata[group] = prefixed_idata[group].rename(rename_dict)
+                    prefixed_idata[group] = prefixed_idata[group].dataset.rename(
+                        rename_dict
+                    )
 
         return prefixed_idata
 
@@ -754,15 +755,17 @@ class BudgetOptimizer(BaseModel):
             else:
                 # If no mask is provided, optimize all non-zero channels in the model
                 self.budgets_to_optimize = (
-                    self.mmm_model.idata.posterior.channel_contribution.mean(
-                        ("chain", "draw", "date")
-                    ).astype(bool)
+                    self.mmm_model.idata.posterior["channel_contribution"]
+                    .mean(("chain", "draw", "date"))
+                    .astype(bool)
                 )
         elif not is_wrapper:
             # If a mask is provided for MMM instances, ensure it has the correct shape
-            expected_mask = self.mmm_model.idata.posterior.channel_contribution.mean(
-                ("chain", "draw", "date")
-            ).astype(bool)
+            expected_mask = (
+                self.mmm_model.idata.posterior["channel_contribution"]
+                .mean(("chain", "draw", "date"))
+                .astype(bool)
+            )
 
             # Check if we are asking to optimize over channels that are not present in the model
             if np.any((self.budgets_to_optimize > expected_mask).values):
@@ -1358,7 +1361,7 @@ class CustomModelWrapper(BaseModel):
         ...,
         description="Underlying PyMC model to be cloned for optimization.",
     )
-    idata: InferenceData
+    idata: xr.DataTree
     channel_columns: list[str] = Field(
         ...,
         description="Channel labels used for budget optimization.",
@@ -1373,7 +1376,7 @@ class CustomModelWrapper(BaseModel):
     def __init__(
         self,
         base_model: Model,
-        idata: InferenceData,
+        idata: xr.DataTree,
         channels: Sequence[str],
     ) -> None:
         super().__init__(

@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -43,10 +42,17 @@ def _make_saturation_model_and_idata(channel_data, n_draws, alpha_val=0.8, lam_v
 
     alpha_draws = np.full((1, n_draws, n_channels), alpha_val, dtype=np.float64)
     lam_draws = np.full((1, n_draws, n_channels), lam_val, dtype=np.float64)
-    dims = ["channel"]
-    idata = az.from_dict(
-        posterior={"alpha": alpha_draws, "lam": lam_draws},
-        dims={"alpha": dims, "lam": dims},
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "alpha": xr.DataArray(
+                        alpha_draws, dims=["chain", "draw", "channel"]
+                    ),
+                    "lam": xr.DataArray(lam_draws, dims=["chain", "draw", "channel"]),
+                }
+            ),
+        }
     )
     assert set(idata.posterior.dims) == {"chain", "draw", "channel"}
     return model, idata
@@ -291,7 +297,8 @@ def test_compute_uplift_curve_respect_to_base(sensitivity):
     )
     assert hasattr(sensitivity.idata, "sensitivity_analysis")
     sa_group = sensitivity.idata.sensitivity_analysis
-    assert isinstance(sa_group, xr.Dataset)
+    if hasattr(sa_group, "dataset"):
+        sa_group = sa_group.dataset
     assert "uplift_curve" in sa_group
     xr.testing.assert_allclose(sa_group["uplift_curve"], persisted)
 
@@ -359,14 +366,19 @@ def test_add_to_idata_internal_updates_dataset(simple_model_and_idata):
     # First add: creates the group
     sa._add_to_idata(result1)
     assert hasattr(idata, "sensitivity_analysis")
-    assert isinstance(idata.sensitivity_analysis, xr.Dataset)
-    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result1)
+    sa_group = idata.sensitivity_analysis
+    if hasattr(sa_group, "dataset"):
+        sa_group = sa_group.dataset
+    xr.testing.assert_allclose(sa_group["x"], result1)
 
     # Second add: updates the variable and warns
     result2 = result1 * 2.0
     with pytest.warns(UserWarning):
         sa._add_to_idata(result2)
-    xr.testing.assert_allclose(idata.sensitivity_analysis["x"], result2)
+    sa_group = idata.sensitivity_analysis
+    if hasattr(sa_group, "dataset"):
+        sa_group = sa_group.dataset
+    xr.testing.assert_allclose(sa_group["x"], result2)
 
 
 def test_prepare_response_mask_numpy_array(sensitivity):

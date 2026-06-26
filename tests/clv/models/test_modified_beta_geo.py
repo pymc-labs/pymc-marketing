@@ -274,7 +274,7 @@ class TestModifiedBetaGeoModel:
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -298,10 +298,12 @@ class TestModifiedBetaGeoModel:
         mbg_model.build_model(data=data)
         mbg_model.idata = az.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "posterior": {
+                    "a": np.full((2, 5), self.a_true),
+                    "b": np.full((2, 5), self.b_true),
+                    "alpha": np.full((2, 5), self.alpha_true),
+                    "r": np.full((2, 5), self.r_true),
+                }
             }
         )
 
@@ -427,10 +429,12 @@ class TestModifiedBetaGeoModel:
         mock_model.build_model()
         mock_model.idata = az.from_dict(
             {
-                "a": [self.a_true],
-                "b": [self.b_true],
-                "alpha": [self.alpha_true],
-                "r": [self.r_true],
+                "posterior": {
+                    "a": np.array([[self.a_true]]),
+                    "b": np.array([[self.b_true]]),
+                    "alpha": np.array([[self.alpha_true]]),
+                    "r": np.array([[self.r_true]]),
+                }
             }
         )
 
@@ -514,8 +518,8 @@ class TestModifiedBetaGeoModelWithCovariates:
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
         non_nested_priors = dict(
-            a_prior=Prior("Beta", alpha=20, beta=20),
-            b_prior=Prior("Beta", alpha=20, beta=20),
+            a=Prior("Beta", alpha=20, beta=20),
+            b=Prior("Beta", alpha=20, beta=20),
         )
         covariate_config = dict(
             purchase_covariate_cols=purchase_covariate_cols,
@@ -559,7 +563,7 @@ class TestModifiedBetaGeoModelWithCovariates:
             ),
         }
         mock_fit_with_covariates = az.from_dict(
-            mock_fit_dict,
+            {"posterior": mock_fit_dict},
             dims={
                 "purchase_coefficient_alpha": ["purchase_covariate"],
                 "dropout_coefficient_a": ["dropout_covariate"],
@@ -573,21 +577,24 @@ class TestModifiedBetaGeoModelWithCovariates:
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
 
         cls.model_with_covariates_phi_kappa = ModifiedBetaGeoModel(
-            cls.data,
             model_config=covariate_config,
         )
+        cls.model_with_covariates_phi_kappa.build_model(data=cls.data)
         # set_model_fit(cls.model_with_covariates_phi_kappa, mock_fit_with_covariates)
 
         # Create a reference model without covariates
         cls.model_without_covariates = ModifiedBetaGeoModel(
-            cls.data, model_config=non_nested_priors
+            model_config=non_nested_priors,
         )
+        cls.model_without_covariates.build_model(data=cls.data)
         mock_fit_without_covariates = az.from_dict(
             {
-                "r": mock_fit_dict["r"],
-                "alpha": mock_fit_dict["alpha_scale"],
-                "a": mock_fit_dict["a_scale"],
-                "b": mock_fit_dict["b_scale"],
+                "posterior": {
+                    "r": mock_fit_dict["r"],
+                    "alpha": mock_fit_dict["alpha_scale"],
+                    "a": mock_fit_dict["a_scale"],
+                    "b": mock_fit_dict["b_scale"],
+                }
             }
         )
         set_model_fit(cls.model_without_covariates, mock_fit_without_covariates)
@@ -806,12 +813,12 @@ class TestModifiedBetaGeoModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something broader here
         custom_priors = {
-            "r_prior": Prior("HalfFlat"),
-            "alpha_prior": Prior("HalfFlat"),
-            "a_prior": Prior("HalfFlat"),
-            "b_prior": Prior("HalfFlat"),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=4),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=4),
+            "r": Prior("HalfFlat"),
+            "alpha": Prior("HalfFlat"),
+            "a": Prior("HalfFlat"),
+            "b": Prior("HalfFlat"),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=4),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=4),
         }
         new_model = ModifiedBetaGeoModel(
             model_config=self.model_with_covariates.model_config | custom_priors,
@@ -847,19 +854,18 @@ class TestModifiedBetaGeoModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something broader here
         custom_priors = {
-            "r_prior": Prior("HalfFlat"),
-            "alpha_prior": Prior("HalfFlat"),
-            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
-            "purchase_coefficient_prior": Prior("Flat"),
-            "dropout_coefficient_prior": Prior("Flat"),
+            "r": Prior("HalfFlat"),
+            "alpha": Prior("HalfFlat"),
+            "phi_dropout": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
+            "purchase_coefficient": Prior("Flat"),
+            "dropout_coefficient": Prior("Flat"),
         }
         new_model = ModifiedBetaGeoModel(
-            synthetic_data,
             model_config=self.model_with_covariates_phi_kappa.model_config
             | custom_priors,
         )
-        new_model.fit(method="map")
+        new_model.fit(data=synthetic_data, method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:

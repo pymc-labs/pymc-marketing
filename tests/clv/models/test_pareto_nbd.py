@@ -66,14 +66,16 @@ class TestParetoNBDModel:
         mock_fit(cls.model, chains=cls.chains, draws=cls.draws, rng=cls.rng)
         cls.mock_fit = az.from_dict(
             {
-                "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
-                "alpha": cls.rng.normal(
-                    cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
-                "s": cls.rng.normal(cls.s_true, 1e-3, size=(cls.chains, cls.draws)),
-                "beta": cls.rng.normal(
-                    cls.beta_true, 1e-3, size=(cls.chains, cls.draws)
-                ),
+                "posterior": {
+                    "r": cls.rng.normal(cls.r_true, 1e-3, size=(cls.chains, cls.draws)),
+                    "alpha": cls.rng.normal(
+                        cls.alpha_true, 1e-3, size=(cls.chains, cls.draws)
+                    ),
+                    "s": cls.rng.normal(cls.s_true, 1e-3, size=(cls.chains, cls.draws)),
+                    "beta": cls.rng.normal(
+                        cls.beta_true, 1e-3, size=(cls.chains, cls.draws)
+                    ),
+                }
             }
         )
         set_model_fit(cls.model, cls.mock_fit)
@@ -176,7 +178,7 @@ class TestParetoNBDModel:
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            model = ParetoNBDModel(data=data_invalid)
+            model = ParetoNBDModel()
             model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
@@ -387,9 +389,9 @@ class TestParetoNBDModel:
 
         if fit_type == "map":
             map_idata = self.model.idata.copy()
-            map_idata.posterior = map_idata.posterior.isel(
-                chain=slice(None, 1), draw=slice(None, 1)
-            )
+            posterior_ds = map_idata["/posterior"].to_dataset()
+            reduced = posterior_ds.isel(chain=slice(None, 1), draw=slice(None, 1))
+            map_idata["/posterior"] = reduced
             model = self.model.build_from_idata(map_idata)
             # We expect 1000 draws to be sampled with MAP
             expected_shape = (1, 1000)
@@ -539,7 +541,7 @@ class TestParetoNBDModelWithCovariates:
             ),
         }
         mock_fit_with_covariates = az.from_dict(
-            mock_fit_dict,
+            {"posterior": mock_fit_dict},
             dims={
                 "purchase_coefficient": ["purchase_covariate"],
                 "dropout_coefficient": ["dropout_covariate"],
@@ -556,10 +558,12 @@ class TestParetoNBDModelWithCovariates:
         cls.model_without_covariates.build_model(data=data)
         mock_fit_without_covariates = az.from_dict(
             {
-                "r": mock_fit_dict["r"],
-                "alpha": mock_fit_dict["alpha_scale"],
-                "s": mock_fit_dict["s"],
-                "beta": mock_fit_dict["beta_scale"],
+                "posterior": {
+                    "r": mock_fit_dict["r"],
+                    "alpha": mock_fit_dict["alpha_scale"],
+                    "s": mock_fit_dict["s"],
+                    "beta": mock_fit_dict["beta_scale"],
+                }
             }
         )
         set_model_fit(cls.model_without_covariates, mock_fit_without_covariates)
@@ -747,7 +751,7 @@ class TestParetoNBDModelWithCovariates:
         default_model = self.model_with_covariates.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
-                samples=1, random_seed=rng
+                draws=1, random_seed=rng
             ).prior_predictive
         synthetic_obs = prior_pred["recency_frequency"].squeeze()
 

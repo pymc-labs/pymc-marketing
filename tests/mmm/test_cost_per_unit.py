@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
@@ -60,41 +59,43 @@ def simple_idata(dates, channels):
         "date": dates,
         "channel": channels,
     }
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(n_dates, n_channels)),
-                    dims=("date", "channel"),
-                    coords={"date": dates, "channel": channels},
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(500, 2000, size=(n_dates,)),
-                    dims=("date",),
-                    coords={"date": dates},
-                ),
-                "channel_scale": xr.DataArray(
-                    [500.0, 300.0],
-                    dims=("channel",),
-                    coords={"channel": channels},
-                ),
-                "target_scale": xr.DataArray(1000.0),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    contrib,
-                    dims=("chain", "draw", "date", "channel"),
-                    coords=contrib_coords,
-                ),
-                "channel_contribution_original_scale": xr.DataArray(
-                    contrib * 1000.0,
-                    dims=("chain", "draw", "date", "channel"),
-                    coords=contrib_coords,
-                ),
-            }
-        ),
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(n_dates, n_channels)),
+                        dims=("date", "channel"),
+                        coords={"date": dates, "channel": channels},
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(500, 2000, size=(n_dates,)),
+                        dims=("date",),
+                        coords={"date": dates},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [500.0, 300.0],
+                        dims=("channel",),
+                        coords={"channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(1000.0),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        contrib,
+                        dims=("chain", "draw", "date", "channel"),
+                        coords=contrib_coords,
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        contrib * 1000.0,
+                        dims=("chain", "draw", "date", "channel"),
+                        coords=contrib_coords,
+                    ),
+                }
+            ),
+        }
     )
 
 
@@ -113,49 +114,51 @@ def multidim_idata(dates, channels, countries):
         "country": countries,
         "channel": channels,
     }
-    return az.InferenceData(
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    rng.uniform(100, 1000, size=(n_dates, n_countries, n_channels)),
-                    dims=("date", "country", "channel"),
-                    coords={
-                        "date": dates,
-                        "country": countries,
-                        "channel": channels,
-                    },
-                ),
-                "target_data": xr.DataArray(
-                    rng.uniform(500, 2000, size=(n_dates, n_countries)),
-                    dims=("date", "country"),
-                    coords={"date": dates, "country": countries},
-                ),
-                "channel_scale": xr.DataArray(
-                    rng.uniform(200, 600, size=(n_countries, n_channels)),
-                    dims=("country", "channel"),
-                    coords={"country": countries, "channel": channels},
-                ),
-                "target_scale": xr.DataArray(
-                    [1000.0, 900.0, 800.0],
-                    dims=("country",),
-                    coords={"country": countries},
-                ),
-            }
-        ),
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    contrib,
-                    dims=("chain", "draw", "date", "country", "channel"),
-                    coords=contrib_coords,
-                ),
-                "channel_contribution_original_scale": xr.DataArray(
-                    contrib * 1000.0,
-                    dims=("chain", "draw", "date", "country", "channel"),
-                    coords=contrib_coords,
-                ),
-            }
-        ),
+    return xr.DataTree.from_dict(
+        {
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        rng.uniform(100, 1000, size=(n_dates, n_countries, n_channels)),
+                        dims=("date", "country", "channel"),
+                        coords={
+                            "date": dates,
+                            "country": countries,
+                            "channel": channels,
+                        },
+                    ),
+                    "target_data": xr.DataArray(
+                        rng.uniform(500, 2000, size=(n_dates, n_countries)),
+                        dims=("date", "country"),
+                        coords={"date": dates, "country": countries},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        rng.uniform(200, 600, size=(n_countries, n_channels)),
+                        dims=("country", "channel"),
+                        coords={"country": countries, "channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(
+                        [1000.0, 900.0, 800.0],
+                        dims=("country",),
+                        coords={"country": countries},
+                    ),
+                }
+            ),
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        contrib,
+                        dims=("chain", "draw", "date", "country", "channel"),
+                        coords=contrib_coords,
+                    ),
+                    "channel_contribution_original_scale": xr.DataArray(
+                        contrib * 1000.0,
+                        dims=("chain", "draw", "date", "country", "channel"),
+                        coords=contrib_coords,
+                    ),
+                }
+            ),
+        }
     )
 
 
@@ -376,7 +379,7 @@ class TestWrapperCostPerUnit:
 
     def test_get_channel_data_missing_raises(self):
         """get_channel_data() raises ValueError when channel_data absent."""
-        empty_idata = az.InferenceData(constant_data=xr.Dataset())
+        empty_idata = xr.DataTree.from_dict({"/constant_data": xr.Dataset()})
         wrapper = MMMIDataWrapper(empty_idata)
         with pytest.raises(ValueError, match="Channel data not found"):
             wrapper.get_channel_data()
@@ -904,19 +907,21 @@ class TestGetAvgCostPerUnit:
             dims=("date", "channel"),
             coords={"date": dates, "channel": channels},
         )
-        idata = az.InferenceData(
-            constant_data=xr.Dataset(
-                {
-                    "channel_data": channel_data,
-                    "channel_spend": channel_spend,
-                    "channel_scale": xr.DataArray(
-                        [500.0, 300.0],
-                        dims=("channel",),
-                        coords={"channel": channels},
-                    ),
-                    "target_scale": xr.DataArray(1000.0),
-                }
-            ),
+        idata = xr.DataTree.from_dict(
+            {
+                "/constant_data": xr.Dataset(
+                    {
+                        "channel_data": channel_data,
+                        "channel_spend": channel_spend,
+                        "channel_scale": xr.DataArray(
+                            [500.0, 300.0],
+                            dims=("channel",),
+                            coords={"channel": channels},
+                        ),
+                        "target_scale": xr.DataArray(1000.0),
+                    }
+                ),
+            }
         )
 
         wrapper = MMMIDataWrapper(idata)

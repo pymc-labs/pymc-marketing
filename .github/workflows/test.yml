@@ -10,14 +10,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  # The lower bound from the pyproject.toml file
-  OLDEST_PYMC_VERSION: "$(grep -E 'pymc *[>=]' pyproject.toml | sed -n 's/.*[>=]=\\([0-9]*\\.[0-9]*\\.[0-9]*\\).*/\\1/p')"
-  # NOTE: .test_durations is managed manually (committed to repo)
-  # - pytest-split uses this file to balance test execution times
-  # - Update by running the "Generate Test Durations" workflow manually
-  # - Only needed every few weeks or after major test changes
-
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -57,19 +49,24 @@ jobs:
         run: uv python install ${{ matrix.config.python-version }}
       - name: Set up environment
         run: uv venv --python ${{ matrix.config.python-version }}
-      - name: Install oldest version of PyMC
-        if: ${{ matrix.config.oldest-pymc }}
-        run: uv pip install pymc==${{ env.OLDEST_PYMC_VERSION }}
       - name: Install package and dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
           uv pip install -e .[test]
+      - name: Pin oldest versions of PyMC and extras
+        if: ${{ matrix.config.oldest-pymc }}
+        run: |
+          OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
+          PYMC_EXTRAS=$(grep '"pymc-extras' pyproject.toml | head -1 | sed 's/.*"\(pymc-extras[^"]*\)".*/\1/')
+          uv pip install "${PYMC_EXTRAS}" "pymc==${OLDEST}"
       - name: Check oldest version of PyMC
         if: ${{ matrix.config.oldest-pymc }}
-        run: uv run python -c "import pymc; assert pymc.__version__ == '${{ env.OLDEST_PYMC_VERSION }}', pymc.__version__"
+        run: |
+          OLDEST=$(grep '"pymc>=' pyproject.toml | head -1 | sed 's/.*>=//' | sed 's/[",].*//')
+          uv run --no-sync --frozen python -c "import pymc; assert pymc.__version__ == '${OLDEST}', pymc.__version__"
       - name: Run tests
         run: |
-          uv run pytest --splits 6 \
+          uv run --no-sync --frozen pytest --splits 6 \
                  --group ${{ matrix.group }} \
                  --splitting-algorithm least_duration \
                  --durations-path .test_durations

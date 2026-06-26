@@ -480,7 +480,7 @@ class BassModel(ModelBuilder):
 
     .. code-block:: python
 
-        az.plot_forest(idata.posterior["peak"], combined=True)
+        azp.plot_forest(idata.posterior["peak"], combined=True)
     """
 
     _model_type = "BassModel"
@@ -602,7 +602,7 @@ class BassModel(ModelBuilder):
             )
 
         if extend_idata and self.idata is not None:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         variable_name = (
             "predictions"
@@ -668,7 +668,7 @@ class BassModel(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the Bass diffusion model via MCMC.
 
         Parameters
@@ -684,7 +684,7 @@ class BassModel(ModelBuilder):
 
         Returns
         -------
-        arviz.InferenceData
+        xarray.DataTree
             Posterior with parameters and deterministics (adopters,
             innovators, imitators, peak) plus a ``fit_data`` group.
 
@@ -701,10 +701,10 @@ class BassModel(ModelBuilder):
             az.summary(idata, var_names=["m", "p", "q"])
 
             # Trace plots
-            az.plot_trace(idata, var_names=["m", "p", "q"])
+            azp.plot_trace(idata, var_names=["m", "p", "q"])
 
             # Forest plots of peak adoption time
-            az.plot_forest(idata.posterior["peak"], combined=True)
+            azp.plot_forest(idata.posterior["peak"], combined=True)
 
         For posterior predictive sampling with new time points:
 
@@ -728,21 +728,21 @@ class BassModel(ModelBuilder):
 
         if self.idata is not None:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
-            del self.idata.fit_data
+            del self.idata["fit_data"]
 
-        self.idata.add_groups(fit_data=ds)
+        self.idata["fit_data"] = xr.DataTree(ds)
         self.set_idata_attrs(self.idata)
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Rebuild the model from an ``InferenceData`` object.
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Rebuild the model from a ``DataTree`` object.
 
         Used internally by :meth:`ModelBuilder.load`.
         """

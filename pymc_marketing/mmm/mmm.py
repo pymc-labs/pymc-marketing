@@ -1077,7 +1077,7 @@ class MMM(RegressionModelBuilder):
         for effect in self.mu_effects:
             for group_name, ds in effect.idata_groups().items():
                 if not hasattr(self.idata, group_name):
-                    self.idata.add_groups({group_name: ds})
+                    self.idata["/" + group_name] = ds
 
         # Persist the base names of any *_original_scale Deterministics so they
         # can be faithfully re-added by build_from_idata on load.
@@ -1092,7 +1092,7 @@ class MMM(RegressionModelBuilder):
         super().save(fname, **kwargs)
 
     @classmethod
-    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> MMM:
+    def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> MMM:
         """Load from InferenceData, auto-migrating old formats."""
         from pymc_marketing.serialization_migration import (
             CURRENT_VERSION,
@@ -1385,8 +1385,8 @@ class MMM(RegressionModelBuilder):
         """
         self._validate_idata_exists()
 
-        idata: az.InferenceData = cast(az.InferenceData, self.idata)
-        posterior: xr.Dataset = idata.posterior
+        idata: xr.DataTree = cast(xr.DataTree, self.idata)
+        posterior: xr.Dataset = idata["/posterior"].dataset
         target_scale: xr.DataArray = idata.constant_data["target_scale"].squeeze(
             drop=True
         )
@@ -2352,7 +2352,7 @@ class MMM(RegressionModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the model and inject cost_per_unit metadata if provided.
 
         Delegates to the parent ``fit()`` and then injects the parsed
@@ -2373,7 +2373,7 @@ class MMM(RegressionModelBuilder):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Inference data of the fitted model.
         """
         idata = super().fit(
@@ -2900,17 +2900,17 @@ class MMM(RegressionModelBuilder):
         )
 
         if extend_idata and self.idata is not None:
-            if hasattr(self.idata, "posterior_predictive"):
-                del self.idata.posterior_predictive
-            if hasattr(self.idata, "posterior_predictive_constant_data"):
-                del self.idata.posterior_predictive_constant_data
-            self.idata.add_groups(
-                posterior_predictive=post_pred.posterior_predictive,
-                posterior_predictive_constant_data=post_pred.constant_data,
-            )
+            if "posterior_predictive" in self.idata:
+                del self.idata["posterior_predictive"]
+            if "posterior_predictive_constant_data" in self.idata:
+                del self.idata["posterior_predictive_constant_data"]
+            self.idata["/posterior_predictive"] = post_pred.posterior_predictive
+            self.idata["/posterior_predictive_constant_data"] = post_pred.constant_data
 
         group = "posterior_predictive"
-        posterior_predictive_samples = az.extract(post_pred, group, combined=combined)
+        posterior_predictive_samples = az.extract(
+            post_pred, group, combined=combined, keep_dataset=True
+        )
 
         if include_last_observations:
             # Remove extra observations used for adstock continuity
@@ -2934,7 +2934,7 @@ class MMM(RegressionModelBuilder):
         original_scale: bool = Field(
             True, description="Whether to return curve in original scale."
         ),
-        idata: InstanceOf[az.InferenceData] | None = Field(
+        idata: InstanceOf[xr.DataTree] | None = Field(
             None, description="Optional InferenceData to sample from."
         ),
     ) -> xr.DataArray:
@@ -2972,7 +2972,7 @@ class MMM(RegressionModelBuilder):
             from scaled to original units. If False, values remain in scaled space
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
-        idata : az.InferenceData or None, optional
+        idata : xr.DataTree or None, optional
             Optional InferenceData to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
             distributions, such as from a different model or a subset of samples.
@@ -3046,7 +3046,7 @@ class MMM(RegressionModelBuilder):
         # Use provided idata or fall back to self.idata
         if idata is None:
             self._validate_idata_exists()
-            idata = cast(az.InferenceData, self.idata)
+            idata = cast(xr.DataTree, self.idata)
 
         # Validate that posterior exists (model was fitted, not just prior sampled)
         if not hasattr(idata, "posterior") or idata.posterior is None:
@@ -3057,7 +3057,9 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = subsample_draws(
-            idata.posterior, num_samples=num_samples, random_state=random_state
+            idata.posterior.dataset,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         # Sample curve using transformation's method
@@ -3089,7 +3091,7 @@ class MMM(RegressionModelBuilder):
             500, gt=0, description="Number of posterior samples to use."
         ),
         random_state: RandomState | None = None,
-        idata: InstanceOf[az.InferenceData] | None = Field(
+        idata: InstanceOf[xr.DataTree] | None = Field(
             None, description="Optional InferenceData to sample from."
         ),
     ) -> xr.DataArray:
@@ -3116,7 +3118,7 @@ class MMM(RegressionModelBuilder):
             a numpy Generator instance, or None for non-reproducible sampling.
             Only used when num_samples is not None and less than total available
             samples.
-        idata : az.InferenceData or None, optional
+        idata : xr.DataTree or None, optional
             Optional InferenceData to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
             distributions, such as from a different model or a subset of samples.
@@ -3182,7 +3184,7 @@ class MMM(RegressionModelBuilder):
         # Use provided idata or fall back to self.idata
         if idata is None:
             self._validate_idata_exists()
-            idata = cast(az.InferenceData, self.idata)
+            idata = cast(xr.DataTree, self.idata)
 
         # Validate that posterior exists
         if not hasattr(idata, "posterior") or idata.posterior is None:
@@ -3193,7 +3195,9 @@ class MMM(RegressionModelBuilder):
 
         # Subsample posterior if needed
         parameters = subsample_draws(
-            idata.posterior, num_samples=num_samples, random_state=random_state
+            idata.posterior.dataset,
+            num_samples=num_samples,
+            random_state=random_state,
         )
 
         # Sample curve using transformation's method
@@ -3737,7 +3741,7 @@ class MMM(RegressionModelBuilder):
         ds = X_df.sort_values(coord_cols).set_index(coord_cols).to_xarray()
         return ds
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the model from an ``InferenceData`` object.
 
         Uses the stored fit dataset in ``idata`` to reconstruct the model graph by
@@ -3746,7 +3750,7 @@ class MMM(RegressionModelBuilder):
 
         Parameters
         ----------
-        idata : az.InferenceData
+        idata : xr.DataTree
                 Inference data containing the fit dataset under the ``fit_data`` group.
 
         Returns
@@ -3775,7 +3779,7 @@ class MMM(RegressionModelBuilder):
                 for effect_data in mu_effects_data
             ]
 
-        dataset = idata.fit_data.to_dataframe()
+        dataset = idata.fit_data.dataset.to_dataframe()
 
         if isinstance(dataset.index, pd.MultiIndex) or isinstance(
             dataset.index, pd.DatetimeIndex
@@ -3856,7 +3860,7 @@ class MMM(RegressionModelBuilder):
             )
 
         cost_per_unit_array = self._build_cost_per_unit_array(cost_per_unit)
-        channel_data = self.idata.constant_data.channel_data
+        channel_data = self.idata.constant_data["channel_data"]
         self.idata.constant_data["channel_spend"] = channel_data * cost_per_unit_array
         self._cost_per_unit_input = cost_per_unit
         self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(

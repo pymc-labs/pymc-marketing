@@ -17,7 +17,6 @@ import warnings
 from collections.abc import Callable
 from pathlib import Path
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -155,7 +154,10 @@ def test_reserved_dims():
 
 def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
-    assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
+    cd = fit_mmm.idata.constant_data
+    if hasattr(cd, "dataset"):
+        cd = cd.dataset
+    assert isinstance(cd, xr.Dataset)
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
@@ -585,7 +587,7 @@ def test_build_from_idata_fallback_infers_original_scale_from_posterior(
     mmm.save(file)
 
     # Simulate a pre-fix artifact by stripping the attr before loading.
-    loaded_idata = az.from_netcdf(file)
+    loaded_idata = xr.open_datatree(file)
     assert "original_scale_vars" in loaded_idata.attrs
     del loaded_idata.attrs["original_scale_vars"]
     assert "original_scale_vars" not in loaded_idata.attrs
@@ -700,7 +702,7 @@ def _make_minimal_mmm_idata():
     from pymc_marketing.serialization import serialization
 
     posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
-    idata = az.InferenceData(posterior=posterior)
+    idata = xr.DataTree.from_dict({"/posterior": posterior})
 
     adstock = GeometricAdstock(l_max=4)
     saturation = LogisticSaturation()
@@ -754,7 +756,7 @@ class TestRegistryDeserialization:
             }
         )
         fit_data = xr.Dataset.from_dataframe(X_df)
-        idata.add_groups(fit_data=fit_data)
+        idata["/fit_data"] = fit_data
 
         mmm = MMM(
             date_column="date",
@@ -800,7 +802,10 @@ class _CustomEffectWithSuppData(MuEffect):
 
 
 def _deserialize_custom_supp_effect(data, context):
-    df = context.idata[data["df_group"]].to_dataframe().reset_index(drop=True)
+    ds = context.idata[data["df_group"]]
+    if hasattr(ds, "dataset"):
+        ds = ds.dataset
+    df = ds.to_dataframe().reset_index(drop=True)
     return _CustomEffectWithSuppData(prefix=data["prefix"], df=df)
 
 
@@ -849,7 +854,7 @@ class TestSerializationIntegration:
         assert loaded.target_column == simple_fitted_mmm.target_column
         assert loaded.adstock_first == simple_fitted_mmm.adstock_first
 
-        loaded_idata = az.from_netcdf(fname)
+        loaded_idata = xr.open_datatree(fname)
         assert "__serialization_version__" in loaded_idata.attrs
         assert loaded_idata.attrs["__serialization_version__"] == "1"
 
@@ -948,7 +953,7 @@ class TestSerializationIntegration:
         fname = tmp_path / "mu_effects_model.nc"
         mmm.save(str(fname))
 
-        raw_idata = az.from_netcdf(fname)
+        raw_idata = xr.open_datatree(fname)
         assert hasattr(raw_idata, "supplementary_data_promos")
 
         loaded = MMM.load(str(fname))
@@ -1003,7 +1008,7 @@ class TestSerializationIntegration:
         fname = tmp_path / "custom_supp_data.nc"
         mmm.save(fname)
 
-        raw_idata = az.from_netcdf(fname)
+        raw_idata = xr.open_datatree(fname)
         assert hasattr(raw_idata, "supplementary_data_custom_supp")
 
         loaded = MMM.load(str(fname))
@@ -1199,9 +1204,7 @@ def test_fit(
     if yearly_seasonality is not None:
         assert "fourier_contribution" in var_names
 
-    assert isinstance(idata, az.InferenceData), (
-        "fit should return an InferenceData object."
-    )
+    assert isinstance(idata, xr.DataTree), "fit should return a DataTree object."
     assert hasattr(mmm, "idata"), (
         "MMM instance should store the inference data as 'idata'."
     )
@@ -4417,7 +4420,7 @@ def test_mmm_with_arbitrary_date_column_names_single_dim(
 
     # Verify model can be fitted
     idata = mmm.fit(X_renamed, y_single, draws=50, tune=25, chains=1)
-    assert isinstance(idata, az.InferenceData)
+    assert isinstance(idata, xr.DataTree)
 
     # Test posterior predictive sampling
     pred_data = mmm.sample_posterior_predictive(
@@ -4466,7 +4469,7 @@ def test_mmm_with_arbitrary_date_column_names_multi_dim(
 
     # Verify model can be fitted with complex features
     idata_multi = mmm_multi.fit(X_renamed, y_multi, draws=50, tune=25, chains=1)
-    assert isinstance(idata_multi, az.InferenceData)
+    assert isinstance(idata_multi, xr.DataTree)
 
     # Test that time-varying features work with arbitrary date names
     assert "intercept_latent_process" in mmm_multi.model.named_vars
@@ -4564,7 +4567,7 @@ def test_arbitrary_date_column_with_control_variables(
     assert "control_data" in mmm_controls.model.named_vars
 
     idata = mmm_controls.fit(X_with_controls, y, draws=50, tune=25, chains=1)
-    assert isinstance(idata, az.InferenceData)
+    assert isinstance(idata, xr.DataTree)
 
 
 @pytest.mark.parametrize(

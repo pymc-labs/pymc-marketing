@@ -71,7 +71,7 @@ Wrap a custom PyMC model
 
 Requirements
 
-- posterior_predictive plots: an `az.InferenceData` with a `posterior_predictive` group
+- posterior_predictive plots: an `xr.DataTree` with a `posterior_predictive` group
   containing the variable(s) you want to plot with a `date` coordinate.
 - residuals plots: a `posterior_predictive` group with `y_original_scale` variable (with `date`)
   and a `constant_data` group with `target_data` variable.
@@ -98,8 +98,8 @@ Requirements
         pm.Normal("y", 0.0, sigma, observed=y_obs, dims="date")
 
         idata = pm.sample_prior_predictive(random_seed=1)
-        idata.extend(pm.sample(draws=200, chains=2, tune=200, random_seed=1))
-        idata.extend(pm.sample_posterior_predictive(idata, random_seed=1))
+        idata.update(pm.sample(draws=200, chains=2, tune=200, random_seed=1))
+        idata.update(pm.sample_posterior_predictive(idata, random_seed=1))
 
     plot = MMMPlotSuite(idata)
     _ = plot.posterior_predictive(var=["y"], hdi_prob=0.9)
@@ -121,7 +121,7 @@ Custom contributions_over_time
     with pm.Model(coords={"date": dates}):
         pm.Deterministic("component", series, dims="date")
         idata = pm.sample_prior_predictive(random_seed=2)
-        idata.extend(pm.sample(draws=50, chains=1, tune=0, random_seed=2))
+        idata.update(pm.sample(draws=50, chains=1, tune=0, random_seed=2))
 
     plot = MMMPlotSuite(idata)
     _ = plot.contributions_over_time(var=["component"], hdi_prob=0.9)
@@ -161,7 +161,7 @@ Saturation plots with a custom model
         contrib = pm.Normal("channel_contribution", 0.0, 1.0, dims=("date", "channel"))
 
         idata = pm.sample_prior_predictive(random_seed=3)
-        idata.extend(pm.sample(draws=50, chains=1, tune=0, random_seed=3))
+        idata.update(pm.sample(draws=50, chains=1, tune=0, random_seed=3))
 
     # Attach constant_data to idata
     idata.constant_data = xr.Dataset(
@@ -189,6 +189,7 @@ from collections.abc import Iterable
 from typing import Any, Literal, cast
 
 import arviz as az
+import arviz_plots as azp
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
@@ -215,10 +216,9 @@ class MMMPlotSuite:
 
     def __init__(
         self,
-        idata: xr.Dataset | az.InferenceData | None = None,
+        idata: xr.Dataset | xr.DataTree | None = None,
         data: MMMIDataWrapper | None = None,
     ):
-
         if idata is not None and data is not None:
             raise ValueError("Provide either 'idata' or 'data', not both.")
 
@@ -229,7 +229,7 @@ class MMMPlotSuite:
             self.idata = idata
             self.data = MMMIDataWrapper(idata)
         else:
-            self.idata = cast(az.InferenceData, idata)
+            self.idata = cast(xr.DataTree, idata)
             self.data = cast(MMMIDataWrapper, data)
 
     def _spend_or_data_label(self, apply_cost_per_unit: bool) -> str:
@@ -410,18 +410,22 @@ class MMMPlotSuite:
         if label is None:
             label = var
         median = data.median(dim="sample") if "sample" in data.dims else data.median()
-        hdi = az.hdi(
-            data,
-            hdi_prob=hdi_prob,
-            input_core_dims=[["sample"]] if "sample" in data.dims else None,
-        )
 
         if "date" not in data.dims:
             raise ValueError(f"Expected 'date' dimension in {var}, but none found.")
         dates = data.coords["date"].values
-        # Add median and HDI to the plot
         ax.plot(dates, median, label=label, alpha=0.9)
-        ax.fill_between(dates, hdi[var][..., 0], hdi[var][..., 1], alpha=0.2)
+
+        if "sample" in data.dims:
+            hdi = az.hdi(data, prob=hdi_prob, dim="sample")
+            ax.fill_between(
+                dates, hdi.sel(ci_bound="lower"), hdi.sel(ci_bound="upper"), alpha=0.2
+            )
+        elif "chain" in data.dims and "draw" in data.dims:
+            hdi = az.hdi(data, prob=hdi_prob)
+            ax.fill_between(
+                dates, hdi.sel(ci_bound="lower"), hdi.sel(ci_bound="upper"), alpha=0.2
+            )
         return ax
 
     def _validate_dims(
@@ -436,7 +440,7 @@ class MMMPlotSuite:
                     raise ValueError(
                         f"Dimension '{key}' not found in idata dimensions."
                     )
-                valid_values = self.idata.posterior.coords[key].values
+                valid_values = self.idata.posterior.dataset.coords[key].values
                 if isinstance(val, (list, tuple, np.ndarray)):
                     for v in val:
                         if v not in valid_values:
@@ -703,7 +707,7 @@ class MMMPlotSuite:
             )
 
         # Compute residuals
-        target_data = self.idata.constant_data.target_data  # type: ignore
+        target_data = self.idata.constant_data["target_data"]  # type: ignore
         predictions = pp_data["y_original_scale"]
         residuals = target_data - predictions
         residuals.name = "residuals"
@@ -807,18 +811,18 @@ class MMMPlotSuite:
             # 6. Plot HDI bands (wider bands first with lighter alpha)
             alphas = [0.2 + i * 0.2 for i in range(len(hdi_prob))]
             for prob, alpha in zip(hdi_prob, alphas, strict=True):
+                hdi_kwargs = {}
+                if "sample" in residuals_subset.dims:
+                    hdi_kwargs["dim"] = "sample"
                 residuals_hdi = az.hdi(
                     residuals_subset,
-                    hdi_prob=prob,
-                    input_core_dims=[["sample"]]
-                    if "sample" in residuals_subset.dims
-                    else None,
+                    prob=prob,
+                    **hdi_kwargs,
                 )
-
                 ax.fill_between(
                     dates,
-                    residuals_hdi["residuals"].sel(hdi="lower"),
-                    residuals_hdi["residuals"].sel(hdi="higher"),
+                    residuals_hdi.sel(ci_bound="lower"),
+                    residuals_hdi.sel(ci_bound="upper"),
                     color="C3",
                     alpha=alpha,
                     label=f"${100 * prob:.0f}\\%$ HDI",
@@ -932,13 +936,21 @@ class MMMPlotSuite:
 
             # Create single plot
             fig, ax = plt.subplots(figsize=(8, 6))
-            az.plot_dist(
-                residuals_agg,
-                quantiles=quantiles,
+            residuals_values = residuals_agg.values.ravel()
+            sns.kdeplot(
+                x=residuals_values,
                 color="C3",
-                fill_kwargs={"alpha": 0.7},
+                fill=True,
+                alpha=0.7,
                 ax=ax,
             )
+            for q in quantiles:
+                ax.axvline(
+                    np.quantile(residuals_values, q),
+                    color="C3",
+                    linestyle="--",
+                    linewidth=0.8,
+                )
             ax.axvline(x=0, color="black", linestyle="--", linewidth=1, label="zero")
             ax.legend()
             ax.set_title(f"Residuals Posterior Distribution ({aggregation})")
@@ -979,13 +991,21 @@ class MMMPlotSuite:
                 residuals_flat = residuals_subset.stack(all_samples=("chain", "draw"))
 
             # Plot distribution
-            az.plot_dist(
-                residuals_flat,
-                quantiles=quantiles,
+            residuals_values = residuals_flat.values.ravel()
+            sns.kdeplot(
+                x=residuals_values,
                 color="C3",
-                fill_kwargs={"alpha": 0.7},
+                fill=True,
+                alpha=0.7,
                 ax=ax,
             )
+            for q in quantiles:
+                ax.axvline(
+                    np.quantile(residuals_values, q),
+                    color="C3",
+                    linestyle="--",
+                    linewidth=0.8,
+                )
             ax.axvline(x=0, color="black", linestyle="--", linewidth=1, label="zero")
             ax.legend()
 
@@ -1059,7 +1079,7 @@ class MMMPlotSuite:
 
         coords = {
             key: value.to_numpy()
-            for key, value in self.idata.posterior[var].coords.items()
+            for key, value in self.idata.posterior.dataset[var].coords.items()
         }
 
         # Apply user-specified filters (`dims`)
@@ -1074,7 +1094,7 @@ class MMMPlotSuite:
         # Identify combos for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.posterior.coords[dim].values  # type: ignore
+                self.idata.posterior.dataset.coords[dim].values  # type: ignore
                 for dim in additional_dims
             ]
             dim_combinations = list(itertools.product(*additional_coords))
@@ -1257,10 +1277,10 @@ class MMMPlotSuite:
                 "Please ensure 'self.idata' contains a 'posterior' group."
             )
 
-        if var not in self.idata.posterior:
+        if var not in self.idata.posterior.dataset:
             raise ValueError(
                 f"Variable '{var}' not found in posterior. "
-                f"Available variables: {list(self.idata.posterior.data_vars)}"
+                f"Available variables: {list(self.idata.posterior.dataset.data_vars)}"
             )
 
         var_data = self.idata.posterior[var]
@@ -1291,7 +1311,8 @@ class MMMPlotSuite:
         # Get combinations for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.posterior.coords[dim].values for dim in additional_dims
+                self.idata.posterior.dataset.coords[dim].values
+                for dim in additional_dims
             ]
             additional_combos = list(itertools.product(*additional_coords))
         else:
@@ -1448,10 +1469,10 @@ class MMMPlotSuite:
                 "Please ensure 'self.idata' contains a 'posterior' group."
             )
 
-        if param_name not in self.idata.posterior:
+        if param_name not in self.idata.posterior.dataset:
             raise ValueError(
                 f"Parameter '{param_name}' not found in posterior. "
-                f"Available variables: {list(self.idata.posterior.data_vars)}"
+                f"Available variables: {list(self.idata.posterior.dataset.data_vars)}"
             )
 
         var_data = self.idata.posterior[param_name]
@@ -1478,7 +1499,8 @@ class MMMPlotSuite:
         # Get combinations for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.posterior.coords[dim].values for dim in additional_dims
+                self.idata.posterior.dataset.coords[dim].values
+                for dim in additional_dims
             ]
             additional_combos = list(itertools.product(*additional_coords))
         else:
@@ -1663,16 +1685,16 @@ class MMMPlotSuite:
             )
 
         # Validate variable exists in both prior and posterior
-        if var not in self.idata.prior:
+        if var not in self.idata.prior.dataset:
             raise ValueError(
                 f"Variable '{var}' not found in prior. "
-                f"Available variables: {list(self.idata.prior.data_vars)}"
+                f"Available variables: {list(self.idata.prior.dataset.data_vars)}"
             )
 
-        if var not in self.idata.posterior:
+        if var not in self.idata.posterior.dataset:
             raise ValueError(
                 f"Variable '{var}' not found in posterior. "
-                f"Available variables: {list(self.idata.posterior.data_vars)}"
+                f"Available variables: {list(self.idata.posterior.dataset.data_vars)}"
             )
 
         prior_data = self.idata.prior[var]
@@ -1703,7 +1725,8 @@ class MMMPlotSuite:
             # Get combinations for additional dims
             if additional_dims:
                 additional_coords = [
-                    self.idata.prior.coords[dim].values for dim in additional_dims
+                    self.idata.prior.dataset.coords[dim].values
+                    for dim in additional_dims
                 ]
                 additional_combos = list(itertools.product(*additional_coords))
             else:
@@ -1819,7 +1842,7 @@ class MMMPlotSuite:
         # Get combinations for remaining dims
         if additional_dims:
             additional_coords = [
-                self.idata.prior.coords[dim].values for dim in additional_dims
+                self.idata.prior.dataset.coords[dim].values for dim in additional_dims
             ]
             additional_combos = list(itertools.product(*additional_coords))
         else:
@@ -1997,15 +2020,17 @@ class MMMPlotSuite:
             )
 
         # Identify additional dimensions beyond 'date' and 'channel'
-        cdims = self.idata.constant_data.channel_data.dims
+        cdims = self.idata.constant_data["channel_data"].dims
         additional_dims = [dim for dim in cdims if dim not in ("date", "channel")]
 
         # Validate dims and remove filtered dims from additional_dims
         if dims:
-            self._validate_dims(dims, list(self.idata.constant_data.channel_data.dims))
+            self._validate_dims(
+                dims, list(self.idata.constant_data["channel_data"].dims)
+            )
             additional_dims = [d for d in additional_dims if d not in dims]
         else:
-            self._validate_dims({}, list(self.idata.constant_data.channel_data.dims))
+            self._validate_dims({}, list(self.idata.constant_data["channel_data"].dims))
 
         # Build all combinations for dims with lists
         dims_keys, dims_combos = self._dim_list_handler(dims)
@@ -2053,7 +2078,9 @@ class MMMPlotSuite:
             else "channel_contribution"
         )
 
-        if original_scale and not hasattr(self.idata.posterior, channel_contribution):
+        if original_scale and not hasattr(
+            self.idata.posterior.dataset, channel_contribution
+        ):
             raise ValueError(
                 f"""No posterior.{channel_contribution} data found in 'self.idata'. \n
                 Add a original scale deterministic:\n
@@ -2205,7 +2232,7 @@ class MMMPlotSuite:
             else "channel_contribution"
         )
 
-        if original_scale and not hasattr(self.idata.posterior, contrib_var):
+        if original_scale and not hasattr(self.idata.posterior.dataset, contrib_var):
             raise ValueError(
                 f"""No posterior.{contrib_var} data found in 'self.idata'.\n"
                 "Add a original scale deterministic:\n"
@@ -2218,12 +2245,14 @@ class MMMPlotSuite:
                 """
             )
         curve_data = (
-            curve * self.idata.constant_data.target_scale if original_scale else curve
+            curve * self.idata.constant_data["target_scale"]
+            if original_scale
+            else curve
         )
         curve_data = curve_data.rename("saturation_curve")
 
         # — 1. figure out grid shape based on scatter data dimensions / identify dims and combos
-        cdims = self.idata.constant_data.channel_data.dims
+        cdims = self.idata.constant_data["channel_data"].dims
         all_dims = list(cdims)
         additional_dims = [d for d in cdims if d not in ("date", "channel")]
         # Validate dims and remove filtered dims from additional_dims
@@ -2677,7 +2706,7 @@ class MMMPlotSuite:
 
     def _prepare_allocated_contribution_data(
         self,
-        samples: xr.Dataset | az.InferenceData,
+        samples: xr.Dataset | xr.DataTree,
         dims: dict[str, str | int | list] | None = None,
         split_by: str | list[str] | None = None,
         original_scale: bool = True,
@@ -2690,9 +2719,9 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        samples : xr.Dataset or az.InferenceData
+        samples : xr.Dataset or xr.DataTree
             The dataset containing the samples of channel contributions.
-            Can be an xr.Dataset with 'sample' dimension, or an az.InferenceData
+            Can be an xr.Dataset with 'sample' dimension, or an xr.DataTree
             with 'chain' and 'draw' dimensions (from posterior_predictive).
         dims : dict[str, str | int | list], optional
             Dimension filters to apply. Example: {"geo": "US"}.
@@ -2719,13 +2748,13 @@ class MMMPlotSuite:
         ValueError
             If required dimensions or variables are missing.
         """
-        # Handle InferenceData input - extract posterior_predictive
-        if isinstance(samples, az.InferenceData):
-            if hasattr(samples, "posterior_predictive"):
-                samples = samples.posterior_predictive
+        # Handle xr.DataTree input - extract posterior_predictive
+        if isinstance(samples, xr.DataTree):
+            if "posterior_predictive" in samples.children:
+                samples = samples["/posterior_predictive"].dataset
             else:
                 raise ValueError(
-                    "InferenceData must contain 'posterior_predictive' group."
+                    "xr.DataTree must contain 'posterior_predictive' group."
                 )
 
         # Stack chain and draw into sample if present
@@ -2862,7 +2891,7 @@ class MMMPlotSuite:
 
             for j, date in enumerate(dates):
                 date_samples = channel_data.sel(date=date).values.flatten()
-                hdi_result = az.hdi(date_samples, hdi_prob=hdi_prob)
+                hdi_result = az.hdi(date_samples, prob=hdi_prob)
                 hdi_lower[j] = hdi_result[0]
                 hdi_upper[j] = hdi_result[1]
 
@@ -2880,7 +2909,7 @@ class MMMPlotSuite:
 
     def allocated_contribution_by_channel_over_time(
         self,
-        samples: xr.Dataset | az.InferenceData,
+        samples: xr.Dataset | xr.DataTree,
         hdi_prob: float = 0.94,
         dims: dict[str, str | int | list] | None = None,
         split_by: str | list[str] | None = None,
@@ -2898,9 +2927,9 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        samples : xr.Dataset or az.InferenceData
+        samples : xr.Dataset or xr.DataTree
             The dataset containing the samples of channel contributions.
-            Can be an xr.Dataset with 'sample' dimension, or az.InferenceData
+            Can be an xr.Dataset with 'sample' dimension, or xr.DataTree
             (e.g., from sample_response_distribution) with 'chain' and 'draw' dims.
         hdi_prob : float, default 0.94
             The probability mass for the HDI interval.
@@ -3182,6 +3211,8 @@ class MMMPlotSuite:
                 "No sensitivity analysis results found. Call .sensitivity.run_sweep() first."
             )
         sa = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa, xr.DataTree):
+            sa = sa.dataset
         x = sa["x"] if isinstance(sa, xr.Dataset) else sa
         # Coerce numeric dtype
         try:
@@ -3351,30 +3382,30 @@ class MMMPlotSuite:
                 mean = mean.sum(dim=reduce_dims)
 
             if "sample" in line_data.dims:
-                hdi = az.hdi(line_data, hdi_prob=hdi_prob, input_core_dims=[["sample"]])
+                hdi = az.hdi(line_data, prob=hdi_prob, dim="sample")
                 if isinstance(hdi, xr.Dataset):
                     hdi = hdi[next(iter(hdi.data_vars))]
             else:
-                hdi = xr.concat([mean, mean], dim="hdi").assign_coords(
-                    hdi=np.array([0, 1])
+                hdi = xr.concat([mean, mean], dim="ci_bound").assign_coords(
+                    ci_bound=["lower", "upper"]
                 )
 
-            reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "hdi")]
+            reduce_hdi = [d for d in hdi.dims if d not in (sweep_dim, "ci_bound")]
             if reduce_hdi:
                 hdi = hdi.sum(dim=reduce_hdi)
-            if set(hdi.dims) == {sweep_dim, "hdi"} and list(hdi.dims) != [
+            if set(hdi.dims) == {sweep_dim, "ci_bound"} and list(hdi.dims) != [
                 sweep_dim,
-                "hdi",
+                "ci_bound",
             ]:
-                hdi = hdi.transpose(sweep_dim, "hdi")  # type: ignore
+                hdi = hdi.transpose(sweep_dim, "ci_bound")  # type: ignore
 
             current_ax.plot(sweep, np.asarray(mean.values, dtype=float), **line_kwargs)
-            az.plot_hdi(
-                x=sweep,
-                hdi_data=np.asarray(hdi.values, dtype=float),
-                hdi_prob=hdi_prob,
+            current_ax.fill_between(
+                sweep,
+                np.asarray(hdi.sel(ci_bound="lower").values, dtype=float),
+                np.asarray(hdi.sel(ci_bound="upper").values, dtype=float),
+                alpha=0.25,
                 color=line_color,
-                ax=current_ax,
             )
 
         # Get sweep coordinate values for absolute x-axis computation
@@ -3522,6 +3553,8 @@ class MMMPlotSuite:
             )
 
         sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.DataTree):
+            sa_group = sa_group.dataset
         if isinstance(sa_group, xr.Dataset):
             if "uplift_curve" not in sa_group:
                 raise ValueError(
@@ -3621,6 +3654,8 @@ class MMMPlotSuite:
             )
 
         sa_group = self.idata.sensitivity_analysis  # type: ignore
+        if isinstance(sa_group, xr.DataTree):
+            sa_group = sa_group.dataset
         if isinstance(sa_group, xr.Dataset):
             if "marginal_effects" not in sa_group:
                 raise ValueError(
@@ -3766,7 +3801,7 @@ class MMMPlotSuite:
 
         # Auto-detect contribution variables if not specified
         if var is None:
-            posterior_vars = list(self.idata.posterior.data_vars)
+            posterior_vars = list(self.idata.posterior.dataset.data_vars)
             # Variables to exclude - total_media_contribution is a sum of channels
             # and would double-count if included
             excluded_vars = {
@@ -4203,7 +4238,7 @@ class MMMPlotSuite:
             )
 
         # Check if channel_contribution_original_scale exists
-        if "channel_contribution_original_scale" not in self.idata.posterior:
+        if "channel_contribution_original_scale" not in self.idata.posterior.dataset:
             raise ValueError(
                 "Variable 'channel_contribution_original_scale' not found in posterior. "
                 "Add it using:\n"
@@ -4214,7 +4249,8 @@ class MMMPlotSuite:
 
         # Extract the variable
         channel_contribution_original_scale = az.extract(
-            data=self.idata.posterior,
+            data=self.idata,
+            group="posterior",
             var_names=["channel_contribution_original_scale"],
             combined=False,
         )
@@ -4252,25 +4288,38 @@ class MMMPlotSuite:
             )
 
         # Create the forest plot
-        ax, *_ = az.plot_forest(
-            data=channel_contribution_share,
+        pc = azp.plot_forest(
+            xr.DataTree.from_dict(
+                {
+                    "/posterior": channel_contribution_share.to_dataset(
+                        name="channel_contribution_share"
+                    )
+                }
+            ),
             combined=True,
-            hdi_prob=hdi_prob,
-            figsize=figsize,
-            **plot_kwargs,
+            ci_kind="hdi",
+            ci_probs=(0.5, hdi_prob),
+            figure_kwargs=dict(figsize=figsize),
+        )
+
+        # Extract figure and axes from PlotCollection
+        fig: Figure = pc.viz["figure"].values.item()
+        ax: Axes = (
+            pc.viz["plot"].values.flat[-1]
+            if len(pc.viz["plot"].values) > 1
+            else pc.viz["plot"].values.flat[0]
         )
 
         # Format x-axis as percentages
         ax.xaxis.set_major_formatter(mtick.FuncFormatter(lambda y, _: f"{y: 0.0%}"))
 
-        # Get the figure and set title
-        fig: Figure = plt.gcf()
+        # Set title
         fig.suptitle("Channel Contribution Share", fontsize=16, y=1.05)
 
         return fig, ax
 
     def cv_predictions(
-        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
+        self, results: xr.DataTree, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot posterior predictive predictions across CV folds.
 
@@ -4280,7 +4329,7 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        results : arviz.InferenceData
+        results : xr.DataTree
             Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
             Must contain:
 
@@ -4305,7 +4354,7 @@ class MMMPlotSuite:
         Raises
         ------
         TypeError
-            If ``results`` is not an ``arviz.InferenceData`` object.
+            If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If required groups or variables are missing from ``results``.
             If unsupported dimensions are specified in ``dims``.
@@ -4324,27 +4373,30 @@ class MMMPlotSuite:
         param_stability : Plot parameter stability across folds.
         cv_crps : Plot CRPS scores across folds.
         """
-        # Expect an arviz.InferenceData with cv coord and cv_metadata
-        if not isinstance(results, az.InferenceData):
+        # Expect an xr.DataTree with cv coord and cv_metadata
+        if not isinstance(results, xr.DataTree):
             raise TypeError(
-                "plot_cv_predictions expects an arviz.InferenceData object for 'results'."
+                "plot_cv_predictions expects an xr.DataTree object for 'results'."
             )
 
         # Validate presence of cv metadata and posterior predictive
-        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+        if (
+            not hasattr(results, "cv_metadata")
+            or "metadata" not in results.cv_metadata.dataset
+        ):
             raise ValueError(
                 "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
             not hasattr(results, "posterior_predictive")
-            or "y_original_scale" not in results.posterior_predictive
+            or "y_original_scale" not in results.posterior_predictive.dataset
         ):
             raise ValueError(
                 "Provided InferenceData must include posterior_predictive['y_original_scale']."
             )
 
         # Discover posterior_predictive dataarray we'll be working with
-        pp = results.posterior_predictive["y_original_scale"]
+        pp = results.posterior_predictive.dataset["y_original_scale"]
 
         # Determine which coordinate dims are available for paneling (exclude technical dims)
         technical_dims = {"chain", "draw", "sample", "date", "cv"}
@@ -4382,7 +4434,7 @@ class MMMPlotSuite:
                     indexer.update(dict(zip(additional_dims, addl_combo, strict=False)))
                 total_panels.append(indexer)
 
-        cv_labels = list(results.cv_metadata.coords["cv"].values)
+        cv_labels = list(results.cv_metadata.dataset.coords["cv"].values)
         n_folds = len(cv_labels)
         n_panels = len(total_panels)
         n_axes = max(1, n_panels * n_folds)
@@ -4441,19 +4493,28 @@ class MMMPlotSuite:
                     else None
                 )
 
-            # Ensure x is at least 1D array (arviz.plot_hdi fails on 0-dim arrays)
+            # Ensure x is at least 1D array
             if x is not None:
                 x = np.atleast_1d(x)
 
-            az.plot_hdi(
-                y=arr,
-                x=x,
-                ax=ax,
-                hdi_prob=0.94,
+            # Compute HDI and median, then plot
+            da = xr.DataArray(arr, dims=["sample", "date"], coords={"date": x})
+            hdi = az.hdi(da, prob=0.94, dim="sample")
+            median = da.median(dim="sample")
+            ax.fill_between(
+                x,
+                np.asarray(hdi.sel(ci_bound="lower").values, dtype=float),
+                np.asarray(hdi.sel(ci_bound="upper").values, dtype=float),
+                alpha=0.25,
                 color=color,
-                smooth=False,
-                fill_kwargs={"alpha": 0.25, "label": label},
-                plot_kwargs={"color": color, "linestyle": "--", "linewidth": 1},
+                label=label,
+            )
+            ax.plot(
+                x,
+                np.asarray(median.values, dtype=float),
+                color=color,
+                linestyle="--",
+                linewidth=1,
             )
 
         # Iterate panels x folds
@@ -4463,7 +4524,11 @@ class MMMPlotSuite:
                 ax = axes[ax_i]
 
                 # Select posterior predictive array for this CV and this panel
-                arr = results.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+                arr = (
+                    results["/posterior_predictive"]
+                    .dataset["y_original_scale"]
+                    .sel(cv=cv_label)
+                )
                 try:
                     arr = arr.sel(**panel_indexer) if panel_indexer else arr
                 except (KeyError, ValueError) as exc:
@@ -4644,7 +4709,7 @@ class MMMPlotSuite:
 
     def param_stability(
         self,
-        results: az.InferenceData,
+        results: xr.DataTree,
         parameter: list[str],
         dims: dict[str, list[str]] | None = None,
     ) -> tuple[Figure, NDArray[Axes]]:
@@ -4655,7 +4720,7 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        results : arviz.InferenceData
+        results : xr.DataTree
             Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
             Must contain a coordinate named 'cv' which labels each CV fold.
         parameter : list of str
@@ -4676,7 +4741,7 @@ class MMMPlotSuite:
         Raises
         ------
         TypeError
-            If ``results`` is not an ``arviz.InferenceData`` object.
+            If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If the InferenceData does not contain a 'cv' coordinate.
             If unable to select specified dimensions from posterior.
@@ -4700,10 +4765,10 @@ class MMMPlotSuite:
         ...     combined_idata, parameter=["beta_channel"], dims={"geo": ["US", "UK"]}
         ... )
         """
-        # Ensure the provided input is an arviz.InferenceData with a 'cv' coord
-        if not isinstance(results, az.InferenceData):
+        # Ensure the provided input is an xr.DataTree with a 'cv' coord
+        if not isinstance(results, xr.DataTree):
             raise TypeError(
-                "plot_param_stability expects an `arviz.InferenceData` returned by TimeSliceCrossValidator.run(...)"
+                "plot_param_stability expects an `xr.DataTree` returned by TimeSliceCrossValidator.run(...)"
             )
 
         idata = results
@@ -4722,8 +4787,8 @@ class MMMPlotSuite:
                 ds = None
             if ds is None:
                 continue
-            if "cv" in ds.coords:
-                cv_labels = list(ds.coords["cv"].values)
+            if "cv" in ds.dataset.coords:
+                cv_labels = list(ds.dataset.coords["cv"].values)
                 break
 
         if cv_labels is None:
@@ -4736,24 +4801,28 @@ class MMMPlotSuite:
         model_names: list[str] = []
         for lbl in cv_labels:
             try:
-                p = idata.posterior.sel(cv=lbl)
+                p = idata.posterior.dataset.sel(cv=lbl)
             except (KeyError, AttributeError):
                 # fallback to selecting from posterior_predictive if posterior missing
-                p = idata.posterior_predictive.sel(cv=lbl)
+                p = idata.posterior_predictive.dataset.sel(cv=lbl)
 
             posterior_list.append(p)
             model_names.append(str(lbl))
 
         if dims is None:
             # No dims: standard forest plot
-            fig, ax = plt.subplots(figsize=(9, 6))
-            az.plot_forest(
-                data=posterior_list,
-                model_names=model_names,
+            forest_data = {
+                name: xr.DataTree.from_dict({"/posterior": ds})
+                for name, ds in zip(model_names, posterior_list, strict=True)
+            }
+            pc = azp.plot_forest(
+                forest_data,
                 var_names=parameter,
                 combined=True,
-                ax=ax,
+                figure_kwargs={"figsize": (9, 6)},
             )
+            fig: Figure = pc.viz["figure"].values.item()
+            ax = fig.axes[0]
             fig.suptitle(
                 f"Parameter Stability: {parameter}",
                 fontsize=18,
@@ -4767,8 +4836,6 @@ class MMMPlotSuite:
             last_fig_ax = None
             for dim_name, coord_values in dims.items():
                 for coord in coord_values:
-                    fig, ax = plt.subplots(figsize=(9, 6))
-                    # Select the coordinate value from each posterior fold
                     sel_data = []
                     for p in posterior_list:
                         try:
@@ -4778,13 +4845,18 @@ class MMMPlotSuite:
                                 f"Unable to select dims from posterior for one or more folds: {exc}"  # noqa: S608
                             ) from exc
 
-                    az.plot_forest(
-                        data=sel_data,
-                        model_names=model_names,
+                    forest_data = {
+                        name: xr.DataTree.from_dict({"/posterior": ds})
+                        for name, ds in zip(model_names, sel_data, strict=True)
+                    }
+                    pc = azp.plot_forest(
+                        forest_data,
                         var_names=parameter,
                         combined=True,
-                        ax=ax,
+                        figure_kwargs={"figsize": (9, 6)},
                     )
+                    fig = pc.viz["figure"].values.item()
+                    ax = fig.axes[0]
                     fig.suptitle(
                         f"Parameter Stability: {parameter} | {dim_name}={coord}",
                         fontsize=18,
@@ -4795,14 +4867,18 @@ class MMMPlotSuite:
 
             # If dims provided but empty, fall back to the no-dims behavior
             if last_fig_ax is None:
-                fig, ax = plt.subplots(figsize=(9, 6))
-                az.plot_forest(
-                    data=posterior_list,
-                    model_names=model_names,
+                forest_data = {
+                    name: xr.DataTree.from_dict({"/posterior": ds})
+                    for name, ds in zip(model_names, posterior_list, strict=True)
+                }
+                pc = azp.plot_forest(
+                    forest_data,
                     var_names=parameter,
                     combined=True,
-                    ax=ax,
+                    figure_kwargs={"figsize": (9, 6)},
                 )
+                fig = pc.viz["figure"].values.item()
+                ax = fig.axes[0]
                 fig.suptitle(
                     f"Parameter Stability: {parameter}",
                     fontsize=18,
@@ -4814,7 +4890,7 @@ class MMMPlotSuite:
             return last_fig_ax
 
     def cv_crps(
-        self, results: az.InferenceData, dims: dict[str, str | int | list] | None = None
+        self, results: xr.DataTree, dims: dict[str, str | int | list] | None = None
     ) -> tuple[Figure, NDArray[Axes]]:
         """Plot CRPS scores for train and test sets across CV splits.
 
@@ -4824,7 +4900,7 @@ class MMMPlotSuite:
 
         Parameters
         ----------
-        results : arviz.InferenceData
+        results : xr.DataTree
             Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
             Must contain:
 
@@ -4850,7 +4926,7 @@ class MMMPlotSuite:
         Raises
         ------
         TypeError
-            If ``results`` is not an ``arviz.InferenceData`` object.
+            If ``results`` is not an ``xr.DataTree`` object.
         ValueError
             If required groups or variables are missing from ``results``.
             If no 'cv' coordinate is found in the InferenceData.
@@ -4868,33 +4944,39 @@ class MMMPlotSuite:
         indicate better predictions.
         """
         # Validate input is combined InferenceData
-        if not isinstance(results, az.InferenceData):
+        if not isinstance(results, xr.DataTree):
             raise TypeError(
-                "cv_crps expects an arviz.InferenceData returned by TimeSliceCrossValidator._combine_idata(...)"
+                "cv_crps expects an xr.DataTree returned by TimeSliceCrossValidator._combine_idata(...)"
             )
-        if not hasattr(results, "cv_metadata") or "metadata" not in results.cv_metadata:
+        if (
+            "cv_metadata" not in results.children
+            or "metadata" not in results["/cv_metadata"].dataset.data_vars
+        ):
             raise ValueError(
                 "Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray."
             )
         if (
-            not hasattr(results, "posterior_predictive")
-            or "y_original_scale" not in results.posterior_predictive
+            "posterior_predictive" not in results.children
+            or "y_original_scale"
+            not in results["/posterior_predictive"].dataset.data_vars
         ):
             raise ValueError(
                 "Provided InferenceData must include posterior_predictive['y_original_scale']."
             )
 
         # Helper: build prediction matrix for a given cv label and rows DataFrame
-        def _pred_matrix_for_rows(
-            idata: az.InferenceData, cv_label, rows_df: pd.DataFrame
-        ):
+        def _pred_matrix_for_rows(idata: xr.DataTree, cv_label, rows_df: pd.DataFrame):
             """Build (n_samples, n_rows) prediction matrix for given rows DataFrame and CV label.
 
             Selects posterior_predictive['y_original_scale'] for the given cv and then
             behaves like the legacy helper: find date coord, select by date (and any
             other matching row-level coords), and assemble a (n_samples, n_rows) matrix.
             """
-            da = idata.posterior_predictive["y_original_scale"].sel(cv=cv_label)
+            da = (
+                idata["/posterior_predictive"]
+                .dataset["y_original_scale"]
+                .sel(cv=cv_label)
+            )
             da_s = da.stack(sample=("chain", "draw"))
 
             # Ensure 'sample' is first axis
@@ -4980,13 +5062,16 @@ class MMMPlotSuite:
         # dims handling (validate + build combinations)
         # derive dims from the posterior_predictive (use first cv to inspect dims)
         # discover cv labels from cv_metadata (preferred) or posterior_predictive coords
-        if hasattr(results, "cv_metadata") and "cv" in results.cv_metadata.coords:
-            cv_labels = list(results.cv_metadata.coords["cv"].values)
+        if (
+            hasattr(results, "cv_metadata")
+            and "cv" in results.cv_metadata.dataset.coords
+        ):
+            cv_labels = list(results.cv_metadata.dataset.coords["cv"].values)
         elif (
             hasattr(results, "posterior_predictive")
-            and "cv" in results.posterior_predictive.coords
+            and "cv" in results.posterior_predictive.dataset.coords
         ):
-            cv_labels = list(results.posterior_predictive.coords["cv"].values)
+            cv_labels = list(results.posterior_predictive.dataset.coords["cv"].values)
         else:
             raise ValueError(
                 "No 'cv' coordinate found in provided InferenceData (checked cv_metadata and posterior_predictive)"

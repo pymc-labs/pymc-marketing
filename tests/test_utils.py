@@ -13,9 +13,9 @@
 #   limitations under the License.
 import warnings
 
-import arviz as az
 import numpy as np
 import pytest
+import xarray as xr
 
 from pymc_marketing.utils import from_netcdf
 
@@ -23,18 +23,20 @@ from pymc_marketing.utils import from_netcdf
 class TestFromNetcdf:
     def test_loads_inference_data(self, tmp_path):
         filepath = tmp_path / "test.nc"
-        idata = az.from_dict(posterior={"x": np.random.randn(2, 100)})
+        ds = xr.Dataset({"x": ("draw", np.random.randn(100))})
+        idata = xr.DataTree.from_dict({"/posterior": ds})
         idata.to_netcdf(str(filepath))
 
         with pytest.warns(FutureWarning, match="deprecated"):
             result = from_netcdf(filepath)
 
-        assert isinstance(result, az.InferenceData)
-        assert "posterior" in result.groups()
+        assert isinstance(result, xr.DataTree)
+        assert "/posterior" in result.groups
 
     def test_emits_deprecation_warning(self, tmp_path):
         filepath = tmp_path / "test.nc"
-        idata = az.from_dict(posterior={"x": np.random.randn(2, 100)})
+        ds = xr.Dataset({"x": ("draw", np.random.randn(100))})
+        idata = xr.DataTree.from_dict({"/posterior": ds})
         idata.to_netcdf(str(filepath))
 
         with warnings.catch_warnings(record=True) as w:
@@ -43,4 +45,4 @@ class TestFromNetcdf:
 
         future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
         assert len(future_warnings) == 1
-        assert "arviz.from_netcdf" in str(future_warnings[0].message)
+        assert "xr.open_datatree" in str(future_warnings[0].message)

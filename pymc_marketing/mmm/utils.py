@@ -21,8 +21,9 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from pymc.logprob.basic import logcdf, logp
-from pytensor import Variable, graph_replace
 from pytensor import xtensor as ptx
+from pytensor.graph.basic import Variable
+from pytensor.graph.replace import graph_replace
 
 
 def apply_sklearn_transformer_across_dim(
@@ -488,7 +489,7 @@ def build_contributions(
 
     Parameters
     ----------
-    idata : az.InferenceData-like
+    idata : xr.DataTree-like
         Must have `.posterior` attribute containing the contribution variables.
     var : list or tuple of str
         Posterior variable names to include (e.g., contribution variables).

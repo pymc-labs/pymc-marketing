@@ -348,7 +348,7 @@ def _plot_timeseries_channel(
         **pc_kwargs,
     )
 
-    hdi_da = ds.azstats.hdi(hdi_prob)
+    hdi_da = ds.azstats.hdi(prob=hdi_prob)
 
     pc.map(
         azp.visuals.fill_between_y,
