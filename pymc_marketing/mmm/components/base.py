@@ -427,9 +427,40 @@ class Transformation:
 
         """
         coords = coords or {}
-        with pm.Model(coords=coords):
-            self._create_distributions()
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+        constant_params = {
+            var_name: param_name
+            for param_name, var_name in self.variable_mapping.items()
+            if not _is_stochastic_prior(self.function_priors[param_name])
+        }
+
+        with pm.Model(coords=coords) as model:
+            variables = self._create_distributions()
+
+            if model.free_RVs:
+                prior = pm.sample_prior_predictive(
+                    **sample_prior_predictive_kwargs
+                ).prior
+            else:
+                draws = (
+                    sample_prior_predictive_kwargs.get("draws")
+                    or sample_prior_predictive_kwargs.get("samples")
+                    or 500
+                )
+                prior = xr.Dataset(
+                    coords={
+                        "chain": np.arange(1),
+                        "draw": np.arange(draws),
+                    }
+                )
+
+            for var_name, param_name in constant_params.items():
+                prior[var_name] = _constant_to_prior_dataarray(
+                    values=np.asarray(variables[param_name].eval()),
+                    var_name=var_name,
+                    n_draws=prior.sizes["draw"],
+                )
+
+        return prior
 
     def plot_curve(
         self,
@@ -655,6 +686,39 @@ class Transformation:
         """
         kwargs = self._create_distributions(idx=idx)
         return self.function(x, dim=core_dim, **kwargs)
+
+
+def _is_stochastic_prior(prior: SupportedPrior) -> bool:
+    """Return True when the prior config creates a sampled random variable."""
+    return isinstance(prior, Prior | VariableFactory)
+
+
+def _constant_to_prior_dataarray(
+    values: np.ndarray,
+    var_name: str,
+    n_draws: int,
+) -> xr.DataArray:
+    """Broadcast a constant tensor into a prior ``DataArray`` with chain/draw dims."""
+    if values.ndim == 0:
+        data = np.full((1, n_draws), values.item())
+        dims: tuple[str, ...] = ("chain", "draw")
+    else:
+        value_shape = values.shape
+        data = np.broadcast_to(
+            values.reshape((1, 1, *value_shape)),
+            (1, n_draws, *value_shape),
+        )
+        extra_dims = tuple(f"{var_name}_dim_{i}" for i in range(values.ndim))
+        dims = ("chain", "draw", *extra_dims)
+
+    return xr.DataArray(
+        data,
+        dims=dims,
+        coords={
+            "chain": np.arange(1),
+            "draw": np.arange(n_draws),
+        },
+    )
 
 
 def _serialize_value(value: Any) -> Any:
