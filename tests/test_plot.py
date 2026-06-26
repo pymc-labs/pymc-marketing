@@ -226,6 +226,40 @@ def test_plot_curve_combined_sample_n_samples(mock_curve_combined) -> None:
     plt.close(fig)
 
 
+def test_plot_curve_n_samples_zero(mock_curve) -> None:
+    fig, axes = plot_curve(mock_curve, non_grid_names={"day"}, n_samples=0)
+
+    assert axes.size == mock_curve.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_curve_n_samples_zero_multi_hdi(mock_curve) -> None:
+    fig, axes = plot_curve(
+        mock_curve, non_grid_names={"day"}, n_samples=0, hdi_probs=[0.5, 0.8, 0.95]
+    )
+
+    assert axes.size == mock_curve.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_hdi_multiple_hdi_probs(mock_curve) -> None:
+    fig, axes = plot_hdi(mock_curve, non_grid_names={"day"}, hdi_prob=[0.5, 0.8, 0.95])
+
+    assert axes.size == mock_curve.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_hdi_empty_hdi_prob_list(mock_curve) -> None:
+    fig, axes = plot_hdi(mock_curve, non_grid_names={"day"}, hdi_prob=[])
+
+    assert axes.size == mock_curve.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
 @pytest.fixture
 def mock_curve_with_scalars() -> xr.DataArray:
     coords = {
