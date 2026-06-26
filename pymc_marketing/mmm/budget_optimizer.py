@@ -811,6 +811,12 @@ class BudgetOptimizer(BaseModel):
             pymc_model
         )
 
+        # 6b. If any FrequencyReachAdditiveEffect is attached, replace its
+        #     pm.Data nodes with budget-derived reach/frequency tensors.
+        self._pymc_model = self._replace_rf_data_by_optimization_variable(
+            self._pymc_model
+        )
+
         # 7. Validate that the requested response variable actually exists in
         # the underlying PyMC model. ``extract_response_distribution`` looks
         # up ``pymc_model[response_variable]``; raising here turns an opaque
@@ -1083,6 +1089,68 @@ class BudgetOptimizer(BaseModel):
 
         # Use `do(...)` to replace `channel_data` with repeated_budgets_with_carry_over
         return do(model, {"channel_data": repeated_budgets_with_carry_over})
+
+    def _replace_rf_data_by_optimization_variable(self, model: Model) -> Model:
+        """Replace frequency_raw / reach_raw for any FrequencyReachAdditiveEffect.
+
+        Collects all :class:`~pymc_marketing.mmm.additive_effect.FrequencyReachAdditiveEffect`
+        instances attached to the wrapped MMM, then for each one builds
+        budget-derived reach and frequency tensors (via
+        :meth:`~pymc_marketing.mmm.additive_effect.FrequencyReachAdditiveEffect.build_rf_optimization_tensors`)
+        and injects them into the model graph using ``pm.do()``.
+
+        If no R&F effects are present this is a no-op and the model is returned
+        unchanged.
+
+        Parameters
+        ----------
+        model : pm.Model
+            The PyMC model after standard ``channel_data`` replacement.
+
+        Returns
+        -------
+        pm.Model
+            Model with R&F ``pm.Data`` nodes replaced by optimizer tensors, or
+            the original model if no R&F effects exist.
+        """
+        # Delayed import to avoid circular dependency at module level.
+        from pymc_marketing.mmm.additive_effect.frequency_reach_effect import (
+            FrequencyReachAdditiveEffect,
+        )
+
+        rf_effects = [
+            e
+            for e in getattr(self.mmm_model, "mu_effects", [])
+            if isinstance(e, FrequencyReachAdditiveEffect)
+        ]
+        if not rf_effects:
+            return model
+
+        replacements: dict[str, Any] = {}
+        for effect in rf_effects:
+            # Build separate per-effect budget tensors from _budgets_flat.
+            # R&F channels live in a separate "rf_channel" coord so we create
+            # a dedicated flat tensor for them sized to their channel count.
+            n_rf = len(effect.rf_channels)
+            rf_budgets_flat = ptx.xtensor(
+                f"{effect.prefix}_budgets_flat",
+                shape=(n_rf,),
+                dims=(f"{effect.prefix}_budgets_flat",),
+            )
+            rf_budgets = ptx.as_xtensor(
+                rf_budgets_flat.values,
+                dims=("rf_channel",),
+            )
+
+            reach_t, freq_t = effect.build_rf_optimization_tensors(
+                rf_budgets=rf_budgets,
+                num_periods=self.num_periods,
+                budget_distribution=None,  # uniform — extend later if needed
+            )
+            replacements[f"{effect.prefix}_frequency_raw"] = freq_t
+            replacements[f"{effect.prefix}_reach_raw"] = reach_t
+
+        return do(model, replacements)
 
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
