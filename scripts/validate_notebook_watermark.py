@@ -6,7 +6,8 @@ with the standard flags and required packages.
 Usage:
     python scripts/validate_notebook_watermark.py [notebooks...]
 
-If no notebooks are given, scans docs/source/notebooks/ recursively.
+If no notebooks are given, scans docs/source/ recursively for ``.ipynb`` files
+(excluding ``dev/`` directories), matching the pre-commit hook's file matcher.
 Directories are expanded to include all ``.ipynb`` files within.
 """
 
@@ -17,7 +18,6 @@ from pathlib import Path
 
 HERE = Path(__file__).parent
 DOC_SOURCE = HERE.parent / "docs" / "source"
-NOTEBOOKS_PATH = DOC_SOURCE / "notebooks"
 
 REQUIRED_FLAGS = {"-n", "-u", "-v", "-iv", "-w"}
 REQUIRED_PACKAGES: set[str] = set()
@@ -26,7 +26,7 @@ EXCLUDE_SUBDIRS = {"dev"}
 EXCLUDE_DIR_PREFIXES = {"."}
 
 WATERMARK_RE = re.compile(
-    r"-p (?P<packages>[a-zA-Z_][a-zA-Z0-9_.]*(?:,[a-zA-Z_][a-zA-Z0-9_.]*)*)"
+    r"-p (?P<packages>[a-zA-Z_][a-zA-Z0-9_.]*(?:\s*,\s*[a-zA-Z_][a-zA-Z0-9_.]*)*)"
 )
 
 IMPORT_RE = re.compile(r"(?:^|\n)\s*(?:import pymc_marketing|from pymc_marketing)")
@@ -40,7 +40,7 @@ def is_excluded(path: Path) -> bool:
 
 
 def load_notebook(path: Path) -> dict:
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -98,7 +98,7 @@ def check_notebook(path: Path) -> str | None:
     if not match:
         return "Missing -p flag with packages in watermark (e.g. -p pymc_marketing,pytensor)"
 
-    actual_packages = set(match.group("packages").split(","))
+    actual_packages = {p.strip() for p in match.group("packages").split(",")}
 
     if REQUIRED_PACKAGES:
         missing = REQUIRED_PACKAGES - actual_packages
@@ -113,7 +113,9 @@ def check_notebook(path: Path) -> str | None:
 
 
 def collect_notebooks() -> list[Path]:
-    return sorted(NOTEBOOKS_PATH.rglob("*.ipynb"))
+    return sorted(
+        p for p in DOC_SOURCE.rglob("*.ipynb") if not is_excluded(p)
+    )
 
 
 def _resolve(path: Path) -> Path:
@@ -135,7 +137,7 @@ def _rel(path: Path) -> Path:
 
 def main() -> int:
     if len(sys.argv) > 1:
-        notebooks = list(
+        notebooks = sorted(
             {resolved for p in sys.argv[1:] for resolved in _expand(_resolve(Path(p)))}
         )
     else:
