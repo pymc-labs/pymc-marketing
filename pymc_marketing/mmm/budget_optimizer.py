@@ -1671,10 +1671,10 @@ class BudgetOptimizer(BaseModel):
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
-        Example:
+        Examples
         --------
-        `BudgetOptimizer(...).extract_response_distribution("channel_contribution")`
-        returns a graph that computes `"channel_contribution"` as a function of both
+        ``BudgetOptimizer(...).extract_response_distribution("channel_contribution")``
+        returns a graph that computes ``"channel_contribution"`` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
         # Local import to avoid circular import at module load time
