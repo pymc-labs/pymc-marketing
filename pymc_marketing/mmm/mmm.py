@@ -2931,19 +2931,12 @@ class MMM(RegressionModelBuilder):
             A configured optimizer ready for :meth:`BudgetOptimizer.allocate_budget`.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
-        from pymc_marketing.mmm.utils import create_zero_dataset
 
         pymc_model = self.create_optimization_model(start_date, end_date)
 
-        zero_data = create_zero_dataset(
-            model=self,
-            start_date=start_date,
-            end_date=end_date,
-            include_carryover=True,
-        )
-        num_dates = len(zero_data[self.date_column].unique())
         adstock_lag = getattr(self.adstock, "l_max", 0)
-        num_periods = num_dates - adstock_lag
+        n_dates = len(pymc_model.coords.get("date", [0]))
+        num_periods = n_dates - adstock_lag if n_dates > adstock_lag else n_dates
 
         if (
             budgets_to_optimize is None
@@ -2970,6 +2963,7 @@ class MMM(RegressionModelBuilder):
             cost_per_unit=cost_per_unit,
             compile_kwargs=compile_kwargs,
             mu_effects=list(self.mu_effects),
+            frozen_deterministics=self.frozen_deterministics,
             **kwargs,
         )
 

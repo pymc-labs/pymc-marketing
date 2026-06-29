@@ -335,6 +335,16 @@ def _extract_dataset(node: Any, group: str) -> xr.Dataset:
     return child
 
 
+def _to_datatree(idata: Any) -> DataTree:
+    """Convert InferenceData to DataTree, returning DataTree as-is."""
+    if isinstance(idata, DataTree):
+        return idata
+    groups = {}
+    for group in idata.groups():
+        groups[group] = getattr(idata, group)
+    return DataTree.from_dict(groups)
+
+
 def merge_inference_data(
     idatas: Sequence[DataTree],
     prefixes: Sequence[str] | None = None,
@@ -519,8 +529,7 @@ def merge_models_and_idata(
     ----------
     models : list of pm.Model
         Optimization models, one per fitted MMM (e.g. from
-        ``mmm.create_optimization_model(...)``).  Must have at least 2
-        elements.
+        ``mmm.create_optimization_model(...)``).
     idatas : list of xarray.DataTree
         Posterior samples corresponding to each model (e.g. ``mmm.idata``).
         Must be the same length as *models*.
@@ -1144,6 +1153,15 @@ class BudgetOptimizer(BaseModel):
         description="Keyword arguments for the model compilation. Especially useful to pass compilation mode",
     )
 
+    frozen_deterministics: list[str] | None = Field(
+        default=None,
+        description=(
+            "Names of Deterministic variables to freeze at posterior values "
+            "instead of recomputing from the graph. Required for models with "
+            "HSGP or time-varying components."
+        ),
+    )
+
     channel_data_var: str = Field(
         default="channel_data",
         description=(
@@ -1186,7 +1204,6 @@ class BudgetOptimizer(BaseModel):
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
     _optimizable_mu_effects: list = PrivateAttr()
-    _effect_budget_xtensors: list = PrivateAttr()
 
     @model_validator(mode="before")
     @classmethod
@@ -1205,10 +1222,7 @@ class BudgetOptimizer(BaseModel):
             return data
         idata = data.get("idata")
         if idata is not None and not isinstance(idata, DataTree):
-            groups = {}
-            for group in idata.groups():
-                groups[group] = getattr(idata, group)
-            data["idata"] = DataTree.from_dict(groups)
+            data["idata"] = _to_datatree(idata)
         model = data.get("model")
         if model is None:
             return data
@@ -1232,12 +1246,7 @@ class BudgetOptimizer(BaseModel):
             data["model"] = model.optimization_model(int(num_periods))
         elif hasattr(model, "_set_predictors_for_optimization"):
             data["model"] = model._set_predictors_for_optimization(int(num_periods))
-        data["idata"] = model.idata
-        if not isinstance(data["idata"], DataTree):
-            groups = {}
-            for group in model.idata.groups():
-                groups[group] = getattr(model.idata, group)
-            data["idata"] = DataTree.from_dict(groups)
+        data["idata"] = _to_datatree(model.idata)
         # Infer adstock_periods from wrapper if not already set
         if "adstock_periods" not in data:
             if hasattr(model, "adstock") and hasattr(model.adstock, "l_max"):
@@ -1253,6 +1262,10 @@ class BudgetOptimizer(BaseModel):
         # Infer mu_effects from wrapper if not already set
         if "mu_effects" not in data and hasattr(model, "mu_effects"):
             data["mu_effects"] = list(model.mu_effects)
+        if "frozen_deterministics" not in data and hasattr(
+            model, "frozen_deterministics"
+        ):
+            data["frozen_deterministics"] = model.frozen_deterministics
         return data
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
@@ -1330,32 +1343,21 @@ class BudgetOptimizer(BaseModel):
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
-        # 5. Build optimizable mu_effects and add to budgets_flat
+        # 5. Check for optimizable mu_effects (not yet supported; see #2621)
         self._optimizable_mu_effects = [
             e for e in self.mu_effects if hasattr(e, "replace_for_optimization")
         ]
-        size_mu_effect_budgets = sum(
-            len(self.model.coords[e.budget_dim]) for e in self._optimizable_mu_effects
-        )
+        if self._optimizable_mu_effects:
+            raise NotImplementedError(
+                "OptimizableMuEffect integration is not yet supported. "
+                "See https://github.com/pymc-labs/pymc-marketing/pull/2621"
+            )
 
         self._budgets_flat = ptx.xtensor(
             "budgets_flat",
-            shape=(size_budgets + size_mu_effect_budgets,),
+            shape=(size_budgets,),
             dims=("budgets_flat",),
         )
-
-        # Slice out effect budget xtensors
-        self._effect_budget_xtensors = []
-        offset = int(size_budgets)
-        for e in self._optimizable_mu_effects:
-            n = len(self.model.coords[e.budget_dim])
-            self._effect_budget_xtensors.append(
-                ptx.as_xtensor(
-                    self._budgets_flat.values[offset : offset + n],
-                    dims=(e.budget_dim,),
-                )
-            )
-            offset += n
 
         # Fill a zero array, then set only the True positions
         budgets_zeros = pt.zeros(self._budget_shape)
@@ -1682,6 +1684,7 @@ class BudgetOptimizer(BaseModel):
             pymc_model=self._pymc_model,
             idata=_extract_dataset(self.idata, "posterior"),
             response_variable=response_variable,
+            frozen_deterministics=self.frozen_deterministics,
         )
 
     def _compile_objective_and_grad(self):
