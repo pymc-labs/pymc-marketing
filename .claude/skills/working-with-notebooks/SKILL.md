@@ -39,20 +39,23 @@ uv run python scripts/run_notebooks/runner.py --exclude-dirs clv bass customer_c
 
 When source code changes affect model outputs, notebooks must be re-executed with real sampling to generate updated output cells.
 
-### Via jupyter nbconvert
+### Recommended: jupyter execute --inplace
+
+```bash
+# Clear stale outputs first
+uv run jupyter nbconvert --clear-output docs/source/notebooks/mmm/mmm_example.ipynb
+
+# Real execution with full MCMC
+uv run jupyter execute docs/source/notebooks/mmm/mmm_example.ipynb --inplace
+
+# Clean up auto-generated checkpoint dirs
+find docs/source/notebooks/mmm -name .ipynb_checkpoints -type d -exec rm -rf {} +
+```
+
+### Alternative: jupyter nbconvert
 
 ```bash
 jupyter nbconvert --to notebook --execute --inplace docs/source/notebooks/mmm/mmm_example.ipynb
-```
-
-### Via the runner's internal API (if `--no-mock` flag is added)
-
-```bash
-uv run python -c "
-from scripts.run_notebooks.runner import run_notebook
-from pathlib import Path
-run_notebook(Path('docs/source/notebooks/mmm/mmm_example.ipynb'), mock=False)
-"
 ```
 
 ### When to execute vs mock
@@ -254,3 +257,40 @@ Before pushing notebook changes:
 5. ☐ `ruff format --check docs/source/notebooks/` shows no reformats needed
 6. ☐ `pre-commit run --all-files` passes locally
 7. ☐ Push ONCE
+
+---
+
+## 7. Real Execution for Release
+
+When re-executing notebooks for a release, use this full workflow per notebook.
+See `notebook-release-changes.md` for version-specific dependency bumps and API
+migrations.
+
+### Per-Notebook Workflow
+
+```bash
+# 1. Pre-flight smoke test (catches code errors fast)
+uv run python scripts/run_notebooks/runner.py --notebooks docs/source/notebooks/category/my_notebook.ipynb
+
+# 2. Clear stale outputs
+uv run jupyter nbconvert --clear-output docs/source/notebooks/category/my_notebook.ipynb
+
+# 3. Real execution with full MCMC sampling
+uv run jupyter execute docs/source/notebooks/category/my_notebook.ipynb --inplace
+
+# 4. Clean up auto-generated checkpoint dirs
+find docs/source/notebooks/category -name .ipynb_checkpoints -type d -exec rm -rf {} +
+
+# 5. Validate (check for errors + pre-commit)
+uv run python -c "
+import json
+with open('docs/source/notebooks/category/my_notebook.ipynb') as f:
+    nb = json.load(f)
+for i, cell in enumerate(nb['cells']):
+    for out in cell.get('outputs', []):
+        if out.get('output_type') == 'error':
+            print(f'ERROR in cell {i}: {out[\"evalue\"]}')
+"
+
+uv run pre-commit run --files docs/source/notebooks/category/my_notebook.ipynb
+```

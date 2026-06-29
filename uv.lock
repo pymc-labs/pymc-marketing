@@ -344,21 +344,21 @@ wheels = [
 
 [[package]]
 name = "arviz"
-version = "1.1.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "arviz-base" },
     { name = "arviz-plots" },
     { name = "arviz-stats", extra = ["xarray"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bf/c7/c750f72f70cb894b84cc2f811c0926a7a195735a0e501fde1bff439991ee/arviz-1.1.0.tar.gz", hash = "sha256:7172c60980d47a93c3ff29be554fbeba33287e8aea88082956386b82cf995f1b", size = 8671, upload-time = "2026-04-24T05:20:30.339Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/da/1a15d73964342f63a4459a4b42838ad793c12421e27339b621f5227bcf97/arviz-1.2.0.tar.gz", hash = "sha256:ce9d8233691e37dc4b57b670ac1da3cca0f9312280fb0d77e7cd743772d2895c", size = 8665, upload-time = "2026-06-12T17:41:14.283Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/64/a8/c09fbe44b12fa919c5bfe0afb71e60d1231a7dc93405e54c30496c57c9d3/arviz-1.1.0-py3-none-any.whl", hash = "sha256:87ebd21ce052f30d21f932b4166fc31b91c0bc7443f8da7fed3518b342267010", size = 9154, upload-time = "2026-04-24T05:20:28.734Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/37/e66d037fd935f40606fc5dc1c610d78653037dd62d656a25cead401d81dc/arviz-1.2.0-py3-none-any.whl", hash = "sha256:3b2b313b4b57ebb2e028c5237e4eacbd4f56084d0162128f8f1f42266c7cf515", size = 9153, upload-time = "2026-06-12T17:41:13.149Z" },
 ]
 
 [[package]]
 name = "arviz-base"
-version = "1.1.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "lazy-loader" },
@@ -366,22 +366,22 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7b/f2/d0f3a803a41ac5ff0a3a0b7259652f3bc47c6574676356739046ee81e9ae/arviz_base-1.1.0.tar.gz", hash = "sha256:de88d36085361062221250dc37d12ad102544ac20de8d84e09326bfd7a081112", size = 1410354, upload-time = "2026-04-23T09:45:35.3Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e6/d7/4db6e89b0cc5a26ce0e84accd5dd6ff43572eb32e9b46c577bd5d219ed6a/arviz_base-1.2.0.tar.gz", hash = "sha256:be06f9c15c53a951a971bef697e6b0a68497aae4d1670be065dd8f0482e9efca", size = 1410416, upload-time = "2026-06-12T15:54:46.517Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/d1/705e6c19b437a4105bf3b9ae7945fcfc3ad2abb73d14bae0a3f2d58b305b/arviz_base-1.1.0-py3-none-any.whl", hash = "sha256:4f97016f697751038f45d144331a1830c921f0ebc2739d5df343120fba453e83", size = 1427393, upload-time = "2026-04-23T09:45:33.726Z" },
+    { url = "https://files.pythonhosted.org/packages/37/d7/82e5f456d50b6accf06d137594282bf6984526fa1b329a061f7b91b123aa/arviz_base-1.2.0-py3-none-any.whl", hash = "sha256:a3f7023b665823068ff4b973bb6205eacc65f3c0a446cc099d7e5326b50f1ffc", size = 1427453, upload-time = "2026-06-12T15:54:44.805Z" },
 ]
 
 [[package]]
 name = "arviz-plots"
-version = "1.1.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "arviz-base" },
     { name = "arviz-stats", extra = ["xarray"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/4b/2c41babd8a858d0f2161dea8c336fdd04e7559640100c6ccef8e100b27dd/arviz_plots-1.1.0.tar.gz", hash = "sha256:c2d213364c5eaadfe890b1f871849d4317dec5260f79f26e30976159c132a351", size = 155011, upload-time = "2026-04-23T11:49:27.604Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/d4/738cd3abcc27d681e9876a897d7bab4aa1ad0321257e1a65d2cdc52849bd/arviz_plots-1.2.0.tar.gz", hash = "sha256:e1f462aa0ac02fb957aabcae2cfcbee9bc089a029c94dab83fa2ed02d02098f3", size = 158834, upload-time = "2026-06-12T17:12:10.83Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2f/c8/005d1de3af80f54411703d1263a0b9d31276411ec9f273d9432c59b17299/arviz_plots-1.1.0-py3-none-any.whl", hash = "sha256:5c7ab5b0c7c29cda6ddb5e04c699c70285fe68a76d2b1b42302c69a85742adde", size = 237818, upload-time = "2026-04-23T11:49:26.185Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/06/85b6f3d07c8b0bd232c05c236188575074fcb9006174e5a5ca5b6dd12a9f/arviz_plots-1.2.0-py3-none-any.whl", hash = "sha256:2e16ed95ce6d6fbb171d60f7300f50c520ebeeb132be7539591a018076f66f16", size = 243949, upload-time = "2026-06-12T17:12:08.906Z" },
 ]
 
 [package.optional-dependencies]
@@ -391,16 +391,16 @@ matplotlib = [
 
 [[package]]
 name = "arviz-stats"
-version = "1.1.0"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numpy" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/de/d9/924bbdfaf7ecdcd9b217af417bea6b7b846309393f82ada52ecfc69bf87c/arviz_stats-1.1.0.tar.gz", hash = "sha256:c0111d36007bbed8286afe01089738229e2b9bf8df9d4a0e4b107f2e3f71e6c7", size = 153703, upload-time = "2026-04-23T10:11:24.255Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4c/97/fd555a4b16ac349f297c786dab1a3270b3540677b0222a84e517441eb338/arviz_stats-1.2.0.tar.gz", hash = "sha256:fc49e6e75f4fce953987a9bf17dc39950e1f12e7cd73f865257e5d1b6a5ee114", size = 157554, upload-time = "2026-06-12T16:20:11.552Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0d/1f/d398de1612f7a611e22d743280339c9af4903675635e41be3370091c704b/arviz_stats-1.1.0-py3-none-any.whl", hash = "sha256:ed47334ccff8670a0b90a50e1a37e7257268084eb3436e6b7b15e623f1001947", size = 179874, upload-time = "2026-04-23T10:11:22.519Z" },
+    { url = "https://files.pythonhosted.org/packages/96/8f/73f43d90534d49a4af4c8e35d5b60e2838435b0318f44262dc6fe2dd39d8/arviz_stats-1.2.0-py3-none-any.whl", hash = "sha256:f9084addeb1abdbab6e9816f0a063118bc4ff7c48ce9141a4dad20b0e41410ae", size = 183844, upload-time = "2026-06-12T16:20:10.191Z" },
 ]
 
 [package.optional-dependencies]
@@ -4080,8 +4080,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arviz", specifier = ">=1.1.0,<2.0" },
-    { name = "arviz-plots", extras = ["matplotlib"], specifier = ">=1.0.0,<2.0" },
+    { name = "arviz", specifier = ">=1.2.0,<2.0" },
+    { name = "arviz-plots", extras = ["matplotlib"], specifier = ">=1.2.0,<2.0" },
     { name = "blackjax", marker = "extra == 'docs'" },
     { name = "blackjax", marker = "extra == 'test'" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.1" },
