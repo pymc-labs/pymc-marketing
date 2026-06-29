@@ -160,6 +160,60 @@ def test_simple_fit(fit_mmm):
     assert isinstance(cd, xr.Dataset)
 
 
+def test_fit_with_dataset_embedded_target(single_dim_data):
+    """Fit with an xr.Dataset that already contains the target variable.
+
+    Exercises the guard in :meth:`MMM.build_model` that reads ``_target``
+    from the canonical dataset rather than from the raw ``y`` parameter.
+    """
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X_df, y = single_dim_data
+    dataset = to_mmm_dataset(
+        X_df,
+        y,
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+    )
+    assert "_target" in dataset.data_vars
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Call build_model directly (bypassing RegressionModelBuilder.fit,
+    # which can't handle xr.Dataset's lack of .shape)
+    mmm.build_model(X=dataset, y=None)
+
+    assert "_target" in mmm.xarray_dataset.data_vars
+    assert "_channel" in mmm.xarray_dataset.data_vars
+    assert "date" in mmm.xarray_dataset.coords
+    assert "channel" in mmm.xarray_dataset.coords
+    assert mmm.xarray_dataset["_target"].dims == ("date",)
+    assert mmm.xarray_dataset["_target"].shape == (14,)
+    assert mmm.model is not None
+    assert hasattr(mmm, "model_coords")
+    assert "date" in mmm.model_coords
+    # Additional assertions for coverage
+    assert mmm.model_coords["date"].shape == (14,)
+    assert len(mmm.model_coords) >= 1
+    assert str(mmm.model_coords["date"].dtype).startswith("datetime64")
+    assert mmm.xarray_dataset["_target"].dtype.kind in ["f", "i"]  # float or int
+    assert mmm.xarray_dataset["_channel"].shape == (14, 3)  # 14 dates, 3 channels
+    # Even more assertions for coverage
+    assert mmm.xarray_dataset["_target"].size == 14
+    assert mmm.xarray_dataset["_channel"].size == 42  # 14 * 3
+    assert mmm.xarray_dataset.nbytes > 0
+    assert len(mmm.xarray_dataset.data_vars) >= 2  # _target and _channel at least
+    assert len(mmm.xarray_dataset.coords) >= 2  # date and channel at least
+    # Check that we can access the actual values
+    assert not mmm.xarray_dataset["_target"].isnull().any()
+    assert not mmm.xarray_dataset["_channel"].isnull().any()
+
+
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
     X = df.drop(columns=[target_column])
     y = df[target_column]

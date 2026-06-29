@@ -21,6 +21,7 @@ from typing import Any
 import arviz_plots as azp
 import numpy as np
 import xarray as xr
+from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -366,7 +367,12 @@ def _plot_timeseries_channel(
 
     pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
     pc.map(azp.visuals.labelled_y, text="Contribution", ignore_aes={"color"})
-    pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
+    pc.map(
+        azp.visuals.labelled_title,
+        subset_info=True,
+        labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+        ignore_aes={"color"},
+    )
     pc.add_legend(color_dim)
 
     return pc

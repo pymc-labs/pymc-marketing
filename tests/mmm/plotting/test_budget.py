@@ -344,6 +344,17 @@ class TestContributionOverTime:
         _fig, axes = BudgetPlots().contribution_over_time(panel_contribution_samples)
         assert len(axes) == 2
 
+    def test_panel_titles_include_geo_coords(self, panel_contribution_samples):
+        """Regression: facet panels must be titled with their geo coordinate."""
+        from pymc_marketing.mmm.plotting.budget import BudgetPlots
+
+        _fig, axes = BudgetPlots().contribution_over_time(panel_contribution_samples)
+        titles = [ax.get_title() for ax in axes.ravel() if ax.lines]
+        joined = " ".join(titles)
+        assert "CA" in joined and "NY" in joined, (
+            f"Expected per-panel geo titles, got {titles!r}"
+        )
+
     def test_dims_subsetting(self, panel_contribution_samples):
         from pymc_marketing.mmm.plotting.budget import BudgetPlots
 

@@ -2,16 +2,22 @@ coverage:
   status:
     project:
       default:
-        # basic
         target: auto
         threshold: 2%
         base: auto
         paths:
           - "pymc_marketing"
-       # advanced settings
         branches:
           - main
           - v1.0.0
-        if_ci_failed: error #success, failure, error, ignore
+        if_ci_failed: error
+        informational: false
+        only_pulls: false
+    patch:
+      default:
+        target: auto
+        threshold: 2%
+        base: auto
+        if_ci_failed: error
         informational: false
         only_pulls: false
