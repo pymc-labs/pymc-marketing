@@ -326,7 +326,18 @@ def create_zero_dataset(
             raise TypeError("`channel_xr` must be an xarray Dataset or DataArray.")
 
         # --- 4.2 Validate variables & dimensions -------------------------------
-        invalid_vars = set(channel_xr.data_vars) - set(channel_cols)
+        # OptimizableMuEffect budget channels are allowed in channel_xr but are
+        # handled outside the DataFrame (via set_budget_for_sampling), so exclude
+        # them from the "invalid" check.
+        effect_channel_names: set[str] = {
+            name
+            for effect in getattr(model, "mu_effects", [])
+            if hasattr(effect, "budget_channel_names")
+            for name in effect.budget_channel_names
+        }
+        invalid_vars = (
+            set(channel_xr.data_vars) - set(channel_cols) - effect_channel_names
+        )
         if invalid_vars:
             raise ValueError(
                 f"`channel_xr` contains variables not in `model.channel_columns`: "

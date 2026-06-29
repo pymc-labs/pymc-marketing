@@ -237,6 +237,7 @@ from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray
 
+from pymc_marketing.mmm.additive_effect import OptimizableMuEffect
 from pymc_marketing.mmm.constraints import (
     Constraint,
     build_default_sum_constraint,
@@ -707,6 +708,8 @@ class BudgetOptimizer(BaseModel):
     _budgets: XTensorVariable = PrivateAttr()
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
+    _optimizable_mu_effects: list[OptimizableMuEffect] = PrivateAttr()
+    _effect_budget_xtensors: list[XTensorVariable] = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
     _compiled_functions: dict = PrivateAttr()
     _constraints: dict = PrivateAttr()
@@ -727,7 +730,14 @@ class BudgetOptimizer(BaseModel):
         # 2. Shared variable for total_budget
         self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
 
-        # 3. Identify budget dimensions and shapes
+        # 3. Collect OptimizableMuEffect instances; consulted throughout init and compile.
+        self._optimizable_mu_effects = [
+            mu_effect
+            for mu_effect in getattr(self.mmm_model, "mu_effects", [])
+            if isinstance(mu_effect, OptimizableMuEffect)
+        ]
+
+        # 4. Identify budget dimensions and shapes
         self._budget_dims = [
             dim
             for dim in pymc_model.named_vars_to_dims["channel_data"]
@@ -738,7 +748,7 @@ class BudgetOptimizer(BaseModel):
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
-        # 4. Ensure that we only optimize over non-zero channels
+        # 5. Ensure that we only optimize over non-zero channels
         # Only perform non-zero channel detection for MMM instances.
         # For OptimizerCompatibleModelWrapper, default to optimizing all channels unless a mask is provided.
         is_wrapper = (
@@ -780,20 +790,46 @@ class BudgetOptimizer(BaseModel):
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
-        self._budgets_flat = ptx.xtensor(
-            "budgets_flat", shape=(size_budgets,), dims=("budgets_flat",)
+        size_mu_effect_budgets = sum(
+            len(pymc_model.coords[mu_effect.budget_dim])
+            for mu_effect in self._optimizable_mu_effects
         )
 
-        # Fill a zero array, then set only the True positions
+        self._budgets_flat = ptx.xtensor(
+            "budgets_flat",
+            shape=(size_budgets + size_mu_effect_budgets,),
+            dims=("budgets_flat",),
+        )
+
+        # Fill a zero array, then set only the True positions.
+        # _budgets_flat[:size_budgets] are the standard-channel budgets;
+        # _budgets_flat[size_budgets:] are the OptimizableMuEffect budgets.
+        # Only the standard-channel slice feeds into _budgets.
         budgets_zeros = pt.zeros(self._budget_shape)
         budgets_zeros.name = "budgets_zeros"
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
         self._budgets = as_xtensor(
-            budgets_zeros[bool_mask].set(self._budgets_flat.values),
+            budgets_zeros[bool_mask].set(self._budgets_flat.values[:size_budgets]),
             dims=self._budget_dims,
         )
 
-        # 5. Validate and process budget_distribution_over_period
+        # Pre-build one XTensorVariable per OptimizableMuEffect — each is a
+        # named slice of _budgets_flat with the effect's own budget_dim applied,
+        # mirroring how self._budgets is built for standard channels above.
+        self._effect_budget_xtensors: list[XTensorVariable] = []
+        offset = int(size_budgets)
+        for mu_effect in self._optimizable_mu_effects:
+            ch_names = list(pymc_model.coords[mu_effect.budget_dim])
+            n = len(ch_names)
+            self._effect_budget_xtensors.append(
+                ptx.as_xtensor(
+                    self._budgets_flat.values[offset : offset + n],
+                    dims=(mu_effect.budget_dim,),
+                )
+            )
+            offset += n
+
+        # 6. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
             self._validate_and_process_budget_distribution(
                 budget_distribution_over_period=self.budget_distribution_over_period,
@@ -803,7 +839,7 @@ class BudgetOptimizer(BaseModel):
             )
         )
 
-        # 5b. Validate and process cost_per_unit
+        # 6b. Validate and process cost_per_unit
         self._cost_per_unit_tensor = self._validate_and_process_cost_per_unit(
             cost_per_unit=self.cost_per_unit,
             num_periods=self.num_periods,
@@ -811,12 +847,18 @@ class BudgetOptimizer(BaseModel):
             budget_coords=self._budget_coords,
         )
 
-        # 6. Replace channel_data with budgets in the PyMC model
-        self._pymc_model = self._replace_channel_data_by_optimization_variable(
-            pymc_model
+        # 7. Replace channel_data with budgets, and effect Data nodes for any
+        # OptimizableMuEffect, in a SINGLE do() call so that _budgets_flat is
+        # not cloned across multiple fgraph traversals (which would sever the
+        # gradient path for the effect channels).
+        channel_replacements = self._build_channel_data_replacement(pymc_model)
+        effect_replacements = self._build_effect_replacements()
+        self._pymc_model = do(
+            freeze_dims_and_data(pymc_model, data=[]),
+            {**channel_replacements, **effect_replacements},
         )
 
-        # 7. Validate that the requested response variable actually exists in
+        # 8. Validate that the requested response variable actually exists in
         # the underlying PyMC model. ``extract_response_distribution`` looks
         # up ``pymc_model[response_variable]``; raising here turns an opaque
         # ``KeyError`` deep in graph extraction into an actionable error.
@@ -828,11 +870,11 @@ class BudgetOptimizer(BaseModel):
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
 
-        # 8. Compile objective & gradient
+        # 9. Compile objective & gradient
         self._compiled_functions = {}
         self._compile_objective_and_grad()
 
-        # 9. Build constraints
+        # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
@@ -1033,8 +1075,14 @@ class BudgetOptimizer(BaseModel):
 
         return repeated_budgets
 
-    def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-        """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
+    def _build_channel_data_replacement(self, model: Model) -> dict[str, Any]:
+        """Return the ``channel_data`` → ``repeated_budgets_with_carry_over`` mapping.
+
+        Extracted from :meth:`_replace_channel_data_by_optimization_variable` so that
+        the replacement expression can be combined with effect replacements and passed to
+        a single ``do()`` call (avoiding a second ``fgraph_from_model`` traversal that
+        would clone ``_budgets_flat`` and sever the gradient path).
+        """
         num_periods = self.num_periods
         max_lag = self.mmm_model.adstock.l_max
         channel_scales = self.mmm_model._channel_scales
@@ -1044,24 +1092,18 @@ class BudgetOptimizer(BaseModel):
                 f"Optimization requires channel data of float type, got {channel_data_dtype}"
             )
 
-        # Scale budgets by channel_scales
         budgets = self._budgets
         budgets /= as_xtensor(
             channel_scales, dims=() if np.ndim(channel_scales) == 0 else ("channel",)
         )
 
-        # Repeat budgets over num_periods (still in monetary units)
         if self._budget_distribution_over_period_tensor is not None:
-            # Apply time distribution factors
             repeated_budgets = self._apply_budget_distribution_over_period(
                 budgets, num_periods
             )
         else:
-            # Default behavior: distribute evenly across periods
             repeated_budgets = budgets.expand_dims(date=num_periods)
 
-        # Convert from monetary units to original units using date-specific rates.
-        # Applied AFTER time distribution so each period uses its own cost rate.
         if self._cost_per_unit_tensor is not None:
             repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
 
@@ -1077,12 +1119,23 @@ class BudgetOptimizer(BaseModel):
             dim="date",
         )
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
+        return {"channel_data": repeated_budgets_with_carry_over}
 
-        # Freeze dims & data in the underlying PyMC model
-        model = freeze_dims_and_data(model, data=[])
+    def _build_effect_replacements(self) -> dict[str, Any]:
+        """Return ``{data_var_name: replacement_tensor}`` for every OptimizableMuEffect.
 
-        # Use `do(...)` to replace `channel_data` with repeated_budgets_with_carry_over
-        return do(model, {"channel_data": repeated_budgets_with_carry_over})
+        Returns an empty dict when no optimizable effects are present.
+        """
+        replacements: dict[str, Any] = {}
+        for effect, budget_xt in zip(
+            self._optimizable_mu_effects, self._effect_budget_xtensors, strict=True
+        ):
+            replacements |= effect.replace_for_optimization(
+                budget_slice=budget_xt,
+                num_periods=self.num_periods,
+                budget_distribution=self._budget_distribution_over_period_tensor,
+            )
+        return replacements
 
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
@@ -1106,12 +1159,43 @@ class BudgetOptimizer(BaseModel):
         )
 
     def _compile_objective_and_grad(self):
-        """Compile the objective function and its gradient, both referencing `self._budgets_flat`."""
+        """Compile the objective function and its gradient, both referencing `self._budgets_flat`.
+
+        When :class:`~pymc_marketing.mmm.additive_effect.OptimizableMuEffect` instances are
+        present, their per-period contributions are added to ``response_distribution`` before the
+        utility function is evaluated.  This ensures that the gradient flows through the effect
+        budget channels (``_budgets_flat[n_standard:]``) as well as the standard channels.
+
+        Effect contributions live in the normalized (internal) scale; they are converted to the
+        original scale by multiplying with ``target_scale`` before being added to
+        ``response_distribution``.
+        """
         budgets_flat = self._budgets_flat
         budgets = self._budgets
         response_distribution = self.extract_response_distribution(
             self.response_variable
         )
+
+        # Augment response_distribution with contributions from optimizable effects.
+        # total_media_contribution_original_scale only tracks standard channels; effect
+        # contributions must be added explicitly so that pt.grad can connect them to
+        # _budgets_flat[n_standard:].
+        if self._optimizable_mu_effects:
+            target_scale = self._pymc_model["target_scale"]
+            for mu_effect in self._optimizable_mu_effects:
+                # Vectorise the contribution over posterior samples so that
+                # the objective gradient is computed against the posterior
+                # distribution of effect parameters (e.g. promo_beta), not
+                # their test values.  The raw model lookup
+                # (self._pymc_model[name]) would use the test value only.
+                effect_dist = self.extract_response_distribution(
+                    mu_effect.contribution_var_name
+                )
+                # effect_dist has dims (sample, date); sum over date → (sample,),
+                # then scale from normalised to original response units.
+                response_distribution = (
+                    response_distribution + effect_dist.sum("date") * target_scale
+                )
 
         objective = -self.utility_function(
             samples=response_distribution, budgets=budgets
@@ -1256,14 +1340,25 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
-        # 2. Build the final bounds list
+        # 2. Build the final bounds list for standard channels
         bounds = [
             (low, high)
             for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
         ]
 
+        # Append bounds for each OptimizableMuEffect channel.
+        # Default to (0, total_budget) per channel; effects may override via
+        # their own budget_bounds property if present.
+        for effect in self._optimizable_mu_effects:
+            ch_names = list(self._pymc_model.coords[effect.budget_dim])
+            effect_bounds = getattr(effect, "budget_bounds", None)
+            if effect_bounds is None:
+                bounds.extend((0.0, total_budget) for _ in ch_names)
+            else:
+                bounds.extend(effect_bounds)
+
         # 3. Determine how many budget entries we optimize
-        budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
+        budgets_size = int(self._budgets_flat.type.shape[0])  # type: ignore
 
         # 4. Construct the initial guess (x0) if not provided
         if x0 is None:
@@ -1331,16 +1426,51 @@ class BudgetOptimizer(BaseModel):
 
         # 6. Process results
         if result.success or return_if_fail:
-            # Fill zeros, then place the solution in masked positions
+            # Split result.x into standard-channel and effect-channel parts.
+            # _budgets_flat = [std_optimized..., effect_channels...]
+            n_std = int(cast(DataArray, self.budgets_to_optimize).sum().item())
+            std_x = result.x[:n_std]  # type: ignore
+            eff_x = result.x[n_std:]  # type: ignore
+
+            # Fill zeros for frozen standard channels, then place optimised values
             optimal_budgets = np.zeros_like(
                 self.budgets_to_optimize.values,  # type: ignore
                 dtype=float,
             )
-            optimal_budgets[self.budgets_to_optimize.values] = result.x  # type: ignore
+            optimal_budgets[self.budgets_to_optimize.values] = std_x  # type: ignore
 
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
+
+            # Append effect-channel allocations as extra entries in the channel dim
+            if self._optimizable_mu_effects and len(eff_x) > 0:
+                effect_channel_names = [
+                    name
+                    for e in self._optimizable_mu_effects
+                    for name in self._pymc_model.coords[e.budget_dim]
+                ]
+                effect_da = DataArray(
+                    eff_x,
+                    coords={"channel": effect_channel_names},
+                    dims=["channel"],
+                )
+                optimal_budgets = xr.concat([optimal_budgets, effect_da], dim="channel")
+
+            # Tag each channel with its type ("media" or "effect") so callers
+            # can distinguish standard channels from OptimizableMuEffect channels.
+            # Stored in attrs (not as a dimension coordinate) to stay compatible
+            # with .to_dataset(dim="channel") used in sample_response_distribution.
+            effect_channel_names_set = {
+                name
+                for e in self._optimizable_mu_effects
+                for name in self._pymc_model.coords[e.budget_dim]
+            }
+            optimal_budgets.attrs["channel_type"] = {
+                str(ch): "effect" if ch in effect_channel_names_set else "media"
+                for ch in optimal_budgets.coords["channel"].values
+            }
+
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
             if callback:

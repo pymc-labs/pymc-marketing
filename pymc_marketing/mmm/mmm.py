@@ -207,6 +207,7 @@ from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
+    OptimizableMuEffect,
     safe_to_datetime,
 )
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
@@ -1045,7 +1046,7 @@ class MMM(RegressionModelBuilder):
         attrs["outcome_node"] = json.dumps(getattr(self, "outcome_node", None))
 
         mu_effects_list = [
-            serialization.serialize(effect) for effect in self.mu_effects
+            serialization.serialize(mu_effect) for mu_effect in self.mu_effects
         ]
         attrs["mu_effects"] = json.dumps(mu_effects_list)
 
@@ -1074,8 +1075,8 @@ class MMM(RegressionModelBuilder):
         if self.idata is None or "posterior" not in self.idata:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
-        for effect in self.mu_effects:
-            for group_name, ds in effect.idata_groups().items():
+        for mu_effect in self.mu_effects:
+            for group_name, ds in mu_effect.idata_groups().items():
                 if not hasattr(self.idata, group_name):
                     self.idata["/" + group_name] = ds
 
@@ -4350,18 +4351,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 "before calling `sample_response_distribution`."
             )
 
-        constant_data = xr.merge(
-            [
-                allocation_strategy.to_dataset(name="allocation"),
-                (allocation_strategy * self.num_periods).to_dataset(
-                    name="total_allocation"
-                ),
-            ]
-        )
-        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
-            self.channel_columns
-        ].to_xarray()
-
+        # --- 1. Prepare model state and sampling variable list -------------------
         var_names = [
             self.output_var,
             "channel_contribution",
@@ -4370,6 +4360,41 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         ]
         if additional_var_names is not None:
             var_names.extend(additional_var_names)
+
+        # For each OptimizableMuEffect: (a) auto-include its per-channel contribution
+        # variable in var_names when the user has already registered an original-scale
+        # version, and (b) push the optimised budget into the model's shared data so
+        # the clone inside sample_posterior_predictive sees the right parameters.
+        for mu_effect in self.mu_effects:
+            if not isinstance(mu_effect, OptimizableMuEffect):
+                continue
+            cc_var = mu_effect.channel_contribution_var_name
+            if cc_var is not None:
+                os_var = f"{cc_var}_original_scale"
+                if os_var in self.model.named_vars and os_var not in var_names:
+                    var_names.append(os_var)
+            mu_effect.set_budget_for_sampling(
+                allocation_strategy.sel(channel=mu_effect.budget_channel_names).values,
+                self.model_class.model,
+            )
+
+        # --- 2. Build output metadata (merged after sampling) --------------------
+        # Restrict to media channels so that merging below does not expand the
+        # channel_contribution coord (media-only) with NaN for effect channels.
+        media_allocation = allocation_strategy.sel(channel=list(self.channel_columns))
+        constant_data = xr.merge(
+            [
+                media_allocation.to_dataset(name="allocation"),
+                (media_allocation * self.num_periods).to_dataset(
+                    name="total_allocation"
+                ),
+            ]
+        )
+        _dataset = data_with_noise.set_index([self.date_column, *list(self.dims)])[
+            self.channel_columns
+        ].to_xarray()
+
+        # --- 3. Sample and merge ------------------------------------------------
 
         response = (
             self.sample_posterior_predictive(

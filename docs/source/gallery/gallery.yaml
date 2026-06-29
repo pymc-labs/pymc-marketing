@@ -58,6 +58,8 @@ sections:
         cards:
           - title: Budget Allocation Example
             notebook: mmm/mmm_budget_allocation_example
+          - title: Optimising Discount Depth Across Promotional Events
+            notebook: mmm/mmm_discounted_events
           - title: Budget Allocation and Risk Assessment
             notebook: mmm/mmm_allocation_assessment
           - title: Multi-Objective Optimization

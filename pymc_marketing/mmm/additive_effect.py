@@ -109,13 +109,15 @@ Tips for custom components
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
+import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import Field, InstanceOf
+from pydantic import Field, InstanceOf, PrivateAttr
+from pymc_extras.prior import Prior
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
@@ -283,6 +285,196 @@ class MuEffect(SerializableBaseModel, ABC):
             Group name to xarray Dataset mapping.
         """
         return {}
+
+
+class OptimizableMuEffect(MuEffect, ABC):
+    """Abstract base class for spend-driven mu effects that participate in budget optimization.
+
+    Extends :class:`MuEffect` with the contract required by
+    :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` to include
+    this effect's channels in the joint budget allocation problem.
+
+    The optimizer discovers optimizable effects at construction time via
+    ``isinstance(effect, OptimizableMuEffect)``, reads their channel names
+    from the PyMC model coordinate ``pymc_model.coords[effect.budget_dim]``
+    (populated by :meth:`create_data`), then calls
+    :meth:`replace_for_optimization` to inject spend-derived tensors into the
+    PyMC model graph via ``pm.do()``.
+
+    Subclasses must implement :meth:`replace_for_optimization` and the three
+    :class:`MuEffect` abstract methods.  The conversion from spend to native
+    model units (e.g. impressions → reach / frequency) belongs inside
+    :meth:`replace_for_optimization`; the optimizer's flat variable is always
+    in monetary units (spend) so that all channel types share a common currency
+    and the total-budget constraint is meaningful across the full portfolio.
+
+    :attr:`budget_dim` defaults to the subclass ``prefix`` field (same pattern
+    as :attr:`~MuEffect.contribution_var_name`); subclasses without a ``prefix``
+    must override it explicitly.
+
+    .. note::
+        **Normalized-scale contract**: the optimizer works entirely in the
+        *model's internal (normalized) scale*.
+        ``total_media_contribution_original_scale`` is already in the original
+        scale; effect contributions (e.g. ``promo_effect_contribution``) are
+        in the normalized scale and are multiplied by ``target_scale`` before
+        being added to the objective.  Subclasses do **not** need to rescale
+        inside ``replace_for_optimization``; the optimizer handles the
+        conversion automatically.
+
+    Notes
+    -----
+    :class:`FourierEffect`, :class:`LinearTrendEffect`, and
+    :class:`EventAdditiveEffect` are **not** spend-driven and therefore do not
+    inherit this class.  Their ``pm.Data`` nodes are frozen during optimization,
+    not replaced by free variables.
+
+    Examples
+    --------
+    Minimal subclass skeleton::
+
+        class MySpendEffect(OptimizableMuEffect):
+            prefix: str = "my_effect"
+            cost_per_unit: float
+
+            # budget_dim defaults to self.prefix → "my_effect"
+
+            def replace_for_optimization(
+                self,
+                budget_slice,  # XTensorVariable with dims=(budget_dim,)
+                num_periods,
+                budget_distribution,
+            ) -> dict[str, XTensorVariable]:
+                impressions = budget_slice / self.cost_per_unit
+                return {"my_channel_data": impressions}
+
+            # ... plus the three MuEffect abstract methods
+    """
+
+    @property
+    def budget_dim(self) -> str:
+        """Name of the PyMC model dimension that indexes this effect's budget channels.
+
+        The optimizer uses this to wrap the symbolic budget slice into an
+        :class:`~pytensor.xtensor.type.XTensorVariable` with the correct dim
+        before passing it to :meth:`replace_for_optimization`, so that XTensor
+        broadcasting works correctly inside the implementation.
+
+        Defaults to the subclass ``prefix`` field.  Subclasses without a
+        ``prefix`` attribute must override this property.
+
+        Returns
+        -------
+        str
+            Dimension name (e.g. ``"promo"``, ``"rf_channel"``).
+        """
+        prefix = getattr(self, "prefix", None)
+        if prefix is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define 'budget_dim'."
+            )
+        return prefix
+
+    @abstractmethod
+    def replace_for_optimization(
+        self,
+        budget_slice: XTensorVariable,
+        num_periods: int,
+        budget_distribution: XTensorVariable | None,
+    ) -> dict[str, XTensorVariable]:
+        """Return model-graph replacements for ``pm.do()`` injection.
+
+        Called by the budget optimizer after the standard ``channel_data``
+        node has already been replaced.  The returned dict is merged with
+        replacements from other optimizable effects and passed to a single
+        ``pm.do()`` call.
+
+        Parameters
+        ----------
+        budget_slice : XTensorVariable
+            Tensor of shape ``(len(optimizable_channel_names),)`` with
+            ``dims=(budget_dim,)``, holding this effect's spend values in
+            monetary units.  This is a symbolic slice of the optimizer's
+            combined flat budget variable — gradients flow through it back
+            to the optimizer.
+        num_periods : int
+            Number of optimization periods (dates).
+        budget_distribution : XTensorVariable or None
+            Optional time-distribution weights of shape ``(num_periods,)``.
+            When ``None`` spend is distributed uniformly across periods.
+
+        Returns
+        -------
+        dict[str, XTensorVariable]
+            Mapping of ``{pm_data_variable_name: replacement_tensor}`` to be
+            passed to ``pm.do()``.  Each replacement tensor must be compatible
+            in shape and dtype with the ``pm.Data`` node it replaces.
+        """
+
+    @property
+    @abstractmethod
+    def budget_channel_names(self) -> list[str]:
+        """Names of the budget channels contributed by this effect.
+
+        Must match the coordinate values registered under :attr:`budget_dim`
+        inside :meth:`create_data` (i.e. the same list as
+        ``pymc_model.coords[self.budget_dim]`` after the model is built).
+        Used by
+        :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`
+        to route each per-channel budget back to the effect for posterior
+        predictive sampling.
+
+        Returns
+        -------
+        list[str]
+            Ordered list of channel/event names, consistent with
+            ``pymc_model.coords[self.budget_dim]``.
+        """
+
+    @abstractmethod
+    def set_budget_for_sampling(
+        self,
+        budget_per_item: npt.NDArray,
+        model: pm.Model,
+    ) -> None:
+        """Update PyMC shared data to reflect *budget_per_item* for sampling.
+
+        Called by
+        :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`
+        to apply the optimised budget to the *original* model before it is
+        cloned inside ``sample_posterior_predictive``.  The clone inherits the
+        updated shared-variable values, so sampling sees the right parameters
+        without any changes to :class:`~pymc_marketing.mmm.mmm.MMM`.
+
+        Parameters
+        ----------
+        budget_per_item : ndarray of float, shape (n,)
+            Monetary budget per channel/event, in the same order as
+            :attr:`budget_channel_names`.
+        model : pm.Model
+            The PyMC model on which ``pm.set_data`` should be called.
+        """
+
+    @property
+    def channel_contribution_var_name(self) -> str | None:
+        """Name of the per-channel contribution ``pmd.Deterministic``, or ``None``.
+
+        When not ``None``,
+        :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`
+        automatically includes the corresponding ``*_original_scale`` variable in
+        ``var_names`` (if :meth:`~pymc_marketing.mmm.mmm.MMM.add_original_scale_contribution_variable`
+        has been called for it), enabling attribution plots for effect channels
+        alongside media channels.
+
+        The default is ``None`` (no per-channel tracking).  Subclasses that
+        register a per-channel contribution ``pmd.Deterministic`` in
+        :meth:`create_effect` should override this property.
+
+        Returns
+        -------
+        str or None
+        """
+        return None
 
 
 class FourierEffect(MuEffect):
@@ -676,7 +868,6 @@ class EventAdditiveEffect(MuEffect):
         ----------
         mmm : MMM
             The MMM model instance.
-
         """
         model: pm.Model = mmm.model
 
@@ -761,6 +952,556 @@ class EventAdditiveEffect(MuEffect):
         }
 
 
+class DiscountedEventEffect(OptimizableMuEffect):
+    r"""Promotional event effect with a log-log discount-depth lever.
+
+    Each event window (e.g. Black Friday, Summer Sale) has a known date range.
+    The optimizer decides *how deep* to discount for each event.  Deeper
+    discounts drive larger revenue lifts, with diminishing returns captured by
+    the :math:`\ln(1+d)` transformation, but shallower margins captured by the
+    :math:`(1-d)` price-retention factor and the :math:`-d \cdot r_k` baseline
+    cost term.
+
+    The lever is the **discount percentage** :math:`d_k \in [0, 1]` (e.g.
+    ``0.20`` for a 20 % discount).  The model is a full revenue-retention
+    specification:
+
+    .. math::
+
+        \text{lift}_k = \beta_k \cdot \ln(1 + d_k) \cdot (1 - d_k) - d_k \cdot r_k
+
+        \text{contribution}_t = \sum_k \text{lift}_k
+                                 \cdot \mathbf{1}[t \in W_k]
+
+    :math:`\beta_k` is a per-event positive scalar inferred from the data.
+    The :math:`\ln(1 + d_k) \cdot (1 - d_k)` term is hump-shaped: the
+    logarithm captures volume uplift (more customers shop during deeper
+    discounts) while :math:`(1-d_k)` captures price retention (at 100 %
+    discount the business collects nothing per unit sold).  The additional
+    :math:`-d_k \cdot r_k` term deducts the margin forgone on the *existing*
+    customer base: a fraction :math:`d_k` of the average baseline per-period
+    revenue :math:`r_k` is sacrificed to fund the discount.
+
+    Together these produce a hump-shaped curve with an interior optimum whose
+    depth shifts with :math:`r_k / \beta_k`:
+
+    * At :math:`d = 0`: no discount, zero lift.
+    * At :math:`d = 1`: 100 % discount — the :math:`\beta` term vanishes and
+      the :math:`-r_k` cost dominates, driving total per-period revenue to
+      approximately zero (baseline ≈ :math:`r_k` by construction).
+
+    The optimizer shares a single budget pool across media channels and
+    promotional events.  Each euro allocated to event :math:`k` becomes
+    ``discount_pct = budget / event_revenue``, where ``event_revenue`` is
+    automatically computed as the sum of the observed target ``y`` over the
+    event window.  The budget constraint carries the cost; there is no
+    separate cost term in the forward model.
+
+    Parameters
+    ----------
+    df_events : pd.DataFrame
+        One row per promotional event with columns:
+
+        * ``name``            — unique event identifier (model coord).
+        * ``start_date``      — first date the promotion is active (inclusive).
+        * ``end_date``        — last date the promotion is active (inclusive).
+        * ``discount_pct``    — historical discount percentage ∈ [0, 1] (e.g.
+          ``0.20`` for 20 % off).  Used to initialise the data variable during
+          fitting.  Defaults to zero when absent.
+    prefix : str
+        Prefix for all PyMC variables registered by this effect.  The
+        per-event beta variable is named ``f"{prefix}_beta"``.
+    beta_prior : Prior, optional
+        Prior distribution for the per-event lift coefficient :math:`\beta_k`.
+        Defaults to ``Prior("HalfNormal", sigma=1)``.  The ``dims`` argument
+        is set automatically to ``(prefix,)`` so each event gets its own
+        independent draw.
+    date_dim_name : str
+        Name of the date coordinate in the PyMC model.  Defaults to
+        ``"date"``.
+    discount_min : float, optional
+        Minimum allowed discount fraction (0–1).  Budget lower bound per
+        event is ``discount_min × event_revenue``.  Defaults to ``0.0``
+        (no lower restriction).
+    discount_max : float, optional
+        Maximum allowed discount fraction (0–1).  Budget upper bound per
+        event is ``discount_max × event_revenue``.  Defaults to ``1.0``
+        (full event revenue).  Set this to, e.g., ``0.35`` to cap the
+        optimizer at a 35 % discount across all events.
+
+    Examples
+    --------
+    Model two promotional events and optimise discount depth:
+
+    .. code-block:: python
+
+        import pandas as pd
+        from pymc_marketing.mmm import MMM, DiscountedEventEffect
+
+        df_events = pd.DataFrame(
+            {
+                "name": ["black_friday", "summer_sale"],
+                "start_date": ["2024-11-29", "2024-07-01"],
+                "end_date": ["2024-12-02", "2024-07-07"],
+                "discount_pct": [0.30, 0.20],
+            }
+        )
+
+        effect = DiscountedEventEffect(df_events=df_events, prefix="promo")
+
+        mmm = MMM(...)
+        mmm.add_mu_effect(effect)
+        mmm.build_model(X, y)
+
+    Notes
+    -----
+    During inference ``discount_pct`` (from ``df_events``) is registered as a
+    :func:`pymc.dims.Data` node so it can be swapped during optimisation.
+    ``event_revenue`` and ``revenue_per_period`` are computed automatically by
+    summing (or averaging) the observed target ``y`` over each event's date
+    window.  ``revenue_per_period`` is normalised by ``target_scale`` and
+    registered as a :func:`pymc.dims.Data` node so it participates correctly
+    in the model's internal (scaled) computation graph.
+
+    The window membership matrix ``(date × event)`` is computed from
+    start/end dates at build time and stored as a :func:`pymc.dims.Data` node
+    so it updates correctly during posterior predictive on new date ranges.
+    """
+
+    df_events: InstanceOf[pd.DataFrame]
+    prefix: str
+    beta_prior: InstanceOf[Prior] = Field(
+        default_factory=lambda: Prior("HalfNormal", sigma=1)
+    )
+    date_dim_name: str = "date"
+    reference_date: str = "2025-01-01"
+    discount_min: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Minimum allowed discount fraction (0–1). "
+            "Budget lower bound per event is ``discount_min × event_revenue``."
+        ),
+    )
+    discount_max: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Maximum allowed discount fraction (0–1). "
+            "Budget upper bound per event is ``discount_max × event_revenue``."
+        ),
+    )
+
+    _event_revenue: npt.NDArray[np.float64] = PrivateAttr(default=None)
+    _revenue_per_period: npt.NDArray[np.float64] = PrivateAttr(default=None)
+
+    def model_post_init(self, context: Any, /) -> None:
+        """Validate required columns and discount bound consistency."""
+        required = {"name", "start_date", "end_date"}
+        if missing := required.difference(self.df_events.columns):
+            raise ValueError(
+                f"df_events is missing required columns: {missing}. "
+                f"Got: {list(self.df_events.columns)}"
+            )
+
+        if self.discount_min > self.discount_max:
+            raise ValueError(
+                f"discount_min ({self.discount_min}) must be <= discount_max "
+                f"({self.discount_max})."
+            )
+
+        if "discount_pct" in self.df_events.columns:
+            pct_vals = self.df_events["discount_pct"].fillna(0.0)
+            if (pct_vals < 0).any() or (pct_vals > 1).any():
+                raise ValueError(
+                    "df_events['discount_pct'] must be in [0, 1]. "
+                    f"Got values outside range: {pct_vals[~pct_vals.between(0, 1)].tolist()}"
+                )
+
+    # ------------------------------------------------------------------
+    # OptimizableMuEffect contract
+    # ------------------------------------------------------------------
+
+    @property
+    def budget_bounds(self) -> list[tuple[float, float]]:
+        """Per-event bounds for the monetary discount budget.
+
+        Lower bound is ``discount_min × event_revenue``; upper bound is
+        ``discount_max × event_revenue``.  Requires :meth:`create_data` to
+        have been called (i.e. the MMM model must have been built first).
+        """
+        if self._event_revenue is None:
+            raise RuntimeError(
+                "event_revenue has not been computed yet. "
+                "Call mmm.build_model(X, y) before accessing budget_bounds."
+            )
+        return [
+            (self.discount_min * float(rev), self.discount_max * float(rev))
+            for rev in self._event_revenue
+        ]
+
+    def replace_for_optimization(
+        self,
+        budget_slice: XTensorVariable,
+        num_periods: int,
+        budget_distribution: XTensorVariable | None,
+    ) -> dict[str, XTensorVariable]:
+        """Convert a monetary budget slice to a discount percentage.
+
+        The optimizer allocates monetary amounts (€) per event.  This method
+        divides by ``event_revenue`` to recover the implied discount percentage,
+        which is what the model data variable ``{prefix}_discount_pct`` expects.
+
+        Parameters
+        ----------
+        budget_slice : XTensorVariable
+            Shape ``(n_events,)`` with ``dims=(budget_dim,)``.  Each entry is
+            the monetary discount budget allocated to that event (same currency
+            as ``y`` and media channels).
+        num_periods : int
+            Number of optimisation periods (unused — discount is event-level).
+        budget_distribution : XTensorVariable or None
+            Unused — discount is allocated per event, not per period.
+
+        Returns
+        -------
+        dict
+            ``{f"{prefix}_discount_pct": pct}`` where ``pct`` has
+            ``dims=(prefix,)`` and values bounded to ``[0, 1]`` by the
+            optimizer's ``budget_bounds``.
+        """
+        event_revenue = ptx.as_xtensor(
+            self._event_revenue,
+            dims=(self.prefix,),
+        )
+        return {
+            f"{self.prefix}_discount_pct": budget_slice
+            / ptx.math.switch(event_revenue > 0, event_revenue, 1.0)
+        }
+
+    # ------------------------------------------------------------------
+    # MuEffect contract
+    # ------------------------------------------------------------------
+
+    def _compute_event_revenue(
+        self, mmm: Model
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Compute per-event revenue and revenue-per-period from the observed target.
+
+        Sums ``y`` over each event's date window to obtain the total event
+        revenue, then divides by the number of in-sample periods covered by
+        the window to obtain the average revenue per period.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM instance; must expose ``y``, ``X``, and ``date_column``
+            attributes (set by :meth:`~MMM.build_model`).
+
+        Returns
+        -------
+        event_revenue : ndarray of float64, shape (n_events,)
+            Total observed target ``y`` summed over each event window.
+        revenue_per_period : ndarray of float64, shape (n_events,)
+            ``event_revenue / n_periods_k``, where ``n_periods_k`` is the
+            number of in-sample dates that fall within event *k*'s window.
+            Zero for events with no in-sample dates.
+        """
+        y = getattr(mmm, "y", None)
+        X = getattr(mmm, "X", None)
+        date_column = getattr(mmm, "date_column", None)
+
+        if y is None or X is None or date_column is None:
+            raise ValueError(
+                "Cannot compute event_revenue: the MMM instance does not "
+                "expose 'y', 'X', or 'date_column'. "
+                "Use a standard MMM instance and call build_model(X, y) first."
+            )
+
+        dates = pd.to_datetime(X[date_column])
+        y_arr = np.asarray(y)
+        revenues = []
+        per_period = []
+        for _, row in self.df_events.iterrows():
+            mask = (dates >= pd.Timestamp(row["start_date"])) & (
+                dates <= pd.Timestamp(row["end_date"])
+            )
+            ev_rev = float(y_arr[mask.values].sum())
+            n_periods = int(mask.sum())
+            revenues.append(ev_rev)
+            per_period.append(ev_rev / n_periods if n_periods > 0 else 0.0)
+        return np.array(revenues, dtype="float64"), np.array(
+            per_period, dtype="float64"
+        )
+
+    def create_data(self, mmm: Model) -> None:
+        """Register date offsets, discount percentage, and revenue-per-period as ``pmd.Data`` nodes.
+
+        Also computes and caches per-event revenue and per-period revenue from
+        the observed target ``y`` by summing over each event's date window.
+
+        ``revenue_per_period`` is normalized by ``target_scale`` so it lives
+        in the same (model-internal) scale as ``beta`` and the predicted mean.
+
+        Follows the same pattern as :class:`EventAdditiveEffect`: a shared
+        ``days`` node (created once per model) plus per-effect ``start_diff``
+        and ``end_diff`` offsets drive the window membership symbolically
+        inside :meth:`create_effect`, so no separate ``window_mask`` array
+        is needed.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        """
+        self._event_revenue, self._revenue_per_period = self._compute_event_revenue(mmm)
+
+        # Normalise to model-internal scale so the beta*(-d*r_k) term is on the
+        # same scale as the rest of the linear predictor.  We access .scalers
+        # via getattr because the Model protocol does not expose it (it is an
+        # MMM-specific attribute), keeping the protocol clean.
+        _scalers = getattr(mmm, "scalers", None)
+        target_scale = float(_scalers._target) if _scalers is not None else 1.0
+        r_per_period_normalized = self._revenue_per_period / (
+            target_scale if target_scale > 0 else 1.0
+        )
+
+        model: pm.Model = mmm.model
+
+        model_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
+        model.add_coord(self.prefix, self.df_events["name"].to_numpy())
+
+        if "days" not in model:
+            pmd.Data(
+                "days",
+                days_from_reference(model_dates, self.reference_date),
+                dims=self.date_dim_name,
+            )
+
+        pmd.Data(
+            f"{self.prefix}_start_diff",
+            days_from_reference(
+                pd.to_datetime(self.df_events["start_date"]), self.reference_date
+            ),
+            dims=(self.prefix,),
+        )
+        pmd.Data(
+            f"{self.prefix}_end_diff",
+            days_from_reference(
+                pd.to_datetime(self.df_events["end_date"]), self.reference_date
+            ),
+            dims=(self.prefix,),
+        )
+
+        pmd.Data(
+            f"{self.prefix}_discount_pct",
+            self.df_events.get(
+                "discount_pct", pd.Series(0.0, index=self.df_events.index)
+            )
+            .fillna(0.0)
+            .to_numpy(dtype="float64"),
+            dims=(self.prefix,),
+        )
+
+        pmd.Data(
+            f"{self.prefix}_revenue_per_period",
+            r_per_period_normalized.astype("float64"),
+            dims=(self.prefix,),
+        )
+
+    def create_effect(self, mmm: Model) -> XTensorVariable:
+        r"""Build the discount contribution via the full revenue-retention model.
+
+        The contribution is :math:`\beta_k \cdot \ln(1+d_k) \cdot (1-d_k) - d_k \cdot r_k`:
+
+        * :math:`\ln(1+d_k)` — volume uplift (log-linear elasticity).
+        * :math:`(1-d_k)` — price retention; at 100 % discount the business
+          collects nothing, so the :math:`\beta` term returns to zero.
+        * :math:`-d_k \cdot r_k` — cost of discounting existing customers:
+          a fraction :math:`d_k` of the baseline per-period revenue :math:`r_k`
+          is forgone as margin.  At :math:`d=1` this exactly cancels the
+          remaining baseline, driving total revenue per period to zero.
+
+        .. math::
+
+            \text{lift}_k = \beta_k \cdot \ln(1 + d_k) \cdot (1 - d_k)
+                            - d_k \cdot r_k
+
+        where :math:`r_k = \text{event\_revenue}_k / n\_periods_k` is the
+        average observed revenue per in-sample period during event *k*,
+        normalised to the model's internal (scaled) units.
+
+        The function has a hump shape whose peak shifts with :math:`r_k / \beta_k`:
+        events with low :math:`r_k / \beta_k` favour deeper discounts; events
+        with high :math:`r_k / \beta_k` favour shallower discounts.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+
+        Returns
+        -------
+        XTensorVariable
+            Shape ``(date,)`` — the additive contribution to the model mean.
+        """
+        model: pm.Model = mmm.model
+
+        days = model["days"]  # (date,)
+        start_ref = days - model[f"{self.prefix}_start_diff"]  # (date, prefix)
+        end_ref = days - model[f"{self.prefix}_end_diff"]  # (date, prefix)
+
+        # Boolean window: event k is active on date t when it has started and
+        # not yet ended.  XTensor broadcasts (date,) x (prefix,) -> (date, prefix).
+        window_mask = ptx.math.cast(
+            (start_ref >= 0) & (end_ref <= 0), "float64"
+        )  # (date, prefix)
+
+        discount_pct = model[f"{self.prefix}_discount_pct"]  # (prefix,)
+
+        # Log-log transformation: ln(1 + d) maps [0, 1] → [0, ln(2)] ≈ [0, 0.69]
+        log_pct = ptx.math.log1p(discount_pct)  # (prefix,)
+
+        # Per-event lift coefficient — one beta per event via dims
+        beta_prior = self.beta_prior.deepcopy()
+        beta_prior.dims = (self.prefix,)
+        beta = beta_prior.create_variable(f"{self.prefix}_beta", xdist=True)
+
+        # Average revenue per period in model-internal (normalized) scale.
+        # Registered as a pmd.Data node in create_data.
+        r_per_period = model[f"{self.prefix}_revenue_per_period"]  # (prefix,)
+
+        # Full revenue-retention lift:
+        #   beta*ln(1+d)*(1-d)  -- hump-shaped volume x price-retention term
+        #   -d*r_k              -- cost of discounting existing customers (margin forgone)
+        # At d=0: lift=0.  At d=1: beta*ln(2)*0 - r_k = -r_k (revenue -> 0).
+        lift = (
+            beta * log_pct * (1.0 - discount_pct) - discount_pct * r_per_period
+        )  # (prefix,)
+
+        # Per-event contributions (date, prefix): tracked for posterior predictive
+        # attribution.  Dim name matches self.prefix so the coord values are the
+        # event names (e.g. ["back_to_school", "black_friday", "summer_sale"]).
+        contributions = lift * window_mask  # (date, prefix) — computed once
+        pmd.Deterministic(
+            self.channel_contribution_var_name,
+            contributions,
+        )
+
+        # Sum active lifts across events for each date: (date,)
+        signal = contributions.sum(dim=self.prefix)
+
+        return pmd.Deterministic(
+            self.contribution_var_name,
+            signal,
+        )
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+        """Update the shared ``days`` node for a new date range.
+
+        Parameters
+        ----------
+        mmm : MMM
+            The MMM model instance.
+        model : pm.Model
+            The (possibly cloned) PyMC model.
+        X : xr.Dataset
+            The new dataset (unused directly; dates come from model coords).
+        """
+        new_dates = _get_datetime_coords(
+            model.coords[self.date_dim_name], self.date_dim_name
+        )
+        pm.set_data(
+            {"days": days_from_reference(new_dates, self.reference_date)},
+            model=model,
+        )
+        # discount_pct stays at historical values for plain posterior predictive;
+        # BudgetOptimizerWrapper overrides it via set_budget_for_sampling when
+        # a budget allocation is available.
+
+    # ------------------------------------------------------------------
+    # OptimizableMuEffect sampling contract
+    # ------------------------------------------------------------------
+
+    @property
+    def budget_channel_names(self) -> list[str]:
+        """Event names, consistent with the ``prefix`` coord set in ``create_data``.
+
+        Returns
+        -------
+        list[str]
+            One entry per promotional event, in ``df_events`` row order.
+        """
+        return self.df_events["name"].tolist()
+
+    def set_budget_for_sampling(
+        self,
+        budget_per_item: npt.NDArray,
+        model: pm.Model,
+    ) -> None:
+        """Convert per-event monetary budgets to ``discount_pct`` and inject into model.
+
+        Mirrors the symbolic conversion in :meth:`replace_for_optimization` but
+        operates on concrete values so that ``pm.sample_posterior_predictive``
+        sees the optimised discount levels rather than the historical ones.
+
+        Parameters
+        ----------
+        budget_per_item : ndarray of float, shape (n_events,)
+            Monetary budget per event (same order as :attr:`budget_channel_names`).
+        model : pm.Model
+            The PyMC model on which ``pm.set_data`` will be called.
+        """
+        key = f"{self.prefix}_discount_pct"
+        safe_revenue = np.where(self._event_revenue > 0, self._event_revenue, 1.0)
+        discount_pct = budget_per_item / safe_revenue
+        pm.set_data(
+            {key: discount_pct.astype("float64")},
+            model=model,
+        )
+
+    @property
+    def channel_contribution_var_name(self) -> str:
+        """Name of the per-event contribution ``pmd.Deterministic``.
+
+        Registered by :meth:`create_effect` as ``f"{self.prefix}_channel_contribution"``.
+        Enables :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`
+        to include per-event attribution in the returned dataset when
+        :meth:`~pymc_marketing.mmm.mmm.MMM.add_original_scale_contribution_variable`
+        has been called for this variable.
+
+        Returns
+        -------
+        str
+            Variable name, e.g. ``"events_channel_contribution"``.
+        """
+        return f"{self.prefix}_channel_contribution"
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return ``df_events`` as a supplementary idata group."""
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df_events.reset_index(drop=True)
+            ),
+        }
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialise to dict (``df_events`` stored via idata group)."""
+        return {
+            "prefix": self.prefix,
+            "reference_date": self.reference_date,
+            "beta_prior": self.beta_prior.to_dict(),
+            "date_dim_name": self.date_dim_name,
+            "discount_min": self.discount_min,
+            "discount_max": self.discount_max,
+            "df_events_group": f"supplementary_data_{self.prefix}",
+        }
+
+
 def _deserialize_event_additive_effect(
     data: dict[str, Any],
     context: Any,
@@ -802,6 +1543,50 @@ def _deserialize_event_additive_effect(
     )
 
 
+def _deserialize_discounted_event_effect(
+    data: dict[str, Any],
+    context: Any,
+) -> "DiscountedEventEffect":
+    """Deserialize a DiscountedEventEffect, reading df_events from an idata group."""
+    from pymc_marketing.serialization import SerializationError
+
+    group_name = data["df_events_group"]
+
+    if context is None or context.idata is None:
+        raise SerializationError(
+            f"Cannot deserialize DiscountedEventEffect: no InferenceData "
+            f"provided. The df_events DataFrame is stored in idata group "
+            f"'{group_name}' and requires a DeserializationContext with idata."
+        )
+
+    try:
+        ds = context.idata[group_name]
+        df_events = ds.to_dataframe().reset_index()
+    except (KeyError, AttributeError) as e:
+        raise SerializationError(
+            f"Cannot read supplementary data group '{group_name}' from "
+            f"InferenceData: {e}"
+        ) from e
+
+    beta_prior_data = data.get("beta_prior")
+    if beta_prior_data is not None:
+        from pymc_extras.prior import Prior as _Prior
+
+        beta_prior = _Prior.from_dict(beta_prior_data)
+    else:
+        beta_prior = Prior("HalfNormal", sigma=1)
+
+    return DiscountedEventEffect(
+        df_events=df_events,
+        prefix=data["prefix"],
+        beta_prior=beta_prior,
+        reference_date=data.get("reference_date", "2025-01-01"),
+        date_dim_name=data.get("date_dim_name", "date"),
+        discount_min=data.get("discount_min", 0.0),
+        discount_max=data.get("discount_max", 1.0),
+    )
+
+
 def _register_event_additive_effect() -> None:
     from pymc_marketing.serialization import serialization
 
@@ -812,4 +1597,15 @@ def _register_event_additive_effect() -> None:
     )
 
 
+def _register_discounted_event_effect() -> None:
+    from pymc_marketing.serialization import serialization
+
+    serialization.register(
+        f"{DiscountedEventEffect.__module__}.{DiscountedEventEffect.__qualname__}",
+        DiscountedEventEffect,
+        deserializer=_deserialize_discounted_event_effect,
+    )
+
+
 _register_event_additive_effect()
+_register_discounted_event_effect()
