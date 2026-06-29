@@ -204,7 +204,7 @@ Requirements
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an
   xarray.DataArray (use ``optimizer_xarray_builder(...)``).
 - For backward compatibility, pass a legacy wrapper (implementing
-  :class:`OptimizerCompatibleModel`) as ``model=`` — the optimizer will unpack it
+  ``OptimizerCompatibleModel``) as ``model=`` — the optimizer will unpack it
   automatically.
 
 Notes
@@ -1027,7 +1027,7 @@ class BudgetOptimizer(BaseModel):
     Notes
     -----
     For backward compatibility, pass a legacy wrapper (implementing
-    :class:`OptimizerCompatibleModel`) as ``model=`` — the optimizer will
+    ``OptimizerCompatibleModel``) as ``model=`` — the optimizer will
     unpack it automatically via a ``model_validator``.
 
     Examples
