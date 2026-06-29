@@ -294,3 +294,26 @@ for i, cell in enumerate(nb['cells']):
 
 uv run pre-commit run --files docs/source/notebooks/category/my_notebook.ipynb
 ```
+
+### Fast Figure Iteration (Avoid Slow Notebook Re-Executions)
+
+Re-executing a full notebook just to tweak a plot is painfully slow (MCMC
+takes minutes). Instead, isolate the figure code into a standalone script
+in `sandbox/`:
+
+1. **Extract** the figure cell into `sandbox/test_something.py`
+2. **Mock data** with the same shape/dims as the real idata (use
+   `rng = np.random.default_rng(42)` for reproducibility)
+3. **Run the script** — no MCMC, no data loading, just the plot code
+4. **Iterate** with the user until the output looks right
+5. **Apply** the final pattern back to the notebook
+
+```bash
+# 5-second iteration loop vs 10-minute notebook re-execution
+uv run python sandbox/test_figure.py
+```
+
+Tmp outputs in `sandbox/` are just for feedback, not kept. The point is
+speed: hours of notebook re-execution becomes seconds of isolated
+iteration. Used for `plot_forest` (delaxes, labels) and `plot_dist`
+(CI removal, legends).
