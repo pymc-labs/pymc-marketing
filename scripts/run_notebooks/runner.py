@@ -66,7 +66,9 @@ def _patched_output(self, outs, msg, display_id, cell_index):
 nbclient.client.NotebookClient.output = _patched_output
 
 import argparse
+import gc
 import logging
+import time
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TypedDict
@@ -164,17 +166,70 @@ def actual_run(notebook_path: Path, kernel_name: str = KERNEL_NAME) -> None:
     )
 
 
+# Number of attempts for each notebook before giving up. Only *transient*
+# (out-of-memory) failures are retried -- see ``_is_transient_error``.
+MAX_NOTEBOOK_ATTEMPTS = 3
+
+# Markers that identify a flaky out-of-memory failure rather than a genuine
+# code error. The hosted CI runner occasionally raises a transient
+# ``MemoryError: std::bad_alloc`` while a notebook renders a figure, even
+# though peak usage is well within the runner's limit -- a noisy-neighbour /
+# momentary-pressure artifact, not a defect in the notebook.
+_TRANSIENT_ERROR_MARKERS = (
+    "MemoryError",
+    "bad_alloc",
+    "Cannot allocate memory",
+    "Unable to allocate",
+    "OutOfMemory",
+)
+
+
+def _is_transient_error(error: Exception) -> bool:
+    """Return True if *error* looks like a flaky out-of-memory failure.
+
+    Genuine notebook code errors are deterministic and therefore keep
+    failing across retries until the attempts are exhausted, so a retry is
+    safe: it only rescues transient OOM blips and never hides a real bug.
+    ``papermill.PapermillExecutionError`` carries the kernel-side exception
+    name/value in ``ename``/``evalue``, so we inspect those too.
+    """
+    haystack = " ".join(
+        str(part)
+        for part in (
+            type(error).__name__,
+            error,
+            getattr(error, "ename", ""),
+            getattr(error, "evalue", ""),
+        )
+    )
+    return any(marker in haystack for marker in _TRANSIENT_ERROR_MARKERS)
+
+
 def run_notebook(
-    notebook_path: Path, mock: bool = True, kernel_name: str = KERNEL_NAME
+    notebook_path: Path,
+    mock: bool = True,
+    kernel_name: str = KERNEL_NAME,
+    max_attempts: int = MAX_NOTEBOOK_ATTEMPTS,
 ) -> None:
     logging.info(f"Running notebook: {notebook_path.name}")
     run = mock_run if mock else actual_run
 
-    try:
-        run(notebook_path, kernel_name=kernel_name)
-    except Exception as e:
-        logging.error(f"Error running notebook: {notebook_path.name}")
-        raise e
+    for attempt in range(1, max_attempts + 1):
+        try:
+            run(notebook_path, kernel_name=kernel_name)
+            return
+        except Exception as e:
+            if _is_transient_error(e) and attempt < max_attempts:
+                logging.warning(
+                    f"Transient (out-of-memory) failure running "
+                    f"{notebook_path.name} on attempt {attempt}/{max_attempts}; "
+                    f"retrying with a fresh kernel. Error: {type(e).__name__}: {e}"
+                )
+                gc.collect()
+                time.sleep(5)
+                continue
+            logging.error(f"Error running notebook: {notebook_path.name}")
+            raise e
 
 
 class RunParams(TypedDict):
