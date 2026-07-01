@@ -23,6 +23,8 @@ import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.figure import Figure
 
+from pymc_marketing.mmm.plotting.budget import BudgetPlots
+
 matplotlib.use("Agg")
 
 SEED = sum(map(ord, "BudgetPlots tests"))
@@ -388,3 +390,136 @@ class TestContributionOverTime:
             simple_contribution_samples, figsize=(10, 4)
         )
         assert isinstance(fig, Figure)
+
+
+def _axis_by_metric(fig, metric: str):
+    """Return the first axis whose title mentions ``metric``."""
+    return next(ax for ax in fig.get_axes() if metric in ax.get_title())
+
+
+class TestBudgetAllocation:
+    def test_returns_figure_and_axes(self, simple_allocation_samples):
+        fig, axes = BudgetPlots().budget_allocation(simple_allocation_samples)
+        assert isinstance(fig, Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.ndim >= 1
+
+    def test_returns_plot_collection_when_requested(self, simple_allocation_samples):
+        result = BudgetPlots().budget_allocation(
+            simple_allocation_samples, return_as_pc=True
+        )
+        assert isinstance(result, PlotCollection)
+
+    def test_simple_has_two_metric_panels(self, simple_allocation_samples):
+        fig, _axes = BudgetPlots().budget_allocation(simple_allocation_samples)
+        assert len(fig.get_axes()) == 2
+
+    def test_panel_model_creates_two_panels_per_geo(self, panel_allocation_samples):
+        fig, _axes = BudgetPlots().budget_allocation(panel_allocation_samples)
+        # 2 metrics x 2 geos
+        assert len(fig.get_axes()) == 4
+
+    def test_metric_panels_have_independent_scales(self, simple_allocation_samples):
+        """Spend and contribution live on different y-scales (core design)."""
+        fig, _axes = BudgetPlots().budget_allocation(simple_allocation_samples)
+        spend = _axis_by_metric(fig, "Allocated Spend")
+        contribution = _axis_by_metric(fig, "Channel Contribution")
+        # total_allocation = allocation * n_date >> contribution summed over date
+        assert spend.get_ylim()[1] > contribution.get_ylim()[1]
+
+    def test_point_and_whisker_per_channel(self, simple_allocation_samples, channels):
+        fig, _axes = BudgetPlots().budget_allocation(simple_allocation_samples)
+        ax = fig.get_axes()[0]
+        assert len(ax.get_lines()) == len(channels)
+        assert len(ax.collections) == len(channels)
+
+    def test_allocation_whisker_is_degenerate(self, simple_allocation_samples):
+        """Deterministic spend -> zero-height whisker; contribution has HDI."""
+        fig, _axes = BudgetPlots().budget_allocation(simple_allocation_samples)
+        spend = _axis_by_metric(fig, "Allocated Spend")
+        contribution = _axis_by_metric(fig, "Channel Contribution")
+        for line in spend.get_lines():
+            ydata = line.get_ydata()
+            assert np.isclose(ydata[0], ydata[-1])
+        assert any(
+            not np.isclose(line.get_ydata()[0], line.get_ydata()[-1])
+            for line in contribution.get_lines()
+        )
+
+    def test_xticklabels_are_channel_names(self, simple_allocation_samples, channels):
+        fig, _axes = BudgetPlots().budget_allocation(simple_allocation_samples)
+        ax = fig.get_axes()[0]
+        labels = [tick.get_text() for tick in ax.get_xticklabels()]
+        assert labels == list(channels)
+
+    def test_dims_subsetting(self, panel_allocation_samples):
+        fig, _axes = BudgetPlots().budget_allocation(
+            panel_allocation_samples, dims={"geo": ["CA"]}
+        )
+        assert len(fig.get_axes()) == 2
+
+    def test_hdi_prob_accepted(self, simple_allocation_samples):
+        fig, _axes = BudgetPlots().budget_allocation(
+            simple_allocation_samples, hdi_prob=0.89
+        )
+        assert isinstance(fig, Figure)
+
+    def test_figsize_accepted(self, simple_allocation_samples):
+        fig, _axes = BudgetPlots().budget_allocation(
+            simple_allocation_samples, figsize=(10, 5)
+        )
+        assert isinstance(fig, Figure)
+
+    def test_point_and_hdi_kwargs_forwarded(self, simple_allocation_samples):
+        fig, _axes = BudgetPlots().budget_allocation(
+            simple_allocation_samples,
+            point_kwargs={"marker": "s"},
+            hdi_kwargs={"linewidth": 3.0},
+        )
+        assert isinstance(fig, Figure)
+
+    def test_missing_channel_contribution_raises(self):
+        bad_samples = xr.Dataset(
+            {
+                "total_allocation": xr.DataArray(
+                    [1000.0, 2000.0],
+                    dims=("channel",),
+                    coords={"channel": ["tv", "radio"]},
+                )
+            }
+        )
+        with pytest.raises(ValueError, match="channel_contribution_original_scale"):
+            BudgetPlots().budget_allocation(bad_samples)
+
+    def test_missing_total_allocation_raises(self):
+        rng = np.random.default_rng(SEED)
+        channels = ["tv", "radio"]
+        bad_samples = xr.Dataset(
+            {
+                "channel_contribution_original_scale": xr.DataArray(
+                    rng.uniform(0, 1, (10, 5, 2)),
+                    dims=("sample", "date", "channel"),
+                    coords={"channel": channels},
+                )
+            }
+        )
+        with pytest.raises(ValueError, match="total_allocation"):
+            BudgetPlots().budget_allocation(bad_samples)
+
+    def test_missing_channel_dim_raises(self):
+        rng = np.random.default_rng(SEED)
+        bad_samples = xr.Dataset(
+            {
+                "channel_contribution_original_scale": xr.DataArray(
+                    rng.uniform(0, 1, (10, 5)),
+                    dims=("sample", "date"),
+                ),
+                "total_allocation": xr.DataArray([1000.0], dims=("x",)),
+            }
+        )
+        with pytest.raises(ValueError, match="channel"):
+            BudgetPlots().budget_allocation(bad_samples)
+
+    def test_backend_without_return_as_pc_raises(self, simple_allocation_samples):
+        with pytest.raises(ValueError, match="return_as_pc=True"):
+            BudgetPlots().budget_allocation(simple_allocation_samples, backend="plotly")
