@@ -184,7 +184,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import Annotated, Any, Literal, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Self, cast
 
 import arviz as az
 import numpy as np
@@ -254,6 +254,9 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
 from pymc_marketing.version import __version__
+
+if TYPE_CHECKING:
+    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -2534,6 +2537,130 @@ class MMM(RegressionModelBuilder):
 
         return model
 
+    def create_optimization_model(
+        self,
+        start_date: str | pd.Timestamp,
+        end_date: str | pd.Timestamp,
+    ) -> pm.Model:
+        """Return a PyMC model configured for the given optimization window.
+
+        Builds a zero-spend dataset over ``[start_date, end_date]`` (at the
+        model's own date frequency) and transforms it using the same
+        preprocessing pipeline as :meth:`sample_posterior_predictive`.  The
+        resulting model has ``channel_data`` set to zeros of the correct shape
+        and can be passed directly to :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
+
+        Parameters
+        ----------
+        start_date : str or pd.Timestamp
+            First date of the optimization window (inclusive).
+        end_date : str or pd.Timestamp
+            Last date of the optimization window (inclusive).
+
+        Returns
+        -------
+        pymc.Model
+            A cloned PyMC model ready for budget optimization.
+        """
+        zero_data = create_zero_dataset(
+            model=self,
+            start_date=start_date,
+            end_date=end_date,
+            include_carryover=True,
+        )
+
+        dataset_xarray = self._posterior_predictive_data_transformation(
+            X=zero_data,
+            include_last_observations=False,
+        )
+
+        pymc_model = self._set_xarray_data(
+            dataset_xarray=dataset_xarray,
+            model=self.model.copy(),
+        )
+
+        for mu_effect in self.mu_effects:
+            mu_effect.set_data(self, pymc_model, dataset_xarray)
+
+        return pymc_model
+
+    def budget_optimizer(
+        self,
+        start_date: str | pd.Timestamp,
+        end_date: str | pd.Timestamp,
+        *,
+        budgets_to_optimize: xr.DataArray | None = None,
+        cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
+        compile_kwargs: dict | None = None,
+        **kwargs: Any,
+    ) -> BudgetOptimizer:
+        """Create a :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` for a future window.
+
+        This is the recommended entry point for budget optimization with the
+        multidimensional MMM.  It handles building the optimization model,
+        computing ``num_periods``, pulling ``adstock_periods`` from the fitted
+        adstock, and auto-detecting non-zero channels when
+        ``budgets_to_optimize`` is not supplied.
+
+        Parameters
+        ----------
+        start_date : str or pd.Timestamp
+            First date of the optimization window (inclusive).
+        end_date : str or pd.Timestamp
+            Last date of the optimization window (inclusive).
+        budgets_to_optimize : xr.DataArray or None, optional
+            Boolean mask defining which budget cells to optimize.  When
+            ``None``, all non-zero channels in the model are optimized.
+        cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
+            Cost-per-unit conversion factors for non-monetary channels.
+        compile_kwargs : dict or None, optional
+            Extra keyword arguments for PyTensor's ``function()``.
+        **kwargs
+            Additional arguments forwarded to
+            :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
+
+        Returns
+        -------
+        BudgetOptimizer
+            A configured optimizer ready for :meth:`BudgetOptimizer.allocate_budget`.
+        """
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+        pymc_model = self.create_optimization_model(start_date, end_date)
+
+        adstock_lag = getattr(self.adstock, "l_max", 0)
+        n_dates = len(pymc_model.coords.get("date", [0]))
+        num_periods = n_dates - adstock_lag if n_dates > adstock_lag else n_dates
+
+        if (
+            budgets_to_optimize is None
+            and self.idata is not None
+            and "posterior" in self.idata
+        ):
+            posterior_ds = self.idata["posterior"]
+            if hasattr(posterior_ds, "dataset"):
+                posterior_ds = posterior_ds.dataset
+            if "channel_contribution" in posterior_ds.data_vars:
+                budgets_to_optimize = (
+                    posterior_ds["channel_contribution"]
+                    .mean(("chain", "draw", "date"))
+                    .astype(bool)
+                )
+
+        return BudgetOptimizer(
+            model=pymc_model,
+            idata=self.idata,
+            num_periods=num_periods,
+            adstock_periods=self.adstock.l_max,
+            channel_scales=getattr(self, "_channel_scales", 1.0),
+            budgets_to_optimize=budgets_to_optimize,
+            cost_per_unit=cost_per_unit,
+            compile_kwargs=compile_kwargs,
+            mu_effects=list(self.mu_effects),
+            frozen_deterministics=self.frozen_deterministics,
+            **kwargs,
+        )
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -3630,6 +3757,12 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         end_date: str,
         compile_kwargs: dict | None = None,
     ):
+        warnings.warn(
+            "BudgetOptimizerWrapper is deprecated. "
+            "Use mmm.budget_optimizer(start_date, end_date, ...) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.model_class = model
         self.start_date = start_date
         self.end_date = end_date
@@ -3667,25 +3800,45 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                     f"'{type(self).__name__}' object and its wrapped 'MMM' object have no attribute '{name}'"
                 ) from e
 
-    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
-        """Return the respective PyMC model with any predictors set for optimization."""
-        # Use the model's method for transformation
-        dataset_xarray = self._posterior_predictive_data_transformation(
+    def optimization_model(self, num_periods: int) -> pm.Model:
+        """Return a PyMC model configured for ``num_periods`` optimisation steps.
+
+        Uses the wrapper's pre-built zero data (which includes carryover
+        periods) to produce a model consistent with the old
+        ``_set_predictors_for_optimization`` path.
+
+        Parameters
+        ----------
+        num_periods : int
+            Number of optimisation periods (accepted for backward compatibility,
+            not used directly).
+
+        Returns
+        -------
+        pymc.Model
+            A cloned PyMC model ready for budget optimization.
+        """
+        dataset_xarray = self.model_class._posterior_predictive_data_transformation(
             X=self.zero_data,
             include_last_observations=False,
         )
-
-        # Use the model's method to set data
-        pymc_model = self._set_xarray_data(
+        pymc_model = self.model_class._set_xarray_data(
             dataset_xarray=dataset_xarray,
-            model=self.model.copy(),
+            model=self.model_class.model.copy(),
         )
-
-        # Use the model's mu_effects and set data using the model instance
-        for mu_effect in self.mu_effects:
-            mu_effect.set_data(self, pymc_model, dataset_xarray)
-
+        for mu_effect in self.model_class.mu_effects:
+            mu_effect.set_data(self.model_class, pymc_model, dataset_xarray)
         return pymc_model
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        """Return the respective PyMC model (deprecated). Use :meth:`optimization_model` instead."""
+        warnings.warn(
+            "_set_predictors_for_optimization is deprecated. "
+            "Use optimization_model() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.optimization_model(num_periods)
 
     def _parse_cost_per_unit_for_optimizer(
         self,

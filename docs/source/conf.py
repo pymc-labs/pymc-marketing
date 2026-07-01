@@ -89,7 +89,7 @@ exclude_patterns = [
 # notebook output cells. Our config sets the same key, so myst flags it; the
 # resulting behaviour is what we want, so we silence the warning rather than
 # remove the explicit setting (which we keep for clarity).
-suppress_warnings = ["myst.mathjax"]
+suppress_warnings = ["myst.mathjax", "Explicit markup"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown

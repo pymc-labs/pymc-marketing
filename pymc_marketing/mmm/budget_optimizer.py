@@ -192,27 +192,28 @@ Use a custom pymc model with any dimensionality
 Requirements
 ------------
 
-- The optimizer works on any wrapper that satisfies `OptimizerCompatibleModelWrapper`:
-
-  - Attributes: `adstock`, `_channel_scales`, `idata` (xr.DataTree with posterior)
-  - Method: `_set_predictors_for_optimization(num_periods) -> pm.Model` that returns a PyMC
-    model where a variable named `channel_data` exists with dims including `"date"` and all
-    budget dims (e.g., `("channel", "geo")`).
-    The optimizer replaces `channel_data` with the optimization variable under the hood.
-- Posterior must contain a response variable (default: `"total_media_contribution_original_scale"`)
-  or any custom `response_variable` you pass, and the required MMM deterministics (e.g.
-  `channel_contribution`).
-- For time distribution: pass a DataArray with dims `("date", *budget_dims)` and values along
-  `date` summing to 1 for each budget cell.
-- Bounds can be a dict only for single‑dimensional budgets; otherwise use an xarray.DataArray
-  (use `optimizer_xarray_builder(...)`).
+- Pass a ``pm.Model`` and ``xr.DataTree`` directly to :class:`BudgetOptimizer`.
+  The model must expose a ``channel_data`` variable (or whatever ``channel_data_var`` names)
+  with dims including ``"date"`` and all budget dims (e.g., ``("channel", "geo")``).
+  The optimizer replaces ``channel_data`` with the optimization variable under the hood.
+- Posterior must contain a response variable (default: ``"total_media_contribution_original_scale"``)
+  or any custom ``response_variable`` you pass, and the required MMM deterministics
+  (e.g. ``channel_contribution``).
+- For time distribution: pass a DataArray with dims ``("date", *budget_dims)`` and values along
+  ``date`` summing to 1 for each budget cell.
+- Bounds can be a dict only for single‑dimensional budgets; otherwise use an
+  xarray.DataArray (use ``optimizer_xarray_builder(...)``).
+- For backward compatibility, pass a legacy wrapper (implementing
+  ``OptimizerCompatibleModel``) as ``model=`` — the optimizer will unpack it
+  automatically.
 
 Notes
 -----
-- If `budgets_to_optimize` is not provided, the optimizer auto‑detects cells with historical
-  information using `idata.posterior["channel_contribution"].mean(("chain","draw","date")).astype(bool)`.
-- Default bounds are `[0, total_budget]` on each optimized cell.
-- Set `callback=True` in `allocate_budget(...)` to receive per‑iteration diagnostics
+- If ``budgets_to_optimize`` is not provided, the optimizer auto‑detects cells with
+  historical information using
+  ``idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)``.
+- Default bounds are ``[0, total_budget]`` on each optimized cell.
+- Set ``callback=True`` in ``allocate_budget(...)`` to receive per‑iteration diagnostics
   (objective, gradient, constraints) for monitoring.
 """
 
@@ -225,7 +226,14 @@ import pymc as pm
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import xarray as xr
-from pydantic import BaseModel, ConfigDict, Field, InstanceOf, PrivateAttr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    PrivateAttr,
+    model_validator,
+)
 from pymc import Model, do
 from pymc.model.fgraph import clone_model
 from pymc.model.transform.optimization import freeze_dims_and_data
@@ -235,7 +243,7 @@ from pytensor.graph import rewrite_graph
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
-from xarray import DataArray
+from xarray import DataArray, DataTree
 
 from pymc_marketing.mmm.constraints import (
     Constraint,
@@ -317,19 +325,332 @@ class MinimizeException(Exception):
         super().__init__(message)
 
 
+def _extract_dataset(node: Any, group: str) -> xr.Dataset:
+    """Extract an xr.Dataset for a group from either DataTree or InferenceData."""
+    child = node[group]
+    if isinstance(child, xr.Dataset):
+        return child
+    if hasattr(child, "to_dataset"):
+        return child.to_dataset()
+    return child
+
+
+def _to_datatree(idata: Any) -> DataTree:
+    """Convert InferenceData to DataTree, returning DataTree as-is."""
+    if isinstance(idata, DataTree):
+        return idata
+    groups = {}
+    for group in idata.groups():
+        groups[group] = getattr(idata, group)
+    return DataTree.from_dict(groups)
+
+
+def merge_inference_data(
+    idatas: Sequence[DataTree],
+    prefixes: Sequence[str] | None = None,
+    *,
+    merge_on: str | None = "channel_data",
+    use_every_n_draw: int = 1,
+) -> DataTree:
+    """Merge multiple :class:`xarray.DataTree` objects with per-model prefixes.
+
+    This is the companion to :func:`~pymc_marketing.pytensor_utils.merge_models`
+    for the inference-data side of a multi-model budget optimization.  After
+    calling both functions you have a merged ``pm.Model`` and a merged
+    ``DataTree`` that can be passed directly to
+    :class:`BudgetOptimizer`.
+
+    Parameters
+    ----------
+    idatas : list[xarray.DataTree]
+        Posterior samples from each fitted model.  All objects must have
+        a ``posterior`` group.
+    prefixes : list[str] or None, optional
+        Per-model prefix applied to every variable and dimension name that
+        is not in ``merge_on``.  If ``None`` (default), prefixes are
+        auto-generated as ``["model1", "model2", ...]``.
+    merge_on : str or None, optional
+        Variable name (and its associated dimensions) that is *shared*
+        across all models and therefore **not** prefixed.  Typically
+        ``"channel_data"`` so the shared budget variable remains
+        unprefixed.  Pass ``None`` to prefix every variable.
+    use_every_n_draw : int, optional
+        Thinning factor — keeps every *n*-th posterior draw before
+        merging.  Useful when merging many models to keep memory usage
+        manageable.  Defaults to ``1`` (no thinning).
+
+    Returns
+    -------
+    xarray.DataTree
+        A single merged ``DataTree`` with prefixed variables and
+        dimensions ready for use as the ``idata`` argument to
+        :class:`BudgetOptimizer`.
+
+    Raises
+    ------
+    ValueError
+        If ``prefixes`` is provided but its length does not match
+        ``len(idatas)``.
+
+    Examples
+    --------
+    Merge two fitted MMMs for a multi-region optimization:
+
+    .. code-block:: python
+
+        from pymc_marketing.pytensor_utils import merge_models
+        from pymc_marketing.mmm.budget_optimizer import (
+            merge_inference_data,
+            BudgetOptimizer,
+        )
+
+        # Step 1 – build per-model optimization models
+        m1 = mmm_north.create_optimization_model("2025-01-01", "2025-03-31")
+        m2 = mmm_south.create_optimization_model("2025-01-01", "2025-03-31")
+
+        # Step 2 – merge PyMC models (from pytensor_utils)
+        merged_model = merge_models(
+            [m1, m2], prefixes=["north", "south"], merge_on="channel_data"
+        )
+
+        # Step 3 – merge inference data
+        merged_idata = merge_inference_data(
+            idatas=[mmm_north.idata, mmm_south.idata],
+            prefixes=["north", "south"],
+            merge_on="channel_data",
+            use_every_n_draw=2,
+        )
+
+        # Step 4 – optimize
+        optimizer = BudgetOptimizer(
+            model=merged_model,
+            idata=merged_idata,
+            num_periods=13,
+            adstock_periods=mmm_north.adstock.l_max,
+            response_variable="north_total_media_contribution_original_scale",
+        )
+        optimal, result = optimizer.allocate_budget(total_budget=100_000)
+    """
+    n = len(idatas)
+    if n < 1:
+        raise ValueError("Need at least 1 InferenceData object to merge.")
+
+    if prefixes is None:
+        prefixes = [f"model{i + 1}" for i in range(n)]
+    elif len(prefixes) != n:
+        raise ValueError(
+            f"Number of prefixes ({len(prefixes)}) must match number of idatas ({n})."
+        )
+
+    def _prefix_single(idata: DataTree, prefix: str) -> DataTree:
+        """Rename variables and dims in *idata* by prepending *prefix*."""
+        shared_vars: set[str] = {"chain", "draw", "__obs__"}
+        if merge_on:
+            shared_vars.add(merge_on)
+
+        shared_dims: set[str] = set(shared_vars)
+        if merge_on and "constant_data" in idata and merge_on in idata["constant_data"]:
+            merge_ds = _extract_dataset(idata, "constant_data")
+            merge_dims = list(merge_ds[merge_on].dims)
+            shared_dims.update(merge_dims)
+
+        # Build a new DataTree with renamed groups
+        new_groups: dict[str, xr.Dataset] = {}
+        for group in ("posterior", "constant_data", "observed_data"):
+            if group not in idata:
+                continue
+            ds = _extract_dataset(idata, group)
+            rename_dict: dict[str, str] = {}
+            for var in ds.data_vars:
+                if var not in shared_vars and not str(var).startswith(f"{prefix}_"):
+                    rename_dict[str(var)] = f"{prefix}_{var}"
+            for dim in ds.dims:
+                if dim not in shared_dims and not str(dim).startswith(f"{prefix}_"):
+                    rename_dict[str(dim)] = f"{prefix}_{dim}"
+            if rename_dict:
+                ds = ds.rename(rename_dict)
+            new_groups[group] = ds
+
+        return DataTree.from_dict(new_groups)
+
+    # Thin and optionally prefix each idata
+    thinned: list[DataTree] = []
+    for idata_i, prefix in zip(idatas, prefixes, strict=False):
+        # Thin draws from the posterior group
+        posterior_ds = _extract_dataset(idata_i, "posterior")
+        thinned_posterior = posterior_ds.isel(draw=slice(None, None, use_every_n_draw))
+
+        # Build a new DataTree with thinned posterior
+        new_groups: dict[str, xr.Dataset] = {"posterior": thinned_posterior}
+        for group in ("constant_data", "observed_data"):
+            if group in idata_i:
+                new_groups[group] = _extract_dataset(idata_i, group)
+
+        thinned_i = DataTree.from_dict(new_groups)
+        if prefix:
+            thinned_i = _prefix_single(thinned_i, prefix)
+        thinned.append(thinned_i)
+
+    if n == 1:
+        return thinned[0]
+
+    # Merge all thinned/prefixed objects
+    merged_groups: dict[str, xr.Dataset] = {}
+    for idata_i in thinned:
+        for group in ("posterior", "constant_data", "observed_data"):
+            if group not in idata_i:
+                continue
+            ds = _extract_dataset(idata_i, group)
+            if group in merged_groups:
+                merged_groups[group] = xr.merge([merged_groups[group], ds])
+            else:
+                merged_groups[group] = ds
+
+    return DataTree.from_dict(merged_groups)
+
+
+def merge_models_and_idata(
+    models: Sequence[Model],
+    idatas: Sequence[DataTree],
+    *,
+    prefixes: Sequence[str] | None = None,
+    merge_on: str | None = "channel_data",
+    use_every_n_draw: int = 1,
+) -> tuple[Model, DataTree]:
+    """Merge multiple PyMC models and their DataTree objects in one call.
+
+    Convenience wrapper that calls
+    :func:`~pymc_marketing.pytensor_utils.merge_models` and
+    :func:`merge_inference_data` with the same ``prefixes`` and ``merge_on``
+    arguments, returning both results as a ``(model, idata)`` tuple ready for
+    :class:`BudgetOptimizer`.
+
+    Parameters
+    ----------
+    models : list of pm.Model
+        Optimization models, one per fitted MMM (e.g. from
+        ``mmm.create_optimization_model(...)``).
+    idatas : list of xarray.DataTree
+        Posterior samples corresponding to each model (e.g. ``mmm.idata``).
+        Must be the same length as *models*.
+    prefixes : list of str or None, optional
+        Per-model prefix applied to every variable and dimension name that is
+        not in ``merge_on``.  If ``None`` (default), prefixes are
+        auto-generated as ``["model1", "model2", ...]``.
+    merge_on : str or None, optional
+        Variable name that is *shared* across all models and therefore **not**
+        prefixed in either the PyMC graph or the posterior.  Defaults to
+        ``"channel_data"`` which is the standard budget input node used by
+        :class:`BudgetOptimizer`.  Pass ``None`` to prefix every variable.
+    use_every_n_draw : int, optional
+        Thinning factor applied to each ``DataTree`` before merging.
+        Keeps every *n*-th posterior draw.  Defaults to ``1`` (no thinning).
+
+    Returns
+    -------
+    tuple of (pm.Model, xarray.DataTree)
+        ``(merged_model, merged_idata)`` ready to be passed directly to
+        :class:`BudgetOptimizer`.
+
+    Raises
+    ------
+    ValueError
+        If ``len(models) != len(idatas)``, or if ``models`` has fewer than 2
+        elements, or if ``prefixes`` length does not match.
+
+    Examples
+    --------
+    Merge two fitted MMMs for a multi-region optimization:
+
+    .. code-block:: python
+
+        from pymc_marketing.mmm import merge_models_and_idata, BudgetOptimizer
+
+        m1 = mmm_north.create_optimization_model("2025-01-01", "2025-03-31")
+        m2 = mmm_south.create_optimization_model("2025-01-01", "2025-03-31")
+
+        merged_model, merged_idata = merge_models_and_idata(
+            models=[m1, m2],
+            idatas=[mmm_north.idata, mmm_south.idata],
+            prefixes=["north", "south"],
+            merge_on="channel_data",
+            use_every_n_draw=2,
+        )
+
+        optimizer = BudgetOptimizer(
+            model=merged_model,
+            idata=merged_idata,
+            num_periods=13,
+            adstock_periods=mmm_north.adstock.l_max,
+            response_variable="north_total_media_contribution_original_scale",
+        )
+        optimal, result = optimizer.allocate_budget(total_budget=100_000)
+    """
+    if len(models) != len(idatas):
+        raise ValueError(
+            f"len(models) ({len(models)}) must equal len(idatas) ({len(idatas)})."
+        )
+
+    merged_model = merge_models(
+        list(models),
+        prefixes=list(prefixes) if prefixes is not None else None,
+        merge_on=merge_on,
+    )
+    merged_idata = merge_inference_data(
+        idatas,
+        prefixes=prefixes,
+        merge_on=merge_on,
+        use_every_n_draw=use_every_n_draw,
+    )
+    return merged_model, merged_idata
+
+
 @runtime_checkable
-class OptimizerCompatibleModelWrapper(Protocol):
-    """Protocol for marketing mix model wrappers compatible with the BudgetOptimizer."""
+class OptimizerCompatibleModel(Protocol):
+    """Protocol for marketing mix model wrappers compatible with the BudgetOptimizer.
+
+    Any object satisfying this Protocol can be passed as the ``model`` argument
+    to :class:`BudgetOptimizer` for backward compatibility.
+
+    Attributes
+    ----------
+    idata : xarray.DataTree or arviz.InferenceData
+        Fitted posterior inference data.  Must contain a ``posterior`` group with a
+        ``channel_contribution`` variable (or whatever ``response_variable`` you pass).
+    """
 
     adstock: Any
     _channel_scales: Any
-    idata: xr.DataTree
+    idata: Any  # xr.DataTree or arviz.InferenceData
+
+    def optimization_model(self, num_periods: int) -> Model:
+        """Return a PyMC model configured for ``num_periods`` optimization steps.
+
+        Parameters
+        ----------
+        num_periods : int
+            Number of time periods to allocate budget for (excluding any
+            adstock warm-up; the implementation is responsible for adding
+            ``adstock_periods`` extra steps when needed).
+
+        Returns
+        -------
+        pymc.Model
+            A (possibly cloned) PyMC model ready for use by
+            :class:`BudgetOptimizer`.
+        """
+        ...
 
     def _set_predictors_for_optimization(self, num_periods: int) -> Model:
-        """Set the predictors for optimization."""
+        """Return a PyMC model (deprecated; use :meth:`optimization_model` instead)."""
+        ...
 
 
-class BuildMergedModel(OptimizerCompatibleModelWrapper):
+# Backward-compatible alias — will be removed in the next major version.
+OptimizerCompatibleModelWrapper = OptimizerCompatibleModel
+
+
+class BuildMergedModel(OptimizerCompatibleModel):
     """Merge multiple optimizer-compatible models into a single model.
 
     This wrapper combines several optimizer-compatible MMM wrappers by:
@@ -342,9 +663,9 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
     Parameters
     ----------
-    models : list[OptimizerCompatibleModelWrapper]
+    models : list[OptimizerCompatibleModel]
         A list of wrappers that each expose ``idata`` and
-        ``_set_predictors_for_optimization(num_periods: int) -> Model``.
+        ``optimization_model(num_periods: int) -> Model``.
     prefixes : list[str] | None, optional
         Per-model prefixes used when merging. If ``None``, defaults to
         ``["model1", "model2", ...]`` with one prefix per model.
@@ -360,7 +681,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
     ----------
     prefixes : list[str]
         The final list of prefixes used for each model.
-    models : list[OptimizerCompatibleModelWrapper]
+    models : list[OptimizerCompatibleModel]
         The provided list of wrappers.
     num_models : int
         Number of models being merged.
@@ -416,9 +737,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
             merge_on="channel_data",
             use_every_n_draw=5,
         )
-        m_opt = merged_single._set_predictors_for_optimization(
-            num_periods=merged_single.num_periods
-        )
+        m_opt = merged_single.optimization_model(num_periods=merged_single.num_periods)
 
     Merge everything with prefixes (no shared variable retained):
 
@@ -433,11 +752,19 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
     def __init__(
         self,
-        models: list[OptimizerCompatibleModelWrapper],
+        models: list[OptimizerCompatibleModel],
         prefixes: list[str] | None = None,
         merge_on: str | None = "channel_data",
         use_every_n_draw: int = 1,
     ) -> None:
+        warnings.warn(
+            "BuildMergedModel is deprecated and will be removed in a future version. "
+            "Use merge_models_and_idata() from pymc_marketing.mmm instead, then pass "
+            "the returned (model, idata) directly to BudgetOptimizer. "
+            "See the BudgetOptimizer docstring for the recommended multi-model workflow.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if len(models) < 1:
             raise ValueError("Need at least 1 model")
 
@@ -465,8 +792,12 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
         # Merge idata from all models with appropriate prefixes
         self._merge_idata()
 
-        if hasattr(self.primary_model, "adstock"):
-            self.adstock = self.primary_model.adstock
+        if hasattr(self.primary_model, "adstock_periods"):
+            self.adstock_periods = self.primary_model.adstock_periods
+        elif hasattr(self.primary_model, "adstock"):
+            self.adstock_periods = self.primary_model.adstock.l_max
+        else:
+            self.adstock_periods = 0
 
         # Signal to BudgetOptimizer to enforce mask validation
         self.enforce_budget_mask_validation = False
@@ -539,7 +870,23 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
         return prefixed_idata
 
-    def _set_predictors_for_optimization(self, num_periods: int) -> Model:
+    def optimization_model(self, num_periods: int) -> Model:
+        """Return a merged PyMC model configured for ``num_periods`` optimization steps.
+
+        Builds (or reuses a cached) merged model from all child models. Each
+        child model's :meth:`optimization_model` is called; the results are
+        combined with :func:`merge_models`.
+
+        Parameters
+        ----------
+        num_periods : int
+            Number of optimization periods (excluding adstock warm-up).
+
+        Returns
+        -------
+        pymc.Model
+            A persistent merged model ready for :class:`BudgetOptimizer`.
+        """
         # If we already built a persistent model for this horizon, reuse it
         if (
             self._persistent_merged_model is not None
@@ -547,11 +894,22 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
         ):
             return self._persistent_merged_model
 
-        # Build per-model optimization models
-        pymc_models = [
-            m._set_predictors_for_optimization(num_periods=num_periods)
-            for m in self.models
-        ]
+        # Build per-model optimization models.
+        # Prefer a concrete optimization_model implementation; fall back to
+        # _set_predictors_for_optimization if only the protocol stub exists.
+        pymc_models = []
+        for m in self.models:
+            if "optimization_model" in type(m).__dict__:
+                pymc_models.append(m.optimization_model(num_periods=num_periods))
+            elif hasattr(m, "_set_predictors_for_optimization"):
+                pymc_models.append(
+                    m._set_predictors_for_optimization(num_periods=num_periods)
+                )
+            else:
+                raise ValueError(
+                    f"Model wrapper {type(m).__name__!r} has no "
+                    "optimization_model or _set_predictors_for_optimization method."
+                )
         if self.num_models == 1:
             self._persistent_merged_model = freeze_dims_and_data(pymc_models[0])
         else:
@@ -561,6 +919,22 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
         self._persistent_num_periods = int(num_periods)
         return self._persistent_merged_model
+
+    def _set_predictors_for_optimization(self, num_periods: int) -> Model:
+        """Return a merged PyMC model (deprecated; use :meth:`optimization_model` instead).
+
+        .. deprecated::
+            ``_set_predictors_for_optimization`` will be removed in a future
+            version. :class:`BudgetOptimizer` now calls
+            :meth:`optimization_model` directly.
+        """
+        warnings.warn(
+            "_set_predictors_for_optimization is deprecated and will be removed in a "
+            "future version. Use optimization_model() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.optimization_model(num_periods)
 
     @property
     def model(self) -> Model:
@@ -576,7 +950,7 @@ class BuildMergedModel(OptimizerCompatibleModelWrapper):
 
         # If we know the number of periods, lazily build the persistent model now
         if self.num_periods is not None:
-            return self._set_predictors_for_optimization(int(self.num_periods))
+            return self.optimization_model(int(self.num_periods))
 
         # Fallback: dynamic merged training models (non-persistent)
         # Obtain each wrapper's training model dynamically; not all wrappers statically expose `.model`.
@@ -603,10 +977,21 @@ class BudgetOptimizer(BaseModel):
 
     Parameters
     ----------
+    model : pm.Model
+        The PyMC model configured for the optimization horizon. The model must
+        contain a ``pm.Data`` variable named ``channel_data_var`` (default
+        ``"channel_data"``) whose dims include the channel and, optionally,
+        additional dimensions (e.g. geo).
+    idata : xarray.DataTree or arviz.InferenceData
+        Fitted posterior inference data from the model.
     num_periods : int
         Number of time units at the desired time granularity to allocate budget for.
-    model : MMMModel
-        The marketing mix model to optimize.
+    adstock_periods : int, optional
+        Number of extra warm-up periods prepended for adstock carryover.
+        Equivalent to ``adstock.l_max`` on the built-in MMM. Defaults to 0.
+    channel_scales : float or array-like, optional
+        Per-channel scale factors used to convert monetary budgets into the
+        model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
     response_variable : str, optional
         The response variable to optimize. Default is
         ``"total_media_contribution_original_scale"``.
@@ -631,6 +1016,50 @@ class BudgetOptimizer(BaseModel):
         budget in period 0, 30 % in period 1, and so on.
         If None, budget is distributed uniformly
         (``1 / num_periods`` per period).
+    channel_data_var : str, optional
+        Name of the ``pm.Data`` variable inside ``model`` that holds channel
+        spend / media inputs. Defaults to ``"channel_data"``.
+    channel_contribution_var : str, optional
+        Name of the per-channel contribution variable in the posterior used
+        to auto-detect non-zero channels. Defaults to ``"channel_contribution"``.
+    date_dim : str, optional
+        Name of the date dimension in the model. Defaults to ``"date"``.
+    cost_per_unit : xarray.DataArray, optional
+        Cost-per-unit conversion factors for translating monetary budgets into
+        the model's native units. Must have dims ``("date", *budget_dims)``
+        where ``"date"`` has length ``num_periods``. If ``None``, budgets are
+        assumed to already be in the model's native units.
+    compile_kwargs : dict, optional
+        Extra keyword arguments forwarded to PyTensor's ``function()`` during
+        compilation. Useful for setting ``mode``.
+
+    Notes
+    -----
+    For backward compatibility, pass a legacy wrapper (implementing
+    ``OptimizerCompatibleModel``) as ``model=`` — the optimizer will
+    unpack it automatically via a ``model_validator``.
+
+    Examples
+    --------
+    Basic usage — pass a PyMC model and its posterior inference data directly:
+
+    .. code-block:: python
+
+        import pymc_marketing as pmm
+
+        # mmm is a fitted multidimensional MMM
+        pymc_model = mmm.create_optimization_model(
+            start_date="2025-01-01",
+            end_date="2025-03-31",
+        )
+        optimizer = pmm.mmm.BudgetOptimizer(
+            model=pymc_model,
+            idata=mmm.idata,
+            num_periods=13,
+            adstock_periods=mmm.adstock.l_max,
+            response_variable="total_media_contribution_original_scale",
+        )
+        optimal, result = optimizer.allocate_budget(total_budget=100_000)
     """
 
     num_periods: int = Field(
@@ -639,10 +1068,37 @@ class BudgetOptimizer(BaseModel):
         description="Number of time units at the desired time granularity to allocate budget for.",
     )
 
-    mmm_model: InstanceOf[OptimizerCompatibleModelWrapper] = Field(
+    model: InstanceOf[Model] = Field(
         ...,
-        description="The marketing mix model to optimize.",
-        alias="model",
+        description="The PyMC model configured for the optimization horizon.",
+    )
+
+    idata: DataTree = Field(
+        ...,
+        description="Posterior samples from the fitted model.",
+    )
+
+    adstock_periods: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of extra carry-over periods appended to the optimization horizon. "
+            "For built-in MMM this equals adstock.l_max; defaults to 0 (no carry-over)."
+        ),
+    )
+
+    channel_scales: Any = Field(
+        default=1.0,
+        description=(
+            "Per-channel scale factors used to convert monetary budgets into the model's "
+            "native units. A scalar 1.0 means no scaling. A 1-D array of length n_channels "
+            "applies a per-channel scale."
+        ),
+    )
+
+    mu_effects: Sequence = Field(
+        default_factory=list,
+        description="List of mu_effects objects with budget-aware optimization support.",
     )
 
     response_variable: str = Field(
@@ -697,6 +1153,42 @@ class BudgetOptimizer(BaseModel):
         description="Keyword arguments for the model compilation. Especially useful to pass compilation mode",
     )
 
+    frozen_deterministics: list[str] | None = Field(
+        default=None,
+        description=(
+            "Names of Deterministic variables to freeze at posterior values "
+            "instead of recomputing from the graph. Required for models with "
+            "HSGP or time-varying components."
+        ),
+    )
+
+    channel_data_var: str = Field(
+        default="channel_data",
+        description=(
+            "Name of the PyMC Data variable in the model that holds channel spend/media inputs. "
+            "Defaults to 'channel_data'. Override if your model uses a different variable name "
+            "(e.g. 'media_spend', 'x_media')."
+        ),
+    )
+
+    channel_contribution_var: str = Field(
+        default="channel_contribution",
+        description=(
+            "Name of the per-channel contribution variable in the model's posterior. "
+            "Used to automatically detect which channels are non-zero when "
+            "'budgets_to_optimize' is not provided. "
+            "Defaults to 'channel_contribution'."
+        ),
+    )
+
+    date_dim: str = Field(
+        default="date",
+        description=(
+            "Name of the date dimension in the model. "
+            "Defaults to 'date'. Override if your model uses a different dimension name."
+        ),
+    )
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     _total_budget: SharedVariable = PrivateAttr()
@@ -711,6 +1203,70 @@ class BudgetOptimizer(BaseModel):
     _compiled_functions: dict = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
+    _optimizable_mu_effects: list = PrivateAttr()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _handle_legacy_model_arg(cls, data: Any) -> Any:
+        """Backward compat: extract ``pm.Model`` and ``idata`` from legacy wrapper.
+
+        If ``model=`` is passed as an OptimizerCompatibleModel wrapper,
+        unpack the underlying ``pm.Model`` and ``idata`` from it.
+
+        ``mmm.py`` still calls ``BudgetOptimizer(model=self, num_periods=..., ...)`` passing
+        the MMM instance itself.  A plain ``pm.Model`` is now the canonical value for ``model``,
+        so this validator checks whether the value looks like a wrapper (has
+        ``optimization_model()``) and, if so, unpacks it before Pydantic validates the field.
+        """
+        if not isinstance(data, dict):
+            return data
+        idata = data.get("idata")
+        if idata is not None and not isinstance(idata, DataTree):
+            data["idata"] = _to_datatree(idata)
+        model = data.get("model")
+        if model is None:
+            return data
+        # If it's already a plain pm.Model, nothing to do.
+        if isinstance(model, Model):
+            return data
+        # Legacy path: model is an OptimizerCompatibleModel wrapper.
+        if not hasattr(model, "optimization_model") and not hasattr(
+            model, "_set_predictors_for_optimization"
+        ):
+            return data
+        num_periods = data.get("num_periods")
+        if num_periods is None:
+            raise ValueError(
+                "num_periods must be provided when using the legacy model= argument"
+            )
+        # Prefer a concrete optimization_model implementation over the
+        # protocol stub.  A real implementation lives on the class itself,
+        # not inherited from the Protocol.
+        if "optimization_model" in type(model).__dict__:
+            data["model"] = model.optimization_model(int(num_periods))
+        elif hasattr(model, "_set_predictors_for_optimization"):
+            data["model"] = model._set_predictors_for_optimization(int(num_periods))
+        data["idata"] = _to_datatree(model.idata)
+        # Infer adstock_periods from wrapper if not already set
+        if "adstock_periods" not in data:
+            if hasattr(model, "adstock") and hasattr(model.adstock, "l_max"):
+                data["adstock_periods"] = model.adstock.l_max
+            elif hasattr(model, "adstock_periods"):
+                data["adstock_periods"] = model.adstock_periods
+        # Infer channel_scales from wrapper if not already set
+        if "channel_scales" not in data:
+            if hasattr(model, "_channel_scales"):
+                data["channel_scales"] = model._channel_scales
+            elif hasattr(model, "channel_scales"):
+                data["channel_scales"] = model.channel_scales
+        # Infer mu_effects from wrapper if not already set
+        if "mu_effects" not in data and hasattr(model, "mu_effects"):
+            data["mu_effects"] = list(model.mu_effects)
+        if "frozen_deterministics" not in data and hasattr(
+            model, "frozen_deterministics"
+        ):
+            data["frozen_deterministics"] = model.frozen_deterministics
+        return data
 
     DEFAULT_MINIMIZE_KWARGS: ClassVar[dict] = {
         "method": "SLSQP",
@@ -719,10 +1275,7 @@ class BudgetOptimizer(BaseModel):
 
     def model_post_init(self, context: Any, /) -> None:
         """Build optimization tensors and compile objective after Field validation."""
-        # 1. Prepare model with time dimension for optimization
-        pymc_model = self.mmm_model._set_predictors_for_optimization(
-            self.num_periods
-        )  # TODO: Once multidimensional class becomes the main class.
+        # 1. The model is passed in already built (no optimization_model() call needed)
 
         # 2. Shared variable for total_budget
         self._total_budget = shared(np.array(0.0, dtype="float64"), name="total_budget")
@@ -730,49 +1283,59 @@ class BudgetOptimizer(BaseModel):
         # 3. Identify budget dimensions and shapes
         self._budget_dims = [
             dim
-            for dim in pymc_model.named_vars_to_dims["channel_data"]
-            if dim != "date"
+            for dim in self.model.named_vars_to_dims[self.channel_data_var]
+            if dim != self.date_dim
         ]
         self._budget_coords = {
-            dim: list(pymc_model.coords[dim]) for dim in self._budget_dims
+            dim: list(self.model.coords[dim]) for dim in self._budget_dims
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
-        # 4. Ensure that we only optimize over non-zero channels
-        # Only perform non-zero channel detection for MMM instances.
-        # For OptimizerCompatibleModelWrapper, default to optimizing all channels unless a mask is provided.
-        is_wrapper = (
-            "channel_contribution" not in self.mmm_model.idata.posterior.data_vars
-        )
-
+        # 4. Default to optimizing all budget cells when no mask is provided.
+        #    The adaptor layer (e.g. MMM.budget_optimizer) is responsible for
+        #    narrowing this down to non-zero channels if desired.
         if self.budgets_to_optimize is None:
-            if is_wrapper:
-                # Wrapper path: default to all True over budget dims
+            try:
+                posterior_ds = _extract_dataset(self.idata, "posterior")
+            except (KeyError, TypeError):
+                posterior_ds = None
+
+            if (
+                posterior_ds is not None
+                and self.channel_contribution_var in posterior_ds.data_vars
+            ):
+                # Auto-detect non-zero channels from posterior
+                self.budgets_to_optimize = (
+                    posterior_ds[self.channel_contribution_var]
+                    .mean(("chain", "draw", self.date_dim))
+                    .astype(bool)
+                )
+            else:
                 ones = np.ones(self._budget_shape, dtype=bool)
                 self.budgets_to_optimize = xr.DataArray(
                     ones, coords=self._budget_coords, dims=self._budget_dims
                 )
-            else:
-                # If no mask is provided, optimize all non-zero channels in the model
-                self.budgets_to_optimize = (
-                    self.mmm_model.idata.posterior["channel_contribution"]
-                    .mean(("chain", "draw", "date"))
+        else:
+            # Validate user-supplied mask against posterior channel contributions
+            try:
+                posterior_ds = _extract_dataset(self.idata, "posterior")
+            except (KeyError, TypeError):
+                posterior_ds = None
+
+            if (
+                posterior_ds is not None
+                and self.channel_contribution_var in posterior_ds.data_vars
+            ):
+                expected_mask = (
+                    posterior_ds[self.channel_contribution_var]
+                    .mean(("chain", "draw", self.date_dim))
                     .astype(bool)
                 )
-        elif not is_wrapper:
-            # If a mask is provided for MMM instances, ensure it has the correct shape
-            expected_mask = (
-                self.mmm_model.idata.posterior["channel_contribution"]
-                .mean(("chain", "draw", "date"))
-                .astype(bool)
-            )
-
-            # Check if we are asking to optimize over channels that are not present in the model
-            if np.any((self.budgets_to_optimize > expected_mask).values):
-                raise ValueError(
-                    "budgets_to_optimize mask contains True values at coordinates where the model has no "
-                    "information."
-                )
+                if np.any((self.budgets_to_optimize > expected_mask).values):
+                    raise ValueError(
+                        "budgets_to_optimize mask contains True values at coordinates where the model has no "
+                        "information."
+                    )
 
         self.budgets_to_optimize = self.budgets_to_optimize.transpose(
             *self._budget_dims
@@ -780,8 +1343,20 @@ class BudgetOptimizer(BaseModel):
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
+        # 5. Check for optimizable mu_effects (not yet supported; see #2621)
+        self._optimizable_mu_effects = [
+            e for e in self.mu_effects if hasattr(e, "replace_for_optimization")
+        ]
+        if self._optimizable_mu_effects:
+            raise NotImplementedError(
+                "OptimizableMuEffect integration is not yet supported. "
+                "See https://github.com/pymc-labs/pymc-marketing/pull/2621"
+            )
+
         self._budgets_flat = ptx.xtensor(
-            "budgets_flat", shape=(size_budgets,), dims=("budgets_flat",)
+            "budgets_flat",
+            shape=(size_budgets,),
+            dims=("budgets_flat",),
         )
 
         # Fill a zero array, then set only the True positions
@@ -789,37 +1364,37 @@ class BudgetOptimizer(BaseModel):
         budgets_zeros.name = "budgets_zeros"
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
         self._budgets = as_xtensor(
-            budgets_zeros[bool_mask].set(self._budgets_flat.values),
+            budgets_zeros[bool_mask].set(self._budgets_flat.values[:size_budgets]),
             dims=self._budget_dims,
         )
 
-        # 5. Validate and process budget_distribution_over_period
+        # 6. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
             self._validate_and_process_budget_distribution(
                 budget_distribution_over_period=self.budget_distribution_over_period,
                 num_periods=self.num_periods,
                 budget_dims=self._budget_dims,
                 budgets_to_optimize=self.budgets_to_optimize,
+                date_dim=self.date_dim,
             )
         )
 
-        # 5b. Validate and process cost_per_unit
+        # 6b. Validate and process cost_per_unit
         self._cost_per_unit_tensor = self._validate_and_process_cost_per_unit(
             cost_per_unit=self.cost_per_unit,
             num_periods=self.num_periods,
             budget_dims=self._budget_dims,
             budget_coords=self._budget_coords,
+            date_dim=self.date_dim,
         )
 
-        # 6. Replace channel_data with budgets in the PyMC model
+        # 7. Replace channel_data with budgets in the PyMC model
         self._pymc_model = self._replace_channel_data_by_optimization_variable(
-            pymc_model
+            self.model
         )
 
-        # 7. Validate that the requested response variable actually exists in
-        # the underlying PyMC model. ``extract_response_distribution`` looks
-        # up ``pymc_model[response_variable]``; raising here turns an opaque
-        # ``KeyError`` deep in graph extraction into an actionable error.
+        # 8. Validate that the requested response variable actually exists in
+        # the underlying PyMC model.
         if self.response_variable not in self._pymc_model.named_vars:
             available = sorted(self._pymc_model.named_vars)
             raise ValueError(
@@ -828,11 +1403,11 @@ class BudgetOptimizer(BaseModel):
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
 
-        # 8. Compile objective & gradient
+        # 9. Compile objective & gradient
         self._compiled_functions = {}
         self._compile_objective_and_grad()
 
-        # 9. Build constraints
+        # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
 
@@ -866,6 +1441,7 @@ class BudgetOptimizer(BaseModel):
         num_periods: int,
         budget_dims: list[str],
         budgets_to_optimize: DataArray,
+        date_dim: str = "date",
     ) -> XTensorVariable | None:
         """Validate and process budget distribution over periods.
 
@@ -876,9 +1452,11 @@ class BudgetOptimizer(BaseModel):
         num_periods : int
             Number of time periods to allocate budget for.
         budget_dims : list[str]
-            List of budget dimensions (excluding 'date').
+            List of budget dimensions (excluding the date dimension).
         budgets_to_optimize : DataArray
             Mask defining which budgets to optimize.
+        date_dim : str, optional
+            Name of the date dimension. Default is ``"date"``.
 
         Returns
         -------
@@ -889,7 +1467,7 @@ class BudgetOptimizer(BaseModel):
             return None
 
         # Validate dimensions - date should be first
-        expected_dims = ("date", *budget_dims)
+        expected_dims = (date_dim, *budget_dims)
         if set(budget_distribution_over_period.dims) != set(expected_dims):
             raise ValueError(
                 f"budget_distribution_over_period must have dims {expected_dims}, "
@@ -897,17 +1475,17 @@ class BudgetOptimizer(BaseModel):
             )
 
         # Validate date dimension length
-        if len(budget_distribution_over_period.coords["date"]) != num_periods:
+        if len(budget_distribution_over_period.coords[date_dim]) != num_periods:
             raise ValueError(
-                f"budget_distribution_over_period date dimension must have length {num_periods}, "
-                f"but got {len(budget_distribution_over_period.coords['date'])}"
+                f"budget_distribution_over_period {date_dim!r} dimension must have length {num_periods}, "
+                f"but got {len(budget_distribution_over_period.coords[date_dim])}"
             )
 
         # Validate that factors sum to 1 along date dimension
-        sums = budget_distribution_over_period.sum(dim="date")
+        sums = budget_distribution_over_period.sum(dim=date_dim)
         if not np.allclose(sums.values, 1.0, rtol=1e-5):
             raise ValueError(
-                "budget_distribution_over_period must sum to 1 along the date dimension "
+                f"budget_distribution_over_period must sum to 1 along the {date_dim!r} dimension "
                 "for each combination of other dimensions"
             )
 
@@ -926,7 +1504,7 @@ class BudgetOptimizer(BaseModel):
         return ptx.xtensor_constant(
             time_factors_masked,
             name="budget_distribution_over_period",
-            dims=("date", "budgets_flat"),
+            dims=(date_dim, "budgets_flat"),
         )
 
     @staticmethod
@@ -935,6 +1513,7 @@ class BudgetOptimizer(BaseModel):
         num_periods: int,
         budget_dims: list[str],
         budget_coords: dict[str, list] | None = None,
+        date_dim: str = "date",
     ) -> XTensorVariable | None:
         """Validate and convert cost_per_unit to a PyTensor constant.
 
@@ -945,10 +1524,12 @@ class BudgetOptimizer(BaseModel):
         num_periods : int
             Number of optimization periods.
         budget_dims : list[str]
-            Budget dimension names (excluding 'date').
+            Budget dimension names (excluding the date dimension).
         budget_coords : dict[str, list] or None
             Model coordinate order for each budget dimension, used to reindex
             the cost_per_unit DataArray before extracting values.
+        date_dim : str, optional
+            Name of the date dimension. Default is ``"date"``.
 
         Returns
         -------
@@ -964,17 +1545,17 @@ class BudgetOptimizer(BaseModel):
         if cost_per_unit is None:
             return None
 
-        expected_dims = ("date", *budget_dims)
+        expected_dims = (date_dim, *budget_dims)
         if set(cost_per_unit.dims) != set(expected_dims):
             raise ValueError(
                 f"cost_per_unit must have exactly the dims {set(expected_dims)}, "
                 f"but got {set(cost_per_unit.dims)}"
             )
 
-        if len(cost_per_unit.coords["date"]) != num_periods:
+        if len(cost_per_unit.coords[date_dim]) != num_periods:
             raise ValueError(
-                f"cost_per_unit date dimension must have length {num_periods}, "
-                f"but got {len(cost_per_unit.coords['date'])}"
+                f"cost_per_unit {date_dim!r} dimension must have length {num_periods}, "
+                f"but got {len(cost_per_unit.coords[date_dim])}"
             )
 
         if cost_per_unit.isnull().any() or (cost_per_unit <= 0).any():
@@ -1019,10 +1600,12 @@ class BudgetOptimizer(BaseModel):
 
         repeated_budgets_flat = (
             budgets_optimized * self._budget_distribution_over_period_tensor
-        ).transpose("date", "budgets_flat")
+        ).transpose(self.date_dim, "budgets_flat")
 
         # Reconstruct the full shape for each time period
-        budgets = ptx.zeros_like(budgets).expand_dims(date=num_periods, axis=0)
+        budgets = ptx.zeros_like(budgets).expand_dims(
+            **{self.date_dim: num_periods}, axis=0
+        )
         repeated_budgets = budgets.values[:, bool_mask].set(
             repeated_budgets_flat.values
         )
@@ -1036,9 +1619,9 @@ class BudgetOptimizer(BaseModel):
     def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
         """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
         num_periods = self.num_periods
-        max_lag = self.mmm_model.adstock.l_max
-        channel_scales = self.mmm_model._channel_scales
-        channel_data_dtype = model["channel_data"].dtype
+        max_lag = self.adstock_periods
+        channel_scales = self.channel_scales
+        channel_data_dtype = model[self.channel_data_var].dtype
         if np.dtype(channel_data_dtype).kind != "f":
             raise ValueError(
                 f"Optimization requires channel data of float type, got {channel_data_dtype}"
@@ -1058,7 +1641,7 @@ class BudgetOptimizer(BaseModel):
             )
         else:
             # Default behavior: distribute evenly across periods
-            repeated_budgets = budgets.expand_dims(date=num_periods)
+            repeated_budgets = budgets.expand_dims(**{self.date_dim: num_periods})
 
         # Convert from monetary units to original units using date-specific rates.
         # Applied AFTER time distribution so each period uses its own cost rate.
@@ -1071,26 +1654,27 @@ class BudgetOptimizer(BaseModel):
             [
                 repeated_budgets.astype(channel_data_dtype),
                 ptx.as_xtensor(
-                    pt.zeros(max_lag, dtype=channel_data_dtype), dims=("date",)
+                    pt.zeros(max_lag, dtype=channel_data_dtype),
+                    dims=(self.date_dim,),
                 ),
             ],
-            dim="date",
+            dim=self.date_dim,
         )
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
 
         # Freeze dims & data in the underlying PyMC model
         model = freeze_dims_and_data(model, data=[])
 
-        # Use `do(...)` to replace `channel_data` with repeated_budgets_with_carry_over
-        return do(model, {"channel_data": repeated_budgets_with_carry_over})
+        # Use `do(...)` to replace `channel_data_var` with repeated_budgets_with_carry_over
+        return do(model, {self.channel_data_var: repeated_budgets_with_carry_over})
 
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
-        Example:
+        Examples
         --------
-        `BudgetOptimizer(...).extract_response_distribution("channel_contribution")`
-        returns a graph that computes `"channel_contribution"` as a function of both
+        ``BudgetOptimizer(...).extract_response_distribution("channel_contribution")``
+        returns a graph that computes ``"channel_contribution"`` as a function of both
         the newly introduced budgets and the posterior of model parameters.
         """
         # Local import to avoid circular import at module load time
@@ -1098,11 +1682,9 @@ class BudgetOptimizer(BaseModel):
 
         return extract_response_distribution(
             pymc_model=self._pymc_model,
-            idata=self.mmm_model.idata,
+            idata=_extract_dataset(self.idata, "posterior"),
             response_variable=response_variable,
-            frozen_deterministics=getattr(
-                self.mmm_model, "frozen_deterministics", None
-            ),
+            frozen_deterministics=self.frozen_deterministics,
         )
 
     def _compile_objective_and_grad(self):
@@ -1353,7 +1935,75 @@ class BudgetOptimizer(BaseModel):
 
 
 class CustomModelWrapper(BaseModel):
-    """Wrapper for the BudgetOptimizer to handle custom PyMC models."""
+    """Wrapper for custom PyMC models to be used with :class:`BudgetOptimizer`.
+
+    This wrapper lets you plug any fitted PyMC model into the budget optimizer
+    without subclassing the built-in :class:`~pymc_marketing.mmm.MMM`.  It
+    clones your ``base_model`` for each optimization run and resets the
+    channel-data variable to zeros of the appropriate shape.
+
+    Parameters
+    ----------
+    base_model : pymc.Model
+        A PyMC model that contains a shared ``channel_data`` variable
+        (or the variable named by ``channel_data_var``). The fitted
+        posterior is passed separately via ``idata``.
+    idata : arviz.InferenceData or xarray.DataTree
+        Posterior samples from the fitted model.
+    channels : Sequence[str]
+        Names of the channel dimensions, in the same order as the last axis
+        of the channel-data variable.
+    adstock_periods : int, optional
+        Number of extra periods to prepend for adstock warm-up.  The model is
+        built with ``num_periods + adstock_periods`` date steps, and only the
+        last ``num_periods`` are used when computing the response.  Defaults
+        to ``0`` (no warm-up).
+    channel_data_var : str, optional
+        Name of the shared channel-data variable inside ``base_model``.
+        Defaults to ``"channel_data"``.
+    adstock : Any, optional
+        Deprecated. Pass ``adstock_periods`` instead.
+
+    Examples
+    --------
+    Build a simple custom model and wrap it for budget optimization:
+
+    .. code-block:: python
+
+        import pymc as pm
+        import numpy as np
+        from pymc_marketing.mmm.budget_optimizer import (
+            CustomModelWrapper,
+            BudgetOptimizer,
+        )
+
+        channels = ["tv", "search", "social"]
+        n_obs, n_channels = 52, len(channels)
+
+        with pm.Model(coords={"date": range(n_obs), "channel": channels}) as base_model:
+            channel_data = pm.Data(
+                "channel_data", np.zeros((n_obs, n_channels)), dims=("date", "channel")
+            )
+            beta = pm.Normal("beta", mu=0, sigma=1, dims="channel")
+            mu = (channel_data * beta).sum(axis=-1)
+            pm.Normal("y", mu=mu, sigma=1, observed=np.zeros(n_obs))
+
+        # After sampling, wrap for optimization:
+        wrapper = CustomModelWrapper(
+            base_model=base_model,
+            idata=idata,  # your posterior samples
+            channels=channels,
+        )
+
+        optimizer = BudgetOptimizer(
+            model=wrapper.optimization_model(num_periods=13),
+            idata=wrapper.idata,
+            adstock_periods=wrapper.adstock_periods,
+            channel_scales=wrapper.channel_scales,
+            num_periods=13,
+        )
+        optimal, result = optimizer.allocate_budget(total_budget=100_000)
+    """
 
     model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
 
@@ -1361,39 +2011,141 @@ class CustomModelWrapper(BaseModel):
         ...,
         description="Underlying PyMC model to be cloned for optimization.",
     )
-    idata: xr.DataTree
+    idata: Any = Field(
+        ...,
+        description="Posterior samples from the fitted model (xarray.DataTree or arviz.InferenceData).",
+    )
     channel_columns: list[str] = Field(
         ...,
         description="Channel labels used for budget optimization.",
     )
-    adstock: Any = Field(
-        default_factory=lambda: type("Adstock", (), {"l_max": 0})(),
-        description="Default adstock placeholder with zero carryover.",
+    adstock_periods: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of extra warm-up periods prepended for adstock carryover. "
+            "Equivalent to ``adstock.l_max`` on the built-in MMM. Defaults to 0."
+        ),
+    )
+    channel_data_var: str = Field(
+        default="channel_data",
+        description=(
+            "Name of the shared channel-data variable inside ``base_model``. "
+            "Defaults to ``'channel_data'``."
+        ),
     )
 
-    _channel_scales: int = PrivateAttr(default=1.0)
+    _channel_scales: Any = PrivateAttr(default=1.0)
+    _adstock_arg: Any = PrivateAttr(default=None)
+
+    @property
+    def channel_scales(self) -> float | np.ndarray:
+        """Per-channel scale factors used by the budget optimizer.
+
+        Returns
+        -------
+        float or np.ndarray
+            Scale factor(s) applied to channel budgets. Defaults to 1.0 (no scaling).
+        """
+        return self._channel_scales
+
+    @channel_scales.setter
+    def channel_scales(self, value: float | np.ndarray) -> None:
+        self._channel_scales = value
 
     def __init__(
         self,
         base_model: Model,
-        idata: xr.DataTree,
+        idata: Any,
         channels: Sequence[str],
+        adstock_periods: int = 0,
+        channel_data_var: str = "channel_data",
+        adstock: Any = None,
+        **kwargs,
     ) -> None:
+        warnings.warn(
+            "CustomModelWrapper is deprecated and will be removed in a future version. "
+            "Build the optimization model directly instead:\n\n"
+            "    from pymc.model.fgraph import clone_model\n"
+            "    cloned = clone_model(base_model)\n"
+            "    pm.set_data(\n"
+            '        {"channel_data": np.zeros((num_periods + adstock_periods, n_channels))},\n'
+            "        model=cloned,\n"
+            "    )\n"
+            "    optimizer = BudgetOptimizer(\n"
+            "        model=cloned, idata=idata, num_periods=num_periods, ...\n"
+            "    )",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+        if adstock is not None:
+            warnings.warn(
+                "The 'adstock' argument is deprecated and will be removed in a future version. "
+                "Pass 'adstock_periods=adstock.l_max' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if adstock_periods == 0 and hasattr(adstock, "l_max"):
+                adstock_periods = adstock.l_max
+
         super().__init__(
             base_model=base_model,
             idata=idata,
             channel_columns=list(channels),
+            adstock_periods=adstock_periods,
+            channel_data_var=channel_data_var,
+            **kwargs,
         )
+        self._adstock_arg = adstock
 
-    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
-        coords = {"date": np.arange(num_periods), "channel": self.channel_columns}
+    def optimization_model(self, num_periods: int) -> pm.Model:
+        """Clone ``base_model`` and resize the channel-data variable for optimization.
+
+        Parameters
+        ----------
+        num_periods : int
+            Number of optimization periods (excluding any adstock warm-up).
+            The model will be built with ``num_periods + adstock_periods`` date steps.
+
+        Returns
+        -------
+        pymc.Model
+            A cloned model ready for use by :class:`BudgetOptimizer`.
+        """
+        total_periods = num_periods + self.adstock_periods
+        coords = {
+            "date": np.arange(total_periods),
+            "channel": self.channel_columns,
+        }
         model_clone = clone_model(self.base_model)
         pm.set_data(
-            {"channel_data": np.zeros((num_periods, len(self.channel_columns)))},
+            {
+                self.channel_data_var: np.zeros(
+                    (total_periods, len(self.channel_columns))
+                )
+            },
             model=model_clone,
             coords=coords,
         )
         return model_clone
 
+    def _set_predictors_for_optimization(self, num_periods: int) -> pm.Model:
+        """Return an optimization model (deprecated; use :meth:`optimization_model` instead).
 
-OptimizerCompatibleModelWrapper.register(CustomModelWrapper)
+        .. deprecated::
+            ``_set_predictors_for_optimization`` is deprecated and will be removed in a
+            future version.  :class:`BudgetOptimizer` now calls
+            :meth:`optimization_model` directly.
+        """
+        warnings.warn(
+            "_set_predictors_for_optimization is deprecated and will be removed in a "
+            "future version. The BudgetOptimizer now calls optimization_model "
+            "directly.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.optimization_model(num_periods)
+
+
+OptimizerCompatibleModel.register(CustomModelWrapper)
