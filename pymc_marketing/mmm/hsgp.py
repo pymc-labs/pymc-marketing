@@ -179,7 +179,7 @@ def approx_hsgp_hyperparams(
             "Unsupported covariance function. Supported options are 'expquad', 'matern52', and 'matern32'."
         )
 
-    c = max(a1 * (lengthscale_max / S), 1.2)
+    c = max(float(a1 * (lengthscale_max / S)), 1.2)
     m = int(a2 * c / (lengthscale_min / S))
 
     return m, c

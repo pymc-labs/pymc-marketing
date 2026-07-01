@@ -946,6 +946,7 @@ class RegressionModelBuilder(ModelBuilder):
             The DataTree object to build the model from.
 
         """
+        self.idata = idata
         dataset = idata.fit_data.dataset.to_dataframe()  # type: ignore
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]

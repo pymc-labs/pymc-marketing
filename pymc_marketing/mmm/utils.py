@@ -232,100 +232,114 @@ def create_zero_dataset(
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
     include_carryover: bool = True,
-) -> pd.DataFrame:
-    """Create a DataFrame for future prediction, with zeros (or supplied constants).
+) -> xr.Dataset:
+    """Create an ``xr.Dataset`` for future prediction, with zero fills.
 
-    Creates a DataFrame with dates from start_date to end_date and all model dimensions,
-    filling channel and control columns with zeros or with values from channel_xr if provided.
+    Creates a dataset with dates from *start_date* to *end_date* and all model
+    dimensions, filling channel and control variables with zeros (or with values
+    from *channel_xr* if provided).  The output has the canonical underscore
+    variable names (``_channel``, ``_control``).
 
-    If *channel_xr* is provided it must
+    Parameters
+    ----------
+    model
+        Fitted MMM instance.  Must have ``xarray_dataset``, ``date_column``,
+        ``channel_columns``, ``control_columns``, ``dims`` and ``adstock``
+        attributes.
+    start_date, end_date
+        Date range for the prediction period.
+    channel_xr
+        Optional per-dimension channel values.  Data variables must be a subset
+        of ``model.channel_columns``.  Dimensions must be a subset of
+        ``model.dims`` and must **not** include the date dimension.  Values are
+        broadcast across every date in the generated range.
+    include_carryover
+        Whether to extend the date range by ``adstock.l_max`` periods so that
+        adstock initialisation has enough leading observations.
 
-    • have data variables that are a subset of ``model.channel_columns``
-    • be indexed *only* by the dimensions in ``model.dims`` (no date dimension)
-
-    The values in *channel_xr* are copied verbatim to the corresponding channel
-    columns and broadcast across every date in ``start_date … end_date``.
+    Returns
+    -------
+    xr.Dataset
+        Dataset with ``_channel`` (and optionally ``_control``) variables,
+        indexed by ``("date", *dims, "channel")``.
     """
-    # ---- 0. Basic integrity checks (unchanged) --------------------------------
-    if not hasattr(model, "X") or not isinstance(model.X, pd.DataFrame):
-        raise ValueError("'model.X' must be a pandas DataFrame.")
-
-    if not hasattr(model, "date_column") or model.date_column not in model.X.columns:
+    if not hasattr(model, "xarray_dataset"):
         raise ValueError(
-            "Model must expose `.date_column` and that column must be in `model.X`."
+            "Model must have a fitted 'xarray_dataset'. "
+            "Call `build_model` / `fit` first."
         )
 
-    required_attrs = ("channel_columns", "control_columns", "dims")
+    if not hasattr(model, "date_column"):
+        raise ValueError("Model must expose a `.date_column` attribute.")
+
+    required_attrs = ("channel_columns", "control_columns", "dims", "adstock")
     for attr in required_attrs:
         if not hasattr(model, attr):
             raise ValueError(f"Model must have a '{attr}' attribute.")
 
-    original_data = model.X
-    date_col = model.date_column
+    xa = model.xarray_dataset
     channel_cols = list(model.channel_columns)
     control_cols = (
         list(model.control_columns) if model.control_columns is not None else []
     )
-    dim_cols = list(model.dims)  # ensure list
+    dim_cols = list(model.dims)
 
-    # ---- 1. Infer date frequency ------------------------------------------------
-    date_series = pd.to_datetime(original_data[date_col])
-    inferred_freq = pd.infer_freq(date_series.unique())
-    if inferred_freq is None:  # fall-back if inference fails
+    # ---- 1. Infer date frequency from training data ---------------------------
+    training_dates = pd.DatetimeIndex(xa.coords["date"].values)
+    inferred_freq = pd.infer_freq(training_dates)
+    if inferred_freq is None:
         warnings.warn(
-            f"Could not infer frequency from '{date_col}'. Using weekly ('W').",
+            "Could not infer frequency from training dates. Using weekly ('W').",
             UserWarning,
             stacklevel=2,
         )
         inferred_freq = "W"
 
-    # ---- 2. Build the full Cartesian product of dates X dims -------------------
+    # ---- 2. Build date range --------------------------------------------------
     if include_carryover:
-        # if start_date are not timestamps, convert them to timestamps
         if not isinstance(start_date, pd.Timestamp):
             start_date = pd.Timestamp(start_date)
         if not isinstance(end_date, pd.Timestamp):
             end_date = pd.Timestamp(end_date)
-
-        # Add the adstock lag to the end date
         if hasattr(model.adstock, "l_max"):
             end_date += _convert_frequency_to_timedelta(
                 model.adstock.l_max, inferred_freq
             )
 
-    new_dates = pd.date_range(
-        start=start_date, end=end_date, freq=inferred_freq, name=date_col
-    )
+    new_dates = pd.date_range(start=start_date, end=end_date, freq=inferred_freq)
     if new_dates.empty:
         raise ValueError("Generated date range is empty. Check dates and frequency.")
 
-    date_df = pd.DataFrame(new_dates)
+    n_dates = len(new_dates)
 
-    if dim_cols:  # cross-join with dimension levels
-        unique_dims = original_data[dim_cols].drop_duplicates().reset_index(drop=True)
-        date_df["_k"] = 1
-        unique_dims["_k"] = 1
-        pred_df = pd.merge(date_df, unique_dims, on="_k").drop(columns="_k")
-    else:
-        pred_df = date_df.copy()
+    # ---- 3. Dimension coordinates from training data --------------------------
+    dim_coords = {}
+    for dim in dim_cols:
+        dim_coords[dim] = xa.coords[dim].values
 
-    # ---- 3. Initialise channel & control columns with zeros --------------------
-    for col in channel_cols + control_cols:
-        if col not in pred_df.columns:  # don't overwrite dim columns by accident
-            pred_df[col] = 0.0
+    # ---- 4. Build _channel variable -------------------------------------------
+    chan_shape = [n_dates]
+    chan_coords: dict = {"date": new_dates}
+    for dim in dim_cols:
+        chan_shape.append(len(dim_coords[dim]))
+        chan_coords[dim] = dim_coords[dim]
+    chan_shape.append(len(channel_cols))
+    chan_coords["channel"] = channel_cols
 
-    # ---- 4. Optional channel_xr injection --------------------------------------
+    channel_data = np.zeros(chan_shape, dtype=float)
+
+    # ---- 4a. Inject channel_xr values -----------------------------------------
     if channel_xr is not None:
-        # --- 4.1 Normalise to Dataset ------------------------------------------
         if isinstance(channel_xr, xr.DataArray):
-            # Give the single DataArray a name equal to its channel (attr 'name')
             channel_name = channel_xr.name or "value"
             channel_xr = channel_xr.to_dataset(name=channel_name)
 
         if not isinstance(channel_xr, xr.Dataset):
-            raise TypeError("`channel_xr` must be an xarray Dataset or DataArray.")
+            raise TypeError(
+                "`channel_xr` must be an xarray Dataset or DataArray, "
+                f"got {type(channel_xr).__name__}."
+            )
 
-        # --- 4.2 Validate variables & dimensions -------------------------------
         invalid_vars = set(channel_xr.data_vars) - set(channel_cols)
         if invalid_vars:
             raise ValueError(
@@ -349,117 +363,73 @@ def create_zero_dataset(
                 f"{sorted(invalid_dims)}"
             )
 
-        if date_col in channel_xr.dims:
+        if "date" in channel_xr.dims:
             raise ValueError("`channel_xr` must NOT include the date dimension.")
 
-        # --- 4.3 Inject constants ----------------------------------------------
-        # Special-case: when there are NO dims (e.g., only channel dimension in the
-        # allocation which was pivoted into variables), xarray can't create an index
-        # for to_dataframe(). In this scenario, simply broadcast scalar values
-        # across all rows.
-        if len(channel_xr.dims) == 0:
-            for ch in channel_cols:
-                if ch in channel_xr.data_vars:
-                    # assign scalar value across all rows
-                    try:
-                        pred_df[ch] = channel_xr[ch].item()
-                    except Exception:
-                        pred_df[ch] = channel_xr[ch].values
-        else:
-            # Convert to DataFrame & merge when dims are present
-            channel_df = channel_xr.to_dataframe().reset_index()
+        for ch in channel_cols:
+            if ch in channel_xr.data_vars:
+                ch_idx = channel_cols.index(ch)
+                vals = channel_xr[ch].values
+                channel_data[..., ch_idx] = np.broadcast_to(
+                    vals, (n_dates, *vals.shape)
+                )
 
-            # Left-join on every dimension; suffix prevents collisions during merge
-            pred_df = pred_df.merge(
-                channel_df,
-                on=dim_cols,
-                how="left",
-                suffixes=("", "_chan"),
-            )
+    # ---- 5. Build _control variable -------------------------------------------
+    data_vars: dict = {
+        "_channel": xr.DataArray(
+            channel_data, dims=("date", *dim_cols, "channel"), coords=chan_coords
+        ),
+    }
 
-        # --- 4.4 Copy merged values into official channel columns --------------
-        if len(channel_xr.dims) != 0:
-            for ch in channel_cols:
-                chan_col = f"{ch}_chan"
-                if chan_col in pred_df.columns:
-                    pred_df[ch] = pred_df[chan_col]
-                    pred_df.drop(columns=chan_col, inplace=True)
+    if control_cols:
+        ctrl_shape = [n_dates]
+        ctrl_coords: dict = {"date": new_dates}
+        for dim in dim_cols:
+            ctrl_shape.append(len(dim_coords[dim]))
+            ctrl_coords[dim] = dim_coords[dim]
+        ctrl_shape.append(len(control_cols))
+        ctrl_coords["control"] = control_cols
 
-            # Replace any remaining NaNs introduced by the merge
-            pred_df[channel_cols] = pred_df[channel_cols].fillna(0.0)
+        data_vars["_control"] = xr.DataArray(
+            np.zeros(ctrl_shape, dtype=float),
+            dims=("date", *dim_cols, "control"),
+            coords=ctrl_coords,
+        )
 
-    # ---- 5. Bring in any “other” columns from the training data ----------------
-    other_cols = [
-        col
-        for col in original_data.columns
-        if col not in [date_col, *dim_cols, *channel_cols, *control_cols]
-    ]
-    for col in other_cols:
-        if col not in pred_df.columns:
-            pred_df[col] = 0.0
-
-    # ---- 6. Match original column order & dtypes ------------------------------
-    final_columns = original_data.columns
-    pred_df = pred_df.reindex(columns=final_columns)
-
-    for col in final_columns:
-        try:
-            pred_df[col] = pred_df[col].astype(original_data[col].dtype)
-        except Exception as e:
-            warnings.warn(
-                f"Could not cast '{col}' to {original_data[col].dtype}: {e}",
-                UserWarning,
-                stacklevel=2,
-            )
-
-    return pred_df
+    return xr.Dataset(data_vars)
 
 
 def add_noise_to_channel_allocation(
-    df: pd.DataFrame,
+    df: pd.DataFrame | xr.Dataset,
     channels: list[str],
     rel_std: float = 0.05,
     seed: int | None = None,
-) -> pd.DataFrame:
-    """
-    Return *df* with additive Gaussian noise applied to *channels* columns.
+) -> pd.DataFrame | xr.Dataset:
+    """Add Gaussian noise to channel values.
 
-    Parameters
-    ----------
-    df : DataFrame
-        The original data (will **not** be modified in-place).
-    channels : list of str
-        Column names whose values represent media spends.
-    rel_std : float, default 0.05
-        Noise standard-deviation expressed as a fraction of the
-        *column mean* (i.e. `0.05` ⇒ 5 % of the mean spend).
-    seed : int or None
-        Optional seed for deterministic output.
-
-    Returns
-    -------
-    DataFrame
-        A copy of *df* with noisy spends.
+    Accepts both ``pd.DataFrame`` (with *channels* as columns) and
+    ``xr.Dataset`` (with a ``_channel`` data variable).  The return type
+    matches the input type.
     """
     rng = np.random.default_rng(seed)
 
-    # Per-channel scale (1-D ndarray), shape (n_channels,)
+    if isinstance(df, xr.Dataset):
+        da = df["_channel"]
+        non_channel_dims = tuple(d for d in da.dims if d != "channel")
+        ch_scale = (rel_std * da.mean(dim=non_channel_dims)).values
+        noise = rng.normal(loc=0.0, scale=ch_scale, size=da.shape)
+        noisy = xr.where(da == 0, 0.0, da + noise).clip(min=0.0)
+        result = df.copy()
+        result["_channel"] = noisy
+        return result
+
     scale: np.ndarray = (rel_std * df[channels].mean()).to_numpy()
-
-    # Draw all required noise in one call, shape (n_rows, n_channels)
     noise = rng.normal(loc=0.0, scale=scale, size=(len(df), len(channels)))
-
-    # Create the noisy copy
     noisy_df = df.copy()
     noisy_df[channels] += noise
-
-    # Override channels with zero spend, we don't want to add noise to those ones
     zero_spend_mask = df[channels] == 0
     noisy_df[zero_spend_mask] = 0.0
-
-    # Ensure no negative spends
     noisy_df[channels] = noisy_df[channels].clip(lower=0.0)
-
     return noisy_df
 
 
