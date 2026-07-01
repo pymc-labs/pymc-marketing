@@ -26,6 +26,8 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 
 from pymc_marketing.mmm.plotting._helpers import (
+    ALLOCATION_METRIC_LABELS,
+    _build_allocation_metric_dataset,
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
@@ -344,3 +346,85 @@ class TestSelectDims:
         result = _select_dims(sample_dataset, {"channel": "tv", "geo": "US"})
         assert result.sizes["channel"] == 1
         assert result.sizes["geo"] == 1
+
+
+class TestBuildAllocationMetricDataset:
+    """Tests for the budget-allocation data-prep helper."""
+
+    @staticmethod
+    def _samples(with_geo: bool = False, sample_dim: bool = False) -> xr.Dataset:
+        rng = np.random.default_rng(0)
+        channels = ["tv", "radio", "social"]
+        n_sample, n_date = 40, 12
+        if with_geo:
+            geos = ["CA", "NY"]
+            contrib = rng.uniform(
+                100, 500, (n_sample, n_date, len(geos), len(channels))
+            )
+            contrib_da = xr.DataArray(
+                contrib,
+                dims=("sample", "date", "geo", "channel"),
+                coords={"geo": geos, "channel": channels},
+            )
+            alloc = xr.DataArray(
+                rng.uniform(1000, 5000, (len(geos), len(channels))) * n_date,
+                dims=("geo", "channel"),
+                coords={"geo": geos, "channel": channels},
+            )
+        else:
+            contrib = rng.uniform(100, 500, (n_sample, n_date, len(channels)))
+            contrib_da = xr.DataArray(
+                contrib,
+                dims=("sample", "date", "channel"),
+                coords={"channel": channels},
+            )
+            alloc = xr.DataArray(
+                rng.uniform(1000, 5000, len(channels)) * n_date,
+                dims=("channel",),
+                coords={"channel": channels},
+            )
+        if not sample_dim:
+            contrib_da = contrib_da.rename(sample="draw").expand_dims(chain=[0])
+        return xr.Dataset(
+            {
+                "channel_contribution_original_scale": contrib_da,
+                "total_allocation": alloc,
+            }
+        )
+
+    def test_metric_coord_and_variable(self):
+        ds, extra_dims = _build_allocation_metric_dataset(self._samples())
+        assert list(ds.data_vars) == ["value"]
+        assert list(ds["metric"].values) == list(ALLOCATION_METRIC_LABELS)
+        assert extra_dims == []
+
+    def test_has_chain_draw_channel_metric_dims(self):
+        ds, _ = _build_allocation_metric_dataset(self._samples(sample_dim=True))
+        assert {"chain", "draw", "channel", "metric"} <= set(ds["value"].dims)
+        assert "date" not in ds["value"].dims
+
+    def test_extra_dims_detected(self):
+        ds, extra_dims = _build_allocation_metric_dataset(self._samples(with_geo=True))
+        assert extra_dims == ["geo"]
+        assert "geo" in ds["value"].dims
+
+    def test_allocation_is_constant_over_samples(self):
+        """Broadcast spend must not vary across chain/draw -> degenerate HDI."""
+        ds, _ = _build_allocation_metric_dataset(self._samples())
+        spend = ds["value"].sel(metric="Allocated Spend")
+        assert np.allclose(spend.std(dim=["chain", "draw"]), 0.0)
+
+    def test_contribution_summed_over_date(self):
+        samples = self._samples(sample_dim=True)
+        expected = (
+            samples["channel_contribution_original_scale"].sum("date").mean().item()
+        )
+        ds, _ = _build_allocation_metric_dataset(samples)
+        got = ds["value"].sel(metric="Channel Contribution").mean().item()
+        assert np.isclose(got, expected)
+
+    def test_dims_filtering(self):
+        ds, _extra_dims = _build_allocation_metric_dataset(
+            self._samples(with_geo=True), dims={"geo": ["CA"]}
+        )
+        assert list(ds["geo"].values) == ["CA"]

@@ -25,8 +25,10 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.mmm.plotting._helpers import (
+    _build_allocation_metric_dataset,
     _ensure_chain_draw_dims,
     _extract_matplotlib_result,
+    _plot_allocation_comparison,
     _plot_timeseries_channel,
     _process_plot_params,
     _select_dims,
@@ -40,8 +42,10 @@ class BudgetPlots:
     on each method call.  Obtain an instance via ``mmm.plot.budget``.
 
     Provides ``allocation_roas`` (forest plot of per-channel ROAS
-    distributions) and ``contribution_over_time`` (time-series of channel
-    contributions from an optimised budget allocation).
+    distributions), ``contribution_over_time`` (time-series of channel
+    contributions from an optimised budget allocation) and
+    ``budget_allocation`` (per-channel comparison of allocated spend and
+    channel contribution).
     """
 
     def allocation_roas(
@@ -158,7 +162,7 @@ class BudgetPlots:
               (dims: ``sample``, ``date``, ``channel``, ...)
         dims : dict, optional
             Dimension filters, e.g. ``{"geo": ["CA"]}``.
-        hdi_prob : float, default 0.85
+        hdi_prob : float, default 0.94
             HDI probability mass.
         figsize : tuple, optional
             Injected into ``figure_kwargs``.
@@ -213,6 +217,96 @@ class BudgetPlots:
             hdi_prob=hdi_prob,
             backend=backend,
             line_kwargs=line_kwargs,
+            hdi_kwargs=hdi_kwargs,
+            **pc_kwargs,
+        )
+
+        return _extract_matplotlib_result(pc, return_as_pc)
+
+    def budget_allocation(
+        self,
+        samples: xr.Dataset,
+        dims: dict[str, Any] | None = None,
+        hdi_prob: float = 0.94,
+        figsize: tuple[float, float] | None = None,
+        backend: str | None = None,
+        return_as_pc: bool = False,
+        point_kwargs: dict[str, Any] | None = None,
+        hdi_kwargs: dict[str, Any] | None = None,
+        **pc_kwargs,
+    ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
+        """Compare allocated spend and channel contribution per channel.
+
+        Creates a faceted point-interval chart with one column per metric —
+        ``"Allocated Spend"`` and ``"Channel Contribution"`` — each with its
+        own y-scale (the two quantities have different units).  Channels sit
+        on the x-axis; each is drawn as a median point with a vertical HDI
+        whisker.  Allocated spend is deterministic, so its whisker collapses
+        to a point.  Extra dimensions (e.g. ``geo``) create additional facet
+        rows.
+
+        Both quantities are aggregated over the optimisation horizon:
+        contribution is ``channel_contribution_original_scale`` summed over
+        ``date`` (keeping samples for the HDI) and spend is
+        ``total_allocation``, mirroring :meth:`allocation_roas`.
+
+        Parameters
+        ----------
+        samples : xr.Dataset
+            Output of ``sample_response_distribution(...)`` or equivalent.
+            Must contain:
+
+            - ``channel_contribution_original_scale``
+              (dims: ``sample`` or ``(chain, draw)``, ``date``, ``channel``, ...)
+            - ``total_allocation`` (dims: ``channel``, ...)
+        dims : dict, optional
+            Dimension filters, e.g. ``{"geo": ["CA"]}``.
+        hdi_prob : float, default 0.94
+            HDI probability mass for the contribution whisker.
+        figsize : tuple, optional
+            Injected into ``figure_kwargs``.
+        backend : str, optional
+            Rendering backend.  Non-matplotlib requires ``return_as_pc=True``.
+        return_as_pc : bool, default False
+            Return the ``PlotCollection`` instead of ``(Figure, NDArray[Axes])``.
+        point_kwargs : dict, optional
+            Extra kwargs forwarded to ``azp.visuals.scatter_xy`` (median point).
+        hdi_kwargs : dict, optional
+            Extra kwargs forwarded to ``azp.visuals.line_xy`` (HDI whisker).
+        **pc_kwargs
+            Forwarded to ``PlotCollection.grid()``.
+
+        Returns
+        -------
+        tuple[Figure, NDArray[Axes]] or PlotCollection
+        """
+        if "channel_contribution_original_scale" not in samples:
+            raise ValueError(
+                "Expected 'channel_contribution_original_scale' variable in samples, "
+                "but none found."
+            )
+        if "total_allocation" not in samples:
+            raise ValueError(
+                "Expected 'total_allocation' variable in samples, but none found."
+            )
+        if "channel" not in samples.dims:
+            raise ValueError("Expected 'channel' dimension in samples, but none found.")
+
+        pc_kwargs = _process_plot_params(
+            figsize=figsize,
+            backend=backend,
+            return_as_pc=return_as_pc,
+            **pc_kwargs,
+        )
+
+        ds, extra_dims = _build_allocation_metric_dataset(samples, dims)
+
+        pc = _plot_allocation_comparison(
+            ds=ds,
+            extra_dims=extra_dims,
+            hdi_prob=hdi_prob,
+            backend=backend,
+            point_kwargs=point_kwargs,
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )

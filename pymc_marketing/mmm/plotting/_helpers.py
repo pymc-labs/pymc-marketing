@@ -376,3 +376,164 @@ def _plot_timeseries_channel(
     pc.add_legend(color_dim)
 
     return pc
+
+
+#: Coordinate labels for the ``metric`` facet of the budget-allocation plot.
+ALLOCATION_METRIC_LABELS: tuple[str, str] = (
+    "Allocated Spend",
+    "Channel Contribution",
+)
+
+
+def _build_allocation_metric_dataset(
+    samples: xr.Dataset,
+    dims: dict[str, Any] | None = None,
+) -> tuple[xr.Dataset, list[str]]:
+    """Assemble a metric-faceted dataset comparing spend and contribution.
+
+    Combines total allocated spend and total channel contribution (summed
+    over ``date``) into a single ``value`` variable with a new ``metric``
+    dimension whose coordinates are :data:`ALLOCATION_METRIC_LABELS`.  This
+    lets a single :class:`~arviz_plots.PlotCollection` render both quantities
+    as independent-scale facet columns.
+
+    The channel contribution keeps its sample dimensions (``chain``/``draw``)
+    so downstream HDI computation works; the deterministic allocation is
+    broadcast across those sample dimensions so the two metrics concatenate
+    cleanly (its HDI collapses to a point).
+
+    Parameters
+    ----------
+    samples : xr.Dataset
+        Must contain ``channel_contribution_original_scale``
+        (dims: ``sample`` or ``(chain, draw)``, ``date``, ``channel``, ...)
+        and ``total_allocation`` (dims: ``channel``, ...).
+    dims : dict, optional
+        Dimension filters, e.g. ``{"geo": ["CA"]}``.
+
+    Returns
+    -------
+    ds : xr.Dataset
+        Single-variable (``value``) dataset with dims
+        ``(metric, chain, draw, channel, *extra_dims)``.
+    extra_dims : list of str
+        Faceting dimensions beyond ``chain``/``draw``/``channel``/``metric``
+        (e.g. ``["geo"]``), used as plot rows.
+    """
+    contribution = _select_dims(samples["channel_contribution_original_scale"], dims)
+    contribution = _ensure_chain_draw_dims(contribution)
+    contribution_total = contribution.sum("date")
+
+    total_allocation = _select_dims(
+        samples["total_allocation"], dims, allow_missing=True
+    )
+    total_allocation = total_allocation.broadcast_like(contribution_total)
+
+    merged = xr.concat(
+        [
+            total_allocation.rename("value"),
+            contribution_total.rename("value"),
+        ],
+        dim="metric",
+    ).assign_coords(metric=list(ALLOCATION_METRIC_LABELS))
+    ds = merged.to_dataset(name="value")
+
+    extra_dims = [
+        d for d in ds["value"].dims if d not in {"chain", "draw", "channel", "metric"}
+    ]
+    return ds, extra_dims
+
+
+def _plot_allocation_comparison(
+    ds: xr.Dataset,
+    extra_dims: list[str],
+    hdi_prob: float,
+    backend: str | None,
+    point_kwargs: dict[str, Any] | None = None,
+    hdi_kwargs: dict[str, Any] | None = None,
+    **pc_kwargs,
+) -> PlotCollection:
+    """Render the metric-faceted spend-vs-contribution comparison.
+
+    Produces one facet column per metric (``Allocated Spend`` and
+    ``Channel Contribution``) with independent y-scales, and one facet row
+    per combination of ``extra_dims``.  Each channel is drawn as a median
+    point with a vertical HDI whisker (the allocation whisker is degenerate
+    because spend is deterministic).
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Output of :func:`_build_allocation_metric_dataset` — a ``value``
+        variable with dims ``(metric, chain, draw, channel, *extra_dims)``.
+    extra_dims : list of str
+        Dimensions used as facet rows (e.g. ``["geo"]``).  Empty for no rows.
+    hdi_prob : float
+        HDI probability mass for the whisker.
+    backend : str or None
+        Rendering backend.
+    point_kwargs : dict, optional
+        Extra kwargs forwarded to ``azp.visuals.scatter_xy`` (median point).
+    hdi_kwargs : dict, optional
+        Extra kwargs forwarded to ``azp.visuals.line_xy`` (HDI whisker).
+    **pc_kwargs
+        Forwarded to ``PlotCollection.grid()``.
+
+    Returns
+    -------
+    PlotCollection
+    """
+    channels = ds["channel"].values
+    positions = np.arange(len(channels))
+    x_idx = xr.DataArray(positions, dims="channel", coords={"channel": channels})
+    x_whisker = xr.concat([x_idx, x_idx], dim="ci_bound").assign_coords(
+        ci_bound=["lower", "upper"]
+    )
+
+    median = ds["value"].median(dim=["chain", "draw"])
+    hdi = ds.azstats.hdi(prob=hdi_prob)["value"]
+    # Scalar-per-facet data so tick labels are set once per subplot.
+    tick_data = ds["value"].mean(dim=["chain", "draw", "channel"]).to_dataset()
+
+    pc = PlotCollection.grid(
+        ds,
+        cols=["metric"],
+        rows=extra_dims or None,
+        backend=backend,
+        aes={"color": ["channel"]},
+        **pc_kwargs,
+    )
+
+    pc.map(
+        azp.visuals.line_xy,
+        "whisker",
+        x=x_whisker,
+        y=hdi,
+        **(hdi_kwargs or {}),
+    )
+    pc.map(
+        azp.visuals.scatter_xy,
+        "point",
+        x=x_idx,
+        y=median,
+        **(point_kwargs or {}),
+    )
+    pc.map(
+        azp.visuals.set_xticks,
+        "ticks",
+        data=tick_data,
+        values=positions.tolist(),
+        labels=[str(channel) for channel in channels],
+        ignore_aes={"color"},
+        store_artist=False,
+    )
+    pc.map(azp.visuals.labelled_y, text="Value", ignore_aes={"color"})
+    pc.map(
+        azp.visuals.labelled_title,
+        subset_info=True,
+        labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+        ignore_aes={"color"},
+    )
+    pc.add_legend("channel")
+
+    return pc
