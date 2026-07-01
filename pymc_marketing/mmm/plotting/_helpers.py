@@ -486,7 +486,9 @@ def _plot_allocation_comparison(
     channels = ds["channel"].values
     positions = np.arange(len(channels))
     x_idx = xr.DataArray(positions, dims="channel", coords={"channel": channels})
-    x_whisker = xr.concat([x_idx, x_idx], dim="ci_bound")
+    x_whisker = xr.concat([x_idx, x_idx], dim="ci_bound").assign_coords(
+        ci_bound=["lower", "upper"]
+    )
 
     median = ds["value"].median(dim=["chain", "draw"])
     hdi = ds.azstats.hdi(prob=hdi_prob)["value"]

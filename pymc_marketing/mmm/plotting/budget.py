@@ -162,7 +162,7 @@ class BudgetPlots:
               (dims: ``sample``, ``date``, ``channel``, ...)
         dims : dict, optional
             Dimension filters, e.g. ``{"geo": ["CA"]}``.
-        hdi_prob : float, default 0.85
+        hdi_prob : float, default 0.94
             HDI probability mass.
         figsize : tuple, optional
             Injected into ``figure_kwargs``.
