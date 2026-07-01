@@ -29,6 +29,7 @@ from rich.table import Table
 
 from pymc_marketing.data.idata.utils import idata_from_zarr
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
+from pymc_marketing import __version__
 from pymc_marketing.model_builder import (
     DifferentModelError,
     ModelBuilder,
@@ -36,6 +37,14 @@ from pymc_marketing.model_builder import (
     RegressionModelBuilder,
     create_sample_kwargs,
 )
+
+# Standard ArviZ/PyMC metadata attrs that the DataTree migration was stripping
+# from single-variable groups. `keep_dataset=True` in `az.extract` preserves them.
+_METADATA_ATTRS = {
+    "created_at",
+    "inference_library",
+    "inference_library_version",
+}
 
 
 @pytest.fixture(scope="module")
@@ -768,7 +777,11 @@ def test_sample_prior_predictive_returns_dataset_with_attrs(toy_X, combined):
     model = RegressionModelBuilderTest()
     result = model.sample_prior_predictive(toy_X, combined=combined)
     assert isinstance(result, xr.Dataset)
-    assert "pymc_marketing_version" in result.attrs
+    # pymc-marketing stamps its version on the prior_predictive group; it must
+    # survive the az.extract conversion and match the installed version.
+    assert result.attrs["pymc_marketing_version"] == __version__
+    # The standard ArviZ/PyMC metadata attrs must not be stripped either.
+    assert _METADATA_ATTRS <= set(result.attrs)
 
 
 @pytest.mark.parametrize("combined", [True, False])
@@ -779,6 +792,9 @@ def test_sample_posterior_predictive_returns_dataset_with_attrs(
         toy_X, combined=combined, extend_idata=False
     )
     assert isinstance(result, xr.Dataset)
+    # The metadata attrs on the posterior_predictive group must be preserved
+    # through the az.extract conversion (the regression this PR fixes).
+    assert _METADATA_ATTRS <= set(result.attrs)
 
 
 def test_fit_after_prior_keeps_prior(
