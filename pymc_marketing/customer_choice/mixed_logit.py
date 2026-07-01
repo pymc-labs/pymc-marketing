@@ -14,7 +14,6 @@
 """Mixed Logit for Product Preference Analysis with Random Coefficients."""
 
 import json
-import warnings
 from typing import Self
 
 import matplotlib.pyplot as plt
@@ -1137,13 +1136,7 @@ class MixedLogit(ModelBuilder):
 
         fit_data = self._create_fit_data()
 
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata["/fit_data"] = fit_data
+        self.idata["/fit_data"] = fit_data
 
         # Set attributes for save/load
         self.set_idata_attrs(self.idata)

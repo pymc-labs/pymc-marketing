@@ -13,8 +13,6 @@
 #   limitations under the License.
 """Shared fixtures for MMM tests."""
 
-import warnings
-
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -157,14 +155,8 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
         idata = pm.sample_prior_predictive(random_seed=random_seed, **kwargs)
 
     fit_data = model.create_fit_data(X, y)
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
-        )
-        idata["/posterior"] = idata["/prior"].to_dataset()
-        idata["/fit_data"] = fit_data
+    idata["/posterior"] = idata["/prior"].to_dataset()
+    idata["/fit_data"] = fit_data
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 
