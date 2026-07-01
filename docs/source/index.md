@@ -24,7 +24,8 @@ PyMC-Marketing is an open-source Python library for Bayesian marketing analytics
 :::{div} sd-text-center
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
-[![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
+[![GitHub stars](https://img.shields.io/github/stars/pymc-labs/pymc-marketing?style=flat&logo=github&label=Stars)](https://github.com/pymc-labs/pymc-marketing)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/pymc-labs/pymc-marketing/blob/main/LICENSE)
 :::
 
 :::{div} sd-text-center sd-text-muted
@@ -45,6 +46,14 @@ Powered by
 :scale: 10 %
 :alt: PyMC Labs logo
 :class: only-light
+:::
+
+## Trusted in production
+
+PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. Data science teams use it to plan and defend real marketing budgets, with results validated against experiments and lift tests.
+
+:::{div} sd-text-center
+**750,000+ downloads** · **1,100+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
 :::
 
 ## Get started

@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
 from unittest.mock import patch
 
 import numpy as np
@@ -303,20 +302,21 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
-    def test_save_load(self, mocker):
+    def test_save_load(self, mocker, tmp_path):
         model = GammaGammaModel(
             data=self.data,
         )
+        save_path = tmp_path / "test_model"
         model.model_config = {
             param: Prior("HalfNormal") for param in model.model_config
         }
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
         model.fit(method="map", maxeval=1)
-        model.save("test_model")
+        model.save(save_path)
         # Testing the valid case.
 
-        model2 = GammaGammaModel.load("test_model")
+        model2 = GammaGammaModel.load(save_path)
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, GammaGammaModel)
@@ -325,7 +325,6 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
-        os.remove("test_model")
 
 
 class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
@@ -472,19 +471,20 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "\nspend~Gamma(p,f(nu))"
         )
 
-    def test_save_load(self, mocker):
+    def test_save_load(self, mocker, tmp_path):
         model = GammaGammaModelIndividual(
             data=self.individual_data,
         )
+        save_path = tmp_path / "test_model"
         model.model_config = {
             param: Prior("HalfNormal") for param in model.model_config
         }
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
         model.fit(method="map", maxeval=1)
-        model.save("test_model")
+        model.save(save_path)
         # Testing the valid case.
 
-        model2 = GammaGammaModelIndividual.load("test_model")
+        model2 = GammaGammaModelIndividual.load(save_path)
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, GammaGammaModelIndividual)
@@ -493,4 +493,3 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
-        os.remove("test_model")

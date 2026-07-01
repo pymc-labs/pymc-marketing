@@ -11,8 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -546,16 +544,16 @@ class TestShiftedBetaGeoModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    def test_save_load(self):
+    def test_save_load(self, tmp_path):
         model = ShiftedBetaGeoModel()
+        save_path = tmp_path / "test_model"
         model.build_model(data=self.data)
         model.fit(method="map")
-        model.save("test_model")
-        model2 = ShiftedBetaGeoModel.load("test_model")
+        model.save(save_path)
+        model2 = ShiftedBetaGeoModel.load(save_path)
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
-        os.remove("test_model")
 
     def test_requires_cohort_dims_on_alpha_beta_missing_raises(self):
         config_missing_dims = {
@@ -1388,15 +1386,16 @@ class TestShiftedBetaGeoModelIndividual:
             rtol=0.05,
         )
 
-    def test_save_load(self, data):
+    def test_save_load(self, data, tmp_path):
         model = ShiftedBetaGeoModelIndividual(
             data=data,
         )
+        save_path = tmp_path / "test_model"
         model.build_model()
         model.fit(method="map", maxeval=1)
-        model.save("test_model")
+        model.save(save_path)
         # Testing the valid case.
-        model2 = ShiftedBetaGeoModelIndividual.load("test_model")
+        model2 = ShiftedBetaGeoModelIndividual.load(save_path)
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(model, ShiftedBetaGeoModelIndividual)
         # Check if the loaded data matches with the model data
@@ -1404,4 +1403,3 @@ class TestShiftedBetaGeoModelIndividual:
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
-        os.remove("test_model")

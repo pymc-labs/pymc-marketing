@@ -281,10 +281,20 @@ def test_log_model_graph_no_graphviz(
         side_effect=side_effect,
     )
     with mlflow.start_run() as run:
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
             log_model_graph(model_with_likelihood, "model_graph")
 
-    assert caplog.messages == [
+    # Only inspect records emitted by pymc-marketing itself. caplog's handler is
+    # attached to the root logger, so it also captures unrelated INFO logs from
+    # third-party libraries (e.g. MLflow's "Creating initial MLflow database
+    # tables..." emitted on first backend-store creation), which would otherwise
+    # make this assertion order-dependent and flaky.
+    messages = [
+        record.message
+        for record in caplog.records
+        if record.name == "pymc_marketing.mlflow"
+    ]
+    assert messages == [
         expected_info_message,
     ]
 

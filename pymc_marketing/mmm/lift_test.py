@@ -34,7 +34,7 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
-Index = Sequence[int]
+Index = Sequence[int] | npt.NDArray
 Indices = dict[str, Index]
 Values = npt.NDArray[np.int_] | npt.NDArray | npt.NDArray[np.str_]
 

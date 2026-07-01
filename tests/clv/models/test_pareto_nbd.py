@@ -11,8 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -452,11 +450,12 @@ class TestParetoNBDModel:
         np.testing.assert_allclose(customer_freq.mean(), ref_freq.mean(), rtol=0.5)
         np.testing.assert_allclose(customer_freq.std(), ref_freq.std(), rtol=0.5)
 
-    def test_save_load_pareto_nbd(self):
-        self.model.save("test_model")
+    def test_save_load_pareto_nbd(self, tmp_path):
+        save_path = tmp_path / "test_model"
+        self.model.save(save_path)
         # Testing the valid case.
 
-        loaded_model = ParetoNBDModel.load("test_model")
+        loaded_model = ParetoNBDModel.load(save_path)
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(loaded_model, ParetoNBDModel)
@@ -469,7 +468,6 @@ class TestParetoNBDModel:
         assert self.model.model_config == loaded_model.model_config
         assert self.model.sampler_config == loaded_model.sampler_config
         assert self.model.idata == loaded_model.idata
-        os.remove("test_model")
 
     def test_fit_exception(self):
         with pytest.warns(
