@@ -242,6 +242,47 @@ class TestContributionsOverTime:
             f"Expected {len(channels)} lines (one per channel), got {len(data_lines)}"
         )
 
+    def test_facet_creates_one_panel_per_channel(self, simple_plots):
+        """facet=True draws each channel in its own panel."""
+        channels = ["tv", "radio", "social"]
+        _fig, axes = simple_plots.contributions_over_time(
+            include=["channels"], facet=True
+        )
+        assert len(axes) == len(channels)
+
+    def test_facet_default_is_single_panel(self, simple_plots):
+        """Regression: facet=False overlays all channels in one panel."""
+        channels = ["tv", "radio", "social"]
+        _fig, axes = simple_plots.contributions_over_time(include=["channels"])
+        assert len(axes) == 1
+        data_lines = [ln for ln in axes[0].get_lines() if len(ln.get_xdata()) > 1]
+        assert len(data_lines) == len(channels)
+
+    def test_facet_each_panel_single_line(self, simple_plots):
+        """With facet=True every panel holds exactly one data line."""
+        _fig, axes = simple_plots.contributions_over_time(
+            include=["channels"], facet=True
+        )
+        for ax in axes:
+            data_lines = [ln for ln in ax.get_lines() if len(ln.get_xdata()) > 1]
+            assert len(data_lines) == 1, (
+                f"Expected one line per faceted panel, got {len(data_lines)}"
+            )
+
+    def test_facet_with_extra_dims(self, panel_plots):
+        """Faceting combines with extra dims: channels x geos panels."""
+        # panel_idata has channels tv/radio and geos CA/NY -> 2 x 2 = 4 panels
+        _fig, axes = panel_plots.contributions_over_time(
+            include=["channels"], facet=True
+        )
+        assert len(axes) == 4
+
+    def test_facet_return_as_pc(self, simple_plots):
+        result = simple_plots.contributions_over_time(
+            include=["channels"], facet=True, return_as_pc=True
+        )
+        assert isinstance(result, PlotCollection)
+
     def test_baseline_is_horizontal(self, simple_plots):
         """Baseline line must be constant across all dates (time-invariant intercept)."""
         _fig, axes = simple_plots.contributions_over_time(include=["baseline"])
