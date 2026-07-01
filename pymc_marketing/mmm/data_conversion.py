@@ -118,7 +118,7 @@ def to_mmm_dataset(
     """
     # 1. Coerce date column to datetime for DataFrame inputs.
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
-        X[date_column] = pd.to_datetime(X[date_column])
+        X.loc[:, date_column] = pd.to_datetime(X[date_column])
 
     # 2. Normalise X.
     ds = _to_mmm_xarray(
