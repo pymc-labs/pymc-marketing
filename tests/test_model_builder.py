@@ -763,6 +763,24 @@ def test_sample_prior_predictive_has_pymc_marketing_version(
     )
 
 
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_prior_predictive_returns_dataset_with_attrs(toy_X, combined):
+    model = RegressionModelBuilderTest()
+    result = model.sample_prior_predictive(toy_X, combined=combined)
+    assert isinstance(result, xr.Dataset)
+    assert "pymc_marketing_version" in result.attrs
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_posterior_predictive_returns_dataset_with_attrs(
+    fitted_regression_model_instance, toy_X, combined
+):
+    result = fitted_regression_model_instance.sample_posterior_predictive(
+        toy_X, combined=combined, extend_idata=False
+    )
+    assert isinstance(result, xr.Dataset)
+
+
 def test_fit_after_prior_keeps_prior(
     model_with_prior_predictive,
     toy_X,

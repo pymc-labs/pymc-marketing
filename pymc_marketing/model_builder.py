@@ -1286,10 +1286,9 @@ class RegressionModelBuilder(ModelBuilder):
             else:
                 self.idata = prior_pred
 
-        result = az.extract(prior_pred, "prior_predictive", combined=combined)
-        if isinstance(result, xr.DataArray):
-            result = result.to_dataset()
-
+        result = az.extract(
+            prior_pred, "prior_predictive", combined=combined, keep_dataset=True
+        )
         return result
 
     def sample_posterior_predictive(
@@ -1335,9 +1334,9 @@ class RegressionModelBuilder(ModelBuilder):
             else "posterior_predictive"
         )
 
-        result = az.extract(post_pred, variable_name, combined=combined)
-        if isinstance(result, xr.DataArray):
-            result = result.to_dataset()
+        result = az.extract(
+            post_pred, variable_name, combined=combined, keep_dataset=True
+        )
         return result
 
     def predict_proba(
