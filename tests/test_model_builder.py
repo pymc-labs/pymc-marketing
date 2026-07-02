@@ -27,9 +27,9 @@ import pytest
 import xarray as xr
 from rich.table import Table
 
+from pymc_marketing import __version__
 from pymc_marketing.data.idata.utils import idata_from_zarr
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing import __version__
 from pymc_marketing.model_builder import (
     DifferentModelError,
     ModelBuilder,
