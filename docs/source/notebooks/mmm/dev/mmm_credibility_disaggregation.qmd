@@ -1,0 +1,799 @@
+---
+title: "Who Earned the Credit?"
+subtitle: "Splitting a channel's Media-Mix impact across campaigns — using a 100-year-old idea from insurance"
+author: "PyMC-Marketing"
+date: last-modified
+format:
+  html:
+    toc: true
+    toc-depth: 2
+    number-sections: false
+    code-fold: true
+    code-tools: true
+    code-summary: "Show the code"
+    fig-align: center
+    theme: cosmo
+    embed-resources: true
+jupyter: python3
+execute:
+  warning: false
+---
+
+Your Media-Mix Model has done its job. It tells you, with honest uncertainty,
+that **Paid Social drove this much incremental revenue** — day by day. You bring
+it to the review, and the first question is the one the MMM can't answer:
+
+> *"Great — but **which campaign**?"*
+
+So you open the platform dashboard. Every campaign is proudly claiming
+conversions. Add them up and they total far more than the MMM says the whole
+channel earned. The always-on brand campaign looks steady; a flashy weekend
+burst looks like a superstar; a tiny niche campaign swings wildly from great to
+terrible week to week. And you already know the dirty secret: most of those
+"conversions" are rule-based and **non-incremental** — plenty of those people
+would have converted anyway.
+
+You have **one number you trust** (the MMM's channel total) and **six shaky
+signals** (the per-campaign platform numbers). You need to divide the trustworthy
+number across the campaigns. How much should you believe each campaign's own
+story?
+
+::: {.callout-tip title="The old idea we're going to borrow"}
+This is *exactly* the problem an insurance actuary solves before breakfast.
+
+Picture pricing car insurance. A driver comes in with **one** claim-free year.
+Do you give them the flawless-driver discount? Of course not — one year is too
+little to tell skill from luck. So you **blend** their record with the average
+driver, and you lean on their own history *more and more as it piles up*.
+
+That blend has a name — **credibility** — and a single dial, called **Z**, that
+runs from 0 ("I'll trust the average") to 1 ("I'll trust you"). The dial turns on
+one thing: **how much evidence you have.**
+:::
+
+**The whole idea of this notebook, in one sentence:** swap *"years of driving
+history"* for *"how many people the campaign reached,"* and use that dial to
+decide how much of each campaign's own story to believe.
+
+A campaign that reached 60,000 people has earned the right to be judged on its
+own numbers. One that reached 8,000 hasn't — its numbers are mostly noise, so we
+gently pull it toward the channel average until it earns our trust. **Reach is
+evidence.** Everything below is just that idea, done carefully and with honest
+uncertainty.
+
+::: {.callout-note collapse="true" title="For the statistically minded: the exact mapping (and why it equals Fay–Herriot)"}
+This is **Bühlmann credibility**, which blends a policyholder's own experience
+with the collective mean,
+$$\text{premium}=Z\cdot(\text{own})+(1-Z)\cdot(\text{collective}),\qquad Z=\frac{n}{n+k},$$
+and it is *exactly* hierarchical-Bayes partial pooling.
+
+| Bühlmann credibility (actuarial) | This MMM disaggregation |
+|---|---|
+| Policyholder | Campaign $c$ |
+| Portfolio / *collective* | The whole social channel |
+| Own loss experience (noisy) | Naive contribution-per-reached-user (social split by click share) |
+| Exposure / sample size $n$ | **Reach** $n_c$ — the effective sample size |
+| Collective mean | Channel-average log-effectiveness $\mu$ |
+| Credibility factor $Z_c=\frac{n_c}{n_c+k}$ | Trust in a campaign's own signal |
+| Credibility premium | Shrunk per-campaign log-effectiveness $\theta_c$ |
+
+Writing the direct estimate's sampling variance as $\psi_c=s^2/n_c$,
+$$Z_c=\frac{n_c}{n_c+k}=\frac{\tau^2}{\tau^2+\psi_c}=1-B_c^{\text{FH}},$$
+so this is the **actuarial twin of the Fay–Herriot notebook** — but with sampling
+variances *derived from reach* rather than assumed.
+:::
+
+```{python}
+#| code-summary: "Setup & imports"
+import warnings
+
+import arviz as az
+import arviz_plots as azp
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pymc as pm
+import xarray as xr
+from IPython.display import Markdown, display
+
+warnings.filterwarnings("ignore")
+az.style.use("arviz-vibrant")
+plt.rcParams["figure.figsize"] = [7.6, 6.0]  # hidden default — every plot inherits this
+plt.rcParams["figure.dpi"] = 100
+%config InlineBackend.figure_format = "retina"
+```
+
+## Meet the six campaigns
+
+Six campaigns ran on one social channel for 120 days. We load the everyday
+delivery telemetry any analyst has (spend, impressions, reach, clicks), plus the
+**MMM's social-contribution posterior** — the trustworthy number we're going to
+divide up. We also quietly load a simulated ground truth, used **only** at the
+very end to check our work, never to fit.
+
+```{python}
+from pathlib import Path
+
+_DEV = Path("docs/source/notebooks/mmm/dev/data")
+DATA = Path("data") if (Path("data") / "campaign_daily_metrics.csv").exists() else _DEV
+metrics = pd.read_csv(DATA / "campaign_daily_metrics.csv", parse_dates=["date"])
+cum_reach = pd.read_csv(
+    DATA / "campaign_cumulative_reach.csv", index_col=0, parse_dates=True
+)
+overlap = pd.read_csv(DATA / "audience_overlap_matrix.csv", index_col=0)
+mmm_df = pd.read_csv(DATA / "mmm_input_data.csv", parse_dates=["date"])
+contrib = xr.open_dataset(DATA / "channel_contribution_posterior.nc")[
+    "channel_contribution"
+]
+social = contrib.sel(channel="social")
+CAMPAIGNS = list(cum_reach.columns)
+truth = pd.read_csv(
+    DATA / "ground_truth_campaign_contributions.csv", index_col=0, parse_dates=True
+)  # ORACLE: validation only
+```
+
+Two things are worth a look before we start: **how big each campaign is** — its
+reach, the evidence it carries into the analysis — and **the channel total the
+MMM hands us**, the number we're going to divide up.
+
+```{python}
+#| fig-cap: "Left: how much *evidence* each campaign carries — its total reach delivered, summed across the flight, which is the effective sample size that sets its trust dial. The 15-day flash_sale_burst carries the least despite its splashy start; the always-on brand the most. Right: what the MMM hands us — Paid Social's daily incremental contribution with its 94% credible interval; the ≈ $285k area under it is the number we split across campaigns."
+import matplotlib.dates as mdates
+
+reach_tot = metrics.groupby("campaign")["reach"].sum().reindex(CAMPAIGNS).sort_values()
+
+soc_s = social.stack(sample=("chain", "draw"))
+soc_dates = mmm_df["date"]
+soc_med = soc_s.median("sample").to_numpy()
+soc_hdi = az.hdi(soc_s, dim="sample", prob=0.94)
+soc_lo = soc_hdi.sel(ci_bound="lower").to_numpy()
+soc_hi = soc_hdi.sel(ci_bound="upper").to_numpy()
+total_mean = float(social.sum("date").mean())
+
+fig, (ax_top, ax_bot) = plt.subplots(
+    2, 1, gridspec_kw={"height_ratios": [1.0, 1.2]}, layout="constrained"
+)
+
+bars = ax_top.barh(reach_tot.index, reach_tot.to_numpy() / 1e3, color="#0072b2", alpha=0.85)
+ax_top.bar_label(bars, fmt="%.0fk", padding=3, fontsize=8)
+ax_top.set_title("Evidence per campaign", fontsize=11)
+ax_top.set_xlabel("total reach delivered (thousand user-days)")
+ax_top.margins(x=0.18)
+
+ax_bot.fill_between(soc_dates, soc_lo, soc_hi, color="#0072b2", alpha=0.25, label="94% HDI")
+ax_bot.plot(soc_dates, soc_med, color="#0072b2", lw=1.6, label="posterior median")
+ax_bot.set_title(f"Paid Social contribution  (total ≈ ${total_mean / 1e3:,.0f}k)", fontsize=11)
+ax_bot.set_xlabel("date")
+ax_bot.set_ylabel("daily contribution (y units)")
+ax_bot.xaxis.set_major_locator(mdates.MonthLocator())
+ax_bot.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+ax_bot.legend(loc="upper left", fontsize=8);
+```
+
+## How noisy is each campaign, really?
+
+To turn the dial we need two things per campaign: **how much evidence it has**
+(its total reach), and **its own noisy story** (a rough guess at how much revenue
+it drove per person it reached). Both come from data — so let's be concrete about
+what you already have, and what you'll have to build.
+
+### The data you already have
+
+Every ad platform, and its reporting API, hands you a table like this — one row
+per campaign per day, with delivery, attention, and cost:
+
+```{python}
+platform_export = (
+    metrics.loc[
+        metrics["impressions"] > 0,
+        ["date", "campaign", "reach", "impressions", "clicks", "spend"],
+    ]
+    .assign(
+        ctr_imp_pct=lambda d: (100 * d["clicks"] / d["impressions"]).round(2),
+        cpm=lambda d: (1000 * d["spend"] / d["impressions"]).round(2),
+    )
+    .drop(columns="spend")
+    .rename(columns={"ctr_imp_pct": "ctr_imp_%", "cpm": "cpm"})
+)
+# one mid-flight day, when all six campaigns are live, to show the columns
+_day = sorted(metrics["date"].unique())[55]
+platform_export[platform_export["date"] == _day].reset_index(drop=True)
+```
+
+This is genuinely useful — **exposure** (reach, impressions), **attention**
+(clicks and the impression-based click-through rate), and **cost** (CPM). It's
+also all most teams ever look at. But for *our* question — who deserves the
+channel's credit — it has two blind spots:
+
+- **Its `reach` is duplicated across days.** Each day's number counts everyone the
+  campaign touched *that day*; the same person reappears tomorrow. Sum the column
+  and you get impressions-flavoured *volume*, not how many real people you
+  reached — so it can't tell you when a campaign has **saturated its audience**
+  (the point where more spend just re-hits the same faces).
+- **It says nothing about overlap.** Two campaigns can spend on largely the *same*
+  people; this table shows them as independent. Ignore that and any per-campaign
+  credit double-counts the shared audience.
+
+Unduplicated audience growth and cross-campaign overlap are the signals this
+analysis runs on — and neither is a column you can export directly. The good
+news: you can build both from the *same* platform/API, with a particular **query
+pattern** and no extra tracking.
+
+### The data you need — and how to build it
+
+**1 · Unduplicated reach growth — the "expanding window."** Don't pull one report
+of daily reach. Pull a *series* of reports where you fix the start date and push
+the **end** date out one day at a time: `[start → day 0]`, then `[start → day 1]`,
+then `[start → day 2]`, … through `[start → day N]`. The platform de-duplicates
+*within* each report, so each one is the true unique reach so far, and the
+**difference between consecutive reports is the count of genuinely new people**
+reached that day. Stitch them together and you get a clean, C-shaped
+audience-growth curve instead of a duplicated daily count:
+
+```{python}
+#| fig-cap: "The expanding-window result: cumulative unique reach per campaign. Each curve is C-shaped — steep while the campaign keeps finding new people, then flattening as it exhausts its audience. Scales differ enormously (brand_always_on saturates near 62k unique users, niche_interest near 18k), and that flattening point is the audience saturation the raw daily table can't reveal."
+import matplotlib.dates as mdates
+
+fig, ax = plt.subplots(layout="constrained")
+for c in CAMPAIGNS:
+    ax.plot(cum_reach.index, cum_reach[c] / 1e3, lw=1.9, label=c)
+ax.set_title("Unduplicated audience growth (expanding-window reach)", fontsize=11)
+ax.set_xlabel("date")
+ax.set_ylabel("cumulative unique reach (thousands)")
+ax.xaxis.set_major_locator(mdates.MonthLocator())
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+ax.legend(fontsize=8, ncol=2);
+```
+
+**2 · Campaign overlap — pairwise inclusion–exclusion.** The same multi-report
+trick, asked of campaign *groups*. For each pair, pull reach for A alone, for B
+alone, and for the combined A∪B group; the shared audience is then
+
+$$\text{overlap}(A, B) = \text{Reach}(A) + \text{Reach}(B) - \text{Reach}(A \cup B).$$
+
+Repeat over the pairs (and larger groups) you care about to fill an N×N matrix.
+Its diagonal is each campaign's own audience size; the off-diagonals are shared
+users (zero where targeting is disjoint):
+
+```{python}
+#| fig-cap: "Audience overlap from the pairwise reach queries. Read each row as: of that campaign's audience, what share is also reached by the campaign in each column. Bright cells are contested audiences (more than half of spring_promo's audience is also hit by brand_always_on); grey cells are disjoint targeting. This is the competition structure inside your own account."
+ov = overlap.reindex(index=CAMPAIGNS, columns=CAMPAIGNS).to_numpy(dtype=float)
+frac = 100 * ov / np.diag(ov)[:, None]  # % of row campaign's audience also in column
+np.fill_diagonal(frac, np.nan)  # the diagonal is trivially 100%
+masked = np.ma.masked_invalid(frac)
+
+fig, ax = plt.subplots(layout="constrained")
+cmap = plt.get_cmap("Blues").copy()
+cmap.set_bad("#f0f0f0")
+hi = float(np.nanmax(frac))
+im = ax.imshow(masked, cmap=cmap, vmin=0, vmax=hi)
+ax.set_xticks(range(len(CAMPAIGNS)))
+ax.set_xticklabels(CAMPAIGNS, rotation=35, ha="right", fontsize=8)
+ax.set_yticks(range(len(CAMPAIGNS)))
+ax.set_yticklabels(CAMPAIGNS, fontsize=8)
+for i in range(len(CAMPAIGNS)):
+    for j in range(len(CAMPAIGNS)):
+        v = frac[i, j]
+        if not np.isnan(v):
+            ax.text(
+                j, i, f"{v:.0f}%", ha="center", va="center", fontsize=8,
+                color="white" if v > 0.6 * hi else "#333333",
+            )
+ax.set_title("Audience overlap — how much campaigns compete for the same people", fontsize=11)
+fig.colorbar(im, ax=ax, shrink=0.85, label="% of row campaign's audience also reached by column")
+```
+
+This notebook only needs the **reach** signal (technique 1); the overlap matrix
+(technique 2) isn't used below, but it's what lets you understand the
+**competition inside your own system** — how much your campaigns are fighting
+over the same people. We loaded both up front so you can see the shape of each.
+
+### The noisy "own story"
+
+For that own story we do something deliberately crude — exactly the kind of
+back-of-envelope split a platform dashboard invites. We take the MMM's total
+social credit, hand it out in proportion to each campaign's **clicks**, and
+express the result *per reached user*. It's noisy and non-incremental on purpose:
+it's the shaky signal we're trying to discipline, not trust.
+
+```{python}
+from scipy.stats import spearmanr
+
+agg = (
+    metrics.groupby("campaign")
+    .agg(
+        reach=("reach", "sum"), clicks=("clicks", "sum"), active_days=("active", "sum")
+    )
+    .reindex(CAMPAIGNS)
+)
+n_reach = agg["reach"].to_numpy(dtype=float)  # effective sample size n_c
+clicks = agg["clicks"].to_numpy(dtype=float)
+n_rel = n_reach / n_reach.mean()  # relative exposure (keeps s^2 ~ O(1))
+
+theta_total_mean = float(social.sum("date").mean())  # trusted MMM input (level)
+naive_share_clicks = clicks / clicks.sum()  # crude non-incremental split
+naive_rate = (
+    theta_total_mean * naive_share_clicks / n_reach
+)  # contribution per reached user
+y_direct = np.log(naive_rate)  # log rate = the direct estimate
+
+direct = pd.DataFrame(
+    {
+        "reach_n": n_reach.astype(int),
+        "clicks": clicks.astype(int),
+        "active_days": agg["active_days"].astype(int).to_numpy(),
+        "naive_clicks_share": naive_share_clicks,
+        "naive_rate": naive_rate,
+        "y_direct": y_direct,
+    },
+    index=CAMPAIGNS,
+).sort_values("reach_n", ascending=False)
+direct.round(4)
+```
+
+The picture below is the heart of the problem: each campaign's own noisy story,
+laid against how much evidence it carries. The error bars get **wider the fewer
+people a campaign reached** — less evidence, more uncertainty.
+
+Keep your eye on **`flash_sale_burst`** — a short, splashy weekend campaign. It's
+sitting *way* above the average with the **biggest** error bar of all. It looks
+like a superstar. Is it really? Hold that thought.
+
+```{python}
+#| fig-cap: "Each campaign's noisy own-story plotted against its evidence (reach, log scale). Small-reach campaigns carry the widest bands; flash_sale_burst sits far above the collective mean with the biggest error bar of all — a prime shrinkage target."
+s2_illus = float(np.var(y_direct, ddof=1))  # plug-in dispersion for the picture only
+se_illus = np.sqrt(s2_illus / n_rel)  # reach-derived SE ~ 1/sqrt(reach)
+mu_illus = float(np.average(y_direct, weights=n_reach))
+
+order = np.argsort(n_reach)
+fig, ax = plt.subplots(layout="constrained")
+ax.errorbar(
+    n_reach[order],
+    y_direct[order],
+    yerr=1.96 * se_illus[order],
+    fmt="o",
+    capsize=4,
+    color="#0072b2",
+)
+ax.axhline(mu_illus, ls="--", color="gray", label="collective mean")
+for i in order:
+    ax.annotate(
+        CAMPAIGNS[i],
+        (n_reach[i], y_direct[i]),
+        fontsize=7,
+        xytext=(6, 4),
+        textcoords="offset points",
+    )
+ax.set(
+    xscale="log",
+    title="Noisy direct estimates + reach-derived 95% bands",
+    xlabel="reach $n_c$  (log scale)",
+    ylabel="$y_c=\\log$ naive rate",
+)
+ax.legend();
+```
+
+## Turning the dial
+
+Now we let the data set the dial for us. Instead of picking Z by hand (e.g.
+decreeing "a campaign is only half-trusted until it reaches 50k people," or just
+assigning everyone a flat `Z = 0.5` by gut), we write down the blend as a small
+model and let it learn, from the six campaigns together, **how much campaigns
+typically differ** and **how noisy a single campaign's signal is**. Those two quantities decide, automatically, how hard to
+pull each campaign toward the channel average — and, because we're being
+properly Bayesian, we get the pull *with* its uncertainty rather than a single
+number.
+
+::: {.callout-note title="You're already setting Z — you just don't call it that"}
+Every day-to-day call about campaign performance is a Z in disguise, set by gut:
+
+- **Reading the dashboard at face value is `Z = 1`.** "This campaign shows 8× ROAS,
+  that one 2× — move the budget" trusts each number fully, no matter how few people
+  it reached. It's why small campaigns swing between hero and flop week to week.
+- **Splitting by spend, or evenly, is `Z = 0`.** You've thrown away each campaign's
+  own signal and leaned entirely on the average.
+- **"Wait for enough conversions before you trust the CPA" is choosing `k`** — the
+  evidence threshold where belief kicks in. (Meta and Google do exactly this with
+  their campaign *learning phase*.)
+- **"That 12× looks too good — tiny audience, call it maybe 4×" is a blend.** That's
+  credibility done in your head: an unspoken Z somewhere between 0 and 1.
+
+You can't *not* pick a Z. The only question is whether it's an arbitrary gut call
+that shifts by analyst and by mood — or **one value estimated from how your
+campaigns actually behave**, with its uncertainty attached. That is all the model
+below does.
+:::
+
+The model below is short, and it is the entire method. Everything before it was
+preparing its two inputs; everything after it is presentation.
+
+```{python}
+#| code-fold: false
+coords = {"campaign": CAMPAIGNS}
+with pm.Model(coords=coords) as credibility_model:
+    reach_rel = pm.Data("reach_rel", n_rel, dims="campaign")
+    mu = pm.Normal("mu", mu=float(y_direct.mean()), sigma=1.0)  # collective mean
+    tau = pm.HalfNormal("tau", 0.4)  # sqrt(VHM)
+    s2 = pm.HalfNormal("s2", 0.4)  # EPV per unit exposure
+    psi = pm.Deterministic(
+        "psi", s2 / reach_rel, dims="campaign"
+    )  # reach-derived sampling variance
+    Z = pm.Deterministic(
+        "Z", tau**2 / (tau**2 + psi), dims="campaign"
+    )  # Buhlmann credibility factor
+    theta_raw = pm.Normal("theta_raw", 0.0, 1.0, dims="campaign")
+    theta = pm.Deterministic(
+        "theta", mu + tau * theta_raw, dims="campaign"
+    )  # credible log-effectiveness
+    pm.Normal(
+        "y_obs", mu=theta, sigma=pm.math.sqrt(psi), observed=y_direct, dims="campaign"
+    )
+
+    idata = pm.sample(
+        draws=1000, tune=2000, chains=2, cores=1, target_accept=0.995, random_seed=42
+    )
+
+n_div = int(idata.sample_stats["diverging"].sum())
+rhat_max = float(az.summary(idata, var_names=["mu", "tau", "s2"])["r_hat"].max())
+display(
+    Markdown(f"**{n_div} divergences** · max $\\hat R$ (μ, τ, s²) = **{rhat_max:.3f}**")
+)
+```
+
+Here is each campaign's trust-adjusted effectiveness, with its uncertainty. The
+big, well-measured campaigns speak for themselves; the small ones are quietly
+reined in.
+
+```{python}
+#| fig-cap: "Trust-adjusted (partial-pooled) effectiveness per campaign, with uncertainty."
+azp.plot_forest(idata, var_names=["theta"], figure_kwargs={"figsize": (7.6, 6.0)})
+plt.gcf().suptitle(
+    "Credible log-effectiveness  $\\theta_c$  (partial-pooled)", fontsize=13
+);
+```
+
+## Watch the superstar fall back to earth
+
+This is the payoff picture. Each orange dot is a campaign's **naive** self-report;
+each arrow shows where the model **moved** it after weighing the evidence. The
+number under each campaign is its trust dial **Z** — and the campaigns are sorted
+by reach, smallest on the left.
+
+Notice the pattern: the small-reach campaigns on the left (lowest Z) get yanked
+hard toward the channel average, while the big steady campaigns on the right
+barely budge — they've earned their trust. And there's our "superstar":
+**`flash_sale_burst`**, the tiny weekend burst whose novelty inflated its clicks,
+gets pulled sharply back toward reality. That's the model refusing to be fooled
+by a small, loud campaign.
+
+```{python}
+#| fig-cap: "Naive self-report (orange) → trust-adjusted estimate (blue). Small-reach campaigns (low Z, left) are pulled hardest toward the channel average."
+post = idata.posterior
+Z_mean = post["Z"].mean(("chain", "draw")).to_pandas().reindex(CAMPAIGNS)
+theta_mean = post["theta"].mean(("chain", "draw")).to_pandas().reindex(CAMPAIGNS)
+mu_mean = float(post["mu"].mean())
+# credibility constant k = s^2/tau^2 (structural plug-in), rescaled to raw-reach units
+k_raw = float(post["s2"].mean()) / float((post["tau"] ** 2).mean()) * n_reach.mean()
+
+shrink = pd.DataFrame(
+    {
+        "reach_n": n_reach.astype(int),
+        "Z_credibility": Z_mean.to_numpy(),
+        "naive_rate": np.exp(y_direct),
+        "credible_rate": np.exp(theta_mean.to_numpy()),
+        "collective_rate": np.exp(mu_mean),
+    },
+    index=CAMPAIGNS,
+).sort_values("reach_n")
+
+display(
+    Markdown(
+        f"Credibility constant $k \\approx$ **{k_raw:,.0f}** (raw reach units); "
+        f"collective rate $e^\\mu \\approx$ **{np.exp(mu_mean):.4f}**."
+    )
+)
+display(shrink.round(4))
+
+fig, ax = plt.subplots(layout="constrained")
+xs = np.arange(len(shrink))
+ax.hlines(
+    np.log(shrink["collective_rate"].iloc[0]),
+    -0.5,
+    len(shrink) - 0.5,
+    color="gray",
+    ls="--",
+    label=r"collective mean $\mu$",
+)
+for i, (_, row) in enumerate(shrink.iterrows()):
+    ax.annotate(
+        "",
+        xy=(i, np.log(row.credible_rate)),
+        xytext=(i, np.log(row.naive_rate)),
+        arrowprops=dict(arrowstyle="->", color="#0072b2", lw=1.5),
+    )
+ax.scatter(
+    xs,
+    np.log(shrink["naive_rate"]),
+    color="#e69f00",
+    zorder=3,
+    label="naive (own click signal)",
+)
+ax.scatter(
+    xs,
+    np.log(shrink["credible_rate"]),
+    color="#0072b2",
+    zorder=3,
+    label="credible (shrunk)",
+)
+ax.set_xticks(xs)
+ax.set_xticklabels(
+    [
+        f"{name}\n$n$={n:,}\n$Z$={z:.2f}"
+        for name, n, z in zip(
+            shrink.index, shrink["reach_n"], shrink["Z_credibility"], strict=False
+        )
+    ],
+    fontsize=6,
+)
+ax.set(
+    ylabel="log rate",
+    title="Credibility shrinkage: naive → credible  (campaigns sorted by reach, left = smallest)",
+)
+ax.legend();
+```
+
+## Handing the credit back, day by day
+
+The trust-adjusted rates tell us *how good* each campaign is per person. To turn
+that into daily dollars, we weight each campaign by that rate **and** by how many
+people it actually reached each day, then hand out the MMM's channel curve in
+those proportions.
+
+The nice part: the weights add to one every single day, so the campaign pieces
+**always sum back exactly to the MMM's channel total**. We're not inventing a
+second model of the world — we're faithfully dividing the one number we trust.
+And we carry both sources of uncertainty (the MMM's and the credibility model's)
+through to the end.
+
+```{python}
+reach_daily = (
+    metrics.pivot(index="date", columns="campaign", values="reach")
+    .reindex(columns=CAMPAIGNS)
+    .fillna(0.0)
+)
+reach_xr = reach_daily.to_numpy()  # (date, campaign)
+
+rng = np.random.default_rng(42)
+S = 100
+soc_stacked = social.stack(sample=("chain", "draw")).transpose("sample", "date")
+mmm_idx = rng.choice(
+    soc_stacked.sizes["sample"], size=S, replace=False
+)  # ~100 MMM draws
+theta_stacked = (
+    post["theta"].stack(sample=("chain", "draw")).transpose("sample", "campaign")
+)
+cred_idx = rng.choice(theta_stacked.sizes["sample"], size=S, replace=False)
+
+rate_draws = np.exp(theta_stacked.isel(sample=cred_idx).to_numpy())  # (S, campaign)
+soc_draws = soc_stacked.isel(sample=mmm_idx).to_numpy()  # (S, date)
+w = rate_draws[:, None, :] * reach_xr[None, :, :]  # (S, date, campaign)
+w = w / np.clip(w.sum(axis=2, keepdims=True), 1e-12, None)  # daily shares, sum_c = 1
+contrib_draws = w * soc_draws[:, :, None]  # (S, date, campaign)
+
+contribution = xr.DataArray(
+    contrib_draws,
+    dims=("sample", "date", "campaign"),
+    coords={
+        "sample": np.arange(S),
+        "date": reach_daily.index.values,
+        "campaign": CAMPAIGNS,
+    },
+    name="campaign_contribution",
+)
+recon = float(np.abs(contribution.sum("campaign").to_numpy() - soc_draws).max())
+display(
+    Markdown(
+        f"Max per-day reconciliation error: **{recon:.2e}** — the split is *exact*."
+    )
+)
+```
+
+## Did it work?
+
+Because this is simulated data, we can peek at the truth we hid earlier and grade
+the result. Two things matter: did we get the **ranking** of campaigns right, and
+are our **shares** close? (We don't grade absolute dollars — the MMM is known to
+under-count this channel's level; our job is only to divide it up fairly.)
+
+```{python}
+flight = contribution.sum("date")  # (sample, campaign)
+share = flight / flight.sum("campaign")
+share_mean = share.mean("sample").to_pandas().reindex(CAMPAIGNS)
+share_hdi = az.hdi(share, dim="sample", prob=0.94)
+
+true_contrib = truth.sum(axis=0).reindex(CAMPAIGNS)
+true_share = true_contrib / true_contrib.sum()
+
+rho_cred = float(spearmanr(share_mean.to_numpy(), true_share.to_numpy()).correlation)
+mae_cred = float(np.abs(share_mean.to_numpy() - true_share.to_numpy()).mean())
+rho_naive = float(spearmanr(naive_share_clicks, true_share.to_numpy()).correlation)
+mae_naive = float(np.abs(naive_share_clicks - true_share.to_numpy()).mean())
+
+res = pd.DataFrame(
+    {
+        "true_share": true_share.to_numpy(),
+        "naive_clicks_share": naive_share_clicks,
+        "credibility_share": share_mean.to_numpy(),
+        "hdi_low": share_hdi.sel(ci_bound="lower").to_numpy(),
+        "hdi_high": share_hdi.sel(ci_bound="upper").to_numpy(),
+    },
+    index=CAMPAIGNS,
+).sort_values("true_share", ascending=False)
+display(res.round(4))
+
+table = (
+    "| metric | naive clicks-share | **credibility** |\n"
+    "|---|---|---|\n"
+    f"| Spearman $\\rho$ vs true rank | {rho_naive:.3f} | **{rho_cred:.3f}** |\n"
+    f"| MAE on shares | {mae_naive:.4f} | **{mae_cred:.4f}** |\n"
+)
+display(Markdown(table))
+```
+
+The credibility split beats the naive clicks-split on both counts — it sorts the
+campaigns closer to the true order and lands closer to the true shares. Visually,
+you can see it cutting the over-eager `flash_sale_burst` down and lifting the
+quiet workhorse `brand_always_on` up toward its true share.
+
+```{python}
+#| fig-cap: "Credibility shares (blue, with 94% HDI) vs the naive clicks-split (orange) vs the hidden truth (red diamonds)."
+b = res.copy()
+xs = np.arange(len(b))
+lo = b["credibility_share"].to_numpy() - b["hdi_low"].to_numpy()
+hi = b["hdi_high"].to_numpy() - b["credibility_share"].to_numpy()
+
+fig, ax = plt.subplots(layout="constrained")
+ax.bar(
+    xs,
+    b["credibility_share"],
+    yerr=[lo, hi],
+    capsize=4,
+    color="#0072b2",
+    alpha=0.85,
+    label="credibility (94% HDI)",
+)
+ax.scatter(
+    xs,
+    b["true_share"],
+    color="crimson",
+    marker="D",
+    zorder=5,
+    label="true share (oracle)",
+)
+ax.scatter(
+    xs,
+    b["naive_clicks_share"],
+    color="#e69f00",
+    marker="_",
+    s=500,
+    zorder=5,
+    label="naive clicks-share",
+)
+ax.set_xticks(xs)
+ax.set_xticklabels(b.index, rotation=30, ha="right", fontsize=8)
+ax.set(
+    ylabel="flight-total share of social",
+    title="Campaign shares: credibility vs naive vs truth",
+)
+ax.legend();
+```
+
+And because we carried the uncertainty through, the answer isn't a single number
+— it's a full **daily posterior** for every campaign. On the left, the daily
+credit stacks up to the MMM's social curve by construction. On the right, the
+day-by-day story of our reformed superstar `flash_sale_burst`, uncertainty band
+and all, against the hidden truth.
+
+```{python}
+#| fig-cap: "Left: daily credit per campaign, stacking to the MMM social curve. Right: the daily posterior for flash_sale_burst vs the truth."
+import matplotlib.dates as mdates
+
+daily_mean = contribution.mean("sample")
+fig, (ax1, ax2) = plt.subplots(2, 1, layout="constrained")
+
+ax1.stackplot(
+    reach_daily.index,
+    [daily_mean.sel(campaign=c).to_numpy() for c in CAMPAIGNS],
+    labels=CAMPAIGNS,
+    alpha=0.85,
+)
+ax1.plot(
+    reach_daily.index, soc_draws.mean(0), color="k", lw=1.5, label="social total (MMM)"
+)
+ax1.set(
+    title="Posterior-mean daily contribution (stacks to social)",
+    xlabel="date",
+    ylabel="contribution (y units)",
+)
+ax1.legend(fontsize=7, ncol=2)
+
+cname = "flash_sale_burst"
+cd = contribution.sel(campaign=cname)
+ch = az.hdi(cd, dim="sample", prob=0.94)
+ax2.plot(
+    reach_daily.index,
+    cd.mean("sample").to_numpy(),
+    color="#0072b2",
+    label="posterior mean",
+)
+ax2.fill_between(
+    reach_daily.index,
+    ch.sel(ci_bound="lower").to_numpy(),
+    ch.sel(ci_bound="upper").to_numpy(),
+    alpha=0.3,
+    color="#0072b2",
+    label="94% HDI",
+)
+ax2.plot(
+    truth.index,
+    truth[cname].to_numpy(),
+    color="crimson",
+    ls="--",
+    label="true (oracle)",
+)
+ax2.set(
+    title=f"Daily contribution posterior — {cname}",
+    xlabel="date",
+    ylabel="contribution",
+)
+ax2.legend()
+for _ax in (ax1, ax2):
+    _ax.xaxis.set_major_locator(mdates.MonthLocator())
+    _ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+```
+
+## The honest part
+
+The best thing about this method is also the most grown-up: it knows its own
+limits, and it tells you where they are.
+
+::: {.callout-note title="What it's genuinely good at"}
+- **It refuses to be fooled by small, loud campaigns.** The less evidence a
+  campaign has, the harder its wild self-report is reined in — so bursty,
+  novelty-driven campaigns stop hijacking the credit.
+- **It never breaks the budget.** The campaign pieces sum back to the MMM's
+  channel total *exactly*, every day. It divides the number you trust; it doesn't
+  invent a new one.
+- **It gives you honest uncertainty**, not false precision — a full posterior per
+  campaign, per day.
+- **It's built on the safest idea in the toolbox** — partial pooling — so it
+  behaves well and is easy to explain to whoever asks.
+:::
+
+::: {.callout-warning title="What it cannot do (read before trusting)"}
+- **It cures noise, not bias.** It fixes the "small campaigns are jumpy" problem.
+  It does **not** fix the fact that clicks aren't incrementality. A campaign that
+  genuinely converts far above its delivery volume — here, `niche_interest` — stays
+  *under*-credited, because **no method that only sees delivery data can recover
+  what delivery data doesn't contain.**
+- **On easy data it lands near a simple reach-proportional split.** Much of its
+  gain comes from *distrusting clicks*. Its real value-add is principled trust
+  weights and calibrated uncertainty, not a dramatic jump in point accuracy.
+- **The starting signal is still non-incremental.** Splitting by click share is a
+  platform-style guess; credibility disciplines it but inherits its slant.
+- **Only six campaigns.** With so few, the dial's tuning is itself uncertain — a
+  fact the Bayesian version at least reports honestly.
+:::
+
+**The bottom line.** This is a well-grounded, uncertainty-aware way to split a
+channel's MMM credit across campaigns — most valuable exactly where platform
+numbers are least reliable (the small, bursty campaigns). To break through its one
+hard limit — that delivery data can't see true incrementality — pair it with a
+**lift test**: feed a campaign's measured incremental lift in as a prior, and the
+trust dial will do the rest.
+
+```{python}
+#| code-summary: "Reproducibility"
+%load_ext watermark
+%watermark -n -u -v -iv -w -p pymc,arviz,pytensor,numpy,pandas,matplotlib
+```
