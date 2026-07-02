@@ -1,7 +1,8 @@
-campaign,brand_always_on,spring_promo,lookalike_conversions,video_product_launch,flash_sale_burst,niche_interest
-brand_always_on,62388,22990,8387,0,11531,0
-spring_promo,22990,41978,0,0,12624,0
-lookalike_conversions,8387,0,42819,10908,0,0
-video_product_launch,0,0,10908,33444,6869,8240
-flash_sale_burst,11531,12624,0,6869,36119,9025
-niche_interest,0,0,0,8240,9025,18017
+campaign,brand_always_on,spring_promo,lookalike_conversions,video_product_launch,flash_sale_burst,niche_interest,broad_prospecting
+brand_always_on,62388,22990,8387,0,11531,0,24982
+spring_promo,22990,41978,0,0,12624,0,16767
+lookalike_conversions,8387,0,42819,10908,0,0,18205
+video_product_launch,0,0,10908,33444,6869,8240,14566
+flash_sale_burst,11531,12624,0,6869,36119,9025,14580
+niche_interest,0,0,0,8240,9025,18017,7215
+broad_prospecting,24982,16767,18205,14566,14580,7215,81992

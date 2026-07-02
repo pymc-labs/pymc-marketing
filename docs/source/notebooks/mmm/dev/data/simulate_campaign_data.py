@@ -4,8 +4,10 @@ Generative story (user-level, so reach/CTR dynamics emerge mechanically):
 
 1. A universe of ``N_USERS`` users, each belonging to one of ``K`` interest
    groups and carrying an individual responsiveness score ``r_u``.
-2. Six campaigns on one "social" channel target overlapping subsets of the
-   groups -> audience sets with a known NxN overlap matrix.
+2. Seven campaigns on one "social" channel target overlapping subsets of the
+   groups -> audience sets with a known NxN overlap matrix. One of them
+   (``broad_prospecting``) kicks off in April against a very large audience,
+   so its cumulative reach is still growing when the window closes.
 3. Every day, each active campaign buys impressions: ``spend / CPM * 1000``.
    CPM inflates with audience penetration (auction depth). Impressions land on
    the daily-online subset of the audience, weighted by responsiveness and a
@@ -145,6 +147,24 @@ CAMPAIGNS = [
         "beta_fresh": 0.00275,
         "beta_repeat": 0.0011,
         "retention": 0.85,
+    },
+    {
+        # April kickoff, broad prospecting: audience is huge relative to the
+        # daily delivery, so penetration stays low and cumulative reach is
+        # still climbing when the observation window closes (no saturation
+        # knee) -> a left-censored growth curve.
+        "name": "broad_prospecting",
+        "groups": {0: 0.40, 1: 0.40, 2: 0.45, 3: 0.40},
+        "start": 90,  # 2025-04-01
+        "end": 119,
+        "budget": 10.0,
+        "cpm": 8.0,
+        "base_ctr": 0.015,
+        "fresh_ctr_boost": 1.5,
+        "ctr_freq_decay": 0.12,
+        "beta_fresh": 0.0026,
+        "beta_repeat": 0.00095,
+        "retention": 0.78,
     },
 ]
 
