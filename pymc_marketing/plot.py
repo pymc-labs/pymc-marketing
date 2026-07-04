@@ -255,7 +255,12 @@ def _create_make_sample_selection(
 
 
 def _plot_sample_selection(df, ax: Axes, color: str, **plot_kwargs) -> Axes:
-    return df.plot(ax=ax, color=color, **plot_kwargs)
+    # x_compat=True makes pandas use the matplotlib date converter instead of its
+    # own time-series locator. Without it, a datetime index is drawn with pandas
+    # period ordinals while the HDI band (fill_between) uses matplotlib date
+    # ordinals, which produces broken x-axis tick labels. A caller can still
+    # override it via plot_kwargs.
+    return df.plot(ax=ax, color=color, **{"x_compat": True, **plot_kwargs})
 
 
 def _create_get_hdi_plot_data(hdi_kwargs) -> GetPlotData:
