@@ -132,6 +132,10 @@ sections:
         notebook: customer_choice/consideration_set_logit
       - title: MaxDiff (Best-Worst Scaling)
         notebook: customer_choice/maxdiff
+      - title: "Bayesian BLP: Structural Demand on Aggregate Shares"
+        notebook: customer_choice/bayesian_blp
+      - title: Bayesian BLP on the Nevo Cereal Panel
+        notebook: customer_choice/bayesian_blp_nevo
   - title: Bass Diffusion Model
     cards:
       - title: Bass Diffusion Model Example

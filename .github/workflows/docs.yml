@@ -12,6 +12,7 @@ on:
     branches: [main, v1.0.0]
   push:
     branches: [main, v1.0.0]
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -25,7 +26,7 @@ jobs:
     outputs:
       should_build: ${{ steps.filter.outputs.docs }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -42,7 +43,7 @@ jobs:
     if: ${{ needs.changes.outputs.should_build == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
