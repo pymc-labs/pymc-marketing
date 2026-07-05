@@ -790,6 +790,9 @@ def test_autolog_bass(bass_data) -> None:
         "draws": 2,
         "chains": 1,
         "tune": 1,
+        # Force the pymc sampler so sampling_time / time_per_draw metrics are
+        # populated; the pymc6 default sampler (nutpie) does not log them.
+        "nuts_sampler": "pymc",
     }
     # Positive prior on m keeps the Poisson rate valid when the model graph
     # is rendered (it draws from the prior to evaluate shapes), so
