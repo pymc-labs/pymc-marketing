@@ -144,7 +144,6 @@ dmypy.json
 .pyre/
 
 .DS_Store
-.vscode
 
 # PyCharm .idea files
 .idea/
@@ -161,3 +160,7 @@ automatic_translation.py
 
 # uv
 uv.lock
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore

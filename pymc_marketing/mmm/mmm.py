@@ -4029,7 +4029,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_distribution_over_period: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
-        **minimize_kwargs,
+        **allocate_budget_kwargs,
     ) -> (
         tuple[xr.DataArray, OptimizeResult]
         | tuple[xr.DataArray, OptimizeResult, list[dict[str, Any]]]
@@ -4080,8 +4080,8 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             **This is independent of the historical cost_per_unit.**
         callback : bool
             Whether to return callback information tracking optimization progress.
-        **minimize_kwargs
-            Additional arguments for the optimizer.
+        **allocate_budget_kwargs
+            Additional arguments for :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget`.
 
         Returns
         -------
@@ -4130,7 +4130,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             total_budget=budget,
             budget_bounds=budget_bounds,
             callback=callback,
-            **minimize_kwargs,
+            **allocate_budget_kwargs,
         )
 
     def _apply_budget_distribution_pattern(
