@@ -24,7 +24,7 @@ The functions are also exposed as ``plot_*`` methods on
 
 from typing import TYPE_CHECKING, Any
 
-import arviz as az
+import arviz_plots as azp
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -322,7 +322,7 @@ def plot_decomposition(
 def plot_peak(
     model: "BassModel",
     product: str | None = None,
-    **plot_posterior_kwargs: Any,
+    **plot_dist_kwargs: Any,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
     """Plot the posterior distribution of the peak adoption time.
 
@@ -333,8 +333,8 @@ def plot_peak(
     product : str, optional
         Plot a single product of a multi-product model. Default plots
         one subplot per product.
-    **plot_posterior_kwargs
-        Additional kwargs forwarded to :func:`arviz.plot_posterior`.
+    **plot_dist_kwargs
+        Additional kwargs forwarded to :func:`arviz_plots.plot_dist`.
 
     Returns
     -------
@@ -344,7 +344,13 @@ def plot_peak(
     posterior = model.posterior
     peak = _select_product(posterior["peak"], product)
 
-    axes = np.atleast_1d(az.plot_posterior(peak, **plot_posterior_kwargs))
-    fig = axes.flat[0].get_figure()
+    # One facet column per product for a multi-product model; plot_dist
+    # otherwise overlays them on a single axis.
+    if "product" in peak.dims:
+        plot_dist_kwargs.setdefault("cols", ["product"])
+
+    pc = azp.plot_dist(peak.to_dataset(), **plot_dist_kwargs)
+    fig = pc.viz["figure"].values.item()
+    axes = np.atleast_1d(pc.viz["plot"].values)
 
     return fig, axes
