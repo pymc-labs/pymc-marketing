@@ -142,6 +142,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
@@ -150,7 +151,7 @@ from numpy.typing import (
 )
 from pymc.model import Model
 from pymc.util import RandomState
-from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import Censored, Prior, VariableFactory
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
@@ -242,6 +243,36 @@ def f(
     )
 
 
+def _F_xt(p, q, t):
+    """Xtensor version of :func:`F` for the ``pymc.dims`` model graph.
+
+    The public :func:`F` stays on plain PyTensor for use with floats and
+    NumPy arrays; this variant uses ``pymc.dims`` ops so it composes with
+    named-dims (xtensor) variables.
+    """
+    return (1 - pmd.math.exp(-(p + q) * t)) / (1 + (q / p) * pmd.math.exp(-(p + q) * t))
+
+
+def _f_xt(p, q, t):
+    """Xtensor version of :func:`f` for the ``pymc.dims`` model graph."""
+    exp_t = pmd.math.exp(t * (p + q))
+    return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
+
+
+def _create_dim_variable(prior: Prior, name: str):
+    """Create a named-dims (xtensor) variable for a prior.
+
+    Uses ``xdist=True`` so the variable lives in xtensor space from the
+    start. ``pymc.dims`` does not yet support ``DiracDelta``; for that case
+    only, create a regular variable and wrap it with ``pmd.as_xtensor``.
+    This wrap is applied to data, not to a supported prior, so it does not
+    reintroduce the two-step conversion pattern for the general case.
+    """
+    if getattr(prior, "distribution", None) == "DiracDelta":
+        return pmd.as_xtensor(prior.create_variable(name), dims=prior.dims or ())
+    return prior.create_variable(name, xdist=True)
+
+
 class BassPriors(TypedDict):
     """Priors for the Bass diffusion model."""
 
@@ -330,37 +361,42 @@ def create_bass_model(
             "T",
             *tuple(parameter_dims.union(likelihood_dims).difference(["T"])),
         )
-        dim_handler = create_dim_handler(combined_dims)
 
-        m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
-        p = dim_handler(priors["p"].create_variable("p"), priors["p"].dims)
-        q = dim_handler(priors["q"].create_variable("q"), priors["q"].dims)
+        def _ordered(var):
+            # Preserve the historical (T, ...) dim order; pymc.dims returns
+            # dims in operand order otherwise.
+            present = tuple(d for d in combined_dims if d in var.type.dims)
+            return var.transpose(*present) if present else var
 
-        time = dim_handler(t, "T")
+        time = pmd.as_xtensor(t, dims=("T",))
+        m = _create_dim_variable(priors["m"], "m")
+        p = _create_dim_variable(priors["p"], "p")
+        q = _create_dim_variable(priors["q"], "q")
 
-        adopters = pm.Deterministic("adopters", m * f(p, q, time), dims=combined_dims)
-
-        pm.Deterministic(
-            "innovators",
-            m * p * (1 - F(p, q, time)),
-            dims=combined_dims,
-        )
-        pm.Deterministic(
+        adopters = pmd.Deterministic("adopters", _ordered(m * _f_xt(p, q, time)))
+        pmd.Deterministic("innovators", _ordered(m * p * (1 - _F_xt(p, q, time))))
+        pmd.Deterministic(
             "imitators",
-            m * q * F(p, q, time) * (1 - F(p, q, time)),
-            dims=combined_dims,
+            _ordered(m * q * _F_xt(p, q, time) * (1 - _F_xt(p, q, time))),
         )
-
-        peak = (pt.log(q) - pt.log(p)) / (p + q)
-        peak_dims = tuple(parameter_dims) if parameter_dims else None
-        pm.Deterministic("peak", peak, dims=peak_dims)
+        pmd.Deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
 
         priors["likelihood"].dims = combined_dims
-        priors["likelihood"].create_likelihood_variable(  # type: ignore
-            "y",
-            mu=adopters,
-            observed=observed,
-        )
+        if observed is None:
+            # No data: an unobserved likelihood for prior predictive. The
+            # xdist likelihood path does not accept ``observed=None``, so set
+            # ``mu`` on a copy and create the variable directly.
+            likelihood = priors["likelihood"].deepcopy()
+            likelihood.parameters["mu"] = adopters
+            likelihood.create_variable("y", xdist=True)
+        else:
+            observed_xt = pmd.as_xtensor(observed, dims=combined_dims)
+            priors["likelihood"].create_likelihood_variable(  # type: ignore
+                "y",
+                mu=adopters,
+                observed=observed_xt,
+                xdist=True,
+            )
 
     return model
 
