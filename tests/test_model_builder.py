@@ -783,6 +783,26 @@ def test_second_fit(toy_X, toy_y, mock_pymc_sample):
     assert id_before != id_after
 
 
+def test_second_fit_updates_existing_model_data(toy_X, toy_y, mock_pymc_sample):
+    model = RegressionModelBuilderTest()
+    model.build_model(X=toy_X, y=toy_y)
+
+    updated_X = pd.DataFrame({"input": toy_X["input"].to_numpy() + 1})
+    updated_y = toy_y + 1
+
+    model.fit(X=updated_X, y=updated_y, chains=1, draws=100, tune=100)
+
+    np.testing.assert_allclose(model.model["x"].get_value(), updated_X["input"])
+    np.testing.assert_allclose(model.model["y_data"].get_value(), updated_y)
+    xr.testing.assert_allclose(
+        model.idata.fit_data["input"], updated_X["input"].to_xarray()
+    )
+    xr.testing.assert_allclose(
+        model.idata.fit_data[model.output_var],
+        updated_y.rename(model.output_var).to_xarray(),
+    )
+
+
 class InsufficientModel(RegressionModelBuilder):
     def __init__(
         self, model_config=None, sampler_config=None, new_parameter=None

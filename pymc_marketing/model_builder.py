@@ -1016,6 +1016,8 @@ class RegressionModelBuilder(ModelBuilder):
 
         if not hasattr(self, "model"):
             self.build_model(X, y)
+        else:
+            self._data_setter(X, y)
 
         sampler_kwargs = create_sample_kwargs(
             self.sampler_config,
