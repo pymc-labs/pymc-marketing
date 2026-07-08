@@ -36,15 +36,10 @@ class CLVModelTest(CLVModel):
 
     def __init__(
         self,
-        data=None,
         model_config=None,
         sampler_config: dict | None = None,
     ):
-        if data is None:
-            data = pd.DataFrame({"y": np.random.randn(10)})
-
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=[],
@@ -275,8 +270,8 @@ class TestCLVModel:
 
     def test_thin_fit_result(self):
         data = pd.DataFrame(dict(y=[-3, -2, -1]))
-        model = CLVModelTest(data=data)
-        model.build_model()
+        model = CLVModelTest()
+        model.build_model(data=data)
         fake_idata = xr.DataTree.from_dict(
             {
                 "/posterior": xr.Dataset(

@@ -307,14 +307,11 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     def __init__(
         self,
-        data: pandas.DataFrame | None = None,
         *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
     def default_model_config(self) -> ModelConfig:
@@ -472,14 +469,11 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def __init__(
         self,
-        data: pandas.DataFrame | None = None,
         *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
     def default_model_config(self) -> dict:
