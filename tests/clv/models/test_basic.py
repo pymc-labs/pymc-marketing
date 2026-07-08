@@ -36,14 +36,19 @@ class CLVModelTest(CLVModel):
 
     def __init__(
         self,
+        data: pd.DataFrame | None = None,
         model_config=None,
         sampler_config: dict | None = None,
     ):
+        if data is None:
+            data = pd.DataFrame({"y": np.random.randn(10)})
+
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=[],
         )
+        self.data = data
 
     @property
     def default_model_config(self):
@@ -85,11 +90,12 @@ class CLVModelForLoadTest(CLVModelTest):
     ):
         CLVModel.__init__(
             self,
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=[],
         )
+        if data is not None:
+            self.data = data
 
 
 @pytest.fixture(scope="module")

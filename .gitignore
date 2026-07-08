@@ -158,3 +158,5 @@ sandbox/
 
 .cursor/plans
 automatic_translation.py
+
+uv.lock
