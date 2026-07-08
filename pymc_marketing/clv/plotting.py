@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
-import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -363,7 +362,6 @@ def plot_expected_purchases_over_time(
     xlabel: str = "Time Periods",
     ylabel: str = "Purchases",
     ax: plt.Axes | None = None,
-    t_unobserved: int | None = None,
     **kwargs,
 ) -> plt.Axes:
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
@@ -456,15 +454,6 @@ def plot_expected_purchases_over_time(
 
     # TODO: After utility func supports xarrays, refactor this for matplotlib API.
     ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
-
-    if t_unobserved:
-        warnings.warn(
-            "t_unobserved is deprecated and will be removed in a future release. "
-            "Use t_start_eval instead.",
-            DeprecationWarning,
-            stacklevel=1,
-        )
-        t_start_eval = t_unobserved
 
     if t_start_eval:
         if set_index_date:
