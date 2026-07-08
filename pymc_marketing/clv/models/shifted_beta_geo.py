@@ -966,8 +966,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 sample_vars=["theta", "churn"],
                 random_seed=random_seed,
             )
-            result = post_pred["posterior_predictive"].dataset
-            return result.stack(sample=("chain", "draw")).reset_index("sample")
+            return post_pred["posterior_predictive"].dataset
 
     def distribution_new_customer_churn_time(
         self, n: int = 1, random_seed: RandomState = None
