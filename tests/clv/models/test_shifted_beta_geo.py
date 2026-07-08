@@ -1382,14 +1382,15 @@ class TestShiftedBetaGeoModelIndividual:
         )
 
         res = model.distribution_new_customer_theta(random_seed=141)
-        np.testing.assert_allclose(res.mean("sample"), 0.7, rtol=0.001)
-        # Result should have a 'sample' dimension (flattened chain/draw)
-        assert "sample" in res.dims
+        np.testing.assert_allclose(res.mean(("chain", "draw")), 0.7, rtol=0.001)
+        # Result should preserve the (chain, draw) dims from the posterior
+        assert "chain" in res.dims and "draw" in res.dims
+        assert "sample" not in res.dims
         assert res.sizes["new_customer_id"] == 1
 
         res = model.distribution_new_customer_churn_time(n=2, random_seed=146)
         np.testing.assert_allclose(
-            res.mean(("sample", "new_customer_id")),
+            res.mean(("chain", "draw", "new_customer_id")),
             stats.geom(0.7).mean(),
             rtol=0.05,
         )
@@ -1420,7 +1421,7 @@ class TestShiftedBetaGeoModelIndividual:
         # n=10, but training had 3 customers
         res = model.distribution_new_customer_theta(n=10, random_seed=42)
         assert res.sizes["new_customer_id"] == 10
-        assert "sample" in res.dims
+        assert "chain" in res.dims and "draw" in res.dims
         # All values should be in [0, 1] (theta is a probability)
         assert (res >= 0).all()
         assert (res <= 1).all()
