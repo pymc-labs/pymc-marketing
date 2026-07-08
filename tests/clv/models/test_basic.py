@@ -204,17 +204,6 @@ class TestCLVModel:
         ):
             model.fit(method="wrong_method")
 
-    def test_fit_exception(self, mock_pymc_sample):
-        model = CLVModelTest()
-        with pytest.warns(
-            DeprecationWarning,
-            match=(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead."
-            ),
-        ):
-            model.fit(fit_method="mcmc")
-
     def test_load(self, mocker, tmp_path):
         model = CLVModelTest()
         save_path = tmp_path / "test_model"

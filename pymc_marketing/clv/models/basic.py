@@ -115,7 +115,6 @@ class CLVModel(ModelBuilder):
         self,
         data: pd.DataFrame | None = None,
         method: str = "mcmc",
-        fit_method: str | None = None,
         **kwargs,
     ) -> xr.DataTree:
         """Infer model posterior.
@@ -136,16 +135,6 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
 
         """
-        # Handle deprecated fit_method parameter
-        if fit_method:
-            warnings.warn(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            method = fit_method
-
         # TODO: Delete this logic when old API is removed in 1.0.
         # Handle data parameter
         if data is not None:
