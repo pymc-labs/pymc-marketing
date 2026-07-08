@@ -250,27 +250,11 @@ class CLVModel(ModelBuilder):
                 }
             )
 
-    # TODO: Remove for v1.0
-    @classmethod
-    def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict:
-        """Create the initialization kwargs from an InferenceData object."""
-        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        if "fit_data" in idata:
-            kwargs["data"] = idata.fit_data.dataset.to_dataframe()
-
-        return kwargs
-
-    # TODO: Revise/remove for v1.0
     @classmethod
     def build_from_idata(cls, idata: xr.DataTree) -> None:
         """Build the model from the InferenceData object."""
         kwargs = cls.idata_to_init_kwargs(idata)
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=DeprecationWarning,
-            )
-            model = cls(**kwargs)
+        model = cls(**kwargs)
 
         model.idata = idata
         model.data = idata.fit_data.dataset.to_dataframe()
