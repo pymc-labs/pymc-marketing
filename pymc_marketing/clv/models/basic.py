@@ -46,18 +46,6 @@ class CLVModel(ModelBuilder):
     ):
         model_config = model_config or {}
 
-        deprecated_keys = [key for key in model_config if key.endswith("_prior")]
-        for key in deprecated_keys:
-            new_key = key.replace("_prior", "")
-            warnings.warn(
-                f"The key '{key}' in model_config is deprecated and will be removed in future versions."
-                f"Use '{new_key}' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            model_config[new_key] = model_config.pop(key)
-
         super().__init__(model_config, sampler_config)
 
         # Parse model config after merging with defaults
@@ -285,7 +273,6 @@ class CLVModel(ModelBuilder):
             model = cls(**kwargs)
 
         model.idata = idata
-        model._rename_posterior_variables()
         model.data = idata.fit_data.dataset.to_dataframe()
 
         model.build_model(model.data)  # type: ignore
@@ -298,19 +285,6 @@ class CLVModel(ModelBuilder):
             )
             raise DifferentModelError(msg)
         return model
-
-    # TODO: Remove for v1.0
-    def _rename_posterior_variables(self):
-        """Rename variables in the posterior group to remove the _prior suffix.
-
-        This is used to support the old model configuration format, which used
-        to include a _prior suffix for each parameter.
-        """
-        posterior_ds = self.idata["/posterior"].dataset
-        prior_vars = [var for var in posterior_ds.data_vars if var.endswith("_prior")]
-        rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
-        self.idata["/posterior"] = posterior_ds.rename(rename_dict)
-        return self.idata["/posterior"].to_dataset()
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.
