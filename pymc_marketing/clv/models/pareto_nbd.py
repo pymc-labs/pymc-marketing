@@ -354,7 +354,6 @@ class ParetoNBDModel(CLVModel):
         self,
         data: pd.DataFrame | None = None,
         method: str = "map",
-        fit_method: str | None = None,
         **kwargs,
     ):  # type: ignore
         """Infer posteriors of model parameters to run predictions.
@@ -373,15 +372,6 @@ class ParetoNBDModel(CLVModel):
 
         """
         mode = get_default_mode()
-
-        if fit_method:
-            warnings.warn(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            method = fit_method
 
         if method == "mcmc":
             # Include rewrite in mode
