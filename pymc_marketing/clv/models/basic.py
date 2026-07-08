@@ -39,21 +39,11 @@ class CLVModel(ModelBuilder):
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
-        if data is not None:
-            warnings.warn(
-                f"'{self._model_type}(data)' is deprecated and will be removed in version 1.0. "
-                f"Use '{self._model_type}.build_model(data)' or '{self._model_type}.fit(data)' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.data = data
-
         model_config = model_config or {}
 
         deprecated_keys = [key for key in model_config if key.endswith("_prior")]
@@ -172,8 +162,8 @@ class CLVModel(ModelBuilder):
         if approx:
             self.approx = approx
         self.set_idata_attrs(self.idata)
-        if self.data is not None:
-            self._add_fit_data_group(self.data)
+        if self.data is not None:  # type: ignore
+            self._add_fit_data_group(self.data)  # type: ignore
 
         return self.idata
 
