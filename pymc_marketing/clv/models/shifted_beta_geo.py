@@ -284,27 +284,16 @@ class ShiftedBetaGeoModel(CLVModel):
 
         self._validate_cohorts(data, check_param_dims=("alpha", "beta"))
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
         data : pd.DataFrame
             Input data with customer_id, recency, T, and cohort columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "customer_id": self.data["customer_id"],
@@ -844,14 +833,11 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     @property
     def default_model_config(self) -> dict:
@@ -880,28 +866,16 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
                 "Customers that are still alive should have t_churn = T"
             )
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
         data : pd.DataFrame
             Input data with customer_id, t_churn, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {"customer_id": self.data["customer_id"]}
         with pm.Model(coords=coords) as self.model:
