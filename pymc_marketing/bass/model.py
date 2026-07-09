@@ -152,12 +152,22 @@ from numpy.typing import (
 from pymc.model import Model
 from pymc.util import RandomState
 from pymc_extras.prior import Censored, Prior, VariableFactory
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
+
+
+def _exp(x):
+    """``exp`` that works for floats, PyTensor tensors, and xtensor variables.
+
+    Lets :func:`F` and :func:`f` be used both with NumPy/float inputs and with
+    the named-dims (xtensor) variables of the ``pymc.dims`` model graph.
+    """
+    return pmd.math.exp(x) if isinstance(x, XTensorVariable) else pt.exp(x)
 
 
 def F(
@@ -194,7 +204,7 @@ def F(
 
     When :math:`t=0`, :math:`F(t)=0`, and as :math:`t` approaches infinity, :math:`F(t)` approaches 1.
     """
-    return (1 - pt.exp(-(p + q) * t)) / (1 + (q / p) * pt.exp(-(p + q) * t))
+    return (1 - _exp(-(p + q) * t)) / (1 + (q / p) * _exp(-(p + q) * t))
 
 
 def f(
@@ -238,24 +248,7 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
-    return (p * pt.square(p + q) * pt.exp(t * (p + q))) / pt.square(
-        p * pt.exp(t * (p + q)) + q
-    )
-
-
-def _F_xt(p, q, t):
-    """Xtensor version of :func:`F` for the ``pymc.dims`` model graph.
-
-    The public :func:`F` stays on plain PyTensor for use with floats and
-    NumPy arrays; this variant uses ``pymc.dims`` ops so it composes with
-    named-dims (xtensor) variables.
-    """
-    return (1 - pmd.math.exp(-(p + q) * t)) / (1 + (q / p) * pmd.math.exp(-(p + q) * t))
-
-
-def _f_xt(p, q, t):
-    """Xtensor version of :func:`f` for the ``pymc.dims`` model graph."""
-    exp_t = pmd.math.exp(t * (p + q))
+    exp_t = _exp(t * (p + q))
     return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
 
 
@@ -362,23 +355,14 @@ def create_bass_model(
             *tuple(parameter_dims.union(likelihood_dims).difference(["T"])),
         )
 
-        def _ordered(var):
-            # Preserve the historical (T, ...) dim order; pymc.dims returns
-            # dims in operand order otherwise.
-            present = tuple(d for d in combined_dims if d in var.type.dims)
-            return var.transpose(*present) if present else var
-
         time = pmd.as_xtensor(t, dims=("T",))
         m = _create_dim_variable(priors["m"], "m")
         p = _create_dim_variable(priors["p"], "p")
         q = _create_dim_variable(priors["q"], "q")
 
-        adopters = pmd.Deterministic("adopters", _ordered(m * _f_xt(p, q, time)))
-        pmd.Deterministic("innovators", _ordered(m * p * (1 - _F_xt(p, q, time))))
-        pmd.Deterministic(
-            "imitators",
-            _ordered(m * q * _F_xt(p, q, time) * (1 - _F_xt(p, q, time))),
-        )
+        adopters = pmd.Deterministic("adopters", m * f(p, q, time))
+        pmd.Deterministic("innovators", m * p * (1 - F(p, q, time)))
+        pmd.Deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
         pmd.Deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
 
         priors["likelihood"].dims = combined_dims
