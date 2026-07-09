@@ -314,7 +314,7 @@ def plot_decomposition(
         handles.append(
             Line2D([], [], color="black", linestyle="--", label="observed cumulative")
         )
-    axes.flat[0].legend(handles=handles, loc="upper left")
+    fig.legend(handles=handles, loc="center left", bbox_to_anchor=(1.0, 0.5))
 
     return fig, axes
 
