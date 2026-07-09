@@ -342,7 +342,7 @@ class TestBetaGeoModel:
         elif method == "map":
             sample_kwargs = dict(seed=self.seed)
 
-        model.fit(method=method, progressbar=False, **sample_kwargs)
+        model.fit(data=self.data, method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
