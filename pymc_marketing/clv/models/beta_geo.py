@@ -207,28 +207,16 @@ class BetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
         data : pd.DataFrame, optional
             Input data with customer_id, frequency, recency, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
@@ -369,16 +357,6 @@ class BetaGeoModel(CLVModel):
                 ),
                 dims=["customer_id", "obs_var"],
             )
-
-    # TODO: delete this utility after API standardization is completed
-    def _unload_params(self):
-        trace = self.idata.posterior
-        a = trace["a"]
-        b = trace["b"]
-        alpha = trace["alpha"]
-        r = trace["r"]
-
-        return a, b, alpha, r
 
     def _extract_predictive_variables(
         self,

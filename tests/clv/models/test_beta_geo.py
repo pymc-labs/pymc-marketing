@@ -119,11 +119,8 @@ class TestBetaGeoModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = BetaGeoModel(
-                data=self.data,
-                model_config=config,
-            )
-            model.build_model()
+            model = BetaGeoModel(model_config=config)
+            model.build_model(data=self.data)
             assert isinstance(
                 model.model["a"].owner.op,
                 pm.HalfFlat
@@ -238,12 +235,8 @@ class TestBetaGeoModel:
             }
         )
 
-        model = BetaGeoModel(
-            data=data,
-            model_config=model_config,
-        )
-
-        model.build_model()
+        model = BetaGeoModel(model_config=model_config)
+        model.build_model(data=data)
         pymc_model = model.model
 
         logp = pymc_model.compile_logp()
@@ -367,6 +360,7 @@ class TestBetaGeoModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=self.data,
             tune=5,
             chains=2,
             draws=10,
@@ -611,10 +605,9 @@ class TestBetaGeoModel:
             "b": Prior("HalfNormal", sigma=10),
         }
         model = BetaGeoModel(
-            data=self.data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
         assert model.__repr__().replace(" ", "") == (
             "BG/NBD"
             "\nalpha~HalfFlat()"
@@ -625,10 +618,8 @@ class TestBetaGeoModel:
         )
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = BetaGeoModel(
-            data=self.data,
-        )
-        mock_model.build_model()
+        mock_model = BetaGeoModel()
+        mock_model.build_model(data=self.data)
         mock_model.idata = az.from_dict(
             {
                 "posterior": {
@@ -1042,7 +1033,7 @@ class TestBetaGeoModelWithCovariates:
         rng = np.random.default_rng(627)
 
         # Create synthetic data from "true" params
-        self.model_with_covariates_phi_kappa.build_model()
+        self.model_with_covariates_phi_kappa.build_model(self.data)
         default_model = self.model_with_covariates_phi_kappa.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
@@ -1081,50 +1072,3 @@ class TestBetaGeoModelWithCovariates:
                     err_msg=f"Tolerance exceeded for variable {var_name}",
                     rtol=0.2,
                 )
-
-
-class TestBetaGeoModelNewAPI:
-    """Tests for the new API where data is passed to fit() or build_model()."""
-
-    @classmethod
-    def setup_class(cls):
-        # Use the same test data as TestBetaGeoModel
-        test_data = pd.read_csv("data/clv_quickstart.csv")
-        test_data["customer_id"] = test_data.index
-        cls.data = test_data
-
-    def test_new_api_build_then_fit(self):
-        """Test new API: model.build_model(data=...) then model.fit()"""
-        model = BetaGeoModel()
-        model.build_model(data=self.data)
-        assert hasattr(model, "model")
-        model.fit(method="map", progressbar=False)
-        assert model.idata is not None
-        assert "posterior" in model.idata
-
-    def test_old_api_deprecation_warning(self):
-        """Test that old API raises deprecation warning."""
-        with pytest.warns(DeprecationWarning, match="will be removed in version 1.0"):
-            model = BetaGeoModel(data=self.data)
-        model.build_model()
-        assert hasattr(model, "model")
-
-    def test_old_api_still_works(self):
-        """Test that old API still works with deprecation warning."""
-        with pytest.warns(DeprecationWarning, match="will be removed in version 1.0"):
-            model = BetaGeoModel(data=self.data)
-        model.fit(method="map", progressbar=False)
-        assert model.idata is not None
-        assert "posterior" in model.idata
-
-    def test_build_model_without_data_raises_error(self):
-        """Test that build_model() without data raises appropriate error."""
-        model = BetaGeoModel()
-        with pytest.raises(ValueError, match="requires data parameter"):
-            model.build_model()
-
-    def test_fit_without_data_raises_error(self):
-        """Test that fit() without data raises appropriate error."""
-        model = BetaGeoModel()
-        with pytest.raises(ValueError, match="Data must be provided"):
-            model.fit(method="map", progressbar=False)
