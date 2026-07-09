@@ -187,7 +187,7 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, frequency, recency, and T columns.
         """
         self._validate_data(data)

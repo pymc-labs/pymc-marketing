@@ -336,7 +336,7 @@ class GammaGammaModel(BaseGammaGammaModel):
 
         Parameters
         ----------
-        data : pandas.DataFrame, optional
+        data : pandas.DataFrame
             Input data with customer_id, monetary_value, and frequency columns.
         """
         self._validate_data(data)
@@ -483,7 +483,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
         Parameters
         ----------
-        data : pandas.DataFrame, optional
+        data : pandas.DataFrame
             Input data with customer_id and individual_transaction_value columns.
         """
         self._validate_data(data)

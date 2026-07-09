@@ -289,7 +289,7 @@ class ShiftedBetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, recency, T, and cohort columns.
             If not provided, uses data from model initialization (deprecated).
         """
@@ -885,7 +885,7 @@ class ShiftedBetaGeoModelIndividual(CLVModel):
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, t_churn, and T columns.
             If not provided, uses data from model initialization (deprecated).
         """

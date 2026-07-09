@@ -85,11 +85,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = GammaGammaModel(data=data_invalid)
-            model.build_model()
+            model = GammaGammaModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="frequency")
 
@@ -97,11 +94,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['frequency'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = GammaGammaModel(data=data_invalid)
-            model.build_model()
+            model = GammaGammaModel()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.data.drop(columns="monetary_value")
 
@@ -109,11 +103,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['monetary_value'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = GammaGammaModel(data=data_invalid)
-            model.build_model()
+            model = GammaGammaModel()
+            model.build_model(data=data_invalid)
 
     @pytest.mark.parametrize(
         "config",
@@ -127,10 +118,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
     )
     def test_model(self, config):
         model = GammaGammaModel(
-            data=self.data,
             model_config=config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
         assert isinstance(
             model.model["p"].owner.op,
             (pm.HalfFlat if config is None else pm.HalfNormal),
@@ -185,10 +175,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "v": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
-            data=self.data,
             model_config=custom_model_config,
         )
-        model.fit(chains=1, progressbar=False, random_seed=self.rng)
+        model.fit(data=self.data, chains=1, progressbar=False, random_seed=self.rng)
 
         # Force posterior close to empirical mean with many observations
         forced_data = self.data.copy()
@@ -257,10 +246,9 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "v": Prior("Normal", mu=v_mean, sigma=0.01),
         }
         model = GammaGammaModel(
-            data=self.data,
             model_config=custom_model_config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
         fake_fit = pm.sample_prior_predictive(
             draws=1000, model=model.model, random_seed=self.rng
         )
@@ -303,16 +291,14 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         )
 
     def test_save_load(self, mocker, tmp_path):
-        model = GammaGammaModel(
-            data=self.data,
-        )
+        model = GammaGammaModel()
         save_path = tmp_path / "test_model"
         model.model_config = {
             param: Prior("HalfNormal") for param in model.model_config
         }
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        model.fit(method="map", maxeval=1)
+        model.fit(data=self.data, method="map", maxeval=1)
         model.save(save_path)
         # Testing the valid case.
 
@@ -335,11 +321,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['customer_id'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = GammaGammaModelIndividual(data=data_invalid)
-            model.build_model()
+            model = GammaGammaModelIndividual()
+            model.build_model(data=data_invalid)
 
         data_invalid = self.individual_data.drop(columns="individual_transaction_value")
 
@@ -347,11 +330,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             ValueError,
             match=r"The following required columns are missing from the input data: \['individual_transaction_value'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = GammaGammaModelIndividual(data=data_invalid)
-            model.build_model()
+            model = GammaGammaModelIndividual()
+            model.build_model(data=data_invalid)
 
     @pytest.mark.parametrize(
         "config",
@@ -365,10 +345,9 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
     )
     def test_model(self, config):
         model = GammaGammaModelIndividual(
-            data=self.individual_data,
             model_config=config,
         )
-        model.build_model()
+        model.build_model(data=self.individual_data)
         assert isinstance(
             model.model["p"].owner.op,
             pm.HalfFlat if config is None else pm.HalfNormal,
@@ -411,10 +390,8 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.distribution_customer_spend"
     )
     def test_distribution_spend(self, dummy_method):
-        model = GammaGammaModelIndividual(
-            data=self.individual_data,
-        )
-        model.build_model()
+        model = GammaGammaModelIndividual()
+        model.build_model(data=self.individual_data)
         model.distribution_customer_spend(data=self.data, random_seed=123)
 
         dummy_method.assert_called_once()
@@ -435,7 +412,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         "pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_spend"
     )
     def test_expected_spend(self, dummy_method):
-        model = GammaGammaModelIndividual(self.individual_data)
+        model = GammaGammaModelIndividual()
 
         model.expected_customer_spend(data=self.data)
 
@@ -457,10 +434,9 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
             "q": Prior("HalfNormal", sigma=10),
         }
         model = GammaGammaModelIndividual(
-            data=self.individual_data,
             model_config=custom_model_config,
         )
-        model.build_model()
+        model.build_model(data=self.individual_data)
 
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(IndividualTransactions)"
@@ -472,15 +448,13 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         )
 
     def test_save_load(self, mocker, tmp_path):
-        model = GammaGammaModelIndividual(
-            data=self.individual_data,
-        )
+        model = GammaGammaModelIndividual()
         save_path = tmp_path / "test_model"
         model.model_config = {
             param: Prior("HalfNormal") for param in model.model_config
         }
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        model.fit(method="map", maxeval=1)
+        model.fit(data=self.individual_data, method="map", maxeval=1)
         model.save(save_path)
         # Testing the valid case.
 
