@@ -91,7 +91,7 @@ class CLVModel(ModelBuilder):
 
     def fit(  # type: ignore
         self,
-        data: pd.DataFrame | None = None,
+        data: pd.DataFrame,
         method: str = "mcmc",
         **kwargs,
     ) -> xr.DataTree:
@@ -99,9 +99,8 @@ class CLVModel(ModelBuilder):
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
-            The input data for model fitting. If not provided, uses data
-            from model initialization (deprecated) or previously built model.
+        data : pd.DataFrame
+            Input data for model fitting.
         method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
@@ -113,20 +112,14 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
 
         """
-        # TODO: Delete this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
+        # Check if model was already built, and if fit data matches build data
+        if not hasattr(self, "model"):
             self.build_model(data)  # type: ignore
-        elif hasattr(self, "data") and self.data is not None:
-            # Using old API data - build model if not already built
-            if not hasattr(self, "model"):
-                self.build_model()  # type: ignore
         else:
-            # No data available anywhere
-            if not hasattr(self, "model"):
+            if not self.data.equals(data):  # type: ignore
                 raise ValueError(
-                    "Data must be provided either to fit(data=...) or "
-                    "model must be built with build_model(data=...) first."
+                    "The model was built with different data. "
+                    "Create a new model instance to fit new data."
                 )
 
         approx = None

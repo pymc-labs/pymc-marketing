@@ -350,7 +350,7 @@ class ParetoNBDModel(CLVModel):
 
     def fit(  # type: ignore[override]
         self,
-        data: pd.DataFrame | None = None,
+        data: pd.DataFrame,
         method: str = "map",
         **kwargs,
     ):  # type: ignore
