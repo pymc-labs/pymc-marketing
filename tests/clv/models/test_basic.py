@@ -212,7 +212,7 @@ class TestCLVModel:
         new_data = pd.DataFrame({"y": np.random.randn(10)})
         with pytest.raises(
             ValueError,
-            match="The model was already built with different data",
+            match="The model was built with different data",
         ):
             model.fit(
                 data=new_data,

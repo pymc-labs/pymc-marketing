@@ -485,8 +485,7 @@ def plot_expected_purchases_ppc(
     Parameters
     ----------
     model : CLVModel
-        Prior predictive checks can be performed before or after a model is fit.
-        Posterior predictive checks require a fitted model.
+        A built CLV model is required for prior predictive checks, and a fitted model for posterior predictive checks.
     ppc : string, optional
         Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
     max_purchases : int, optional
@@ -508,10 +507,8 @@ def plot_expected_purchases_ppc(
         ax = plt.subplot(111)
 
     match ppc:
+        # TODO: Revisit prior logic after adding PPC support for CLVModels in ModelBuilder
         case "prior":
-            # build model if it has not been fit yet
-            model.build_model()
-
             prior_idata = pm.sample_prior_predictive(
                 draws=samples,
                 model=model.model,
