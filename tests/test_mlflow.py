@@ -24,10 +24,13 @@ import pytest
 import xarray as xr
 from mlflow.client import MlflowClient
 from pymc.exceptions import SamplingError
+from pymc_extras.prior import Prior
 
 import pymc_marketing.mlflow as pmm_mlflow
+from pymc_marketing.bass import BassModel
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
+    _resolve_parameter,
     autolog,
     create_log_callback,
     log_error,
@@ -57,6 +60,8 @@ def setup_module():
         pm.sample = pm.sample.__wrapped__
     while hasattr(MMM.fit, "__wrapped__"):
         MMM.fit = MMM.fit.__wrapped__
+    while hasattr(BassModel.fit, "__wrapped__"):
+        BassModel.fit = BassModel.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
@@ -264,8 +269,13 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
             Exception("Unknown error occurred"),
             "Unable to render the model graph. Unknown error occurred",
         ),
+        (
+            "pymc.model_to_graphviz",
+            ValueError("lam < 0 or lam contains NaNs"),
+            "Unable to render the model graph. lam < 0 or lam contains NaNs",
+        ),
     ],
-    ids=["no_graphviz", "render_error"],
+    ids=["no_graphviz", "render_error", "graph_creation_error"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
@@ -769,6 +779,67 @@ def test_clv_fit_map(model_cls, clv_data) -> None:
     }
 
 
+@pytest.fixture
+def bass_data() -> np.ndarray:
+    return np.random.default_rng(42).poisson(lam=100, size=20)
+
+
+def test_autolog_bass(bass_data) -> None:
+    mlflow.set_experiment("pymc-marketing-test-suite-bass")
+
+    sampler_config = {
+        "draws": 2,
+        "chains": 1,
+        "tune": 1,
+        # Force the pymc sampler so sampling_time / time_per_draw metrics are
+        # populated; the pymc6 default sampler (nutpie) does not log them.
+        "nuts_sampler": "pymc",
+    }
+    # Positive prior on m keeps the Poisson rate valid when the model graph
+    # is rendered (it draws from the prior to evaluate shapes), so
+    # model_graph.pdf is logged deterministically
+    model_config = {
+        "m": Prior("Normal", mu=100, sigma=10),
+    }
+
+    model = BassModel(model_config=model_config, sampler_config=sampler_config)
+    with mlflow.start_run() as run:
+        idata = model.fit(data=bass_data, random_seed=42)
+
+    assert mlflow.active_run() is None
+    assert idata.attrs["mlflow_run_id"] == run.info.run_id
+
+    run_id = run.info.run_id
+    inputs, params, metrics, tags, artifacts = get_run_data(run_id)
+
+    assert isinstance(inputs, list)
+
+    assert params["model_type"] == "BassModel"
+    assert params["version"] == __version__
+
+    model_config_logged = json.loads(params["model_config"])
+    assert set(model_config_logged.keys()) == {"m", "p", "q", "likelihood"}
+
+    sampler_config_logged = json.loads(params["sampler_config"])
+    assert sampler_config_logged["draws"] == 2
+
+    assert set(metrics.keys()) == {
+        "total_divergences",
+        "sampling_time",
+        "time_per_draw",
+    }
+
+    assert tags == {}
+
+    assert set(artifacts) == {
+        "coords.json",
+        "model_repr.txt",
+        "model_graph.pdf",
+        "summary.html",
+        "idata.nc",
+    }
+
+
 @pytest.fixture(scope="function")
 def mock_idata_for_loo() -> xr.DataTree:
     chains = 2
@@ -888,6 +959,45 @@ def test_logging_callback(model_with_likelihood) -> None:
         for value in ["energy", "mu"]:
             history = client.get_metric_history(run_id, f"chain_{chain}/{value}")
             assert len(history) == 10
+
+
+def test_logging_callback_resolves_log_transform(model_with_likelihood) -> None:
+    # `sigma` is a HalfNormal so it is sampled as `sigma_log__`. The user
+    # passes the model-level name and the callback resolves it.
+    mlflow.set_experiment("pymc-marketing-test-suite-log-transform-resolve")
+
+    callback = create_log_callback(
+        parameters=["mu", "sigma"],
+        take_every=10,
+    )
+    with mlflow.start_run() as run:
+        pm.sample(
+            model=model_with_likelihood,
+            draws=100,
+            tune=1,
+            chains=1,
+            callback=callback,
+        )
+
+    client = MlflowClient()
+    for value in ["mu", "sigma"]:
+        history = client.get_metric_history(run.info.run_id, f"chain_0/{value}")
+        assert len(history) == 10
+
+
+def test_resolve_parameter_exact_match_wins() -> None:
+    point = {"sigma": 1.0, "sigma_log__": 0.0}
+    assert _resolve_parameter("sigma", point) == "sigma"
+
+
+def test_resolve_parameter_falls_back_to_log_suffix() -> None:
+    point = {"mu": 0.0, "sigma_log__": 0.1}
+    assert _resolve_parameter("sigma", point) == "sigma_log__"
+
+
+def test_resolve_parameter_unknown_raises() -> None:
+    with pytest.raises(KeyError, match=r"not found in draw\.point"):
+        _resolve_parameter("nope", {"mu": 0.0, "sigma_log__": 0.1})
 
 
 def test_log_error() -> None:
