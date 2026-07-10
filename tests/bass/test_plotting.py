@@ -61,6 +61,27 @@ def multi_product_model(mock_pymc_sample) -> BassModel:
     return model
 
 
+@pytest.fixture(scope="module")
+def region_model(mock_pymc_sample) -> BassModel:
+    """Multi-series model whose faceting dimension is named "region"."""
+    regions = ["north", "south", "east"]
+    counts = np.random.default_rng(42).poisson(lam=100, size=(20, len(regions)))
+    ds = xr.Dataset(
+        {"observed": (("T", "region"), counts)},
+        coords={"T": np.arange(20), "region": regions},
+    )
+    model = BassModel(
+        model_config={
+            "m": Prior("Normal", mu=1000, sigma=200, dims="region"),
+            "p": Prior("Beta", alpha=1.5, beta=20, dims="region"),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson"),
+        },
+    )
+    model.fit(data=ds, draws=20, tune=5, chains=1, random_seed=42)
+    return model
+
+
 @pytest.mark.parametrize("method", PLOT_METHODS)
 def test_single_product(single_product_model: BassModel, method: str) -> None:
     fig, axes = getattr(single_product_model, method)()
@@ -80,10 +101,31 @@ def test_multi_product_grid(multi_product_model: BassModel, method: str) -> None
 
 @pytest.mark.parametrize("method", PLOT_METHODS)
 def test_multi_product_selection(multi_product_model: BassModel, method: str) -> None:
-    fig, axes = getattr(multi_product_model, method)(product="B")
+    fig, axes = getattr(multi_product_model, method)(coord="B")
 
     assert isinstance(fig, plt.Figure)
     assert axes.size == 1
+
+
+@pytest.mark.parametrize("method", PLOT_METHODS)
+def test_custom_facet_dim(region_model: BassModel, method: str) -> None:
+    # A model whose series dimension is "region", not "product": the dim is
+    # inferred, no need to name it.
+    _, axes = getattr(region_model, method)()
+    assert axes.size == 3
+
+    # and a single coordinate along the inferred dimension can be selected.
+    _, axes_one = getattr(region_model, method)(coord="south")
+    assert axes_one.size == 1
+
+
+def test_custom_dim_observed_overlay(region_model: BassModel) -> None:
+    # Each subplot overlays only its own coordinate's observed data, not all
+    # of them (regression guard: the faceting dim must match plot_curve's).
+    _, axes = region_model.plot_adoption_curve()
+    for ax in axes.flat:
+        black = [ln for ln in ax.get_lines() if ln.get_color() == "black"]
+        assert len(black) == 1
 
 
 @pytest.mark.parametrize("n_products", [1, 3], ids=["single", "multi"])
@@ -133,5 +175,5 @@ def test_unfitted_model_raises(method: str) -> None:
 def test_product_on_single_product_raises(
     single_product_model: BassModel, method: str
 ) -> None:
-    with pytest.raises(ValueError, match="no 'product' dimension"):
-        getattr(single_product_model, method)(product="A")
+    with pytest.raises(ValueError, match="no faceting dimension"):
+        getattr(single_product_model, method)(coord="A")

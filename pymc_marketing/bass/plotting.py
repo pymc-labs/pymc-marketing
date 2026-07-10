@@ -15,8 +15,9 @@
 
 Each function takes a fitted :class:`~pymc_marketing.bass.model.BassModel`
 and returns a ``(Figure, ndarray of Axes)`` tuple, following the convention
-of :func:`pymc_marketing.plot.plot_curve`. Multi-product models plot one
-subplot per product; pass ``product`` to select a single one.
+of :func:`pymc_marketing.plot.plot_curve`. Multi-series models plot one
+subplot per coordinate of the faceting dimension (inferred from the data,
+or set with ``dim``); pass ``coord`` to select a single one.
 
 The functions are also exposed as ``plot_*`` methods on
 :class:`~pymc_marketing.bass.model.BassModel`.
@@ -45,37 +46,51 @@ __all__ = [
 ]
 
 
-def _select_product(da: xr.DataArray, product: str | None) -> xr.DataArray:
-    if product is None:
+def _facet_dim(da: xr.DataArray, dim: str | None) -> str | None:
+    """Return the dimension the plots facet over.
+
+    ``dim`` if given, otherwise the single non-time, non-sample
+    dimension of ``da`` (the same one :func:`plot_curve` facets over), or
+    ``None`` for a single-series model.
+    """
+    if dim is not None:
+        return dim
+    extra = [d for d in da.dims if d not in ("chain", "draw", "T")]
+    return extra[0] if extra else None
+
+
+def _select(da: xr.DataArray, dim: str | None, coord: str | None) -> xr.DataArray:
+    if coord is None:
         return da
-    if "product" not in da.dims:
+    if dim is None or dim not in da.dims:
         raise ValueError(
-            "The model has no 'product' dimension. "
-            "Remove the product argument for single-product models."
+            "The model has no faceting dimension. "
+            "Remove the coord argument for single-series models."
         )
-    return da.sel(product=product)
+    return da.sel({dim: coord})
 
 
-def _get_observed(model: "BassModel", product: str | None) -> xr.DataArray | None:
+def _get_observed(
+    model: "BassModel", dim: str | None, coord: str | None
+) -> xr.DataArray | None:
     idata = model.idata
     if idata is None or "fit_data" not in idata or "observed" not in idata.fit_data:
         return None
-    return _select_product(idata.fit_data["observed"], product)
+    return _select(idata.fit_data["observed"], dim, coord)
 
 
 def _overlay_observed(
     observed: xr.DataArray,
     axes: npt.NDArray[Axes],
+    dim: str | None,
     **plot_kwargs: Any,
 ) -> None:
-    """Plot observed data on each axes, one product per axes."""
+    """Plot observed data on each axes, one coordinate per axes."""
     plot_kwargs = {"color": "black", **plot_kwargs}
     t = observed.coords["T"].values
-    if "product" in observed.dims:
-        for ax, product in zip(
-            axes.flat, observed.coords["product"].values, strict=False
-        ):
-            ax.plot(t, observed.sel(product=product).values, **plot_kwargs)
+    if dim is not None and dim in observed.dims:
+        for ax, coord in zip(axes.flat, observed.coords[dim].values, strict=False):
+            ax.plot(t, observed.sel({dim: coord}).values, **plot_kwargs)
     else:
         for ax in axes.flat:
             ax.plot(t, observed.values, **plot_kwargs)
@@ -83,7 +98,8 @@ def _overlay_observed(
 
 def plot_adoption_curve(
     model: "BassModel",
-    product: str | None = None,
+    dim: str | None = None,
+    coord: str | None = None,
     n_samples: int = 10,
     hdi_probs: float | list[float] | None = None,
     random_seed: np.random.Generator | None = None,
@@ -99,9 +115,12 @@ def plot_adoption_curve(
     ----------
     model : BassModel
         A fitted Bass model.
-    product : str, optional
-        Plot a single product of a multi-product model. Default plots
-        one subplot per product.
+    dim : str, optional
+        Dimension to facet over. Inferred from the fitted data when not
+        given (the non-time, non-sample dimension).
+    coord : str, optional
+        Plot a single coordinate along ``dim``. Default plots one
+        subplot per coordinate.
     n_samples : int, optional
         Number of posterior sample curves to draw. Default is 10.
     hdi_probs : float or list of float, optional
@@ -131,7 +150,8 @@ def plot_adoption_curve(
         fig, axes = model.plot_adoption_curve()
     """
     posterior = model.posterior
-    curve = _select_product(posterior["adopters"], product)
+    dim = _facet_dim(posterior["adopters"], dim)
+    curve = _select(posterior["adopters"], dim, coord)
 
     fig, axes = plot_curve(
         curve,
@@ -143,9 +163,9 @@ def plot_adoption_curve(
         axes=axes,
     )
 
-    observed = _get_observed(model, product)
+    observed = _get_observed(model, dim, coord)
     if observed is not None:
-        _overlay_observed(observed, axes)
+        _overlay_observed(observed, axes, dim)
 
     for ax in axes.flat:
         ax.set_xlabel("T")
@@ -156,7 +176,8 @@ def plot_adoption_curve(
 
 def plot_cumulative(
     model: "BassModel",
-    product: str | None = None,
+    dim: str | None = None,
+    coord: str | None = None,
     n_samples: int = 10,
     hdi_probs: float | list[float] | None = None,
     random_seed: np.random.Generator | None = None,
@@ -173,9 +194,12 @@ def plot_cumulative(
     ----------
     model : BassModel
         A fitted Bass model.
-    product : str, optional
-        Plot a single product of a multi-product model. Default plots
-        one subplot per product.
+    dim : str, optional
+        Dimension to facet over. Inferred from the fitted data when not
+        given (the non-time, non-sample dimension).
+    coord : str, optional
+        Plot a single coordinate along ``dim``. Default plots one
+        subplot per coordinate.
     n_samples : int, optional
         Number of posterior sample curves to draw. Default is 10.
     hdi_probs : float or list of float, optional
@@ -193,7 +217,8 @@ def plot_cumulative(
         Figure and the axes.
     """
     posterior = model.posterior
-    curve = _select_product(posterior["adopters"], product).cumsum(dim="T")
+    dim = _facet_dim(posterior["adopters"], dim)
+    curve = _select(posterior["adopters"], dim, coord).cumsum(dim="T")
 
     fig, axes = plot_curve(
         curve,
@@ -205,9 +230,9 @@ def plot_cumulative(
         axes=axes,
     )
 
-    observed = _get_observed(model, product)
+    observed = _get_observed(model, dim, coord)
     if observed is not None:
-        _overlay_observed(observed.cumsum(dim="T"), axes)
+        _overlay_observed(observed.cumsum(dim="T"), axes, dim)
 
     for ax in axes.flat:
         ax.set_xlabel("T")
@@ -218,7 +243,8 @@ def plot_cumulative(
 
 def plot_decomposition(
     model: "BassModel",
-    product: str | None = None,
+    dim: str | None = None,
+    coord: str | None = None,
     n_samples: int = 10,
     hdi_probs: float | list[float] | None = None,
     random_seed: np.random.Generator | None = None,
@@ -236,9 +262,12 @@ def plot_decomposition(
     ----------
     model : BassModel
         A fitted Bass model.
-    product : str, optional
-        Plot a single product of a multi-product model. Default plots
-        one subplot per product.
+    dim : str, optional
+        Dimension to facet over. Inferred from the fitted data when not
+        given (the non-time, non-sample dimension).
+    coord : str, optional
+        Plot a single coordinate along ``dim``. Default plots one
+        subplot per coordinate.
     n_samples : int, optional
         Number of posterior sample curves to draw. Default is 10.
     hdi_probs : float or list of float, optional
@@ -257,11 +286,12 @@ def plot_decomposition(
         accessible through ``fig.axes``.
     """
     posterior = model.posterior
-    innovators = _select_product(posterior["innovators"], product)
-    imitators = _select_product(posterior["imitators"], product)
-    cumulative = _select_product(posterior["adopters"], product).cumsum(dim="T")
+    dim = _facet_dim(posterior["innovators"], dim)
+    innovators = _select(posterior["innovators"], dim, coord)
+    imitators = _select(posterior["imitators"], dim, coord)
+    cumulative = _select(posterior["adopters"], dim, coord).cumsum(dim="T")
 
-    n_axes = innovators.coords["product"].size if "product" in innovators.dims else 1
+    n_axes = innovators.coords[dim].size if dim in innovators.dims else 1
     fig, axes = plot_curve(
         innovators,
         {"T"},
@@ -296,9 +326,9 @@ def plot_decomposition(
         legend=False,
     )
 
-    observed = _get_observed(model, product)
+    observed = _get_observed(model, dim, coord)
     if observed is not None:
-        _overlay_observed(observed.cumsum(dim="T"), twin_axes, linestyle="--")
+        _overlay_observed(observed.cumsum(dim="T"), twin_axes, dim, linestyle="--")
 
     for ax, twin_ax in zip(axes.flat, twin_axes.flat, strict=True):
         ax.set_xlabel("T")
@@ -326,7 +356,8 @@ def plot_decomposition(
 
 def plot_peak(
     model: "BassModel",
-    product: str | None = None,
+    dim: str | None = None,
+    coord: str | None = None,
     **plot_dist_kwargs: Any,
 ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
     """Plot the posterior distribution of the peak adoption time.
@@ -335,9 +366,12 @@ def plot_peak(
     ----------
     model : BassModel
         A fitted Bass model.
-    product : str, optional
-        Plot a single product of a multi-product model. Default plots
-        one subplot per product.
+    dim : str, optional
+        Dimension to facet over. Inferred from the fitted data when not
+        given (the non-time, non-sample dimension).
+    coord : str, optional
+        Plot a single coordinate along ``dim``. Default plots one
+        subplot per coordinate.
     **plot_dist_kwargs
         Additional kwargs forwarded to :func:`arviz_plots.plot_dist`.
 
@@ -347,12 +381,13 @@ def plot_peak(
         Figure and the axes.
     """
     posterior = model.posterior
-    peak = _select_product(posterior["peak"], product)
+    dim = _facet_dim(posterior["peak"], dim)
+    peak = _select(posterior["peak"], dim, coord)
 
-    # One facet column per product for a multi-product model; plot_dist
+    # One facet column per coordinate for a multi-series model; plot_dist
     # otherwise overlays them on a single axis.
-    if "product" in peak.dims:
-        plot_dist_kwargs.setdefault("cols", ["product"])
+    if dim in peak.dims:
+        plot_dist_kwargs.setdefault("cols", [dim])
 
     pc = azp.plot_dist(peak.to_dataset(), **plot_dist_kwargs)
     fig = pc.viz["figure"].values.item()
