@@ -633,6 +633,18 @@ class TestShiftedBetaGeoModel:
                 T_lt_2_data, customer_varnames=["customer_id", "recency", "T", "cohort"]
             )
 
+    def test_extract_predictive_variables_no_future_warning(self):
+        import warnings
+
+        pred_data = self.data.query("recency == T").assign(future_t=0)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            dataset = self.model._extract_predictive_variables(
+                pred_data, customer_varnames=["T", "future_t", "cohort"]
+            )
+        assert "alpha" in dataset
+        assert "beta" in dataset
+
     def test_expected_probability_alive(
         self, prediction_targets, predicted_time_series_data
     ):

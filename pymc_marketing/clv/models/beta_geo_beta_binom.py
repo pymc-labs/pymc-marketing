@@ -340,7 +340,8 @@ class BetaGeoBetaBinomModel(CLVModel):
                 gamma,
                 delta,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(

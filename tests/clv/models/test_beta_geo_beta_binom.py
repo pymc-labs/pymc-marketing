@@ -320,6 +320,21 @@ class TestBetaGeoBetaBinomModel:
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
+    def test_extract_predictive_variables_no_future_warning(self):
+        import warnings
+
+        pred_data = self.pred_data.assign(future_t=1)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            dataset = self.model._extract_predictive_variables(
+                pred_data,
+                customer_varnames=["frequency", "recency", "T", "future_t"],
+            )
+        assert "alpha" in dataset
+        assert "beta" in dataset
+        assert "gamma" in dataset
+        assert "delta" in dataset
+
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):
         # Reference values from BG/BB MLE on donations dataset (22 test customers)

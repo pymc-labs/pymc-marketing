@@ -506,7 +506,8 @@ class ParetoNBDModel(CLVModel):
                 s,
                 beta,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(
