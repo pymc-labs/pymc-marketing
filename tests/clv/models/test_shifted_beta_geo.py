@@ -26,6 +26,8 @@ from scipy import stats
 from pymc_marketing.clv import ShiftedBetaGeoModel, ShiftedBetaGeoModelIndividual
 from tests.clv.conftest import mock_sample
 
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
 
 class TestShiftedBetaGeoModel:
     @classmethod
@@ -595,15 +597,6 @@ class TestShiftedBetaGeoModel:
             self.model._extract_predictive_variables(
                 T_lt_2_data, customer_varnames=["customer_id", "recency", "T", "cohort"]
             )
-
-    @pytest.mark.filterwarnings("error::FutureWarning")
-    def test_extract_predictive_variables_no_future_warning(self):
-        pred_data = self.data.query("recency == T").assign(future_t=0)
-        dataset = self.model._extract_predictive_variables(
-            pred_data, customer_varnames=["T", "future_t", "cohort"]
-        )
-        assert "alpha" in dataset
-        assert "beta" in dataset
 
     def test_expected_probability_alive(
         self, prediction_targets, predicted_time_series_data

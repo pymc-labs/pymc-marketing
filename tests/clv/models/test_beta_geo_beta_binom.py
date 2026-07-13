@@ -25,6 +25,8 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
 from tests.clv.conftest import create_mock_fit, mock_sample
 
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
 
 class TestBetaGeoBetaBinomModel:
     @classmethod
@@ -318,18 +320,6 @@ class TestBetaGeoBetaBinomModel:
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
-
-    @pytest.mark.filterwarnings("error::FutureWarning")
-    def test_extract_predictive_variables_no_future_warning(self):
-        pred_data = self.pred_data.assign(future_t=1)
-        dataset = self.model._extract_predictive_variables(
-            pred_data,
-            customer_varnames=["frequency", "recency", "T", "future_t"],
-        )
-        assert "alpha" in dataset
-        assert "beta" in dataset
-        assert "gamma" in dataset
-        assert "delta" in dataset
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):

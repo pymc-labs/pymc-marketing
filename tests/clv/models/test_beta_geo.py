@@ -23,6 +23,8 @@ from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
 
 class TestBetaGeoModel:
     @classmethod
@@ -550,17 +552,6 @@ class TestBetaGeoModel:
             est_num_purchases.mean(("chain", "draw")),
             rtol=0.001,
         )
-
-    @pytest.mark.filterwarnings("error::FutureWarning")
-    def test_extract_predictive_variables_no_future_warning(self):
-        dataset = self.model._extract_predictive_variables(
-            self.pred_data.assign(future_t=1),
-            customer_varnames=["frequency", "recency", "T", "future_t"],
-        )
-        assert "a" in dataset
-        assert "b" in dataset
-        assert "alpha" in dataset
-        assert "r" in dataset
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases_new_customer(self, test_t):

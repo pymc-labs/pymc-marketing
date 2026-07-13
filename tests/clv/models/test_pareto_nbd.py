@@ -22,6 +22,8 @@ from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
 from tests.clv.conftest import create_mock_fit, set_model_fit
 
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
 
 class TestParetoNBDModel:
     @classmethod
@@ -248,18 +250,6 @@ class TestParetoNBDModel:
             "\ns~Weibull(2,1)"
             "\nrecency_frequency~ParetoNBD(r,alpha,s,beta,<constant>)"
         )
-
-    @pytest.mark.filterwarnings("error::FutureWarning")
-    def test_extract_predictive_variables_no_future_warning(self):
-        pred_data = self.data.iloc[:25].assign(future_t=1)
-        dataset = self.model._extract_predictive_variables(
-            pred_data,
-            customer_varnames=["frequency", "recency", "T", "future_t"],
-        )
-        assert "r" in dataset
-        assert "alpha" in dataset
-        assert "s" in dataset
-        assert "beta" in dataset
 
     @pytest.mark.parametrize("future_t", [1, 3, 6])
     def test_expected_purchases(self, future_t):
