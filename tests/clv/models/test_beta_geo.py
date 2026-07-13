@@ -551,15 +551,12 @@ class TestBetaGeoModel:
             rtol=0.001,
         )
 
+    @pytest.mark.filterwarnings("error::FutureWarning")
     def test_extract_predictive_variables_no_future_warning(self):
-        import warnings
-
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", FutureWarning)
-            dataset = self.model._extract_predictive_variables(
-                self.pred_data.assign(future_t=1),
-                customer_varnames=["frequency", "recency", "T", "future_t"],
-            )
+        dataset = self.model._extract_predictive_variables(
+            self.pred_data.assign(future_t=1),
+            customer_varnames=["frequency", "recency", "T", "future_t"],
+        )
         assert "a" in dataset
         assert "b" in dataset
         assert "alpha" in dataset
