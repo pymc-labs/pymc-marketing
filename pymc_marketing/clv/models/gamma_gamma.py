@@ -317,9 +317,9 @@ class GammaGammaModel(BaseGammaGammaModel):
     def default_model_config(self) -> ModelConfig:
         """Default model configuration."""
         return {
-            "p": Prior("HalfFlat"),
-            "q": Prior("HalfFlat"),
-            "v": Prior("HalfFlat"),
+            "p": Prior("Weibull", alpha=2, beta=1),
+            "q": Prior("Weibull", alpha=2, beta=1),
+            "v": Prior("Weibull", alpha=2, beta=10),
         }
 
     # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
@@ -467,9 +467,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     def default_model_config(self) -> dict:
         """Default model configuration."""
         return {
-            "p": Prior("HalfFlat"),
-            "q": Prior("HalfFlat"),
-            "v": Prior("HalfFlat"),
+            "p": Prior("Weibull", alpha=2, beta=1),
+            "q": Prior("Weibull", alpha=2, beta=1),
+            "v": Prior("Weibull", alpha=2, beta=10),
         }
 
     def _validate_data(self, data: pandas.DataFrame) -> None:
