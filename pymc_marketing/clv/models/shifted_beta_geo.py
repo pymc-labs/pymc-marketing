@@ -170,6 +170,7 @@ class ShiftedBetaGeoModel(CLVModel):
     """
 
     _model_type = "Shifted Beta-Geometric"
+    _skipped_config_keys = {"alpha", "beta"}
 
     def __init__(
         self,
