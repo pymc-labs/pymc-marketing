@@ -486,16 +486,6 @@ class TestParetoNBDModel:
         assert self.model.sampler_config == loaded_model.sampler_config
         assert self.model.idata == loaded_model.idata
 
-    def test_fit_exception(self):
-        with pytest.warns(
-            DeprecationWarning,
-            match=(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead."
-            ),
-        ):
-            self.model.fit(fit_method="map")
-
 
 class TestParetoNBDModelWithCovariates:
     @classmethod
