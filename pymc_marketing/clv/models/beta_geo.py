@@ -150,6 +150,7 @@ class BetaGeoModel(CLVModel):
     """  # noqa: E501
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
+    _skipped_config_keys = {"a", "b"}
 
     def __init__(
         self,

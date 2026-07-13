@@ -144,6 +144,7 @@ class BetaGeoBetaBinomModel(CLVModel):
     """
 
     _model_type = "BG/BB"  # Beta-Geometric, Beta-Binomial Distribution
+    _skipped_config_keys = {"alpha", "beta", "gamma", "delta"}
 
     def __init__(
         self,

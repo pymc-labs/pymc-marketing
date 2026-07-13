@@ -308,6 +308,26 @@ def test_model_config_no_warning_for_valid_keys(recwarn):
     assert not [w for w in recwarn if "not used by the model" in str(w.message)]
 
 
+def test_model_config_no_warning_for_skipped_keys(recwarn):
+    """No unused-key warning for keys listed in _skipped_config_keys."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a", "extra_b"}
+
+    SkippedKeysModel(model_config={"extra_a": 1, "extra_b": 2})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_warns_on_non_skipped_keys():
+    """Keys not in defaults or _skipped_config_keys still warn."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a"}
+
+    with pytest.warns(UserWarning, match="not used by the model"):
+        SkippedKeysModel(model_config={"extra_a": 1, "typo_key": 2})
+
+
 @pytest.mark.parametrize(
     "test_case,model_class,method,expected_error,args",
     [

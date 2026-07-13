@@ -590,6 +590,7 @@ class ModelBuilder(ABC, ModelIO):
 
     _model_type = "BaseClass"
     version = "None"
+    _skipped_config_keys: set[str] = set()
 
     def __init__(
         self,
@@ -634,7 +635,9 @@ class ModelBuilder(ABC, ModelIO):
 
         # Warn about model_config keys that the model does not use, so that
         # typos (e.g. "alphaa" instead of "alpha") don't silently get ignored.
-        unused_model_config_keys = set(model_config) - set(default_model_config)
+        unused_model_config_keys = (
+            set(model_config) - set(default_model_config) - self._skipped_config_keys
+        )
         if unused_model_config_keys:
             warnings.warn(
                 "The following model_config keys are not used by the model "
