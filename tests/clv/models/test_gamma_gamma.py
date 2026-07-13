@@ -123,15 +123,15 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         model.build_model(data=self.data)
         assert isinstance(
             model.model["p"].owner.op,
-            (pm.HalfFlat if config is None else pm.HalfNormal),
+            (pm.Weibull if config is None else pm.HalfNormal),
         )
         assert isinstance(
             model.model["q"].owner.op,
-            (pm.HalfFlat if config is None else pm.HalfStudentT),
+            (pm.Weibull if config is None else pm.HalfStudentT),
         )
         assert isinstance(
             model.model["v"].owner.op,
-            pm.HalfFlat,
+            pm.Weibull,
         )
         assert model.model.eval_rv_shapes() == {
             "p": (),
@@ -285,8 +285,8 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(MeanTransactions)"
             "\np~HalfNormal(0,10)"
-            "\nq~HalfFlat()"
-            "\nv~HalfFlat()"
+            "\nq~Weibull(2,1)"
+            "\nv~Weibull(2,10)"
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
@@ -350,13 +350,13 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         model.build_model(data=self.individual_data)
         assert isinstance(
             model.model["p"].owner.op,
-            pm.HalfFlat if config is None else pm.HalfNormal,
+            pm.Weibull if config is None else pm.HalfNormal,
         )
         assert isinstance(
             model.model["q"].owner.op,
-            pm.HalfFlat if config is None else pm.HalfStudentT,
+            pm.Weibull if config is None else pm.HalfStudentT,
         )
-        assert isinstance(model.model["v"].owner.op, pm.HalfFlat)
+        assert isinstance(model.model["v"].owner.op, pm.Weibull)
         assert model.model.eval_rv_shapes() == {
             "p": (),
             "p_log__": (),
@@ -440,9 +440,9 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
 
         assert model.__repr__().replace(" ", "") == (
             "Gamma-GammaModel(IndividualTransactions)"
-            "\np~HalfFlat()"
+            "\np~Weibull(2,1)"
             "\nq~HalfNormal(0,10)"
-            "\nv~HalfFlat()"
+            "\nv~Weibull(2,10)"
             "\nnu~Gamma(q,f(v))"
             "\nspend~Gamma(p,f(nu))"
         )

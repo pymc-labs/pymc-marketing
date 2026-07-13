@@ -29,6 +29,15 @@ from pymc_marketing.model_config import ModelConfig
 class BaseGammaGammaModel(CLVModel):
     """Base class for Gamma-Gamma models."""
 
+    @property
+    def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
+        return {
+            "p": Prior("Weibull", alpha=2, beta=1),
+            "q": Prior("Weibull", alpha=2, beta=1),
+            "v": Prior("Weibull", alpha=2, beta=10),
+        }
+
     def distribution_customer_spend(
         self,
         data: pandas.DataFrame,
@@ -313,15 +322,6 @@ class GammaGammaModel(BaseGammaGammaModel):
     ):
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
-    @property
-    def default_model_config(self) -> ModelConfig:
-        """Default model configuration."""
-        return {
-            "p": Prior("HalfFlat"),
-            "q": Prior("HalfFlat"),
-            "v": Prior("HalfFlat"),
-        }
-
     # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma-specific data requirements."""
@@ -462,15 +462,6 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         sampler_config: dict | None = None,
     ):
         super().__init__(model_config=model_config, sampler_config=sampler_config)
-
-    @property
-    def default_model_config(self) -> dict:
-        """Default model configuration."""
-        return {
-            "p": Prior("HalfFlat"),
-            "q": Prior("HalfFlat"),
-            "v": Prior("HalfFlat"),
-        }
 
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma Individual-specific data requirements."""
