@@ -114,8 +114,6 @@ sections:
         notebook: clv/gamma_gamma
       - title: Shifted BG Model for Cohorts
         notebook: clv/sbg
-      - title: sBG Model for Individuals
-        notebook: clv/sBG_individual
   - title: Customer Choice Models
     cards:
       - title: MV-ITS Saturated
