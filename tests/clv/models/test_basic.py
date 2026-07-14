@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-import xarray as xr
+from arviz import InferenceData, from_dict
 from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models import (
@@ -105,8 +105,8 @@ def posterior():
     )  # shape convention: (chain, draw, *shape)
 
     # Create a dictionary for posterior
-    posterior_dict = xr.Dataset({"theta": posterior_samples})
-    return xr.DataTree.from_dict({"/posterior": posterior_dict})
+    posterior_dict = {"theta": posterior_samples}
+    return from_dict(posterior=posterior_dict)
 
 
 class TestCLVModel:
@@ -128,11 +128,10 @@ class TestCLVModel:
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().sizes["chain"] == 2
-        assert idata["/posterior"].to_dataset().sizes["draw"] == 10
-        assert model.fit_result.equals(idata["/posterior"].to_dataset())
-        assert isinstance(model.fit_result, xr.Dataset)
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
+        assert model.fit_result is idata.posterior
 
     def test_fit_map(self, mocker):
         model = CLVModelTest()
@@ -140,11 +139,10 @@ class TestCLVModel:
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
         idata = model.fit(method="map")
 
-        assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().sizes["chain"] == 1
-        assert idata["/posterior"].to_dataset().sizes["draw"] == 1
-        assert model.fit_result.equals(idata["/posterior"].to_dataset())
-        assert isinstance(model.fit_result, xr.Dataset)
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 1
+        assert model.fit_result is idata.posterior
         # Check that summary only includes single value
         summ = model.fit_summary()
         assert isinstance(summ, pd.Series)
@@ -163,11 +161,10 @@ class TestCLVModel:
             compute_convergence_checks=False,
         )
 
-        assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().sizes["chain"] == 2
-        assert idata["/posterior"].to_dataset().sizes["draw"] == 10
-        assert model.fit_result.equals(idata["/posterior"].to_dataset())
-        assert isinstance(model.fit_result, xr.Dataset)
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 2
+        assert len(idata.posterior.draw) == 10
+        assert model.fit_result is idata.posterior
 
     def test_fit_advi(self, mocker):
         model = CLVModelTest()
@@ -178,9 +175,9 @@ class TestCLVModel:
             chains=2,
             draws=10,
         )
-        assert isinstance(idata, xr.DataTree)
-        assert idata["/posterior"].to_dataset().sizes["chain"] == 1
-        assert idata["/posterior"].to_dataset().sizes["draw"] == 10
+        assert isinstance(idata, InferenceData)
+        assert len(idata.posterior.chain) == 1
+        assert len(idata.posterior.draw) == 10
 
     def test_fit_advi_with_wrong_chains_advi_kwargs(self, mocker):
         model = CLVModelTest()
@@ -238,7 +235,7 @@ class TestCLVModel:
         model.fit(data=data, tune=0, chains=2, draws=5)
         idata = model.idata.copy()
         assert "fit_data" in idata
-        idata = idata.drop_nodes("fit_data")
+        del idata.fit_data
         with pytest.warns(UserWarning, match="fit_data used for training"):
             loaded = CLVModelForLoadTest.load_from_idata(idata)
         assert isinstance(loaded, CLVModelForLoadTest)
@@ -280,7 +277,7 @@ class TestCLVModel:
         monkeypatch.setattr(CLVModelTest, "id", property(mock_property))
         with pytest.raises(
             DifferentModelError,
-            match=r"(?i)test_model|model.*different|configuration|attrs",
+            match=r"The file '.*test_model'",
         ):
             CLVModelTest.load(save_path)
 
@@ -288,20 +285,14 @@ class TestCLVModel:
         data = pd.DataFrame(dict(y=[-3, -2, -1]))
         model = CLVModelTest(data=data)
         model.build_model()
-        fake_idata = xr.DataTree.from_dict(
-            {
-                "/posterior": xr.Dataset(
-                    {"x": (("chain", "draw"), np.random.normal(size=(4, 1000)))}
-                )
-            }
-        )
+        fake_idata = from_dict(dict(x=np.random.normal(size=(4, 1000))))
         set_model_fit(model, fake_idata)
 
         thin_model = model.thin_fit_result(keep_every=20)
         assert thin_model is not model
         assert thin_model.idata is not model.idata
-        assert len(thin_model.posterior["x"].chain) == 4
-        assert len(thin_model.posterior["x"].draw) == 50
+        assert len(thin_model.idata.posterior["x"].chain) == 4
+        assert len(thin_model.idata.posterior["x"].draw) == 50
         assert thin_model.data is not model.data
         assert np.all(thin_model.data == model.data)
 
@@ -315,6 +306,33 @@ class TestCLVModel:
         assert model.model_config == {
             "x": Prior("StudentT", mu=0, sigma=5, nu=15),
         }
+
+    def test_backwards_compatibility_with_old_config(self, tmp_path):
+        model = CLVModelTest()
+        model.build_model()
+
+        old_posterior = from_dict(posterior={"alpha_prior": np.random.randn(2, 100)})
+        set_model_fit(model, old_posterior)
+        assert "alpha_prior" in model.idata.posterior
+
+        save_path = tmp_path / "test_model"
+        model.save(save_path)
+
+        loaded_model = CLVModelTest.load(save_path)
+
+        assert "alpha" in loaded_model.idata.posterior
+        assert "alpha_prior" not in loaded_model.idata.posterior
+
+    def test_deprecation_warning_on_old_config(self):
+        old_model_config = {
+            "x_prior": {"dist": "Normal", "kwargs": {"mu": 0, "sigma": 1}}
+        }
+        with pytest.warns(
+            DeprecationWarning, match=r"The key 'x_prior' in model_config is deprecated"
+        ):
+            model = CLVModelTest(model_config=old_model_config)
+
+        assert model.model_config == {"x": Prior("Normal", mu=0, sigma=1)}
 
     def test_validate_cols_reports_all_missing_columns(self):
         """Test _validate_cols raises a single ValueError listing all missing columns."""

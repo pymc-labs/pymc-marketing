@@ -12,7 +12,7 @@ repos:
           - --exclude=scripts/
           - --start-year=2022
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.16
+    rev: v0.15.20
     hooks:
       - id: ruff-check
         types_or: [python, pyi, jupyter]
@@ -40,7 +40,7 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: check-added-large-files
-        exclude: ^(docs/source/notebooks/|docs/source/gallery/images/|/data/|uv\.lock$)
+        exclude: ^(docs/source/notebooks/|docs/source/gallery/images/|data/)
   - repo: local
     hooks:
       - id: validate-api-docs
@@ -49,12 +49,6 @@ repos:
         language: system
         pass_filenames: false
         files: ^(docs/source/api/index\.md|pymc_marketing/.*\.py)$
-      - id: validate-watermark
-        name: Validate notebooks have watermark in last cell
-        entry: python3 scripts/validate_notebook_watermark.py
-        language: system
-        files: \.ipynb$
-        exclude: ^docs/source/notebooks/.*/dev/
       - id: validate-notebooks
         name: Validate Jupyter notebooks (nbformat)
         entry: python -c "import sys, nbformat; [nbformat.validate(nbformat.read(p, as_version=4)) for p in sys.argv[1:]]"
@@ -65,7 +59,6 @@ repos:
       - id: gallery-in-sync
         name: gallery.md is in sync with gallery.yaml
         entry: python3 scripts/generate_gallery.py --check --no-thumbnails
-        language: python
-        additional_dependencies: [pyyaml, matplotlib]
+        language: system
         pass_filenames: false
         files: ^(docs/source/gallery/gallery\.(md|yaml)|docs/source/notebooks/.+\.ipynb|scripts/generate_gallery\.py)$

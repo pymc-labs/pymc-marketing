@@ -180,7 +180,7 @@ def approx_hsgp_hyperparams(
         )
 
     c = max(float(a1 * (lengthscale_max / S)), 1.2)
-    m = int(a2 * c / (lengthscale_min / S))
+    m = int(a2 * c / float(lengthscale_min / S))
 
     return m, c
 
@@ -389,11 +389,10 @@ class HSGPBase(BaseModel):
         with pm.Model(coords=coords) as model:
             self.create_variable("f", xdist=True)
 
-        prior_pred = pm.sample_prior_predictive(
+        return pm.sample_prior_predictive(
             model=model,
             **sample_prior_predictive_kwargs,
-        )
-        return prior_pred["/prior"].to_dataset()
+        ).prior
 
     def plot_curve(
         self,

@@ -15,6 +15,7 @@ import json
 import logging
 from collections import namedtuple
 
+import arviz as az
 import mlflow
 import mlflow.artifacts
 import numpy as np
@@ -24,13 +25,10 @@ import pytest
 import xarray as xr
 from mlflow.client import MlflowClient
 from pymc.exceptions import SamplingError
-from pymc_extras.prior import Prior
 
 import pymc_marketing.mlflow as pmm_mlflow
-from pymc_marketing.bass import BassModel
 from pymc_marketing.clv import BetaGeoModel
 from pymc_marketing.mlflow import (
-    _resolve_parameter,
     autolog,
     create_log_callback,
     log_error,
@@ -60,8 +58,6 @@ def setup_module():
         pm.sample = pm.sample.__wrapped__
     while hasattr(MMM.fit, "__wrapped__"):
         MMM.fit = MMM.fit.__wrapped__
-    while hasattr(BassModel.fit, "__wrapped__"):
-        BassModel.fit = BassModel.fit.__wrapped__
 
 
 @pytest.fixture(scope="module")
@@ -232,13 +228,13 @@ def test_run_id_attached_to_idata(model_with_likelihood, tmp_path) -> None:
 
     save_path = tmp_path / "idata.nc"
     idata.to_netcdf(str(save_path))
-    reloaded = xr.open_datatree(str(save_path))
+    reloaded = az.from_netcdf(str(save_path))
     assert reloaded.attrs["mlflow_run_id"] == run.info.run_id
 
 
 def test_attach_run_id_no_active_run_is_noop() -> None:
     assert mlflow.active_run() is None
-    idata = xr.DataTree.from_dict({})
+    idata = az.InferenceData()
     pmm_mlflow._attach_run_id(idata)
     assert "mlflow_run_id" not in idata.attrs
 
@@ -269,13 +265,8 @@ def test_multi_likelihood_type(multi_likelihood_model) -> None:
             Exception("Unknown error occurred"),
             "Unable to render the model graph. Unknown error occurred",
         ),
-        (
-            "pymc.model_to_graphviz",
-            ValueError("lam < 0 or lam contains NaNs"),
-            "Unable to render the model graph. lam < 0 or lam contains NaNs",
-        ),
     ],
-    ids=["no_graphviz", "render_error", "graph_creation_error"],
+    ids=["no_graphviz", "render_error"],
 )
 def test_log_model_graph_no_graphviz(
     caplog,
@@ -290,13 +281,20 @@ def test_log_model_graph_no_graphviz(
         side_effect=side_effect,
     )
     with mlflow.start_run() as run:
-        with caplog.at_level(logging.INFO):
+        with caplog.at_level(logging.INFO, logger="pymc_marketing.mlflow"):
             log_model_graph(model_with_likelihood, "model_graph")
 
-    graph_log_lines = [
-        msg for msg in caplog.messages if "model graph" in msg or "graphviz" in msg
+    # Only inspect records emitted by pymc-marketing itself. caplog's handler is
+    # attached to the root logger, so it also captures unrelated INFO logs from
+    # third-party libraries (e.g. MLflow's "Creating initial MLflow database
+    # tables..." emitted on first backend-store creation), which would otherwise
+    # make this assertion order-dependent and flaky.
+    messages = [
+        record.message
+        for record in caplog.records
+        if record.name == "pymc_marketing.mlflow"
     ]
-    assert graph_log_lines == [
+    assert messages == [
         expected_info_message,
     ]
 
@@ -499,7 +497,6 @@ def test_autolog_mmm(mmm, toy_X, toy_y) -> None:
             draws=draws,
             chains=chains,
             tune=tune,
-            nuts_sampler="pymc",
         )
 
     assert mlflow.active_run() is None
@@ -601,7 +598,6 @@ def test_autolog_multidimensional_mmm(
             draws=draws,
             chains=chains,
             tune=tune,
-            nuts_sampler="pymc",
         )
 
     assert mlflow.active_run() is None
@@ -635,7 +631,7 @@ def test_autolog_multidimensional_mmm(
 
 
 @pytest.fixture(scope="function")
-def mock_idata() -> xr.DataTree:
+def mock_idata() -> az.InferenceData:
     chains = 4
     draws = 100
     coords = {
@@ -659,42 +655,19 @@ def mock_idata() -> xr.DataTree:
         },
         coords=coords,
     )
-    return xr.DataTree.from_dict(
-        {"/posterior": posterior, "/sample_stats": sample_stats},
+    return az.InferenceData(
+        posterior=posterior,
+        sample_stats=sample_stats,
     )
 
 
 @pytest.mark.parametrize("selected_group", ["posterior", "sample_stats"])
 def test_log_sample_diagnostics_missing_group(mock_idata, selected_group: str) -> None:
-    idata = xr.DataTree.from_dict({f"/{selected_group}": mock_idata[selected_group]})
+    idata = az.InferenceData(**{selected_group: mock_idata[selected_group]})
     missing_group = "sample_stats" if selected_group == "posterior" else "posterior"
-    match = rf"DataTree object does not contain the group {missing_group}."
+    match = rf"InferenceData object does not contain the group {missing_group}."
     with pytest.raises(KeyError, match=match):
         log_sample_diagnostics(idata)
-
-
-def test_force_load_idata_groups_visits_every_group(mock_idata, monkeypatch) -> None:
-    """Regression test: ``_force_load_idata_groups`` must load every group.
-
-    ``DataTree.groups`` yields ``/``-prefixed paths (e.g. ``"/posterior"``),
-    so the previous ``hasattr(idata, group)`` guard was always ``False`` and
-    the function silently loaded nothing. Spy on ``Dataset.load`` to assert
-    each group's dataset is actually materialized.
-    """
-    loaded_vars: list[set[str]] = []
-    original_load = xr.Dataset.load
-
-    def spy_load(self, *args, **kwargs):
-        loaded_vars.append(set(self.data_vars))
-        return original_load(self, *args, **kwargs)
-
-    monkeypatch.setattr(xr.Dataset, "load", spy_load)
-
-    pmm_mlflow._force_load_idata_groups(mock_idata)
-
-    all_loaded = set().union(*loaded_vars) if loaded_vars else set()
-    assert {"mu", "sigma"} <= all_loaded
-    assert {"diverging", "energy"} <= all_loaded
 
 
 @pytest.fixture
@@ -732,12 +705,11 @@ def test_clv_fit_mcmc(model_cls, clv_data) -> None:
 
     assert params["fit_method"] == "mcmc"
 
-    divergence_metric = {"total_divergences", "sampling_time_divergences"} & set(
-        metrics.keys()
-    )
-    assert len(divergence_metric) == 1, (
-        f"Expected exactly one divergence metric, got {divergence_metric} from {set(metrics.keys())}"
-    )
+    assert set(metrics.keys()) == {
+        "total_divergences",
+        "sampling_time",
+        "time_per_draw",
+    }
 
     assert tags == {}
 
@@ -779,69 +751,8 @@ def test_clv_fit_map(model_cls, clv_data) -> None:
     }
 
 
-@pytest.fixture
-def bass_data() -> np.ndarray:
-    return np.random.default_rng(42).poisson(lam=100, size=20)
-
-
-def test_autolog_bass(bass_data) -> None:
-    mlflow.set_experiment("pymc-marketing-test-suite-bass")
-
-    sampler_config = {
-        "draws": 2,
-        "chains": 1,
-        "tune": 1,
-        # Force the pymc sampler so sampling_time / time_per_draw metrics are
-        # populated; the pymc6 default sampler (nutpie) does not log them.
-        "nuts_sampler": "pymc",
-    }
-    # Positive prior on m keeps the Poisson rate valid when the model graph
-    # is rendered (it draws from the prior to evaluate shapes), so
-    # model_graph.pdf is logged deterministically
-    model_config = {
-        "m": Prior("Normal", mu=100, sigma=10),
-    }
-
-    model = BassModel(model_config=model_config, sampler_config=sampler_config)
-    with mlflow.start_run() as run:
-        idata = model.fit(data=bass_data, random_seed=42)
-
-    assert mlflow.active_run() is None
-    assert idata.attrs["mlflow_run_id"] == run.info.run_id
-
-    run_id = run.info.run_id
-    inputs, params, metrics, tags, artifacts = get_run_data(run_id)
-
-    assert isinstance(inputs, list)
-
-    assert params["model_type"] == "BassModel"
-    assert params["version"] == __version__
-
-    model_config_logged = json.loads(params["model_config"])
-    assert set(model_config_logged.keys()) == {"m", "p", "q", "likelihood"}
-
-    sampler_config_logged = json.loads(params["sampler_config"])
-    assert sampler_config_logged["draws"] == 2
-
-    assert set(metrics.keys()) == {
-        "total_divergences",
-        "sampling_time",
-        "time_per_draw",
-    }
-
-    assert tags == {}
-
-    assert set(artifacts) == {
-        "coords.json",
-        "model_repr.txt",
-        "model_graph.pdf",
-        "summary.html",
-        "idata.nc",
-    }
-
-
 @pytest.fixture(scope="function")
-def mock_idata_for_loo() -> xr.DataTree:
+def mock_idata_for_loo() -> az.InferenceData:
     chains = 2
     draws = 50
     obs = 10
@@ -878,12 +789,10 @@ def mock_idata_for_loo() -> xr.DataTree:
         coords=coords,
     )
 
-    return xr.DataTree.from_dict(
-        {
-            "/posterior": posterior,
-            "/sample_stats": sample_stats,
-            "/log_likelihood": log_likelihood,
-        },
+    return az.InferenceData(
+        posterior=posterior,
+        sample_stats=sample_stats,
+        log_likelihood=log_likelihood,
     )
 
 
@@ -959,45 +868,6 @@ def test_logging_callback(model_with_likelihood) -> None:
         for value in ["energy", "mu"]:
             history = client.get_metric_history(run_id, f"chain_{chain}/{value}")
             assert len(history) == 10
-
-
-def test_logging_callback_resolves_log_transform(model_with_likelihood) -> None:
-    # `sigma` is a HalfNormal so it is sampled as `sigma_log__`. The user
-    # passes the model-level name and the callback resolves it.
-    mlflow.set_experiment("pymc-marketing-test-suite-log-transform-resolve")
-
-    callback = create_log_callback(
-        parameters=["mu", "sigma"],
-        take_every=10,
-    )
-    with mlflow.start_run() as run:
-        pm.sample(
-            model=model_with_likelihood,
-            draws=100,
-            tune=1,
-            chains=1,
-            callback=callback,
-        )
-
-    client = MlflowClient()
-    for value in ["mu", "sigma"]:
-        history = client.get_metric_history(run.info.run_id, f"chain_0/{value}")
-        assert len(history) == 10
-
-
-def test_resolve_parameter_exact_match_wins() -> None:
-    point = {"sigma": 1.0, "sigma_log__": 0.0}
-    assert _resolve_parameter("sigma", point) == "sigma"
-
-
-def test_resolve_parameter_falls_back_to_log_suffix() -> None:
-    point = {"mu": 0.0, "sigma_log__": 0.1}
-    assert _resolve_parameter("sigma", point) == "sigma_log__"
-
-
-def test_resolve_parameter_unknown_raises() -> None:
-    with pytest.raises(KeyError, match=r"not found in draw\.point"):
-        _resolve_parameter("nope", {"mu": 0.0, "sigma_log__": 0.1})
 
 
 def test_log_error() -> None:

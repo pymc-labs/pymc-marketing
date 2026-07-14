@@ -1,0 +1,1135 @@
+#   Copyright 2022 - 2026 The PyMC Labs Developers
+#
+#   Licensed under the Apache License, Version 2.0 (the "License");
+#   you may not use this file except in compliance with the License.
+#   You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS,
+#   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#   See the License for the specific language governing permissions and
+#   limitations under the License.
+"""Tests for ``BayesianBLP`` (aggregate-share random-coefficients logit)."""
+
+import warnings
+
+import numpy as np
+import pytest
+import xarray as xr
+
+from pymc_marketing.customer_choice import BayesianBLP, generate_blp_panel
+
+
+class TestBuild:
+    def test_single_region_build_creates_expected_vars(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=50,
+            random_seed=0,
+        )
+        m.build_model()
+        named = set(m.model.named_vars)
+        assert {
+            "alpha",
+            "beta",
+            "alpha_r",
+            "beta_r",
+            "xi_j",
+            "xi_tilde",
+            "xi",
+            "eta",
+            "rho_price_xi",
+            "sigma_eta",
+            "sigma_xi",
+            "sigma_xi_j",
+            "pi_0",
+            "pi_z",
+            "sigma_random",
+            "s_inside",
+            "s_outside",
+            "log_share_ratio",
+        } <= named
+
+    def test_multi_region_adds_hierarchical_vars(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            n_mc_draws=50,
+            random_seed=0,
+        )
+        m.build_model()
+        named = set(m.model.named_vars)
+        assert {"alpha_pop", "beta_pop", "tau_alpha", "tau_beta"} <= named
+        assert m.model.named_vars["alpha_r"].eval().shape == (3,)
+
+    def test_no_instruments_warns_and_skips_first_stage(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.warns(UserWarning, match="not identified"):
+            m = BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=None,
+                n_mc_draws=50,
+                random_seed=0,
+            )
+        m.build_model()
+        named = set(m.model.named_vars)
+        assert "eta" not in named
+        assert "rho_price_xi" not in named
+        assert "pi_0" not in named
+        assert "xi_tilde" in named
+
+    def test_n_random_zero_collapses_share_integral(self, blp_panel_small):
+        """With no random coefficients the model degenerates to logit."""
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=[],
+            n_mc_draws=10,
+            random_seed=0,
+        )
+        m.build_model()
+        assert "sigma_random" not in m.model.named_vars
+        # Shares still defined and bounded
+        s_in = m.model.named_vars["s_inside"].eval()
+        s_out = m.model.named_vars["s_outside"].eval()
+        np.testing.assert_allclose(s_in.sum(axis=-1) + s_out, 1.0, atol=1e-6)
+
+    def test_track_delta_exposes_delta_deterministic(self, blp_panel_small):
+        """``track_delta=True`` registers the ``delta`` mean-utility tensor."""
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            track_delta=True,
+            n_mc_draws=10,
+            random_seed=0,
+        )
+        m.build_model()
+        assert "delta" in m.model.named_vars
+        # Evaluated tensor matches (M, J); PyMC's type.shape may carry None
+        # for free dims, so we eval to check the concrete shape.
+        assert m.model.named_vars["delta"].eval().shape == (m._M, m._J)
+
+    def test_market_size_col_none_raises(self, blp_panel_small):
+        """``market_size_col=None`` is rejected: n=0 would make the
+        log-share-ratio likelihood variance infinite."""
+        df, truth = blp_panel_small
+        with pytest.raises(ValueError, match="market_size_col"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                market_size_col=None,
+                n_mc_draws=10,
+                random_seed=0,
+            )
+
+
+class TestLikelihoodVariance:
+    def test_sigma_obs_matches_delta_method_formula(self, blp_panel_small):
+        """The likelihood logp equals a hand-computed Normal logp with
+        ``Var = 1/(n s_j) + 1/(n s_0)`` — the delta-method variance of the
+        log share *ratio* under multinomial sampling. Pins the formula so
+        the outside-good term cannot silently be dropped again.
+        """
+        from scipy import stats
+
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        point = m.model.initial_point()
+
+        logp_fn = m.model.compile_logp(vars=[m.model["log_share_ratio"]], sum=False)
+        logp_vals = np.asarray(logp_fn(point)[0])  # (M, J)
+
+        # Deterministic graphs contain the RVs themselves; substitute the
+        # value variables so the predicted shares can be evaluated at the
+        # same point the logp was.
+        outs = m.model.replace_rvs_by_values(
+            [m.model["s_inside"], m.model["s_outside"]]
+        )
+        pred_fn = m.model.compile_fn(outs, inputs=m.model.value_vars)
+        s_in_pred, s_out_pred = pred_fn(point)
+        mu = np.log(s_in_pred) - np.log(s_out_pred)[:, None]
+        obs = np.log(m._inside_share) - np.log(m._outside_share)[:, None]
+        sigma = np.sqrt(
+            (1.0 / m._inside_share + 1.0 / m._outside_share[:, None]) / m._n[:, None]
+        )
+        expected = stats.norm.logpdf(obs, loc=mu, scale=sigma)
+        np.testing.assert_allclose(logp_vals, expected, rtol=1e-8)
+
+
+class TestValidation:
+    def test_unknown_random_coef_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.raises(ValueError, match="bogus"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                random_coef_on=["bogus"],
+            )
+
+    def test_unknown_likelihood_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.raises(ValueError, match="likelihood"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                likelihood="badname",
+            )
+
+    def test_product_fixed_effects_false_not_implemented(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.raises(NotImplementedError, match="product_fixed_effects"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                product_fixed_effects=False,
+            )
+
+    def test_missing_characteristic_column_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.raises(ValueError, match="x_0"):
+            BayesianBLP(
+                market_data=df.drop(columns=["x_0"]),
+                characteristics=truth["characteristic_cols"],
+            )
+
+    def test_missing_outside_good_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        df_no_outside = df[df["product"] != "outside"].copy()
+        with pytest.raises(ValueError, match="outside_good"):
+            BayesianBLP(
+                market_data=df_no_outside,
+                characteristics=truth["characteristic_cols"],
+            )
+
+    def test_uneven_market_rows_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        df_bad = df.iloc[1:].copy()
+        with pytest.raises(ValueError, match="rows"):
+            BayesianBLP(
+                market_data=df_bad,
+                characteristics=truth["characteristic_cols"],
+            )
+
+    def test_min_share_floor_warns(self):
+        df, truth = generate_blp_panel(
+            T=10, J=3, K=2, L=2, market_size=2_000, random_seed=0, return_truth=True
+        )
+        df.loc[df.index[0], "share"] = 0.0
+        df.loc[df.index[1:4], "share"] = df.loc[df.index[1:4], "share"] + (
+            -df.loc[df.index[0], "share"] / 3
+        )
+        with pytest.warns(UserWarning, match="Floored"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                random_seed=0,
+            )
+
+    def test_invalid_hierarchical_parameterisation_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        with pytest.raises(ValueError, match="hierarchical_parameterisation"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                hierarchical_parameterisation="bogus",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_n_mc_draws_warns_when_too_small_for_many_random_coefs(self):
+        """``random_coef_on`` with > 4 dims and small n_mc_draws should warn."""
+        df, truth = generate_blp_panel(
+            T=8,
+            J=3,
+            K=5,
+            L=2,
+            market_size=2_000,
+            random_seed=0,
+            return_truth=True,
+        )
+        with pytest.warns(UserWarning, match="n_mc_draws"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                random_coef_on=["price", *truth["characteristic_cols"]],  # 6 dims
+                n_mc_draws=100,  # below the 500 threshold for n_random > 4
+                random_seed=0,
+            )
+
+
+class TestPriorPredictive:
+    def test_shares_sum_to_one_in_prior(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=50,
+            random_seed=0,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            prior = m.sample_prior_predictive(samples=20)
+        s_in = prior.prior["s_inside"].values
+        s_out = prior.prior["s_outside"].values
+        assert s_in.shape == (1, 20, m._M, m._J)
+        np.testing.assert_allclose(s_in.sum(axis=-1) + s_out, 1.0, atol=1e-6)
+
+
+class TestFitSmoke:
+    def test_fit_runs_without_divergences(self, fitted_blp):
+        model, _ = fitted_blp
+        n_div = int(model.idata.sample_stats["diverging"].values.sum())
+        assert n_div == 0, f"got {n_div} divergences"
+
+
+class TestCounterfactual:
+    def test_no_op_canary_reproduces_fitted_shares(self, fitted_blp):
+        """The strongest correctness check: passing no price change must
+        yield shares identical (up to MC noise) to the model's own
+        s_inside/s_outside posterior. If this fails, ξ is being silently
+        re-derived under the price-data Deterministic dependency.
+        """
+        model, _ = fitted_blp
+        cf = model.counterfactual_shares(price_change=None)
+        assert isinstance(cf, xr.Dataset)
+        cf_inside_mean = cf["s_inside"].mean(dim="sample").values
+        cf_outside_mean = cf["s_outside"].mean(dim="sample").values
+        post_inside_mean = (
+            model.idata.posterior["s_inside"].mean(dim=("chain", "draw")).values
+        )
+        post_outside_mean = (
+            model.idata.posterior["s_outside"].mean(dim=("chain", "draw")).values
+        )
+        np.testing.assert_allclose(cf_inside_mean, post_inside_mean, atol=5e-3)
+        np.testing.assert_allclose(cf_outside_mean, post_outside_mean, atol=5e-3)
+
+    def test_empty_dict_is_no_op(self, fitted_blp):
+        model, _ = fitted_blp
+        cf = model.counterfactual_shares(price_change={})
+        assert cf["s_inside"].shape[1:] == (model._M, model._J)
+        assert cf["s_outside"].shape[1:] == (model._M,)
+
+    def test_price_increase_reduces_own_share(self, fitted_blp):
+        """Raising one product's price should lower its average share and
+        raise the outside-good share — the most basic structural check.
+        """
+        model, _ = fitted_blp
+        target = model._inside_products[0]
+        baseline = model.counterfactual_shares(price_change=None)
+        shocked = model.counterfactual_shares(price_change={target: 0.20})
+        baseline_share = baseline["s_inside"].mean(dim="sample").values[:, 0].mean()
+        shocked_share = shocked["s_inside"].mean(dim="sample").values[:, 0].mean()
+        assert shocked_share < baseline_share, (shocked_share, baseline_share)
+        baseline_outside = baseline["s_outside"].mean(dim="sample").values.mean()
+        shocked_outside = shocked["s_outside"].mean(dim="sample").values.mean()
+        assert shocked_outside > baseline_outside
+
+    def test_array_price_change_accepted(self, fitted_blp):
+        model, _ = fitted_blp
+        new_price = model._price * 1.05
+        cf = model.counterfactual_shares(price_change=new_price, n_samples=20)
+        assert cf["s_inside"].shape == (20, model._M, model._J)
+
+    def test_unknown_product_in_price_change_raises(self, fitted_blp):
+        model, _ = fitted_blp
+        with pytest.raises(ValueError, match="Unknown product"):
+            model.counterfactual_shares(price_change={"sku_xyz": 0.1})
+
+    def test_wrong_array_shape_raises(self, fitted_blp):
+        model, _ = fitted_blp
+        with pytest.raises(ValueError, match="shape"):
+            model.counterfactual_shares(price_change=np.zeros((3, 3)))
+
+    def test_invalid_price_change_type_raises(self, fitted_blp):
+        model, _ = fitted_blp
+        with pytest.raises(TypeError, match="price_change must be"):
+            model.counterfactual_shares(price_change="0.10")  # type: ignore[arg-type]
+
+    def test_unfit_model_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(RuntimeError, match="fit"):
+            m.counterfactual_shares()
+
+
+class TestElasticities:
+    def test_mean_shape_and_dims(self, fitted_blp):
+        model, _ = fitted_blp
+        e = model.elasticities()
+        assert isinstance(e, xr.DataArray)
+        assert e.dims == ("market", "share", "price")
+        assert e.shape == (model._M, model._J, model._J)
+
+    def test_samples_shape_and_dims(self, fitted_blp):
+        model, _ = fitted_blp
+        e = model.elasticities(at="samples", n_samples=30)
+        assert e.dims == ("sample", "market", "share", "price")
+        assert e.shape == (30, model._M, model._J, model._J)
+
+    def test_own_price_negative_on_average(self, fitted_blp):
+        """For each inside product, the diagonal elasticity averaged across
+        markets should be negative (price up → own share down).
+        """
+        model, _ = fitted_blp
+        e = model.elasticities()
+        for j in range(model._J):
+            own = e.values[:, j, j].mean()
+            assert own < 0, f"product {j} own elasticity {own} is not negative"
+
+    def test_cross_price_non_negative_on_average(self, fitted_blp):
+        """Cross-price elasticities should be non-negative on average for
+        substitutes (which is the case under the basic mixed logit).
+        """
+        model, _ = fitted_blp
+        e = model.elasticities()
+        for j in range(model._J):
+            for k in range(model._J):
+                if j == k:
+                    continue
+                cross = e.values[:, j, k].mean()
+                assert cross >= -1e-3, (
+                    f"cross elasticity ({j}, {k}) = {cross} is meaningfully negative"
+                )
+
+    def test_invalid_at_raises(self, fitted_blp):
+        model, _ = fitted_blp
+        with pytest.raises(ValueError, match="at"):
+            model.elasticities(at="bogus")
+
+    def test_unfit_model_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(RuntimeError, match="fit"):
+            m.elasticities()
+
+
+class TestTimeCol:
+    """Phase 1 time-aware behaviour: coord-aware preprocessing, counterfactual
+    masking, and the (region, period) sort invariant. No model-graph changes:
+    when ``time_col=None`` the build is bit-identical to the pre-time-aware
+    behaviour and that is asserted in the back-compat test below.
+    """
+
+    def test_synthetic_panel_has_period_column(self):
+        df, _ = generate_blp_panel(T=8, J=3, K=2, L=2, random_seed=0, return_truth=True)
+        assert "period" in df.columns
+        # period is integer 0..T-1, present on every row including outside
+        assert df["period"].nunique() == 8
+        assert df.groupby("market")["period"].nunique().eq(1).all()
+
+    def test_time_col_builds_period_coord_and_indices(self):
+        df, truth = generate_blp_panel(
+            T=8, J=3, K=2, L=2, R_geo=2, random_seed=7, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        assert m._T == 8
+        assert m._periods == sorted(set(df["period"]))
+        assert m._period_idx is not None
+        assert m._period_idx.shape == (m._M,)
+        assert m._market_to_period is m._period_idx
+        assert m._market_to_region is m._region_idx
+        # Lex sort by (region, period) — markets[r*T + t] is (regions[r], periods[t])
+        for r in range(len(m._regions)):
+            for t in range(m._T):
+                cell = r * m._T + t
+                assert m._region_idx[cell] == r
+                assert m._period_idx[cell] == t
+        m.build_model()
+        assert "period" in m.coords
+        assert m.coords["period"] == m._periods
+
+    def test_time_col_none_keeps_period_coord_absent(self, blp_panel_small):
+        """Backward-compat: with time_col=None the period coord is not added."""
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        assert "period" not in m.coords
+        assert m._periods is None
+        assert m._period_idx is None
+
+    def test_shuffle_invariance(self):
+        """Permuting the input rows must not change the internal arrays."""
+        df, truth = generate_blp_panel(
+            T=8, J=3, K=2, L=2, R_geo=3, random_seed=11, return_truth=True
+        )
+        kwargs = dict(
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m_ref = BayesianBLP(market_data=df, **kwargs)
+        df_shuf = df.sample(frac=1.0, random_state=99).reset_index(drop=True)
+        m_shuf = BayesianBLP(market_data=df_shuf, **kwargs)
+        np.testing.assert_array_equal(m_shuf._period_idx, m_ref._period_idx)
+        np.testing.assert_array_equal(m_shuf._region_idx, m_ref._region_idx)
+        np.testing.assert_array_equal(m_shuf._inside_share, m_ref._inside_share)
+        np.testing.assert_array_equal(m_shuf._outside_share, m_ref._outside_share)
+        np.testing.assert_array_equal(m_shuf._price, m_ref._price)
+        np.testing.assert_array_equal(m_shuf._x, m_ref._x)
+        assert m_shuf._markets == m_ref._markets
+
+    def test_non_rectangular_panel_raises(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, R_geo=2, random_seed=0, return_truth=True
+        )
+        # Drop all rows for one (region, period) cell — panel is now ragged
+        drop_market = df.loc[
+            (df["region"] == "r0") & (df["period"] == 3), "market"
+        ].iloc[0]
+        df_ragged = df[df["market"] != drop_market].copy()
+        with pytest.raises(ValueError, match="rectangular"):
+            BayesianBLP(
+                market_data=df_ragged,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                region_col="region",
+                time_col="period",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_market_with_multiple_periods_raises(self):
+        """A market mapped to >1 period values triggers a ValueError."""
+        df, truth = generate_blp_panel(
+            T=4, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        # Re-label one product's row in market 0 to period 99 so the
+        # groupby(market)[period].nunique() check fails.
+        df = df.copy()
+        first_idx = df.index[(df["market"] == 0) & (df["product"] != "outside")][0]
+        df.loc[first_idx, "period"] = 99
+        with pytest.raises(ValueError, match="exactly one period"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                time_col="period",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_unsortable_period_values_raises(self):
+        """Period values of mixed/incomparable types trigger a ValueError."""
+        df, truth = generate_blp_panel(
+            T=4, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        # Mix str and int in the period column: sorted() raises TypeError,
+        # which _preprocess catches and re-raises as ValueError.
+        df = df.copy()
+        df["period"] = df["period"].astype(object)
+        mixed_market = df["market"].iloc[0]
+        df.loc[df["market"] == mixed_market, "period"] = "first"
+        with pytest.raises(ValueError, match="sortable"):
+            BayesianBLP(
+                market_data=df,
+                characteristics=truth["characteristic_cols"],
+                instruments=truth["instrument_cols"],
+                time_col="period",
+                n_mc_draws=20,
+                random_seed=0,
+            )
+
+    def test_periods_without_time_col_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(ValueError, match="time_col was not set"):
+            m._resolve_cell_mask(periods=[0, 1], regions=None)
+
+    def test_unknown_period_raises(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(ValueError, match="Unknown period"):
+            m._resolve_cell_mask(periods=[999], regions=None)
+
+    def test_unknown_region_raises(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, R_geo=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(ValueError, match="Unknown region"):
+            m._resolve_cell_mask(periods=None, regions=["does-not-exist"])
+
+    def test_string_periods_arg_rejected(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(ValueError, match="not a single string"):
+            m._resolve_cell_mask(periods="foo", regions=None)
+
+    def test_ndarray_price_change_rejected_when_time_col_set(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(ValueError, match="time_col is set"):
+            m._resolve_price_change(np.zeros((m._M, m._J)))
+
+    def test_resolve_price_change_with_periods_dict(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        baseline = m._price.copy()
+        new = m._resolve_price_change({"prod_0": 0.10}, periods=[2, 3], regions=None)
+        # Outside the targeted periods, price[..., 0] is untouched
+        outside_mask = ~np.isin(m._period_idx, [2, 3])
+        np.testing.assert_array_equal(new[outside_mask, 0], baseline[outside_mask, 0])
+        # Inside, price scales by (1 + 0.10)
+        inside_mask = np.isin(m._period_idx, [2, 3])
+        np.testing.assert_allclose(new[inside_mask, 0], baseline[inside_mask, 0] * 1.10)
+        # Other products are untouched everywhere
+        np.testing.assert_array_equal(new[:, 1:], baseline[:, 1:])
+
+    def test_resolve_price_change_slice(self):
+        df, truth = generate_blp_panel(
+            T=8, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        # slice(start, stop) is inclusive of stop on coord labels
+        new = m._resolve_price_change({"prod_0": 0.10}, periods=slice(2, 4))
+        affected = np.isin(m._period_idx, [2, 3, 4])
+        np.testing.assert_allclose(new[affected, 0], m._price[affected, 0] * 1.10)
+        np.testing.assert_array_equal(new[~affected, 0], m._price[~affected, 0])
+
+    def test_resolve_price_change_regions_only(self):
+        df, truth = generate_blp_panel(
+            T=4, J=3, K=2, L=2, R_geo=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        new = m._resolve_price_change({"prod_0": 0.10}, regions=["r0"])
+        r0_cells = m._region_idx == 0
+        r1_cells = m._region_idx == 1
+        np.testing.assert_allclose(new[r0_cells, 0], m._price[r0_cells, 0] * 1.10)
+        np.testing.assert_array_equal(new[r1_cells, 0], m._price[r1_cells, 0])
+
+    def test_empty_periods_yields_no_op(self):
+        df, truth = generate_blp_panel(
+            T=4, J=3, K=2, L=2, random_seed=0, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        new = m._resolve_price_change({"prod_0": 0.10}, periods=[])
+        np.testing.assert_array_equal(new, m._price)
+
+
+@pytest.fixture(scope="session")
+def fitted_blp_time(blp_panel_multi_region):
+    """A multi-region BayesianBLP with time_col set, for period/region tests."""
+    df, truth = blp_panel_multi_region
+    model = BayesianBLP(
+        market_data=df,
+        characteristics=truth["characteristic_cols"],
+        instruments=truth["instrument_cols"],
+        region_col="region",
+        time_col="period",
+        random_coef_on=["price"],
+        n_mc_draws=50,
+        random_seed=0,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model.fit(
+            nuts_sampler="numpyro",
+            draws=100,
+            tune=100,
+            chains=2,
+            progressbar=False,
+            random_seed=0,
+        )
+    return model, truth
+
+
+class TestElasticitiesFiltering:
+    def test_period_filter_reduces_markets(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e_all = model.elasticities(n_samples=30)
+        e_sub = model.elasticities(periods=[0, 1], n_samples=30)
+        assert e_sub.sizes["market"] < e_all.sizes["market"]
+
+    def test_region_filter_reduces_markets(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e_all = model.elasticities(n_samples=30)
+        e_sub = model.elasticities(regions=["r0"], n_samples=30)
+        assert e_sub.sizes["market"] < e_all.sizes["market"]
+
+    def test_period_and_region_filter_combined(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e = model.elasticities(periods=[0], regions=["r0"], n_samples=30)
+        assert e.sizes["market"] == 1
+
+    def test_filtered_elasticities_have_correct_coords(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e = model.elasticities(periods=[0, 1], n_samples=30)
+        period_vals = e.coords["period"].values
+        assert all(p in [0, 1] for p in period_vals)
+
+    def test_samples_mode_with_filter(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        e = model.elasticities(at="samples", periods=[0], n_samples=20)
+        assert e.dims == ("sample", "market", "share", "price")
+        assert e.sizes["sample"] == 20
+
+
+class TestCounterfactualFiltering:
+    def test_period_scoped_counterfactual(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        target = model._inside_products[0]
+        baseline = model.counterfactual_shares(price_change=None, n_samples=30)
+        shocked = model.counterfactual_shares(
+            price_change={target: 0.10}, periods=[0], n_samples=30
+        )
+        base_s = baseline["s_inside"].mean(dim="sample").values
+        shock_s = shocked["s_inside"].mean(dim="sample").values
+        delta = shock_s - base_s
+        # Only period-0 markets should show a change
+        period_mask = np.array(model._period_idx) == 0
+        assert np.abs(delta[period_mask, 0]).max() > 0
+        np.testing.assert_allclose(delta[~period_mask, 0], 0.0, atol=1e-12)
+
+    def test_region_scoped_counterfactual(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        target = model._inside_products[0]
+        baseline = model.counterfactual_shares(price_change=None, n_samples=30)
+        shocked = model.counterfactual_shares(
+            price_change={target: 0.10}, regions=["r0"], n_samples=30
+        )
+        base_s = baseline["s_inside"].mean(dim="sample").values
+        shock_s = shocked["s_inside"].mean(dim="sample").values
+        delta = shock_s - base_s
+        r0_mask = np.array(model._region_idx) == 0
+        assert np.abs(delta[r0_mask, 0]).max() > 0
+        np.testing.assert_allclose(delta[~r0_mask, 0], 0.0, atol=1e-12)
+
+    def test_no_change_reproduces_baseline(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        cf = model.counterfactual_shares(price_change=None, n_samples=30)
+        assert "s_inside" in cf
+        assert "s_outside" in cf
+        s_in = cf["s_inside"].mean(dim="sample").values
+        assert s_in.shape == (model._M, model._J)
+        assert not np.isnan(s_in).any()
+
+
+class TestNumericalStability:
+    def test_batch_shares_extreme_params_no_nan(self, blp_panel_small):
+        """Verify batch_shares doesn't produce NaN with extreme parameters."""
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        rng = np.random.default_rng(0)
+        S = 5
+        alpha_M = rng.normal(0, 100, (S, model._M))
+        beta_M = rng.normal(0, 100, (S, model._M, model._K))
+        xi_M = rng.normal(0, 100, (S, model._M, model._J))
+        sigma_M = np.abs(rng.normal(0, 100, (S, 1)))
+        s_in, s_agg, s_out, s_out_agg, _ = model.batch_shares(
+            alpha_M, beta_M, xi_M, sigma_M, model._price
+        )
+        assert not np.isnan(s_in).any()
+        assert not np.isnan(s_agg).any()
+        assert not np.isnan(s_out).any()
+        assert not np.isnan(s_out_agg).any()
+
+    def test_elasticities_extreme_params_no_nan(self, blp_panel_small):
+        """Verify elasticities are finite even with extreme share values."""
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        rng = np.random.default_rng(0)
+        S = 5
+        alpha_M = rng.normal(0, 100, (S, model._M))
+        beta_M = rng.normal(0, 100, (S, model._M, model._K))
+        xi_M = rng.normal(0, 100, (S, model._M, model._J))
+        sigma_M = np.abs(rng.normal(0, 100, (S, 1)))
+        s_per_draw, s_agg, _, _, alpha_per_draw = model.batch_shares(
+            alpha_M, beta_M, xi_M, sigma_M, model._price
+        )
+        R_eff = s_per_draw.shape[-1]
+        weighted = alpha_per_draw[:, :, None, :] * s_per_draw
+        ds_dp = -np.einsum("smjr,smkr->smjk", weighted, s_per_draw) / R_eff
+        diag_add = weighted.mean(axis=-1)
+        j_idx = np.arange(model._J)
+        ds_dp[:, :, j_idx, j_idx] += diag_add
+        s_agg_safe = np.maximum(s_agg, 1e-30)
+        elast = ds_dp * model._price[None, :, None, :] / s_agg_safe[:, :, :, None]
+        assert not np.isnan(elast).any()
+
+    def test_batch_shares_chunking_matches_unchunked(
+        self, blp_panel_small, monkeypatch
+    ):
+        """When allocation exceeds the cap, chunked output equals one-shot output.
+
+        Drives the chunking branch of ``batch_shares`` by lowering the cap to
+        something tiny, verifies the warning fires and the concatenated chunks
+        match a bit-for-bit one-shot computation.
+        """
+        df, truth = blp_panel_small
+        model = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            random_coef_on=["price"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        rng = np.random.default_rng(0)
+        S = 8
+        alpha_M = rng.normal(-2, 0.5, (S, model._M))
+        beta_M = rng.normal(0, 0.5, (S, model._M, model._K))
+        xi_M = rng.normal(0, 0.3, (S, model._M, model._J))
+        sigma_M = np.abs(rng.normal(0.5, 0.1, (S, 1)))
+
+        full = model.batch_shares(alpha_M, beta_M, xi_M, sigma_M, model._price)
+
+        # Force chunking by setting the cap below the per-sample allocation.
+        monkeypatch.setattr(type(model), "_SHARES_CHUNK_BYTES", 1)
+        with pytest.warns(UserWarning, match="chunks"):
+            chunked = model.batch_shares(alpha_M, beta_M, xi_M, sigma_M, model._price)
+        for full_arr, chunked_arr in zip(full, chunked, strict=True):
+            np.testing.assert_array_equal(full_arr, chunked_arr)
+
+
+class TestXiAsGrid:
+    """``xi_as_grid`` reshapes the flat ``(market,)`` axis to ``(region, period)``.
+
+    The reshape is only valid because ``_preprocess`` lex-sorts markets by
+    ``(region, period)`` when ``time_col`` is set. These tests pin both the
+    shape and the round-trip back to the flat axis.
+    """
+
+    def test_shape_and_round_trip(self, fitted_blp_time):
+        model, _ = fitted_blp_time
+        grid = model.xi_as_grid()
+        assert grid.dims == ("chain", "draw", "region", "period", "inside_product")
+        R = len(model._regions)
+        T = model._T
+        J = model._J
+        n_chain = model.idata.posterior.sizes["chain"]
+        n_draw = model.idata.posterior.sizes["draw"]
+        assert grid.shape == (n_chain, n_draw, R, T, J)
+        # Flattening (region, period) must recover the original (market,) axis.
+        flat = grid.values.reshape(n_chain, n_draw, R * T, J)
+        np.testing.assert_array_equal(flat, model.idata.posterior["xi"].values)
+
+    def test_raises_without_fit(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(RuntimeError, match="fit"):
+            m.xi_as_grid()
+
+    def test_raises_without_time_col(self, fitted_blp):
+        model, _ = fitted_blp  # fitted_blp has no time_col
+        with pytest.raises(RuntimeError, match="time_col"):
+            model.xi_as_grid()
+
+
+class TestHierarchicalParameterisation:
+    def test_noncentered_path_adds_raw_offsets(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            hierarchical_parameterisation="noncentered",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        named = set(m.model.named_vars)
+        # beta_r is Deterministic; the raw offset variable is what's sampled.
+        assert "beta_r_raw" in named
+        assert "beta_r" in named
+        # alpha_r in the noncentered path goes through ``non_centered_normal``,
+        # which creates a ``_raw`` standard-normal variable and exposes the
+        # realised value as a Deterministic with the original name.
+        assert "alpha_r_raw" in named
+
+    def test_centered_path_uses_direct_normal(self, blp_panel_multi_region):
+        df, truth = blp_panel_multi_region
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            hierarchical_parameterisation="centered",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        m.build_model()
+        named = set(m.model.named_vars)
+        # Centered: alpha_r and beta_r are direct Normals, no raw offsets.
+        assert "alpha_r" in named
+        assert "beta_r" in named
+        assert "beta_r_raw" not in named
+        assert "alpha_r_raw" not in named
+
+
+class TestRandomCoefOnCharacteristics:
+    @pytest.mark.parametrize(
+        "random_coef_on, expected_names",
+        [
+            (["x_0"], ["x_0"]),
+            (["price", "x_0"], ["price", "x_0"]),
+            (["x_0", "x_1"], ["x_0", "x_1"]),
+        ],
+    )
+    def test_random_on_characteristic_builds_and_samples_prior(
+        self, blp_panel_small, random_coef_on, expected_names
+    ):
+        df, truth = blp_panel_small
+        # Map the parametrised char names to the fixture's actual char cols.
+        chars = truth["characteristic_cols"]
+        rc_on = [
+            chars[int(name.split("_")[-1])] if name.startswith("x_") else name
+            for name in random_coef_on
+        ]
+        exp = [
+            chars[int(name.split("_")[-1])] if name.startswith("x_") else name
+            for name in expected_names
+        ]
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=chars,
+            instruments=truth["instrument_cols"],
+            random_coef_on=rc_on,
+            n_mc_draws=30,
+            random_seed=0,
+        )
+        assert m._random_coef_names == exp
+        assert m._n_random == len(exp)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            prior = m.sample_prior_predictive(samples=10)
+        s_in = prior.prior["s_inside"].values
+        s_out = prior.prior["s_outside"].values
+        assert s_in.shape == (1, 10, m._M, m._J)
+        np.testing.assert_allclose(s_in.sum(axis=-1) + s_out, 1.0, atol=1e-6)
+
+
+class TestPriorPredictiveExtendIdata:
+    def test_extend_idata_false_leaves_self_idata_unchanged(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        assert m.idata is None
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            prior = m.sample_prior_predictive(samples=10, extend_idata=False)
+        assert "prior" in prior
+        # extend_idata=False means self.idata stays None.
+        assert m.idata is None
+
+
+class TestResolveCellMaskSliceStep:
+    def test_slice_with_step_selects_strided_periods(self):
+        df, truth = generate_blp_panel(
+            T=10, J=3, K=2, L=2, R_geo=2, random_seed=3, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        # slice(start=1, stop=7, step=2) on period labels [0..9] resolves to
+        # period indices [1, 3, 5, 7] — start/stop are inclusive on labels,
+        # so the wanted range is range(1, 8, 2) = [1, 3, 5, 7].
+        mask = m._resolve_cell_mask(periods=slice(1, 7, 2), regions=None)
+        expected = np.isin(m._period_idx, [1, 3, 5, 7])
+        np.testing.assert_array_equal(mask, expected)
+
+    def test_slice_with_step_combined_with_regions(self):
+        df, truth = generate_blp_panel(
+            T=6, J=3, K=2, L=2, R_geo=3, random_seed=4, return_truth=True
+        )
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            region_col="region",
+            time_col="period",
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        mask = m._resolve_cell_mask(periods=slice(0, 4, 2), regions=["r0", "r2"])
+        period_ok = np.isin(m._period_idx, [0, 2, 4])
+        region_ok = np.isin(m._region_idx, [0, 2])
+        np.testing.assert_array_equal(mask, period_ok & region_ok)
+
+
+class TestSaveLoadNotImplemented:
+    def test_save_raises(self, blp_panel_small, tmp_path):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(NotImplementedError, match="save/load"):
+            m.save(str(tmp_path / "m.nc"))
+
+    def test_load_raises(self, tmp_path):
+        with pytest.raises(NotImplementedError, match="save/load"):
+            BayesianBLP.load(str(tmp_path / "m.nc"))
+
+    def test_build_from_idata_raises(self, blp_panel_small):
+        df, truth = blp_panel_small
+        m = BayesianBLP(
+            market_data=df,
+            characteristics=truth["characteristic_cols"],
+            instruments=truth["instrument_cols"],
+            n_mc_draws=20,
+            random_seed=0,
+        )
+        with pytest.raises(NotImplementedError, match="save/load"):
+            m.build_from_idata(idata=None)  # type: ignore[arg-type]

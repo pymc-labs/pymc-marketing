@@ -18,20 +18,20 @@ jobs:
     env:
       PYTENSOR_FLAGS: linker=${{ matrix.linker }}
     steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@v7
       - name: Set up Python
-        run: uv python install 3.13
-      - name: Set up environment
-        run: uv venv --python 3.13
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: "pip"
+          cache-dependency-path: "pyproject.toml"
       - name: Install dependencies
         run: |
           sudo apt-get install graphviz graphviz-dev
-          uv pip install -e .[test]
+          pip install -e .[test]
       - name: Run all tests with duration tracking
         run: |
-          uv run pytest --store-durations --durations-path .test_durations -v
+          pytest --store-durations --durations-path .test_durations -v
         continue-on-error: true  # Generate durations even if some tests fail
       - name: Ensure newline at end of durations file
         run: |
