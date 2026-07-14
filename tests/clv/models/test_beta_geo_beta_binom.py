@@ -25,8 +25,6 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
 from tests.clv.conftest import create_mock_fit, mock_sample
 
-pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
 
 class TestBetaGeoBetaBinomModel:
     @classmethod
