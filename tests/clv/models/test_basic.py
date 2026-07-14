@@ -326,17 +326,6 @@ class TestCLVModel:
         assert thin_model.data is not model.data
         assert np.all(thin_model.data == model.data)
 
-    def test_model_config_warns(self) -> None:
-        model_config = {
-            "x": {"dist": "StudentT", "kwargs": {"mu": 0, "sigma": 5, "nu": 15}},
-        }
-        with pytest.warns(DeprecationWarning, match=r"x is automatically"):
-            model = CLVModelTest(model_config=model_config)
-
-        assert model.model_config == {
-            "x": Prior("StudentT", mu=0, sigma=5, nu=15),
-        }
-
     def test_validate_cols_reports_all_missing_columns(self):
         """Test _validate_cols raises a single ValueError listing all missing columns."""
         required = ("customer_id", "frequency", "recency", "T")

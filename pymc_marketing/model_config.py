@@ -13,11 +13,8 @@
 #   limitations under the License.
 """Model configuration utilities."""
 
-import warnings
-from collections.abc import Sequence
 from typing import Any
 
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
@@ -63,13 +60,7 @@ def parse_model_config(
         from pymc_extras.prior import Prior
 
         model_config = {
-            "alpha": {
-                "dist": "Normal",
-                "kwargs": {
-                    "mu": 0,
-                    "sigma": 1,
-                },
-            },
+            "alpha": Prior("Normal", mu=0, sigma=1),
             "beta": Prior("HalfNormal"),
             "intercept_tvp_config": {
                 "m": 200,
@@ -89,30 +80,10 @@ def parse_model_config(
             hsgp_kwargs_fields=["intercept_tvp_config"],
             non_distributions=["other_intercept"],
         )
-        # {'alpha': Prior("Normal", mu=0, sigma=1),
-        #  'beta': Prior("HalfNormal"),
+        # {'alpha': Prior("Normal", mu=0, sigma=1),  # unchanged
+        #  'beta': Prior("HalfNormal"),  # unchanged
         #  'intercept_tvp_config': HSGPKwargs(m=200, L=119.17, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None),
         #  'other_intercept': {'key': 'Some other non-distribution configuration'}}
-
-    Parsing with an error:
-
-    .. code-block:: python
-
-        from pymc_marketing.model_config import (
-            parse_model_config,
-            ModelConfigError,
-        )
-
-        model_config = {
-            "alpha": {"key": "Non distribution"},
-            "beta": {"dist": "UnknownDistribution"},
-            "gamma": "Completely wrong",
-        }
-
-        try:
-            parse_model_config(model_config)
-        except ModelConfigError as e:
-            print(e)
 
     """
     non_distributions = non_distributions or []
@@ -132,28 +103,7 @@ def parse_model_config(
         if isinstance(prior_config, Prior | VariableFactory):
             return prior_config
 
-        # Skip deserialization for non-dict, non-string sequence types (lists, tuples, etc.)
-        # These are not distribution configurations and should never be deserialized
-        if isinstance(prior_config, Sequence) and not isinstance(prior_config, str):
-            return prior_config
-
-        # Skip deserialization for other non-dict types (strings, numbers, etc.)
-        # These are not distribution configurations
-        if not isinstance(prior_config, dict):
-            return prior_config
-
-        try:
-            dist = deserialize(prior_config)
-        except Exception as e:
-            parse_errors.append(f"Parameter {name}: {e}")
-        else:
-            msg = (
-                f"{name} is automatically converted to {dist}. "
-                "Use the Prior class to avoid this warning."
-            )
-            warnings.warn(msg, DeprecationWarning, stacklevel=2)
-
-            return dist
+        return prior_config
 
     def handle_hggp_kwargs(name, config):
         if name not in hsgp_kwargs_set:

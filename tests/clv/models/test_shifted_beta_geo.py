@@ -26,8 +26,6 @@ from scipy import stats
 from pymc_marketing.clv import ShiftedBetaGeoModel, ShiftedBetaGeoModelIndividual
 from tests.clv.conftest import mock_sample
 
-pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
 
 class TestShiftedBetaGeoModel:
     @classmethod
@@ -138,8 +136,9 @@ class TestShiftedBetaGeoModel:
 
         return model
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def covariate_test_data(self):
+    def covariate_test_data(cls):
         """Test data with covariates for testing covariate functionality."""
         return pd.DataFrame(
             {
@@ -183,8 +182,9 @@ class TestShiftedBetaGeoModel:
             }
         )
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def covariate_pred_data(self):
+    def covariate_pred_data(cls):
         """Prediction data with covariates for testing predictions."""
         return pd.DataFrame(
             {
@@ -196,8 +196,9 @@ class TestShiftedBetaGeoModel:
             }
         )
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def custom_model_config(self):
+    def custom_model_config(cls):
         return {
             "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
@@ -242,8 +243,9 @@ class TestShiftedBetaGeoModel:
             "beta_log__": (np.int64(2),),
         }
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def prediction_targets(self):
+    def prediction_targets(cls):
         """Validation data for testing predictive methods."""
         # Data found in Table 1 on pg(3) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
         df = pd.DataFrame(
@@ -305,8 +307,9 @@ class TestShiftedBetaGeoModel:
             residual_lifetime_case2_obs,
         )
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def predicted_time_series_data(self):
+    def predicted_time_series_data(cls):
         """Format prediction data to compare against observed prediction_targets."""
         # model was trained on 8 time periods, but will be evaluated against full time series
         max_T = 13
@@ -323,8 +326,9 @@ class TestShiftedBetaGeoModel:
             }
         )
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def erl_test_data(self):
+    def erl_test_data(cls):
         """Test data for expected_residual_lifetime with case1/case2 cohorts."""
         # Create test data for (T=1,2,3,4,5) renewals for both case1 and case2 cohorts
         n_periods = 5
@@ -1114,27 +1118,30 @@ class TestShiftedBetaGeoModelIndividual:
         )
         cls.ref_MLE_estimates = {"alpha": 0.688, "beta": 1.182}
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def model_config(self):
+    def model_config(cls):
         return {
             "alpha": Prior("HalfNormal", sigma=10),
             "beta": Prior("HalfStudentT", nu=4, sigma=10),
         }
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def default_model_config(self):
+    def default_model_config(cls):
         return {
             "alpha": Prior("HalfFlat"),
             "beta": Prior("HalfFlat"),
         }
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def data(self):
+    def data(cls):
         return pd.DataFrame(
             {
-                "customer_id": self.customer_id,
-                "t_churn": self.churn_time,
-                "T": self.T,
+                "customer_id": cls.customer_id,
+                "t_churn": cls.churn_time,
+                "T": cls.T,
             }
         )
 

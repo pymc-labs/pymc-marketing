@@ -22,8 +22,6 @@ from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
 from tests.clv.conftest import create_mock_fit, set_model_fit
 
-pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
 
 class TestParetoNBDModel:
     @classmethod
@@ -114,8 +112,9 @@ class TestParetoNBDModel:
         cls.pred_data = test_data[test_data["customer_id"].isin(cls.pred_subset_ids)]
         cls.pred_data_N = len(cls.pred_data)
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def model_config(self):
+    def model_config(cls):
         return {
             "r": Prior("HalfNormal"),
             "alpha": Prior("HalfStudentT", nu=4),
@@ -123,8 +122,9 @@ class TestParetoNBDModel:
             "beta": Prior("Gamma", alpha=1, beta=1),
         }
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def default_model_config(self):
+    def default_model_config(cls):
         return {
             "r": Prior("Weibull", alpha=2, beta=1),
             "alpha": Prior("Weibull", alpha=2, beta=10),

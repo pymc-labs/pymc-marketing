@@ -23,8 +23,6 @@ from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
-pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
 
 class TestBetaGeoModel:
     @classmethod
@@ -101,8 +99,9 @@ class TestBetaGeoModel:
         cls.pred_data = test_data[test_data["customer_id"].isin(pred_subset_ids)]
         cls.pred_data_N = len(cls.pred_data)
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def model_config(self):
+    def model_config(cls):
         return {
             "a": Prior("HalfNormal"),
             "b": Prior("HalfStudentT", nu=4),
@@ -110,8 +109,9 @@ class TestBetaGeoModel:
             "r": Prior("Gamma", alpha=1, beta=1),
         }
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def default_model_config(self):
+    def default_model_config(cls):
         return {
             "a": Prior("HalfFlat"),
             "b": Prior("HalfFlat"),

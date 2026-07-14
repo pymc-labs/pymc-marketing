@@ -400,12 +400,16 @@ class ModelIO:
         to tuples (for ``dims``) or numpy arrays (everything else) to undo the
         JSON round-trip.
         """
+        from pymc_extras.prior import Prior
+
         from pymc_marketing.serialization import serialization
 
         def _format(d: dict) -> dict:
             for key, value in d.items():
                 if isinstance(value, dict) and "__type__" in value:
                     d[key] = serialization.deserialize(value)
+                elif isinstance(value, dict) and "dist" in value:
+                    d[key] = Prior(value["dist"], **value.get("kwargs", {}))
                 elif isinstance(value, dict):
                     d[key] = _format(value)
                 elif isinstance(value, list):
@@ -529,9 +533,7 @@ class ModelIO:
         """
         init_kwargs = cls.idata_to_init_kwargs(idata)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(**init_kwargs)
+        model = cls(**init_kwargs)
 
         model.idata = idata
         if "fit_data" in idata:

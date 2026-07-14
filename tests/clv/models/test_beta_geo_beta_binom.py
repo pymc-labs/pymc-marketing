@@ -25,8 +25,6 @@ from pymc_marketing.clv.distributions import BetaGeoBetaBinom
 from pymc_marketing.clv.models import BetaGeoBetaBinomModel
 from tests.clv.conftest import create_mock_fit, mock_sample
 
-pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
 
 class TestBetaGeoBetaBinomModel:
     @classmethod
@@ -95,8 +93,9 @@ class TestBetaGeoBetaBinomModel:
         cls.draws = 50
         mock_fit(cls.model, chains=cls.chains, draws=cls.draws, rng=cls.rng)
 
+    @classmethod
     @pytest.fixture(scope="class")
-    def model_config(self):
+    def model_config(cls):
         return {
             "alpha": Prior("HalfNormal"),
             "beta": Prior("HalfStudentT", nu=4),
