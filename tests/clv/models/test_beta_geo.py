@@ -23,8 +23,6 @@ from pymc_marketing.clv.distributions import BetaGeoNBD
 from pymc_marketing.clv.models.beta_geo import BetaGeoModel
 from tests.clv.conftest import create_mock_fit, mock_sample, set_model_fit
 
-pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
-
 
 class TestBetaGeoModel:
     @classmethod

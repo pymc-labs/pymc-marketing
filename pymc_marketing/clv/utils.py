@@ -126,8 +126,6 @@ def customer_lifetime_value(
 
     clv = xarray.DataArray(0.0)
 
-    # TODO: Add an IF block to support ShiftedBetaGeoModelIndividual
-
     # initialize FOR loop with 0 purchases at future_t = 0
     prev_expected_purchases = 0
 
