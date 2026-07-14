@@ -27,11 +27,6 @@ CLV:
       - docs/source/notebooks/customer_choice/*
       - pymc_marketing/customer_choice/**
 
-"Prior class":
-  - changed-files:
-    - any-glob-to-any-file:
-      - pymc_marketing/prior.py
-
 streamlit:
   - changed-files:
     - any-glob-to-any-file:

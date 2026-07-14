@@ -409,7 +409,7 @@ class ModelIO:
                 if isinstance(value, dict) and "__type__" in value:
                     d[key] = serialization.deserialize(value)
                 elif isinstance(value, dict) and "dist" in value:
-                    d[key] = Prior(value["dist"], **value.get("kwargs", {}))
+                    d[key] = Prior.from_dict(value)
                 elif isinstance(value, dict):
                     d[key] = _format(value)
                 elif isinstance(value, list):

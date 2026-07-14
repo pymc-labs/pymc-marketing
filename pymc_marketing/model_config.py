@@ -86,24 +86,12 @@ def parse_model_config(
         #  'other_intercept': {'key': 'Some other non-distribution configuration'}}
 
     """
-    non_distributions = non_distributions or []
     hsgp_kwargs_fields = hsgp_kwargs_fields or []
 
-    # Convert to sets for O(1) lookup
-    non_distributions_set = set(non_distributions)
+    # Convert to a set for O(1) lookup
     hsgp_kwargs_set = set(hsgp_kwargs_fields)
 
     parse_errors = []
-
-    def handle_prior_config(name, prior_config):
-        # Early return for non-distribution fields - must be first check
-        if name in non_distributions_set or name in hsgp_kwargs_set:
-            return prior_config
-
-        if isinstance(prior_config, Prior | VariableFactory):
-            return prior_config
-
-        return prior_config
 
     def handle_hggp_kwargs(name, config):
         if name not in hsgp_kwargs_set:
@@ -135,13 +123,11 @@ def parse_model_config(
             parse_errors.append(f"Parameter {name}: {e}")
             return config
 
-    # Parse the model configuration to extrat the `Prior` objects.
+    # Priors already arrive as `Prior`/`VariableFactory` objects and pass through
+    # untouched; only the `HSGPKwargs` fields need converting from dicts.
     result: ModelConfig = {
-        name: handle_prior_config(name, prior_config)
-        for name, prior_config in model_config.items()
+        name: handle_hggp_kwargs(name, config) for name, config in model_config.items()
     }
-    # Parse the model configuration to extract the `HSGPKwargs` objects.
-    result = {name: handle_hggp_kwargs(name, config) for name, config in result.items()}
 
     if parse_errors:
         combined_errors = ", ".join(parse_errors)

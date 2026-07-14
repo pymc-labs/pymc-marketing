@@ -410,9 +410,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
                 }
             ),
             model_config={
-                "p": {dist: 'HalfNorm', kwargs: {}},
-                "q": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v": {dist: 'HalfCauchy', kwargs: {}},
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4, sigma=10),
+                "v": Prior("HalfCauchy", beta=1),
             },
             sampler_config={
                 "draws": 1000,
