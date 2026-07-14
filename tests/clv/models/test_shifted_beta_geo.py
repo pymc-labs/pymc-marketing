@@ -26,6 +26,8 @@ from scipy import stats
 from pymc_marketing.clv import ShiftedBetaGeoModel, ShiftedBetaGeoModelIndividual
 from tests.clv.conftest import mock_sample
 
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
 
 class TestShiftedBetaGeoModel:
     @classmethod

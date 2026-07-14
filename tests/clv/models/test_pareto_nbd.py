@@ -22,6 +22,8 @@ from pymc_marketing.clv import ParetoNBDModel
 from pymc_marketing.clv.distributions import ParetoNBD
 from tests.clv.conftest import create_mock_fit, set_model_fit
 
+pytestmark = pytest.mark.filterwarnings("error::FutureWarning")
+
 
 class TestParetoNBDModel:
     @classmethod

@@ -526,7 +526,8 @@ class ShiftedBetaGeoModel(CLVModel):
                 alpha_pred,
                 beta_pred,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         ).swap_dims(
             {"customer_id": "cohort"}
         )  # swap dims to enable cohort selection for predictions

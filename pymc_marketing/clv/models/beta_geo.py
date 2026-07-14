@@ -444,7 +444,8 @@ class BetaGeoModel(CLVModel):
                 alpha,
                 r,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(
