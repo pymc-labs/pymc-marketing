@@ -39,34 +39,12 @@ class CLVModel(ModelBuilder):
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
-        if data is not None:
-            warnings.warn(
-                f"'{self._model_type}(data)' is deprecated and will be removed in version 1.0. "
-                f"Use '{self._model_type}.build_model(data)' or '{self._model_type}.fit(data)' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.data = data
-
         model_config = model_config or {}
-
-        deprecated_keys = [key for key in model_config if key.endswith("_prior")]
-        for key in deprecated_keys:
-            new_key = key.replace("_prior", "")
-            warnings.warn(
-                f"The key '{key}' in model_config is deprecated and will be removed in future versions."
-                f"Use '{new_key}' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            model_config[new_key] = model_config.pop(key)
 
         super().__init__(model_config, sampler_config)
 
@@ -113,18 +91,16 @@ class CLVModel(ModelBuilder):
 
     def fit(  # type: ignore
         self,
-        data: pd.DataFrame | None = None,
+        data: pd.DataFrame,
         method: str = "mcmc",
-        fit_method: str | None = None,
         **kwargs,
     ) -> xr.DataTree:
         """Infer model posterior.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
-            The input data for model fitting. If not provided, uses data
-            from model initialization (deprecated) or previously built model.
+        data : pd.DataFrame
+            Input data for model fitting.
         method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
@@ -136,30 +112,14 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
 
         """
-        # Handle deprecated fit_method parameter
-        if fit_method:
-            warnings.warn(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            method = fit_method
-
-        # TODO: Delete this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
+        # Check if model was already built, and if fit data matches build data
+        if not hasattr(self, "model"):
             self.build_model(data)  # type: ignore
-        elif hasattr(self, "data") and self.data is not None:
-            # Using old API data - build model if not already built
-            if not hasattr(self, "model"):
-                self.build_model()  # type: ignore
         else:
-            # No data available anywhere
-            if not hasattr(self, "model"):
+            if not self.data.equals(data):  # type: ignore
                 raise ValueError(
-                    "Data must be provided either to fit(data=...) or "
-                    "model must be built with build_model(data=...) first."
+                    "The model was built with different data. "
+                    "Create a new model instance to fit new data."
                 )
 
         approx = None
@@ -183,8 +143,8 @@ class CLVModel(ModelBuilder):
         if approx:
             self.approx = approx
         self.set_idata_attrs(self.idata)
-        if self.data is not None:
-            self._add_fit_data_group(self.data)
+        if self.data is not None:  # type: ignore
+            self._add_fit_data_group(self.data)  # type: ignore
 
         return self.idata
 
@@ -283,30 +243,13 @@ class CLVModel(ModelBuilder):
                 }
             )
 
-    # TODO: Remove for v1.0
-    @classmethod
-    def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict:
-        """Create the initialization kwargs from an InferenceData object."""
-        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        if "fit_data" in idata:
-            kwargs["data"] = idata.fit_data.dataset.to_dataframe()
-
-        return kwargs
-
-    # TODO: Revise/remove for v1.0
     @classmethod
     def build_from_idata(cls, idata: xr.DataTree) -> None:
         """Build the model from the InferenceData object."""
         kwargs = cls.idata_to_init_kwargs(idata)
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=DeprecationWarning,
-            )
-            model = cls(**kwargs)
+        model = cls(**kwargs)
 
         model.idata = idata
-        model._rename_posterior_variables()
         model.data = idata.fit_data.dataset.to_dataframe()
 
         model.build_model(model.data)  # type: ignore
@@ -319,19 +262,6 @@ class CLVModel(ModelBuilder):
             )
             raise DifferentModelError(msg)
         return model
-
-    # TODO: Remove for v1.0
-    def _rename_posterior_variables(self):
-        """Rename variables in the posterior group to remove the _prior suffix.
-
-        This is used to support the old model configuration format, which used
-        to include a _prior suffix for each parameter.
-        """
-        posterior_ds = self.idata["/posterior"].dataset
-        prior_vars = [var for var in posterior_ds.data_vars if var.endswith("_prior")]
-        rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
-        self.idata["/posterior"] = posterior_ds.rename(rename_dict)
-        return self.idata["/posterior"].to_dataset()
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.

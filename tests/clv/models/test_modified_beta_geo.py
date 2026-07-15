@@ -118,10 +118,9 @@ class TestModifiedBetaGeoModel:
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
             model = ModifiedBetaGeoModel(
-                data=self.data,
                 model_config=config,
             )
-            model.build_model()
+            model.build_model(data=self.data)
             assert isinstance(
                 model.model["a"].owner.op,
                 pm.HalfFlat
@@ -168,11 +167,8 @@ class TestModifiedBetaGeoModel:
             ValueError,
             match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ModifiedBetaGeoModel(data=data_invalid)
-            model.build_model()
+            model = ModifiedBetaGeoModel()
+            model.build_model(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -187,11 +183,8 @@ class TestModifiedBetaGeoModel:
                 }
             )
 
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ModifiedBetaGeoModel(data=data)
-            model.build_model()
+            model = ModifiedBetaGeoModel()
+            model.build_model(data=data)
 
     @pytest.mark.parametrize(
         "frequency, recency, logp_value",
@@ -219,10 +212,9 @@ class TestModifiedBetaGeoModel:
             }
         )
         model = ModifiedBetaGeoModel(
-            data=data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=data)
         pymc_model = model.model
         logp = pymc_model.compile_logp()
 
@@ -251,7 +243,7 @@ class TestModifiedBetaGeoModel:
             if method == "mcmc"
             else {}
         )
-        model.fit(method=method, progressbar=False, **sample_kwargs)
+        model.fit(data=self.data, method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -269,6 +261,7 @@ class TestModifiedBetaGeoModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=self.data,
             tune=5,
             chains=2,
             draws=10,
@@ -409,10 +402,9 @@ class TestModifiedBetaGeoModel:
             "b": Prior("HalfNormal", sigma=10),
         }
         model = ModifiedBetaGeoModel(
-            data=self.data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
         assert model.__repr__().replace(" ", "") == (
             "MBG/NBD"
             "\nalpha~HalfFlat()"
@@ -423,10 +415,8 @@ class TestModifiedBetaGeoModel:
         )
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = ModifiedBetaGeoModel(
-            data=self.data,
-        )
-        mock_model.build_model()
+        mock_model = ModifiedBetaGeoModel()
+        mock_model.build_model(data=self.data)
         mock_model.idata = az.from_dict(
             {
                 "posterior": {
@@ -840,7 +830,7 @@ class TestModifiedBetaGeoModelWithCovariates:
         rng = np.random.default_rng(627)
 
         # Create synthetic data from "true" params
-        self.model_with_covariates_phi_kappa.build_model()
+        self.model_with_covariates_phi_kappa.build_model(self.data)
         default_model = self.model_with_covariates_phi_kappa.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(

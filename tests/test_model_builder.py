@@ -296,6 +296,38 @@ def test_model_configuration(model_class, expected_type, test_config):
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
 
 
+def test_model_config_warns_on_unused_keys():
+    """Unknown model_config keys should warn so typos are not silently ignored."""
+    with pytest.warns(UserWarning, match="not used by the model"):
+        ModelBuilderTest(model_config={"mu_loc": 5, "typo_key": 1})
+
+
+def test_model_config_no_warning_for_valid_keys(recwarn):
+    """No unused-key warning is raised when every key is a valid default key."""
+    ModelBuilderTest(model_config={"mu_loc": 5})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_no_warning_for_skipped_keys(recwarn):
+    """No unused-key warning for keys listed in _skipped_config_keys."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a", "extra_b"}
+
+    SkippedKeysModel(model_config={"extra_a": 1, "extra_b": 2})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_warns_on_non_skipped_keys():
+    """Keys not in defaults or _skipped_config_keys still warn."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a"}
+
+    with pytest.warns(UserWarning, match="not used by the model"):
+        SkippedKeysModel(model_config={"extra_a": 1, "typo_key": 2})
+
+
 @pytest.mark.parametrize(
     "test_case,model_class,method,expected_error,args",
     [
@@ -761,6 +793,28 @@ def test_sample_prior_predictive_has_pymc_marketing_version(
     assert (
         "pymc_marketing_version" in model_with_prior_predictive.prior_predictive.attrs
     )
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_prior_predictive_returns_dataset_with_attrs(toy_X, combined):
+    model = RegressionModelBuilderTest()
+    result = model.sample_prior_predictive(toy_X, combined=combined)
+    assert isinstance(result, xr.Dataset)
+    assert "pymc_marketing_version" in result.attrs
+    assert "inference_library" in result.attrs
+    assert "inference_library_version" in result.attrs
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_posterior_predictive_returns_dataset_with_attrs(
+    fitted_regression_model_instance, toy_X, combined
+):
+    result = fitted_regression_model_instance.sample_posterior_predictive(
+        toy_X, combined=combined, extend_idata=False
+    )
+    assert isinstance(result, xr.Dataset)
+    assert "inference_library" in result.attrs
+    assert "inference_library_version" in result.attrs
 
 
 def test_fit_after_prior_keeps_prior(
