@@ -200,6 +200,7 @@ class SensitivityPlots:
         return_as_pc: bool = False,
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
+        reference_lines: bool = True,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Plot uplift curves (``idata.sensitivity_analysis["uplift_curve"]``).
@@ -230,6 +231,12 @@ class SensitivityPlots:
             Extra keyword arguments for the mean line visual.
         hdi_kwargs : dict, optional
             Extra keyword arguments for the HDI band visual.
+        reference_lines : bool, default True
+            Whether to draw the reference lines (vertical baseline at the
+            no-change sweep value and horizontal line at zero uplift). Turn this
+            off to let each panel's y-axis auto-scale to the data; useful when
+            the uplift is far from zero (e.g. control-variable sweeps), where the
+            horizontal zero line would otherwise flatten the credible band.
         **pc_kwargs
             Forwarded to ``PlotCollection.grid()``.
 
@@ -276,6 +283,9 @@ class SensitivityPlots:
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
+        if not reference_lines:
+            return _extract_matplotlib_result(pc, return_as_pc)
+
         # Add reference lines at appropriate positions
         if x_sweep_axis == "relative":
             ref_x = 1.0
