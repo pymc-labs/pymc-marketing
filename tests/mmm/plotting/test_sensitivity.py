@@ -281,6 +281,17 @@ def test_uplift_has_horizontal_line_at_zero(sensitivity_plots):
     assert hlines, "Expected a horizontal reference line at y=0.0"
 
 
+def test_uplift_reference_lines_false(sensitivity_plots):
+    _, axes = sensitivity_plots.uplift(reference_lines=False)
+    ax = axes.flat[0]
+    vlines = [line for line in ax.get_lines() if list(line.get_xdata()) == [1.0, 1.0]]
+    hlines = [line for line in ax.get_lines() if list(line.get_ydata()) == [0.0, 0.0]]
+    assert not vlines, "Expected no vertical reference line when reference_lines=False"
+    assert not hlines, (
+        "Expected no horizontal reference line when reference_lines=False"
+    )
+
+
 def test_uplift_absolute_aggregated_channel_ref_line(
     sensitivity_plots, simple_sa_idata
 ):
