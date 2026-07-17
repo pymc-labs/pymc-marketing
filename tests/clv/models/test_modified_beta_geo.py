@@ -98,7 +98,8 @@ class TestModifiedBetaGeoModel:
         cls.pred_data_N = len(cls.pred_data)
 
     @pytest.fixture(scope="class")
-    def model_config(self):
+    @classmethod
+    def model_config(cls):
         return {
             "a": Prior("HalfNormal"),
             "b": Prior("HalfStudentT", nu=4),
@@ -107,7 +108,8 @@ class TestModifiedBetaGeoModel:
         }
 
     @pytest.fixture(scope="class")
-    def default_model_config(self):
+    @classmethod
+    def default_model_config(cls):
         return {
             "a": Prior("HalfFlat"),
             "b": Prior("HalfFlat"),

@@ -408,7 +408,7 @@ class ModelIO:
             for key, value in d.items():
                 if isinstance(value, dict) and "__type__" in value:
                     d[key] = serialization.deserialize(value)
-                elif isinstance(value, dict) and "dist" in value:
+                elif isinstance(value, dict) and isinstance(value.get("dist"), str):
                     d[key] = Prior.from_dict(value)
                 elif isinstance(value, dict):
                     d[key] = _format(value)

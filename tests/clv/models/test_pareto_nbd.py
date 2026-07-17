@@ -114,6 +114,7 @@ class TestParetoNBDModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def model_config(cls):
         return {
             "r": Prior("HalfNormal"),
@@ -124,6 +125,7 @@ class TestParetoNBDModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def default_model_config(cls):
         return {
             "r": Prior("Weibull", alpha=2, beta=1),

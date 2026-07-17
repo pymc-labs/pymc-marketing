@@ -27,7 +27,7 @@ from pymc_extras.prior import Prior
 
 def is_alternative_prior(data: Any) -> bool:
     """Check if the data is a dictionary representing a Prior (alternative check)."""
-    return isinstance(data, dict) and "distribution" in data
+    return isinstance(data, dict) and isinstance(data.get("distribution"), str)
 
 
 def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
@@ -205,8 +205,14 @@ def resolve(value):
         if "class" in value:
             return build(value)
         # "dist" is the pymc-extras serialization key; "distribution" is the
-        # flat YAML form handled by ``deserialize_alternative_prior``.
-        if "distribution" in value or "dist" in value or "special_prior" in value:
+        # flat YAML form handled by ``deserialize_alternative_prior``. Require a
+        # string value so non-prior mappings that merely contain such a key are
+        # not misrouted to the prior deserializer.
+        if (
+            isinstance(value.get("distribution"), str)
+            or isinstance(value.get("dist"), str)
+            or "special_prior" in value
+        ):
             return deserialize(value)
 
     if (

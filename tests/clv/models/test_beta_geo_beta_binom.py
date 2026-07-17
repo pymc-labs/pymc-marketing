@@ -95,6 +95,7 @@ class TestBetaGeoBetaBinomModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def model_config(cls):
         return {
             "alpha": Prior("HalfNormal"),

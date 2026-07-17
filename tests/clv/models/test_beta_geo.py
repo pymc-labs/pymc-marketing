@@ -101,6 +101,7 @@ class TestBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def model_config(cls):
         return {
             "a": Prior("HalfNormal"),
@@ -111,6 +112,7 @@ class TestBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def default_model_config(cls):
         return {
             "a": Prior("HalfFlat"),

@@ -134,6 +134,7 @@ class TestShiftedBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def covariate_test_data(cls):
         """Test data with covariates for testing covariate functionality."""
         return pd.DataFrame(
@@ -180,6 +181,7 @@ class TestShiftedBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def covariate_pred_data(cls):
         """Prediction data with covariates for testing predictions."""
         return pd.DataFrame(
@@ -194,6 +196,7 @@ class TestShiftedBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def custom_model_config(cls):
         return {
             "alpha": Prior("HalfNormal", sigma=10, dims="cohort"),
@@ -241,6 +244,7 @@ class TestShiftedBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def prediction_targets(cls):
         """Validation data for testing predictive methods."""
         # Data found in Table 1 on pg(3) of paper: https://faculty.wharton.upenn.edu/wp-content/uploads/2012/04/Fader_hardie_jim_07.pdf
@@ -305,6 +309,7 @@ class TestShiftedBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def predicted_time_series_data(cls):
         """Format prediction data to compare against observed prediction_targets."""
         # model was trained on 8 time periods, but will be evaluated against full time series
@@ -324,6 +329,7 @@ class TestShiftedBetaGeoModel:
 
     @classmethod
     @pytest.fixture(scope="class")
+    @classmethod
     def erl_test_data(cls):
         """Test data for expected_residual_lifetime with case1/case2 cohorts."""
         # Create test data for (T=1,2,3,4,5) renewals for both case1 and case2 cohorts

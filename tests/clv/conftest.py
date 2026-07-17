@@ -30,6 +30,23 @@ from pymc_marketing.clv.models import (
 )
 
 
+def pytest_collection_modifyitems(items):
+    """Escalate warnings to errors for the CLV suite (deprecation regression guard).
+
+    ``pytestmark`` in a conftest.py is a no-op, so the marker is applied to each
+    collected test here instead. pytensor/numba warnings are OS-dependent and
+    outside the scope of this guard.
+    """
+    for item in items:
+        # Prepend the error filter so per-test ``filterwarnings`` ignore
+        # markers (and the appended ignores below) keep precedence over it.
+        item.add_marker(pytest.mark.filterwarnings("error"), append=False)
+        item.add_marker(pytest.mark.filterwarnings("ignore::Warning:pytensor.*"))
+        item.add_marker(
+            pytest.mark.filterwarnings("ignore::numba.core.errors.NumbaWarning")
+        )
+
+
 @pytest.fixture(scope="module")
 def cdnow_trans() -> pd.DataFrame:
     """Load CDNOW_ample transaction data into a Pandas dataframe.
@@ -45,6 +62,22 @@ def test_summary_data() -> pd.DataFrame:
     df["customer_id"] = df.index
     df["future_spend"] = df["monetary_value"]
     return df
+
+
+def sample_prior_predictive_ignoring_potentials(**kwargs):
+    """Sample prior predictive, ignoring the expected pymc Potentials warning.
+
+    CLV likelihoods are registered as ``pm.Potential``, so pymc warns that
+    potentials are ignored during prior predictive sampling. That is expected
+    for these mock fits and must not trip the suite-wide ``error`` filter.
+    """
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=UserWarning,
+            message="The effect of Potentials on other parameters is ignored",
+        )
+        return pm.sample_prior_predictive(**kwargs)
 
 
 def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
@@ -130,7 +163,9 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         model_config=model_config,
     )
     model.build_model(data=test_summary_data)
-    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
+    fake_fit = sample_prior_predictive_ignoring_potentials(
+        draws=50, model=model.model, random_seed=rng
+    )
     # posterior group required to pass L80 assert check
     fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     set_model_fit(model, fake_fit)
@@ -155,7 +190,9 @@ def fitted_mbg(test_summary_data) -> ModifiedBetaGeoModel:
         model_config=model_config,
     )
     model.build_model(data=test_summary_data)
-    fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
+    fake_fit = sample_prior_predictive_ignoring_potentials(
+        draws=50, model=model.model, random_seed=rng
+    )
     # posterior group required to pass L80 assert check
     fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     set_model_fit(model, fake_fit)
@@ -183,7 +220,7 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
 
     # Mock an idata object for tests requiring a fitted model
     # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
-    fake_fit = pm.sample_prior_predictive(
+    fake_fit = sample_prior_predictive_ignoring_potentials(
         draws=50,
         model=pnbd_model.model,
         random_seed=rng,

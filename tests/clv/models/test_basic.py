@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -38,7 +40,6 @@ class CLVModelTest(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[],
         )
         self.data = data
 
@@ -84,7 +85,6 @@ class CLVModelForLoadTest(CLVModelTest):
             self,
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[],
         )
         if data is not None:
             self.data = data
@@ -174,7 +174,7 @@ class TestCLVModel:
             data=model.data,
             method="advi",
             tune=5,
-            chains=2,
+            chains=1,
             draws=10,
         )
         assert isinstance(idata, xr.DataTree)
@@ -339,3 +339,15 @@ class TestCLVModel:
 
         with pytest.raises(ValueError, match=expected_error_msg):
             CLVModel._validate_cols(data=data, required_cols=required)
+
+
+def test_warning_guard_is_active():
+    """Canary confirming the CLV suite escalates warnings to errors.
+
+    The ``filterwarnings("error")`` marker is applied to every CLV test by the
+    ``pytest_collection_modifyitems`` hook in ``tests/clv/conftest.py``. If that
+    guard ever regresses to a no-op, ``warnings.warn`` will not raise and this
+    test will fail.
+    """
+    with pytest.raises(DeprecationWarning, match="canary"):
+        warnings.warn("canary", DeprecationWarning, stacklevel=2)

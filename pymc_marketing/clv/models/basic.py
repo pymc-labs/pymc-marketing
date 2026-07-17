@@ -42,17 +42,13 @@ class CLVModel(ModelBuilder):
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
-        non_distributions: list[str] | None = None,
     ):
         model_config = model_config or {}
 
         super().__init__(model_config, sampler_config)
 
         # Parse model config after merging with defaults
-        self.model_config = parse_model_config(
-            self.model_config,
-            non_distributions=non_distributions,
-        )
+        self.model_config = parse_model_config(self.model_config)
 
     @staticmethod
     def _validate_cols(

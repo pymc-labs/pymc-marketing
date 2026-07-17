@@ -30,7 +30,6 @@ ModelConfig = dict[str, VariableFactory | HSGPKwargs | Prior | Any]
 def parse_model_config(
     model_config: ModelConfig,
     hsgp_kwargs_fields: list[str] | None = None,
-    non_distributions: list[str] | None = None,
 ) -> ModelConfig:
     """Parse the model config dictionary.
 
@@ -40,9 +39,6 @@ def parse_model_config(
         The model configuration dictionary.
     hsgp_kwargs_fields : list[str], optional
         A list of keys to parse as HSGP kwargs.
-    non_distributions : list[str], optional
-        A list of keys to ignore when parsing the model configuration
-        dictionary due to them not being distributions.
 
     Returns
     -------
@@ -51,7 +47,7 @@ def parse_model_config(
 
     Examples
     --------
-    Parse all keys in model configuration but ignore the key "tvp_intercept".
+    Parse the HSGP kwargs field in a model configuration.
 
     .. code-block:: python
 
@@ -78,7 +74,6 @@ def parse_model_config(
         parsed_model_config = parse_model_config(
             model_config,
             hsgp_kwargs_fields=["intercept_tvp_config"],
-            non_distributions=["other_intercept"],
         )
         # {'alpha': Prior("Normal", mu=0, sigma=1),  # unchanged
         #  'beta': Prior("HalfNormal"),  # unchanged
@@ -123,10 +118,27 @@ def parse_model_config(
             parse_errors.append(f"Parameter {name}: {e}")
             return config
 
+    def check_legacy_prior_spec(name, config):
+        if (
+            name not in hsgp_kwargs_set
+            and isinstance(config, dict)
+            and ("dist" in config or "distribution" in config)
+        ):
+            parse_errors.append(
+                f"Parameter {name!r} looks like a legacy dict-format prior spec. "
+                "Dict-format priors were removed in v1.0.0; use "
+                "pymc_extras.prior.Prior instead, e.g. "
+                'Prior("Normal", mu=0, sigma=1) or Prior.from_dict(...)'
+            )
+        return config
+
     # Priors already arrive as `Prior`/`VariableFactory` objects and pass through
-    # untouched; only the `HSGPKwargs` fields need converting from dicts.
+    # untouched; only the `HSGPKwargs` fields need converting from dicts. Dicts
+    # that look like removed dict-format prior specs are rejected with a
+    # migration hint instead of failing later with an opaque AttributeError.
     result: ModelConfig = {
-        name: handle_hggp_kwargs(name, config) for name, config in model_config.items()
+        name: check_legacy_prior_spec(name, handle_hggp_kwargs(name, config))
+        for name, config in model_config.items()
     }
 
     if parse_errors:

@@ -15,7 +15,6 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import pymc as pm
 import pytest
 import xarray
 from pandas.testing import assert_frame_equal
@@ -32,7 +31,10 @@ from pymc_marketing.clv.utils import (
     rfm_train_test_split,
     to_xarray,
 )
-from tests.clv.conftest import set_model_fit
+from tests.clv.conftest import (
+    sample_prior_predictive_ignoring_potentials,
+    set_model_fit,
+)
 
 
 def test_to_xarray():
@@ -73,7 +75,7 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
         model_config=model_config,
     )
     model.build_model(data=test_summary_data)
-    fake_fit = pm.sample_prior_predictive(
+    fake_fit = sample_prior_predictive_ignoring_potentials(
         draws=50, model=model.model, random_seed=rng
     ).prior
     set_model_fit(model, fake_fit)
@@ -266,7 +268,8 @@ class TestCustomerLifetimeValue:
 
 class TestRFM:
     @pytest.fixture(scope="class")
-    def transaction_data(self) -> pd.DataFrame:
+    @classmethod
+    def transaction_data(cls) -> pd.DataFrame:
         d = [
             [1, "2015-01-01", 1],
             [1, "2015-02-06", 2],

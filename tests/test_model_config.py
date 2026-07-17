@@ -17,7 +17,7 @@ import pytest
 from pymc_extras.prior import Prior
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
-from pymc_marketing.model_config import parse_model_config
+from pymc_marketing.model_config import ModelConfigError, parse_model_config
 
 
 @pytest.fixture
@@ -78,7 +78,6 @@ def model_config():
 
 def test_parse_model_config(model_config) -> None:
     ignore_keys = ["delta"]
-    non_distributions = ["non_distribution"]
     to_parse = {
         name: value for name, value in model_config.items() if name not in ignore_keys
     }
@@ -86,7 +85,6 @@ def test_parse_model_config(model_config) -> None:
     result = parse_model_config(
         to_parse,
         hsgp_kwargs_fields=["intercept_tvp_config"],
-        non_distributions=non_distributions,
     )
 
     assert result == {
@@ -137,29 +135,25 @@ def test_parse_model_config(model_config) -> None:
     }
 
 
-def test_parse_model_config_with_list_in_non_distributions() -> None:
-    """Test that lists in non_distributions are not deserialized."""
+def test_parse_model_config_passes_lists_through() -> None:
+    """Test that list values pass through unchanged."""
     model_config = {
         "dropout_covariate_cols": ["channel", "tier"],
         "alpha": Prior("Normal", mu=0, sigma=1),
     }
 
-    result = parse_model_config(
-        model_config, non_distributions=["dropout_covariate_cols"]
-    )
+    result = parse_model_config(model_config)
 
     assert result["dropout_covariate_cols"] == ["channel", "tier"]
     assert result["alpha"] == Prior("Normal", mu=0, sigma=1)
 
 
-def test_parse_model_config_with_list_not_in_non_distributions() -> None:
-    """Test that lists not in non_distributions are still skipped (defensive check)."""
+@pytest.mark.parametrize("legacy_key", ["dist", "distribution"])
+def test_parse_model_config_rejects_legacy_prior_spec(legacy_key) -> None:
+    """Legacy dict-format prior specs raise a clear migration error."""
     model_config = {
-        "some_list": ["item1", "item2"],
-        "alpha": Prior("Normal", mu=0, sigma=1),
+        "alpha": {legacy_key: "Normal", "kwargs": {"mu": 0, "sigma": 1}},
     }
 
-    result = parse_model_config(model_config)
-
-    assert result["some_list"] == ["item1", "item2"]
-    assert result["alpha"] == Prior("Normal", mu=0, sigma=1)
+    with pytest.raises(ModelConfigError, match=r"use pymc_extras\.prior\.Prior"):
+        parse_model_config(model_config)
