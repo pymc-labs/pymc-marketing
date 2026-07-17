@@ -1054,6 +1054,11 @@ class RegressionModelBuilder(ModelBuilder):
 
         if not hasattr(self, "model"):
             self.build_model(X, y)
+        else:
+            # Refresh data on the existing model so repeated fits (or a fit
+            # after build_model) sample from the new X, y instead of the
+            # values baked in when the model was first built.
+            self._data_setter(X, y)
 
         sampler_kwargs = create_sample_kwargs(
             self.sampler_config,
@@ -1195,6 +1200,11 @@ class RegressionModelBuilder(ModelBuilder):
 
         if not hasattr(self, "model"):
             self.build_model(X, y)
+        else:
+            # Refresh data on the existing model so repeated fits (or a fit
+            # after build_model) sample from the new X, y instead of the
+            # values baked in when the model was first built.
+            self._data_setter(X, y)
 
         # Prepare kwargs for pymc.fit
         _fit_kwargs: dict[str, Any] = {}

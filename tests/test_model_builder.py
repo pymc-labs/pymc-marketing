@@ -842,6 +842,61 @@ def test_second_fit(toy_X, toy_y, mock_pymc_sample):
     assert id_before != id_after
 
 
+def test_second_fit_uses_new_data(toy_X, toy_y, mock_pymc_sample):
+    """A second fit with new data must update the model, not ignore it (issue #2605)."""
+    model = RegressionModelBuilderTest()
+    model.fit(X=toy_X, y=toy_y, chains=1, draws=100, tune=100)
+
+    new_X = pd.DataFrame({"input": toy_X["input"].to_numpy() + 1})
+    new_y = toy_y + 2
+    model.fit(X=new_X, y=new_y, chains=1, draws=100, tune=100)
+
+    # The PyMC data containers used for sampling now hold the new data ...
+    np.testing.assert_allclose(model.model["x"].get_value(), new_X["input"])
+    np.testing.assert_allclose(model.model["y_data"].get_value(), new_y)
+    # ... and the stored fit_data agrees with the model.
+    xr.testing.assert_allclose(
+        model.idata.fit_data["input"], new_X["input"].to_xarray()
+    )
+    xr.testing.assert_allclose(
+        model.idata.fit_data[model.output_var],
+        new_y.rename(model.output_var).to_xarray(),
+    )
+
+
+def test_fit_after_build_model_uses_new_data(toy_X, toy_y, mock_pymc_sample):
+    """fit after an explicit build_model must use fit's data (issue #2605)."""
+    model = RegressionModelBuilderTest()
+    model.build_model(X=toy_X, y=toy_y)
+
+    new_X = pd.DataFrame({"input": toy_X["input"].to_numpy() + 1})
+    new_y = toy_y + 2
+    model.fit(X=new_X, y=new_y, chains=1, draws=100, tune=100)
+
+    np.testing.assert_allclose(model.model["x"].get_value(), new_X["input"])
+    np.testing.assert_allclose(model.model["y_data"].get_value(), new_y)
+
+
+def test_approximate_fit_after_build_model_uses_new_data(toy_X, toy_y):
+    """approximate_fit must also refresh data on an existing model (issue #2605)."""
+    model = RegressionModelBuilderTest(sampler_config={"draws": 20, "chains": 1})
+    model.build_model(X=toy_X, y=toy_y)
+
+    new_X = pd.DataFrame({"input": toy_X["input"].to_numpy() + 1})
+    new_y = toy_y + 2
+    model.approximate_fit(
+        new_X,
+        new_y,
+        progressbar=False,
+        random_seed=42,
+        fit_kwargs={"n": 200, "method": "advi"},
+        sample_kwargs={"draws": 20},
+    )
+
+    np.testing.assert_allclose(model.model["x"].get_value(), new_X["input"])
+    np.testing.assert_allclose(model.model["y_data"].get_value(), new_y)
+
+
 class InsufficientModel(RegressionModelBuilder):
     def __init__(
         self, model_config=None, sampler_config=None, new_parameter=None
