@@ -1,0 +1,19 @@
+.github/workflows/git-ai.yaml
+  s_733fa6de6a6fcf::t_c449cbab9669fa 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "53fc39d574e583cbd35c5d2af6ff171021b33345",
+  "prompts": {},
+  "sessions": {
+    "s_733fa6de6a6fcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e969a59-2bf8-4526-8999-7eeb43855b8a",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
