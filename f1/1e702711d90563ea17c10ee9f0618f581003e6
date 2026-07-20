@@ -1,0 +1,19 @@
+.gitignore
+  s_f2b51ae147a79b::t_c449e96255a9e5 161-170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f11e702711d90563ea17c10ee9f0618f581003e6",
+  "prompts": {},
+  "sessions": {
+    "s_f2b51ae147a79b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6e97137-b2af-4c31-9218-fbd62a72ba49",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Carlos Trujillo <carlangastr@gmail.com>"
+    }
+  }
+}
