@@ -48,7 +48,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+# NOTE: pathmc provides the causal-discovery tooling (TBFPC, BuildModelFromDAG,
+# Markov-equivalence checks). It requires PyMC >= 6, so this extra is only
+# installable once pymc-marketing is on PyMC 6. Bump the floor to the pathmc
+# release that includes the discovery front end (pymc-labs/pathmc#307).
+dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pathmc>=0.2", "pygraphviz"]
 pie = ["pymc-bart"]
 docs = [
     "blackjax",
