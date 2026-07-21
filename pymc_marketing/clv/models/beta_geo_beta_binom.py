@@ -144,16 +144,15 @@ class BetaGeoBetaBinomModel(CLVModel):
     """
 
     _model_type = "BG/BB"  # Beta-Geometric, Beta-Binomial Distribution
+    _skipped_config_keys = {"alpha", "beta", "gamma", "delta"}
 
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=None,
@@ -184,28 +183,16 @@ class BetaGeoBetaBinomModel(CLVModel):
             must_be_homogenous=["T"],
         )
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, frequency, recency, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "obs_var": ["recency", "frequency"],
@@ -340,7 +327,8 @@ class BetaGeoBetaBinomModel(CLVModel):
                 gamma,
                 delta,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(

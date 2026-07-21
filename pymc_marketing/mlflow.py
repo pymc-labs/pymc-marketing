@@ -49,6 +49,12 @@ are patched:
     - Model type and fit method
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
+- `BassModel.fit`:
+
+    - All parameters, metrics, and artifacts from `pymc.sample`
+    - :func:`log_bass_configuration`: Log the configuration of the Bass model.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+
 Examples
 --------
 Autologging for a PyMC model:
@@ -145,10 +151,40 @@ Autologging for a PyMC-Marketing CLV model:
     data = pd.read_csv(file_path)
     data["customer_id"] = data.index
 
-    model = BetaGeoModel(data=data)
+    model = BetaGeoModel()
 
     with mlflow.start_run():
-        model.fit()
+        model.fit(data=data)
+
+Autologging for a PyMC-Marketing Bass model:
+
+.. code-block:: python
+
+    import numpy as np
+
+    import mlflow
+
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.bass import BassModel
+
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog(log_bass=True)
+
+    mlflow.set_experiment("Bass Experiment")
+
+    adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
+
+    # Positive prior on the market size m keeps the Poisson rate valid
+    model_config = {
+        "m": Prior("Normal", mu=500, sigma=100),
+    }
+
+    model = BassModel(model_config=model_config)
+
+    with mlflow.start_run():
+        idata = model.fit(data=adoption)
 
 """
 
@@ -179,6 +215,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 from packaging import version
 
+from pymc_marketing.bass import BassModel
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
@@ -213,6 +250,44 @@ def _take_every(n: int):
         return callback
 
     return decorator
+
+
+# Known PyMC transform suffixes used in ``draw.point`` keys. Extend this
+# tuple to support more transformations. Two caveats before adding entries:
+#
+# 1. Scalar-only. ``mlflow.log_metric`` accepts a scalar value, so only
+#    transforms that produce scalar value vars are safe to list here.
+#    Scalar-friendly: ``_logodds__`` (Beta, Uniform on (0, 1)),
+#    ``_interval__`` (bounded), ``_log_exp_m1__``, ``_circular__``.
+#    Vector-valued (``_ordered__``, ``_simplex__``, ``_sumto1__``,
+#    ``_zerosum__``, ``_cholesky-cov-packed__``) need per-component
+#    logging before they can be added; do not include them as-is.
+#
+# 2. Built-in transforms only. PyMC lets users subclass ``Transform`` and
+#    pick any ``name``, which produces a value var named
+#    ``f"{var}_{transform.name}__"``. Custom names are unknown here, so
+#    users of custom transforms must still pass the explicit transformed
+#    name. The exact-match branch in ``_resolve_parameter`` preserves
+#    that escape hatch.
+_TRANSFORM_SUFFIXES: tuple[str, ...] = ("_log__",)
+
+
+def _resolve_parameter(name: str, point: dict) -> str:
+    """Map a model-level variable name to its key in ``draw.point``.
+
+    Returns ``name`` if it is already a key in ``point``. Otherwise tries
+    ``name + suffix`` for each suffix in ``_TRANSFORM_SUFFIXES`` and returns
+    the first match. Raises ``KeyError`` if no candidate is found.
+    """
+    if name in point:
+        return name
+    for suffix in _TRANSFORM_SUFFIXES:
+        candidate = f"{name}{suffix}"
+        if candidate in point:
+            return candidate
+    raise KeyError(
+        f"Parameter {name!r} not found in draw.point. Available keys: {sorted(point)}."
+    )
 
 
 def create_log_callback(
@@ -272,7 +347,10 @@ def create_log_callback(
         with mlflow.start_run():
             idata = pm.sample(model=model, callback=callback)
 
-    Log the parameters `mu` and `sigma_log__` every 100th draw:
+    Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
+    `sigma` on the unconstrained scale as `sigma_log__`; the callback
+    resolves the transformed name automatically, so passing the
+    model-level name is enough:
 
     .. code-block:: python
 
@@ -281,7 +359,7 @@ def create_log_callback(
         from pymc_marketing.mlflow import create_log_callback
 
         callback = create_log_callback(
-            parameters=["mu", "sigma_log__"],
+            parameters=["mu", "sigma"],
             take_every=100,
         )
 
@@ -294,6 +372,8 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
+    resolved: dict[str, str] = {}
+
     def callback(_, draw):
         prefix = f"chain_{draw.chain}"
         for stat in stats or []:
@@ -303,10 +383,17 @@ def create_log_callback(
                 step=draw.draw_idx,
             )
 
+        if not resolved and parameters:
+            resolved.update({p: _resolve_parameter(p, draw.point) for p in parameters})
+
         for parameter in parameters or []:
+            # `mlflow.log_metric` is scalar-only. Vector-valued parameters
+            # (Dirichlet, Ordered, ZeroSumNormal, ...) raise `MlflowException`
+            # here. Expanding them into per-component metrics is left to a
+            # follow-up PR; see the comment on `_TRANSFORM_SUFFIXES`.
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
-                value=draw.point[parameter],
+                value=draw.point[resolved[parameter]],
                 step=draw.draw_idx,
             )
 
@@ -454,6 +541,10 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         )
         logging.info(msg)
 
+        return None
+    except Exception as e:
+        msg = f"Unable to render the model graph. {e}"
+        logging.info(msg)
         return None
 
     try:
@@ -1019,6 +1110,17 @@ def log_mmm_configuration(mmm: MMM) -> None:
     mlflow.log_param("saturation_name", saturation_name)
 
 
+def log_bass_configuration(model: BassModel) -> None:
+    """Log the configuration of the Bass model to MLflow.
+
+    Logs the model's idata attributes: id, model type, version,
+    sampler config, and the prior configuration
+    (``m``, ``p``, ``q``, ``likelihood``).
+    """
+    attrs = model.create_idata_attrs()
+    mlflow.log_params(attrs)
+
+
 def log_error(func: Callable, file_name: str):
     """Log arbitrary caught error and traceback to MLflow.
 
@@ -1081,6 +1183,7 @@ def autolog(
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
     log_clv: bool = True,
+    log_bass: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -1112,6 +1215,8 @@ def autolog(
         Whether to log PyMC-Marketing MMM models. Default is True.
     log_clv : bool, optional
         Whether to log PyMC-Marketing CLV models. Default is True.
+    log_bass : bool, optional
+        Whether to log PyMC-Marketing Bass models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -1214,13 +1319,43 @@ def autolog(
         data = pd.read_csv(file_path)
         data["customer_id"] = data.index
 
-        model = BetaGeoModel(data=data)
+        model = BetaGeoModel()
 
         with mlflow.start_run():
-            model.fit()
+            model.fit(data=data)
 
         with mlflow.start_run():
-            model.fit(fit_method="map")
+            model.fit(data=data, method="map")
+
+    Autologging for a PyMC-Marketing Bass model:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        import mlflow
+
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.bass import BassModel
+
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog(log_bass=True)
+
+        mlflow.set_experiment("Bass Experiment")
+
+        adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
+
+        # Positive prior on the market size m keeps the Poisson rate valid
+        model_config = {
+            "m": Prior("Normal", mu=500, sigma=100),
+        }
+
+        model = BassModel(model_config=model_config)
+
+        with mlflow.start_run():
+            idata = model.fit(data=adoption)
 
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
@@ -1297,12 +1432,13 @@ def autolog(
 
     def patch_clv_fit(fit):
         @wraps(fit)
-        def new_fit(self, data=None, method: str = "mcmc", fit_method=None, **kwargs):
+        def new_fit(self, data, method: str = "mcmc", **kwargs):
             mlflow.log_param("model_type", self._model_type)
             mlflow.log_param(
-                "fit_method", fit_method if fit_method is not None else method
+                "fit_method",
+                method,
             )
-            idata = fit(self, data=data, method=method, fit_method=fit_method, **kwargs)
+            idata = fit(self, data=data, method=method, **kwargs)
             mlflow.log_params(
                 idata.attrs,
             )
@@ -1315,3 +1451,20 @@ def autolog(
 
     if log_clv:
         CLVModel.fit = patch_clv_fit(CLVModel.fit)
+
+    def patch_bass_fit(fit: Callable) -> Callable:
+        @wraps(fit)
+        def new_fit(self, *args, **kwargs):
+            log_bass_configuration(self)
+
+            idata = fit(self, *args, **kwargs)
+            _attach_run_id(idata)
+
+            log_inference_data(idata, save_file="idata.nc")
+
+            return idata
+
+        return new_fit
+
+    if log_bass:
+        BassModel.fit = patch_bass_fit(BassModel.fit)  # type: ignore[method-assign]
