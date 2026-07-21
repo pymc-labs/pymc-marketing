@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_dims_migration_guide.ipynb
+  s_2daf3197d180ef::t_4b555673a8c98c 29-32,73-76,97-100,159-162,188-191,239-242,275-278,389-392,442-445,475,527-530,581-584,673-676,721-724,806-809,817
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0635d2af9d7beca96a3f5e32eba49076cfe3a4cf",
+  "prompts": {},
+  "sessions": {
+    "s_2daf3197d180ef": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f68d143-5be9-4416-9053-31f95f43b672",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Carlos Trujillo <carlangastr@gmail.com>"
+    }
+  }
+}
