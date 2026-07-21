@@ -540,6 +540,44 @@ class TestRFM:
         )
         assert_frame_equal(actual, expected)
 
+    def test_rfm_summary_string_dates_match_preconverted_datetimes(self):
+        transactions = pd.DataFrame(
+            {
+                "id": [1, 1, 1],
+                "date": ["11/01/2025", "12/20/2025", "01/15/2026"],
+                "spend": [50.0, 60.0, 70.0],
+            }
+        )
+
+        actual = rfm_summary(
+            transactions,
+            "id",
+            "date",
+            "spend",
+            datetime_format="%m/%d/%Y",
+        )
+        preconverted = rfm_summary(
+            transactions.assign(
+                date=pd.to_datetime(transactions["date"], format="%m/%d/%Y")
+            ),
+            "id",
+            "date",
+            "spend",
+        )
+        expected = pd.DataFrame(
+            [[1, 2.0, 75.0, 75.0, 65.0]],
+            columns=[
+                "customer_id",
+                "frequency",
+                "recency",
+                "T",
+                "monetary_value",
+            ],
+        )
+
+        assert_frame_equal(actual, expected)
+        assert_frame_equal(actual, preconverted)
+
     def test_rfm_summary_non_daily_frequency(
         self,
         transaction_data,
@@ -700,6 +738,49 @@ class TestRFM:
 
         with pytest.raises(KeyError):
             actual.loc[6]
+
+    def test_rfm_train_test_split_string_dates_match_preconverted_datetimes(self):
+        transactions = pd.DataFrame(
+            {
+                "id": [1, 1, 1],
+                "date": ["11/01/2025", "12/20/2025", "01/15/2026"],
+                "spend": [50.0, 60.0, 70.0],
+            }
+        )
+
+        actual = rfm_train_test_split(
+            transactions,
+            "id",
+            "date",
+            train_period_end="12/31/2025",
+            datetime_format="%m/%d/%Y",
+            monetary_value_col="spend",
+        )
+        preconverted = rfm_train_test_split(
+            transactions.assign(
+                date=pd.to_datetime(transactions["date"], format="%m/%d/%Y")
+            ),
+            "id",
+            "date",
+            train_period_end=datetime(2025, 12, 31),
+            monetary_value_col="spend",
+        )
+        expected = pd.DataFrame(
+            [[1, 1.0, 49.0, 60.0, 60.0, 1, 70.0, 15.0]],
+            columns=[
+                "customer_id",
+                "frequency",
+                "recency",
+                "T",
+                "monetary_value",
+                "test_frequency",
+                "test_monetary_value",
+                "test_T",
+            ],
+        )
+
+        assert_frame_equal(actual, expected)
+        assert_frame_equal(actual, preconverted)
 
     @pytest.mark.parametrize("train_end", ("2014-02-07", "2015-02-08"))
     def test_rfm_train_test_split_throws_better_error_if_test_period_end_is_too_early(
