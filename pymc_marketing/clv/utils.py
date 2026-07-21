@@ -120,7 +120,7 @@ def customer_lifetime_value(
     else:
         steps = np.arange(1, future_t + 1)
 
-    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
+    factor = {"W": 4.345, "M": 1.0, "D": 30.4375, "H": 30 * 24}[time_unit]
 
     monetary_value = to_xarray(data["customer_id"], data["future_spend"])
 
