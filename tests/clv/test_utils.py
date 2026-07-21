@@ -131,6 +131,31 @@ class TestCustomerLifetimeValue:
                 discount_rate=0.1,
             )
 
+    def test_daily_time_unit_uses_average_month_length(self):
+        class TransactionModel:
+            def __init__(self):
+                self.future_t = []
+
+            def expected_purchases(self, data, future_t):
+                self.future_t.append(future_t)
+                return xarray.DataArray(
+                    [future_t],
+                    coords={"customer_id": data["customer_id"]},
+                    dims=("customer_id",),
+                )
+
+        transaction_model = TransactionModel()
+        data = pd.DataFrame({"customer_id": [1], "future_spend": [1.0]})
+
+        customer_lifetime_value(
+            transaction_model=transaction_model,
+            data=data,
+            future_t=12,
+            time_unit="D",
+        )
+
+        assert transaction_model.future_t == [365.25]
+
     @pytest.mark.parametrize(
         "t, discount_rate, expected_change",
         [
