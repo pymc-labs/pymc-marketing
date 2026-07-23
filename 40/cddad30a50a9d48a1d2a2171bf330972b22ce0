@@ -1,0 +1,19 @@
+pymc_marketing/mmm/link.py
+  s_ec4618204667e6::t_a8914275c40a65 124-126,131-138,153-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "40cddad30a50a9d48a1d2a2171bf330972b22ce0",
+  "prompts": {},
+  "sessions": {
+    "s_ec4618204667e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "120916b0-21d5-4147-983f-f0ca08198c3e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
