@@ -11,7 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import warnings
 
 import numpy as np
 import pandas as pd
@@ -64,14 +63,7 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
     if not hasattr(model, "model"):
         model.build_model()
     model.idata = fit
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
-        )
-        model.idata["/fit_data"] = model.data.to_xarray()
+    model.idata["/fit_data"] = model.data.to_xarray()
     model.set_idata_attrs(fit)
 
 
