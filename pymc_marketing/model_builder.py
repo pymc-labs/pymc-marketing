@@ -590,6 +590,7 @@ class ModelBuilder(ABC, ModelIO):
 
     _model_type = "BaseClass"
     version = "None"
+    _skipped_config_keys: set[str] = set()
 
     def __init__(
         self,
@@ -603,6 +604,8 @@ class ModelBuilder(ABC, ModelIO):
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
+            A ``UserWarning`` is raised for any key not present in
+            ``default_model_config``, since such keys are ignored by the model.
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
@@ -625,9 +628,24 @@ class ModelBuilder(ABC, ModelIO):
         self.sampler_config = (
             self.default_sampler_config | sampler_config
         )  # Parameters for fit sampling
+        default_model_config = self.default_model_config
         self.model_config = (
-            self.default_model_config | model_config
+            default_model_config | model_config
         )  # parameters for priors etc.
+
+        # Warn about model_config keys that the model does not use, so that
+        # typos (e.g. "alphaa" instead of "alpha") don't silently get ignored.
+        unused_model_config_keys = (
+            set(model_config) - set(default_model_config) - self._skipped_config_keys
+        )
+        if unused_model_config_keys:
+            warnings.warn(
+                "The following model_config keys are not used by the model "
+                f"and will be ignored: {sorted(unused_model_config_keys)}. "
+                f"Valid keys are: {sorted(default_model_config)}.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         self.model: pm.Model
         self.idata: xr.DataTree | None = None  # idata is generated during fitting
@@ -1286,10 +1304,9 @@ class RegressionModelBuilder(ModelBuilder):
             else:
                 self.idata = prior_pred
 
-        result = az.extract(prior_pred, "prior_predictive", combined=combined)
-        if isinstance(result, xr.DataArray):
-            result = result.to_dataset()
-
+        result = az.extract(
+            prior_pred, "prior_predictive", combined=combined, keep_dataset=True
+        )
         return result
 
     def sample_posterior_predictive(
@@ -1335,9 +1352,9 @@ class RegressionModelBuilder(ModelBuilder):
             else "posterior_predictive"
         )
 
-        result = az.extract(post_pred, variable_name, combined=combined)
-        if isinstance(result, xr.DataArray):
-            result = result.to_dataset()
+        result = az.extract(
+            post_pred, variable_name, combined=combined, keep_dataset=True
+        )
         return result
 
     def predict_proba(

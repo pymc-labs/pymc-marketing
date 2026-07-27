@@ -308,6 +308,7 @@ def _plot_timeseries_channel(
     backend: str | None,
     line_kwargs: dict[str, Any] | None,
     hdi_kwargs: dict[str, Any] | None,
+    facet_color_dim: bool = False,
     **pc_kwargs,
 ) -> PlotCollection:
     """Render a time-series Dataset as one line+HDI band per ``color_dim`` value.
@@ -333,6 +334,13 @@ def _plot_timeseries_channel(
         Rendering backend.
     line_kwargs, hdi_kwargs : dict or None
         Extra kwargs forwarded to line and HDI visuals respectively.
+    facet_color_dim : bool, default False
+        If True, also facet by ``color_dim`` so each of its values is drawn in
+        its own panel instead of overlaid in a single panel coloured by
+        ``color_dim``. Faceting combines with ``extra_dims``, so the panel
+        count is ``len(color_dim) * prod(len(extra_dims))``. When True the
+        per-colour legend is omitted because each panel's title already
+        identifies its ``color_dim`` value.
     **pc_kwargs
         Forwarded to ``PlotCollection.wrap()``.
 
@@ -341,9 +349,10 @@ def _plot_timeseries_channel(
     PlotCollection
     """
     pc_kwargs.setdefault("col_wrap", 1)
+    cols = [color_dim, *extra_dims] if facet_color_dim else list(extra_dims)
     pc = PlotCollection.wrap(
         ds,
-        cols=extra_dims,
+        cols=cols,
         backend=backend,
         aes={"color": [color_dim]},
         **pc_kwargs,
@@ -373,6 +382,7 @@ def _plot_timeseries_channel(
         labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
         ignore_aes={"color"},
     )
-    pc.add_legend(color_dim)
+    if not facet_color_dim:
+        pc.add_legend(color_dim)
 
     return pc
