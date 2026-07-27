@@ -22,6 +22,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+import xarray as xr
 from matplotlib.axes import Axes
 from pymc_extras.prior import Prior
 from pytensor.tensor import as_tensor
@@ -74,6 +75,7 @@ class MVITS(RegressionModelBuilder):
         self.mu_effects: list[MuEffect] = []
         # extras dims for the likelihood
         self.dims = ("existing_product",)
+        self.xarray_dataset: xr.Dataset = xr.Dataset()
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
