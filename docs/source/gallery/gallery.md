@@ -282,11 +282,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/sbg.png
 :link: ../notebooks/clv/sbg.html
 :::
-
-:::{grid-item-card} sBG Model for Individuals
-:img-top: ../gallery/images/sBG_individual.png
-:link: ../notebooks/clv/sBG_individual.html
-:::
 ::::
 
 ## Customer Choice Models
@@ -338,6 +333,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Bass Diffusion Model Example
 :img-top: ../gallery/images/bass_example.png
 :link: ../notebooks/bass/bass_example.html
+:::
+::::
+
+## Predicted Incrementality by Experimentation (PIE)
+
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} Predicting Campaign Incrementality with PIE
+:img-top: ../gallery/images/pie_example.png
+:link: ../notebooks/pie/pie_example.html
 :::
 ::::
 

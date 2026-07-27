@@ -756,7 +756,7 @@ def test_clv_fit_map(model_cls, clv_data) -> None:
 
     model = model_cls()
     with mlflow.start_run() as run:
-        model.fit(data=clv_data, fit_method="map")
+        model.fit(data=clv_data, method="map")
 
     assert mlflow.active_run() is None
 

@@ -151,10 +151,10 @@ Autologging for a PyMC-Marketing CLV model:
     data = pd.read_csv(file_path)
     data["customer_id"] = data.index
 
-    model = BetaGeoModel(data=data)
+    model = BetaGeoModel()
 
     with mlflow.start_run():
-        model.fit()
+        model.fit(data=data)
 
 Autologging for a PyMC-Marketing Bass model:
 
@@ -1319,13 +1319,13 @@ def autolog(
         data = pd.read_csv(file_path)
         data["customer_id"] = data.index
 
-        model = BetaGeoModel(data=data)
+        model = BetaGeoModel()
 
         with mlflow.start_run():
-            model.fit()
+            model.fit(data=data)
 
         with mlflow.start_run():
-            model.fit(fit_method="map")
+            model.fit(data=data, method="map")
 
     Autologging for a PyMC-Marketing Bass model:
 
@@ -1432,12 +1432,13 @@ def autolog(
 
     def patch_clv_fit(fit):
         @wraps(fit)
-        def new_fit(self, data=None, method: str = "mcmc", fit_method=None, **kwargs):
+        def new_fit(self, data, method: str = "mcmc", **kwargs):
             mlflow.log_param("model_type", self._model_type)
             mlflow.log_param(
-                "fit_method", fit_method if fit_method is not None else method
+                "fit_method",
+                method,
             )
-            idata = fit(self, data=data, method=method, fit_method=fit_method, **kwargs)
+            idata = fit(self, data=data, method=method, **kwargs)
             mlflow.log_params(
                 idata.attrs,
             )
