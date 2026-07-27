@@ -1140,12 +1140,12 @@ class BayesianBLP(ModelBuilder):
         RuntimeError
             If the model has not been fitted.
         """
-        if self.idata is None or "posterior" not in self.idata:
+        if self.idata is None or "posterior" not in self.idata.children:
             raise RuntimeError(
                 "Model has no posterior; call .fit(...) before "
                 "elasticities() or counterfactual_shares()."
             )
-        post = self.idata.posterior.stack(sample=("chain", "draw"))
+        post = self.fit_result.stack(sample=("chain", "draw"))
         S_total = post.sizes["sample"]
         if n_samples is not None and n_samples < S_total:
             rng = np.random.default_rng(self.random_seed)
@@ -1540,7 +1540,7 @@ class BayesianBLP(ModelBuilder):
             If the model has not been fitted, or if ``time_col`` was not
             supplied at construction (no period coord exists).
         """
-        if self.idata is None or "posterior" not in self.idata:
+        if self.idata is None or "posterior" not in self.idata.children:
             raise RuntimeError(
                 "Model has no posterior; call .fit(...) before xi_as_grid()."
             )
@@ -1550,7 +1550,7 @@ class BayesianBLP(ModelBuilder):
                 "construction; without it the (region, period) grid is "
                 "undefined."
             )
-        xi = self.idata.posterior["xi"]
+        xi = self.fit_result["xi"]
         R = len(self._regions)
         T = self._T
         if T is None or self._periods is None:
