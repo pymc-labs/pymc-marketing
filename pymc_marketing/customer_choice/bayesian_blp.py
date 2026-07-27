@@ -886,7 +886,7 @@ class BayesianBLP(ModelBuilder):
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Draw from the prior predictive distribution."""
         if not hasattr(self, "model"):
             self.build_model()
@@ -897,7 +897,7 @@ class BayesianBLP(ModelBuilder):
             self.set_idata_attrs(prior_pred)
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
         return prior_pred
@@ -907,7 +907,7 @@ class BayesianBLP(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit by sampling the joint posterior with NUTS."""
         if not hasattr(self, "model"):
             self.build_model()
@@ -921,7 +921,7 @@ class BayesianBLP(ModelBuilder):
         if self.idata is None:
             self.idata = idata
         else:
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         self.is_fitted_ = True
         return self.idata
 
