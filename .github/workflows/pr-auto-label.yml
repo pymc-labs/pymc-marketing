@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Run Labeler Action
-      uses: actions/labeler@v6
+      uses: actions/labeler@v7
 
   sync:
     permissions:
