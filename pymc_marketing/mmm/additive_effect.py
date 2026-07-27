@@ -208,7 +208,7 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import Annotated, Any, Protocol
 
 import numpy.typing as npt
 import pandas as pd
@@ -403,19 +403,19 @@ class MuEffect(SerializableBaseModel, ABC):
 class DataVarMuEffect(MuEffect, ABC):
     """MuEffect that reads its data from the xarray Dataset.
 
-    Subclasses must implement ``create_effect``.
+    Subclasses only need to implement ``create_effect``.
     ``create_data`` and ``set_data`` are provided by default.
 
     Parameters
     ----------
     data_vars : list[str]
         Names of the data variables in ``mmm.xarray_dataset`` to register
-        as PyMC data variables.
+        as PyMC data variables.  At least one variable is required.
     prefix : str
         Prefix for effect variable names.
     """
 
-    data_vars: list[str]
+    data_vars: Annotated[list[str], Field(min_length=1)]
     prefix: str
 
     def create_data(self, mmm: Model) -> None:
@@ -433,6 +433,22 @@ class DataVarMuEffect(MuEffect, ABC):
     @abstractmethod
     def create_effect(self, mmm: Model) -> XTensorVariable:
         """Create the additive effect in the model."""
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+        """Update ``pm.Data`` variables from a new prediction dataset.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        model : pm.Model
+            The PyMC model.
+        X : xr.Dataset
+            The new prediction dataset.
+        """
+        for var_name in self.data_vars:
+            if var_name in X.data_vars:
+                pm.set_data({var_name: X[var_name].values}, model=model)
 
 
 class MediaMuEffect(DataVarMuEffect):
@@ -507,7 +523,6 @@ class MediaMuEffect(DataVarMuEffect):
         return {
             "data_vars": self.data_vars,
             "channel_dim": self.channel_dim,
-            "effect_dims": list(self.effect_dims),
             "media_transformation": self.media_transformation.to_dict(),
             "prefix": self.prefix,
         }
@@ -524,12 +539,6 @@ class MediaMuEffect(DataVarMuEffect):
             ),
             prefix=work["prefix"],
         )
-
-    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
-        """Update data variables from a new prediction dataset."""
-        for var_name in self.data_vars:
-            if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
 
 
 class ControlMuEffect(DataVarMuEffect):
@@ -606,12 +615,6 @@ class ControlMuEffect(DataVarMuEffect):
             prefix=work["prefix"],
             prior=prior,
         )
-
-    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
-        """Update data variables from a new prediction dataset."""
-        for var_name in self.data_vars:
-            if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
 
 
 class FourierEffect(MuEffect):
