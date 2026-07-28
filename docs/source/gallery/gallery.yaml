@@ -92,6 +92,8 @@ sections:
             notebook: mmm/mmm_intro_upper_funnel
           - title: "Advanced: Upper-Funnel Impact with PyMC‑Marketing"
             notebook: mmm/mmm_upper_funnel_causal_approach
+          - title: "Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`"
+            notebook: mmm/mmm_funnel_mueffect
           - title: Causal Reasoning and Discovery
             notebook: mmm/mmm_causal_reasoning_and_discovery
       - title: Case Studies
