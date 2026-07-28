@@ -1,0 +1,77 @@
+pymc_marketing/mmm/budget_optimizer.py
+  s_79f4a68093aacd::t_d553ca50391636 1609
+  s_79f4a68093aacd::t_f37d462214daa0 1726,1729-1731
+  s_79f4a68093aacd::t_cf550a257ff262 249
+  s_79f4a68093aacd::t_1a7b20950264f2 1903-1905,1909-1911,1915-1916
+  s_79f4a68093aacd::t_3cd7238679e980 1604-1607,1610
+  s_edd7ac06665535::t_82760dbd80026b 2002-2005,2007,2010
+  s_edd7ac06665535::t_138ad1f64083bc 1989-1992,2000-2001,2006,2008-2009
+  s_79f4a68093aacd::t_cd2ec94a544647 1699
+  s_79f4a68093aacd::t_999ae8e1d245a5 1342-1344,1356,1365
+  s_79f4a68093aacd::t_4c8335edd97573 1353-1355
+  s_79f4a68093aacd::t_383429d4ab4f1e 1679-1688,1691,1697,1728
+  s_edd7ac06665535::t_073ce0a06ea68c 1689,1695-1696,1698,1705,1708-1709,1713-1725
+  s_79f4a68093aacd::t_337afdc1a502ae 222
+  s_79f4a68093aacd::t_2ded2ddd63b39b 1700,1706-1707
+  s_79f4a68093aacd::t_fc3cd550eca2a4 1912
+  h_cd9496771935ec 1347-1349,1351,1727
+  s_edd7ac06665535::t_bd1a9bf06b0c65 1690,1692-1694
+  s_79f4a68093aacd::t_d2ae3cad89ffd3 1710-1712
+  s_79f4a68093aacd::t_6ae467586dc623 1993
+  s_edd7ac06665535::t_0db0a3fe7006a4 1701-1704
+  s_79f4a68093aacd::t_c01fbba8c4cfcd 1345-1346,1350,1352
+  s_edd7ac06665535::t_5e47a520fb838d 2011
+pymc_marketing/mmm/constraints.py
+  s_79f4a68093aacd::t_9538302773039a 113-115
+  s_79f4a68093aacd::t_4c8335edd97573 117-122
+  s_edd7ac06665535::t_bb90e3e4528e6d 52-91
+  s_79f4a68093aacd::t_9a9c7188b38781 93-97,102,104,109-112,116,123-124
+  s_79f4a68093aacd::t_abfb3ed418ee88 18
+  s_79f4a68093aacd::t_acc13eb9482c5a 103
+  s_79f4a68093aacd::t_d258bb62aeb12d 105-108
+tests/mmm/test_budget_optimizer.py
+  h_cd9496771935ec 975,980,1030
+  s_79f4a68093aacd::t_f7cffcf9947ebe 23,27
+  s_79f4a68093aacd::t_e5b2f61169bb63 1037-1039
+  s_edd7ac06665535::t_f984c6a24c4024 1042-1048
+  s_79f4a68093aacd::t_6831e9a2634bd3 967-968
+  s_edd7ac06665535::t_377caa87769dff 1040-1041
+  s_79f4a68093aacd::t_65963aed07dbb0 1022
+  s_79f4a68093aacd::t_087ee488da8ff5 958-966,969-974,976-979,981-1021,1023-1029,1031-1036
+pymc_marketing/mmm/additive_effect.py
+  s_79f4a68093aacd::t_3f58ecc9bfb06f 288-298,324-331,339-342,344-355,363-364
+  s_79f4a68093aacd::t_fdb4ab01484e89 332-338,343,356-362
+  s_edd7ac06665535::t_58f291ba1fe097 311
+  s_79f4a68093aacd::t_55ae9b0e927a3f 312,316-317,323
+  s_edd7ac06665535::t_c77b42fd950e30 310,313-315,318-322
+  s_79f4a68093aacd::t_99ec23295b7d7d 299-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "913781650260dea958abc906c726c02d17c387d0",
+  "prompts": {},
+  "humans": {
+    "h_cd9496771935ec": {
+      "author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  },
+  "sessions": {
+    "s_79f4a68093aacd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e40d58e-7673-45c4-9b53-b6f8a46e42a4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    },
+    "s_edd7ac06665535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "259251d9-dd97-4892-b687-97bd874cd226",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
