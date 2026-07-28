@@ -18,7 +18,6 @@ from __future__ import annotations
 import itertools
 from typing import Any, Literal
 
-import arviz as az
 import arviz_plots as azp
 import matplotlib.pyplot as plt
 import numpy as np
@@ -114,7 +113,8 @@ class DecompositionPlots:
         | None = None,
         hdi_prob: float = 0.94,
         original_scale: bool = True,
-        idata: az.InferenceData | None = None,
+        facet: bool = False,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -125,9 +125,10 @@ class DecompositionPlots:
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Plot time-series contributions for selected contribution types with HDI bands.
 
-        Creates one panel per extra-dimension combination (e.g. one per geo for
-        geo-segmented models). Each panel overlays one mean line and HDI band per
-        contribution type.
+        By default creates one panel per extra-dimension combination (e.g. one
+        per geo for geo-segmented models), with each panel overlaying one mean
+        line and HDI band per contribution type. Set ``facet=True`` to instead
+        draw each contribution component in its own panel.
 
         Parameters
         ----------
@@ -137,7 +138,12 @@ class DecompositionPlots:
             Probability mass for the HDI band.
         original_scale : bool, default True
             Whether to return contributions in original scale.
-        idata : az.InferenceData, optional
+        facet : bool, default False
+            If True, draw each contribution component (e.g. each channel) in its
+            own panel instead of overlaying all components in a single panel
+            coloured by component. Faceting combines with any extra dims (e.g.
+            geo), so the panel count is components x extra-dim combinations.
+        idata : xr.DataTree, optional
             Override instance data for this call only.
         dims : dict[str, Any], optional
             Subset dimensions, e.g. ``{"geo": ["CA"]}``.
@@ -258,6 +264,7 @@ class DecompositionPlots:
             backend=backend,
             line_kwargs=line_kwargs,
             hdi_kwargs=hdi_kwargs,
+            facet_color_dim=facet,
             **pc_kwargs,
         )
 
@@ -266,7 +273,7 @@ class DecompositionPlots:
     def waterfall(
         self,
         original_scale: bool = True,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         bar_kwargs: dict[str, Any] | None = None,
@@ -281,7 +288,7 @@ class DecompositionPlots:
         ----------
         original_scale : bool, default True
             Whether to plot contributions in original scale.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data for this call only.
         dims : dict[str, Any], optional
             Subset dimensions, e.g. ``{"geo": ["CA"]}``.
@@ -390,7 +397,7 @@ class DecompositionPlots:
     def channel_share_hdi(
         self,
         hdi_prob: float = 0.94,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -406,7 +413,7 @@ class DecompositionPlots:
         ----------
         hdi_prob : float, default 0.94
             HDI probability mass.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data for this call only.
         dims : dict[str, Any], optional
             Subset dimensions, e.g. ``{"geo": ["CA"]}``.

@@ -65,8 +65,13 @@ def calculate_metric_distributions(
     if isinstance(y_pred, xr.DataArray):
         y_pred = y_pred.values
 
+    def _bayesian_r2(y_true, y_pred):
+        var_resid = np.var(y_true - y_pred)
+        var_pred = np.var(y_pred)
+        return var_pred / (var_pred + var_resid)
+
     metric_functions = {
-        "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred.T)["r2"],
+        "r_squared": _bayesian_r2,
         "rmse": root_mean_squared_error,
         "nrmse": nrmse,
         "mae": mean_absolute_error,
@@ -129,7 +134,7 @@ def summarize_metric_distributions(
     """
     metric_summaries = {}
     for metric, distribution in metric_distributions.items():
-        hdi = az.hdi(distribution, hdi_prob=hdi_prob)
+        hdi = az.hdi(distribution, prob=hdi_prob)
         metric_summaries[metric] = {
             "mean": np.mean(distribution),
             "median": np.median(distribution),

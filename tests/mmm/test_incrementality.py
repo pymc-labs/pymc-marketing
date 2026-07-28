@@ -307,6 +307,8 @@ class TestIncrementality:
 
         # Duplicate posterior along chain dim to simulate 2 chains
         original_posterior = mmm.idata.posterior
+        if hasattr(original_posterior, "dataset"):
+            original_posterior = original_posterior.dataset
         chain2 = original_posterior.assign_coords(
             chain=[original_posterior.chain.values[0] + 1]
         )
@@ -314,7 +316,7 @@ class TestIncrementality:
 
         # Replace posterior in idata with multi-chain version
         mmm_idata_backup = copy.copy(mmm.idata)
-        mmm.idata.posterior = multi_chain_posterior
+        mmm.idata["posterior"] = multi_chain_posterior
 
         # Sanity: verify we now have 2 chains
         n_chains = mmm.idata.posterior.dims["chain"]

@@ -25,7 +25,7 @@ from pymc_marketing.mmm.media_transformation import (
     MediaTransformation,
 )
 from pymc_marketing.mmm.transformers import ConvMode
-from pymc_marketing.serialization import serialization
+from pymc_marketing.serialization import SerializationError, serialization
 
 
 @pytest.fixture
@@ -174,6 +174,18 @@ def test_media_config_list_dim_order_independent(
         ).eval()
 
     assert result.shape == (n_dates, len(media_columns))
+
+
+def test_media_transformation_from_dict_rejects_v0_lookup_name() -> None:
+    """Regression test for issue #2430: v0 saves without __type__ are rejected."""
+    data = {
+        "adstock": {"lookup_name": "geometric", "l_max": 10},
+        "saturation": {"lookup_name": "logistic"},
+        "adstock_first": True,
+    }
+
+    with pytest.raises(SerializationError, match="__type__"):
+        MediaTransformation.from_dict(data)
 
 
 def test_media_transformation_deserialize() -> None:

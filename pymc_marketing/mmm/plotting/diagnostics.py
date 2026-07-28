@@ -91,7 +91,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import arviz as az
 import arviz_plots as azp
 import xarray as xr
 from arviz_plots import PlotCollection
@@ -213,7 +212,7 @@ class DiagnosticsPlots:
         var_da = _select_dims(pp_ds[var_name], dims)
         extra_dims = list(data.custom_dims)
         mean_da = var_da.mean(dim=("chain", "draw"))
-        hdi_da = var_da.azstats.hdi(hdi_prob)
+        hdi_da = var_da.azstats.hdi(prob=hdi_prob)
 
         layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="y")
         pc = PlotCollection.wrap(
@@ -294,7 +293,7 @@ class DiagnosticsPlots:
         self,
         original_scale: bool = True,
         hdi_prob: float = 0.94,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -319,7 +318,7 @@ class DiagnosticsPlots:
             in the same scaled units.
         hdi_prob : float, default 0.94
             Probability mass of the HDI band.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data. Constructs a local MMMIDataWrapper for this
             call only — does not mutate ``self._data``.
         dims : dict[str, Any], optional
@@ -394,7 +393,7 @@ class DiagnosticsPlots:
         self,
         original_scale: bool = True,
         hdi_prob: float = 0.94,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -419,7 +418,7 @@ class DiagnosticsPlots:
             stores observed variables) and the observed target in scaled units.
         hdi_prob : float, default 0.94
             Probability mass of the HDI band.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict[str, Any], optional
             Subset dimensions.
@@ -487,7 +486,7 @@ class DiagnosticsPlots:
     def residuals_over_time(
         self,
         hdi_prob: float = 0.94,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -507,7 +506,7 @@ class DiagnosticsPlots:
         ----------
         hdi_prob : float, default 0.94
             HDI probability mass for the residual band.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict[str, Any], optional
             Subset dimensions.
@@ -552,7 +551,9 @@ class DiagnosticsPlots:
 
         extra_dims = list(data.custom_dims)
         mean_da = residuals_da.mean(dim=("chain", "draw"))  # (date[, extra_dims])
-        hdi_da = residuals_da.azstats.hdi(hdi_prob)  # (date[, extra_dims], ci_bound)
+        hdi_da = residuals_da.azstats.hdi(
+            prob=hdi_prob
+        )  # (date[, extra_dims], ci_bound)
 
         layout_ds = mean_da.isel(date=0, drop=True).to_dataset(name="residuals")
         pc = PlotCollection.wrap(
@@ -603,7 +604,7 @@ class DiagnosticsPlots:
         self,
         quantiles: list[float] | None = None,
         aggregation: list[str] | str | None = None,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -630,7 +631,7 @@ class DiagnosticsPlots:
             Example: ``aggregation="geo"`` or ``aggregation=["geo"]`` merges geo
             panels into one combined distribution. Default ``None`` — extra dims
             are structural facet dims.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict[str, Any], optional
             Subset dimensions applied before plotting.
@@ -719,7 +720,7 @@ class DiagnosticsPlots:
         self,
         var_names: list[str] | str | None = None,
         group: str = "posterior",
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -741,7 +742,7 @@ class DiagnosticsPlots:
         group : str, default "posterior"
             InferenceData group to draw from. Use ``"prior"`` to quickly inspect
             the prior without calling ``prior_vs_posterior``.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data for this call only.
         dims : dict[str, Any], optional
             Coordinate filters, e.g. ``{"channel": ["tv", "radio"]}``.
@@ -806,7 +807,7 @@ class DiagnosticsPlots:
         self,
         var_names: list[str] | str | None = None,
         kind: str = "kde",
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -828,7 +829,7 @@ class DiagnosticsPlots:
             both groups.
         kind : str, default "kde"
             Plot kind forwarded to ``azp.plot_prior_posterior``.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data for this call only.
         dims : dict[str, Any], optional
             Coordinate filters, e.g. ``{"channel": ["tv"]}``.

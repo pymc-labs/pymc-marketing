@@ -752,11 +752,16 @@ class TestBassModelClass:
     def test_fit_basic(self, fitted_model: BassModel):
         idata = fitted_model.idata
         assert "posterior" in idata
-        assert "fit_data" in idata.groups()
+        assert "/fit_data" in idata.groups
 
     def test_fit_deterministics(self, fitted_model: BassModel):
+        # Read through the public ``posterior`` accessor (the DataTree node),
+        # which is what the plotting methods use. Asserting against
+        # ``idata.posterior`` would pass even with the deterministics missing
+        # from the node, since under arviz>=1.2 a stray ``idata.posterior =``
+        # assignment leaves a shadowing attribute behind.
         for var in ["adopters", "innovators", "imitators", "peak"]:
-            assert var in fitted_model.idata.posterior, f"Missing deterministic: {var}"
+            assert var in fitted_model.posterior, f"Missing deterministic: {var}"
 
     def test_fit_with_dataframe(self, mock_pymc_sample):
         df = pd.DataFrame(
@@ -836,8 +841,8 @@ class TestBassModelClass:
             X=X, extend_idata=True, random_seed=42
         )
         assert "posterior_predictive" in fitted_model_positive_m.idata
-        assert isinstance(pp, xr.Dataset)
-        assert "y" in pp.data_vars
+        assert isinstance(pp, xr.DataArray)
+        assert pp.name == "y"
         assert pp.sizes["T"] == expected_T
 
     def test_sample_posterior_predictive_extend_false(
@@ -848,5 +853,5 @@ class TestBassModelClass:
             extend_idata=False,
             random_seed=42,
         )
-        assert isinstance(pp, xr.Dataset)
+        assert isinstance(pp, xr.DataArray)
         assert "posterior_predictive" not in fitted_model_positive_m.idata

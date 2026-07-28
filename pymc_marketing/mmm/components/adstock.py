@@ -57,7 +57,6 @@ Plot the default priors for an adstock transformation:
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import numpy as np
@@ -144,9 +143,6 @@ class AdstockTransformation(Transformation):
         """Reconstruct an adstock transformation from a dict."""
         data = data.copy()
         data.pop("__type__", None)
-        data.pop(
-            "lookup_name", None
-        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
 
         if "priors" in data:
             data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
@@ -455,47 +451,3 @@ class NoAdstock(AdstockTransformation):
     def update_priors(self, priors):
         """Update priors for the no adstock transformation."""
         return
-
-
-# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
-ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
-    "geometric": GeometricAdstock,
-    "delayed": DelayedAdstock,
-    "weibull_cdf": WeibullCDFAdstock,
-    "weibull_pdf": WeibullPDFAdstock,
-    "binomial": BinomialAdstock,
-    "no_adstock": NoAdstock,
-}
-
-
-def adstock_from_dict(data: dict) -> AdstockTransformation:
-    """Create an adstock transformation from a dictionary.
-
-    .. deprecated:: 0.18.2
-        `adstock_from_dict` is deprecated and will be removed in 0.20.0.
-        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
-    """
-    warnings.warn(
-        "adstock_from_dict is deprecated and will be removed in 0.20.0. "
-        "Use `from pymc_marketing.serialization import serialization; "
-        "serialization.deserialize(data)` instead.",
-        FutureWarning,
-        stacklevel=2,
-    )
-    data = data.copy()
-    type_key = data.pop("__type__", None)
-    lookup_name = data.pop("lookup_name", None)
-
-    if lookup_name:
-        cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
-    elif type_key:
-        return serialization.deserialize({**data, "__type__": type_key})
-    else:
-        raise ValueError(
-            "Cannot deserialize adstock: missing both 'lookup_name' and '__type__'"
-        )
-
-    if "priors" in data:
-        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-    return cls(**data)
