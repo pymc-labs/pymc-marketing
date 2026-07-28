@@ -112,6 +112,28 @@ def test_plot_functions(mock_curve, plot_func, same_axes: bool, legend: bool) ->
     plt.close(fig)
 
 
+def test_plot_curve_datetime_axis() -> None:
+    # A datetime coordinate must be drawn with the matplotlib date converter so the
+    # sample lines and the HDI band share the same x units. Without x_compat=True,
+    # pandas draws the lines in period ordinals while the band uses matplotlib date
+    # ordinals, which mangles the x-axis tick labels. See issue #2682.
+    dates = pd.date_range("2023-01-01", periods=25, freq="D")
+    curve = xr.DataArray(
+        np.random.randn(1, 15, 25),
+        coords={"chain": [0], "draw": np.arange(15), "date": dates},
+        dims=("chain", "draw", "date"),
+        name="curve",
+    )
+
+    fig, axes = plot_curve(curve, "date", n_samples=5)
+    ax = np.ravel(axes)[0]
+    fig.canvas.draw()
+
+    line_x = ax.get_lines()[0].get_xdata()
+    assert all(isinstance(x, pd.Timestamp) for x in line_x)
+    plt.close(fig)
+
+
 @pytest.mark.parametrize(
     "non_grid_names",
     [pytest.param("day", id="string"), pytest.param({"day"}, id="set")],
