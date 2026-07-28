@@ -45,11 +45,11 @@ msgstr ""
 #: pymc_marketing.clv.models.beta_geo_beta_binom.BetaGeoBetaBinomModel.expected_purchases:7
 msgid ""
 "Adapted from equation (13) in Bruce Hardie's notes [R067e70a5a093-1]_, and "
-"`lifetimes` library: "
+"the legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179"
 msgstr ""
 "Adaptado de la ecuación (13) en las notas de Bruce Hardie "
-"[R067e70a5a093-1]_, y la biblioteca `lifetimes`: "
+"[R067e70a5a093-1]_, y la biblioteca heredada ``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/fitters/beta_geo_beta_binom_fitter.py#L179"
 
 #: bfa48c417bec4065bf44f63bd7a2a6f1 of

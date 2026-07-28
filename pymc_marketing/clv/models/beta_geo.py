@@ -42,29 +42,31 @@ class BetaGeoModel(CLVModel):
     This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
     using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
 
-    Predictive methods have been adapted from the *BetaGeoFitter* class in the legacy *lifetimes* library
+    Predictive methods have been adapted from the *BetaGeoFitter* class in the legacy ``lifetimes`` library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
     ----------
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between the first purchase and the end of the observation period
+
+        * ``customer_id``: Unique customer identifier
+        * ``frequency``: Number of repeat purchases
+        * ``recency``: Time between the first and the last purchase
+        * ``T``: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `alpha`: Scale parameter for time between purchases; defaults to `Prior("Weibull", alpha=2, beta=10)`
-            * `r`: Shape parameter for time between purchases; defaults to `Prior("Weibull", alpha=2, beta=1)`
-            * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
-            * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-            * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-            * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 1)`
-            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 1)`
-            * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
-            * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
+
+        * ``alpha``: Scale parameter for time between purchases; defaults to ``Prior("Weibull", alpha=2, beta=10)``
+        * ``r``: Shape parameter for time between purchases; defaults to ``Prior("Weibull", alpha=2, beta=1)``
+        * ``a``: Shape parameter of dropout process; defaults to ``phi_purchase * kappa_purchase``
+        * ``b``: Shape parameter of dropout process; defaults to ``(1 - phi_dropout) * kappa_dropout``
+        * ``phi_dropout``: Nested prior for a and b priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_dropout``: Nested prior for a and b priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
+        * ``purchase_covariates``: Coefficients for purchase rate covariates; defaults to ``Normal(0, 1)``
+        * ``dropout_covariates``: Coefficients for dropout covariates; defaults to ``Normal.dist(0, 1)``
+        * ``purchase_covariate_cols``: List containing column names of covariates for customer purchase rates.
+        * ``dropout_covariate_cols``: List containing column names of covariates for customer dropouts.
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -148,16 +150,15 @@ class BetaGeoModel(CLVModel):
     """  # noqa: E501
 
     _model_type = "BG/NBD"  # Beta-Geometric Negative Binomial Distribution
+    _skipped_config_keys = {"a", "b"}
 
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=["purchase_covariate_cols", "dropout_covariate_cols"],
@@ -207,28 +208,16 @@ class BetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, frequency, recency, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
@@ -370,16 +359,6 @@ class BetaGeoModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-    # TODO: delete this utility after API standardization is completed
-    def _unload_params(self):
-        trace = self.idata.posterior
-        a = trace["a"]
-        b = trace["b"]
-        alpha = trace["alpha"]
-        r = trace["r"]
-
-        return a, b, alpha, r
-
     def _extract_predictive_variables(
         self,
         data: pd.DataFrame,
@@ -465,7 +444,8 @@ class BetaGeoModel(CLVModel):
                 alpha,
                 r,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(
@@ -478,7 +458,7 @@ class BetaGeoModel(CLVModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (10) in [1]_, and *lifetimes* package:
+        Adapted from equation (10) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L201
 
         Parameters
@@ -542,18 +522,18 @@ class BetaGeoModel(CLVModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from page (2) in Bruce Hardie's notes [1]_, and *lifetimes* package:
+        Adapted from page (2) in Bruce Hardie's notes [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260
 
         Parameters
         ----------
-        data : *pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+            * ``customer_id``: Unique customer identifier
+            * ``frequency``: Number of repeat purchases
+            * ``recency``: Time between the first and the last purchase
+            * ``T``: Time between first purchase and end of observation period, model assumptions require T >= recency
 
         References
         ----------
@@ -597,13 +577,13 @@ class BetaGeoModel(CLVModel):
 
         Parameters
         ----------
-        data : *pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between first purchase and end of observation period, model assumptions require T >= recency
+            * ``customer_id``: Unique customer identifier
+            * ``frequency``: Number of repeat purchases
+            * ``recency``: Time between the first and the last purchase
+            * ``T``: Time between first purchase and end of observation period, model assumptions require T >= recency
 
         t : int
             Days after T which defines the range (T, T+t].
@@ -656,7 +636,7 @@ class BetaGeoModel(CLVModel):
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (9) in [1]_, and `lifetimes` library:
+        Adapted from equation (9) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L328
 
         Parameters

@@ -1,24 +1,43 @@
 name: PyPI
 on:
   pull_request:
-    branches: [main]
+    branches: [main, v1.0.0]
   push:
-    branches: [main]
+    branches: [main, v1.0.0]
+  merge_group:
   release:
     types: [published]
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      should_build: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            code:
+              - ".github/workflows/pypi.yml"
+              - "pyproject.toml"
+              - "pymc_marketing/**"
+
   build:
-    if: ${{ github.event_name != 'pull_request' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref != 'automated/update-uml-diagrams') }}
+    needs: changes
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.should_build == 'true' }}
     name: build source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Build the sdist and the wheel
         run: |
           pip install build
@@ -45,6 +64,17 @@ jobs:
         with:
           name: artifact
           path: dist/*
+
+  build_status:
+    if: ${{ always() }}
+    name: build source distribution check
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check build status
+        if: ${{ !contains(fromJSON('["success", "skipped"]'), needs.build.result) }}
+        run: exit 1
+
   test:
     permissions:
       id-token: write
@@ -61,9 +91,9 @@ jobs:
         with:
           skip-existing: true
           repository-url: https://test.pypi.org/legacy/
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.11"
+          python-version: "3.12"
       - name: Test pip install from test.pypi
         run: |
           python -m venv venv-test-pypi

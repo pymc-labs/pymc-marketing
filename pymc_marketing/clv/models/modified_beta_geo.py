@@ -39,29 +39,31 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     This model requires data to be summarized by *recency*, *frequency*, and *T* for each customer,
     using `clv.utils.rfm_summary()` or equivalent. Modeling assumptions require *T >= recency*.
 
-    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy *lifetimes* library
+    Predictive methods have been adapted from the *ModifiedBetaGeoFitter* class in the legacy ``lifetimes`` library
     (see https://github.com/CamDavidsonPilon/lifetimes/).
 
     Parameters
     ----------
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
-            * `customer_id`: Unique customer identifier
-            * `frequency`: Number of repeat purchases
-            * `recency`: Time between the first and the last purchase
-            * `T`: Time between the first purchase and the end of the observation period
+
+        * ``customer_id``: Unique customer identifier
+        * ``frequency``: Number of repeat purchases
+        * ``recency``: Time between the first and the last purchase
+        * ``T``: Time between the first purchase and the end of the observation period
     model_config : dict, optional
         Dictionary of model prior parameters:
-            * `alpha`: Scale parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `r`: Shape parameter for time between purchases; defaults to `Prior("HalfFlat")`
-            * `a`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
-            * `b`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-            * `phi_dropout`: Nested prior for a and b priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-            * `kappa_dropout`: Nested prior for a and b priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-            * `purchase_covariates`: Coefficients for purchase rate covariates; defaults to `Normal(0, 1)`
-            * `dropout_covariates`: Coefficients for dropout covariates; defaults to `Normal.dist(0, 1)`
-            * `purchase_covariate_cols`: List containing column names of covariates for customer purchase rates.
-            * `dropout_covariate_cols`: List containing column names of covariates for customer dropouts.
+
+        * ``alpha``: Scale parameter for time between purchases; defaults to ``Prior("HalfFlat")``
+        * ``r``: Shape parameter for time between purchases; defaults to ``Prior("HalfFlat")``
+        * ``a``: Shape parameter of dropout process; defaults to ``phi_purchase * kappa_purchase``
+        * ``b``: Shape parameter of dropout process; defaults to ``(1 - phi_dropout) * kappa_dropout``
+        * ``phi_dropout``: Nested prior for a and b priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_dropout``: Nested prior for a and b priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
+        * ``purchase_covariates``: Coefficients for purchase rate covariates; defaults to ``Normal(0, 1)``
+        * ``dropout_covariates``: Coefficients for dropout covariates; defaults to ``Normal.dist(0, 1)``
+        * ``purchase_covariate_cols``: List containing column names of covariates for customer purchase rates.
+        * ``dropout_covariate_cols``: List containing column names of covariates for customer dropouts.
     sampler_config : dict, optional
         Dictionary of sampler parameters. Defaults to *None*.
 
@@ -86,10 +88,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
             [5, "2024-01-18"],
             [5, "2024-01-19"],
         ]
-        raw_data = pd.DataFrame(data, columns=["id", "date"]
+        raw_data = pd.DataFrame(data, columns=["id", "date"])
 
         # preprocess data
-        rfm_df = rfm_summary(raw_data,'id','date')
+        rfm_df = rfm_summary(raw_data, "id", "date")
 
         # model_config and sampler_configs are optional
         model = ModifiedBetaGeoModel(
@@ -97,7 +99,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
                 "r": Prior("HalfFlat"),
                 "alpha": Prior("HalfFlat"),
                 "a": Prior("HalfFlat"),
-                "b": Prior("HalfFlat),
+                "b": Prior("HalfFlat"),
             },
             sampler_config={
                 "draws": 1000,
@@ -114,7 +116,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         # Maximum a Posteriori can quickly fit a model to large datasets,
         # but will give limited insights into predictive uncertainty.
-        model.fit(data=rfm_df,fit_method='map')
+        model.fit(data=rfm_df, fit_method="map")
         print(model.fit_summary())
 
         # Predict number of purchases for current customers
@@ -135,33 +137,21 @@ class ModifiedBetaGeoModel(BetaGeoModel):
        https://works.bepress.com/meltem-denizel/2/download/
     .. [2] Wagner, U. and Hoppe D. (2008), "Erratum on the MBG/NBD Model,"
        International Journal of Research in Marketing, 25 (3), 225-226.
-        https://www.researchgate.net/profile/Udo-Wagner/publication/274894157_Customer_Base_Analysis_The_Case_for_a_Central_Variant_of_the_BetageometricBND_Model/links/55c3728608aeca747d5f6658/Customer-Base-Analysis-The-Case-for-a-Central-Variant-of-the-Betageometric-BND-Model.pdf
+       https://www.researchgate.net/profile/Udo-Wagner/publication/274894157_Customer_Base_Analysis_The_Case_for_a_Central_Variant_of_the_BetageometricBND_Model/links/55c3728608aeca747d5f6658/Customer-Base-Analysis-The-Case-for-a-Central-Variant-of-the-Betageometric-BND-Model.pdf
     """  # noqa: E501
 
     _model_type = "MBG/NBD"
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, frequency, recency, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "purchase_covariate": self.purchase_covariate_cols,
@@ -313,7 +303,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (6) in [1]_, and *lifetimes* package:
+        Adapted from equation (6) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L151
 
         Parameters
@@ -331,10 +321,10 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         References
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
-        "Empirical validation and comparison of models for customer base
-        analysis,"
-        International Journal of Research in Marketing, 24 (3), 201-209.
-        https://works.bepress.com/meltem-denizel/2/download/
+           "Empirical validation and comparison of models for customer base
+           analysis,"
+           International Journal of Research in Marketing, 24 (3), 201-209.
+           https://works.bepress.com/meltem-denizel/2/download/
         """  # noqa: E501
         if data is None:
             data = self.data
@@ -372,7 +362,7 @@ class ModifiedBetaGeoModel(BetaGeoModel):
     ) -> xarray.DataArray:
         r"""Compute the expected number of purchases for a new customer across *t* time periods.
 
-        Adapted from equation (4) in [1]_, and `lifetimes` library:
+        Adapted from equation (4) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L130
 
         Parameters
@@ -383,9 +373,9 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         References
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
-        "Empirical validation and comparison of models for customer base
-        analysis." International Journal of Research in Marketing, 24 (3), 201-209.
-        https://works.bepress.com/meltem-denizel/2/download/
+           "Empirical validation and comparison of models for customer base
+           analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+           https://works.bepress.com/meltem-denizel/2/download/
         """
         # TODO: This is extraneous now, but needed for future covariate support.
         if data is None:
@@ -417,12 +407,12 @@ class ModifiedBetaGeoModel(BetaGeoModel):
 
         The *data* parameter is only required for out-of-sample customers.
 
-        Adapted from equation (5) in [1]_, and `lifetimes` library:
+        Adapted from equation (5) in [1]_, and the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/modified_beta_geo_fitter.py#L188
 
         Parameters
         ----------
-        data : *pandas.DataFrame
+        data : ~pandas.DataFrame
             Optional dataframe containing the following columns:
 
             * `customer_id`: Unique customer identifier
@@ -433,9 +423,9 @@ class ModifiedBetaGeoModel(BetaGeoModel):
         References
         ----------
         .. [1] Batislam, E.P., M. Denizel, A. Filiztekin (2007),
-        "Empirical validation and comparison of models for customer base
-        analysis." International Journal of Research in Marketing, 24 (3), 201-209.
-        https://works.bepress.com/meltem-denizel/2/download/
+           "Empirical validation and comparison of models for customer base
+           analysis." International Journal of Research in Marketing, 24 (3), 201-209.
+           https://works.bepress.com/meltem-denizel/2/download/
         """
         if data is None:
             data = self.data

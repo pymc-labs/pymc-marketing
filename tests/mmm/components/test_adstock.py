@@ -11,39 +11,39 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import warnings
+import inspect
 
 import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    deserialize,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+import pymc_marketing.mmm.components.adstock as adstock_module
 from pymc_marketing.mmm.components.adstock import (
-    ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
-    adstock_from_dict,
+    NoAdstock,
 )
 from pymc_marketing.mmm.transformers import ConvMode
+from pymc_marketing.serialization import serialization
+
+ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
+    cls
+    for _, cls in inspect.getmembers(adstock_module, inspect.isclass)
+    if issubclass(cls, AdstockTransformation) and cls is not AdstockTransformation
+]
 
 
 def adstocks() -> list:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return [
-            pytest.param(adstock(l_max=10), id=name)
-            for name, adstock in ADSTOCK_TRANSFORMATIONS.items()
-        ]
+    return [
+        pytest.param(adstock_cls(l_max=10), id=adstock_cls.__name__)
+        for adstock_cls in ALL_ADSTOCK_CLASSES
+    ]
 
 
 @pytest.fixture
@@ -70,7 +70,7 @@ x[0] = 1
 def test_apply(model, adstock: AdstockTransformation, x, dims) -> None:
     x = as_xtensor(x, dims=dims)
     with model:
-        y = adstock.apply(x, dims=dims, core_dim="time")
+        y = adstock.apply(x, core_dim="time")
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape
@@ -96,7 +96,7 @@ def test_adstock_no_negative_lmax():
     adstocks(),
 )
 def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
-    if adstock.lookup_name == "no_adstock":
+    if isinstance(adstock, NoAdstock):
         raise pytest.skip(reason="NoAdstock has no parameters to sample.")
 
     prior = adstock.sample_prior()
@@ -105,81 +105,6 @@ def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
     assert isinstance(curve, xr.DataArray)
     assert curve.name == "adstock"
     assert curve.shape == (1, 500, adstock.l_max)
-
-
-@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_adstock_from_dict(deserialize_func) -> None:
-    data = {
-        "lookup_name": "geometric",
-        "l_max": 10,
-        "prefix": "test",
-        "mode": "Before",
-        "priors": {
-            "alpha": {
-                "dist": "Beta",
-                "kwargs": {
-                    "alpha": 1,
-                    "beta": 2,
-                },
-            },
-        },
-    }
-
-    adstock = deserialize_func(data)
-    assert adstock == GeometricAdstock(
-        l_max=10,
-        prefix="test",
-        priors={
-            "alpha": Prior("Beta", alpha=1, beta=2),
-        },
-        mode=ConvMode.Before,
-    )
-
-
-@pytest.mark.parametrize(
-    "adstock",
-    adstocks(),
-)
-@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_adstock_from_dict_without_priors(
-    adstock: AdstockTransformation,
-    deserialize_func,
-) -> None:
-    data = {
-        "lookup_name": adstock.lookup_name,
-        "l_max": 10,
-        "prefix": "test",
-        "mode": "Before",
-    }
-
-    adstock = deserialize_func(data)
-    assert adstock.default_priors == {
-        k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
-    }
-
-
-@pytest.mark.parametrize("deserialize_func", [adstock_from_dict, deserialize])
-def test_automatic_register_adstock_transformation(deserialize_func) -> None:
-    class AnotherNewTransformation(AdstockTransformation):
-        lookup_name: str = "another_new_transformation"
-        default_priors = {}
-
-        def function(self, x):
-            return x
-
-    data = {
-        "lookup_name": "another_new_transformation",
-        "l_max": 10,
-        "normalize": False,
-        "mode": "Before",
-        "priors": {},
-    }
-    adstock = deserialize_func(data)
-    assert adstock == AnotherNewTransformation(
-        l_max=10, mode=ConvMode.Before, normalize=False, priors={}
-    )
-
-    ADSTOCK_TRANSFORMATIONS.pop("another_new_transformation")
 
 
 def test_repr() -> None:
@@ -192,67 +117,49 @@ def test_repr() -> None:
     )
 
 
-class ArbitraryObject:
-    def __init__(self, msg: str, value: int) -> None:
-        self.msg = msg
-        self.value = value
-        self.dims = ()
+class TestAdstockRoundtrips:
+    """Every AdstockTransformation subclass round-trips with all params."""
 
-    def create_variable(self, name: str):
-        return pm.Normal(name, mu=0, sigma=1)
-
-
-@pytest.fixture
-def register_arbitrary_deserialization():
-    register_deserialization(
-        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
-        lambda data: ArbitraryObject(**data),
+    @pytest.mark.parametrize(
+        "adstock_cls", ALL_ADSTOCK_CLASSES, ids=lambda c: c.__name__
     )
+    def test_roundtrip_all_parameters(self, adstock_cls):
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in adstock_cls.default_priors
+        }
+        kwargs: dict = {
+            "l_max": 7,
+            "normalize": False,
+            "mode": ConvMode.Before,
+            "prefix": "custom_prefix",
+            "priors": custom_priors,
+        }
 
-    yield
+        original = adstock_cls(**kwargs)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
 
-    DESERIALIZERS.pop()
-
-
-def test_deserialization(
-    register_arbitrary_deserialization,
-) -> None:
-    data = {
-        "lookup_name": "geometric",
-        "prefix": "new",
-        "l_max": 10,
-        "priors": {
-            "alpha": {"msg": "hello", "value": 1},
-        },
-    }
-
-    instance = deserialize(data)
-    assert isinstance(instance, GeometricAdstock)
-    assert instance.prefix == "new"
-    assert instance.l_max == 10
-
-    alpha = instance.function_priors["alpha"]
-    assert isinstance(alpha, ArbitraryObject)
-    assert alpha.msg == "hello"
-    assert alpha.value == 1
+        assert type(restored) is adstock_cls
+        assert restored.l_max == 7
+        assert restored.normalize is False
+        assert restored.mode == ConvMode.Before
+        assert restored.prefix == "custom_prefix"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
 
 
-def test_deserialize_new_transformation() -> None:
-    class NewAdstock(AdstockTransformation):
-        lookup_name = "new_adstock"
-
-        def function(self, x):
-            return x
-
-        default_priors = {}
-
-    data = {
-        "lookup_name": "new_adstock",
-        "l_max": 10,
-    }
-
-    instance = deserialize(data)
-    assert isinstance(instance, NewAdstock)
-    assert instance.l_max == 10
-
-    ADSTOCK_TRANSFORMATIONS.pop("new_adstock")
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.components.adstock.GeometricAdstock",
+        "pymc_marketing.mmm.components.adstock.DelayedAdstock",
+        "pymc_marketing.mmm.components.adstock.WeibullCDFAdstock",
+        "pymc_marketing.mmm.components.adstock.WeibullPDFAdstock",
+        "pymc_marketing.mmm.components.adstock.BinomialAdstock",
+        "pymc_marketing.mmm.components.adstock.NoAdstock",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

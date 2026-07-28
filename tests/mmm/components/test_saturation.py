@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import inspect
 from inspect import signature
 
 import numpy as np
@@ -18,22 +19,24 @@ import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    deserialize,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
+import pymc_marketing.mmm.components.saturation as saturation_module
 from pymc_marketing.mmm.components.saturation import (
-    SATURATION_TRANSFORMATIONS,
     LogisticSaturation,
     MichaelisMentenSaturation,
+    RootSaturation,
     SaturationTransformation,
-    saturation_from_dict,
 )
+from pymc_marketing.serialization import serialization
+
+ALL_SATURATION_CLASSES: list[type[SaturationTransformation]] = [
+    cls
+    for _, cls in inspect.getmembers(saturation_module, inspect.isclass)
+    if issubclass(cls, SaturationTransformation) and cls is not SaturationTransformation
+]
 
 
 @pytest.fixture
@@ -44,8 +47,8 @@ def model() -> pm.Model:
 
 def saturation_functions():
     return [
-        pytest.param(saturation(), id=name)
-        for name, saturation in SATURATION_TRANSFORMATIONS.items()
+        pytest.param(saturation_cls(), id=saturation_cls.__name__)
+        for saturation_cls in ALL_SATURATION_CLASSES
     ]
 
 
@@ -69,10 +72,38 @@ def test_apply_method(
     x = as_xtensor(x, dims=dims)
 
     with model:
-        y = saturation.apply(x, dims=dims)
+        y = saturation.apply(x)
 
     assert isinstance(y, XTensorVariable)
     assert y.eval().shape == x.type.shape
+
+
+def test_root_saturation_logp_is_differentiable_at_zero_input() -> None:
+    """RootSaturation gradients must stay finite at exactly-zero input.
+
+    In an MMM the saturation input is a function of random variables (e.g.
+    adstocked spend), and channels routinely have zero-spend periods. The
+    derivative ``d/dx (x ** alpha) = alpha * x ** (alpha - 1)`` is infinite at
+    ``x == 0`` for ``alpha < 1``, so the resulting NaN propagated into the
+    log-probability gradient of every upstream parameter and broke NUTS. The
+    transformation guards the gradient with ``pt.where`` so that ``f(0) = 0``
+    exactly and the derivative is finite everywhere.
+    """
+    x = np.linspace(0.0, 1.0, 30)
+    x[:5] = 0.0  # exact zero-spend periods
+    rng = np.random.default_rng(0)
+    y_obs = rng.normal(size=x.shape[0])
+    with pm.Model(coords={"time": range(x.shape[0])}) as model:
+        # The input depends on a free RV, as it does after adstock in an MMM.
+        scale = pm.HalfNormal("scale", 1)
+        x_tensor = as_xtensor(x, dims=("time",)) * scale
+        mu = RootSaturation().apply(x_tensor)
+        sigma = pm.HalfNormal("sigma", 1)
+        pm.Normal("obs", mu=mu.values, sigma=sigma, observed=y_obs, dims=("time",))
+
+    dlogp = model.compile_dlogp()
+    grad = dlogp(model.initial_point())
+    assert np.all(np.isfinite(grad))
 
 
 @pytest.mark.parametrize(
@@ -235,96 +266,47 @@ def test_sample_curve_with_bad_max_value(max_value) -> None:
         )
 
 
-def test_saturation_from_dict() -> None:
-    data = {
-        "lookup_name": "michaelis_menten",
-        "priors": {
-            "alpha": {"dist": "HalfNormal", "kwargs": {"sigma": 1}},
-            "lam": {
-                "dist": "HalfNormal",
-                "kwargs": {"sigma": 1},
-            },
-        },
-    }
+class TestSaturationRoundtrips:
+    """Every SaturationTransformation subclass round-trips with all params."""
 
-    saturation = saturation_from_dict(data)
-    assert saturation == MichaelisMentenSaturation(
-        priors={
-            "alpha": Prior("HalfNormal", sigma=1),
-            "lam": Prior("HalfNormal", sigma=1),
+    @pytest.mark.parametrize(
+        "sat_cls", ALL_SATURATION_CLASSES, ids=lambda c: c.__name__
+    )
+    def test_roundtrip_all_parameters(self, sat_cls):
+        custom_priors = {
+            name: Prior("HalfNormal", sigma=0.5) for name in sat_cls.default_priors
         }
-    )
+        kwargs: dict = {
+            "prefix": "custom_sat",
+            "priors": custom_priors,
+        }
+
+        original = sat_cls(**kwargs)
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is sat_cls
+        assert restored.prefix == "custom_sat"
+        for prior_name, prior in custom_priors.items():
+            assert restored.function_priors[prior_name] == prior
+        assert restored == original
 
 
-@pytest.mark.parametrize("saturation", saturation_functions())
-def test_saturation_from_dict_without_priors(saturation) -> None:
-    data = {
-        "lookup_name": saturation.lookup_name,
-    }
-
-    saturation = saturation_from_dict(data)
-    assert saturation.default_priors == {
-        k: Prior.from_dict(v) for k, v in saturation.to_dict()["priors"].items()
-    }
-
-
-class ArbitraryObject:
-    def __init__(self, msg: str, value: int) -> None:
-        self.msg = msg
-        self.value = value
-        self.dims = ()
-
-    def create_variable(self, name: str):
-        return pm.Normal(name, mu=0, sigma=1)
-
-
-@pytest.fixture
-def register_arbitrary_deserialization():
-    register_deserialization(
-        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
-        lambda data: ArbitraryObject(**data),
-    )
-
-    yield
-
-    DESERIALIZERS.pop()
-
-
-def test_deserialization(
-    register_arbitrary_deserialization,
-) -> None:
-    data = {
-        "lookup_name": "logistic",
-        "prefix": "new",
-        "priors": {
-            "alpha": {"msg": "hello", "value": 1},
-        },
-    }
-
-    instance = deserialize(data)
-    assert isinstance(instance, LogisticSaturation)
-    assert instance.prefix == "new"
-
-    alpha = instance.function_priors["alpha"]
-    assert isinstance(alpha, ArbitraryObject)
-    assert alpha.msg == "hello"
-    assert alpha.value == 1
-
-
-def test_deserialize_new_transformation() -> None:
-    class NewSaturation(SaturationTransformation):
-        lookup_name = "new_saturation"
-
-        def function(self, x):
-            return x
-
-        default_priors = {}
-
-    data = {
-        "lookup_name": "new_saturation",
-    }
-
-    instance = deserialize(data)
-    assert isinstance(instance, NewSaturation)
-
-    SATURATION_TRANSFORMATIONS.pop("new_saturation")
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.components.saturation.LogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.TanhSaturation",
+        "pymc_marketing.mmm.components.saturation.TanhSaturationBaselined",
+        "pymc_marketing.mmm.components.saturation.HillSaturation",
+        "pymc_marketing.mmm.components.saturation.HillSaturationSigmoid",
+        "pymc_marketing.mmm.components.saturation.MichaelisMentenSaturation",
+        "pymc_marketing.mmm.components.saturation.RootSaturation",
+        "pymc_marketing.mmm.components.saturation.InverseScaledLogisticSaturation",
+        "pymc_marketing.mmm.components.saturation.LogSaturation",
+        "pymc_marketing.mmm.components.saturation.NoSaturation",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_type_registered(type_key):
+    assert type_key in serialization._registry, f"{type_key} not registered"

@@ -32,8 +32,6 @@ There are three types of Fourier seasonality transformations available:
     from pymc_marketing.mmm import YearlyFourier
     from pymc_extras.prior import Prior
 
-    plt.style.use('arviz-darkgrid')
-
     prior = Prior(
         "Normal",
         mu=[0, 0, -1, 0],
@@ -73,21 +71,11 @@ Plot the prior fourier seasonality trend.
 .. plot::
     :context: close-figs
 
-    import pandas as pd
-    import pymc as pm
     import matplotlib.pyplot as plt
 
     from pymc_marketing.mmm import YearlyFourier
 
     yearly = YearlyFourier(n_order=3)
-
-    dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
-
-    dayofyear = dates.dayofyear.to_numpy()
-
-    with pm.Model() as model:
-        fourier_trend = yearly.apply(dayofyear)
-
     prior = yearly.sample_prior()
     curve = yearly.sample_curve(prior)
     yearly.plot_curve(curve)
@@ -238,7 +226,6 @@ from abc import abstractmethod
 from collections.abc import Iterable
 from typing import Any, Self
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -256,7 +243,7 @@ from pydantic import (
     field_serializer,
     model_validator,
 )
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
@@ -264,6 +251,7 @@ from pytensor.xtensor.type import XTensorVariable
 from pymc_marketing.constants import DAYS_IN_MONTH, DAYS_IN_WEEK, DAYS_IN_YEAR
 from pymc_marketing.mmm.dims import XTensorLike
 from pymc_marketing.plot import SelToString, plot_curve, plot_hdi, plot_samples
+from pymc_marketing.serialization import serialization
 
 X_NAME: str = "day"
 NON_GRID_NAMES: frozenset[str] = frozenset({X_NAME})
@@ -459,31 +447,32 @@ class FourierBase(BaseModel):
 
         Examples
         --------
-        Save off the result before summing through the prefix dimension.
+        Save the per-component result before summing through the prefix
+        dimension by passing ``sum=False`` and registering a Deterministic
+        on the un-summed tensor.
 
         .. code-block:: python
 
             import pandas as pd
 
             import pymc as pm
+            import pymc.dims as pmd
 
             from pymc_marketing.mmm import YearlyFourier
 
             fourier = YearlyFourier(n_order=3)
 
-
-            def callback(result):
-                pm.Deterministic("fourier_trend", result, dims=("date", "fourier"))
-
-
             dates = pd.date_range("2023-01-01", periods=52, freq="W-MON")
 
-            coords = {
-                "date": dates,
-            }
+            coords = {"date": dates}
             with pm.Model(coords=coords) as model:
-                dayofyear = dates.dayofyear.to_numpy()
-                fourier.apply(dayofyear, result_callback=callback)
+                dayofyear = pmd.Data(
+                    "dayofyear", dates.dayofyear.to_numpy(), dims=("date",)
+                )
+                components = fourier.apply(dayofyear, sum=False)
+                pmd.Deterministic(
+                    "fourier_trend", components, dims=("date", fourier.prefix)
+                )
 
         """
         periods = dayofperiod / self.days_in_period
@@ -521,11 +510,13 @@ class FourierBase(BaseModel):
         """
         coords = coords or {}
         coords[self.prefix] = self.nodes
+        if "samples" in kwargs:
+            kwargs["draws"] = kwargs.pop("samples")
         return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
 
     def sample_curve(
         self,
-        parameters: az.InferenceData | xr.Dataset,
+        parameters: xr.DataTree | xr.Dataset,
         use_dates: bool = False,
         start_date: str | datetime.datetime | None = None,
     ) -> xr.DataArray:
@@ -533,7 +524,7 @@ class FourierBase(BaseModel):
 
         Parameters
         ----------
-        parameters : az.InferenceData | xr.Dataset
+        parameters : xr.DataTree | xr.Dataset
             Inference data or dataset containing the Fourier parameters.
             Can be posterior or prior.
         use_dates : bool, optional
@@ -781,11 +772,14 @@ class FourierBase(BaseModel):
             Deserialized Fourier seasonality
 
         """
-        data = data["data"]
-        data["prior"] = deserialize(data["prior"])
-        return cls(**data)
+        inner = data.get("data", data)
+        if "__type__" in inner:
+            inner = {k: v for k, v in inner.items() if k != "__type__"}
+        inner["prior"] = deserialize(inner["prior"])
+        return cls(**inner)
 
 
+@serialization.register
 class YearlyFourier(FourierBase):
     """Yearly fourier seasonality.
 
@@ -798,8 +792,6 @@ class YearlyFourier(FourierBase):
 
         from pymc_marketing.mmm import YearlyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Yearly"))
         rng = np.random.default_rng(seed)
@@ -852,6 +844,7 @@ class YearlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@serialization.register
 class MonthlyFourier(FourierBase):
     """Monthly fourier seasonality.
 
@@ -864,8 +857,6 @@ class MonthlyFourier(FourierBase):
 
         from pymc_marketing.mmm import MonthlyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Monthly"))
         rng = np.random.default_rng(seed)
@@ -917,6 +908,7 @@ class MonthlyFourier(FourierBase):
         return dates.dayofyear
 
 
+@serialization.register
 class WeeklyFourier(FourierBase):
     """Weekly fourier seasonality.
 
@@ -929,8 +921,6 @@ class WeeklyFourier(FourierBase):
 
         from pymc_marketing.mmm import WeeklyFourier
         from pymc_extras.prior import Prior
-
-        az.style.use("arviz-white")
 
         seed = sum(map(ord, "Weekly"))
         rng = np.random.default_rng(seed)
@@ -987,30 +977,3 @@ class WeeklyFourier(FourierBase):
             The relevant period within the characteristic periodicity
         """
         return dates.dayofyear
-
-
-def _is_yearly_fourier(data: Any) -> bool:
-    return data.get("class") == "YearlyFourier"
-
-
-def _is_monthly_fourier(data: Any) -> bool:
-    return data.get("class") == "MonthlyFourier"
-
-
-def _is_weekly_fourier(data: Any) -> bool:
-    return data.get("class") == "WeeklyFourier"
-
-
-register_deserialization(
-    is_type=_is_yearly_fourier,
-    deserialize=lambda data: YearlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_monthly_fourier,
-    deserialize=lambda data: MonthlyFourier.from_dict(data),
-)
-
-register_deserialization(
-    is_type=_is_weekly_fourier, deserialize=lambda data: WeeklyFourier.from_dict(data)
-)

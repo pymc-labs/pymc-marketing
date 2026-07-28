@@ -1,5 +1,5 @@
 model:
-  class: pymc_marketing.mmm.multidimensional.MMM
+  class: pymc_marketing.mmm.mmm.MMM
   kwargs:
     date_column: "date"
     channel_columns:
@@ -20,9 +20,8 @@ model:
           alpha: "not_a_number"  # String instead of number
           lambda: -5.0  # Negative value for parameter that should be positive
 
-# ----------------------------------------------------------------------
-sampler_config:
-  tune: 1000
-  draws: 200
-  chains: 8
-  random_seed: 42
+    sampler_config:
+      tune: 1000
+      draws: 200
+      chains: 8
+      random_seed: 42

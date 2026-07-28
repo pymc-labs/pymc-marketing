@@ -20,10 +20,12 @@ from typing import Literal, cast
 import arviz as az
 import pandas as pd
 import pymc as pm
+import xarray as xr
 from pydantic import ConfigDict, InstanceOf, validate_call
 from pymc.backends import NDArray
 from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
+from pymc.variational.callbacks import CheckParametersConvergence
 
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
@@ -37,34 +39,12 @@ class CLVModel(ModelBuilder):
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
         non_distributions: list[str] | None = None,
     ):
-        if data is not None:
-            warnings.warn(
-                f"'{self._model_type}(data)' is deprecated and will be removed in version 1.0. "
-                f"Use '{self._model_type}.build_model(data)' or '{self._model_type}.fit(data)' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.data = data
-
         model_config = model_config or {}
-
-        deprecated_keys = [key for key in model_config if key.endswith("_prior")]
-        for key in deprecated_keys:
-            new_key = key.replace("_prior", "")
-            warnings.warn(
-                f"The key '{key}' in model_config is deprecated and will be removed in future versions."
-                f"Use '{new_key}' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
-            model_config[new_key] = model_config.pop(key)
 
         super().__init__(model_config, sampler_config)
 
@@ -106,29 +86,21 @@ class CLVModel(ModelBuilder):
             return f"{self._model_type}\n{self.model.str_repr()}"
 
     def _add_fit_data_group(self, data: pd.DataFrame) -> None:
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            assert self.idata is not None  # noqa: S101
-            self.idata.add_groups(fit_data=data.to_xarray())
+        assert self.idata is not None  # noqa: S101
+        self.idata["/fit_data"] = data.to_xarray()
 
     def fit(  # type: ignore
         self,
-        data: pd.DataFrame | None = None,
+        data: pd.DataFrame,
         method: str = "mcmc",
-        fit_method: str | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Infer model posterior.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
-            The input data for model fitting. If not provided, uses data
-            from model initialization (deprecated) or previously built model.
+        data : pd.DataFrame
+            Input data for model fitting.
         method: str
             Method used to fit the model. Options are:
             - "mcmc": Samples from the posterior via `pymc.sample` (default)
@@ -140,30 +112,14 @@ class CLVModel(ModelBuilder):
             Other keyword arguments passed to the underlying PyMC routines
 
         """
-        # Handle deprecated fit_method parameter
-        if fit_method:
-            warnings.warn(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            method = fit_method
-
-        # TODO: Delete this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
+        # Check if model was already built, and if fit data matches build data
+        if not hasattr(self, "model"):
             self.build_model(data)  # type: ignore
-        elif hasattr(self, "data") and self.data is not None:
-            # Using old API data - build model if not already built
-            if not hasattr(self, "model"):
-                self.build_model()  # type: ignore
         else:
-            # No data available anywhere
-            if not hasattr(self, "model"):
+            if not self.data.equals(data):  # type: ignore
                 raise ValueError(
-                    "Data must be provided either to fit(data=...) or "
-                    "model must be built with build_model(data=...) first."
+                    "The model was built with different data. "
+                    "Create a new model instance to fit new data."
                 )
 
         approx = None
@@ -187,12 +143,12 @@ class CLVModel(ModelBuilder):
         if approx:
             self.approx = approx
         self.set_idata_attrs(self.idata)
-        if self.data is not None:
-            self._add_fit_data_group(self.data)
+        if self.data is not None:  # type: ignore
+            self._add_fit_data_group(self.data)  # type: ignore
 
         return self.idata
 
-    def _fit_mcmc(self, **kwargs) -> az.InferenceData:
+    def _fit_mcmc(self, **kwargs) -> xr.DataTree:
         """Fit a model with NUTS."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -200,7 +156,7 @@ class CLVModel(ModelBuilder):
         sampler_config.update(**kwargs)
         return pm.sample(**sampler_config, model=self.model)
 
-    def _fit_MAP(self, **kwargs) -> az.InferenceData:
+    def _fit_MAP(self, **kwargs) -> xr.DataTree:
         """Find model maximum a posteriori using scipy optimizer."""
         model = self.model
         map_res = pm.find_MAP(model=model, **kwargs)
@@ -210,12 +166,15 @@ class CLVModel(ModelBuilder):
         # Convert map result to InferenceData
         map_strace = NDArray(model=model)
         map_strace.setup(draws=1, chain=0)
-        map_strace.record(map_res)
+        try:
+            map_strace.record(map_res, in_warmup=False)
+        except TypeError:
+            map_strace.record(map_res)
         map_strace.close()
         trace = MultiTrace([map_strace])
         return pm.to_inference_data(trace, model=model)
 
-    def _fit_DEMZ(self, **kwargs) -> az.InferenceData:
+    def _fit_DEMZ(self, **kwargs) -> xr.DataTree:
         """Fit a model with DEMetropolisZ gradient-free sampler."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -226,7 +185,7 @@ class CLVModel(ModelBuilder):
 
     def _fit_approx(
         self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit a model with ADVI."""
         sampler_config = {}
         if self.sampler_config is not None:
@@ -248,7 +207,7 @@ class CLVModel(ModelBuilder):
         with self.model:
             approx = pm.fit(
                 method=method,
-                callbacks=[pm.callbacks.CheckParametersConvergence(diff="absolute")],
+                callbacks=[CheckParametersConvergence(diff="absolute")],
                 **{
                     k: v
                     for k, v in sampler_config.items()
@@ -285,32 +244,15 @@ class CLVModel(ModelBuilder):
             )
 
     @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict:
-        """Create the initialization kwargs from an InferenceData object."""
-        kwargs = cls.attrs_to_init_kwargs(idata.attrs)
-        kwargs["data"] = idata.fit_data.to_dataframe()
-
-        return kwargs
-
-    @classmethod
-    def build_from_idata(cls, idata: az.InferenceData) -> None:
+    def build_from_idata(cls, idata: xr.DataTree) -> None:
         """Build the model from the InferenceData object."""
         kwargs = cls.idata_to_init_kwargs(idata)
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=DeprecationWarning,
-            )
-            model = cls(**kwargs)
+        model = cls(**kwargs)
 
         model.idata = idata
-        model._rename_posterior_variables()
+        model.data = idata.fit_data.dataset.to_dataframe()
 
-        # Extract data from fit_data group if it exists
-        if hasattr(idata, "fit_data"):
-            model.data = idata.fit_data.to_dataframe()
-
-        model.build_model()  # type: ignore
+        model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
             msg = (
                 "The model id in the InferenceData does not match the model id. "
@@ -320,20 +262,6 @@ class CLVModel(ModelBuilder):
             )
             raise DifferentModelError(msg)
         return model
-
-    # TODO: Remove in 2026Q1?
-    def _rename_posterior_variables(self):
-        """Rename variables in the posterior group to remove the _prior suffix.
-
-        This is used to support the old model configuration format, which used
-        to include a _prior suffix for each parameter.
-        """
-        prior_vars = [
-            var for var in self.idata.posterior.data_vars if var.endswith("_prior")
-        ]
-        rename_dict = {var: var.replace("_prior", "") for var in prior_vars}
-        self.idata.posterior = self.idata.posterior.rename(rename_dict)
-        return self.idata.posterior
 
     def thin_fit_result(self, keep_every: int):
         """Return a copy of the model with a thinned fit result.

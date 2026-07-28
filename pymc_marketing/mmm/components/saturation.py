@@ -18,6 +18,23 @@ Each of these transformations is a subclass of
 that takes media and return the saturated media. The parameters of the function
 are the parameters of the saturation transformation.
 
+Notes
+-----
+The wrapper classes in this module extend the transformer functions in
+:mod:`pymc_marketing.mmm.transformers` with the priors needed to fit them in a model.
+Several wrappers also introduce an extra scaling parameter that the underlying
+transformer does not take, so the curve can reach a value other than the bounded
+range of the transformer:
+
+- :class:`LogisticSaturation`, :class:`InverseScaledLogisticSaturation`,
+  :class:`TanhSaturationBaselined`, :class:`HillSaturation`, :class:`RootSaturation`,
+  and :class:`NoSaturation` multiply the output by ``beta``.
+- :class:`MichaelisMentenSaturation`, :class:`TanhSaturation`, and
+  :class:`HillSaturationSigmoid` do not add an extra parameter because the underlying
+  function already exposes the asymptote (``alpha``, ``b``, or ``sigma``).
+
+See each class for the full list of parameters and their default priors.
+
 Examples
 --------
 Create a new saturation transformation:
@@ -28,9 +45,11 @@ Create a new saturation transformation:
     from pymc_extras.prior import Prior
 
 
-    class InfiniteReturns(SaturationTransformation):
-        lookup_name: str = "infinite_returns"
+    from pymc_marketing.serialization import serialization
 
+
+    @serialization.register
+    class InfiniteReturns(SaturationTransformation):
         def function(self, x, b):
             return b * x
 
@@ -79,13 +98,13 @@ from typing import Any
 import numpy as np
 import xarray as xr
 from pydantic import Field, InstanceOf, validate_call
-from pymc_extras.deserialize import deserialize, register_deserialization
+from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
+from pytensor.xtensor import math as ptxm
 
 from pymc_marketing.mmm.components.base import (
     Transformation,
-    create_registration_meta,
 )
 from pymc_marketing.mmm.transformers import (
     hill_function,
@@ -97,13 +116,10 @@ from pymc_marketing.mmm.transformers import (
     tanh_saturation,
     tanh_saturation_baselined,
 )
-
-SATURATION_TRANSFORMATIONS: dict[str, type[SaturationTransformation]] = {}
-
-SaturationRegistrationMeta = create_registration_meta(SATURATION_TRANSFORMATIONS)
+from pymc_marketing.serialization import serialization
 
 
-class SaturationTransformation(Transformation, metaclass=SaturationRegistrationMeta):  # type: ignore
+class SaturationTransformation(Transformation):
     """Subclass for all saturation transformations.
 
     In order to use a custom saturation transformation, subclass and define:
@@ -128,7 +144,6 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
 
         class InfiniteReturns(SaturationTransformation):
-            lookup_name = "infinite_returns"
             function = infinite_returns
             default_priors = {"b": Prior("HalfNormal")}
 
@@ -153,10 +168,33 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
 
     prefix: str = "saturation"
 
+    requires_unscaled_input: bool = False
+    """Whether the saturation must receive raw (unscaled) channel inputs.
+
+    Most saturations operate on channel data divided by ``channel_scale``
+    (see :class:`~pymc_marketing.mmm.scaling.Scaling`).  A saturation that
+    sets this flag to ``True`` instead receives the *raw* channel data, and
+    the MMM forces ``channel_scale`` to one for those channels.  This is
+    required by scale-sensitive transformations such as
+    :class:`LogSaturation`, whose coefficients only carry their intended
+    interpretation (an elasticity) when the input is not rescaled.
+    """
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SaturationTransformation:
+        """Reconstruct a saturation transformation from a dict."""
+        data = data.copy()
+        data.pop("__type__", None)
+
+        if "priors" in data:
+            data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
+
+        return cls(**data)
+
     @validate_call
     def sample_curve(
         self,
-        parameters: InstanceOf[xr.Dataset] = Field(
+        parameters: InstanceOf[xr.Dataset] | InstanceOf[xr.DataTree] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
         max_value: float = Field(1.0, gt=0, description="Maximum range value."),
@@ -195,10 +233,21 @@ class SaturationTransformation(Transformation, metaclass=SaturationRegistrationM
         )
 
 
+@serialization.register
 class LogisticSaturation(SaturationTransformation):
     """Wrapper around logistic saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.logistic_saturation`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.logistic_saturation` by an extra
+    scaling parameter ``beta`` so the curve can reach an asymptote other than 1.
+
+    Parameters
+    ----------
+    lam : tensor
+        Steepness of the curve, as in :func:`logistic_saturation`. Default prior:
+        ``Prior("Gamma", alpha=3, beta=1)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=2)``.
 
     .. plot::
         :context: close-figs
@@ -217,8 +266,6 @@ class LogisticSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "logistic"
-
     def function(self, x, lam, beta, *, dim: str | None = None):
         """Logistic saturation function."""
         return beta * logistic_saturation(x, lam)
@@ -229,10 +276,22 @@ class LogisticSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class InverseScaledLogisticSaturation(SaturationTransformation):
     """Wrapper around inverse scaled logistic saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.inverse_scaled_logistic_saturation`
+    by an extra scaling parameter ``beta`` so the curve can reach an asymptote other
+    than 1.
+
+    Parameters
+    ----------
+    lam : tensor
+        Half-saturation point of the curve (when ``eps`` keeps its default value).
+        Default prior: ``Prior("Gamma", alpha=0.5, beta=1)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=2)``.
 
     .. plot::
         :context: close-figs
@@ -251,8 +310,6 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "inverse_scaled_logistic"
-
     def function(self, x, lam, beta, *, dim: str | None = None):
         """Inverse scaled logistic saturation function."""
         return beta * inverse_scaled_logistic_saturation(x, lam)
@@ -263,10 +320,22 @@ class InverseScaledLogisticSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class TanhSaturation(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation`.
+    Calls :func:`pymc_marketing.mmm.transformers.tanh_saturation` directly. The
+    saturation level is already exposed by the underlying function as ``b``, so no
+    extra scaling parameter is added at this layer.
+
+    Parameters
+    ----------
+    b : tensor
+        Saturation point, the asymptote that the response approaches. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
+    c : tensor
+        Initial cost per user; larger values give a less efficient channel. Must be
+        non-zero. Default prior: ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -285,8 +354,6 @@ class TanhSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "tanh"
-
     def function(self, x, b, c, *, dim: str | None = None):
         """Tanh saturation function."""
         return tanh_saturation(x, b, c)
@@ -297,10 +364,29 @@ class TanhSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class TanhSaturationBaselined(SaturationTransformation):
     """Wrapper around tanh saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.tanh_saturation_baselined`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.tanh_saturation_baselined` by an
+    extra scaling parameter ``beta`` so the response can reach an asymptote other
+    than the gain-implied one.
+
+    Parameters
+    ----------
+    x0 : tensor
+        Reference point on the input scale, as in :func:`tanh_saturation_baselined`.
+        Default prior: ``Prior("HalfNormal", sigma=1)``.
+    gain : tensor
+        Value of the curve at ``x0`` divided by ``x0`` (the ROAS at the baseline).
+        Default prior: ``Prior("HalfNormal", sigma=1)``.
+    r : tensor
+        Overspend fraction, the ratio of the response at ``x0`` to the saturation
+        level. Default prior: ``Prior("HalfNormal", sigma=1)``.
+    beta : tensor
+        Scaling factor applied to the baselined-tanh response (multiplies the
+        gain-implied asymptote ``gain * x0 / r``). Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -319,8 +405,6 @@ class TanhSaturationBaselined(SaturationTransformation):
 
     """
 
-    lookup_name = "tanh_baselined"
-
     def function(self, x, x0, gain, r, beta, *, dim: str | None = None):
         """Tanh saturation function."""
         return beta * tanh_saturation_baselined(x, x0, gain, r)
@@ -333,10 +417,22 @@ class TanhSaturationBaselined(SaturationTransformation):
     }
 
 
+@serialization.register
 class MichaelisMentenSaturation(SaturationTransformation):
     """Wrapper around Michaelis-Menten saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.michaelis_menten`.
+    Calls :func:`pymc_marketing.mmm.transformers.michaelis_menten` directly. The
+    saturation level is exposed by the underlying function as ``alpha``, so no extra
+    scaling parameter is added at this layer.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Maximum contribution, the asymptote that the response approaches. Default
+        prior: ``Prior("Gamma", mu=2, sigma=1)``.
+    lam : tensor
+        Half-saturation point on the input axis. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -355,8 +451,6 @@ class MichaelisMentenSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "michaelis_menten"
-
     def function(self, x, alpha, lam, *, dim: str | None = None):
         """Michaelis-Menten saturation function."""
         return michaelis_menten(x, alpha, lam)
@@ -367,10 +461,24 @@ class MichaelisMentenSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class HillSaturation(SaturationTransformation):
     """Wrapper around Hill saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_function`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.hill_function` by an extra
+    scaling parameter ``beta`` so the curve can reach an asymptote other than 1.
+
+    Parameters
+    ----------
+    slope : tensor
+        Slope of the Hill curve, controlling its steepness. Default prior:
+        ``Prior("HalfNormal", sigma=1.5)``.
+    kappa : tensor
+        Half-saturation point where the response equals half its asymptote. Default
+        prior: ``Prior("HalfNormal", sigma=1.5)``.
+    beta : tensor
+        Asymptote that the saturated response approaches as the input grows. Default
+        prior: ``Prior("HalfNormal", sigma=1.5)``.
 
     .. plot::
         :context: close-figs
@@ -389,8 +497,6 @@ class HillSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "hill"
-
     def function(self, x, slope, kappa, beta, *, dim: str | None = None):
         """Hill saturation function."""
         return beta * hill_function(x, slope, kappa)
@@ -402,10 +508,28 @@ class HillSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
 class HillSaturationSigmoid(SaturationTransformation):
     """Wrapper around Hill saturation sigmoid function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid`.
+    Calls :func:`pymc_marketing.mmm.transformers.hill_saturation_sigmoid` directly. The
+    saturation level is exposed by the underlying function as ``sigma``, so no extra
+    scaling parameter is added at this layer. Note that ``beta`` here is the slope of
+    the sigmoid, not a scaling factor.
+
+    Parameters
+    ----------
+    sigma : tensor
+        Upper-asymptote parameter (approximate; the true maximum is
+        ``sigma * (1 - 1 / (1 + exp(beta * lam)))``, see
+        :func:`hill_saturation_sigmoid`). Default prior:
+        ``Prior("HalfNormal", sigma=1.5)``.
+    beta : tensor
+        Slope of the sigmoid, controlling the steepness of the transition. Default
+        prior: ``Prior("HalfNormal", sigma=1.5)``.
+    lam : tensor
+        Midpoint of the transition on the input axis. Default prior:
+        ``Prior("HalfNormal", sigma=1.5)``.
 
     .. plot::
         :context: close-figs
@@ -424,8 +548,6 @@ class HillSaturationSigmoid(SaturationTransformation):
 
     """
 
-    lookup_name = "hill_sigmoid"
-
     def function(self, x, sigma, beta, lam, *, dim: str | None = None):
         """Hill sigmoid function."""
         return hill_saturation_sigmoid(x, sigma, beta, lam)
@@ -437,10 +559,21 @@ class HillSaturationSigmoid(SaturationTransformation):
     }
 
 
+@serialization.register
 class RootSaturation(SaturationTransformation):
     """Wrapper around Root saturation function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.root_saturation`.
+    Multiplies :func:`pymc_marketing.mmm.transformers.root_saturation` by an extra
+    scaling parameter ``beta``.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Exponent applied to the input by :func:`root_saturation`. Default prior:
+        ``Prior("Beta", alpha=1, beta=2)``.
+    beta : tensor
+        Scaling factor applied to the root-transformed input. Default prior:
+        ``Prior("Gamma", mu=1, sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -459,8 +592,6 @@ class RootSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "root"
-
     def function(self, x, alpha, beta, *, dim: str | None = None):
         """Root saturation function."""
         return beta * root_saturation(x, alpha)
@@ -471,8 +602,72 @@ class RootSaturation(SaturationTransformation):
     }
 
 
+@serialization.register
+class LogSaturation(SaturationTransformation):
+    r"""Logarithmic saturation for log-log models.
+
+    Applies :math:`\beta \, \log(1 + x)` to the **raw** (unscaled) channel
+    input, mapping spend through a concave logarithmic curve with
+    diminishing returns.
+
+    When combined with ``link="log"`` in the MMM, the model becomes a
+    log-log specification and :math:`\beta` is an approximate
+    *elasticity* -- the percentage change in the response per one percent
+    change in spend.  For this interpretation to hold, the channel input
+    must **not** be rescaled: an elasticity is dimensionless, so dividing
+    spend by an arbitrary ``channel_scale`` would change :math:`\beta`
+    (because :math:`\log(1 + x)` is not invariant under multiplicative
+    rescaling of :math:`x`).  This class therefore sets
+    :attr:`~SaturationTransformation.requires_unscaled_input` to ``True``,
+    which makes the MMM feed raw spend to the saturation and force
+    ``channel_scale = 1`` for the affected channels.
+
+    ``log(1 + x)`` (rather than ``log(x)``) is used so that the transform
+    is finite at ``x = 0`` -- common for paused or cold-start channels --
+    while remaining numerically indistinguishable from ``log(x)`` once
+    spend is large, where the elasticity interpretation is exact in the
+    limit :math:`\partial \log y / \partial \log x \to \beta`.
+
+    .. plot::
+        :context: close-figs
+
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from pymc_marketing.mmm import LogSaturation
+
+        rng = np.random.default_rng(0)
+
+        saturation = LogSaturation()
+        prior = saturation.sample_prior(random_seed=rng)
+        curve = saturation.sample_curve(prior)
+        saturation.plot_curve(curve, random_seed=rng)
+        plt.show()
+
+    """
+
+    requires_unscaled_input: bool = True
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Logarithmic saturation function: beta * log(1 + x)."""
+        x = as_xtensor(x)
+        beta = as_xtensor(beta)
+        return beta * ptxm.log1p(x)
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1)}
+
+
+@serialization.register
 class NoSaturation(SaturationTransformation):
     """Wrapper around linear saturation function.
+
+    Identity-like transformation that returns ``beta * x``. Useful when a channel
+    should not be saturated but still needs a learned coefficient.
+
+    Parameters
+    ----------
+    beta : tensor
+        Slope of the linear response. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -491,8 +686,6 @@ class NoSaturation(SaturationTransformation):
 
     """
 
-    lookup_name = "no_saturation"
-
     def function(self, x, beta, *, dim: str | None = None):
         """Linear saturation function."""
         x = as_xtensor(x)
@@ -500,22 +693,3 @@ class NoSaturation(SaturationTransformation):
         return beta * x
 
     default_priors = {"beta": Prior("HalfNormal", sigma=1)}
-
-
-def saturation_from_dict(data: dict) -> SaturationTransformation:
-    """Get a saturation function from a dictionary."""
-    data = data.copy()
-    cls = SATURATION_TRANSFORMATIONS[data.pop("lookup_name")]
-
-    if "priors" in data:
-        data["priors"] = {
-            key: deserialize(value) for key, value in data["priors"].items()
-        }
-    return cls(**data)
-
-
-def _is_saturation(data):
-    return "lookup_name" in data and data["lookup_name"] in SATURATION_TRANSFORMATIONS
-
-
-register_deserialization(_is_saturation, saturation_from_dict)

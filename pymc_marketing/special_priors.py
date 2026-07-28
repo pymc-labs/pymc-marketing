@@ -29,6 +29,9 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
     Prior,
@@ -38,6 +41,28 @@ from pymc_extras.prior import (
 )
 from pytensor.tensor import TensorVariable, as_tensor
 from pytensor.xtensor.type import XTensorVariable, as_xtensor
+
+from pymc_marketing.serialization import serialization
+
+
+def _is_xarray_dataarray_dict(data: Any) -> bool:
+    """Return True for dicts produced by ``xr.DataArray.to_dict()``."""
+    if not isinstance(data, dict):
+        return False
+    required = {"dims", "attrs", "data", "coords"}
+    return (
+        required.issubset(data.keys())
+        and "data_vars" not in data
+        and "dist" not in data
+        and "special_prior" not in data
+        and "lookup_name" not in data
+    )
+
+
+register_deserialization(
+    is_type=_is_xarray_dataarray_dict,
+    deserialize=xr.DataArray.from_dict,
+)
 
 
 class SpecialPrior(ABC):
@@ -136,6 +161,9 @@ class SpecialPrior(ABC):
                 if isinstance(value, np.ndarray):
                     return value.tolist()
 
+                if isinstance(value, xr.DataArray):
+                    return value.to_dict()
+
                 if hasattr(value, "to_dict"):
                     return value.to_dict()
 
@@ -161,6 +189,8 @@ class SpecialPrior(ABC):
                 f"Not of type: {type(data)}"
             )
             raise ValueError(msg)
+
+        data = {k: v for k, v in data.items() if k != "__type__"}
 
         # Extract special keys
         centered = data.get("centered", True)
@@ -207,6 +237,7 @@ class SpecialPrior(ABC):
         )
 
 
+@serialization.register
 class LogNormalPrior(SpecialPrior):
     r"""Lognormal prior parameterized by positive-scale mean and std.
 
@@ -334,6 +365,7 @@ register_deserialization(
 )
 
 
+@serialization.register
 class LaplacePrior(SpecialPrior):
     """A Laplace prior parameterized by a location and a scale parameter.
 
@@ -404,6 +436,7 @@ register_deserialization(
 )
 
 
+@serialization.register
 class MaskedPrior:
     """Create variables from a prior over only the active entries of a boolean mask.
 
@@ -598,20 +631,67 @@ class MaskedPrior:
         # Depth-first remap of any nested VariableFactory with dims == parent dims
         # This keeps internal subset checks (_param_dims_work) satisfied.
         if hasattr(factory, "parameters"):
-            # Recurse on child parameters first
             for key, value in list(factory.parameters.items()):
                 if hasattr(value, "create_variable") and hasattr(value, "dims"):
                     factory.parameters[key] = self._remap_dims(value)  # type: ignore[arg-type]
 
-        # Now remap this object's dims if they exactly match the masked dims
         if hasattr(factory, "dims"):
             dims = factory.dims or ()
             if isinstance(dims, str):
                 dims = (dims,)
             if tuple(dims) == tuple(self.dims):
+                if hasattr(factory, "parameters"):
+                    flat_mask = self.mask.values.astype(bool).ravel()
+                    for key, value in list(factory.parameters.items()):
+                        if not (
+                            hasattr(value, "create_variable") and hasattr(value, "dims")
+                        ):
+                            factory.parameters[key] = self._subset_raw_parameter(
+                                value, flat_mask
+                            )
                 factory.dims = (self.active_dim,)
 
         return factory
+
+    def _subset_raw_parameter(self, value: Any, flat_mask: np.ndarray) -> Any:
+        """Subset a raw parameter to match the active entries of the mask.
+
+        Dispatches on parameter type so that dimension-name-aware
+        ``xr.DataArray`` values are broadcast correctly (by name),
+        while plain lists / numpy arrays use positional broadcasting
+        consistent with PyMC's rightmost-dim convention.
+        """
+        if value is None or np.isscalar(value):
+            return value
+
+        if isinstance(value, xr.DataArray):
+            try:
+                broadcasted, _ = xr.broadcast(value, self.mask)
+                broadcasted = broadcasted.transpose(*self.mask.dims)
+                return broadcasted.values.ravel()[flat_mask]
+            except Exception:
+                return value
+
+        if isinstance(value, TensorVariable):
+            if value.type.ndim == 0:
+                return value
+            try:
+                broadcasted = pt.broadcast_to(value, self.mask.shape)
+                return broadcasted.ravel()[flat_mask]
+            except Exception:
+                return value
+
+        try:
+            arr = np.asarray(value)
+        except (ValueError, TypeError):
+            return value
+        if arr.ndim == 0:
+            return value
+        try:
+            broadcasted = np.broadcast_to(arr, self.mask.shape)
+        except ValueError:
+            return value
+        return broadcasted.ravel()[flat_mask]
 
     def create_variable(
         self, name: str, xdist: bool = False
@@ -702,6 +782,7 @@ class MaskedPrior:
         MaskedPrior
             Reconstructed instance.
         """
+        data = {k: v for k, v in data.items() if k != "__type__"}
         payload = data["data"] if "data" in data else data
         prior = (
             deserialize(payload["prior"])

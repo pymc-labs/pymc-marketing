@@ -23,7 +23,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -149,7 +149,7 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
     # Explicitly set model data via pm.set_data so channel_data has concrete shape,
     # matching real mmm.fit() behavior. Without this, channel_data may retain
     # symbolic shape unlike mmm.fit().
-    model._set_xarray_data(model.xarray_dataset, clone_model=False)
+    model._set_xarray_data(model.xarray_dataset, model=model.model)
 
     if random_seed is None:
         random_seed = rng
@@ -163,12 +163,8 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
             category=UserWarning,
             message="The group fit_data is not defined in the InferenceData scheme",
         )
-        idata.add_groups(
-            {
-                "posterior": idata.prior,
-                "fit_data": fit_data,
-            }
-        )
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        idata["/fit_data"] = fit_data
     model.idata = idata
     model.set_idata_attrs(idata=idata)
 
@@ -271,6 +267,36 @@ def time_varying_media_fitted_mmm(simple_mmm_data):
         adstock=GeometricAdstock(l_max=4),
         saturation=LogisticSaturation(),
         time_varying_media=True,
+    )
+
+    mock_fit(mmm, X, y)
+    mmm.post_sample_model_transformation()
+
+    return mmm
+
+
+@pytest.fixture
+def time_varying_intercept_fitted_mmm(simple_mmm_data):
+    """Create a fitted MMM with time_varying_intercept=True but time_varying_media=False.
+
+    This combination means ``time_index`` exists in the model (for the
+    HSGP intercept) but is **not** an ancestor of ``channel_contribution``.
+    It reproduces the ``UnusedInputError`` reported in GH-XXXX when the
+    incrementality code unconditionally added ``time_index`` as a compiled
+    function input.
+    """
+    X = simple_mmm_data["X"]
+    y = simple_mmm_data["y"]
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        time_varying_intercept=True,
+        time_varying_media=False,
     )
 
     mock_fit(mmm, X, y)

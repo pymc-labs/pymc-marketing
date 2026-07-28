@@ -90,7 +90,6 @@ import math
 import warnings
 from typing import Literal
 
-import arviz as az
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
@@ -108,7 +107,7 @@ class SensitivityAnalysis:
     """SensitivityAnalysis class is used to perform counterfactual analysis on MMM's."""
 
     def __init__(
-        self, pymc_model: Model, idata: az.InferenceData, dims: tuple[str, ...] = ()
+        self, pymc_model: Model, idata: xr.DataTree, dims: tuple[str, ...] = ()
     ):
         self.model = pymc_model
         self.idata = idata
@@ -117,7 +116,7 @@ class SensitivityAnalysis:
     def _compute_dims_order_from_varinput(self, var_input: str) -> list[str]:
         """Compute non-date dims order directly from the model's var_input dims.
 
-        The var_input dims convention is (date, *dims, arbitrary_last_dim_name).
+        The var_input dims convention is ``(date, *dims, arbitrary_last_dim_name)``.
         We drop any occurrence of 'date' and preserve the remaining order as-is.
         """
         var_dims = tuple(self.model.named_vars_to_dims.get(var_input, ()))
@@ -255,7 +254,7 @@ class SensitivityAnalysis:
                 # Legacy case: replace DataArray with Dataset for consistency
                 self.idata.sensitivity_analysis = dataset  # type: ignore[attr-defined]
         else:
-            self.idata.add_groups({"sensitivity_analysis": dataset})
+            self.idata["/sensitivity_analysis"] = dataset
 
     def run_sweep(
         self,
@@ -277,7 +276,7 @@ class SensitivityAnalysis:
         ----------
         var_input : str
             Name of the pm.Data variable (e.g., "channel_data").
-            Expected shape: (date, *dims, arbitrary_dim) that match var_input dims.
+            Expected shape: ``(date, *dims, arbitrary_dim)`` that match var_input dims.
         sweep_values : np.ndarray
             Values to sweep over.
         var_names : str
@@ -298,7 +297,7 @@ class SensitivityAnalysis:
         -------
         xarray.DataArray | None
             If extend_idata is False, returns an xarray.DataArray with shape
-            (sample, sweep, *dims_order), where `dims_order` are the non-date
+            ``(sample, sweep, *dims_order)``, where ``dims_order`` are the non-date
             dims of `var_input` in the same order as in the model. The response
             is averaged over the `date` axis as in the draft example. If
             extend_idata is True, stores the result under
@@ -322,8 +321,6 @@ class SensitivityAnalysis:
                 var_names=var_names,
             )
             mask = pt.tensor("mask", shape=mask_array.shape, dtype=bool)
-
-            # Have to go to tensor (.values), because we don't yet have xtensor.where
 
             # We also have to broadcast the mask_tensor because we can't currently vectorize a set_subtensor with slices
             # otherwise this would suffice: resp_graph[..., ~mask_array].set(0)

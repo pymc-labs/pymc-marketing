@@ -43,12 +43,12 @@ msgstr ""
 #: d4353d0afea84b9da758c382e3ae0269 of
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel.expected_probability_alive:6
 msgid ""
-"Adapted from page (2) in Bruce Hardie's notes [R40948b78064b-1]_, and "
-"*lifetimes* package: "
+"Adapted from page (2) in Bruce Hardie's notes [R40948b78064b-1]_, and the "
+"legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260"
 msgstr ""
-"Adaptado de la página (2) en las notas de Bruce Hardie [R40948b78064b-1]_, y"
-" del paquete *lifetimes*: "
+"Adaptado de la página (2) en las notas de Bruce Hardie [R40948b78064b-1]_, y "
+"de la biblioteca heredada ``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/beta_geo_fitter.py#L260"
 
 #: cbeb840ffd184799acf06fba07cd5bb4 of

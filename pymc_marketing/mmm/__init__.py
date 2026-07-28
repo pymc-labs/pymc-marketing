@@ -13,8 +13,12 @@
 #   limitations under the License.
 """Marketing Mix Models (MMM)."""
 
-from pymc_marketing.mmm import base, mmm, preprocessing, validating
-from pymc_marketing.mmm.base import BaseValidateMMM, MMMModelBuilder
+from pymc_marketing.mmm import preprocessing, validating
+from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
+    DataVarMuEffect,
+    MediaMuEffect,
+)
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -23,20 +27,19 @@ from pymc_marketing.mmm.components.adstock import (
     NoAdstock,
     WeibullCDFAdstock,
     WeibullPDFAdstock,
-    adstock_from_dict,
 )
 from pymc_marketing.mmm.components.saturation import (
     HillSaturation,
     HillSaturationSigmoid,
     InverseScaledLogisticSaturation,
     LogisticSaturation,
+    LogSaturation,
     MichaelisMentenSaturation,
     NoSaturation,
     RootSaturation,
     SaturationTransformation,
     TanhSaturation,
     TanhSaturationBaselined,
-    saturation_from_dict,
 )
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.hsgp import (
@@ -58,10 +61,20 @@ from pymc_marketing.mmm.media_transformation import (
     MediaConfigList,
     MediaTransformation,
 )
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.mmm import (
+    MMM,
+    BudgetOptimizerWrapper,
+)
+from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
+)
+from pymc_marketing.mmm.scaling import (
+    DataDerivedScaling,
+    FixedScaling,
+    Scaling,
+    VariableScaling,
 )
 from pymc_marketing.mmm.sensitivity_analysis import SensitivityAnalysis
 from pymc_marketing.mmm.time_slice_cross_validation import (
@@ -75,22 +88,28 @@ __all__ = [
     "HSGP",
     "MMM",
     "AdstockTransformation",
-    "BaseValidateMMM",
     "BinomialAdstock",
+    "BudgetOptimizerWrapper",
+    "ControlMuEffect",
     "CovFunc",
+    "DataDerivedScaling",
+    "DataVarMuEffect",
     "DelayedAdstock",
     "FancyLinearRegression",
+    "FixedScaling",
     "GeometricAdstock",
     "HSGPPeriodic",
     "HillSaturation",
     "HillSaturationSigmoid",
     "InverseScaledLogisticSaturation",
     "LinearTrend",
+    "LogSaturation",
     "LogisticSaturation",
     "MMMBuilder",
-    "MMMModelBuilder",
+    "MMMPlotSuiteFacade",
     "MediaConfig",
     "MediaConfigList",
+    "MediaMuEffect",
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
@@ -99,28 +118,26 @@ __all__ = [
     "PeriodicCovFunc",
     "RootSaturation",
     "SaturationTransformation",
+    "Scaling",
     "SensitivityAnalysis",
     "SoftPlusHSGP",
     "TanhSaturation",
     "TanhSaturationBaselined",
     "TimeSliceCrossValidationResult",
     "TimeSliceCrossValidator",
+    "VariableScaling",
     "WeeklyFourier",
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
-    "adstock_from_dict",
     "approx_hsgp_hyperparams",
-    "base",
     "create_complexity_penalizing_prior",
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
-    "mmm",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "saturation_from_dict",
     "validating",
     "validation_method_X",
     "validation_method_y",

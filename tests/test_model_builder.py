@@ -17,8 +17,8 @@ import os
 import re
 import sys
 import tempfile
+from pathlib import Path
 
-import arviz as az
 import graphviz
 import numpy as np
 import pandas as pd
@@ -27,13 +27,13 @@ import pytest
 import xarray as xr
 from rich.table import Table
 
+from pymc_marketing.data.idata.utils import idata_from_zarr
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.model_builder import (
     DifferentModelError,
     ModelBuilder,
     ModelIO,
     RegressionModelBuilder,
-    _handle_deprecate_pred_argument,
     create_sample_kwargs,
 )
 
@@ -222,7 +222,7 @@ class ModelBuilderTest(ModelBuilder):
             # Very simple model to avoid compilation issues
             pm.Normal("test", 0, 1)
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         self.build_model()
 
     def create_idata_attrs(self):
@@ -247,6 +247,10 @@ class ModelBuilderTest(ModelBuilder):
             "target_accept": 0.95,
         }
 
+    @property
+    def output_var(self) -> str:
+        return "output"
+
     def fit(self, **kwargs):
         """Override fit method for ModelBuilderTest."""
         if not hasattr(self, "model"):
@@ -262,8 +266,7 @@ class ModelBuilderTest(ModelBuilder):
             idata = pm.sample(**sampler_kwargs)
 
         if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
@@ -291,6 +294,38 @@ def test_model_configuration(model_class, expected_type, test_config):
     assert nondefault.sampler_config != nondefault.default_sampler_config
     assert nondefault.model_config == default.model_config | test_config
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+
+
+def test_model_config_warns_on_unused_keys():
+    """Unknown model_config keys should warn so typos are not silently ignored."""
+    with pytest.warns(UserWarning, match="not used by the model"):
+        ModelBuilderTest(model_config={"mu_loc": 5, "typo_key": 1})
+
+
+def test_model_config_no_warning_for_valid_keys(recwarn):
+    """No unused-key warning is raised when every key is a valid default key."""
+    ModelBuilderTest(model_config={"mu_loc": 5})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_no_warning_for_skipped_keys(recwarn):
+    """No unused-key warning for keys listed in _skipped_config_keys."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a", "extra_b"}
+
+    SkippedKeysModel(model_config={"extra_a": 1, "extra_b": 2})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_warns_on_non_skipped_keys():
+    """Keys not in defaults or _skipped_config_keys still warn."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a"}
+
+    with pytest.warns(UserWarning, match="not used by the model"):
+        SkippedKeysModel(model_config={"extra_a": 1, "typo_key": 2})
 
 
 @pytest.mark.parametrize(
@@ -364,7 +399,7 @@ def test_model_io_comprehensive():
     fake_idata = pm.sample_prior_predictive(
         draws=10, model=simple_model, random_seed=1234
     )
-    fake_idata.add_groups(dict(posterior=fake_idata.prior))
+    fake_idata["/posterior"] = fake_idata["/prior"].to_dataset()
 
     result_idata = regression_model.set_idata_attrs(fake_idata)
     assert result_idata.attrs["id"] == regression_model.id
@@ -377,41 +412,18 @@ def test_model_io_comprehensive():
 
 
 @pytest.mark.parametrize(
-    "method_name,deprecated_arg,additional_kwargs",
-    [
-        ("sample_posterior_predictive", "X_pred", {}),
-        ("predict", "X_pred", {}),
-        ("sample_prior_predictive", "X_pred", {}),
-        (
-            "sample_prior_predictive",
-            "y_pred",
-            {"X": pd.DataFrame({"input": [1, 2, 3]})},
-        ),
-    ],
+    "method_name",
+    ["sample_prior_predictive", "sample_posterior_predictive", "predict_posterior"],
 )
-def test_deprecation_warnings(
-    fitted_regression_model_instance,
-    toy_X,
-    toy_y,
-    method_name,
-    deprecated_arg,
-    additional_kwargs,
+def test_pred_alias_no_longer_accepted(
+    fitted_regression_model_instance, toy_X, method_name
 ):
-    """Test deprecation warnings for various methods."""
-    # Clear any existing data that might interfere
-    if "posterior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.posterior_predictive
-    if "prior" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior
-    if "prior_predictive" in fitted_regression_model_instance.idata:
-        del fitted_regression_model_instance.idata.prior_predictive
-
-    with pytest.warns(DeprecationWarning, match=f"{deprecated_arg} is deprecated"):
-        method = getattr(fitted_regression_model_instance, method_name)
-        if deprecated_arg == "y_pred":
-            method(**additional_kwargs, **{deprecated_arg: toy_y})
-        else:
-            method(**additional_kwargs, **{deprecated_arg: toy_X})
+    """X_pred used to be a deprecated alias for X. After deprecation removal,
+    X is a required positional argument, so passing only X_pred raises TypeError.
+    """
+    method = getattr(fitted_regression_model_instance, method_name)
+    with pytest.raises(TypeError, match=r"missing 1 required positional argument: 'X'"):
+        method(X_pred=toy_X)
 
 
 def test_data_validation_comprehensive():
@@ -526,36 +538,6 @@ def test_idata_accessors_comprehensive():
         model.fit_result
 
 
-def test_handle_deprecate_pred_argument():
-    """Test the _handle_deprecate_pred_argument utility function."""
-    kwargs = {}
-
-    # Test normal case
-    result = _handle_deprecate_pred_argument("test_value", "test", kwargs)
-    assert result == "test_value"
-
-    # Test deprecated argument
-    kwargs = {"test_pred": "deprecated_value"}
-    with pytest.warns(DeprecationWarning, match="test_pred is deprecated"):
-        result = _handle_deprecate_pred_argument(None, "test", kwargs)
-    assert result == "deprecated_value"
-    assert "test_pred" not in kwargs  # Should be removed
-
-    # Test both arguments provided
-    kwargs = {"test_pred": "deprecated_value"}
-    with pytest.raises(ValueError, match=r"Both test and test_pred cannot be provided"):
-        _handle_deprecate_pred_argument("test_value", "test", kwargs)
-
-    # Test none allowed (without deprecated argument)
-    kwargs = {}
-    result = _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=True)
-    assert result is None
-
-    # Test none not allowed
-    with pytest.raises(ValueError, match=r"Please provide test"):
-        _handle_deprecate_pred_argument(None, "test", kwargs, none_allowed=False)
-
-
 def test_save_input_params(fitted_regression_model_instance):
     assert (
         fitted_regression_model_instance.idata.attrs["test_parameter"]
@@ -574,7 +556,9 @@ def test_base_model_save_load(fitted_base_model_instance):
 
     test_builder2 = ModelBuilderTest.load(temp.name)
 
-    assert fitted_base_model_instance.idata.groups() == test_builder2.idata.groups()
+    assert set(fitted_base_model_instance.idata.groups) == set(
+        test_builder2.idata.groups
+    )
     assert fitted_base_model_instance.id == test_builder2.id
     assert fitted_base_model_instance.model_config == test_builder2.model_config
     assert fitted_base_model_instance.sampler_config == test_builder2.sampler_config
@@ -586,7 +570,7 @@ def test_initial_build_and_fit(
 ) -> RegressionModelBuilder:
     if check_idata:
         assert fitted_regression_model_instance.idata is not None
-        assert "posterior" in fitted_regression_model_instance.idata.groups()
+        assert "/posterior" in fitted_regression_model_instance.idata.groups
 
 
 def test_save_with_kwargs(fitted_regression_model_instance):
@@ -598,8 +582,9 @@ def test_save_with_kwargs(fitted_regression_model_instance):
     ) as mock_to_netcdf:
         temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
 
-        # Test with kwargs supported by InferenceData.to_netcdf()
-        kwargs = {"engine": "netcdf4", "groups": ["posterior", "log_likelihood"]}
+        # groups is handled by save() (filters DataTree before saving)
+        # and not passed through to to_netcdf
+        kwargs = {"engine": "netcdf4"}
 
         fitted_regression_model_instance.save(temp.name, **kwargs)
 
@@ -608,32 +593,32 @@ def test_save_with_kwargs(fitted_regression_model_instance):
         temp.close()
 
 
-def test_save_with_kwargs_integration(fitted_regression_model_instance):
+@pytest.mark.parametrize("path_factory", [str, Path], ids=["str", "path"])
+@pytest.mark.parametrize("suffix", [".nc", ".zarr"], ids=["netcdf", "zarr"])
+def test_save_with_kwargs_integration(
+    fitted_regression_model_instance, tmp_path, path_factory, suffix
+):
     """Test save function with actual kwargs (integration test)"""
 
-    temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
-    temp_path = temp.name
-    temp.close()
+    file_path = tmp_path / f"model_results{suffix}"
+    path_arg = path_factory(file_path)
 
-    try:
-        # Test with specific groups - this tests that kwargs are passed through
-        fitted_regression_model_instance.save(temp_path, groups=["posterior"])
+    # Test with specific groups - this tests that kwargs are passed through
+    fitted_regression_model_instance.save(path_arg, groups=["posterior"])
 
-        # Verify file was created successfully
-        assert os.path.exists(temp_path)
+    # Verify file was created successfully
+    assert file_path.exists()
 
-        # Verify we can read the file and it contains the expected groups
-        from pymc_marketing.utils import from_netcdf
+    # Verify we can read the file and it contains the expected groups
+    if suffix == ".zarr":
+        loaded_idata = idata_from_zarr(path_arg)
+    else:
+        loaded_idata = xr.open_datatree(str(file_path))
 
-        loaded_idata = from_netcdf(temp_path)
-        assert "posterior" in loaded_idata.groups()
-        # Should only have posterior since we specified groups=["posterior"]
-        assert "fit_data" not in loaded_idata.groups()
-
-    finally:
-        # Clean up
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
+    assert loaded_idata is not None
+    assert "/posterior" in loaded_idata.groups
+    # Should only have posterior since we specified groups=["posterior"]
+    assert "/fit_data" not in loaded_idata.groups
 
 
 def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
@@ -650,7 +635,7 @@ def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
         assert os.path.exists(temp_path)
         loaded_model = RegressionModelBuilderTest.load(temp_path)
         assert loaded_model.idata is not None
-        assert "posterior" in loaded_model.idata.groups()
+        assert "/posterior" in loaded_model.idata.groups
 
     finally:
         # Clean up
@@ -665,13 +650,13 @@ def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
         X=toy_X, y=toy_y, chains=1, draws=100, tune=100
     )
     assert model_builder.idata is not None
-    assert "posterior" in model_builder.idata.groups()
+    assert "/posterior" in model_builder.idata.groups
 
 
 def test_fit(fitted_regression_model_instance):
     rng = np.random.default_rng(42)
     assert fitted_regression_model_instance.idata is not None
-    assert "posterior" in fitted_regression_model_instance.idata.groups()
+    assert "/posterior" in fitted_regression_model_instance.idata.groups
     assert fitted_regression_model_instance.idata.posterior.sizes["draw"] == 100
 
     prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
@@ -690,7 +675,7 @@ def test_fit_no_t(toy_X, mock_pymc_sample):
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
     assert model_builder.idata is not None
-    assert "posterior" in model_builder.idata.groups()
+    assert "/posterior" in model_builder.idata.groups
 
 
 def test_set_fit_result(toy_X, toy_y):
@@ -698,7 +683,7 @@ def test_set_fit_result(toy_X, toy_y):
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=1234)
-    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     model.fit_result = fake_fit
     with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
         model.fit_result = fake_fit
@@ -773,7 +758,7 @@ def test_sample_xxx_predictive_keeps_second(
     with pytest.raises(AssertionError):
         xr.testing.assert_allclose(first_sample, second_sample)
 
-    sample = getattr(fitted_regression_model_instance.idata, name)
+    sample = getattr(fitted_regression_model_instance, name)
     xr.testing.assert_allclose(sample, second_sample)
 
 
@@ -808,6 +793,28 @@ def test_sample_prior_predictive_has_pymc_marketing_version(
     assert (
         "pymc_marketing_version" in model_with_prior_predictive.prior_predictive.attrs
     )
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_prior_predictive_returns_dataset_with_attrs(toy_X, combined):
+    model = RegressionModelBuilderTest()
+    result = model.sample_prior_predictive(toy_X, combined=combined)
+    assert isinstance(result, xr.Dataset)
+    assert "pymc_marketing_version" in result.attrs
+    assert "inference_library" in result.attrs
+    assert "inference_library_version" in result.attrs
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_posterior_predictive_returns_dataset_with_attrs(
+    fitted_regression_model_instance, toy_X, combined
+):
+    result = fitted_regression_model_instance.sample_posterior_predictive(
+        toy_X, combined=combined, extend_idata=False
+    )
+    assert isinstance(result, xr.Dataset)
+    assert "inference_library" in result.attrs
+    assert "inference_library_version" in result.attrs
 
 
 def test_fit_after_prior_keeps_prior(
@@ -1029,7 +1036,7 @@ def test_fit_sampler_config_with_rng(toy_X, toy_y, mock_pymc_sample) -> None:
     model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
     idata = model.fit(toy_X, toy_y)
-    assert isinstance(idata, az.InferenceData)
+    assert isinstance(idata, xr.DataTree)
 
 
 def test_unmatched_index(toy_X, toy_y) -> None:
@@ -1055,14 +1062,14 @@ def test_approximate_fit_variational(toy_X, toy_y) -> None:
     )
 
     assert idata is not None
-    assert "posterior" in idata.groups()
+    assert "/posterior" in idata.groups
     assert idata.posterior.sizes["draw"] == 20
     assert idata.posterior.sizes["chain"] == 1
     assert "fit_data" in idata
 
 
 @pytest.fixture(scope="module")
-def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
+def stale_idata(fitted_regression_model_instance) -> xr.DataTree:
     idata = fitted_regression_model_instance.idata.copy()
     idata.attrs["version"] = "0.0.1"
 
@@ -1070,7 +1077,7 @@ def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
 
 
 @pytest.fixture(scope="module")
-def different_configuration_idata(fitted_regression_model_instance) -> az.InferenceData:
+def different_configuration_idata(fitted_regression_model_instance) -> xr.DataTree:
     idata = fitted_regression_model_instance.idata.copy()
 
     model_config = json.loads(idata.attrs["model_config"])
@@ -1179,7 +1186,7 @@ def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) 
     model.fit(X, xarray_y)
 
     xr.testing.assert_equal(
-        model.idata.fit_data,  # type: ignore
+        model.idata.fit_data.to_dataset(),
         pd.DataFrame(
             {
                 "x": [1, 2, 3, 4],
@@ -1253,13 +1260,24 @@ def test_load_from_idata_check_false(fitted_regression_model_instance):
     assert isinstance(model, RegressionModelBuilderTest)
 
 
+def test_load_from_idata_without_fit_data_warns(fitted_regression_model_instance):
+    idata = fitted_regression_model_instance.idata.copy()
+    assert "fit_data" in idata
+    del idata["fit_data"]
+    with pytest.warns(UserWarning, match="fit_data used for training"):
+        model = RegressionModelBuilderTest.load_from_idata(idata)
+    assert isinstance(model, RegressionModelBuilderTest)
+    assert model.idata is idata
+    assert not hasattr(model, "model")
+
+
 def test_fit_result_setter_else_branch():
     """Covers line 707: else branch in fit_result setter."""
     model = RegressionModelBuilderTest()
     # Create idata with no 'posterior'
-    import arviz as az
-
-    idata = az.from_dict(prior={"a": np.ones((1, 1, 1))})
+    idata = xr.DataTree.from_dict(
+        {"/prior": xr.Dataset({"a": (("chain", "draw", "dim_2"), np.ones((1, 1, 1)))})}
+    )
     model.idata = idata
     model.fit_result = idata
     assert hasattr(model.idata, "posterior")
@@ -1298,3 +1316,109 @@ def test_predict_posterior_keyerror_output_var_missing():
     model.sample_posterior_predictive = lambda *a, **k: {"not_output": np.ones(3)}
     with pytest.raises(KeyError):
         model.predict_posterior(pd.DataFrame({"input": [1, 2, 3]}))
+
+
+class TestJsonDefaultRegistryDispatch:
+    """Verify _json_default tries serialization.serialize() before duck-typing."""
+
+    def test_registered_type_serialized_via_registry(self):
+        """A type registered in TypeRegistry should serialize with __type__ key."""
+        from pymc_marketing.serialization import serialization
+
+        @serialization.register
+        class _DummyRegistered:
+            def to_dict(self):
+                return {
+                    "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+                    "value": 42,
+                }
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls()
+
+        class FakeModel:
+            _model_type = "test"
+            version = "0.0.1"
+            sampler_config = {}
+            id = "test123"
+
+            @property
+            def _serializable_model_config(self):
+                return {"component": _DummyRegistered()}
+
+        model = FakeModel()
+        attrs = ModelIO.create_idata_attrs(model)
+        config = json.loads(attrs["model_config"])
+        assert "__type__" in config["component"]
+
+    def test_unregistered_type_falls_through(self):
+        """An unregistered type with to_dict() still works via duck-typing fallback."""
+
+        class _UnregisteredWithToDict:
+            def to_dict(self):
+                return {"value": 99}
+
+        class FakeModel:
+            _model_type = "test"
+            version = "0.0.1"
+            sampler_config = {}
+            id = "test123"
+
+            @property
+            def _serializable_model_config(self):
+                return {"component": _UnregisteredWithToDict()}
+
+        model = FakeModel()
+        attrs = ModelIO.create_idata_attrs(model)
+        config = json.loads(attrs["model_config"])
+        assert config["component"] == {"value": 99}
+        assert "__type__" not in config["component"]
+
+
+class TestModelConfigFormattingTypeDetection:
+    """Verify _model_config_formatting routes __type__ dicts through serialization."""
+
+    def test_type_key_deserialized_via_registry(self):
+        """A dict with __type__ key should be deserialized via serialization."""
+        from pymc_marketing.serialization import serialization
+
+        @serialization.register
+        class _DummyConfigType:
+            def __init__(self, value=42):
+                self.value = value
+
+            def to_dict(self):
+                return {
+                    "__type__": f"{self.__class__.__module__}.{self.__class__.__qualname__}",
+                    "value": self.value,
+                }
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls(value=data.get("value", 42))
+
+        model_config = {
+            "component": {
+                "__type__": f"{_DummyConfigType.__module__}.{_DummyConfigType.__qualname__}",
+                "value": 42,
+            }
+        }
+        result = ModelIO._model_config_formatting(model_config)
+        assert isinstance(result["component"], _DummyConfigType)
+        assert result["component"].value == 42
+
+    def test_legacy_dict_without_type_key_unchanged(self):
+        """A dict without __type__ follows the existing list->tuple/array heuristic."""
+        model_config = {
+            "intercept": {"mu": 0, "sigma": 1, "dims": ["date"]},
+        }
+        result = ModelIO._model_config_formatting(model_config)
+        assert isinstance(result["intercept"]["dims"], tuple)
+        assert result["intercept"]["dims"] == ("date",)
+
+    def test_plain_scalars_unchanged(self):
+        """Non-dict values pass through unchanged."""
+        model_config = {"n_obs": 100, "name": "test"}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result == {"n_obs": 100, "name": "test"}

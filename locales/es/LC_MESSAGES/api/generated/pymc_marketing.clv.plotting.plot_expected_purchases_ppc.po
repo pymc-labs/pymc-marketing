@@ -46,7 +46,7 @@ msgstr ""
 #: bff895fbd6fe450386da947c0a815c06 of
 #: pymc_marketing.clv.plotting.plot_expected_purchases_ppc:6
 msgid ""
-"Adapted from legacy ``lifetimes`` library: "
+"Adapted from the legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/master/lifetimes/plotting.py#L25"
 msgstr ""
 "Adaptado de la biblioteca heredada ``lifetimes``: "

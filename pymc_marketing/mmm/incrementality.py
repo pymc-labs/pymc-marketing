@@ -127,7 +127,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytensor.xtensor as ptx
@@ -135,6 +134,7 @@ import xarray as xr
 from pandas.tseries.offsets import BaseOffset
 from pydantic import ConfigDict, validate_call
 from pytensor import function
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
@@ -145,7 +145,7 @@ from pymc_marketing.pytensor_utils import extract_response_distribution
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
 
-    from pymc_marketing.mmm.multidimensional import MMM
+    from pymc_marketing.mmm.mmm import MMM
 
 
 class Incrementality:
@@ -161,19 +161,17 @@ class Incrementality:
     ----------
     model : MMM
         Fitted MMM model instance.
-    idata : az.InferenceData, optional
+    idata : xr.DataTree, optional
         InferenceData containing posterior samples and fit data.
-        Mutually exclusive with ``data``.
-    data : MMMIDataWrapper, optional
-        Pre-built data wrapper. When provided, ``idata`` is taken from
-        ``data.idata`` and no re-wrapping occurs.
-        Mutually exclusive with ``idata``.
+        If not provided, uses the incrementality test result data. Default is None.
+    frozen_deterministics : dict[str, str], optional
+        Mapping of deterministic variable names to group names for freezing.
+        Variables in this dict will have their values frozen during
+        counterfactual simulations. Default is empty dict.
 
     Attributes
     ----------
-    model : MMM
-        The fitted MMM model.
-    idata : az.InferenceData
+    idata : xr.DataTree
         Posterior samples and fit data.
     data : MMMIDataWrapper
         Data wrapper for accessing model data.
@@ -193,7 +191,7 @@ class Incrementality:
     def __init__(
         self,
         model: MMM,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         data: MMMIDataWrapper | None = None,
     ):
         if idata is not None and data is not None:
@@ -350,16 +348,20 @@ class Incrementality:
 
         # Subsample posterior if needed (correctly across chain x draw)
         posterior_sub = subsample_draws(
-            self.idata.posterior, num_samples=num_samples, random_state=random_state
+            self.idata.posterior.dataset,
+            num_samples=num_samples,
+            random_state=random_state,
         )
         n_chains = posterior_sub.sizes["chain"]
         n_draws = posterior_sub.sizes["draw"]
 
         # Extract response distribution (batched over samples)
+        posterior_predictive_model = self.model.model
         response_graph = extract_response_distribution(
-            pymc_model=self.model.model,
-            idata=az.InferenceData(posterior=posterior_sub),
+            pymc_model=posterior_predictive_model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior_sub}),
             response_variable="channel_contribution",
+            frozen_deterministics=self.model.frozen_deterministics,
         )
         # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
 
@@ -381,7 +383,7 @@ class Incrementality:
         # Compile vectorized evaluator (once, reused for both)
         # Use float64 for evaluation to avoid integer truncation when
         # counterfactual_spend_factor produces fractional values (e.g. 1.01).
-        data_shared = self.model.model["channel_data"]
+        data_shared = posterior_predictive_model["channel_data"]
         data_dtype = data_shared.dtype
         if np.dtype(data_dtype).kind != "f":
             raise ValueError(
@@ -396,14 +398,17 @@ class Incrementality:
         replace_dict: dict = {data_shared: batched_input}
         func_inputs: list = [batched_input]
 
-        # When time_varying_media (or time_varying_intercept) is enabled,
-        # the response graph contains HSGP-based latent variables that
-        # depend on the ``time_index`` shared variable (shape n_dates).
-        # We must replace it alongside ``channel_data`` so that both
-        # tensors have a consistent date dimension (max_window).
-        has_time_index = "time_index" in self.model.model.named_vars
+        # When time_varying_media is enabled the response graph contains
+        # HSGP-based latent variables that depend on ``time_index``.
+        # We only replace it when the response graph *actually* depends on
+        # ``time_index``; otherwise it is unused (e.g. time_varying_intercept
+        # without time_varying_media) and would trigger an UnusedInputError.
+        has_time_index = (
+            "time_index" in posterior_predictive_model.named_vars
+            and posterior_predictive_model["time_index"] in ancestors([response_graph])
+        )
         if has_time_index:
-            time_shared = self.model.model["time_index"]
+            time_shared = posterior_predictive_model["time_index"]
             batched_time = ptx.xtensor(
                 name="time_index_batched",
                 dtype=time_shared.dtype,
@@ -432,7 +437,9 @@ class Incrementality:
         # variable. The PyTensor graph preserves the model's dim order, which
         # may have custom dims (e.g. "country") before "channel".
         cc_dims = list(
-            self.model.model.named_vars_to_dims.get("channel_contribution", ())
+            posterior_predictive_model.named_vars_to_dims.get(
+                "channel_contribution", ()
+            )
         )
         non_date_dims = [d for d in cc_dims if d != "date"]
         extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)

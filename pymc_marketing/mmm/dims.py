@@ -13,8 +13,6 @@
 #   limitations under the License.
 """Dims related functionality."""
 
-from typing import TypeAlias
-
 from pytensor.graph.replace import _vectorize_node
 from pytensor.tensor import TensorLike
 from pytensor.tensor.shape import Shape_i, shape_i
@@ -22,7 +20,7 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 # TODO: This will eventually exist in PyTensor or PyMC, remove then
-XTensorLike: TypeAlias = TensorLike | XTensorVariable | DataArray
+type XTensorLike = TensorLike | XTensorVariable | DataArray
 
 
 @_vectorize_node.register(Shape_i)
@@ -32,6 +30,8 @@ def _vectorize_shape_i(op: Shape_i, node, batched_x):
     [old_x] = node.inputs
     core_ndims = old_x.type.ndim
     batch_ndims = batched_x.type.ndim - core_ndims
+    if isinstance(batched_x, XTensorVariable):
+        batched_x = batched_x.values
     batched_x_shape_i = shape_i(batched_x, op.i + batch_ndims)
     if not batch_ndims:
         return [batched_x_shape_i]

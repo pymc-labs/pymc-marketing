@@ -45,10 +45,10 @@ msgstr ""
 #: 588a64b6afc54f54af177be6a5ab572f of
 #: pymc_marketing.clv.utils.customer_lifetime_value:8
 msgid ""
-"Adapted from lifetimes package "
+"Adapted from the legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449"
 msgstr ""
-"Adaptado del paquete lifetimes "
+"Adaptado de la biblioteca heredada ``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449"
 
 #: ee11f065d3d04d7592e1738a549bd0dc of

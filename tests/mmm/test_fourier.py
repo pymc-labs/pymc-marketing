@@ -21,7 +21,6 @@ import pytest
 import xarray as xr
 from pymc_extras.deserialize import (
     DESERIALIZERS,
-    deserialize,
     register_deserialization,
 )
 from pymc_extras.prior import Prior
@@ -34,6 +33,7 @@ from pymc_marketing.mmm.fourier import (
     YearlyFourier,
     generate_fourier_modes,
 )
+from pymc_marketing.serialization import serialization as type_registry
 
 
 @pytest.mark.parametrize(
@@ -653,6 +653,7 @@ def test_fourier_serializable_arbitrary_prior() -> None:
 def test_fourier_to_dict(name, cls, days_in_period) -> None:
     fourier = cls(n_order=4)
     assert fourier.to_dict() == {
+        "__type__": f"{cls.__module__}.{cls.__qualname__}",
         "class": name,
         "data": {
             "n_order": 4,
@@ -697,10 +698,47 @@ def test_fourier_deserialization(serialization, name, cls) -> None:
             "prior": {"dims": ["fourier"], "msg": "Hello, World!"},
         },
     }
-    fourier = deserialize(data)
+    fourier = cls.from_dict(data)
 
     assert isinstance(fourier, cls)
     assert fourier.n_order == 4
     assert fourier.prefix == "fourier"
     assert fourier.variable_name == "fourier_beta"
     assert isinstance(fourier.prior, SerializableArbitraryCode)
+
+
+class TestFourierRoundtrips:
+    @pytest.mark.parametrize(
+        "cls_name",
+        ["YearlyFourier", "MonthlyFourier", "WeeklyFourier"],
+    )
+    def test_fourier_roundtrip_all_parameters(self, cls_name):
+        import pymc_marketing.mmm.fourier as fourier_mod
+
+        cls = getattr(fourier_mod, cls_name)
+        original = cls(
+            n_order=5,
+            prefix="custom_fourier",
+            prior=Prior("Laplace", mu=0.5, b=2.0),
+        )
+        data = type_registry.serialize(original)
+        restored = type_registry.deserialize(data)
+
+        assert type(restored) is cls
+        assert restored.n_order == 5
+        assert restored.prefix == "custom_fourier"
+        assert restored.days_in_period == cls(n_order=1).days_in_period
+        assert restored == original
+
+
+@pytest.mark.parametrize(
+    "type_key",
+    [
+        "pymc_marketing.mmm.fourier.YearlyFourier",
+        "pymc_marketing.mmm.fourier.MonthlyFourier",
+        "pymc_marketing.mmm.fourier.WeeklyFourier",
+    ],
+    ids=lambda s: s.rsplit(".", 1)[-1],
+)
+def test_fourier_type_registered(type_key):
+    assert type_key in type_registry._registry, f"{type_key} not registered"

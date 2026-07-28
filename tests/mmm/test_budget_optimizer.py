@@ -13,7 +13,6 @@
 #   limitations under the License.
 from unittest.mock import patch
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -39,7 +38,6 @@ from pymc_marketing.mmm.utility import _check_samples_dimensionality
 @pytest.fixture(scope="module")
 def dummy_df():
     n = 10
-    # Data is not needed for optimization of this model
     df = pd.DataFrame(
         data={
             "date_week": pd.date_range(start=pd.Timestamp.today(), periods=n, freq="W"),
@@ -51,7 +49,7 @@ def dummy_df():
         }
     )
 
-    y = np.ones(n)
+    y = pd.Series(np.ones(n), name="y")
 
     df_kwargs = {
         "date_column": "date_week",
@@ -63,33 +61,80 @@ def dummy_df():
 
 
 @pytest.fixture(scope="module")
-def dummy_idata(dummy_df) -> az.InferenceData:
+def dummy_idata(dummy_df) -> xr.DataTree:
     df_kwargs, _df, _y = dummy_df
 
-    return az.from_dict(
-        posterior={
-            "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
-            "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
-            "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
-            "channel_contribution": np.array(
-                [
-                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
-                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
-                ]
-            ),  # dims: chain, draw, channel, date
-        },
-        coords={
-            "chain": [0, 1],
-            "draw": [0, 1],
-            "channel": df_kwargs["channel_columns"],
-            "date": [0, 1],
-        },
-        dims={
-            "saturation_lam": ["chain", "draw", "channel"],
-            "saturation_beta": ["chain", "draw", "channel"],
-            "adstock_alpha": ["chain", "draw", "channel"],
-            "channel_contribution": ["chain", "draw", "channel", "date"],
-        },
+    channels = df_kwargs["channel_columns"]
+    chain_coord = [0, 1]
+    draw_coord = [0, 1]
+    date_coord = [0, 1]
+
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "saturation_lam": xr.DataArray(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "saturation_beta": xr.DataArray(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "adstock_alpha": xr.DataArray(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.array(
+                            [
+                                [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                                [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                            ]
+                        ),
+                        dims=["chain", "draw", "channel", "date"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                            "date": date_coord,
+                        },
+                    ),
+                }
+            ),
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def mmm_wrapper(dummy_df, dummy_idata) -> CustomModelWrapper:
+    """Build an MMM, then wrap it for the BudgetOptimizer protocol."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    return CustomModelWrapper(
+        base_model=mmm.model,
+        idata=dummy_idata,
+        channels=df_kwargs["channel_columns"],
     )
 
 
@@ -122,8 +167,8 @@ def dummy_idata(dummy_df) -> az.InferenceData:
                 ),  # dims: chain, draw, channel, date
             },
             None,
-            {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
-            48.8,
+            {"channel_1": 58.97600120944057, "channel_2": 41.02399879055943},
+            44.94,
         ),
         # set x0 manually
         (
@@ -152,8 +197,8 @@ def dummy_idata(dummy_df) -> az.InferenceData:
                 ),  # dims: chain, draw, channel, date
             },
             None,
-            {"channel_1": 54.78357587906867, "channel_2": 45.21642412093133},
-            48.8,
+            {"channel_1": 58.97600120944057, "channel_2": 41.02399879055943},
+            44.94,
         ),
         # custom minimize kwargs
         (
@@ -190,7 +235,7 @@ def dummy_idata(dummy_df) -> az.InferenceData:
                 "options": {"ftol": 1e-8, "maxiter": 1_002},
             },
             {"channel_1": 50.0, "channel_2": 50.0},
-            48.8,
+            44.92,
         ),
         # Zero budget case
         (
@@ -224,8 +269,8 @@ def dummy_idata(dummy_df) -> az.InferenceData:
                 ),  # dims: chain, draw, channel, date
             },
             None,
-            {"channel_1": 0.0, "channel_2": 7.94e-13},
-            2.38e-10,
+            {"channel_1": 0.0, "channel_2": 0.0},
+            0.0,
         ),
     ],
     ids=[
@@ -243,28 +288,20 @@ def test_allocate_budget(
     minimize_kwargs,
     expected_optimal,
     expected_response,
-    dummy_df,
-    dummy_idata,
+    mmm_wrapper,
 ):
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    """Regression test for the post-migration optimization target.
 
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
+    The old MMM tests optimized ``total_contribution`` (scaled and including
+    non-media effects such as intercept). The multidimensional path now
+    optimizes ``total_media_contribution_original_scale`` (media-only, original
+    units), so the expected allocation/response values intentionally differ.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
     )
-
-    mmm.build_model(X=X_dummy, y=y_dummy)
-
-    mmm.idata = dummy_idata
-
-    # Create BudgetOptimizer Instance
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm,
-            num_periods=30,
-        )
 
     # Allocate Budget
     optimal_budgets, optimization_res = optimizer.allocate_budget(
@@ -281,26 +318,134 @@ def test_allocate_budget(
     assert -optimization_res.fun == pytest.approx(expected_response, abs=1e-2, rel=1e-2)
 
 
+def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
+    """An unknown ``response_variable`` must raise a clear error listing the
+    posterior variables available on the wrapped model."""
+    with pytest.raises(ValueError, match=r"response_variable.*does_not_exist"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="does_not_exist",
+        )
+
+
+def test_empty_constraints_auto_adds_default(mmm_wrapper):
+    """Empty ``constraints`` should auto-add the default sum constraint."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert "default" in optimizer._constraints
+
+
+def test_non_empty_constraints_skips_default(mmm_wrapper):
+    """A non-empty ``constraints`` means the caller is in charge: no default."""
+    custom = [
+        Constraint(
+            key="cap",
+            constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                budgets_sym.sum() - total_budget_sym
+            ),
+            constraint_type="eq",
+        )
+    ]
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=custom,
+    )
+    assert "default" not in optimizer._constraints
+    assert "cap" in optimizer._constraints
+
+
+def test_constraint_instance_round_trips_into_constraints(mmm_wrapper):
+    """A ``Constraint`` passed via ``constraints`` lands in ``_constraints`` by key."""
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="ineq",
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[cap],
+    )
+    # Stored object is the same instance, not a copy.
+    assert optimizer._constraints["cap"] is cap
+
+
+def test_constraints_empty_list_matches_default(mmm_wrapper):
+    """An explicit empty list behaves like the default empty tuple."""
+    opt_default = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    opt_empty_list = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[],
+    )
+    assert (
+        set(opt_default._constraints) == set(opt_empty_list._constraints) == {"default"}
+    )
+
+
+def test_set_constraints_is_reentrant(mmm_wrapper):
+    """Re-calling ``set_constraints`` clears prior state and recompiles."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert set(optimizer._constraints) == {"default"}
+
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="ineq",
+    )
+    optimizer.set_constraints([cap])
+
+    # Old "default" is gone, only the new constraint remains, recompiled.
+    assert set(optimizer._constraints) == {"cap"}
+    assert len(optimizer._compiled_constraints) == 1
+
+
+def test_duplicate_constraint_keys_raise(mmm_wrapper):
+    """Two constraints sharing a key must raise, not silently clobber."""
+    fun = lambda budgets_sym, total_budget_sym, optimizer: budgets_sym.sum()  # noqa: E731
+    dup = [
+        Constraint(key="cap", constraint_fun=fun, constraint_type="ineq"),
+        Constraint(key="cap", constraint_fun=fun, constraint_type="ineq"),
+    ]
+    with pytest.raises(ValueError, match="Duplicate constraint key"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            constraints=dup,
+        )
+
+
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
 def test_allocate_budget_custom_minimize_args(
-    minimize_mock, dummy_df, dummy_idata
+    minimize_mock,
+    mmm_wrapper,
 ) -> None:
-    df_kwargs, X_dummy, y_dummy = dummy_df
-
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
     )
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm,
-            num_periods=30,
-        )
 
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
@@ -325,7 +470,7 @@ def test_allocate_budget_custom_minimize_args(
 
 
 @pytest.mark.parametrize(
-    "total_budget, budget_bounds, parameters, custom_constraints",
+    "total_budget, budget_bounds, parameters, constraints",
     [
         (
             100,
@@ -364,31 +509,19 @@ def test_allocate_budget_custom_minimize_args(
     ],
 )
 def test_allocate_budget_infeasible_constraints(
-    total_budget, budget_bounds, parameters, custom_constraints, dummy_df, dummy_idata
+    total_budget,
+    budget_bounds,
+    parameters,
+    constraints,
+    mmm_wrapper,
 ):
-    df_kwargs, X_dummy, y_dummy = dummy_df
-
-    # Define the MMM model
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-    mmm.build_model(X=X_dummy, y=y_dummy)
-
-    # Load necessary parameters into the model
-    mmm.idata = dummy_idata
-
-    # Instantiate BudgetOptimizer with custom constraints
     optimizer = BudgetOptimizer(
-        model=mmm,
-        response_variable="total_contribution",
-        default_constraints=False,  # Avoid default equality constraints
-        custom_constraints=custom_constraints,
+        model=mmm_wrapper,
+        response_variable="total_media_contribution_original_scale",
+        constraints=constraints,
         num_periods=30,
     )
 
-    # Ensure optimization raises MinimizeException due to infeasible constraints
     with pytest.raises(MinimizeException, match=r"Optimization failed"):
         optimizer.allocate_budget(total_budget, budget_bounds)
 
@@ -400,7 +533,9 @@ def mean_response_eq_constraint_fun(
     Enforces mean_response(budgets_sym) = target_response,
     i.e. returns (mean_resp - target_response).
     """
-    resp_dist = optimizer.extract_response_distribution("total_contribution")
+    resp_dist = optimizer.extract_response_distribution(
+        "total_media_contribution_original_scale"
+    )
     mean_resp = _check_samples_dimensionality(resp_dist).mean()
     return mean_resp - target_response
 
@@ -423,31 +558,21 @@ def minimize_budget_utility(samples, budgets):
     ids=["budget=10->resp=5", "budget=50->resp=10"],
 )
 def test_allocate_budget_custom_response_constraint(
-    dummy_df, total_budget, target_response, dummy_idata
+    mmm_wrapper,
+    total_budget,
+    target_response,
 ):
     """
     Checks that a custom constraint can enforce the model's mean response
     to equal a target value, while we minimize the total budget usage.
     """
-    # Extract the dummy data and define the MMM model
-    df_kwargs, X_dummy, y_dummy = dummy_df
-
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-    mmm.build_model(X_dummy, y_dummy)
-
-    # Provide some dummy posterior samples
-    mmm.idata = dummy_idata
 
     def constraint_wrapper(budgets_sym, total_budget_sym, optimizer):
         return mean_response_eq_constraint_fun(
             budgets_sym, total_budget_sym, optimizer, target_response
         )
 
-    custom_constraints = [
+    constraints = [
         Constraint(
             key="target_response_constraint",
             constraint_fun=constraint_wrapper,
@@ -456,11 +581,10 @@ def test_allocate_budget_custom_response_constraint(
     ]
 
     optimizer = BudgetOptimizer(
-        model=mmm,
-        response_variable="total_contribution",
+        model=mmm_wrapper,
+        response_variable="total_media_contribution_original_scale",
         utility_function=minimize_budget_utility,
-        default_constraints=False,
-        custom_constraints=custom_constraints,
+        constraints=constraints,
         num_periods=30,
     )
 
@@ -469,7 +593,9 @@ def test_allocate_budget_custom_response_constraint(
         budget_bounds=None,
     )
 
-    resp_dist_sym = optimizer.extract_response_distribution("total_contribution")
+    resp_dist_sym = optimizer.extract_response_distribution(
+        "total_media_contribution_original_scale"
+    )
     resp_mean_sym = _check_samples_dimensionality(resp_dist_sym).mean()
     test_fn = pytensor.function([optimizer._budgets_flat], resp_mean_sym)
     final_resp = test_fn(res.x)
@@ -490,33 +616,18 @@ def test_allocate_budget_custom_response_constraint(
     ],
 )
 def test_callback_functionality_parametrized(
-    dummy_df,
-    dummy_idata,
+    mmm_wrapper,
     callback,
     total_budget,
     expected_return_length,
 ):
     """Test callback functionality with various parameter combinations."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
-
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
     )
 
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    # Create BudgetOptimizer Instance
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm,
-            num_periods=30,
-        )
-
-    # Run allocation
     result = optimizer.allocate_budget(
         total_budget=total_budget,
         callback=callback,
@@ -568,77 +679,6 @@ def test_callback_functionality_parametrized(
 
 
 @pytest.mark.parametrize(
-    "callback",
-    [
-        False,  # Default no callback
-        True,  # With callback
-    ],
-    ids=[
-        "no_callback",
-        "with_callback",
-    ],
-)
-def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callback):
-    """Test that MMM.optimize_budget properly raises deprecation error."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
-
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    with pytest.warns(
-        DeprecationWarning,
-        match=r"This method is deprecated and will be removed in a future version",
-    ):
-        result = mmm.optimize_budget(
-            budget=100,
-            num_periods=10,
-            callback=callback,
-        )
-
-    # Check return value count
-    if callback:
-        assert len(result) == 3
-        optimal_budgets, opt_result, callback_info = result
-
-        # Validate callback info
-        assert isinstance(callback_info, list)
-        assert len(callback_info) > 0
-
-        # Each iteration should have required keys
-        for iter_info in callback_info:
-            assert "x" in iter_info
-            assert "fun" in iter_info
-            assert "jac" in iter_info
-
-        # Check that objective values are finite
-        objectives = [iter_info["fun"] for iter_info in callback_info]
-        assert all(np.isfinite(obj) for obj in objectives)
-
-    else:
-        assert len(result) == 2
-        optimal_budgets, opt_result = result
-
-    # Common validations
-    assert isinstance(optimal_budgets, xr.DataArray)
-    assert optimal_budgets.dims == ("channel",)
-    assert len(optimal_budgets) == len(mmm.channel_columns)
-
-    # Budget should sum to total (within tolerance)
-    assert np.abs(optimal_budgets.sum().item() - 100) < 1e-6
-
-    # Check optimization result
-    assert hasattr(opt_result, "success")
-    assert hasattr(opt_result, "x")
-    assert hasattr(opt_result, "fun")
-
-
-@pytest.mark.parametrize(
     "budget_distribution_over_period, num_periods, should_error, error_message",
     [
         # Valid case: uniform distribution
@@ -681,34 +721,23 @@ def test_mmm_optimize_budget_callback_parametrized(dummy_df, dummy_idata, callba
     ],
 )
 def test_budget_distribution_over_period(
-    dummy_df,
-    dummy_idata,
+    mmm_wrapper,
     budget_distribution_over_period,
     num_periods,
     should_error,
     error_message,
 ):
     """Test that budget_distribution_over_period correctly distributes budget over time."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    channels = mmm_wrapper.channel_columns
 
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    # Create time distribution factors DataArray
     if budget_distribution_over_period is not None:
         budget_distribution_over_period_array = np.array(
-            [budget_distribution_over_period[ch] for ch in df_kwargs["channel_columns"]]
+            [budget_distribution_over_period[ch] for ch in channels]
         )
         budget_distribution_over_period_factors = xr.DataArray(
             budget_distribution_over_period_array,
             coords={
-                "channel": df_kwargs["channel_columns"],
+                "channel": channels,
                 "date": list(range(len(budget_distribution_over_period["channel_1"]))),
             },
             dims=["channel", "date"],
@@ -719,21 +748,18 @@ def test_budget_distribution_over_period(
     if should_error:
         with pytest.raises(ValueError, match=error_message):
             BudgetOptimizer(
-                model=mmm,
+                model=mmm_wrapper,
                 num_periods=num_periods,
                 budget_distribution_over_period=budget_distribution_over_period_factors,
-                default_constraints=True,
+                response_variable="total_media_contribution_original_scale",
             )
     else:
-        # Create optimizer with time distribution factors
-        match = "Using default equality constraint"
-        with pytest.warns(UserWarning, match=match):
-            optimizer = BudgetOptimizer(
-                model=mmm,
-                num_periods=num_periods,
-                budget_distribution_over_period=budget_distribution_over_period_factors,
-                default_constraints=True,
-            )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=num_periods,
+            budget_distribution_over_period=budget_distribution_over_period_factors,
+            response_variable="total_media_contribution_original_scale",
+        )
 
         # Check that the time distribution factors were stored correctly
         if budget_distribution_over_period_factors is not None:
@@ -749,20 +775,8 @@ def test_budget_distribution_over_period(
             assert optimizer._budget_distribution_over_period_tensor is None
 
 
-def test_budget_distribution_over_period_wrong_dims(dummy_df, dummy_idata):
+def test_budget_distribution_over_period_wrong_dims(mmm_wrapper):
     """Test that budget_distribution_over_period with wrong dimensions raises error."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
-
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    # Create time factors with wrong dimensions (missing channel dimension)
     budget_distribution_over_period = xr.DataArray(
         [0.25, 0.25, 0.25, 0.25],
         coords={"date": list(range(4))},
@@ -773,55 +787,39 @@ def test_budget_distribution_over_period_wrong_dims(dummy_df, dummy_idata):
         ValueError, match=r"budget_distribution_over_period must have dims"
     ):
         BudgetOptimizer(
-            model=mmm,
+            model=mmm_wrapper,
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
-            default_constraints=True,
+            response_variable="total_media_contribution_original_scale",
         )
 
 
-def test_budget_distribution_over_period_applied_correctly(dummy_df, dummy_idata):
+def test_budget_distribution_over_period_applied_correctly(mmm_wrapper):
     """Test that budget distribution factors are correctly applied to budgets."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    channels = mmm_wrapper.channel_columns
 
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    # Create non-uniform time distribution factors
     budget_distribution_over_period_data = {
         "channel_1": [0.7, 0.2, 0.1, 0.0],
         "channel_2": [0.4, 0.3, 0.2, 0.1],
     }
     budget_distribution_over_period_array = np.array(
-        [
-            budget_distribution_over_period_data[ch]
-            for ch in df_kwargs["channel_columns"]
-        ]
+        [budget_distribution_over_period_data[ch] for ch in channels]
     )
     budget_distribution_over_period_factors = xr.DataArray(
         budget_distribution_over_period_array,
         coords={
-            "channel": df_kwargs["channel_columns"],
+            "channel": channels,
             "date": list(range(4)),
         },
         dims=["channel", "date"],
     )
 
-    # Create optimizer with time distribution factors
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm,
-            num_periods=4,
-            budget_distribution_over_period=budget_distribution_over_period_factors,
-            default_constraints=True,
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        budget_distribution_over_period=budget_distribution_over_period_factors,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     # Verify that the time distribution factors tensor was created correctly
     assert optimizer._budget_distribution_over_period_tensor is not None
@@ -835,53 +833,39 @@ def test_budget_distribution_over_period_applied_correctly(dummy_df, dummy_idata
     )
 
 
-def test_budget_distribution_over_period_integration(dummy_df, dummy_idata):
+def test_budget_distribution_over_period_integration(mmm_wrapper):
     """Integration test: verify budget allocation with time distribution factors."""
-    df_kwargs, X_dummy, y_dummy = dummy_df
+    channels = mmm_wrapper.channel_columns
 
-    mmm = MMM(
-        adstock=GeometricAdstock(l_max=4),
-        saturation=LogisticSaturation(),
-        **df_kwargs,
-    )
-
-    mmm.build_model(X=X_dummy, y=y_dummy)
-    mmm.idata = dummy_idata
-
-    # Create front-loaded time distribution
     num_periods = 4
     budget_distribution_over_period_data = {
-        "channel_1": [0.7, 0.2, 0.1, 0.0],  # Heavy front-loading
-        "channel_2": [0.25, 0.25, 0.25, 0.25],  # Uniform distribution
+        "channel_1": [0.7, 0.2, 0.1, 0.0],
+        "channel_2": [0.25, 0.25, 0.25, 0.25],
     }
     budget_distribution_over_period_array = np.array(
-        [
-            budget_distribution_over_period_data[ch]
-            for ch in df_kwargs["channel_columns"]
-        ]
+        [budget_distribution_over_period_data[ch] for ch in channels]
     )
     budget_distribution_over_period_factors = xr.DataArray(
         budget_distribution_over_period_array,
         coords={
-            "channel": df_kwargs["channel_columns"],
+            "channel": channels,
             "date": list(range(num_periods)),
         },
         dims=["channel", "date"],
     )
 
-    # Create two optimizers: one with and one without time distribution
     optimizer_with_factors = BudgetOptimizer(
-        model=mmm,
+        model=mmm_wrapper,
         num_periods=num_periods,
         budget_distribution_over_period=budget_distribution_over_period_factors,
-        default_constraints=True,
+        response_variable="total_media_contribution_original_scale",
     )
 
     optimizer_without_factors = BudgetOptimizer(
-        model=mmm,
+        model=mmm_wrapper,
         num_periods=num_periods,
         budget_distribution_over_period=None,
-        default_constraints=True,
+        response_variable="total_media_contribution_original_scale",
     )
 
     # Both should allocate budget successfully
@@ -929,7 +913,7 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
         pmd.Data("channel_data", X, dims=("date", "channel"))
         beta = pmd.Normal("beta", 0.0, 1.0, dims="channel")
         mu = (train_model["channel_data"] * beta).sum(dim="channel")
-        pmd.Deterministic("total_contribution", mu.sum(), dims=())
+        pmd.Deterministic("total_media_contribution_original_scale", mu.sum(), dims=())
         pmd.Deterministic(
             "channel_contribution",
             train_model["channel_data"] * beta,

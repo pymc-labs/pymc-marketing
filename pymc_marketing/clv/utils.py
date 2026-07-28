@@ -56,7 +56,7 @@ def customer_lifetime_value(
     and apply a discount rate for net present value estimations.
     Note `future_t` is measured in months regardless of `time_unit` specified.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
 
     Parameters
@@ -126,8 +126,6 @@ def customer_lifetime_value(
 
     clv = xarray.DataArray(0.0)
 
-    # TODO: Add an IF block to support ShiftedBetaGeoModelIndividual
-
     # initialize FOR loop with 0 purchases at future_t = 0
     prev_expected_purchases = 0
 
@@ -173,7 +171,7 @@ def _find_first_transactions(
     and appends a column named *repeated* to the transaction log to indicate which rows
     are repeated transactions for each *customer_id*.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L148
 
     Parameters
@@ -204,24 +202,28 @@ def _find_first_transactions(
     """
     select_columns = [customer_id_col, datetime_col]
 
+    if monetary_value_col:
+        select_columns.append(monetary_value_col)
+
+    transactions = transactions[select_columns].copy()
+    transactions[datetime_col] = pandas.to_datetime(
+        transactions[datetime_col], format=datetime_format
+    )
+
     if observation_period_end is None:
         observation_period_end = transactions[datetime_col].max()
 
     if isinstance(observation_period_end, pandas.Period):
         observation_period_end = observation_period_end.to_timestamp()
     if isinstance(observation_period_end, str):
-        observation_period_end = pandas.to_datetime(observation_period_end)
-
-    if monetary_value_col:
-        select_columns.append(monetary_value_col)
+        observation_period_end = pandas.to_datetime(
+            observation_period_end, format=datetime_format
+        )
 
     if sort_transactions:
-        transactions = transactions[select_columns].sort_values(select_columns).copy()
+        transactions = transactions.sort_values(select_columns)
 
     # convert date column into a DateTimeIndex for time-wise grouping and truncating
-    transactions[datetime_col] = pandas.to_datetime(
-        transactions[datetime_col], format=datetime_format
-    )
     transactions = (
         transactions.set_index(datetime_col).to_period(time_unit).to_timestamp()
     )
@@ -288,7 +290,7 @@ def rfm_summary(
 
     This function is not required if using the `clv.rfm_segments` utility.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L230
 
     Parameters
@@ -336,7 +338,8 @@ def rfm_summary(
     """
     if observation_period_end is None:
         observation_period_end_ts = (
-            pandas.to_datetime(transactions[datetime_col].max(), format=datetime_format)
+            pandas.to_datetime(transactions[datetime_col], format=datetime_format)
+            .max()
             .to_period(time_unit)
             .to_timestamp()
         )
@@ -445,7 +448,7 @@ def rfm_train_test_split(
 
     Note this function will exclude new customers whose first transactions occurred during the test period.
 
-    Adapted from lifetimes package
+    Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L27
 
     Parameters
@@ -489,9 +492,6 @@ def rfm_train_test_split(
         and *monetary_value* if specified
 
     """
-    if test_period_end is None:
-        test_period_end = transactions[datetime_col].max()
-
     transaction_cols = [customer_id_col, datetime_col]
     if monetary_value_col:
         transaction_cols.append(monetary_value_col)
@@ -500,6 +500,9 @@ def rfm_train_test_split(
     transactions[datetime_col] = pandas.to_datetime(
         transactions[datetime_col], format=datetime_format
     )
+    if test_period_end is None:
+        test_period_end = transactions[datetime_col].max()
+
     test_period_end = pandas.to_datetime(test_period_end, format=datetime_format)
     train_period_end = pandas.to_datetime(train_period_end, format=datetime_format)
 

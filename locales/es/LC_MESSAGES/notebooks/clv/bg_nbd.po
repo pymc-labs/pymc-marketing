@@ -27,15 +27,15 @@ msgstr "Modelo BG/NBD"
 #: ../source/notebooks/clv/bg_nbd.ipynb:10004 5cd2601af49a46238fe480cc79805613
 msgid ""
 "In this notebook we show how to fit a BG/NBD model in PyMC-Marketing. We "
-"compare the results with the "
-"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package (no "
+"compare the results with the legacy "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) library (no "
 "longer maintained). The model is presented in the paper: Fader, P. S., "
 "Hardie, B. G., & Lee, K. L. (2005). [“Counting your customers” the easy way:"
 " An alternative to the Pareto/NBD model. Marketing science, 24(2), "
 "275-284.](http://www.brucehardie.com/papers/bgnbd_2004-04-20.pdf)"
 msgstr ""
 "En este cuaderno mostramos cómo ajustar un modelo BG/NBD en PyMC-Marketing. "
-"Comparamos los resultados con el paquete "
+"Comparamos los resultados con la biblioteca heredada "
 "[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) (ya no "
 "mantenido). El modelo se presenta en el artículo: Fader, P. S., Hardie, B. "
 "G., & Lee, K. L. (2005). [“Contando a tus clientes” de manera sencilla: Una "
@@ -52,17 +52,17 @@ msgstr "Leer datos"
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:40004 d407ad0d90614c96be57d451a7b13cc0
 msgid ""
-"We use the `CDNOW` dataset (see lifetimes [quick-"
+"We use the `CDNOW` dataset (see the legacy ``lifetimes`` library [quick-"
 "start](https://lifetimes.readthedocs.io/en/latest/Quickstart.html))."
 msgstr ""
 "Utilizamos el conjunto de datos `CDNOW` (ver el [inicio "
-"rápido](https://lifetimes.readthedocs.io/en/latest/Quickstart.html) de "
-"lifetimes)."
+"rápido](https://lifetimes.readthedocs.io/en/latest/Quickstart.html) de la "
+"biblioteca heredada ``lifetimes``)."
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:60002 a41501e043bf42b5862f449c4e4996c5
-msgid "Recall from the `lifetimes` documentation the following definitions:"
+msgid "Recall from the legacy ``lifetimes`` library documentation the following definitions:"
 msgstr ""
-"Recuerde de la documentación de `lifetimes` las siguientes definiciones:"
+"Recuerde de la documentación de la biblioteca heredada ``lifetimes`` las siguientes definiciones:"
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:60004 e1cb063aaaf94a9e99e1fba14e131d6b
 msgid ""
@@ -303,17 +303,17 @@ msgstr "Esta vez obtenemos estimaciones puntuales para los parámetros."
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:290002
 #: cc827c4c84584f6394daf3c84a071364
-msgid "Comparing with the `lifetimes` package"
-msgstr "Comparando con el paquete `lifetimes`"
+msgid "Comparing with the legacy ``lifetimes`` library"
+msgstr "Comparando con la biblioteca heredada ``lifetimes``"
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:290004
 #: 314a244c8d534ed9b180a2187fc8f126
 msgid ""
-"For the sake of comparison, let's fit the model using the `lifetimes` "
-"package."
+"For the sake of comparison, let's fit the model using the legacy "
+"``lifetimes`` library."
 msgstr ""
-"Para fines de comparación, ajustemos el modelo utilizando el paquete "
-"`lifetimes`."
+"Para fines de comparación, ajustemos el modelo utilizando la biblioteca "
+"heredada ``lifetimes``."
 
 #: ../source/notebooks/clv/bg_nbd.ipynb:320002
 #: 46519ff62ecc4c23819a260c704b9e7d

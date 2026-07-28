@@ -24,7 +24,7 @@ import warnings
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from inspect import signature
-from typing import Any, TypeAlias
+from typing import Any
 
 import numpy as np
 import numpy.typing as npt
@@ -36,7 +36,7 @@ from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.prior import Prior, VariableFactory
-from pytensor import Variable
+from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -52,7 +52,7 @@ from pymc_marketing.plot import (
 # "x" for saturation, "time since exposure" for adstock
 NON_GRID_NAMES: frozenset[str] = frozenset({"x", "time since exposure"})
 
-SupportedPrior: TypeAlias = (
+type SupportedPrior = (
     InstanceOf[Prior]
     | float
     | InstanceOf[Variable]
@@ -127,7 +127,6 @@ class Transformation:
     prefix: str
     default_priors: dict[str, Prior]
     function: Any
-    lookup_name: str
 
     def __init__(
         self,
@@ -176,7 +175,6 @@ class Transformation:
 
         """
         return {
-            "lookup_name": self.lookup_name,
             "prefix": self.prefix,
             "priors": {
                 key: _serialize_value(value)
@@ -236,7 +234,6 @@ class Transformation:
 
 
             class MyTransformation(Transformation):
-                lookup_name: str = "my_transformation"
                 prefix: str = "transformation"
                 function = lambda x, lam: x * lam
                 default_priors = {"lam": Prior("Gamma", alpha=3, beta=1)}
@@ -302,9 +299,6 @@ class Transformation:
 
         if not hasattr(self, "function"):
             raise NotImplementedError("function must be implemented in the subclass")
-
-        if not hasattr(self, "lookup_name"):
-            raise NotImplementedError("lookup_name must be implemented in the subclass")
 
     def _has_defaults_for_all_arguments(self) -> None:
         function_signature = signature(self.function)
@@ -435,7 +429,8 @@ class Transformation:
         coords = coords or {}
         with pm.Model(coords=coords):
             self._create_distributions()
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+            prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
+            return prior_pred["/prior"].to_dataset()
 
     def plot_curve(
         self,
@@ -530,8 +525,14 @@ class Transformation:
                 self.apply(x, core_dim=x_dim),
             )
 
+            dt_cls = getattr(xr, "DataTree", None)
+            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
+                idata = dt_cls.from_dict({"/posterior": parameters})
+            else:
+                idata = parameters
+
             return pm.sample_posterior_predictive(
-                parameters,
+                idata,
                 var_names=[var_name],
                 **sample_prior_predictive_kwargs,
             ).posterior_predictive[var_name]
@@ -620,7 +621,6 @@ class Transformation:
         self,
         x: XTensorLike,
         *,
-        dims: Dims | None = None,
         core_dim: str | None = None,
         idx: XTensorLike | Sequence[XTensorLike] | dict[str, XTensorLike] | None = None,
     ) -> XTensorVariable:
@@ -632,8 +632,10 @@ class Transformation:
         ----------
         x : XTensorLike
             The data to be transformed.
-        core_dim: str
+        core_dim : str
             The dimension of X along which to apply the transformation.
+        idx : XTensorLike | Sequence[XTensorLike] | dict[str, XTensorLike] | None
+            Optional index to select subsets of the prior distributions.
 
         Returns
         -------
@@ -658,12 +660,6 @@ class Transformation:
                 transformed_data = transformation.apply(data, core_dim="date")
 
         """
-        if dims is not None:
-            warnings.warn(
-                "Transformation.apply no longer requires dims. Using it will raise in a future release",
-                FutureWarning,
-                stacklevel=2,
-            )
         kwargs = self._create_distributions(idx=idx)
         return self.function(x, dim=core_dim, **kwargs)
 
@@ -679,47 +675,3 @@ def _serialize_value(value: Any) -> Any:
         return value.tolist()
 
     return value
-
-
-class DuplicatedTransformationError(Exception):
-    """Exception when a transformation is duplicated."""
-
-    def __init__(self, name: str, lookup_name: str):
-        self.name = name
-        self.lookup_name = lookup_name
-        super().__init__(f"Duplicate {name}. The name {lookup_name!r} already exists.")
-
-
-def create_registration_meta(subclasses: dict[str, Any]) -> type[type]:
-    """Create a metaclass for registering subclasses.
-
-    Parameters
-    ----------
-    subclasses : dict[str, type[Transformation]]
-        The subclasses to register.
-
-    Returns
-    -------
-    type
-        The metaclass for registering subclasses.
-
-    """
-
-    class RegistrationMeta(type):
-        def __new__(cls, name, bases, attrs):
-            new_cls = super().__new__(cls, name, bases, attrs)
-
-            if "lookup_name" not in attrs:
-                return new_cls
-
-            base_name = bases[0].__name__
-
-            lookup_name = attrs["lookup_name"]
-            if lookup_name in subclasses:
-                raise DuplicatedTransformationError(base_name, lookup_name)
-
-            subclasses[lookup_name] = new_cls
-
-            return new_cls
-
-    return RegistrationMeta

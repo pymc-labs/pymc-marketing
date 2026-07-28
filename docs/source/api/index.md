@@ -12,7 +12,6 @@
   clv
   customer_choice
   data
-  deserialize
   hsgp_kwargs
   metrics
   mlflow
@@ -21,9 +20,12 @@
   model_config
   model_graph
   paths
+  pie
   plot
   prior
   pytensor_utils
+  serialization
+  serialization_migration
   special_priors
   utils
 ```

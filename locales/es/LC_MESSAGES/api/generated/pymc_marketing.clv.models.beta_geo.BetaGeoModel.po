@@ -72,11 +72,11 @@ msgstr ""
 #: pymc_marketing.clv.models.beta_geo.BetaGeoModel:13
 msgid ""
 "Predictive methods have been adapted from the *BetaGeoFitter* class in the "
-"legacy *lifetimes* library (see "
+"legacy ``lifetimes`` library (see "
 "https://github.com/CamDavidsonPilon/lifetimes/)."
 msgstr ""
 "Los métodos predictivos se han adaptado de la clase *BetaGeoFitter* en la "
-"biblioteca heredada *lifetimes* (ver "
+"biblioteca heredada ``lifetimes`` (ver "
 "https://github.com/CamDavidsonPilon/lifetimes/)."
 
 #: 6f5f34fac544447999f1f920ccb192b3 of

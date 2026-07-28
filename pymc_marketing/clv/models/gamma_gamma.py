@@ -29,6 +29,15 @@ from pymc_marketing.model_config import ModelConfig
 class BaseGammaGammaModel(CLVModel):
     """Base class for Gamma-Gamma models."""
 
+    @property
+    def default_model_config(self) -> ModelConfig:
+        """Default model configuration."""
+        return {
+            "p": Prior("Weibull", alpha=2, beta=1),
+            "q": Prior("Weibull", alpha=2, beta=1),
+            "v": Prior("Weibull", alpha=2, beta=10),
+        }
+
     def distribution_customer_spend(
         self,
         data: pandas.DataFrame,
@@ -76,7 +85,8 @@ class BaseGammaGammaModel(CLVModel):
 
         The computations are based on Eq 5 from [1], p.3.
 
-        Adapted from: https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
+        Adapted from the legacy ``lifetimes`` library:
+        https://github.com/CamDavidsonPilon/lifetimes/blob/aae339c5437ec31717309ba0ec394427e19753c4/lifetimes/fitters/gamma_gamma_fitter.py#L117
 
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
@@ -166,7 +176,7 @@ class BaseGammaGammaModel(CLVModel):
 
         Note `future_t` is measured in months regardless of `time_unit` specified.
 
-        Adapted from lifetimes package
+        Adapted from the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246
 
         Parameters
@@ -306,23 +316,11 @@ class GammaGammaModel(BaseGammaGammaModel):
 
     def __init__(
         self,
-        data: pandas.DataFrame | None = None,
         *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
-
-    @property
-    def default_model_config(self) -> ModelConfig:
-        """Default model configuration."""
-        return {
-            "p": Prior("HalfFlat"),
-            "q": Prior("HalfFlat"),
-            "v": Prior("HalfFlat"),
-        }
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pandas.DataFrame) -> None:
@@ -333,28 +331,16 @@ class GammaGammaModel(BaseGammaGammaModel):
             must_be_unique=["customer_id"],
         )
 
-    def build_model(self, data: pandas.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pandas.DataFrame, optional
+        data : pandas.DataFrame
             Input data with customer_id, monetary_value, and frequency columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         z_mean = pt.as_tensor_variable(self.data["monetary_value"])
         x = pt.as_tensor_variable(self.data["frequency"])
@@ -471,23 +457,11 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
 
     def __init__(
         self,
-        data: pandas.DataFrame | None = None,
         *,
         model_config: dict | None = None,
         sampler_config: dict | None = None,
     ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
-
-    @property
-    def default_model_config(self) -> dict:
-        """Default model configuration."""
-        return {
-            "p": Prior("HalfFlat"),
-            "q": Prior("HalfFlat"),
-            "v": Prior("HalfFlat"),
-        }
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
 
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma Individual-specific data requirements."""
@@ -495,28 +469,16 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             data, required_cols=["customer_id", "individual_transaction_value"]
         )
 
-    def build_model(self, data: pandas.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pandas.DataFrame, optional
+        data : pandas.DataFrame
             Input data with customer_id and individual_transaction_value columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         z = self.data["individual_transaction_value"]
 

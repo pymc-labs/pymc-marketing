@@ -18,8 +18,7 @@ from collections import Counter
 
 import arviz as az
 import pandas as pd
-import pytensor.tensor as pt
-from arviz import InferenceData
+import xarray as xr
 from pymc.model.core import Model
 from pymc.model.fgraph import (
     ModelVar,
@@ -27,8 +26,8 @@ from pymc.model.fgraph import (
     fgraph_from_model,
     model_from_fgraph,
 )
-from pymc.pytensorf import rvs_in_graph
-from pytensor import as_symbolic
+from pymc.pytensorf import StringConstant, rvs_in_graph
+from pytensor.graph.basic import Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
 from pytensor.graph.rewriting import rewrite_graph
@@ -89,7 +88,7 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
 
     # Don't rename dimensions that belong to excluded variables
     dims_rename = {
-        dim: as_symbolic(f"{prefix}_{dim.data}")
+        dim: StringConstant(dim.type, f"{prefix}_{dim.data}")
         for dim in dims
         if dim.data not in exclude_dims
     }
@@ -265,41 +264,55 @@ def validate_unique_value_vars(model: Model) -> None:
 
 def extract_response_distribution(
     pymc_model: Model,
-    idata: InferenceData,
+    idata: xr.DataTree,
     response_variable: str,
-) -> pt.TensorVariable:
+    frozen_deterministics: list[str] | None = None,
+) -> Variable:
     """Extract the response distribution graph, conditioned on posterior parameters.
 
     Parameters
     ----------
     pymc_model : Model
         The PyMC model to extract the response distribution from.
-    idata : InferenceData
+    idata : xr.DataTree
         The inference data containing posterior samples.
     response_variable : str
         The name of the response variable to extract.
+    frozen_deterministics : list of str, optional
+        Names of Deterministic variables to freeze at their posterior values instead of recomputing from the graph.
+        Some models (e.g, those containing HSGP) need this to to obtain a valid conditional posterior graph.
 
     Returns
     -------
     pt.TensorVariable
         The response distribution graph.
 
-    Example
-    -------
+    Examples
+    --------
     `extract_response_distribution(model, idata, "channel_contribution")`
     returns a graph that computes `"channel_contribution"` as a function of both
     the newly introduced budgets and the posterior of model parameters.
     """
-    # Convert InferenceData to a sample-major xarray
+    # Convert DataTree to a sample-major xarray
     posterior = az.extract(idata).transpose("sample", ...)  # type: ignore
 
     # The PyMC variable to extract
     response_var = pymc_model[response_variable]
 
-    # Identify which free RVs are needed to compute `response_var`
+    # Identify which free RVs are needed to compute `response_var`.
+    # Frozen deterministics are treated as additional blockers so their
+    # subgraphs are not traversed — their posterior values are substituted
+    # directly, just like free RVs.
     free_rvs = set(pymc_model.free_RVs)
+    frozen_vars: set = set()
+    if frozen_deterministics:
+        for name in frozen_deterministics:
+            if name in pymc_model.named_vars:
+                frozen_vars.add(pymc_model[name])
+
+    blockers = free_rvs | frozen_vars
     needed_rvs = [
-        rv for rv in ancestors([response_var], blockers=free_rvs) if rv in free_rvs
+        rv for rv in ancestors([response_var], blockers=blockers) if rv in blockers
     ]
     placeholder_replace_dict = {pymc_model[rv.name]: rv.clone() for rv in needed_rvs}
 
@@ -317,9 +330,11 @@ def extract_response_distribution(
     # Replace placeholders with actual posterior samples
     replace_dict = {}
     for placeholder in placeholder_replace_dict.values():
+        posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
         replace_dict[placeholder] = xtensor_constant(
-            posterior[placeholder.name].astype(placeholder.dtype),
+            posterior_da.values,
             name=placeholder.name,
+            dims=posterior_da.dims,
         )
 
     # Vectorize across samples

@@ -29,8 +29,8 @@ msgstr "Modelo gamma-gamma"
 #: 30b8a1f6ef3d497dbda9d0e99f1e3d00
 msgid ""
 "In this notebook we show how to fit a Gamma-Gamma model in PyMC-Marketing. "
-"We compare the results with the "
-"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) package (no "
+"We compare the results with the legacy "
+"[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) library (no "
 "longer maintained and last meaningful update was July 2020). The model is "
 "presented in the paper: Fader, P. S., & Hardie, B. G. (2013). [The Gamma-"
 "Gamma model of monetary "
@@ -38,7 +38,7 @@ msgid ""
 "1-9."
 msgstr ""
 "En este cuaderno mostramos cómo ajustar un modelo Gamma-Gamma en PyMC-"
-"Marketing. Comparamos los resultados con el paquete "
+"Marketing. Comparamos los resultados con la biblioteca heredada "
 "[`lifetimes`](https://github.com/CamDavidsonPilon/lifetimes) (que ya no se "
 "mantiene y la última actualización significativa fue en julio de 2020). El "
 "modelo se presenta en el artículo: Fader, P. S., & Hardie, B. G. (2013). [El"
@@ -208,13 +208,13 @@ msgstr ""
 
 #: ../source/notebooks/clv/gamma_gamma.ipynb:120002
 #: c112751c24ea42e483d585e591b143ad
-msgid "Lifetimes Implementation"
-msgstr "Implementación de Lifetimes"
+msgid "Legacy ``lifetimes`` library implementation"
+msgstr "Implementación de la biblioteca heredada ``lifetimes``"
 
 #: ../source/notebooks/clv/gamma_gamma.ipynb:120004
 #: 3ec70d302aaa45d7bd95ec6bceb3a2e6
-msgid "First, we fit the model using the `lifetimes` package."
-msgstr "Primero, ajustamos el modelo utilizando el paquete `lifetimes`."
+msgid "First, we fit the model using the legacy ``lifetimes`` library."
+msgstr "Primero, ajustamos el modelo utilizando la biblioteca heredada ``lifetimes``."
 
 #: ../source/notebooks/clv/gamma_gamma.ipynb:150002
 #: 947d308ae246421fa85899c039e4a892
@@ -277,9 +277,9 @@ msgstr ""
 #: ../source/notebooks/clv/gamma_gamma.ipynb:260002
 #: 6a784643bf2b4325b1a08fc92cdaf298
 msgid ""
-"These values are very close to the ones obtained by the `lifetimes` package."
+"These values are very close to the ones obtained by the legacy ``lifetimes`` library."
 msgstr ""
-"Estos valores son muy cercanos a los obtenidos por el paquete `lifetimes`."
+"Estos valores son muy cercanos a los obtenidos por la biblioteca heredada ``lifetimes``."
 
 #: ../source/notebooks/clv/gamma_gamma.ipynb:270002
 #: eccf1761d32e420d9f985245735397b4
@@ -313,20 +313,20 @@ msgstr "Visualicemos las distribuciones posteriores y el gráfico de rangos:"
 #: ../source/notebooks/clv/gamma_gamma.ipynb:340002
 #: dee4686046104b33a5f8bdce676673b1
 msgid ""
-"We can compare the results with the ones obtained by the `lifetimes` package"
-" and the MAP estimation."
+"We can compare the results with the ones obtained by the legacy ``lifetimes`` library "
+"and the MAP estimation."
 msgstr ""
-"Podemos comparar los resultados con los obtenidos por el paquete `lifetimes`"
-" y la estimación MAP."
+"Podemos comparar los resultados con los obtenidos por la biblioteca heredada ``lifetimes`` "
+"y la estimación MAP."
 
 #: ../source/notebooks/clv/gamma_gamma.ipynb:360002
 #: c76121b099564ff99a304949cf6ebdb9
 msgid ""
-"We see that the `lifetimes` and MAP estimates are essentially the same. Both"
+"We see that the legacy ``lifetimes`` library and MAP estimates are essentially the same. Both"
 " of them are close to the mean of the posterior distribution obtained by "
 "MCMC."
 msgstr ""
-"Vemos que las estimaciones de `lifetimes` y MAP son esencialmente las "
+"Vemos que las estimaciones de la biblioteca heredada ``lifetimes`` y MAP son esencialmente las "
 "mismas. Ambas están cerca de la media de la distribución posterior obtenida "
 "mediante MCMC."
 

@@ -51,10 +51,10 @@ msgstr ""
 #: d267a61767a3452dbdc104275bb2d943 of
 #: pymc_marketing.clv.models.gamma_gamma.BaseGammaGammaModel.expected_customer_lifetime_value:8
 msgid ""
-"Adapted from lifetimes package "
+"Adapted from the legacy ``lifetimes`` library: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246"
 msgstr ""
-"Adaptado del paquete lifetimes "
+"Adaptado de la biblioteca heredada ``lifetimes``: "
 "https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246"
 
 #: 04ec7585d20a4075925bf090596e2cdb of

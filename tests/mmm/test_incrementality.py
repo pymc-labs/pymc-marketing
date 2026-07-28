@@ -23,6 +23,7 @@ import xarray as xr
 from pydantic import ValidationError
 
 from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.model_graph import deterministics_to_flat
 
 
 def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
@@ -36,12 +37,16 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
         if original_scale
         else "channel_contribution"
     )
-    model = mmm.model.copy()
+    names = mmm.frozen_deterministics
+    if names:
+        model = deterministics_to_flat(mmm.model, names=names)
+    else:
+        model = mmm.model.copy()
     with model:
         pm.set_data(
             {
                 "channel_data": channel_data_values.astype(
-                    mmm.model["channel_data"].type.dtype
+                    model["channel_data"].type.dtype
                 )
             }
         )
@@ -216,6 +221,9 @@ class TestIncrementality:
             ("time_varying_media_fitted_mmm", "original", True, 0.0),
             ("time_varying_media_fitted_mmm", "monthly", True, 0.0),
             ("time_varying_media_fitted_mmm", "all_time", True, 0.0),
+            ("time_varying_intercept_fitted_mmm", "original", True, 0.0),
+            ("time_varying_intercept_fitted_mmm", "monthly", True, 0.0),
+            ("time_varying_intercept_fitted_mmm", "all_time", True, 0.0),
         ],
     )
     def test_compute_incremental_contribution_matches_ground_truth(
@@ -299,6 +307,8 @@ class TestIncrementality:
 
         # Duplicate posterior along chain dim to simulate 2 chains
         original_posterior = mmm.idata.posterior
+        if hasattr(original_posterior, "dataset"):
+            original_posterior = original_posterior.dataset
         chain2 = original_posterior.assign_coords(
             chain=[original_posterior.chain.values[0] + 1]
         )
@@ -306,7 +316,7 @@ class TestIncrementality:
 
         # Replace posterior in idata with multi-chain version
         mmm_idata_backup = copy.copy(mmm.idata)
-        mmm.idata.posterior = multi_chain_posterior
+        mmm.idata["posterior"] = multi_chain_posterior
 
         # Sanity: verify we now have 2 chains
         n_chains = mmm.idata.posterior.dims["chain"]
@@ -342,6 +352,22 @@ class TestIncrementality:
         )
 
         xr.testing.assert_allclose(result1, result2)
+
+    def test_time_varying_intercept_no_unused_input_error(
+        self, time_varying_intercept_fitted_mmm
+    ):
+        """Regression: time_varying_intercept without time_varying_media must not raise.
+
+        When the model has time_varying_intercept=True but
+        time_varying_media=False, ``time_index`` exists in the model but is
+        not part of the ``channel_contribution`` graph.  Previously the code
+        unconditionally added it as a compiled function input, causing
+        ``UnusedInputError``.
+        """
+        incr = time_varying_intercept_fitted_mmm.incrementality
+        result = incr.contribution_over_spend(frequency="all_time")
+        assert result.sizes["chain"] >= 1
+        assert result.sizes["draw"] >= 1
 
     def test_aggregate_spend_matches_data_wrapper(self, simple_fitted_mmm):
         """Test that _aggregate_spend delegates correctly to data wrapper."""

@@ -22,8 +22,8 @@ msgstr ""
 
 #: ../source/notebooks/clv/dev/beta_geo_beta_binom.ipynb:70002
 #: 27fb1e18c7a6461a8a127f11412abe75
-msgid "Compare to `lifetimes`"
-msgstr "Comparar con `lifetimes`"
+msgid "Compare to the legacy ``lifetimes`` library"
+msgstr "Comparar con la biblioteca heredada ``lifetimes``"
 
 #: ../source/notebooks/clv/dev/beta_geo_beta_binom.ipynb:120002
 #: 834c1a90cffc44c4903b9bde33fbd975

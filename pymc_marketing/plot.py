@@ -85,6 +85,25 @@ def drop_scalar_coords(curve: xr.DataArray) -> xr.DataArray:
     return curve.reset_coords(scalar_coords_to_drop, drop=True)
 
 
+def _unstack_sample(curve: xr.DataArray) -> xr.DataArray:
+    """Unstack a ``(chain, draw)`` ``sample`` MultiIndex back into chain/draw.
+
+    ``arviz.extract(..., combined=True)`` returns a DataArray whose ``chain``
+    and ``draw`` dims have been stacked into a single ``sample`` MultiIndex.
+    The plotting helpers in this module index ``chain`` and ``draw`` directly,
+    so a combined input must be unstacked first. Assumes ``sample`` is a dim
+    of ``curve``. Returns ``curve`` unchanged if ``sample`` is not a
+    ``pd.MultiIndex`` with ``chain`` and ``draw`` levels. Does not modify
+    ``curve``.
+
+    """
+    index = curve.indexes.get("sample")
+    if isinstance(index, pd.MultiIndex) and {"chain", "draw"} <= set(index.names):
+        # chain/draw must lead so make_sample_selection's `.loc[idx, :]` resolves
+        return curve.unstack("sample").transpose("chain", "draw", ...)
+    return curve
+
+
 def get_total_coord_size(coords: Coords) -> int:
     """Get the total size of the coordinates.
 
@@ -176,9 +195,9 @@ def set_subplot_kwargs_defaults(
         subplot_kwargs["ncols"] = total_size
 
     if "ncols" in subplot_kwargs:
-        subplot_kwargs["nrows"] = total_size // subplot_kwargs["ncols"]
+        subplot_kwargs["nrows"] = -(-total_size // subplot_kwargs["ncols"])
     elif "nrows" in subplot_kwargs:
-        subplot_kwargs["ncols"] = total_size // subplot_kwargs["nrows"]
+        subplot_kwargs["ncols"] = -(-total_size // subplot_kwargs["nrows"])
 
 
 Selection = dict[str, Any]
@@ -236,13 +255,20 @@ def _create_make_sample_selection(
 
 
 def _plot_sample_selection(df, ax: Axes, color: str, **plot_kwargs) -> Axes:
-    return df.plot(ax=ax, color=color, **plot_kwargs)
+    # x_compat=True makes pandas use the matplotlib date converter instead of its
+    # own time-series locator. Without it, a datetime index is drawn with pandas
+    # period ordinals while the HDI band (fill_between) uses matplotlib date
+    # ordinals, which produces broken x-axis tick labels. A caller can still
+    # override it via plot_kwargs.
+    return df.plot(ax=ax, color=color, **{"x_compat": True, **plot_kwargs})
 
 
 def _create_get_hdi_plot_data(hdi_kwargs) -> GetPlotData:
     def get_plot_data(data: xr.DataArray) -> xr.DataArray:
-        hdi: xr.Dataset = az.hdi(data, **hdi_kwargs)
-        return hdi[data.name]
+        hdi = az.hdi(data, **hdi_kwargs)
+        if isinstance(hdi, xr.Dataset) and data.name is not None:
+            return hdi[data.name]
+        return hdi  # DataArray case
 
     return get_plot_data
 
@@ -260,7 +286,7 @@ def _plot_hdi_selection(
     ax.fill_between(
         x=df.index,
         y1=df["lower"],
-        y2=df["higher"],
+        y2=df["upper"],
         color=color,
         **plot_kwargs,
     )
@@ -368,7 +394,7 @@ def _plot_across_coord(
 
     plot_coords = get_plot_coords(
         data.coords,
-        non_grid_names=non_grid_names.union({"chain", "draw", "hdi"}),
+        non_grid_names=non_grid_names.union({"chain", "draw", "ci_bound"}),
     )
     total_size = get_total_coord_size(plot_coords)
 
@@ -412,6 +438,7 @@ def _plot_across_coord(
         create_legend_label = None
 
     colors = cast(Iterable[str], colors or generate_colors(n=total_size, start=0))
+    plot_kwargs = plot_kwargs or {}
 
     for color, ax, sel in zip(colors, axes_iter, selections(plot_coords), strict=False):
         ax = data.pipe(make_selection, sel=sel).pipe(
@@ -434,7 +461,7 @@ def _plot_across_coord(
 def plot_hdi(
     curve: xr.DataArray,
     non_grid_names: str | set[str],
-    hdi_prob: float | None = None,
+    hdi_prob: Sequence[float | None] | float | None = None,
     hdi_kwargs: dict | None = None,
     subplot_kwargs: dict[str, Any] | None = None,
     plot_kwargs: dict[str, Any] | None = None,
@@ -453,10 +480,17 @@ def plot_hdi(
     non_grid_names : str | set[str]
         The names to exclude from the grid. chain and draw are
         excluded automatically
-    n : int, optional
-        Number of samples to plot
-    rng : np.random.Generator, optional
-        Random number generator
+    hdi_prob : float | list[float], optional
+        HDI probabilities. Defaults to None which uses arviz default for
+        stats.ci_prob which is 94%
+    hdi_kwargs : dict, optional
+        Kwargs for the arviz.hdi function
+    same_axes : bool
+        All of the plots in the same axis
+    colors : Iterable[str], optional
+        Colors for the plots
+    legend : bool, optional
+        If to include a legend. Defaults to True if same_axes
     axes : npt.NDArray[plt.Axes], optional
         Axes to plot on
     subplot_kwargs : dict, optional
@@ -470,34 +504,47 @@ def plot_hdi(
         Figure and the axes
 
     """
+    if isinstance(hdi_prob, list) and not hdi_prob:
+        hdi_prob = [None]
+    elif isinstance(hdi_prob, (float, int)) or hdi_prob is None:
+        hdi_prob = [hdi_prob]
+
     hdi_kwargs = hdi_kwargs or {}
-    hdi_kwargs = {**dict(hdi_prob=hdi_prob), **hdi_kwargs}
-    get_plot_data = _create_get_hdi_plot_data(hdi_kwargs)
-    make_selection = _make_hdi_selection
-    plot_selection = _plot_hdi_selection
 
-    if isinstance(non_grid_names, str):
-        non_grid_names = {non_grid_names}
+    for ihdi_prob in hdi_prob:
+        current_hdi_kwargs = {**hdi_kwargs, **dict(prob=ihdi_prob)}
 
-    plot_kwargs = plot_kwargs or {}
-    plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
+        if "sample" in curve.dims:
+            curve = _unstack_sample(curve)
 
-    return _plot_across_coord(
-        curve=curve,
-        non_grid_names=non_grid_names,
-        get_plot_data=get_plot_data,
-        make_selection=make_selection,
-        plot_selection=plot_selection,
-        subplot_kwargs=subplot_kwargs,
-        same_axes=same_axes,
-        axes=axes,
-        colors=colors,
-        legend=legend,
-        plot_kwargs=plot_kwargs,
-        patch=True,
-        line=False,
-        sel_to_string=sel_to_string,
-    )
+        get_plot_data = _create_get_hdi_plot_data(current_hdi_kwargs)
+        make_selection = _make_hdi_selection
+        plot_selection = _plot_hdi_selection
+
+        if isinstance(non_grid_names, str):
+            non_grid_names = {non_grid_names}
+
+        plot_kwargs = plot_kwargs or {}
+        plot_kwargs = {**{"alpha": 0.25}, **plot_kwargs}
+
+        fig, axes = _plot_across_coord(
+            curve=curve,
+            non_grid_names=non_grid_names,
+            get_plot_data=get_plot_data,
+            make_selection=make_selection,
+            plot_selection=plot_selection,
+            subplot_kwargs=subplot_kwargs,
+            same_axes=same_axes,
+            axes=axes,
+            colors=colors,
+            legend=legend,
+            plot_kwargs=plot_kwargs,
+            patch=True,
+            line=False,
+            sel_to_string=sel_to_string,
+        )
+
+    return fig, cast(npt.NDArray[Axes], axes)
 
 
 def plot_samples(
@@ -546,6 +593,8 @@ def plot_samples(
     if isinstance(non_grid_names, str):
         non_grid_names = {non_grid_names}
 
+    if "sample" in curve.dims:
+        curve = _unstack_sample(curve)
     n_chains = curve.sizes["chain"]
     n_draws = curve.sizes["draw"]
     make_selection = _create_make_sample_selection(
@@ -605,7 +654,7 @@ def plot_curve(
         The names to exclude from the grid. HDI and samples both
         have defaults of hdi and chain, draw, respectively
     n_samples : int, optional
-        Number of samples
+        Number of samples to plot
     hdi_probs : float | list[float], optional
         HDI probabilities. Defaults to None which uses arviz default for
         stats.ci_prob which is 94%
@@ -714,6 +763,8 @@ def plot_curve(
         plt.show()
 
     """
+    if "sample" in curve.dims:
+        curve = _unstack_sample(curve)
     curve = drop_scalar_coords(curve)
 
     hdi_probs = hdi_probs or None
@@ -721,42 +772,48 @@ def plot_curve(
         hdi_probs = [hdi_probs]  # type: ignore
 
     hdi_kwargs = hdi_kwargs or {}
-    sample_kwargs = sample_kwargs or {}
-
-    sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
-
-    if "subplot_kwargs" not in sample_kwargs:
-        sample_kwargs["subplot_kwargs"] = subplot_kwargs
-
-    if "axes" not in sample_kwargs:
-        sample_kwargs["axes"] = axes
 
     if same_axes:
-        sample_kwargs["same_axes"] = True
-        sample_kwargs["legend"] = False
         hdi_kwargs["same_axes"] = True
         hdi_kwargs["legend"] = legend if isinstance(legend, bool) else True
 
     if colors is not None:
-        sample_kwargs["colors"] = colors
         hdi_kwargs["colors"] = colors
 
     if sel_to_string is not None:
-        sample_kwargs["sel_to_string"] = sel_to_string
         hdi_kwargs["sel_to_string"] = sel_to_string
 
-    fig, axes = plot_samples(
+    if n_samples > 0:
+        sample_kwargs = sample_kwargs or {}
+
+        sample_kwargs = {**dict(n=n_samples, rng=random_seed), **sample_kwargs}
+        if "subplot_kwargs" not in sample_kwargs:
+            sample_kwargs["subplot_kwargs"] = subplot_kwargs
+
+        if "axes" not in sample_kwargs:
+            sample_kwargs["axes"] = axes
+
+        if same_axes:
+            sample_kwargs["same_axes"] = True
+            sample_kwargs["legend"] = False
+        if colors is not None:
+            sample_kwargs["colors"] = colors
+
+        if sel_to_string is not None:
+            sample_kwargs["sel_to_string"] = sel_to_string
+
+        fig, axes = plot_samples(curve, non_grid_names=non_grid_names, **sample_kwargs)
+
+    elif n_samples == 0:
+        if "subplot_kwargs" not in hdi_kwargs:
+            hdi_kwargs["subplot_kwargs"] = subplot_kwargs
+
+    fig, axes = plot_hdi(
         curve,
+        hdi_prob=hdi_probs,
         non_grid_names=non_grid_names,
-        **sample_kwargs,
+        axes=axes,
+        **hdi_kwargs,
     )
-    for hdi_prob in hdi_probs:
-        fig, axes = plot_hdi(
-            curve,
-            hdi_prob=hdi_prob,
-            non_grid_names=non_grid_names,
-            axes=axes,
-            **hdi_kwargs,
-        )
 
     return fig, axes
