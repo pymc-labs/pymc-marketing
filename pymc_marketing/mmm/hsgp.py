@@ -180,7 +180,7 @@ def approx_hsgp_hyperparams(
         )
 
     c = max(float(a1 * (lengthscale_max / S)), 1.2)
-    m = int(a2 * c / (lengthscale_min / S))
+    m = int(a2 * c / float(lengthscale_min / S))
 
     return m, c
 
