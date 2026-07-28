@@ -15,16 +15,23 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
+    DataVarMuEffect,
     FourierEffect,
     LinearTrendEffect,
+    MediaMuEffect,
 )
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.serialization import DeserializationContext, serialization
 
 
@@ -477,3 +484,383 @@ class TestEventAdditiveEffectRoundtrips:
 )
 def test_additive_effect_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+class TestDataVarMuEffect:
+    """Tests for the DataVarMuEffect base class."""
+
+    def test_instantiation_error(self):
+        """DataVarMuEffect is abstract and cannot be instantiated directly."""
+        with pytest.raises(TypeError):
+            DataVarMuEffect(data_vars=["x"], prefix="test")  # type: ignore
+
+    def _make_mock_mmm(self, model, ds):
+        """Create a minimal mock MMM for testing."""
+        MockMMM = type(
+            "MockMMM", (), {"dims": (), "model": model, "xarray_dataset": ds}
+        )
+        return MockMMM()
+
+    def test_concrete_subclass_create_data(self, dates):
+        """Subclass registers data variables from xarray_dataset as pm.Data."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        model = pm.Model(coords={"date": dates})
+
+        mmm = self._make_mock_mmm(model, ds)
+
+        class TestEffect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+            def set_data(self, mmm, model, X):  # type: ignore
+                pass
+
+        effect = TestEffect()
+
+        with mmm.model:
+            effect.create_data(mmm)
+
+        assert "feature" in mmm.model.named_vars
+
+    def test_set_data_updates_variables(self, dates, new_dates):
+        """set_data updates pm.Data from new dataset."""
+        rng = np.random.default_rng(42)
+        ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(dates)))},
+            coords={"date": dates},
+        )
+        new_ds = xr.Dataset(
+            {"feature": (("date",), rng.normal(size=len(new_dates)))},
+            coords={"date": new_dates},
+        )
+        model = pm.Model(coords={"date": dates})
+
+        mmm = self._make_mock_mmm(model, ds)
+
+        class TestEffect(DataVarMuEffect):
+            data_vars: list[str] = ["feature"]
+            prefix: str = "test"
+
+            def create_effect(self, mmm):  # type: ignore
+                return pt.as_tensor(0.0)
+
+            def set_data(self, mmm, model, X):  # type: ignore
+                for var_name in self.data_vars:
+                    if var_name in X.data_vars:
+                        pm.set_data({var_name: X[var_name].values}, model=model)
+
+        effect = TestEffect()
+
+        with mmm.model:
+            effect.create_data(mmm)
+            model_copy = model.copy()
+            model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
+            effect.set_data(mmm, model_copy, new_ds)
+
+
+class TestMediaMuEffect:
+    """Tests for MediaMuEffect."""
+
+    @pytest.mark.parametrize(
+        "effect_dims, mmm_dims, extra_coords, prefix",
+        [
+            pytest.param((), (), {}, "national", id="no_dims"),
+            pytest.param(
+                ("product",),
+                ("product", "geo"),
+                {"product": ["A", "B"]},
+                "product",
+                id="single_dim",
+            ),
+            pytest.param(
+                ("product", "geo"),
+                ("product", "geo"),
+                {"product": ["A", "B"], "geo": ["X", "Y"]},
+                "full",
+                id="multiple_dims",
+            ),
+        ],
+    )
+    def test_create_effect(
+        self,
+        dates,
+        effect_dims,
+        mmm_dims,
+        extra_coords,
+        prefix,
+    ):
+        all_dims = ("date", *effect_dims, "channel")
+        n_dates = len(dates)
+
+        shape = [n_dates]
+        coords = {"date": dates, "channel": ["tv", "digital"]}
+        for dim_name in effect_dims:
+            vals = extra_coords[dim_name]
+            shape.append(len(vals))
+            coords[dim_name] = vals
+        shape.append(len(coords["channel"]))
+
+        rng = np.random.default_rng(42)
+        data_vals = rng.exponential(size=shape)
+
+        ds = xr.Dataset(
+            {"media_data": (all_dims, data_vals)},
+            coords=coords,
+        )
+
+        model_coords = {"date": dates, "channel": ["tv", "digital"]}
+        model_coords.update(extra_coords)
+        model = pm.Model(coords=model_coords)
+
+        MockMMM = type(
+            "MockMMM", (), {"dims": mmm_dims, "model": model, "xarray_dataset": ds}
+        )
+        mmm = MockMMM()
+
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            effect_dims=effect_dims,
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=(*effect_dims, "channel"),
+            ),
+            prefix=prefix,
+        )
+
+        with mmm.model:
+            effect.create_data(mmm)
+            contribution = effect.create_effect(mmm)
+
+        # Check the deterministic was registered
+        var_name = f"{prefix}_effect_contribution"
+        assert var_name in mmm.model.named_vars
+        # Check dims of the returned tensor
+        contrib_dims = set(contribution.dims)
+        assert "date" in contrib_dims
+        for dim in effect_dims:
+            assert dim in contrib_dims
+        assert "channel" not in contrib_dims
+
+        # Check contribution_var_name property
+        assert effect.contribution_var_name == var_name
+
+        # Verify we can sample prior predictive
+        with mmm.model:
+            pm.sample_prior_predictive(draws=5, random_seed=rng)
+
+    @pytest.mark.parametrize(
+        "effect_dims, mmm_dims, extra_coords, prefix",
+        [
+            pytest.param((), (), {}, "national", id="no_dims"),
+            pytest.param(
+                ("product",),
+                ("product", "geo"),
+                {"product": ["A", "B"]},
+                "product",
+                id="single_dim",
+            ),
+        ],
+    )
+    def test_set_data(
+        self,
+        dates,
+        new_dates,
+        effect_dims,
+        mmm_dims,
+        extra_coords,
+        prefix,
+    ):
+        all_dims = ("date", *effect_dims, "channel")
+        n_dates = len(dates)
+
+        shape = [n_dates]
+        coords = {"date": dates, "channel": ["tv", "digital"]}
+        for dim_name in effect_dims:
+            vals = extra_coords[dim_name]
+            shape.append(len(vals))
+            coords[dim_name] = vals
+        shape.append(len(coords["channel"]))
+
+        rng = np.random.default_rng(42)
+
+        ds = xr.Dataset(
+            {"media_data": (all_dims, rng.exponential(size=shape))},
+            coords=coords,
+        )
+
+        # Prediction data with new dates
+        new_shape = [len(new_dates)]
+        for dim_name in effect_dims:
+            new_shape.append(len(extra_coords[dim_name]))
+        new_shape.append(len(coords["channel"]))
+
+        new_coords = coords.copy()
+        new_coords["date"] = new_dates
+        new_ds = xr.Dataset(
+            {"media_data": (all_dims, rng.exponential(size=new_shape))},
+            coords=new_coords,
+        )
+
+        model_coords = {"date": dates, "channel": ["tv", "digital"]}
+        model_coords.update(extra_coords)
+        model = pm.Model(coords=model_coords)
+
+        MockMMM = type(
+            "MockMMM", (), {"dims": mmm_dims, "model": model, "xarray_dataset": ds}
+        )
+        mmm = MockMMM()
+
+        effect = MediaMuEffect(
+            data_vars=["media_data"],
+            effect_dims=effect_dims,
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=4),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=(*effect_dims, "channel"),
+            ),
+            prefix=prefix,
+        )
+
+        with mmm.model:
+            effect.create_data(mmm)
+            model_copy = model.copy()
+            model_copy.set_dim("date", len(new_dates), coord_values=new_dates)
+            effect.set_data(mmm, model_copy, new_ds)
+
+        # Check that set_data didn't error and variables exist
+        var_name = "media_data"
+        assert var_name in model_copy.named_vars
+
+    def test_serialization_roundtrip(self):
+        original = MediaMuEffect(
+            data_vars=["media_data"],
+            media_transformation=MediaTransformation(
+                adstock=GeometricAdstock(l_max=8),
+                saturation=LogisticSaturation(),
+                adstock_first=True,
+                dims=("product", "channel"),
+            ),
+            prefix="test_media",
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is MediaMuEffect
+        assert restored.data_vars == ["media_data"]
+        assert restored.effect_dims == ("product",)
+        assert restored.prefix == "test_media"
+        assert type(restored.media_transformation) is MediaTransformation
+        assert type(restored.media_transformation.adstock) is GeometricAdstock
+        assert restored.media_transformation.adstock.l_max == 8
+        assert type(restored.media_transformation.saturation) is LogisticSaturation
+        assert restored.media_transformation.adstock_first is True
+        assert restored == original
+
+
+class TestControlMuEffect:
+    """Tests for ControlMuEffect."""
+
+    @pytest.mark.parametrize(
+        "ctrl_dims, mmm_dims, extra_coords, prefix",
+        [
+            pytest.param(
+                (),
+                ("product", "geo"),
+                {"product": ["A", "B"], "geo": ["X", "Y"]},
+                "national",
+                id="national_controls",
+            ),
+            pytest.param(
+                ("product",),
+                ("product", "geo"),
+                {"product": ["A", "B"], "geo": ["X", "Y"]},
+                "product_ctrl",
+                id="product_controls",
+            ),
+        ],
+    )
+    def test_create_effect(
+        self,
+        dates,
+        ctrl_dims,
+        mmm_dims,
+        extra_coords,
+        prefix,
+    ):
+        var_name = "control_data"
+        all_dims = ("date", *ctrl_dims, "control")
+
+        n_dates = len(dates)
+        shape = [n_dates]
+        coords = {"date": dates, "control": ["c1", "c2"]}
+        for dim_name in ctrl_dims:
+            vals = extra_coords[dim_name]
+            shape.append(len(vals))
+            coords[dim_name] = vals
+        shape.append(len(coords["control"]))
+
+        rng = np.random.default_rng(42)
+        data_vals = rng.normal(size=shape)
+
+        ds = xr.Dataset(
+            {var_name: (all_dims, data_vals)},
+            coords=coords,
+        )
+
+        model_coords = {"date": dates, "control": ["c1", "c2"]}
+        model_coords.update(extra_coords)
+        model = pm.Model(coords=model_coords)
+
+        MockMMM = type(
+            "MockMMM", (), {"dims": mmm_dims, "model": model, "xarray_dataset": ds}
+        )
+        mmm = MockMMM()
+
+        effect = ControlMuEffect(
+            data_vars=[var_name],
+            prefix=prefix,
+        )
+
+        with mmm.model:
+            effect.create_data(mmm)
+            contribution = effect.create_effect(mmm)
+
+        # Check deterministic was registered
+        assert f"{prefix}_effect_contribution" in mmm.model.named_vars
+
+        # Check dims: should have date and effect dims, not control
+        contrib_dims = set(contribution.dims)
+        assert "date" in contrib_dims
+        for dim in ctrl_dims:
+            assert dim in contrib_dims
+        assert "control" not in contrib_dims
+
+        # Check contribution_var_name
+        assert effect.contribution_var_name == f"{prefix}_effect_contribution"
+
+        # Can sample prior predictives
+        with mmm.model:
+            pm.sample_prior_predictive(draws=5, random_seed=rng)
+
+    def test_serialization_roundtrip(self):
+        original = ControlMuEffect(
+            data_vars=["ctrl_national"],
+            prefix="test_ctrl",
+        )
+        data = serialization.serialize(original)
+        restored = serialization.deserialize(data)
+
+        assert type(restored) is ControlMuEffect
+        assert restored.data_vars == ["ctrl_national"]
+        assert restored.prefix == "test_ctrl"
+        assert restored == original
