@@ -103,7 +103,7 @@ def to_bass_dataset(data):
 def _from_xarray(data: xr.Dataset) -> xr.Dataset:
     """Preserve an ``xr.Dataset``, adding ``T`` when missing."""
     if "T" not in data.coords:
-        n = next(iter(data.dims.values()))
+        n = next(iter(data.sizes.values()))
         data = data.assign_coords(T=np.arange(n))
     return data
 

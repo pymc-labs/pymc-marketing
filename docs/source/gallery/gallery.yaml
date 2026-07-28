@@ -114,8 +114,6 @@ sections:
         notebook: clv/gamma_gamma
       - title: Shifted BG Model for Cohorts
         notebook: clv/sbg
-      - title: sBG Model for Individuals
-        notebook: clv/sBG_individual
   - title: Customer Choice Models
     cards:
       - title: MV-ITS Saturated
@@ -140,6 +138,10 @@ sections:
     cards:
       - title: Bass Diffusion Model Example
         notebook: bass/bass_example
+  - title: Predicted Incrementality by Experimentation (PIE)
+    cards:
+      - title: Predicting Campaign Incrementality with PIE
+        notebook: pie/pie_example
   - title: General Tutorials
     cards:
       - title: Model Configuration

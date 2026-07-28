@@ -256,11 +256,14 @@ class MMMSummaryFactory:
 
             if use_az_hdi:
                 # Use az.hdi when we have chain/draw dimensions
-                hdi_dataset = az.hdi(data, hdi_prob=hdi_prob)
-                hdi_da = hdi_dataset[var_name]
-                # Drop the 'hdi' coordinate after selection to avoid conflicts
-                hdi_lower = hdi_da.sel(hdi="lower").drop_vars("hdi", errors="ignore")
-                hdi_upper = hdi_da.sel(hdi="higher").drop_vars("hdi", errors="ignore")
+                hdi_da = az.hdi(data, prob=hdi_prob)
+                # Drop the 'ci_bound' coordinate after selection to avoid conflicts
+                hdi_lower = hdi_da.sel(ci_bound="lower").drop_vars(
+                    "ci_bound", errors="ignore"
+                )
+                hdi_upper = hdi_da.sel(ci_bound="upper").drop_vars(
+                    "ci_bound", errors="ignore"
+                )
             else:
                 # Use quantile-based HDI for single sample dimension
                 # Symmetric HDI: take (1-prob)/2 and 1-(1-prob)/2 quantiles

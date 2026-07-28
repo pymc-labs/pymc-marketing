@@ -49,6 +49,12 @@ are patched:
     - Model type and fit method
     - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
 
+- `BassModel.fit`:
+
+    - All parameters, metrics, and artifacts from `pymc.sample`
+    - :func:`log_bass_configuration`: Log the configuration of the Bass model.
+    - Stamp the active MLflow run id on ``idata.attrs["mlflow_run_id"]``.
+
 Examples
 --------
 Autologging for a PyMC model:
@@ -145,10 +151,40 @@ Autologging for a PyMC-Marketing CLV model:
     data = pd.read_csv(file_path)
     data["customer_id"] = data.index
 
-    model = BetaGeoModel(data=data)
+    model = BetaGeoModel()
 
     with mlflow.start_run():
-        model.fit()
+        model.fit(data=data)
+
+Autologging for a PyMC-Marketing Bass model:
+
+.. code-block:: python
+
+    import numpy as np
+
+    import mlflow
+
+    from pymc_extras.prior import Prior
+
+    from pymc_marketing.bass import BassModel
+
+    import pymc_marketing.mlflow
+
+    pymc_marketing.mlflow.autolog(log_bass=True)
+
+    mlflow.set_experiment("Bass Experiment")
+
+    adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
+
+    # Positive prior on the market size m keeps the Poisson rate valid
+    model_config = {
+        "m": Prior("Normal", mu=500, sigma=100),
+    }
+
+    model = BassModel(model_config=model_config)
+
+    with mlflow.start_run():
+        idata = model.fit(data=adoption)
 
 """
 
@@ -179,6 +215,7 @@ except ImportError:  # pragma: no cover
 from mlflow.utils.autologging_utils import autologging_integration
 from packaging import version
 
+from pymc_marketing.bass import BassModel
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.evaluation import compute_summary_metrics
@@ -215,6 +252,44 @@ def _take_every(n: int):
         return callback
 
     return decorator
+
+
+# Known PyMC transform suffixes used in ``draw.point`` keys. Extend this
+# tuple to support more transformations. Two caveats before adding entries:
+#
+# 1. Scalar-only. ``mlflow.log_metric`` accepts a scalar value, so only
+#    transforms that produce scalar value vars are safe to list here.
+#    Scalar-friendly: ``_logodds__`` (Beta, Uniform on (0, 1)),
+#    ``_interval__`` (bounded), ``_log_exp_m1__``, ``_circular__``.
+#    Vector-valued (``_ordered__``, ``_simplex__``, ``_sumto1__``,
+#    ``_zerosum__``, ``_cholesky-cov-packed__``) need per-component
+#    logging before they can be added; do not include them as-is.
+#
+# 2. Built-in transforms only. PyMC lets users subclass ``Transform`` and
+#    pick any ``name``, which produces a value var named
+#    ``f"{var}_{transform.name}__"``. Custom names are unknown here, so
+#    users of custom transforms must still pass the explicit transformed
+#    name. The exact-match branch in ``_resolve_parameter`` preserves
+#    that escape hatch.
+_TRANSFORM_SUFFIXES: tuple[str, ...] = ("_log__",)
+
+
+def _resolve_parameter(name: str, point: dict) -> str:
+    """Map a model-level variable name to its key in ``draw.point``.
+
+    Returns ``name`` if it is already a key in ``point``. Otherwise tries
+    ``name + suffix`` for each suffix in ``_TRANSFORM_SUFFIXES`` and returns
+    the first match. Raises ``KeyError`` if no candidate is found.
+    """
+    if name in point:
+        return name
+    for suffix in _TRANSFORM_SUFFIXES:
+        candidate = f"{name}{suffix}"
+        if candidate in point:
+            return candidate
+    raise KeyError(
+        f"Parameter {name!r} not found in draw.point. Available keys: {sorted(point)}."
+    )
 
 
 def create_log_callback(
@@ -274,7 +349,10 @@ def create_log_callback(
         with mlflow.start_run():
             idata = pm.sample(model=model, callback=callback)
 
-    Log the parameters `mu` and `sigma_log__` every 100th draw:
+    Log the parameters `mu` and `sigma` every 100th draw. PyMC samples
+    `sigma` on the unconstrained scale as `sigma_log__`; the callback
+    resolves the transformed name automatically, so passing the
+    model-level name is enough:
 
     .. code-block:: python
 
@@ -283,7 +361,7 @@ def create_log_callback(
         from pymc_marketing.mlflow import create_log_callback
 
         callback = create_log_callback(
-            parameters=["mu", "sigma_log__"],
+            parameters=["mu", "sigma"],
             take_every=100,
         )
 
@@ -296,6 +374,8 @@ def create_log_callback(
     if not stats and not parameters:
         raise ValueError("At least one of `stats` or `parameters` must be provided.")
 
+    resolved: dict[str, str] = {}
+
     def callback(_, draw):
         prefix = f"chain_{draw.chain}"
         for stat in stats or []:
@@ -305,10 +385,17 @@ def create_log_callback(
                 step=draw.draw_idx,
             )
 
+        if not resolved and parameters:
+            resolved.update({p: _resolve_parameter(p, draw.point) for p in parameters})
+
         for parameter in parameters or []:
+            # `mlflow.log_metric` is scalar-only. Vector-valued parameters
+            # (Dirichlet, Ordered, ZeroSumNormal, ...) raise `MlflowException`
+            # here. Expanding them into per-component metrics is left to a
+            # follow-up PR; see the comment on `_TRANSFORM_SUFFIXES`.
             mlflow.log_metric(
                 key=f"{prefix}/{parameter}",
-                value=draw.point[parameter],
+                value=draw.point[resolved[parameter]],
                 step=draw.draw_idx,
             )
 
@@ -333,31 +420,33 @@ def _log_and_remove_artifact(path: str | Path) -> None:
     os.remove(path)
 
 
-def _force_load_idata_groups(idata: az.InferenceData) -> None:
-    """Force load all groups into memory since ArviZ does lazy loading.
+def _force_load_idata_groups(idata: xr.DataTree) -> None:
+    """Force load all groups into memory since the store is read lazily.
+
+    netCDF/Zarr-backed ``DataTree`` objects load their groups lazily, so we
+    materialize every group in the tree before logging to MLflow.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object to force load.
+    idata : xr.DataTree
+        The DataTree object to force load.
     """
-    for group in idata.groups():
-        # Convert each group to an in-memory dataset
-        if hasattr(idata, group):
-            group_data = getattr(idata, group)
-            if hasattr(group_data, "load"):
-                group_data.load()
+    # ``DataTree.groups`` yields ``/``-prefixed paths (e.g. ``"/posterior"``),
+    # which are not attribute names, so iterate the nodes directly and load
+    # each group's dataset in place.
+    for node in idata.subtree:
+        node.dataset.load()
 
 
-def _attach_run_id(idata: az.InferenceData) -> None:
+def _attach_run_id(idata: xr.DataTree) -> None:
     """Stamp the active MLflow run id onto ``idata.attrs``.
 
     No-op when no MLflow run is active.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object to stamp.
+    idata : xr.DataTree
+        The DataTree object to stamp.
     """
     run = mlflow.active_run()
     if run is None:
@@ -366,7 +455,7 @@ def _attach_run_id(idata: az.InferenceData) -> None:
 
 
 def log_arviz_summary(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     path: str | Path,
     var_names: list[str] | None = None,
     **summary_kwargs,
@@ -377,13 +466,13 @@ def log_arviz_summary(
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
     path : str | Path
         The path to save the summary as HTML.
     var_names : list[str], optional
         The names of the variables to include in the summary. Default is
-        all the variables in the InferenceData object.
+        all the variables in the DataTree object.
     summary_kwargs : dict
         Additional keyword arguments to pass to `az.summary`.
 
@@ -394,7 +483,7 @@ def log_arviz_summary(
     os.remove(path)
 
 
-def log_metadata(model: Model, idata: az.InferenceData) -> None:
+def log_metadata(model: Model, idata: xr.DataTree) -> None:
     """Log the metadata of the data used in the model to MLflow.
 
     Saved in the form of numpy arrays based on all the constant and observed data
@@ -404,8 +493,8 @@ def log_metadata(model: Model, idata: az.InferenceData) -> None:
     ----------
     model : Model
         The PyMC model object.
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
 
     """
     data_vars: list[TensorVariable] = model.data_vars
@@ -454,6 +543,10 @@ def log_model_graph(model: Model, path: str | Path) -> None:
         )
         logger.info(msg)
 
+        return None
+    except Exception as e:
+        msg = f"Unable to render the model graph. {e}"
+        logger.info(msg)
         return None
 
     try:
@@ -536,7 +629,7 @@ def log_model_derived_info(model: Model) -> None:
 
 
 def log_sample_diagnostics(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     tune: int | None = None,
 ) -> None:
     """Log sample diagnostics to MLflow.
@@ -555,18 +648,18 @@ def log_sample_diagnostics(
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
     tune : int, optional
         The number of tuning steps used in sampling. Derived from the
         inference data if not provided.
 
     """
     if "posterior" not in idata:
-        raise KeyError("InferenceData object does not contain the group posterior.")
+        raise KeyError("DataTree object does not contain the group posterior.")
 
     if "sample_stats" not in idata:
-        raise KeyError("InferenceData object does not contain the group sample_stats.")
+        raise KeyError("DataTree object does not contain the group sample_stats.")
 
     posterior = idata["posterior"]
     sample_stats = idata["sample_stats"]
@@ -605,17 +698,17 @@ def log_sample_diagnostics(
 
 
 def log_inference_data(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     save_file: str | Path = "idata.nc",
 ) -> None:
-    """Log the InferenceData to MLflow.
+    """Log the DataTree to MLflow.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData object returned by the sampling method.
+    idata : xr.DataTree
+        The DataTree object returned by the sampling method.
     save_file : str | Path
-        The path to save the InferenceData object as a netCDF file.
+        The path to save the DataTree object as a netCDF file.
 
     """
     idata.to_netcdf(str(save_file))
@@ -1019,6 +1112,17 @@ def log_mmm_configuration(mmm: MMM) -> None:
     mlflow.log_param("saturation_name", saturation_name)
 
 
+def log_bass_configuration(model: BassModel) -> None:
+    """Log the configuration of the Bass model to MLflow.
+
+    Logs the model's idata attributes: id, model type, version,
+    sampler config, and the prior configuration
+    (``m``, ``p``, ``q``, ``likelihood``).
+    """
+    attrs = model.create_idata_attrs()
+    mlflow.log_params(attrs)
+
+
 def log_error(func: Callable, file_name: str):
     """Log arbitrary caught error and traceback to MLflow.
 
@@ -1081,6 +1185,7 @@ def autolog(
     arviz_summary_kwargs: dict | None = None,
     log_mmm: bool = True,
     log_clv: bool = True,
+    log_bass: bool = True,
     disable: bool = False,
     silent: bool = False,
 ) -> None:
@@ -1105,13 +1210,15 @@ def autolog(
         None, the error will not be logged. Default is "sample-error.txt".
     summary_var_names : list[str], optional
         The names of the variables to include in the ArviZ summary. Default is
-        all the variables in the InferenceData object.
+        all the variables in the DataTree object.
     arviz_summary_kwargs : dict, optional
         Additional keyword arguments to pass to `az.summary`.
     log_mmm : bool, optional
         Whether to log PyMC-Marketing MMM models. Default is True.
     log_clv : bool, optional
         Whether to log PyMC-Marketing CLV models. Default is True.
+    log_bass : bool, optional
+        Whether to log PyMC-Marketing Bass models. Default is True.
     disable : bool, optional
         Whether to disable autologging. Default is False.
     silent : bool, optional
@@ -1214,13 +1321,43 @@ def autolog(
         data = pd.read_csv(file_path)
         data["customer_id"] = data.index
 
-        model = BetaGeoModel(data=data)
+        model = BetaGeoModel()
 
         with mlflow.start_run():
-            model.fit()
+            model.fit(data=data)
 
         with mlflow.start_run():
-            model.fit(fit_method="map")
+            model.fit(data=data, method="map")
+
+    Autologging for a PyMC-Marketing Bass model:
+
+    .. code-block:: python
+
+        import numpy as np
+
+        import mlflow
+
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.bass import BassModel
+
+        import pymc_marketing.mlflow
+
+        pymc_marketing.mlflow.autolog(log_bass=True)
+
+        mlflow.set_experiment("Bass Experiment")
+
+        adoption = np.array([10, 25, 50, 80, 100, 90, 60, 35, 20, 10])
+
+        # Positive prior on the market size m keeps the Poisson rate valid
+        model_config = {
+            "m": Prior("Normal", mu=500, sigma=100),
+        }
+
+        model = BassModel(model_config=model_config)
+
+        with mlflow.start_run():
+            idata = model.fit(data=adoption)
 
     """
     arviz_summary_kwargs = arviz_summary_kwargs or {}
@@ -1297,12 +1434,13 @@ def autolog(
 
     def patch_clv_fit(fit):
         @wraps(fit)
-        def new_fit(self, data=None, method: str = "mcmc", fit_method=None, **kwargs):
+        def new_fit(self, data, method: str = "mcmc", **kwargs):
             mlflow.log_param("model_type", self._model_type)
             mlflow.log_param(
-                "fit_method", fit_method if fit_method is not None else method
+                "fit_method",
+                method,
             )
-            idata = fit(self, data=data, method=method, fit_method=fit_method, **kwargs)
+            idata = fit(self, data=data, method=method, **kwargs)
             mlflow.log_params(
                 idata.attrs,
             )
@@ -1315,3 +1453,20 @@ def autolog(
 
     if log_clv:
         CLVModel.fit = patch_clv_fit(CLVModel.fit)
+
+    def patch_bass_fit(fit: Callable) -> Callable:
+        @wraps(fit)
+        def new_fit(self, *args, **kwargs):
+            log_bass_configuration(self)
+
+            idata = fit(self, *args, **kwargs)
+            _attach_run_id(idata)
+
+            log_inference_data(idata, save_file="idata.nc")
+
+            return idata
+
+        return new_fit
+
+    if log_bass:
+        BassModel.fit = patch_bass_fit(BassModel.fit)  # type: ignore[method-assign]

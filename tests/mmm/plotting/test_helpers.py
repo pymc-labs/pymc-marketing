@@ -28,6 +28,7 @@ from matplotlib.figure import Figure
 from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
+    _plot_timeseries_channel,
     _process_plot_params,
     _select_dims,
     _validate_dims,
@@ -212,20 +213,21 @@ class TestExtractMatplotlibResult:
         assert axes.size == 2
 
     def test_no_plot_key_in_viz_ds_returns_axes_from_figure(self):
-        import arviz as az
         import arviz_plots as azp
 
         rng = np.random.default_rng(42)
-        idata = az.InferenceData(
-            posterior=xr.Dataset(
-                {
-                    "x": xr.DataArray(
-                        rng.normal(size=(2, 50)),
-                        dims=("chain", "draw"),
-                        coords={"chain": [0, 1], "draw": range(50)},
-                    )
-                }
-            )
+        idata = xr.DataTree.from_dict(
+            {
+                "/posterior": xr.Dataset(
+                    {
+                        "x": xr.DataArray(
+                            rng.normal(size=(2, 50)),
+                            dims=("chain", "draw"),
+                            coords={"chain": [0, 1], "draw": range(50)},
+                        )
+                    }
+                )
+            }
         )
         pc = azp.plot_dist(idata, backend="matplotlib")
         assert "plot" not in pc.viz.ds
@@ -234,6 +236,52 @@ class TestExtractMatplotlibResult:
         assert isinstance(axes, np.ndarray)
         assert len(axes) >= 1
         assert all(isinstance(a, Axes) for a in axes)
+
+
+class TestPlotTimeseriesChannelFacet:
+    """Tests for the facet_color_dim option of _plot_timeseries_channel."""
+
+    @pytest.fixture
+    def timeseries_ds(self) -> xr.Dataset:
+        rng = np.random.default_rng(0)
+        n_chain, n_draw, n_date = 2, 25, 12
+        components = ["channel=tv", "channel=radio", "channel=social"]
+        return xr.Dataset(
+            {
+                "contribution": xr.DataArray(
+                    rng.uniform(0, 10, size=(n_chain, n_draw, n_date, len(components))),
+                    dims=("chain", "draw", "date", "component"),
+                    coords={
+                        "chain": np.arange(n_chain),
+                        "draw": np.arange(n_draw),
+                        "date": np.arange(n_date),
+                        "component": components,
+                    },
+                )
+            }
+        )
+
+    def _render(self, ds: xr.Dataset, facet_color_dim: bool):
+        pc = _plot_timeseries_channel(
+            ds,
+            sample_dims=["chain", "draw"],
+            color_dim="component",
+            extra_dims=[],
+            hdi_prob=0.94,
+            backend="matplotlib",
+            line_kwargs=None,
+            hdi_kwargs=None,
+            facet_color_dim=facet_color_dim,
+        )
+        return _extract_matplotlib_result(pc, return_as_pc=False)
+
+    def test_overlay_default_is_single_panel(self, timeseries_ds):
+        _fig, axes = self._render(timeseries_ds, facet_color_dim=False)
+        assert len(axes) == 1
+
+    def test_facet_creates_one_panel_per_component(self, timeseries_ds):
+        _fig, axes = self._render(timeseries_ds, facet_color_dim=True)
+        assert len(axes) == timeseries_ds.sizes["component"]
 
 
 class TestPublicAPI:

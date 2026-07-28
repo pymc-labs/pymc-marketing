@@ -83,7 +83,7 @@ This module provides event transformations for use in Marketing Mix Models.
 
         idata = pm.sample_prior_predictive(random_seed=rng)
 
-    fig, axes = idata.prior.effect.pipe(
+    fig, axes = idata.prior["effect"].pipe(
         plot_curve,
         "date",
         random_seed=rng,
@@ -142,7 +142,7 @@ class Basis(Transformation):
     @validate_call
     def sample_curve(
         self,
-        parameters: InstanceOf[xr.Dataset] = Field(
+        parameters: InstanceOf[xr.Dataset] | InstanceOf[xr.DataTree] = Field(
             ..., description="Parameters of the saturation transformation."
         ),
         days: int = Field(

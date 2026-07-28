@@ -137,11 +137,14 @@ Create a basic Bass model for multiple products:
 from typing import Any, TypedDict, cast
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from matplotlib.axes import Axes
 from numpy.typing import (
     ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
@@ -149,6 +152,7 @@ from pymc.model import Model
 from pymc.util import RandomState
 from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 
+from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
 from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
 from pymc_marketing.version import __version__
@@ -480,7 +484,7 @@ class BassModel(ModelBuilder):
 
     .. code-block:: python
 
-        az.plot_forest(idata.posterior["peak"], combined=True)
+        azp.plot_forest(idata.posterior["peak"], combined=True)
     """
 
     _model_type = "BassModel"
@@ -602,7 +606,7 @@ class BassModel(ModelBuilder):
             )
 
         if extend_idata and self.idata is not None:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         variable_name = (
             "predictions"
@@ -668,7 +672,7 @@ class BassModel(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the Bass diffusion model via MCMC.
 
         Parameters
@@ -684,7 +688,7 @@ class BassModel(ModelBuilder):
 
         Returns
         -------
-        arviz.InferenceData
+        xarray.DataTree
             Posterior with parameters and deterministics (adopters,
             innovators, imitators, peak) plus a ``fit_data`` group.
 
@@ -701,10 +705,10 @@ class BassModel(ModelBuilder):
             az.summary(idata, var_names=["m", "p", "q"])
 
             # Trace plots
-            az.plot_trace(idata, var_names=["m", "p", "q"])
+            azp.plot_trace(idata, var_names=["m", "p", "q"])
 
             # Forest plots of peak adoption time
-            az.plot_forest(idata.posterior["peak"], combined=True)
+            azp.plot_forest(idata.posterior["peak"], combined=True)
 
         For posterior predictive sampling with new time points:
 
@@ -722,27 +726,88 @@ class BassModel(ModelBuilder):
 
         with self.model:
             idata = pm.sample(var_names=var_names, **sampler_kwargs)
-            idata.posterior = pm.compute_deterministics(
+            # Assign to the DataTree node, not the ``posterior`` property.
+            # Under arviz>=1.2 InferenceData subclasses xarray.DataTree, so
+            # ``idata.posterior = ...`` sets a shadowing instance attribute and
+            # leaves the actual group unchanged, dropping the deterministics.
+            idata["posterior"] = pm.compute_deterministics(
                 idata.posterior, merge_dataset=True
             )
 
         if self.idata is not None:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
         if "fit_data" in self.idata:
-            del self.idata.fit_data
+            del self.idata["fit_data"]
 
-        self.idata.add_groups(fit_data=ds)
+        self.idata["fit_data"] = xr.DataTree(ds)
         self.set_idata_attrs(self.idata)
         return self.idata
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Rebuild the model from an ``InferenceData`` object.
+    def plot_adoption_curve(
+        self, **kwargs: Any
+    ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior adoption curve with the observed data.
+
+        See :func:`pymc_marketing.bass.plotting.plot_adoption_curve` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_adoption_curve(self, **kwargs)
+
+    def plot_cumulative(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the cumulative adoption S-curve with the observed data.
+
+        See :func:`pymc_marketing.bass.plotting.plot_cumulative` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_cumulative(self, **kwargs)
+
+    def plot_decomposition(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the adoption decomposition into innovators and imitators.
+
+        Per-period innovators and imitators go on the left y-axis and
+        cumulative adoption on a twin right y-axis.
+
+        See :func:`pymc_marketing.bass.plotting.plot_decomposition` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the primary (left) axes.
+        """
+        return plotting.plot_decomposition(self, **kwargs)
+
+    def plot_peak(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior distribution of the peak adoption time.
+
+        See :func:`pymc_marketing.bass.plotting.plot_peak` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_peak(self, **kwargs)
+
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Rebuild the model from a ``DataTree`` object.
 
         Used internally by :meth:`ModelBuilder.load`.
         """
