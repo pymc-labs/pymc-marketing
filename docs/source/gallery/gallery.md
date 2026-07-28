@@ -231,7 +231,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_mueffect.html
 :::
 
-:::{grid-item-card} Advanced Funnel-Aware MMM: Geo-Level Mediation with Multiple Demand Proxies
+:::{grid-item-card} Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend
 :img-top: ../gallery/images/mmm_funnel_mueffect_advanced.png
 :link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
 :::

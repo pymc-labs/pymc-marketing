@@ -94,7 +94,7 @@ sections:
             notebook: mmm/mmm_upper_funnel_causal_approach
           - title: "Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`"
             notebook: mmm/mmm_funnel_mueffect
-          - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation with Multiple Demand Proxies"
+          - title: "Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend"
             notebook: mmm/mmm_funnel_mueffect_advanced
           - title: Causal Reasoning and Discovery
             notebook: mmm/mmm_causal_reasoning_and_discovery
