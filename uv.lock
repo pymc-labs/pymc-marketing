@@ -4080,6 +4080,7 @@ dev = [
     { name = "h5netcdf" },
     { name = "h5py" },
     { name = "mypy" },
+    { name = "networkx" },
     { name = "pandas-stubs" },
     { name = "pyyaml" },
 ]
@@ -4176,6 +4177,7 @@ dev = [
     { name = "h5netcdf", specifier = ">=1.8.1" },
     { name = "h5py", specifier = ">=3.16.0" },
     { name = "mypy", specifier = ">=2.1.0" },
+    { name = "networkx" },
     { name = "pandas-stubs", specifier = ">=3.0.3.260530" },
     { name = "pyyaml", specifier = ">=6.0.3" },
 ]
