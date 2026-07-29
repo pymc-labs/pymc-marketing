@@ -553,7 +553,11 @@ class BassModel(ModelBuilder):
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
             old_value = self.model["y_obs"].get_value()
-            new_shape = (len(new_t), *old_value.shape[1:])
+            dims = self.model.named_vars_to_dims["y_obs"]
+            new_shape = tuple(
+                len(new_t) if d == "T" else size
+                for d, size in zip(dims, old_value.shape, strict=True)
+            )
             set_data["y_obs"] = np.zeros(new_shape, dtype=old_value.dtype)
         with self.model:
             pm.set_data(set_data, coords={"T": new_t})
