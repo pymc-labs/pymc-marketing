@@ -2,7 +2,7 @@
 
 ## Environment
 
-- Activate conda env `pymc-marketing-dev` before running any commands.
+- Run `uv sync` to set up the environment, then use `uv run` for commands.
 - Run `pre-commit` every time you create or modify a file.
 - Temporary or test scripts that are not meant to be committed should be created in the `sandbox/` folder.
 

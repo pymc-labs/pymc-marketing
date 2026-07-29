@@ -13,7 +13,6 @@
 #   limitations under the License.
 from unittest.mock import patch
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -62,33 +61,63 @@ def dummy_df():
 
 
 @pytest.fixture(scope="module")
-def dummy_idata(dummy_df) -> az.InferenceData:
+def dummy_idata(dummy_df) -> xr.DataTree:
     df_kwargs, _df, _y = dummy_df
 
-    return az.from_dict(
-        posterior={
-            "saturation_lam": [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
-            "saturation_beta": [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
-            "adstock_alpha": [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
-            "channel_contribution": np.array(
-                [
-                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
-                    [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
-                ]
-            ),  # dims: chain, draw, channel, date
-        },
-        coords={
-            "chain": [0, 1],
-            "draw": [0, 1],
-            "channel": df_kwargs["channel_columns"],
-            "date": [0, 1],
-        },
-        dims={
-            "saturation_lam": ["chain", "draw", "channel"],
-            "saturation_beta": ["chain", "draw", "channel"],
-            "adstock_alpha": ["chain", "draw", "channel"],
-            "channel_contribution": ["chain", "draw", "channel", "date"],
-        },
+    channels = df_kwargs["channel_columns"]
+    chain_coord = [0, 1]
+    draw_coord = [0, 1]
+    date_coord = [0, 1]
+
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "saturation_lam": xr.DataArray(
+                        [[[0.1, 0.2], [0.3, 0.4]], [[0.5, 0.6], [0.7, 0.8]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "saturation_beta": xr.DataArray(
+                        [[[0.5, 1.0], [0.5, 1.0]], [[0.5, 1.0], [0.5, 1.0]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "adstock_alpha": xr.DataArray(
+                        [[[0.5, 0.7], [0.5, 0.7]], [[0.5, 0.7], [0.5, 0.7]]],
+                        dims=["chain", "draw", "channel"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                        },
+                    ),
+                    "channel_contribution": xr.DataArray(
+                        np.array(
+                            [
+                                [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                                [[[1.0, 1.0], [1.0, 1.0]], [[1.0, 1.0], [1.0, 1.0]]],
+                            ]
+                        ),
+                        dims=["chain", "draw", "channel", "date"],
+                        coords={
+                            "chain": chain_coord,
+                            "draw": draw_coord,
+                            "channel": channels,
+                            "date": date_coord,
+                        },
+                    ),
+                }
+            ),
+        }
     )
 
 
@@ -268,13 +297,11 @@ def test_allocate_budget(
     optimizes ``total_media_contribution_original_scale`` (media-only, original
     units), so the expected allocation/response values intentionally differ.
     """
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     # Allocate Budget
     optimal_budgets, optimization_res = optimizer.allocate_budget(
@@ -302,18 +329,123 @@ def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):
         )
 
 
+def test_empty_constraints_auto_adds_default(mmm_wrapper):
+    """Empty ``constraints`` should auto-add the default sum constraint."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert "default" in optimizer._constraints
+
+
+def test_non_empty_constraints_skips_default(mmm_wrapper):
+    """A non-empty ``constraints`` means the caller is in charge: no default."""
+    custom = [
+        Constraint(
+            key="cap",
+            constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+                budgets_sym.sum() - total_budget_sym
+            ),
+            constraint_type="eq",
+        )
+    ]
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=custom,
+    )
+    assert "default" not in optimizer._constraints
+    assert "cap" in optimizer._constraints
+
+
+def test_constraint_instance_round_trips_into_constraints(mmm_wrapper):
+    """A ``Constraint`` passed via ``constraints`` lands in ``_constraints`` by key."""
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="ineq",
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[cap],
+    )
+    # Stored object is the same instance, not a copy.
+    assert optimizer._constraints["cap"] is cap
+
+
+def test_constraints_empty_list_matches_default(mmm_wrapper):
+    """An explicit empty list behaves like the default empty tuple."""
+    opt_default = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    opt_empty_list = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+        constraints=[],
+    )
+    assert (
+        set(opt_default._constraints) == set(opt_empty_list._constraints) == {"default"}
+    )
+
+
+def test_set_constraints_is_reentrant(mmm_wrapper):
+    """Re-calling ``set_constraints`` clears prior state and recompiles."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert set(optimizer._constraints) == {"default"}
+
+    cap = Constraint(
+        key="cap",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            budgets_sym.sum() - total_budget_sym
+        ),
+        constraint_type="ineq",
+    )
+    optimizer.set_constraints([cap])
+
+    # Old "default" is gone, only the new constraint remains, recompiled.
+    assert set(optimizer._constraints) == {"cap"}
+    assert len(optimizer._compiled_constraints) == 1
+
+
+def test_duplicate_constraint_keys_raise(mmm_wrapper):
+    """Two constraints sharing a key must raise, not silently clobber."""
+    fun = lambda budgets_sym, total_budget_sym, optimizer: budgets_sym.sum()  # noqa: E731
+    dup = [
+        Constraint(key="cap", constraint_fun=fun, constraint_type="ineq"),
+        Constraint(key="cap", constraint_fun=fun, constraint_type="ineq"),
+    ]
+    with pytest.raises(ValueError, match="Duplicate constraint key"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=4,
+            response_variable="total_media_contribution_original_scale",
+            constraints=dup,
+        )
+
+
 @patch("pymc_marketing.mmm.budget_optimizer.minimize")
 def test_allocate_budget_custom_minimize_args(
     minimize_mock,
     mmm_wrapper,
 ) -> None:
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     total_budget = 100
     budget_bounds = {"channel_1": (0.0, 50.0), "channel_2": (0.0, 50.0)}
@@ -338,7 +470,7 @@ def test_allocate_budget_custom_minimize_args(
 
 
 @pytest.mark.parametrize(
-    "total_budget, budget_bounds, parameters, custom_constraints",
+    "total_budget, budget_bounds, parameters, constraints",
     [
         (
             100,
@@ -380,14 +512,13 @@ def test_allocate_budget_infeasible_constraints(
     total_budget,
     budget_bounds,
     parameters,
-    custom_constraints,
+    constraints,
     mmm_wrapper,
 ):
     optimizer = BudgetOptimizer(
         model=mmm_wrapper,
         response_variable="total_media_contribution_original_scale",
-        default_constraints=False,
-        custom_constraints=custom_constraints,
+        constraints=constraints,
         num_periods=30,
     )
 
@@ -441,7 +572,7 @@ def test_allocate_budget_custom_response_constraint(
             budgets_sym, total_budget_sym, optimizer, target_response
         )
 
-    custom_constraints = [
+    constraints = [
         Constraint(
             key="target_response_constraint",
             constraint_fun=constraint_wrapper,
@@ -453,8 +584,7 @@ def test_allocate_budget_custom_response_constraint(
         model=mmm_wrapper,
         response_variable="total_media_contribution_original_scale",
         utility_function=minimize_budget_utility,
-        default_constraints=False,
-        custom_constraints=custom_constraints,
+        constraints=constraints,
         num_periods=30,
     )
 
@@ -492,13 +622,11 @@ def test_callback_functionality_parametrized(
     expected_return_length,
 ):
     """Test callback functionality with various parameter combinations."""
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     result = optimizer.allocate_budget(
         total_budget=total_budget,
@@ -623,19 +751,15 @@ def test_budget_distribution_over_period(
                 model=mmm_wrapper,
                 num_periods=num_periods,
                 budget_distribution_over_period=budget_distribution_over_period_factors,
-                default_constraints=True,
                 response_variable="total_media_contribution_original_scale",
             )
     else:
-        match = "Using default equality constraint"
-        with pytest.warns(UserWarning, match=match):
-            optimizer = BudgetOptimizer(
-                model=mmm_wrapper,
-                num_periods=num_periods,
-                budget_distribution_over_period=budget_distribution_over_period_factors,
-                default_constraints=True,
-                response_variable="total_media_contribution_original_scale",
-            )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=num_periods,
+            budget_distribution_over_period=budget_distribution_over_period_factors,
+            response_variable="total_media_contribution_original_scale",
+        )
 
         # Check that the time distribution factors were stored correctly
         if budget_distribution_over_period_factors is not None:
@@ -666,7 +790,6 @@ def test_budget_distribution_over_period_wrong_dims(mmm_wrapper):
             model=mmm_wrapper,
             num_periods=4,
             budget_distribution_over_period=budget_distribution_over_period,
-            default_constraints=True,
             response_variable="total_media_contribution_original_scale",
         )
 
@@ -691,15 +814,12 @@ def test_budget_distribution_over_period_applied_correctly(mmm_wrapper):
         dims=["channel", "date"],
     )
 
-    match = "Using default equality constraint"
-    with pytest.warns(UserWarning, match=match):
-        optimizer = BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=4,
-            budget_distribution_over_period=budget_distribution_over_period_factors,
-            default_constraints=True,
-            response_variable="total_media_contribution_original_scale",
-        )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=4,
+        budget_distribution_over_period=budget_distribution_over_period_factors,
+        response_variable="total_media_contribution_original_scale",
+    )
 
     # Verify that the time distribution factors tensor was created correctly
     assert optimizer._budget_distribution_over_period_tensor is not None
@@ -738,7 +858,6 @@ def test_budget_distribution_over_period_integration(mmm_wrapper):
         model=mmm_wrapper,
         num_periods=num_periods,
         budget_distribution_over_period=budget_distribution_over_period_factors,
-        default_constraints=True,
         response_variable="total_media_contribution_original_scale",
     )
 
@@ -746,7 +865,6 @@ def test_budget_distribution_over_period_integration(mmm_wrapper):
         model=mmm_wrapper,
         num_periods=num_periods,
         budget_distribution_over_period=None,
-        default_constraints=True,
         response_variable="total_media_contribution_original_scale",
     )
 

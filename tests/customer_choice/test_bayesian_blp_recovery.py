@@ -47,7 +47,7 @@ _FIT_KWARGS = dict(
 
 def _hdi(samples, prob: float = 0.94) -> tuple[float, float]:
     arr = np.asarray(samples).reshape(-1)
-    hdi = az.hdi(arr, hdi_prob=prob)
+    hdi = az.hdi(arr, prob=prob)
     if hasattr(hdi, "values"):
         hdi = hdi.values
     return float(hdi[0]), float(hdi[1])

@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import warnings
 
-import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -52,7 +51,7 @@ def close_figures():
 
 
 @pytest.fixture(scope="module")
-def simple_idata() -> az.InferenceData:
+def simple_idata() -> xr.DataTree:
     """InferenceData with dims (chain, draw, date, channel) — no custom dims."""
     rng = np.random.default_rng(SEED)
     dates = np.arange(20)
@@ -99,11 +98,13 @@ def simple_idata() -> az.InferenceData:
         }
     )
 
-    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior, "/constant_data": constant_data}
+    )
 
 
 @pytest.fixture(scope="module")
-def panel_idata() -> az.InferenceData:
+def panel_idata() -> xr.DataTree:
     """InferenceData with custom dim 'country' — (chain, draw, date, channel, country)."""
     rng = np.random.default_rng(SEED + 1)
     dates = np.arange(15)
@@ -158,7 +159,9 @@ def panel_idata() -> az.InferenceData:
         }
     )
 
-    return az.InferenceData(posterior=posterior, constant_data=constant_data)
+    return xr.DataTree.from_dict(
+        {"/posterior": posterior, "/constant_data": constant_data}
+    )
 
 
 @pytest.fixture(scope="module")

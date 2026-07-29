@@ -27,7 +27,7 @@ import sys
 import tempfile
 from typing import Any
 
-import arviz as az
+import xarray as xr
 
 CURRENT_VERSION = 1
 
@@ -118,17 +118,17 @@ def _migrate_v0_to_v1(attrs: dict[str, Any]) -> dict[str, Any]:
     return attrs
 
 
-def migrate_idata(idata: az.InferenceData) -> az.InferenceData:
-    """Migrate InferenceData attrs from old format to current version.
+def migrate_idata(idata: xr.DataTree) -> xr.DataTree:
+    """Migrate DataTree attrs from old format to current version.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The InferenceData to migrate. Modified in-place and returned.
+    idata : xr.DataTree
+        The DataTree to migrate. Modified in-place and returned.
 
     Returns
     -------
-    az.InferenceData
+    xr.DataTree
         The same object, with attrs updated to current version.
     """
     version_str = idata.attrs.get("__serialization_version__", "0")
@@ -158,7 +158,7 @@ def main() -> None:
 
     fname = sys.argv[1]
     print(f"Loading {fname}...")
-    idata = az.from_netcdf(fname)
+    idata = xr.open_datatree(fname)
 
     version = idata.attrs.get("__serialization_version__", "0")
     if int(version) >= CURRENT_VERSION:

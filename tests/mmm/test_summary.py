@@ -24,7 +24,6 @@ redundant tests while maintaining full coverage.
 import importlib.util
 from unittest.mock import Mock
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -63,59 +62,61 @@ def mock_mmm_idata_wrapper(simple_dates, simple_channels):
     """Mock MMMIDataWrapper with complete data for testing."""
     local_rng = np.random.default_rng(seed=42)
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": simple_dates, "channel": simple_channels},
-                ),
-                "mu": xr.DataArray(
-                    local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        posterior_predictive=xr.Dataset(
-            {
-                "y": xr.DataArray(
-                    local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        fit_data=xr.Dataset(
-            {
-                "target": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=52),
-                    dims=("date",),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    local_rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "channel"),
-                    coords={"date": simple_dates, "channel": simple_channels},
-                ),
-                "channel_scale": xr.DataArray(
-                    [100.0, 50.0, 75.0],
-                    dims=("channel",),
-                    coords={"channel": simple_channels},
-                ),
-                "target_scale": xr.DataArray(500.0),
-                "target_data": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=52),
-                    dims=("date",),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "mu": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/posterior_predictive": xr.Dataset(
+                {
+                    "y": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "target": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=52),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [100.0, 50.0, 75.0],
+                        dims=("channel",),
+                        coords={"channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                    "target_data": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=52),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+        }
     )
 
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
@@ -130,36 +131,38 @@ def mock_mmm_idata_wrapper_with_zero_spend(simple_dates):
     channel_data = local_rng.uniform(0, 100, size=(52, 3))
     channel_data[:, 2] = 0.0  # Zero spend for third channel
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": simple_dates, "channel": channels},
-                ),
-            }
-        ),
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    channel_data,
-                    dims=("date", "channel"),
-                    coords={"date": simple_dates, "channel": channels},
-                ),
-                "channel_scale": xr.DataArray(
-                    [100.0, 50.0, 1.0],
-                    dims=("channel",),
-                    coords={"channel": channels},
-                ),
-                "target_scale": xr.DataArray(500.0),
-                "target_data": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=52),
-                    dims=("date",),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": channels},
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        channel_data,
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": channels},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [100.0, 50.0, 1.0],
+                        dims=("channel",),
+                        coords={"channel": channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                    "target_data": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=52),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+        }
     )
 
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
@@ -175,75 +178,79 @@ def mock_panel_idata_wrapper(simple_dates, simple_channels):
     n_channels = len(simple_channels)
     n_countries = len(countries)
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    local_rng.normal(
-                        loc=1000,
-                        scale=100,
-                        size=(2, 10, n_dates, n_countries, n_channels),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(
+                            loc=1000,
+                            scale=100,
+                            size=(2, 10, n_dates, n_countries, n_channels),
+                        ),
+                        dims=("chain", "draw", "date", "country", "channel"),
+                        coords={
+                            "date": simple_dates,
+                            "country": countries,
+                            "channel": simple_channels,
+                        },
                     ),
-                    dims=("chain", "draw", "date", "country", "channel"),
-                    coords={
-                        "date": simple_dates,
-                        "country": countries,
-                        "channel": simple_channels,
-                    },
-                ),
-                "mu": xr.DataArray(
-                    local_rng.normal(
-                        loc=5000, scale=200, size=(2, 10, n_dates, n_countries)
+                    "mu": xr.DataArray(
+                        local_rng.normal(
+                            loc=5000, scale=200, size=(2, 10, n_dates, n_countries)
+                        ),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": simple_dates, "country": countries},
                     ),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": simple_dates, "country": countries},
-                ),
-            }
-        ),
-        posterior_predictive=xr.Dataset(
-            {
-                "y": xr.DataArray(
-                    local_rng.normal(
-                        loc=5000, scale=200, size=(2, 10, n_dates, n_countries)
+                }
+            ),
+            "/posterior_predictive": xr.Dataset(
+                {
+                    "y": xr.DataArray(
+                        local_rng.normal(
+                            loc=5000, scale=200, size=(2, 10, n_dates, n_countries)
+                        ),
+                        dims=("chain", "draw", "date", "country"),
+                        coords={"date": simple_dates, "country": countries},
                     ),
-                    dims=("chain", "draw", "date", "country"),
-                    coords={"date": simple_dates, "country": countries},
-                ),
-            }
-        ),
-        fit_data=xr.Dataset(
-            {
-                "target": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=(n_dates, n_countries)),
-                    dims=("date", "country"),
-                    coords={"date": simple_dates, "country": countries},
-                ),
-            }
-        ),
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    local_rng.uniform(0, 100, size=(n_dates, n_countries, n_channels)),
-                    dims=("date", "country", "channel"),
-                    coords={
-                        "date": simple_dates,
-                        "country": countries,
-                        "channel": simple_channels,
-                    },
-                ),
-                "channel_scale": xr.DataArray(
-                    [100.0, 50.0, 75.0],
-                    dims=("channel",),
-                    coords={"channel": simple_channels},
-                ),
-                "target_scale": xr.DataArray(500.0),
-                "target_data": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=(n_dates, n_countries)),
-                    dims=("date", "country"),
-                    coords={"date": simple_dates, "country": countries},
-                ),
-            }
-        ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "target": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=(n_dates, n_countries)),
+                        dims=("date", "country"),
+                        coords={"date": simple_dates, "country": countries},
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(
+                            0, 100, size=(n_dates, n_countries, n_channels)
+                        ),
+                        dims=("date", "country", "channel"),
+                        coords={
+                            "date": simple_dates,
+                            "country": countries,
+                            "channel": simple_channels,
+                        },
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [100.0, 50.0, 75.0],
+                        dims=("channel",),
+                        coords={"channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                    "target_data": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=(n_dates, n_countries)),
+                        dims=("date", "country"),
+                        coords={"date": simple_dates, "country": countries},
+                    ),
+                }
+            ),
+        }
     )
 
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
@@ -255,73 +262,75 @@ def mock_mmm_idata_wrapper_with_controls(simple_dates, simple_channels):
     local_rng = np.random.default_rng(seed=44)
     controls = ["price", "promo"]
 
-    idata = az.InferenceData(
-        posterior=xr.Dataset(
-            {
-                "channel_contribution": xr.DataArray(
-                    local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
-                    dims=("chain", "draw", "date", "channel"),
-                    coords={"date": simple_dates, "channel": simple_channels},
-                ),
-                "control_contribution": xr.DataArray(
-                    local_rng.normal(loc=200, scale=50, size=(2, 10, 52, 2)),
-                    dims=("chain", "draw", "date", "control"),
-                    coords={"date": simple_dates, "control": controls},
-                ),
-                "intercept": xr.DataArray(
-                    local_rng.normal(loc=3000, scale=100, size=(2, 10)),
-                    dims=("chain", "draw"),
-                ),
-                "mu": xr.DataArray(
-                    local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        posterior_predictive=xr.Dataset(
-            {
-                "y": xr.DataArray(
-                    local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
-                    dims=("chain", "draw", "date"),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        fit_data=xr.Dataset(
-            {
-                "target": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=52),
-                    dims=("date",),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
-        constant_data=xr.Dataset(
-            {
-                "channel_data": xr.DataArray(
-                    local_rng.uniform(0, 100, size=(52, 3)),
-                    dims=("date", "channel"),
-                    coords={"date": simple_dates, "channel": simple_channels},
-                ),
-                "channel_scale": xr.DataArray(
-                    [100.0, 50.0, 75.0],
-                    dims=("channel",),
-                    coords={"channel": simple_channels},
-                ),
-                "control_data": xr.DataArray(
-                    local_rng.uniform(0, 10, size=(52, 2)),
-                    dims=("date", "control"),
-                    coords={"date": simple_dates, "control": controls},
-                ),
-                "target_scale": xr.DataArray(500.0),
-                "target_data": xr.DataArray(
-                    local_rng.uniform(4000, 6000, size=52),
-                    dims=("date",),
-                    coords={"date": simple_dates},
-                ),
-            }
-        ),
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(loc=1000, scale=100, size=(2, 10, 52, 3)),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "control_contribution": xr.DataArray(
+                        local_rng.normal(loc=200, scale=50, size=(2, 10, 52, 2)),
+                        dims=("chain", "draw", "date", "control"),
+                        coords={"date": simple_dates, "control": controls},
+                    ),
+                    "intercept": xr.DataArray(
+                        local_rng.normal(loc=3000, scale=100, size=(2, 10)),
+                        dims=("chain", "draw"),
+                    ),
+                    "mu": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/posterior_predictive": xr.Dataset(
+                {
+                    "y": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, 52)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "target": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=52),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(0, 100, size=(52, 3)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [100.0, 50.0, 75.0],
+                        dims=("channel",),
+                        coords={"channel": simple_channels},
+                    ),
+                    "control_data": xr.DataArray(
+                        local_rng.uniform(0, 10, size=(52, 2)),
+                        dims=("date", "control"),
+                        coords={"date": simple_dates, "control": controls},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                    "target_data": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=52),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+        }
     )
 
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
@@ -774,7 +783,7 @@ class TestMMMSummaryFactory:
 
     def test_factory_raises_with_invalid_data_structure(self):
         """Test that MMMSummaryFactory raises early with invalid data structure."""
-        invalid_idata = az.InferenceData(posterior=xr.Dataset())
+        invalid_idata = xr.DataTree.from_dict({"/posterior": xr.Dataset()})
 
         schema = MMMIdataSchema.from_model_config(
             custom_dims=(),

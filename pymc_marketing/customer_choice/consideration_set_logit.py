@@ -16,11 +16,11 @@
 import json
 from typing import TypedDict
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
+import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.tensor.variable import TensorVariable
 
@@ -478,7 +478,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         consideration_instruments: ConsiderationInstruments | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from posterior predictive, updating consideration instruments if needed.
 
         Parameters
@@ -497,7 +497,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Posterior predictive samples.
         """
         if consideration_instruments is not None:
@@ -536,7 +536,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         return post_pred
 
@@ -547,7 +547,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         new_consideration_instruments: ConsiderationInstruments | None = None,
         fit_kwargs: dict | None = None,
         random_seed: int | None = None,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Apply intervention, optionally updating consideration instruments.
 
         Parameters
@@ -569,7 +569,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
         Returns
         -------
-        az.InferenceData
+        xr.DataTree
             Posterior or predictive distribution under intervention.
         """
         if not hasattr(self, "model") or self.idata is None:
@@ -617,11 +617,11 @@ class ConsiderationSetMixedLogit(MixedLogit):
 
             with new_model:
                 idata_new_policy = pm.sample_prior_predictive()
-                idata_new_policy.extend(pm.sample(**fit_kwargs))
-                idata_new_policy.extend(
+                idata_new_policy.update(pm.sample(**fit_kwargs))
+                idata_new_policy.update(
                     pm.sample_posterior_predictive(
                         idata_new_policy, var_names=["p", "likelihood"]
-                    )
+                    ),
                 )
 
             self.intervention_idata = idata_new_policy
@@ -629,7 +629,7 @@ class ConsiderationSetMixedLogit(MixedLogit):
         return idata_new_policy
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create attributes for the InferenceData object.
+        """Create attributes for the DataTree.
 
         Z_tilde is not serialized into the attrs dict because it is a
         large numeric array. When loading a saved model, callers must

@@ -127,7 +127,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytensor.xtensor as ptx
@@ -162,19 +161,17 @@ class Incrementality:
     ----------
     model : MMM
         Fitted MMM model instance.
-    idata : az.InferenceData, optional
+    idata : xr.DataTree, optional
         InferenceData containing posterior samples and fit data.
-        Mutually exclusive with ``data``.
-    data : MMMIDataWrapper, optional
-        Pre-built data wrapper. When provided, ``idata`` is taken from
-        ``data.idata`` and no re-wrapping occurs.
-        Mutually exclusive with ``idata``.
+        If not provided, uses the incrementality test result data. Default is None.
+    frozen_deterministics : dict[str, str], optional
+        Mapping of deterministic variable names to group names for freezing.
+        Variables in this dict will have their values frozen during
+        counterfactual simulations. Default is empty dict.
 
     Attributes
     ----------
-    model : MMM
-        The fitted MMM model.
-    idata : az.InferenceData
+    idata : xr.DataTree
         Posterior samples and fit data.
     data : MMMIDataWrapper
         Data wrapper for accessing model data.
@@ -194,7 +191,7 @@ class Incrementality:
     def __init__(
         self,
         model: MMM,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         data: MMMIDataWrapper | None = None,
     ):
         if idata is not None and data is not None:
@@ -351,7 +348,9 @@ class Incrementality:
 
         # Subsample posterior if needed (correctly across chain x draw)
         posterior_sub = subsample_draws(
-            self.idata.posterior, num_samples=num_samples, random_state=random_state
+            self.idata.posterior.dataset,
+            num_samples=num_samples,
+            random_state=random_state,
         )
         n_chains = posterior_sub.sizes["chain"]
         n_draws = posterior_sub.sizes["draw"]
@@ -360,7 +359,7 @@ class Incrementality:
         posterior_predictive_model = self.model.model
         response_graph = extract_response_distribution(
             pymc_model=posterior_predictive_model,
-            idata=az.InferenceData(posterior=posterior_sub),
+            idata=xr.DataTree.from_dict({"/posterior": posterior_sub}),
             response_variable="channel_contribution",
             frozen_deterministics=self.model.frozen_deterministics,
         )

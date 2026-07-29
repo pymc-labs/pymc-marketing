@@ -182,27 +182,6 @@ def test_plot_expected_purchases_over_time(
     plt.clf()
 
 
-def test_plot_expected_purchases_over_time_exceptions(mock_model, cdnow_trans):
-    with pytest.warns(
-        DeprecationWarning,
-        match="t_unobserved is deprecated and will be removed in a future release. "
-        "Use t_start_eval instead.",
-    ):
-        plot_expected_purchases_over_time(
-            model=mock_model,
-            purchase_history=cdnow_trans,
-            customer_id_col="id",
-            datetime_col="date",
-            datetime_format="%Y%m%d",
-            time_unit="D",
-            t=10,
-            t_unobserved=8,
-        )
-
-    # clear any existing pyplot figures
-    plt.clf()
-
-
 def test_plot_expected_purchases_ppc_exceptions(fitted_model):
     with pytest.raises(
         NameError, match=r"Specify 'prior' or 'posterior' for 'ppc' parameter."

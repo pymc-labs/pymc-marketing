@@ -216,7 +216,7 @@ class TestConsiderationSetMixedLogitPrior:
             consideration_instruments={"Z_tilde": Z_tilde},
         )
         prior = model.sample_prior_predictive(samples=10, random_seed=42)
-        assert "prior_predictive" in prior.groups()
+        assert "/prior_predictive" in prior.groups
         assert "likelihood" in prior["prior_predictive"]
 
     def test_prior_predictive_random(self, hiring_df, Z_tilde, utility_equations):
@@ -229,7 +229,7 @@ class TestConsiderationSetMixedLogitPrior:
             random_consideration=True,
         )
         prior = model.sample_prior_predictive(samples=10, random_seed=42)
-        assert "prior_predictive" in prior.groups()
+        assert "/prior_predictive" in prior.groups
 
 
 class TestConsiderationSetMixedLogitConfig:
@@ -322,7 +322,7 @@ class TestConsiderationSetMixedLogitInference:
         assert idata is not None
 
         post_pred = model.sample_posterior_predictive(random_seed=42)
-        assert "posterior_predictive" in post_pred.groups()
+        assert "/posterior_predictive" in post_pred.groups
         assert "p" in post_pred["posterior_predictive"]
         assert "likelihood" in post_pred["posterior_predictive"]
 
@@ -356,7 +356,7 @@ class TestConsiderationSetMixedLogitInference:
             extend_idata=False,
             random_seed=42,
         )
-        assert "posterior_predictive" in post_pred.groups()
+        assert "/posterior_predictive" in post_pred.groups
         assert "p" in post_pred["posterior_predictive"]
 
     def test_apply_intervention(self, hiring_df, Z_tilde, utility_equations):
@@ -386,7 +386,7 @@ class TestConsiderationSetMixedLogitInference:
             new_choice_df=hiring_df,
             new_consideration_instruments={"Z_tilde": Z_cf},
         )
-        assert "posterior_predictive" in idata_cf.groups()
+        assert "/posterior_predictive" in idata_cf.groups
         assert "p" in idata_cf["posterior_predictive"]
         assert hasattr(model, "intervention_idata")
 
@@ -423,7 +423,7 @@ class TestConsiderationSetMixedLogitInference:
             extend_idata=False,
             random_seed=42,
         )
-        assert "posterior_predictive" in post_pred.groups()
+        assert "/posterior_predictive" in post_pred.groups
         assert "p" in post_pred["posterior_predictive"]
 
     def test_apply_intervention_multi_instrument(self, hiring_df, utility_equations):
@@ -464,7 +464,7 @@ class TestConsiderationSetMixedLogitInference:
                 "z_instrument_names": z_names,
             },
         )
-        assert "posterior_predictive" in idata_cf.groups()
+        assert "/posterior_predictive" in idata_cf.groups
         assert "p" in idata_cf["posterior_predictive"]
 
     def test_apply_intervention_with_new_equations(
@@ -515,8 +515,8 @@ class TestConsiderationSetMixedLogitInference:
                 "target_accept": 0.8,
             },
         )
-        assert "posterior_predictive" in idata_cf.groups()
-        assert "posterior" in idata_cf.groups()
+        assert "/posterior_predictive" in idata_cf.groups
+        assert "/posterior" in idata_cf.groups
         assert "p" in idata_cf["posterior_predictive"]
         assert hasattr(model, "intervention_idata")
         # Confirm the refit actually rebuilt the design matrix.
@@ -544,7 +544,7 @@ class TestConsiderationSetMixedLogitStability:
             consideration_instruments={"Z_tilde": Z_extreme},
         )
         prior = model.sample_prior_predictive(samples=10, random_seed=42)
-        assert "prior_predictive" in prior.groups()
+        assert "/prior_predictive" in prior.groups
         # Check no NaN in choice probabilities
         p_vals = prior["prior"]["p"].values
         assert not np.any(np.isnan(p_vals))
@@ -592,7 +592,7 @@ class TestConsiderationSetMixedLogitStability:
 
         # Prior predictive should work
         prior = model.sample_prior_predictive(samples=10, random_seed=42)
-        assert "prior_predictive" in prior.groups()
+        assert "/prior_predictive" in prior.groups
         p_vals = prior["prior"]["p"].values
         assert not np.any(np.isnan(p_vals))
 
