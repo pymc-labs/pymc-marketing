@@ -146,6 +146,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
+
+:::{grid-item-card} Combining an MMM and a Bayesian VAR in One Budget Decision
+:img-top: ../gallery/images/mmm_var_budget_optimization.png
+:link: ../notebooks/mmm/mmm_var_budget_optimization.html
+:::
 ::::
 
 ### Lift Test Calibration
