@@ -231,6 +231,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_mueffect.html
 :::
 
+:::{grid-item-card} Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend
+:img-top: ../gallery/images/mmm_funnel_mueffect_advanced.png
+:link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
+:::
+
 :::{grid-item-card} Causal Reasoning and Discovery
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
