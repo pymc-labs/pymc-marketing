@@ -813,6 +813,8 @@ class TestBassModelClass:
 
         for key in ["m", "p", "q", "likelihood"]:
             assert isinstance(loaded.model_config[key], Prior)
+        # Stronger than isinstance: catches parameters dropped in the round-trip.
+        assert loaded.model_config == model.model_config
         xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
 
     def test_save_load_round_trip_scaled_priors(
@@ -857,6 +859,29 @@ class TestBassModelClass:
         pp = model.sample_posterior_predictive(X=future, random_seed=42)
 
         # sample_posterior_predictive returns the extracted "y" DataArray
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
+
+    def test_transposed_dataset_dims(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        # A user Dataset with (product, T) order must still fit and forecast:
+        # _from_xarray moves T to the front so y_obs matches the model layout,
+        # and the forecast placeholder shape is derived from the declared dims.
+        transposed = multi_product_ds.transpose("product", "T")
+        assert transposed["observed"].dims == ("product", "T")
+
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=transposed, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
         assert pp.sizes["T"] == 10
         assert pp.sizes["product"] == 3
 
