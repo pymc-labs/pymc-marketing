@@ -825,7 +825,7 @@ class TestBassModelClass:
                 "m": Scaled(
                     Prior("Gamma", mu=1, sigma=0.1, dims="product"), factor=50_000
                 ),
-                "p": Prior("Beta", mu=0.03, dims="product").constrain(
+                "p": Prior("Beta", mu=0.02, dims="product").constrain(
                     lower=0.01, upper=0.03
                 ),
                 "q": Prior("Beta", dims="product").constrain(lower=0.3, upper=0.5),
