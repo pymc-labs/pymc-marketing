@@ -49,8 +49,9 @@ There are three types of Fourier seasonality transformations available:
     fig.suptitle("Yearly Fourier Seasonality")
     plt.show()
 
-The Fourier seasonality can be decomposed into its individual basis
-functions by passing ``sum=False`` to :meth:`~FourierBase.sample_curve`:
+This is the same curve from the figure above, but now decomposed into
+its individual sine and cosine components by passing ``sum=False`` to
+:meth:`~FourierBase.sample_curve`:
 
 .. plot::
     :context: close-figs
