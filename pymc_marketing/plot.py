@@ -456,7 +456,7 @@ def _plot_across_coord(
         if legend:
             handles = create_legend_handles(color_list, patch=patch, line=line)
             for ax in np.atleast_1d(return_axes).ravel():
-                ax.legend(handles=handles, labels=color_labels)
+                ax.legend(handles=handles, labels=color_labels, title=color_dim)
 
     else:
         colors_list = cast(
