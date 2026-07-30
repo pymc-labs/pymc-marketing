@@ -1,0 +1,45 @@
+pymc_marketing/mmm/link.py
+  s_edd7ac06665535::t_a65c460f11914e 305-312,327-329
+  s_edd7ac06665535::t_46f1f4aac4457a 225-233,238-240
+  s_edd7ac06665535::t_77b60a1ae4fd47 241
+  s_edd7ac06665535::t_5a6b64bff55d69 330-331
+tests/mmm/test_additive_effect.py
+  s_edd7ac06665535::t_e969c17c60cada 481-576
+  s_edd7ac06665535::t_ca3ade4832c3a2 23
+pymc_marketing/mmm/__init__.py
+  s_edd7ac06665535::t_fc14f6790c382b 102,120,123
+  s_edd7ac06665535::t_82dc57060aebcc 17-21
+tests/mmm/test_budget_optimizer.py
+  s_edd7ac06665535::t_1235f6d40108c2 1223-1224
+  s_edd7ac06665535::t_64eb1df706610d 1156-1222
+  s_edd7ac06665535::t_24aeeef3750dbb 995,1109
+pymc_marketing/mmm/additive_effect.py
+  s_edd7ac06665535::t_7e323d1cf05b9b 297-306
+  s_edd7ac06665535::t_1524576b6a2fdc 321,323-327,329-335,340-341,349-359
+  s_edd7ac06665535::t_be81a8b7c8d864 370-373
+  s_edd7ac06665535::t_bcb86321f34051 109,113,121
+  s_edd7ac06665535::t_d493a4d34bb598 949-1088,1090-1369
+  s_edd7ac06665535::t_31b720f4089ecb 1089
+  s_edd7ac06665535::t_255c033739beba 418
+  s_edd7ac06665535::t_2845e556eadff8 360
+pymc_marketing/mmm/budget_optimizer.py
+  s_edd7ac06665535::t_25258eecb0b67e 1928-1930,1935-1938,1942-1948
+  s_edd7ac06665535::t_766e4385bd5a8b 1956-1958,1962-1964
+  s_edd7ac06665535::t_9fc10f678754b9 1939-1941
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.17",
+  "base_commit_sha": "b8185e9aa7afb1dff83ebff3d1a69669425c5a6c",
+  "prompts": {},
+  "sessions": {
+    "s_edd7ac06665535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "259251d9-dd97-4892-b687-97bd874cd226",
+        "model": "claude-fable-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
