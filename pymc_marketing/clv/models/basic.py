@@ -163,7 +163,7 @@ class CLVModel(ModelBuilder):
         # Filter non-value variables
         value_vars_names = set(v.name for v in cast(Model, model).value_vars)
         map_res = {k: v for k, v in map_res.items() if k in value_vars_names}
-        # Convert map result to InferenceData
+        # Convert map result to DataTree
         map_strace = NDArray(model=model)
         map_strace.setup(draws=1, chain=0)
         try:
@@ -245,7 +245,7 @@ class CLVModel(ModelBuilder):
 
     @classmethod
     def build_from_idata(cls, idata: xr.DataTree) -> None:
-        """Build the model from the InferenceData object."""
+        """Build the model from the DataTree object."""
         kwargs = cls.idata_to_init_kwargs(idata)
         model = cls(**kwargs)
 
@@ -255,7 +255,7 @@ class CLVModel(ModelBuilder):
         model.build_model(model.data)  # type: ignore
         if model.id != idata.attrs["id"]:
             msg = (
-                "The model id in the InferenceData does not match the model id. "
+                "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
                 "be different. "
                 "Investigate if the model structure or configuration has changed."

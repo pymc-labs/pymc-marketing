@@ -31,12 +31,13 @@ preference model rather than a reduced-form share allocation. For
 use :class:`pymc_marketing.customer_choice.MVITS`.
 """
 
+from __future__ import annotations
+
 import json
 import warnings
 from collections.abc import Sequence
 from typing import Any, Literal
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -86,7 +87,7 @@ class BayesianBLP(ModelBuilder):
         Column holding the period (time) coordinate. When set, every
         ``(region, period)`` cell must appear exactly once and the panel
         must be rectangular (every region has every period). The
-        ``period`` coordinate is then exposed on the InferenceData and
+        ``period`` coordinate is then exposed on the DataTree and
         :meth:`counterfactual_shares` / :meth:`elasticities` accept
         ``periods=`` and ``regions=`` coord-label arguments. Default
         ``None`` — the model treats markets as unstructured and the
@@ -928,14 +929,14 @@ class BayesianBLP(ModelBuilder):
     _SAVE_LOAD_NOT_IMPLEMENTED = (
         "BayesianBLP v1 does not support save/load round-trips. The model "
         "depends on the input market_data DataFrame, which is not serialised "
-        "onto InferenceData.attrs. Track the underlying data alongside the "
+        "onto DataTree.attrs. Track the underlying data alongside the "
         "fitted idata yourself, or reconstruct the model from raw data and "
         "re-attach the saved idata via instance.idata = ...; PPC then works "
         "without round-tripping the model graph."
     )
 
     def save(self, fname: str, **kwargs) -> None:
-        """Persist the fitted InferenceData (model graph is not saved).
+        """Persist the fitted DataTree (model graph is not saved).
 
         Raises
         ------
@@ -955,7 +956,7 @@ class BayesianBLP(ModelBuilder):
         """
         raise NotImplementedError(cls._SAVE_LOAD_NOT_IMPLEMENTED)
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Not implemented for v1.
 
         Raises
@@ -1573,7 +1574,7 @@ class BayesianBLP(ModelBuilder):
         )
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Serialise scalar constructor arguments onto ``InferenceData.attrs``.
+        """Serialise scalar constructor arguments onto ``DataTree.attrs``.
 
         ``market_data`` is intentionally stored as ``None`` rather than a
         serialised DataFrame: v1 does not support save/load round-trips (see

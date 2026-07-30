@@ -98,8 +98,8 @@ msgstr "Devoluciones"
 
 #: 041c035973d24726b169eaa0ed0f4967 of
 #: pymc_marketing.mlflow.MMMWrapper.predict:20
-msgid ":class:`~numpy.ndarray` or :class:`~arviz.InferenceData`"
-msgstr ":class:`~numpy.ndarray` o :class:`~arviz.InferenceData`"
+msgid ":class:`~numpy.ndarray` or :class:`~arviz.DataTree`"
+msgstr ":class:`~numpy.ndarray` o :class:`~arviz.DataTree`"
 
 #: 664dd8ebb6974db6a9faec45f27d9cbf of
 #: pymc_marketing.mlflow.MMMWrapper.predict:21

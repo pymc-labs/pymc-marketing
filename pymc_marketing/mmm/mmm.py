@@ -1095,7 +1095,7 @@ class MMM(RegressionModelBuilder):
 
     @classmethod
     def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> MMM:
-        """Load from InferenceData, auto-migrating old formats."""
+        """Load from DataTree, auto-migrating old formats."""
         from pymc_marketing.serialization_migration import (
             CURRENT_VERSION,
             migrate_idata,
@@ -1243,7 +1243,7 @@ class MMM(RegressionModelBuilder):
 
     @property
     def data(self) -> Any:  # type: ignore[no-any-return]
-        """Get data wrapper for InferenceData access and manipulation.
+        """Get data wrapper for DataTree access and manipulation.
 
         Returns a fresh wrapper on each access. The wrapper is lightweight
         and wraps the current state of self.idata.
@@ -1570,7 +1570,7 @@ class MMM(RegressionModelBuilder):
         """Access summary DataFrame generation functionality.
 
         Returns a factory for creating summary DataFrames from the model's
-        InferenceData with configurable defaults for HDI levels and output format.
+        DataTree with configurable defaults for HDI levels and output format.
 
         Returns a fresh factory on each access. The factory includes both
         data and model, enabling all summary methods including transformation curves.
@@ -2629,7 +2629,7 @@ class MMM(RegressionModelBuilder):
             True, description="Whether to return curve in original scale."
         ),
         idata: InstanceOf[xr.DataTree] | None = Field(
-            None, description="Optional InferenceData to sample from."
+            None, description="Optional DataTree to sample from."
         ),
     ) -> xr.DataArray:
         """Sample saturation curves from posterior parameters.
@@ -2667,7 +2667,7 @@ class MMM(RegressionModelBuilder):
             as used internally by the model. Note that x-axis values always remain
             in scaled space consistent with the max_value parameter.
         idata : xr.DataTree or None, optional
-            Optional InferenceData to sample from. If None (default), uses
+            Optional DataTree to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
             distributions, such as from a different model or a subset of samples.
 
@@ -2718,7 +2718,7 @@ class MMM(RegressionModelBuilder):
         ...     max_value=max_scaled, num_points=200, num_samples=1000, random_state=42
         ... )
 
-        Sample curves from a different InferenceData:
+        Sample curves from a different DataTree:
 
         >>> external_idata = az.from_netcdf("other_model.nc")
         >>> curves = mmm.sample_saturation_curve(idata=external_idata)
@@ -2786,7 +2786,7 @@ class MMM(RegressionModelBuilder):
         ),
         random_state: RandomState | None = None,
         idata: InstanceOf[xr.DataTree] | None = Field(
-            None, description="Optional InferenceData to sample from."
+            None, description="Optional DataTree to sample from."
         ),
     ) -> xr.DataArray:
         """Sample adstock curves from posterior parameters.
@@ -2813,7 +2813,7 @@ class MMM(RegressionModelBuilder):
             Only used when num_samples is not None and less than total available
             samples.
         idata : xr.DataTree or None, optional
-            Optional InferenceData to sample from. If None (default), uses
+            Optional DataTree to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
             distributions, such as from a different model or a subset of samples.
 
@@ -2856,7 +2856,7 @@ class MMM(RegressionModelBuilder):
         ...     amount=100.0, num_samples=1000, random_state=42
         ... )
 
-        Sample curves from a different InferenceData:
+        Sample curves from a different DataTree:
 
         >>> external_idata = az.from_netcdf("other_model.nc")
         >>> curves = mmm.sample_adstock_curve(idata=external_idata)
@@ -3450,7 +3450,7 @@ class MMM(RegressionModelBuilder):
         return ds
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
-        """Rebuild the model from an ``InferenceData`` object.
+        """Rebuild the model from a ``DataTree`` object.
 
         Uses the stored fit dataset in ``idata`` to reconstruct the model graph by
         calling :meth:`build_model`. This is commonly used as part of a ``load``
@@ -3560,11 +3560,11 @@ class MMM(RegressionModelBuilder):
             )
 
         if not hasattr(self.idata, "constant_data"):
-            raise ValueError("InferenceData missing constant_data group")
+            raise ValueError("DataTree missing constant_data group")
 
         if "channel_data" not in self.idata.constant_data:
             raise ValueError(
-                "InferenceData constant_data is missing 'channel_data'. "
+                "DataTree constant_data is missing 'channel_data'. "
                 "Cannot compute channel_spend without channel_data."
             )
 

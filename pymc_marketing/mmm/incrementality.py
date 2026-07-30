@@ -162,7 +162,7 @@ class Incrementality:
     model : MMM
         Fitted MMM model instance.
     idata : xr.DataTree, optional
-        InferenceData containing posterior samples and fit data.
+        DataTree containing posterior samples and fit data.
         If not provided, uses the incrementality test result data. Default is None.
     frozen_deterministics : dict[str, str], optional
         Mapping of deterministic variable names to group names for freezing.
