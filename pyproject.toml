@@ -27,7 +27,6 @@ classifiers = [
 dependencies = [
     "arviz>=1.2.0,<2.0",
     "arviz-plots[matplotlib]>=1.2.0,<2.0",
-    "impulso==0.0.8",
     "matplotlib>=3.5.1,<3.11",
     "narwhals",
     "numpy>=2.0,<3.0",
@@ -79,6 +78,7 @@ docs = [
     "osqp<1.0.0,>=0.6.2",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
+    "impulso>=0.0.10"
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [
