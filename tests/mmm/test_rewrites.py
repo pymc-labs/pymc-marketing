@@ -209,6 +209,44 @@ class TestRewriteConditions:
 
         assert not _has_op(fn, Dot)
 
+    def test_skips_when_sum_over_wrong_axis(self):
+        """Sum over axis 0 instead of the last axis — skip."""
+        T, C = 10, 4
+        X = pt.matrix("X")
+        w = pt.dvector("w")
+        expr = (X * w).sum(axis=0)  # sum over rows, not columns
+
+        mode = create_sampling_mode()
+        fn = function([X, w], expr, mode=mode)
+
+        ops = {node.op.__class__.__name__ for node in fn.maker.fgraph.toposort()}
+        assert "Dot" not in ops, "Dot should not appear for sum over non-last axis"
+
+        xv = np.random.randn(T, C).astype("float64")
+        wv = np.random.randn(C).astype("float64")
+        result = fn(xv, wv)
+        expected = (xv * wv).sum(axis=0)
+        np.testing.assert_allclose(result, expected)
+
+    def test_skips_when_sum_over_multiple_axes(self):
+        """Sum over (0, 1) instead of a single axis — skip."""
+        T, C = 10, 4
+        X = pt.matrix("X")
+        w = pt.dvector("w")
+        expr = (X * w).sum(axis=(0, 1))  # sum over both axes
+
+        mode = create_sampling_mode()
+        fn = function([X, w], expr, mode=mode)
+
+        ops = {node.op.__class__.__name__ for node in fn.maker.fgraph.toposort()}
+        assert "Dot" not in ops, "Dot should not appear for sum over multiple axes"
+
+        xv = np.random.randn(T, C).astype("float64")
+        wv = np.random.randn(C).astype("float64")
+        result = fn(xv, wv)
+        expected = (xv * wv).sum(axis=(0, 1))
+        np.testing.assert_allclose(result, expected)
+
     def test_works_across_linkers(self):
         """Rewrite works with CVM and Numba linkers."""
         T, C = 10, 4

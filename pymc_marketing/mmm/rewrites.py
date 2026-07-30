@@ -97,6 +97,15 @@ def local_sum_mul_to_dot(fgraph, node):
             return None
         data = a
 
+    # Only handle single-axis sums over the last dimension of data.
+    # The weight vector (C,) maps to the trailing axis after broadcasting
+    # and pt.dot(data, weight) always contracts the last axis of data
+    # with the only axis of weight.
+    if len(node.op.axis) != 1:
+        return None
+    if max(node.op.axis) != data.type.ndim - 1:
+        return None
+
     result = pt.dot(data, weight)
     copy_stack_trace(node.outputs, result)
     return [result]
