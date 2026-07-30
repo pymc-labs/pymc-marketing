@@ -19,10 +19,14 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
+from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.additive_effect import (
+    DiscountedEventEffect,
     FourierEffect,
     LinearTrendEffect,
 )
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.serialization import DeserializationContext, serialization
@@ -477,3 +481,147 @@ class TestEventAdditiveEffectRoundtrips:
 )
 def test_additive_effect_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def _make_discount_events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "name": ["black_friday", "summer_sale"],
+            "start_date": ["2025-03-03", "2025-01-20"],
+            "end_date": ["2025-03-24", "2025-02-10"],
+            "discount_pct": [0.30, 0.20],
+        }
+    )
+
+
+class TestDiscountedEventEffectValidation:
+    def test_missing_columns_raise(self):
+        with pytest.raises(ValueError, match="missing required columns"):
+            DiscountedEventEffect(
+                df_events=pd.DataFrame({"name": ["a"], "start_date": ["2024-01-01"]}),
+                prefix="promo",
+            )
+
+    def test_inverted_bounds_raise(self):
+        with pytest.raises(ValueError, match="discount_min"):
+            DiscountedEventEffect(
+                df_events=_make_discount_events(),
+                prefix="promo",
+                discount_min=0.5,
+                discount_max=0.2,
+            )
+
+    def test_discount_pct_out_of_range_raises(self):
+        df = _make_discount_events()
+        df["discount_pct"] = [1.5, 0.2]
+        with pytest.raises(ValueError, match=r"must be in \[0, 1\]"):
+            DiscountedEventEffect(df_events=df, prefix="promo")
+
+
+class TestDiscountedEventEffectUnits:
+    def test_lever_bounds_native_units(self):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(),
+            prefix="promo",
+            discount_min=0.05,
+            discount_max=0.4,
+        )
+        assert effect.lever_bounds == [(0.05, 0.4), (0.05, 0.4)]
+
+    def test_window_mask_marks_event_dates(self, dates):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(), prefix="promo"
+        )
+        window = effect._window_mask(dates)
+        assert window.dims == ("date", "promo")
+        assert list(window.coords["promo"].values) == ["black_friday", "summer_sale"]
+        in_window = (dates >= pd.Timestamp("2025-03-03")) & (
+            dates <= pd.Timestamp("2025-03-24")
+        )
+        np.testing.assert_array_equal(
+            window.sel(promo="black_friday").values, in_window.astype(float)
+        )
+
+    def test_future_event_warns_zero_revenue(self, dates):
+        df = _make_discount_events()
+        df.loc[1, ["start_date", "end_date"]] = ["2030-01-01", "2030-01-31"]
+        effect = DiscountedEventEffect(df_events=df, prefix="promo")
+
+        class _MMMStub:
+            y = pd.Series(np.ones(len(dates)))
+            X = pd.DataFrame({"date": dates})
+            date_column = "date"
+
+        with pytest.warns(UserWarning, match="no in-sample dates"):
+            rev = effect._compute_event_revenue(_MMMStub())
+        assert float(rev.sel(promo="summer_sale")) == 0.0
+        assert float(rev.sel(promo="black_friday")) > 0.0
+
+    def test_to_dict_and_idata_group(self):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(),
+            prefix="promo",
+            discount_min=0.0,
+            discount_max=0.35,
+        )
+        d = effect.to_dict()
+        assert d["df_events_group"] == "supplementary_data_promo"
+        assert d["discount_max"] == 0.35
+        groups = effect.idata_groups()
+        assert "supplementary_data_promo" in groups
+        assert list(groups["supplementary_data_promo"]["name"].values) == [
+            "black_friday",
+            "summer_sale",
+        ]
+
+    def test_type_registered_for_serialization(self):
+        key = "pymc_marketing.mmm.additive_effect.DiscountedEventEffect"
+        assert key in serialization._registry
+
+
+def test_discounted_event_effect_save_load_roundtrip(mock_pymc_sample, tmp_path):
+    """Save/load preserves df_events (names + discount_pct) and native bounds."""
+    date_range = pd.date_range("2023-01-01", periods=16, freq="W")
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["spring_sale"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-03-15"],
+                "discount_pct": [0.15],
+            }
+        ),
+        prefix="promo",
+        discount_min=0.0,
+        discount_max=0.4,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(effect)
+    mmm.fit(X, y, random_seed=3)
+
+    path = tmp_path / "mmm_discount.nc"
+    mmm.save(str(path))
+    loaded = type(mmm).load(str(path))
+
+    (restored,) = [e for e in loaded.mu_effects if isinstance(e, DiscountedEventEffect)]
+    assert restored.df_events["name"].tolist() == ["spring_sale"]
+    assert restored.discount_max == 0.4
+    assert restored.lever_bounds == [(0.0, 0.4)]
+    np.testing.assert_allclose(
+        restored.df_events["discount_pct"].to_numpy(dtype="float64"), [0.15]
+    )

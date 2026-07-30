@@ -208,6 +208,7 @@ from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
+    OptimizableMuEffect,
     safe_to_datetime,
 )
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
@@ -2647,6 +2648,18 @@ class MMM(RegressionModelBuilder):
                     .astype(bool)
                 )
 
+        # Translate each optimizable effect's lever into an `optimizable_vars`
+        # entry (its f"{prefix}_data" node + native bounds) -- the optimizer
+        # itself only ever sees variable names on the graph (#2621). Explicit
+        # caller entries win. Pair with
+        # response_variable="total_response_original_scale" so the levers enter
+        # the objective.
+        optimizable_vars = {
+            f"{effect.prefix}_data": effect.lever_bounds
+            for effect in self.mu_effects
+            if isinstance(effect, OptimizableMuEffect)
+        } | kwargs.pop("optimizable_vars", {})
+
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
@@ -2657,6 +2670,7 @@ class MMM(RegressionModelBuilder):
             cost_per_unit=cost_per_unit,
             compile_kwargs=compile_kwargs,
             mu_effects=list(self.mu_effects),
+            optimizable_vars=optimizable_vars,
             frozen_deterministics=self.frozen_deterministics,
             **kwargs,
         )

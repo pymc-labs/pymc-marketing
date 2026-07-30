@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import ast
+import inspect
 from unittest.mock import patch
 
 import numpy as np
@@ -20,9 +22,16 @@ import pymc.dims as pmd
 import pytensor
 import pytest
 import xarray as xr
+from pytensor.graph.basic import ancestors
 from xarray import DataArray
 
+import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
 from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm.additive_effect import (
+    DiscountedEventEffect,
+    MuEffect,
+    OptimizableMuEffect,
+)
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizer,
     CustomModelWrapper,
@@ -953,3 +962,335 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
+
+
+def test_budget_optimizer_with_optimizable_mu_effect(mock_pymc_sample):
+    """A concrete OptimizableMuEffect flows into BudgetOptimizer via the MMM API.
+
+    A minimal per-item lever (dim "promo") is added via `add_mu_effect`, the
+    model is built/fit through the normal `MMM` API, and `mmm.budget_optimizer`
+    wires `mu_effects` into `BudgetOptimizer` automatically. Checks that the
+    effect's own data node depends on the optimizer's flat decision vector,
+    and that the lever stays out of the default sum constraint (extra
+    optimizable vars never enter it) -- only media sums to `total_budget`.
+    """
+
+    class PromoEffect(OptimizableMuEffect):
+        """A per-item lever contributing a constant boost to mu."""
+
+        prefix: str = "promo"
+
+        def create_data(self, mmm) -> None:
+            model = mmm.model
+            model.add_coord(self.prefix, ["evt1", "evt2"])
+            pmd.Data(f"{self.prefix}_data", np.ones(2), dims=self.prefix)
+
+        def create_effect(self, mmm):
+            model = mmm.model
+            data = model[f"{self.prefix}_data"]
+            coef = pmd.HalfNormal(f"{self.prefix}_coef", sigma=1.0, dims=self.prefix)
+            contribution = pmd.Deterministic(
+                f"{self.prefix}_effect_contribution", data * coef, dims=self.prefix
+            )
+            return contribution.sum(dim=self.prefix)
+
+        def set_data(self, mmm, model, X) -> None:
+            pass
+
+        # The lever integrates by name: MMM.budget_optimizer translates this
+        # effect into an optimizable_vars entry for its promo_data node.
+
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(PromoEffect())
+
+    mmm.fit(X, y, random_seed=0)
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+    )
+
+    # The effect's own data node should now depend on the optimizer's flat
+    # decision vector, not the ones it was created with.
+    promo_data = optimizer._pymc_model["promo_data"]
+    assert optimizer._budgets_flat in ancestors([promo_data])
+
+    optimal_budgets, result = optimizer.allocate_budget(total_budget=100.0)
+
+    assert result.success
+    # The promo lever stays out of the sum constraint -- only the media
+    # entries (the first two) sum to total_budget.
+    assert np.isclose(result.x[:2].sum(), 100.0)
+    # Media allocation comes back over the budget dims and sums to total_budget.
+    assert np.isclose(float(optimal_budgets.sum()), 100.0)
+
+    # The effect's optimal lever is decoded off the tail of result.x into a
+    # DataArray over the effect's own dim/coords.
+    promo_opt = result.optimized_vars["promo_data"]
+    assert promo_opt.dims == ("promo",)
+    assert list(promo_opt.coords["promo"].values) == ["evt1", "evt2"]
+    np.testing.assert_allclose(promo_opt.values, result.x[2:])
+    # Under the default media-only objective the lever has no gradient, so it
+    # stays at its seed (up to solver jitter) -- pass
+    # response_variable="total_response_original_scale" to actually optimize it
+    # (covered by the tests below).
+    np.testing.assert_allclose(promo_opt.values, 0.0, atol=1e-9)
+
+    # Default x0 spreads total_budget over the media head only (feasible w.r.t.
+    # the sum constraint) and seeds effect levers at 0. With maxiter=0 the
+    # solver returns x0 unchanged, exposing the seed.
+    _, result_x0 = optimizer.allocate_budget(
+        total_budget=100.0,
+        minimize_kwargs={"options": {"maxiter": 0}},
+        return_if_fail=True,
+    )
+    np.testing.assert_allclose(result_x0.x[:2], [50.0, 50.0])
+    np.testing.assert_allclose(result_x0.x[2:], 0.0)
+
+
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_discounted_event_effect_optimization_end_to_end(mock_pymc_sample, link):
+    """DiscountedEventEffect optimizes through total_response_original_scale.
+
+    The discount lever only has gradient when the objective includes the
+    effect's contribution -- total_response_original_scale (registered by the
+    LinkSpec) provides it for both links. Asserts the optimized depths respect
+    the native [discount_min, discount_max] bounds, media still sums to the
+    budget, and the depths are decoded into result.optimized_vars.
+    """
+    date_range = pd.date_range("2023-01-01", periods=20, freq="W")
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["spring_sale"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-03-15"],
+                "discount_pct": [0.10],
+            }
+        ),
+        prefix="promo",
+        discount_min=0.05,
+        discount_max=0.45,
+    )
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link=link,
+    ).add_mu_effect(effect)
+    mmm.fit(X, y, random_seed=1)
+
+    # The LinkSpec registers the full-response objective for both links.
+    assert "total_response_original_scale" in mmm.model.named_vars
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[3],
+        end_date=date_range[10],
+        response_variable="total_response_original_scale",
+    )
+    optimal_budgets, result = optimizer.allocate_budget(total_budget=100.0)
+
+    assert result.success
+    # Media still sums to the budget; the discount stays out of the pot.
+    assert np.isclose(float(optimal_budgets.sum()), 100.0)
+
+    depths = result.optimized_vars["promo_data"]
+    assert depths.dims == ("promo",)
+    assert list(depths.coords["promo"].values) == ["spring_sale"]
+    # Native bounds respected.
+    depth = float(depths.sel(promo="spring_sale"))
+    assert 0.05 - 1e-8 <= depth <= 0.45 + 1e-8
+    if link == "identity":
+        # For this fixture the identity-link optimum is interior: the depth
+        # moves off its lower-bound seed, proving the objective carries
+        # gradient to the lever. (Under the log link this fixture's optimum
+        # legitimately sits at the bound.)
+        assert depth > 0.05 + 1e-4
+
+
+def test_optimizable_vars_names_only(mock_pymc_sample):
+    """`optimizable_vars` works from a variable name alone -- no effect object.
+
+    Build a model containing an extra pm.Data node via a plain (non-optimizable)
+    MuEffect, then co-optimize that node purely by name with native bounds. The
+    optimizer never inspects the effect; it reads dims/coords off the graph.
+    """
+
+    class PlainPromoEffect(MuEffect):
+        prefix: str = "promo"
+
+        def create_data(self, mmm) -> None:
+            model = mmm.model
+            model.add_coord(self.prefix, ["evt1", "evt2"])
+            pmd.Data(f"{self.prefix}_data", np.ones(2), dims=self.prefix)
+
+        def create_effect(self, mmm):
+            model = mmm.model
+            data = model[f"{self.prefix}_data"]
+            coef = pmd.HalfNormal(f"{self.prefix}_coef", sigma=1.0, dims=self.prefix)
+            contribution = pmd.Deterministic(
+                f"{self.prefix}_effect_contribution", data * coef, dims=self.prefix
+            )
+            return contribution.sum(dim=self.prefix)
+
+        def set_data(self, mmm, model, X) -> None:
+            pass
+
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(PlainPromoEffect())
+    mmm.fit(X, y, random_seed=0)
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="total_response_original_scale",
+    )
+    optimal_budgets, result = optimizer.allocate_budget(total_budget=100.0)
+
+    assert result.success
+    assert np.isclose(float(optimal_budgets.sum()), 100.0)
+    promo_opt = result.optimized_vars["promo_data"]
+    assert promo_opt.dims == ("promo",)
+    assert ((promo_opt.values >= 0.0) & (promo_opt.values <= 1.0)).all()
+    # The lever moved off its 0.0 seed: the positive-coefficient contribution
+    # gives the objective a positive gradient in promo_data.
+    assert (promo_opt.values > 1e-4).all()
+
+
+def test_optimizable_vars_unknown_name_raises(dummy_df, dummy_idata):
+    """A name that is not a dims-registered model variable raises clearly."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+    mmm.build_model(X=X_dummy, y=y_dummy)
+
+    with pytest.raises(ValueError, match="not a variable with named dims"):
+        BudgetOptimizer(
+            model=mmm.model,
+            idata=dummy_idata,
+            num_periods=6,
+            adstock_periods=4,
+            optimizable_vars={"nonexistent_data": None},
+        )
+
+
+def test_budget_optimizer_has_no_marketing_imports():
+    """budget_optimizer.py operates purely on the pm.Model graph.
+
+    It must not import from the marketing layer (additive_effect, mmm):
+    OptimizableMuEffect levers reach it only as `optimizable_vars` name/bounds
+    entries, translated by MMM.budget_optimizer.
+    """
+    banned = ("pymc_marketing.mmm.additive_effect", "pymc_marketing.mmm.mmm")
+    tree = ast.parse(inspect.getsource(budget_optimizer_module))
+    offenders = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            if node.module is not None and node.module.startswith(banned):
+                offenders.append(node.module)
+        elif isinstance(node, ast.Import):
+            offenders.extend(
+                alias.name for alias in node.names if alias.name.startswith(banned)
+            )
+    assert not offenders, f"budget_optimizer imports marketing modules: {offenders}"
+
+
+def test_optimizable_vars_bounds_length_mismatch_raises(mock_pymc_sample):
+    """Bounds with the wrong number of entries for the variable raise clearly."""
+
+    class PromoEffect(OptimizableMuEffect):
+        prefix: str = "promo"
+
+        def create_data(self, mmm) -> None:
+            model = mmm.model
+            model.add_coord(self.prefix, ["evt1", "evt2"])
+            pmd.Data(f"{self.prefix}_data", np.ones(2), dims=self.prefix)
+
+        def create_effect(self, mmm):
+            model = mmm.model
+            data = model[f"{self.prefix}_data"]
+            coef = pmd.HalfNormal(f"{self.prefix}_coef", sigma=1.0, dims=self.prefix)
+            contribution = pmd.Deterministic(
+                f"{self.prefix}_effect_contribution", data * coef, dims=self.prefix
+            )
+            return contribution.sum(dim=self.prefix)
+
+        def set_data(self, mmm, model, X) -> None:
+            pass
+
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(PromoEffect())
+    mmm.fit(X, y, random_seed=0)
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0)]},  # variable has 2 entries
+    )
+    with pytest.raises(ValueError, match="bounds have 1 entries"):
+        optimizer.allocate_budget(total_budget=100.0)

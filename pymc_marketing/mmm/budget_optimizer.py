@@ -1148,6 +1148,27 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
+        Field(
+            default_factory=dict,
+            description=(
+                "Additional pm.Data variables to co-optimize alongside "
+                "`channel_data_var`, keyed by variable name. Each value gives the "
+                "native (low, high) bounds per entry in the variable's coordinate "
+                "order, or None for unbounded. Each variable must have exactly one "
+                "non-date dim; its optimal values are substituted via the same "
+                "do() as the media budgets and returned in `result.optimized_vars`. "
+                "These variables never enter the default budget-sum constraint "
+                "(pass a custom `constraints=` including their flat-vector segment "
+                "to make one compete for total_budget). "
+                "MMM.budget_optimizer fills this from its OptimizableMuEffect "
+                "levers (f'{prefix}_data' with the effect's lever_bounds); pair "
+                "with response_variable='total_response_original_scale' so their "
+                "contribution enters the objective."
+            ),
+        )
+    )
+
     compile_kwargs: dict | None = Field(
         default=None,
         description="Keyword arguments for the model compilation. Especially useful to pass compilation mode",
@@ -1203,7 +1224,9 @@ class BudgetOptimizer(BaseModel):
     _compiled_functions: dict = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
-    _optimizable_mu_effects: list = PrivateAttr()
+    _var_slices: list[
+        tuple[str, str, Sequence[tuple[float | None, float | None]] | None, slice]
+    ] = PrivateAttr()
 
     @model_validator(mode="before")
     @classmethod
@@ -1343,19 +1366,46 @@ class BudgetOptimizer(BaseModel):
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
-        # 5. Check for optimizable mu_effects (not yet supported; see #2621)
-        self._optimizable_mu_effects = [
-            e for e in self.mu_effects if hasattr(e, "replace_for_optimization")
-        ]
-        if self._optimizable_mu_effects:
-            raise NotImplementedError(
-                "OptimizableMuEffect integration is not yet supported. "
-                "See https://github.com/pymc-labs/pymc-marketing/pull/2621"
-            )
+        # 5. Lay out the flat decision vector: media entries first, then one
+        # contiguous segment per `optimizable_vars` entry, with each variable's
+        # dim/size read off the model graph -- names + graph only, exactly like
+        # `channel_data_var`. This is how OptimizableMuEffect levers integrate
+        # (#2621): MMM.budget_optimizer translates each effect into an
+        # `optimizable_vars` entry, so this layer never inspects effects.
+        #
+        # By design these variables do NOT compete for `total_budget` (the
+        # default sum constraint covers the media grid only) and are injected
+        # undistributed over periods. Future reference:
+        # - a cash-denominated lever can join the budget pot today via a custom
+        #   `constraints=` that adds its flat-vector segment to the sum; if
+        #   that becomes common, add a per-var opt-in that swaps the default
+        #   constraint for a masked sum over `_budgets_flat`;
+        # - a lever that is cash *per period* (flighted spend with carryover)
+        #   is a channel -- model it in `channel_data_var`, not here.
+        self._var_slices = []
+        stop = int(size_budgets)
+        for name, var_bounds in self.optimizable_vars.items():
+            if name not in self.model.named_vars_to_dims:
+                raise ValueError(
+                    f"optimizable_vars entry '{name}' is not a variable with "
+                    "named dims in the model."
+                )
+            var_dims = [
+                d for d in self.model.named_vars_to_dims[name] if d != self.date_dim
+            ]
+            if len(var_dims) != 1:
+                raise ValueError(
+                    f"optimizable_vars entry '{name}' must have exactly one "
+                    f"non-{self.date_dim!r} dim; got "
+                    f"{tuple(self.model.named_vars_to_dims[name])}."
+                )
+            size = len(self.model.coords[var_dims[0]])
+            start, stop = stop, stop + size
+            self._var_slices.append((name, var_dims[0], var_bounds, slice(start, stop)))
 
         self._budgets_flat = ptx.xtensor(
             "budgets_flat",
-            shape=(size_budgets,),
+            shape=(stop,),
             dims=("budgets_flat",),
         )
 
@@ -1594,9 +1644,11 @@ class BudgetOptimizer(BaseModel):
         # budgets has full shape (e.g., (2, 2) for geo x channel)
         # We need to extract only the optimized budgets
 
-        # Get the optimized budget values
+        # Get the optimized budget values -- the media head of the flat vector
+        # (any `optimizable_vars` tails are injected separately, undistributed).
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        budgets_optimized = self._budgets_flat
+        media_size = int(self.budgets_to_optimize.sum().item())  # type: ignore
+        budgets_optimized = self._budgets_flat.isel(budgets_flat=slice(0, media_size))
 
         repeated_budgets_flat = (
             budgets_optimized * self._budget_distribution_over_period_tensor
@@ -1666,7 +1718,21 @@ class BudgetOptimizer(BaseModel):
         model = freeze_dims_and_data(model, data=[])
 
         # Use `do(...)` to replace `channel_data_var` with repeated_budgets_with_carry_over
-        return do(model, {self.channel_data_var: repeated_budgets_with_carry_over})
+        # One do() for media and every optimizable var, so gradients w.r.t.
+        # `_budgets_flat` stay intact across all of them. Each var takes its
+        # flat-vector tail segment, renamed onto the variable's own dim.
+        return do(
+            model,
+            {
+                self.channel_data_var: repeated_budgets_with_carry_over,
+                **{
+                    name: self._budgets_flat.isel(budgets_flat=flat_slice).rename(
+                        {"budgets_flat": dim}
+                    )
+                    for name, dim, _, flat_slice in self._var_slices
+                },
+            },
+        )
 
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
@@ -1838,20 +1904,37 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
-        # 2. Build the final bounds list
+        # 2. Build the final bounds list: media first, then each optimizable
+        # var's native bounds (unbounded when it declared none).
         bounds = [
             (low, high)
             for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
         ]
+        for name, _, var_bounds, flat_slice in self._var_slices:
+            size = flat_slice.stop - flat_slice.start
+            if var_bounds is None:
+                var_bounds = [(None, None)] * size
+            elif len(var_bounds) != size:
+                raise ValueError(
+                    f"optimizable_vars['{name}'] bounds have {len(var_bounds)} "
+                    f"entries but the variable has {size}."
+                )
+            bounds.extend(var_bounds)
 
-        # 3. Determine how many budget entries we optimize
-        budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
+        # 3. Determine how many budget entries we optimize (media + vars)
+        media_size = int(self.budgets_to_optimize.sum().item())  # type: ignore
+        budgets_size = self._budgets_flat.type.shape[0]  # type: ignore
 
-        # 4. Construct the initial guess (x0) if not provided
+        # 4. Construct the initial guess (x0) if not provided: spread
+        # total_budget evenly over the media entries (feasible w.r.t. the
+        # default sum constraint); seed each optimizable-var entry at its
+        # native lower bound (in-scale and always feasible), or 0 if unbounded.
         if x0 is None:
-            x0 = (np.ones(budgets_size) * (total_budget / budgets_size)).astype(
-                self._budgets_flat.type.dtype
-            )
+            x0 = np.zeros(budgets_size, dtype=self._budgets_flat.type.dtype)
+            x0[:media_size] = total_budget / media_size
+            for _, _, var_bounds, flat_slice in self._var_slices:
+                if var_bounds is not None:
+                    x0[flat_slice] = [low or 0.0 for low, _ in var_bounds]
 
         # filter x0 based on shape/type of self._budgets_flat
         # will raise a TypeError if x0 does not have acceptable shape and/or type
@@ -1913,17 +1996,28 @@ class BudgetOptimizer(BaseModel):
 
         # 6. Process results
         if result.success or return_if_fail:
-            # Fill zeros, then place the solution in masked positions
+            # Fill zeros, then place the solution in masked positions. The media
+            # head fills the budget grid; each optimizable var's tail segment is
+            # decoded into a DataArray over the variable's own dim/coords.
             optimal_budgets = np.zeros_like(
                 self.budgets_to_optimize.values,  # type: ignore
                 dtype=float,
             )
-            optimal_budgets[self.budgets_to_optimize.values] = result.x  # type: ignore
+            optimal_budgets[self.budgets_to_optimize.values] = result.x[:media_size]  # type: ignore
 
             optimal_budgets = DataArray(
                 optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
             )
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
+
+            result.optimized_vars = {
+                name: DataArray(
+                    result.x[flat_slice],
+                    dims=(dim,),
+                    coords={dim: list(self.model.coords[dim])},
+                )
+                for name, dim, _, flat_slice in self._var_slices
+            }
 
             if callback:
                 return optimal_budgets, result, callback_info

@@ -222,10 +222,22 @@ class IdentityLinkSpec(LinkSpec):
         target_scale: XTensorVariable,
         output_var: str = "y",
     ) -> None:
-        """Register additive ``total_media_contribution_original_scale``."""
+        """Register additive ``total_media_contribution_original_scale``.
+
+        Also registers ``total_response_original_scale`` -- the total predicted
+        response (original scale, scalar per draw). Because ``mu_var`` already
+        includes every additive mu-effect, this is the natural objective for
+        optimizing effect levers jointly with media
+        (:class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` with
+        ``response_variable="total_response_original_scale"``).
+        """
         pmd.Deterministic(
             "total_media_contribution_original_scale",
             (channel_contribution.sum(dim="date") * target_scale).sum(),
+        )
+        pmd.Deterministic(
+            "total_response_original_scale",
+            self.original_scale_transform(mu_var, target_scale).sum(dim="date").sum(),
         )
 
     def mean_correction(
@@ -290,7 +302,14 @@ class LogLinkSpec(LinkSpec):
         target_scale: XTensorVariable,
         output_var: str = "y",
     ) -> None:
-        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``."""
+        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``.
+
+        Also registers ``total_response_original_scale`` -- the total predicted
+        response (original scale, scalar per draw). Because ``mu_var`` already
+        includes every additive mu-effect, this is the natural objective for
+        optimizing effect levers jointly with media, with the multiplicative
+        media/effect coupling of the log link built in.
+        """
         mu_media = channel_contribution.sum(dim="channel")
         y_hat = ptxm.exp(mu_var) * target_scale
         y_hat_no_media = ptxm.exp(mu_var - mu_media) * target_scale
@@ -303,6 +322,11 @@ class LogLinkSpec(LinkSpec):
         pmd.Deterministic(
             f"{output_var}_original_scale",
             y_hat.transpose("date", ...),
+        )
+
+        pmd.Deterministic(
+            "total_response_original_scale",
+            y_hat.sum(dim="date").sum(),
         )
 
     def mean_correction(
