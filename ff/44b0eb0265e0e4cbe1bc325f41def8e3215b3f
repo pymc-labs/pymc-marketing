@@ -1,0 +1,98 @@
+pymc_marketing/mmm/__init__.py
+  s_edd7ac06665535::t_fc14f6790c382b 102,120,123
+  s_edd7ac06665535::t_82dc57060aebcc 17-21
+tests/mmm/test_additive_effect.py
+  s_edd7ac06665535::t_e969c17c60cada 484-579
+  s_edd7ac06665535::t_8896d375a2451a 583-627
+  s_edd7ac06665535::t_ca3ade4832c3a2 24
+  s_edd7ac06665535::t_76a0eee8c9ad53 580-582
+  s_edd7ac06665535::t_bd7e5379bd0173 22,28-29
+tests/mmm/test_budget_optimizer.py
+  s_edd7ac06665535::t_85090c26df5686 1040,1070,1121
+  s_79f4a68093aacd::t_6831e9a2634bd3 970-971
+  s_79f4a68093aacd::t_65963aed07dbb0 1017
+  s_edd7ac06665535::t_64eb1df706610d 1062-1069,1071-1120,1122-1124
+  s_79f4a68093aacd::t_087ee488da8ff5 965-969,972-981,983-995,997-1016,1018-1024,1026-1031
+  s_edd7ac06665535::t_377caa87769dff 1035-1036
+  s_edd7ac06665535::t_1137cdfd81a07b 1044,1061
+  s_79f4a68093aacd::t_f7cffcf9947ebe 25,28,30
+  s_edd7ac06665535::t_7627b2d46c1ce7 1219
+  s_edd7ac06665535::t_89c4f52d576977 1127-1218,1293-1294
+  s_edd7ac06665535::t_7665cb111cd279 1220-1240
+  s_edd7ac06665535::t_24aeeef3750dbb 996
+  s_edd7ac06665535::t_f984c6a24c4024 1037-1039,1041-1043
+  s_edd7ac06665535::t_fbe1f03bf6c533 1045-1049,1241-1292,1296
+  s_edd7ac06665535::t_3775fdce613f52 1050-1060
+  s_79f4a68093aacd::t_e5b2f61169bb63 1032-1034
+  s_edd7ac06665535::t_1235f6d40108c2 1125-1126
+  h_cd9496771935ec 982,1025
+  s_79f4a68093aacd::t_978c9957e452e9 31-33
+  s_edd7ac06665535::t_14a93a969e8499 1295
+  s_edd7ac06665535::t_4c831733ecb344 14-15,34
+pymc_marketing/mmm/link.py
+  s_edd7ac06665535::t_5a6b64bff55d69 330-331
+  s_edd7ac06665535::t_a65c460f11914e 305-312,327-329
+  s_edd7ac06665535::t_46f1f4aac4457a 225-233,238-240
+  s_edd7ac06665535::t_77b60a1ae4fd47 241
+pymc_marketing/mmm/budget_optimizer.py
+  s_edd7ac06665535::t_2912513a93a265 1170-1171,1228-1229,1379,1403-1404,1647,1650-1651,1734-1735,1907-1908,1930,1936-1937,2000-2001,2006,2020-2021
+  s_edd7ac06665535::t_15f94fa79f7a8e 1369,1385
+  s_79f4a68093aacd::t_383429d4ab4f1e 1408,1722-1725,1732-1733
+  s_edd7ac06665535::t_82760dbd80026b 2014
+  s_edd7ac06665535::t_9f05642bbcebeb 1370-1372
+  s_edd7ac06665535::t_2c4ab851c4972e 1648
+  s_edd7ac06665535::t_748fde84e82fcc 1374
+  s_edd7ac06665535::t_4ac3f6d591c68f 1931
+  s_edd7ac06665535::t_138ad1f64083bc 2015-2016
+  s_edd7ac06665535::t_f652aa0d1167fe 2013
+  s_edd7ac06665535::t_5e47a520fb838d 2019
+  s_edd7ac06665535::t_25258eecb0b67e 1916,1919
+  s_edd7ac06665535::t_bba90e5b028963 1373,1382,1386-1402
+  s_edd7ac06665535::t_5154b80300ce6a 1999,2017-2018
+  s_edd7ac06665535::t_e21508055f0263 1913-1915,1917-1918,1920-1922,1924-1926,1928-1929,1933-1935
+  s_edd7ac06665535::t_3d33badc86501e 1227
+  s_edd7ac06665535::t_aa6491d8223dcc 1151-1167
+  s_edd7ac06665535::t_bd4d11ed0acf16 1721,1726-1731
+  s_edd7ac06665535::t_96a5b29a85a87a 1168-1169
+  s_edd7ac06665535::t_09ef9022f0fc6b 1375-1378,1380-1381,1383-1384
+pymc_marketing/mmm/additive_effect.py
+  s_edd7ac06665535::t_bcb86321f34051 109,113,121
+  s_edd7ac06665535::t_2845e556eadff8 319
+  s_edd7ac06665535::t_4ba8f8d190b734 294-306,313-316
+  s_edd7ac06665535::t_d493a4d34bb598 849-988,990-1267
+  s_edd7ac06665535::t_31b720f4089ecb 989
+  s_79f4a68093aacd::t_3f58ecc9bfb06f 291-293,307-308,320
+  s_edd7ac06665535::t_1524576b6a2fdc 309-312,317-318
+pymc_marketing/mmm/mmm.py
+  s_edd7ac06665535::t_5536856fd2355f 211
+  s_edd7ac06665535::t_a9fcaf33b5e88c 2651-2662,2673
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.17",
+  "base_commit_sha": "ff44b0eb0265e0e4cbe1bc325f41def8e3215b3f",
+  "prompts": {},
+  "humans": {
+    "h_cd9496771935ec": {
+      "author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  },
+  "sessions": {
+    "s_79f4a68093aacd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e40d58e-7673-45c4-9b53-b6f8a46e42a4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    },
+    "s_edd7ac06665535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "259251d9-dd97-4892-b687-97bd874cd226",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
