@@ -2114,6 +2114,16 @@ class MMM(RegressionModelBuilder):
         -------
         xr.DataTree
             Inference data of the fitted model.
+
+        Notes
+        -----
+        Applies the :func:`~pymc_marketing.mmm.rewrites.local_sum_mul_to_dot`
+        PyTensor rewrite during MCMC sampling, which converts
+        ``sum(X * beta, axis=-1)`` to ``dot(X, beta)`` for channel,
+        Fourier, and control contributions.  The rewrite is applied
+        **only** during sampling; ``compute_deterministics`` runs with
+        the default mode and preserves the element-wise multiplication
+        pattern needed for per-channel breakdowns.
         """
         idata = super().fit(
             X, y, progressbar=progressbar, random_seed=random_seed, **kwargs
@@ -2121,6 +2131,9 @@ class MMM(RegressionModelBuilder):
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
         return idata
+
+    def _get_sampling_rewrites(self) -> list[str]:
+        return ["local_sum_mul_to_dot"]
 
     def build_model(  # type: ignore[override]
         self,

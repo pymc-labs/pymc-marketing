@@ -70,6 +70,10 @@ from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
     preprocessing_method_y,
 )
+from pymc_marketing.mmm.rewrites import (
+    create_sampling_mode,
+    local_sum_mul_to_dot,
+)
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
@@ -135,6 +139,8 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "create_sampling_mode",
+    "local_sum_mul_to_dot",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
