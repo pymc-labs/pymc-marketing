@@ -2,9 +2,10 @@
 
 ## Environment
 
-- Run `uv sync` to set up the environment, then use `uv run` for commands.
+- Run `uv sync` to set up the environment, then use `uv run` for Python commands (pytest, pre-commit, python, etc.).
 - Run `pre-commit` every time you create or modify a file.
 - Temporary or test scripts that are not meant to be committed should be created in the `sandbox/` folder.
+- Do not insert hard line breaks inside a sentence; let the editor handle word wrap. Line breaks between sentences are fine.
 
 ## Skills (shared with Cursor)
 
