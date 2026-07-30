@@ -1,0 +1,39 @@
+tests/mmm/test_budget_optimizer.py
+  s_edd7ac06665535::t_89c4f52d576977 1122-1205
+  s_edd7ac06665535::t_85090c26df5686 1038,1063,1116
+pymc_marketing/mmm/budget_optimizer.py
+  s_edd7ac06665535::t_bba90e5b028963 1373,1376-1392
+  s_edd7ac06665535::t_96a5b29a85a87a 1168-1169
+  s_edd7ac06665535::t_3d33badc86501e 1225-1227
+  s_edd7ac06665535::t_15f94fa79f7a8e 1368-1369,1375
+  s_edd7ac06665535::t_bd4d11ed0acf16 1709-1711,1716-1721
+  s_edd7ac06665535::t_fb95977c5cc7cf 1130,1133-1136,1478,1484,1488-1489,1493,1495,1502,1507-1512,1515-1519,1521-1527,1530-1541,1543,1630-1634,1640-1643,1653-1657,1708
+  s_edd7ac06665535::t_aa6491d8223dcc 1151-1167,1639
+  s_edd7ac06665535::t_9f05642bbcebeb 1367,1370-1372
+  s_edd7ac06665535::t_e21508055f0263 1895-1896,1901,1903-1905,1907-1908,1910,1912,1914,1916-1919,1923-1925
+  s_edd7ac06665535::t_5154b80300ce6a 1987-1989,2001-2002,2007-2008
+  s_edd7ac06665535::t_2c4ab851c4972e 1635-1636,1638
+pymc_marketing/mmm/constraints.py
+  s_edd7ac06665535::t_fb95977c5cc7cf 52,57
+pymc_marketing/mmm/mmm.py
+  s_edd7ac06665535::t_a9fcaf33b5e88c 2651-2662,2673
+  s_edd7ac06665535::t_5536856fd2355f 211
+pymc_marketing/mmm/additive_effect.py
+  s_edd7ac06665535::t_4ba8f8d190b734 294-306,313-316
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.17",
+  "base_commit_sha": "edbf67c556e9e594df292923aec3c97ef57e9ded",
+  "prompts": {},
+  "sessions": {
+    "s_edd7ac06665535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "259251d9-dd97-4892-b687-97bd874cd226",
+        "model": "claude-fable-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
