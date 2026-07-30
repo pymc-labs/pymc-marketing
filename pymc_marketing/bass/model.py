@@ -727,7 +727,6 @@ class BassModel(ModelBuilder):
         with self.model:
             idata = pm.sample(var_names=var_names, **sampler_kwargs)
             # Assign to the DataTree node, not the ``posterior`` property.
-            # Under arviz>=1.2 DataTree subclasses xarray.DataTree, so
             # ``idata.posterior = ...`` sets a shadowing instance attribute and
             # leaves the actual group unchanged, dropping the deterministics.
             idata["posterior"] = pm.compute_deterministics(

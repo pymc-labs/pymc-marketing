@@ -166,7 +166,7 @@ numpydoc_xref_aliases = {
     "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
     "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
     "ndarray": ":class:`~numpy.ndarray`",
-    "InferenceData": ":class:`~xarray.DataTree`",
+    "DataTree": ":class:`~xarray.DataTree`",
     "Model": ":class:`~pymc.Model`",
     "tensor_like": ":term:`tensor_like`",
     "unnamed_distribution": ":term:`unnamed_distribution`",
