@@ -223,7 +223,6 @@ dev = [
     "h5netcdf>=1.8.1",
     "h5py>=3.16.0",
     "mypy>=2.1.0",
-    "networkx",
     "pandas-stubs>=3.0.3.260530",
     "pyyaml>=6.0.3",
 ]
