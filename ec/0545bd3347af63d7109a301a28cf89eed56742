@@ -1,0 +1,51 @@
+tests/mmm/test_budget_optimizer.py
+  s_edd7ac06665535::t_3775fdce613f52 1051-1061
+  s_edd7ac06665535::t_1137cdfd81a07b 1050,1062-1085,1087-1115,1125-1169
+  s_edd7ac06665535::t_0dc8ac81dbde31 1116-1119,1123-1124
+  s_edd7ac06665535::t_4c7438cb67c979 32
+  s_edd7ac06665535::t_51a151bced68c2 1086,1120-1122
+pymc_marketing/mmm/constraints.py
+  s_edd7ac06665535::t_2010cff3d1b403 55-56,62-64
+pymc_marketing/mmm/additive_effect.py
+  s_edd7ac06665535::t_165aa83b79ee8c 315-316,319-326
+  s_edd7ac06665535::t_dd7a348e5e2dde 340-349,371-373
+  s_edd7ac06665535::t_51a151bced68c2 350-361
+pymc_marketing/mmm/budget_optimizer.py
+  s_edd7ac06665535::t_978debffe602d3 1210-1211
+  s_edd7ac06665535::t_b12ee623a3a040 1556-1558,1562-1563
+  h_cd9496771935ec 1662
+  s_edd7ac06665535::t_22f622e30fa37b 1460,1466-1471,1475-1478,1482,1484,1491-1492,1497-1500,1512-1520,1523-1530,1533-1540,1543-1553,1555,1559-1561,1564,1568
+  s_edd7ac06665535::t_d66a338a9f36ba 1744-1745,1747
+  s_edd7ac06665535::t_748fde84e82fcc 1351-1363,1366,1370-1379
+  s_edd7ac06665535::t_d404c5fe474883 1661,1666
+  s_edd7ac06665535::t_9f9540140aa335 1131,1134-1139
+  s_edd7ac06665535::t_4ac3f6d591c68f 1936-1937,1942,1944-1947,1949-1950
+  s_edd7ac06665535::t_35cfd128646496 1531-1532,1541-1542
+  s_edd7ac06665535::t_d34089dcad7986 2264-2303
+  s_edd7ac06665535::t_f0ceab486f1c49 1742-1743,1750,1752,1754
+  s_edd7ac06665535::t_f652aa0d1167fe 2031,2034
+  s_edd7ac06665535::t_ddc06a7a862225 1501-1511
+  s_edd7ac06665535::t_ba574856cbfec4 1380,1655-1658,1663-1665,1667-1668,1678
+  s_edd7ac06665535::t_05af025bce0535 1381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.17",
+  "base_commit_sha": "ec0545bd3347af63d7109a301a28cf89eed56742",
+  "prompts": {},
+  "humans": {
+    "h_cd9496771935ec": {
+      "author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  },
+  "sessions": {
+    "s_edd7ac06665535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "259251d9-dd97-4892-b687-97bd874cd226",
+        "model": "claude-fable-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
