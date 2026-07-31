@@ -376,10 +376,11 @@ class TestWaterfall:
 
     def test_lays_out_figure_without_ambient_engine(self, simple_plots):
         """Without an ambient engine the figure is still laid out tightly."""
-        fig, _axes = simple_plots.waterfall()
-        assert fig.axes[0].get_position().x0 != pytest.approx(
-            plt.rcParams["figure.subplot.left"]
-        )
+        # Pinned explicitly: other test modules set this rcParam globally.
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            default_left = plt.rcParams["figure.subplot.left"]
+            fig, _axes = simple_plots.waterfall()
+        assert fig.axes[0].get_position().x0 != pytest.approx(default_left)
 
     def test_baseline_bar_present(self, simple_plots):
         """Waterfall must include a 'baseline' bar."""
