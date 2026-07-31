@@ -137,6 +137,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_budget_allocation_example.html
 :::
 
+:::{grid-item-card} Optimising Discount Depth Across Promotional Events
+:img-top: ../gallery/images/mmm_discounted_events.png
+:link: ../notebooks/mmm/mmm_discounted_events.html
+:::
+
 :::{grid-item-card} Budget Allocation and Risk Assessment
 :img-top: ../gallery/images/mmm_allocation_assessment.png
 :link: ../notebooks/mmm/mmm_allocation_assessment.html

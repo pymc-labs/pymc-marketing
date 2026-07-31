@@ -19,10 +19,14 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
+from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.additive_effect import (
+    DiscountedEventEffect,
     FourierEffect,
     LinearTrendEffect,
 )
+from pymc_marketing.mmm.components.adstock import GeometricAdstock
+from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.fourier import MonthlyFourier, WeeklyFourier, YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.serialization import DeserializationContext, serialization
@@ -477,3 +481,539 @@ class TestEventAdditiveEffectRoundtrips:
 )
 def test_additive_effect_type_registered(type_key):
     assert type_key in serialization._registry, f"{type_key} not registered"
+
+
+def _make_discount_events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "name": ["black_friday", "summer_sale"],
+            "start_date": ["2025-03-03", "2025-01-20"],
+            "end_date": ["2025-03-24", "2025-02-10"],
+            "discount_pct": [0.30, 0.20],
+        }
+    )
+
+
+class TestDiscountedEventEffectValidation:
+    def test_missing_columns_raise(self):
+        with pytest.raises(ValueError, match="missing required columns"):
+            DiscountedEventEffect(
+                df_events=pd.DataFrame({"name": ["a"], "start_date": ["2024-01-01"]}),
+                prefix="promo",
+            )
+
+    def test_inverted_bounds_raise(self):
+        with pytest.raises(ValueError, match="discount_min"):
+            DiscountedEventEffect(
+                df_events=_make_discount_events(),
+                prefix="promo",
+                discount_min=0.5,
+                discount_max=0.2,
+            )
+
+    def test_discount_pct_out_of_range_raises(self):
+        df = _make_discount_events()
+        df["discount_pct"] = [1.5, 0.2]
+        with pytest.raises(ValueError, match=r"must be in \[0, 1\]"):
+            DiscountedEventEffect(df_events=df, prefix="promo")
+
+
+class TestDiscountedEventEffectUnits:
+    def test_lever_bounds_native_units(self):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(),
+            prefix="promo",
+            discount_min=0.05,
+            discount_max=0.4,
+        )
+        assert effect.lever_bounds == [(0.05, 0.4), (0.05, 0.4)]
+
+    def test_window_mask_marks_event_dates(self, dates):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(), prefix="promo"
+        )
+        window = effect._window_mask(dates)
+        assert window.dims == ("date", "promo")
+        assert list(window.coords["promo"].values) == ["black_friday", "summer_sale"]
+        in_window = (dates >= pd.Timestamp("2025-03-03")) & (
+            dates <= pd.Timestamp("2025-03-24")
+        )
+        np.testing.assert_array_equal(
+            window.sel(promo="black_friday").values, in_window.astype(float)
+        )
+
+    def test_lever_var_name(self):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(), prefix="promo"
+        )
+        assert effect.lever_var_name == "promo_data"
+
+    def test_lever_var_name_without_prefix_raises(self):
+        from pymc_marketing.mmm.additive_effect import OptimizableMuEffect
+
+        class NoPrefixEffect(OptimizableMuEffect):
+            def create_data(self, mmm):  # pragma: no cover - contract stub
+                pass
+
+            def create_effect(self, mmm):  # pragma: no cover - contract stub
+                pass
+
+            def set_data(self, mmm, model, X):  # pragma: no cover - contract stub
+                pass
+
+        with pytest.raises(NotImplementedError, match="lever_var_name"):
+            _ = NoPrefixEffect().lever_var_name
+
+    def test_events_sharing_model_dates(self, dates):
+        df = _make_discount_events()  # disjoint windows
+        effect = DiscountedEventEffect(df_events=df, prefix="promo")
+        window = effect._window_mask(dates)
+        assert effect._events_sharing_model_dates(window) == []
+
+        df_overlap = df.copy()
+        df_overlap.loc[1, ["start_date", "end_date"]] = ["2025-03-10", "2025-04-01"]
+        effect = DiscountedEventEffect(df_events=df_overlap, prefix="promo")
+        window = effect._window_mask(dates)
+        assert effect._events_sharing_model_dates(window) == [
+            "black_friday",
+            "summer_sale",
+        ]
+
+    def test_to_dict_and_idata_group(self):
+        effect = DiscountedEventEffect(
+            df_events=_make_discount_events(),
+            prefix="promo",
+            discount_min=0.0,
+            discount_max=0.35,
+        )
+        d = effect.to_dict()
+        assert d["df_events_group"] == "supplementary_data_promo"
+        assert d["discount_max"] == 0.35
+        groups = effect.idata_groups()
+        assert "supplementary_data_promo" in groups
+        assert list(groups["supplementary_data_promo"]["name"].values) == [
+            "black_friday",
+            "summer_sale",
+        ]
+
+    def test_type_registered_for_serialization(self):
+        key = "pymc_marketing.mmm.additive_effect.DiscountedEventEffect"
+        assert key in serialization._registry
+
+
+def test_discounted_event_effect_save_load_roundtrip(mock_pymc_sample, tmp_path):
+    """Save/load preserves df_events (names + discount_pct) and native bounds."""
+    date_range = pd.date_range("2023-01-01", periods=16, freq="W")
+    rng = np.random.default_rng(3)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["spring_sale"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-03-15"],
+                "discount_pct": [0.15],
+            }
+        ),
+        prefix="promo",
+        discount_min=0.0,
+        discount_max=0.4,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(effect)
+    mmm.fit(X, y, random_seed=3)
+
+    path = tmp_path / "mmm_discount.nc"
+    mmm.save(str(path))
+    loaded = type(mmm).load(str(path))
+
+    (restored,) = [e for e in loaded.mu_effects if isinstance(e, DiscountedEventEffect)]
+    assert restored.df_events["name"].tolist() == ["spring_sale"]
+    assert restored.discount_max == 0.4
+    assert restored.lever_bounds == [(0.0, 0.4)]
+    np.testing.assert_allclose(
+        restored.df_events["discount_pct"].to_numpy(dtype="float64"), [0.15]
+    )
+
+
+# ---------------------------------------------------------------------------
+# DiscountedEventEffect: build-based tests (both links)
+# ---------------------------------------------------------------------------
+
+
+def _make_two_events() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "name": ["spring_sale", "fall_sale"],
+            "start_date": ["2023-03-01", "2023-09-01"],
+            "end_date": ["2023-03-31", "2023-09-30"],
+            "discount_pct": [0.30, 0.20],
+        }
+    )
+
+
+def _build_discount_mmm(link: str, df_events: pd.DataFrame | None = None) -> MMM:
+    rng = np.random.default_rng(1)
+    dates_ = pd.date_range("2023-01-01", periods=52, freq="W")
+    X = pd.DataFrame(
+        {
+            "date": dates_,
+            "ch1": rng.uniform(100, 500, size=len(dates_)),
+            "ch2": rng.uniform(100, 500, size=len(dates_)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+    effect = DiscountedEventEffect(
+        df_events=df_events if df_events is not None else _make_two_events(),
+        prefix="promo",
+        discount_min=0.05,
+        discount_max=0.45,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link=link,
+    ).add_mu_effect(effect)
+    mmm.build_model(X, y)
+    return mmm
+
+
+@pytest.mark.parametrize("link", ["identity", "log"])
+def test_discount_create_data_registers_nodes(link):
+    mmm = _build_discount_mmm(link)
+    model = mmm.model
+    assert "promo_window" in model.named_vars
+    assert "promo_data" in model.named_vars
+    assert "promo_event_contribution" in model.named_vars
+    assert "promo_effect_contribution" in model.named_vars
+    assert "total_response_original_scale" in model.named_vars
+    # The r_k machinery is gone
+    assert "promo_revenue_per_period" not in model.named_vars
+    # Lever initialised at the historical depths
+    np.testing.assert_allclose(model["promo_data"].get_value(), [0.30, 0.20])
+
+
+def test_discount_forward_formula_log():
+    """Numeric check: contribution = window * (ln(1-d) + beta*ln(1+d))."""
+    mmm = _build_discount_mmm("log")
+    beta_val = np.array([2.0, 1.5])
+    d = np.array([0.30, 0.20])
+    fixed = pm.do(mmm.model, {"promo_beta": beta_val})
+    contrib, window = pm.draw(
+        [fixed["promo_event_contribution"], fixed["promo_window"]], random_seed=1
+    )
+    expected = window * (np.log1p(-d) + beta_val * np.log1p(d))[None, :]
+    np.testing.assert_allclose(contrib, expected, rtol=1e-10)
+    # d=0 => no contribution; both events lift is finite and event-specific
+    assert not np.allclose(expected[window.astype(bool)], 0.0)
+
+
+def test_discount_forward_formula_identity():
+    """Numeric check: contribution = mu_base * ((1-d)(1+d)^beta - 1) * window.
+
+    The multiplier is exact (identical to the log link's factor), so both
+    links share the same standalone optimum.
+    """
+    mmm = _build_discount_mmm("identity")
+    beta_val = np.array([2.0, 1.5])
+    d = np.array([0.30, 0.20])
+    fixed = pm.do(mmm.model, {"promo_beta": beta_val})
+    contrib, window, intercept, channel = pm.draw(
+        [
+            fixed["promo_event_contribution"],
+            fixed["promo_window"],
+            fixed["intercept_contribution"],
+            fixed["channel_contribution"],
+        ],
+        random_seed=1,
+    )
+    # The fixture has no controls/seasonality: baseline = intercept + media
+    baseline = intercept + channel.sum(axis=-1)  # (date,)
+    mult = (1.0 - d) * (1.0 + d) ** beta_val - 1.0
+    expected = baseline[:, None] * (window * mult[None, :])
+    np.testing.assert_allclose(contrib, expected, rtol=1e-8)
+
+
+def test_discount_overlap_guard():
+    """Windows sharing a model date raise under identity, compose under log."""
+    df = _make_two_events()
+    df.loc[1, ["start_date", "end_date"]] = ["2023-03-15", "2023-04-15"]
+    with pytest.raises(ValueError, match="same model date"):
+        _build_discount_mmm("identity", df_events=df)
+    mmm = _build_discount_mmm("log", df_events=df)
+    assert "promo_event_contribution" in mmm.model.named_vars
+
+
+def test_discount_calendar_overlap_without_shared_model_date_builds():
+    """Calendar-overlapping windows that resolve to disjoint model dates are fine.
+
+    On weekly data, two short windows can overlap on the calendar while never
+    flagging the same model date -- no double-counting occurs, so the
+    identity-link guard must not fire.
+    """
+    # The fixture's model dates are Sundays. short_a (03-01..03-08) and
+    # short_b (03-06..03-11) overlap on the calendar (03-06..03-08) but only
+    # short_a contains a model date (Sunday 03-05) -- no shared model date.
+    df = pd.DataFrame(
+        {
+            "name": ["short_a", "short_b"],
+            "start_date": ["2023-03-01", "2023-03-06"],
+            "end_date": ["2023-03-08", "2023-03-11"],
+            "discount_pct": [0.10, 0.10],
+        }
+    )
+    mmm = _build_discount_mmm("identity", df_events=df)
+    assert "promo_event_contribution" in mmm.model.named_vars
+
+
+def test_discount_log_link_rejects_full_discount():
+    """discount_max or discount_pct >= 1 is -inf under the log link: raise."""
+    df = _make_two_events()
+    with pytest.raises(ValueError, match="strictly below 1"):
+        effect = DiscountedEventEffect(
+            df_events=df, prefix="promo", discount_min=0.05, discount_max=1.0
+        )
+        rng = np.random.default_rng(1)
+        dates_ = pd.date_range("2023-01-01", periods=52, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": dates_,
+                "ch1": rng.uniform(100, 500, size=len(dates_)),
+                "ch2": rng.uniform(100, 500, size=len(dates_)),
+            }
+        )
+        y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+        MMM(
+            date_column="date",
+            channel_columns=["ch1", "ch2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            link="log",
+        ).add_mu_effect(effect).build_model(X, y)
+
+
+def test_discount_identity_baseline_includes_non_optimizable_effects():
+    """Non-optimizable mu effects (e.g. Fourier seasonality) are repriced.
+
+    build_model applies non-optimizable effects before stashing _mu_baseline,
+    so the discount multiplier covers them; optimizable effects apply after
+    the stash and never reprice each other.
+    """
+    rng = np.random.default_rng(1)
+    dates_ = pd.date_range("2023-01-01", periods=52, freq="W")
+    X = pd.DataFrame(
+        {
+            "date": dates_,
+            "ch1": rng.uniform(100, 500, size=len(dates_)),
+            "ch2": rng.uniform(100, 500, size=len(dates_)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+    fourier_effect = FourierEffect(fourier=YearlyFourier(n_order=2))
+    discount = DiscountedEventEffect(
+        df_events=_make_two_events(),
+        prefix="promo",
+        discount_min=0.05,
+        discount_max=0.45,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link="identity",
+    )
+    # Order in mu_effects should not matter: the optimizable effect is
+    # applied after the stash regardless.
+    mmm.add_mu_effect(discount).add_mu_effect(fourier_effect)
+    mmm.build_model(X, y)
+
+    beta_val = np.array([2.0, 1.5])
+    d = np.array([0.30, 0.20])
+    fixed = pm.do(mmm.model, {"promo_beta": beta_val})
+    contrib, window, intercept, channel, fourier_contrib = pm.draw(
+        [
+            fixed["promo_event_contribution"],
+            fixed["promo_window"],
+            fixed["intercept_contribution"],
+            fixed["channel_contribution"],
+            fixed[fourier_effect.contribution_var_name],
+        ],
+        random_seed=1,
+    )
+    baseline = intercept + channel.sum(axis=-1) + fourier_contrib  # (date,)
+    mult = (1.0 - d) * (1.0 + d) ** beta_val - 1.0
+    expected = baseline[:, None] * (window * mult[None, :])
+    np.testing.assert_allclose(contrib, expected, rtol=1e-8)
+
+
+def test_discount_two_effects_compose_multiplicatively():
+    """Two repricing effects sharing a model date give mu_base*(1+m1)(1+m2).
+
+    build_model refreshes _mu_baseline after each optimizable effect, so
+    multipliers compose (as under the log link) instead of summing on the
+    same baseline -- the additive cross-effect double-count.
+    """
+    rng = np.random.default_rng(1)
+    dates_ = pd.date_range("2023-01-01", periods=52, freq="W")
+    X = pd.DataFrame(
+        {
+            "date": dates_,
+            "ch1": rng.uniform(100, 500, size=len(dates_)),
+            "ch2": rng.uniform(100, 500, size=len(dates_)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+
+    def make(prefix, d):
+        return DiscountedEventEffect(
+            df_events=pd.DataFrame(
+                {
+                    "name": [f"{prefix}_event"],
+                    "start_date": ["2023-03-01"],
+                    "end_date": ["2023-03-31"],  # same window: shared dates
+                    "discount_pct": [d],
+                }
+            ),
+            prefix=prefix,
+        )
+
+    mmm = (
+        MMM(
+            date_column="date",
+            channel_columns=["ch1", "ch2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            link="identity",
+        )
+        .add_mu_effect(make("promo", 0.30))
+        .add_mu_effect(make("loyalty", 0.20))
+    )
+    mmm.build_model(X, y)
+
+    beta1, beta2 = 2.0, 1.5
+    d1, d2 = 0.30, 0.20
+    fixed = pm.do(
+        mmm.model,
+        {"promo_beta": np.array([beta1]), "loyalty_beta": np.array([beta2])},
+    )
+    c1, c2, window, intercept, channel = pm.draw(
+        [
+            fixed["promo_effect_contribution"],
+            fixed["loyalty_effect_contribution"],
+            fixed["promo_window"],
+            fixed["intercept_contribution"],
+            fixed["channel_contribution"],
+        ],
+        random_seed=1,
+    )
+    baseline = intercept + channel.sum(axis=-1)  # (date,)
+    m1 = (1 - d1) * (1 + d1) ** beta1 - 1.0
+    m2 = (1 - d2) * (1 + d2) ** beta2 - 1.0
+    w = window[:, 0]  # shared window (date,)
+    # Total on shared dates: mu_base * ((1+m1)(1+m2) - 1), NOT mu_base*(m1+m2)
+    expected_total = baseline * w * ((1 + m1) * (1 + m2) - 1.0)
+    np.testing.assert_allclose(c1 + c2, expected_total, rtol=1e-8)
+    additive_double_count = baseline * w * (m1 + m2)
+    assert not np.allclose(c1 + c2, additive_double_count)
+
+
+def test_total_response_not_registered_without_optimizable_effect():
+    """No silent posterior addition: the objective node is gated.
+
+    Plain models (and models with only non-optimizable mu effects) must not
+    gain total_response_original_scale.
+    """
+    rng = np.random.default_rng(1)
+    dates_ = pd.date_range("2023-01-01", periods=20, freq="W")
+    X = pd.DataFrame(
+        {
+            "date": dates_,
+            "ch1": rng.uniform(100, 500, size=len(dates_)),
+            "ch2": rng.uniform(100, 500, size=len(dates_)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+
+    plain = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    plain.build_model(X, y)
+    assert "total_response_original_scale" not in plain.model.named_vars
+
+    with_fourier = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(FourierEffect(fourier=YearlyFourier(n_order=2)))
+    with_fourier.build_model(X, y)
+    assert "total_response_original_scale" not in with_fourier.model.named_vars
+
+
+def test_discount_identity_requires_mu_baseline(dates):
+    """A custom model without the _mu_baseline stash gets a clear error."""
+    from types import SimpleNamespace
+
+    effect = DiscountedEventEffect(df_events=_make_discount_events(), prefix="promo")
+    with pm.Model(coords={"date": dates}) as model:
+        stub = SimpleNamespace(model=model, link="identity")
+        effect.create_data(stub)
+        with pytest.raises(ValueError, match="_mu_baseline"):
+            effect.create_effect(stub)
+
+
+def test_discount_multidim_build(panel_mmm_data):
+    """Panel MMM + DiscountedEventEffect builds and broadcasts over dims.
+
+    Previously broke with a TypeError on ``float(scalers._target)``.
+    """
+    X, y = panel_mmm_data["X"], panel_mmm_data["y"]
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["promo_week"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-02-21"],
+                "discount_pct": [0.2],
+            }
+        ),
+        prefix="promo",
+    )
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(effect)
+    mmm.build_model(X, y)
+    dims = tuple(mmm.model.named_vars_to_dims["promo_event_contribution"])
+    assert set(dims) == {"date", "promo", "country"}
+    contrib = pm.draw(mmm.model["promo_event_contribution"], random_seed=1)
+    assert np.isfinite(contrib).all()

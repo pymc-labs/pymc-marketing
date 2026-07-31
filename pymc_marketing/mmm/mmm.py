@@ -208,6 +208,7 @@ from pymc_marketing.mmm import SoftPlusHSGP
 from pymc_marketing.mmm.additive_effect import (
     EventAdditiveEffect,
     MuEffect,
+    OptimizableMuEffect,
     safe_to_datetime,
 )
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
@@ -2374,8 +2375,34 @@ class MMM(RegressionModelBuilder):
 
                 mu_var += yearly_seasonality_contribution
 
+            # Non-optimizable mu effects (seasonality, trend, holiday events,
+            # ...) are part of the baseline; optimizable repricing effects
+            # (e.g. DiscountedEventEffect under the identity link) apply on
+            # top of it, so they are created after the stash.
             for mu_effect in self.mu_effects:
-                mu_var += mu_effect.create_effect(self)
+                if not isinstance(mu_effect, OptimizableMuEffect):
+                    mu_var += mu_effect.create_effect(self)
+
+            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            # Symbolic baseline: everything in mu except the optimizable
+            # repricing effects themselves.
+            mu_baseline = mu_var
+            self._mu_baseline = mu_baseline
+
+            for mu_effect in self.mu_effects:
+                if isinstance(mu_effect, OptimizableMuEffect):
+                    mu_var += mu_effect.create_effect(self)
+                    # Refresh the stash so consecutive repricing effects
+                    # compose multiplicatively -- mu_base * (1+m1) * (1+m2)
+                    # -- instead of summing multipliers on the same baseline
+                    # (an additive double-count on shared dates). Matches how
+                    # the log link composes them.
+                    self._mu_baseline = mu_var
+
+            # Restore the pre-effects baseline so the attribute means what
+            # its name says once build_model returns (the running composed
+            # value above is only for consecutive effects during the loop).
+            self._mu_baseline = mu_baseline
 
             if self.link == LinkFunction.LOG:
                 mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
@@ -2388,6 +2415,17 @@ class MMM(RegressionModelBuilder):
                 target_scale=_target_scale,
                 output_var=self.output_var,
             )
+            # Registered only when there is an optimizable effect lever to
+            # score against it -- it is that machinery's objective, and
+            # registering it unconditionally would silently add a variable to
+            # every existing user's posterior.
+            if any(
+                isinstance(effect, OptimizableMuEffect) for effect in self.mu_effects
+            ):
+                self._link_spec.create_total_response_deterministic(
+                    mu_var=mu_var,
+                    target_scale=_target_scale,
+                )
 
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
@@ -2584,6 +2622,21 @@ class MMM(RegressionModelBuilder):
 
         return pymc_model
 
+    def _effect_optimizable_vars(
+        self,
+    ) -> dict[str, list[tuple[float | None, float | None]] | None]:
+        """Translate each :class:`OptimizableMuEffect` into an ``optimizable_vars`` entry.
+
+        Maps the effect's :attr:`lever_var_name` node to its native
+        :attr:`lever_bounds`; the optimizer only ever sees variable names on
+        the model graph.
+        """
+        return {
+            effect.lever_var_name: effect.lever_bounds
+            for effect in self.mu_effects
+            if isinstance(effect, OptimizableMuEffect)
+        }
+
     def budget_optimizer(
         self,
         start_date: str | pd.Timestamp,
@@ -2592,6 +2645,8 @@ class MMM(RegressionModelBuilder):
         budgets_to_optimize: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         compile_kwargs: dict | None = None,
+        optimizable_vars: dict[str, list[tuple[float | None, float | None]] | None]
+        | None = None,
         **kwargs: Any,
     ) -> BudgetOptimizer:
         """Create a :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` for a future window.
@@ -2615,6 +2670,15 @@ class MMM(RegressionModelBuilder):
             Cost-per-unit conversion factors for non-monetary channels.
         compile_kwargs : dict or None, optional
             Extra keyword arguments for PyTensor's ``function()``.
+        optimizable_vars : dict or None, optional
+            Extra model variables to co-optimize by name (native bounds per
+            entry; see
+            :attr:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.optimizable_vars`).
+            ``None`` (default) auto-injects one entry per
+            :class:`~pymc_marketing.mmm.additive_effect.OptimizableMuEffect`
+            on the model; a dict is merged on top of those (explicit entries
+            win); pass ``{}`` to opt out of lever optimization entirely
+            (e.g. to re-plan media against a fixed discount calendar).
         **kwargs
             Additional arguments forwarded to
             :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
@@ -2647,6 +2711,19 @@ class MMM(RegressionModelBuilder):
                     .astype(bool)
                 )
 
+        # Translate each optimizable effect's lever into an `optimizable_vars`
+        # entry (its lever_var_name node + native bounds) -- the optimizer
+        # itself only ever sees variable names on the graph (#2621). None
+        # (not passed) auto-injects the effects' levers; an explicit dict is
+        # merged on top (caller entries win); an explicit {} opts out of
+        # lever optimization entirely. Pair with
+        # response_variable="total_response_original_scale" so the levers
+        # enter the objective.
+        if optimizable_vars is None:
+            optimizable_vars = self._effect_optimizable_vars()
+        elif optimizable_vars:
+            optimizable_vars = self._effect_optimizable_vars() | optimizable_vars
+
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
@@ -2657,6 +2734,7 @@ class MMM(RegressionModelBuilder):
             cost_per_unit=cost_per_unit,
             compile_kwargs=compile_kwargs,
             mu_effects=list(self.mu_effects),
+            optimizable_vars=optimizable_vars,
             frozen_deterministics=self.frozen_deterministics,
             **kwargs,
         )
@@ -3891,6 +3969,8 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_distribution_over_period: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
+        optimizable_vars: dict[str, list[tuple[float | None, float | None]] | None]
+        | None = None,
         **minimize_kwargs,
     ) -> (
         tuple[xr.DataArray, OptimizeResult]
@@ -3905,7 +3985,15 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
         response_variable : str
-            Response variable to optimize.
+            Response variable to optimize. If the model has
+            :class:`~pymc_marketing.mmm.additive_effect.OptimizableMuEffect`
+            instances, pass ``"total_response_original_scale"`` so their
+            levers are tuned to maximize the total predicted response. With
+            the default media-contribution response the optimizer raises
+            under the identity link (the levers are unreachable) and warns
+            under the log link (the levers are reachable through ``mu`` but
+            would be tuned to maximize incremental media contribution
+            instead).
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
@@ -3945,6 +4033,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             **This is independent of the historical cost_per_unit.**
         callback : bool
             Whether to return callback information tracking optimization progress.
+        optimizable_vars : dict or None, optional
+            Extra model variables to co-optimize by name. ``None`` (default)
+            auto-injects one entry per
+            :class:`~pymc_marketing.mmm.additive_effect.OptimizableMuEffect`;
+            a dict is merged on top of those (explicit entries win); pass
+            ``{}`` to opt out of lever optimization entirely (e.g. to
+            re-plan media against a fixed discount calendar).
         **minimize_kwargs
             Additional arguments for the optimizer.
 
@@ -3978,6 +4073,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
                 stacklevel=2,
             )
 
+        # Same semantics as MMM.budget_optimizer: None auto-injects the
+        # effects' levers, a dict merges on top, {} opts out entirely.
+        if optimizable_vars is None:
+            optimizable_vars = self._effect_optimizable_vars()
+        elif optimizable_vars:
+            optimizable_vars = self._effect_optimizable_vars() | optimizable_vars
+
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
@@ -3988,6 +4090,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             cost_per_unit=cost_per_unit_da,
             model=self,
             compile_kwargs=self.compile_kwargs,
+            optimizable_vars=optimizable_vars,
         )
 
         return allocator.allocate_budget(
