@@ -1492,6 +1492,22 @@ class BudgetOptimizer(BaseModel):
                     'response_variable="total_response_original_scale".'
                 )
 
+            # 8c. The reverse trap: under the log link the media-contribution
+            # objective *does* reach the levers (mu contains the effect), so
+            # the ancestry check above passes -- but the levers would then be
+            # tuned to maximize incremental media contribution, not total
+            # response. Warn instead of silently accepting the default.
+            if self.response_variable == "total_media_contribution_original_scale":
+                warnings.warn(
+                    "optimizable_vars are being optimized against the "
+                    "media-contribution objective "
+                    "'total_media_contribution_original_scale'. If you want "
+                    "them tuned to maximize the total predicted response, "
+                    'pass response_variable="total_response_original_scale".',
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         # 9. Compile objective & gradient
         self._compiled_functions = {}
         self._compile_objective_and_grad()
@@ -2033,11 +2049,19 @@ class BudgetOptimizer(BaseModel):
                 for i in np.flatnonzero(segment == 0.0):
                     suspicious[flat_slice.start + int(i)] = f"{name}[{coords[i]}]"
             if suspicious:
-                x_probe = np.asarray(x0, dtype=float).copy()
+                # Keep the compiled function's dtype (float32 under
+                # floatX="float32" -- forcing float64 would make the filter
+                # raise).
+                x_probe = np.array(x0, copy=True)
                 for idx in suspicious:
                     low, high = bounds[idx]
-                    low = 0.0 if low is None else low
-                    high = low + 1.0 if high is None else high
+                    # Anchor the probe box on whichever bound is finite.
+                    if low is None and high is None:
+                        low, high = 0.0, 1.0
+                    elif low is None:
+                        low = high - 1.0
+                    elif high is None:
+                        high = low + 1.0
                     midpoint = 0.5 * (low + high)
                     x_probe[idx] = (
                         midpoint

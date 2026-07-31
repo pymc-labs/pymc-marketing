@@ -139,7 +139,11 @@ class LinkSpec(ABC):
             default mean utility the ``argmax`` is unchanged, but for
             risk-adjusted utility functions the baseline shifts the
             mean/variance trade-off -- prefer a media/effect-contribution
-            response variable for those.
+            response variable for those.  In an optimization model the sum
+            runs over the full date coord, which includes the
+            ``adstock_periods`` carry-over tail -- an event window landing in
+            that tail would be optimized against periods outside the intended
+            plan.
         """
         pmd.Deterministic(
             "total_response_original_scale",

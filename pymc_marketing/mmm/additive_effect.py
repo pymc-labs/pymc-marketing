@@ -1165,7 +1165,9 @@ class DiscountedEventEffect(OptimizableMuEffect):
                 f"DiscountedEventEffect('{self.prefix}'): events {shared} are "
                 "active on the same model date, which double-counts the "
                 "baseline repricing under the identity link. Merge the "
-                'overlapping events, or use link="log", where shared dates '
+                "overlapping events, split them into separate "
+                "DiscountedEventEffect instances (which compose "
+                'multiplicatively), or use link="log", where shared dates '
                 "stack multiplicatively."
             )
 

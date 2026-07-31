@@ -13,6 +13,7 @@
 #   limitations under the License.
 import ast
 import inspect
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -1541,6 +1542,126 @@ def test_optimizable_vars_out_of_window_lever_warns(mock_pymc_sample):
     np.testing.assert_allclose(float(depths.sel(promo="early_event")), 0.10)
     # The in-window lever is genuinely optimized.
     assert float(depths.sel(promo="late_event")) > 0.10
+
+
+def test_stationary_warm_start_does_not_warn(mock_pymc_sample):
+    """A lever whose gradient is exactly zero AT x0 (but not elsewhere) is fine.
+
+    A quadratic effect (data - 0.5)^2 has an exactly-zero gradient at its
+    optimum 0.5 in floating point. Warm-started there, the first evaluation
+    flags it as suspicious; the perturbed second evaluation must clear it --
+    no "not optimized" warning for a lever that is in fact perfectly
+    optimized.
+    """
+
+    class QuadraticEffect(MuEffect):
+        prefix: str = "quad"
+
+        def create_data(self, mmm) -> None:
+            model = mmm.model
+            model.add_coord(self.prefix, ["k1"])
+            pmd.Data(f"{self.prefix}_data", np.array([0.5]), dims=self.prefix)
+
+        def create_effect(self, mmm):
+            model = mmm.model
+            data = model[f"{self.prefix}_data"]
+            coef = pmd.HalfNormal(f"{self.prefix}_coef", sigma=1.0, dims=self.prefix)
+            # Gradient wrt data is exactly 0.0 at data == 0.5, nonzero elsewhere.
+            contribution = pmd.Deterministic(
+                f"{self.prefix}_effect_contribution",
+                -((data - 0.5) ** 2) * coef,
+                dims=self.prefix,
+            )
+            pmd.Deterministic(f"{self.prefix}_objective", contribution.sum())
+            return contribution.sum(dim=self.prefix)
+
+        def set_data(self, mmm, model, X) -> None:
+            pass
+
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(QuadraticEffect())
+    mmm.fit(X, y, random_seed=0)
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"quad_data": [(0.0, 1.0)]},
+        response_variable="quad_objective",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        # Silence the unrelated no-bounds default warning.
+        warnings.filterwarnings("ignore", message="No budget bounds provided")
+        _, result = optimizer.allocate_budget(total_budget=100.0)
+    # The warm start already sat at the optimum and stays there.
+    np.testing.assert_allclose(
+        float(result.optimized_vars["quad_data"].values[0]), 0.5, atol=1e-6
+    )
+
+
+def test_levers_against_media_objective_warn_under_log(mock_pymc_sample):
+    """Under log the media objective reaches the levers: warn, don't raise.
+
+    total_media_contribution_original_scale is exp(mu) - exp(mu - mu_media)
+    under the log link, and mu contains the discount contribution -- so the
+    ancestry check passes and the levers would silently be tuned to maximize
+    incremental media contribution. The optimizer warns instead.
+    """
+    date_range = pd.date_range("2023-01-01", periods=20, freq="W")
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["spring_sale"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-03-15"],
+                "discount_pct": [0.10],
+            }
+        ),
+        prefix="promo",
+        discount_min=0.05,
+        discount_max=0.45,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link="log",
+    ).add_mu_effect(effect)
+    mmm.fit(X, y, random_seed=1)
+
+    with pytest.warns(UserWarning, match="media-contribution objective"):
+        mmm.budget_optimizer(
+            start_date=date_range[3],
+            end_date=date_range[10],
+            # default response_variable: total_media_contribution_original_scale
+        )
 
 
 def test_optimize_budget_wires_effect_levers(mock_pymc_sample):

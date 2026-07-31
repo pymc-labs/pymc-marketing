@@ -2386,17 +2386,23 @@ class MMM(RegressionModelBuilder):
             ## TODO: Find a better way to save it or access it in the pytensor graph.
             # Symbolic baseline: everything in mu except the optimizable
             # repricing effects themselves.
-            self._mu_baseline = mu_var
+            mu_baseline = mu_var
+            self._mu_baseline = mu_baseline
 
             for mu_effect in self.mu_effects:
                 if isinstance(mu_effect, OptimizableMuEffect):
                     mu_var += mu_effect.create_effect(self)
                     # Refresh the stash so consecutive repricing effects
-                    # compose multiplicatively -- mu_base * (1+m1) * (1+m2),
-                    # order-independent -- instead of summing multipliers on
-                    # the same baseline (an additive double-count on shared
-                    # dates). Matches how the log link composes them.
+                    # compose multiplicatively -- mu_base * (1+m1) * (1+m2)
+                    # -- instead of summing multipliers on the same baseline
+                    # (an additive double-count on shared dates). Matches how
+                    # the log link composes them.
                     self._mu_baseline = mu_var
+
+            # Restore the pre-effects baseline so the attribute means what
+            # its name says once build_model returns (the running composed
+            # value above is only for consecutive effects during the loop).
+            self._mu_baseline = mu_baseline
 
             if self.link == LinkFunction.LOG:
                 mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
@@ -3982,9 +3988,12 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Response variable to optimize. If the model has
             :class:`~pymc_marketing.mmm.additive_effect.OptimizableMuEffect`
             instances, pass ``"total_response_original_scale"`` so their
-            levers enter the objective -- the default media-only response has
-            no gradient with respect to them, and the optimizer raises in
-            that case.
+            levers are tuned to maximize the total predicted response. With
+            the default media-contribution response the optimizer raises
+            under the identity link (the levers are unreachable) and warns
+            under the log link (the levers are reachable through ``mu`` but
+            would be tuned to maximize incremental media contribution
+            instead).
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
