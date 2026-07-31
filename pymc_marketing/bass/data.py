@@ -113,12 +113,6 @@ def _from_xarray(data: xr.Dataset) -> xr.Dataset:
     if "T" not in data.coords:
         n = data.sizes["T"] if "T" in data.sizes else next(iter(data.sizes.values()))
         data = data.assign_coords(T=np.arange(n))
-    if "observed" in data:
-        obs_dims = data["observed"].dims
-        if "T" in obs_dims and obs_dims[0] != "T":
-            # Keep ``T`` as the leading dim so ``y_obs`` matches the model layout
-            # regardless of the order the user passed (e.g. a (product, T) Dataset).
-            data = data.transpose("T", ...)
     return data
 
 
