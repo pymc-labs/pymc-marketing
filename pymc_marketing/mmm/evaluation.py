@@ -44,12 +44,14 @@ def calculate_metric_distributions(
         Posterior predictive samples. Shape: (date, sample)
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
-            * `r_squared`: Bayesian R-squared.
-            * `rmse`: Root Mean Squared Error.
-            * `nrmse`: Normalized Root Mean Squared Error.
-            * `mae`: Mean Absolute Error.
-            * `nmae`: Normalized Mean Absolute Error.
-            * `mape`: Mean Absolute Percentage Error.
+
+        * ``r_squared``: Bayesian R-squared.
+        * ``rmse``: Root Mean Squared Error.
+        * ``nrmse``: Normalized Root Mean Squared Error.
+        * ``mae``: Mean Absolute Error.
+        * ``nmae``: Normalized Mean Absolute Error.
+        * ``mape``: Mean Absolute Percentage Error.
+
         Defaults to all metrics if None.
 
     Returns
@@ -63,8 +65,13 @@ def calculate_metric_distributions(
     if isinstance(y_pred, xr.DataArray):
         y_pred = y_pred.values
 
+    def _bayesian_r2(y_true, y_pred):
+        var_resid = np.var(y_true - y_pred)
+        var_pred = np.var(y_pred)
+        return var_pred / (var_pred + var_resid)
+
     metric_functions = {
-        "r_squared": lambda y_true, y_pred: az.r2_score(y_true, y_pred.T)["r2"],
+        "r_squared": _bayesian_r2,
         "rmse": root_mean_squared_error,
         "nrmse": nrmse,
         "mae": mean_absolute_error,
@@ -116,17 +123,18 @@ def summarize_metric_distributions(
     dict of str to dict
         A dictionary containing summary statistics for each metric.
         List of summary statistics calculated for each metric:
-            * `mean`: Mean of the metric distribution.
-            * `median`: Median of the metric distribution.
-            * `std`: Standard deviation of the metric distribution.
-            * `min`: Minimum value of the metric distribution.
-            * `max`: Maximum value of the metric distribution.
-            * `hdi_lower`: Lower bound of the Highest Density Interval.
-            * `hdi_upper`: Upper bound of the Highest Density Interval.
+
+        * ``mean``: Mean of the metric distribution.
+        * ``median``: Median of the metric distribution.
+        * ``std``: Standard deviation of the metric distribution.
+        * ``min``: Minimum value of the metric distribution.
+        * ``max``: Maximum value of the metric distribution.
+        * ``hdi_lower``: Lower bound of the Highest Density Interval.
+        * ``hdi_upper``: Upper bound of the Highest Density Interval.
     """
     metric_summaries = {}
     for metric, distribution in metric_distributions.items():
-        hdi = az.hdi(distribution, hdi_prob=hdi_prob)
+        hdi = az.hdi(distribution, prob=hdi_prob)
         metric_summaries[metric] = {
             "mean": np.mean(distribution),
             "median": np.median(distribution),
@@ -159,12 +167,14 @@ def compute_summary_metrics(
         The predicted values of the target variable.
     metrics_to_calculate : list of str or None, optional
         List of metrics to calculate. Options include:
-            * `r_squared`: Bayesian R-squared.
-            * `rmse`: Root Mean Squared Error.
-            * `nrmse`: Normalized Root Mean Squared Error.
-            * `mae`: Mean Absolute Error.
-            * `nmae`: Normalized Mean Absolute Error.
-            * `mape`: Mean Absolute Percentage Error.
+
+        * ``r_squared``: Bayesian R-squared.
+        * ``rmse``: Root Mean Squared Error.
+        * ``nrmse``: Normalized Root Mean Squared Error.
+        * ``mae``: Mean Absolute Error.
+        * ``nmae``: Normalized Mean Absolute Error.
+        * ``mape``: Mean Absolute Percentage Error.
+
         Defaults to all metrics if None.
     hdi_prob : float, optional
         The probability mass of the highest density interval. Defaults to 0.94.
@@ -174,12 +184,13 @@ def compute_summary_metrics(
     dict of str to dict
         A dictionary containing summary statistics for each metric.
         List of summary statistics calculated for each metric:
-            * `mean`: Mean of the metric distribution.
-            * `median`: Median of the metric distribution.
-            * `std`: Standard deviation of the metric distribution.
-            * `min`: Minimum value of the metric distribution.
-            * `max`: Maximum value of the metric distribution.
-            * `hdi_lower`: Lower bound of the Highest Density Interval.
+
+        * ``mean``: Mean of the metric distribution.
+        * ``median``: Median of the metric distribution.
+        * ``std``: Standard deviation of the metric distribution.
+        * ``min``: Minimum value of the metric distribution.
+        * ``max``: Maximum value of the metric distribution.
+        * ``hdi_lower``: Lower bound of the Highest Density Interval.
             * `hdi_upper`: Upper bound of the Highest Density Interval.
 
     Examples

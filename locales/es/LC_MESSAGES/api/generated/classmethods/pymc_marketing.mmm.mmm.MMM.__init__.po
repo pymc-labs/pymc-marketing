@@ -21,11 +21,11 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 
 #: ../source/api/generated/classmethods/pymc_marketing.mmm.mmm.MMM.__init__.rst:2
-#: c5067651d3984406aada0ac91843e00b
+#: f5c00223b4724b22853bc58f2e08d092
 msgid "MMM.\\_\\_init\\_\\_"
 msgstr "MMM.\\_\\_init\\_\\_"
 
-#: dda28f02c22c44618c99f84887b0de67 of
-#: pymc_marketing.mmm.mmm.BaseMMM.__init__:2
+#: 99cc8657a541427a85f4519836cc4213 of
+#: pymc_marketing.mmm.mmm.MMM.__init__:2
 msgid "Define the constructor method."
 msgstr "Defina el método constructor."

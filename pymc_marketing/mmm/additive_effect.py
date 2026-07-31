@@ -14,7 +14,7 @@
 """Additive effects for the multidimensional Marketing Mix Model.
 
 Example of a custom additive effect
---------
+-----------------------------------
 
 1. Custom negative-effect component (added as a MuEffect)
 
@@ -86,9 +86,9 @@ How it works
 ------------
 - Mu effects follow a simple protocol: ``create_data(mmm)``, ``create_effect(mmm)``,
   and ``set_data(mmm, model, X)``.
-- During ``MMM.build_model(...)``, each effect’s ``create_data`` is called first to
+- During ``MMM.build_model(...)``, each effect's ``create_data`` is called first to
   introduce any needed ``pmd.Data``. Then ``create_effect`` must return a tensor with
-  dims ("date", *mmm.dims) that is added additively to the model mean.
+  dims ``("date", *mmm.dims)`` that is added additively to the model mean.
 - During posterior predictive, ``set_data`` is called with the cloned PyMC model
   and the new coordinates; update any ``pmd.Data`` you created using ``pm.set_data``.
 
@@ -97,16 +97,118 @@ Tips for custom components
 - Use unique variable prefixes to avoid name clashes with built-in pieces like
   controls. Do not call your component "control"; choose a distinct name/prefix.
 - Follow the patterns used by the provided effects in this module (e.g.,
-  `FourierEffect`, `LinearTrendEffect`, `EventAdditiveEffect`):
-  - In `create_data`, derive and register any required inputs into the model.
-  - In `create_effect`, construct PyTensor expressions and return a contribution
-    with dims ("date", *mmm.dims). If you need broadcasting, use
-    `pymc_extras.prior.create_dim_handler` as shown above.
-  - In `set_data`, update the data variables when dates/dims change.
+  ``FourierEffect``, ``LinearTrendEffect``, ``EventAdditiveEffect``):
+
+  - In ``create_data``, derive and register any required inputs into the model.
+  - In ``create_effect``, construct PyTensor expressions and return a contribution
+    with dims ``("date", *mmm.dims)``. If you need broadcasting, use
+    ``pymc_extras.prior.create_dim_handler`` as shown above.
+  - In ``set_data``, update the data variables when dates/dims change.
+
+Built-in data-referencing effects
+----------------------------------
+
+The module provides ready-to-use ``MuEffect`` subclasses that read data
+directly from the training ``xr.Dataset``.
+
+``DataVarMuEffect``
+    Abstract base for effects that reference named variables in the Dataset.
+    Subclasses implement ``create_effect``; ``create_data`` and ``set_data``
+    are provided.
+
+``MediaMuEffect(DataVarMuEffect)``
+    Applies a ``MediaTransformation`` (adstock + saturation) to a named
+    media variable, then aggregates over ``channel_dim``.
+
+``ControlMuEffect(DataVarMuEffect)``
+    Applies a configurable prior coefficient to each control variable,
+    automatically summing extra dimensions.
+
+Example: multi-granularity media and controls
+..............................................
+
+.. code-block:: python
+
+    from pymc_marketing.mmm import MMM, GeometricAdstock, LogisticSaturation
+    from pymc_marketing.mmm.additive_effect import (
+        MediaMuEffect,
+        ControlMuEffect,
+    )
+    from pymc_marketing.mmm.media_transformation import MediaTransformation
+
+    # X is an xr.Dataset with:
+    #   media_product:      (date, product, product-channel)
+    #   media_geo:          (date, geo, geo-channel)
+    #   control_national:   (date,)
+    #   control_product:    (date, product)
+
+    mmm = (
+        MMM(
+            date_column="date",
+            channel_columns=["tv", "digital"],
+            dims=("product", "geo"),
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+        )
+        .add_mu_effect(
+            MediaMuEffect(
+                data_vars=["media_product"],
+                media_transformation=MediaTransformation(
+                    adstock=GeometricAdstock(l_max=8),
+                    saturation=LogisticSaturation(),
+                    adstock_first=True,
+                    dims=("product", "product-channel"),
+                ),
+                channel_dim="product-channel",
+                prefix="product_media",
+            )
+        )
+        .add_mu_effect(
+            MediaMuEffect(
+                data_vars=["media_geo"],
+                media_transformation=MediaTransformation(
+                    adstock=GeometricAdstock(l_max=8),
+                    saturation=LogisticSaturation(),
+                    adstock_first=True,
+                    dims=("geo", "geo-channel"),
+                ),
+                channel_dim="geo-channel",
+                prefix="geo_media",
+            )
+        )
+        .add_mu_effect(
+            ControlMuEffect(
+                data_vars=["control_national"],
+                prefix="national_ctrl",
+            )
+        )
+        .add_mu_effect(
+            ControlMuEffect(
+                data_vars=["control_product"],
+                prefix="product_ctrl",
+            )
+        )
+    )
+
+    mmm.fit(X, y)
+
+Each grain uses a distinct dimension name (``"product-channel"`` vs
+``"geo-channel"``) to avoid xarray's coordinate union and the ``NaN``
+values it would produce.  ``ControlMuEffect`` uses a scalar
+``Prior("Normal", ...)`` by default, broadcasting across all dimensions;
+pass ``Prior("Normal", mu=0, sigma=2, dims="product")`` for per-product
+coefficients.
+
+.. note::
+
+    ``MediaMuEffect`` does not apply any automatic scaling.  Media data
+    should be pre-scaled (e.g. max-scaling) before being placed in the
+    ``xr.Dataset``, or users can create a custom ``MuEffect`` that wraps
+    ``MediaMuEffect`` with scaling logic.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Protocol
+from typing import Annotated, Any, Protocol
 
 import numpy.typing as npt
 import pandas as pd
@@ -115,13 +217,15 @@ import pymc.dims as pmd
 import pytensor.xtensor as ptx
 import xarray as xr
 from pydantic import Field, InstanceOf
+from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
-from pymc_marketing.serialization import SerializableBaseModel
+from pymc_marketing.serialization import SerializableBaseModel, serialization
 
 
 def safe_to_datetime(
@@ -222,6 +326,18 @@ class Model(Protocol):
     def model(self) -> pm.Model:
         """The PyMC model."""
 
+    @property
+    def xarray_dataset(self) -> xr.Dataset:
+        """Training data for the model and its additive effects.
+
+        Contains named data variables at arbitrary granularities that
+        ``MuEffect`` subclasses reference via ``data_vars``.
+        Variables may include media spend at different dimensionalities,
+        control variables, event indicators, or any other input needed
+        by the model's additive components, all sharing a single
+        ``date`` coordinate across the dataset.
+        """
+
 
 class MuEffect(SerializableBaseModel, ABC):
     """Abstract base class for arbitrary additive mu effects.
@@ -242,12 +358,275 @@ class MuEffect(SerializableBaseModel, ABC):
     def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
         """Set the data for new predictions."""
 
+    @property
+    def contribution_var_name(self) -> str:
+        """Name of the posterior deterministic holding this effect's contribution.
+
+        Used by :meth:`MMM.compute_counterfactual_contributions_dataset` to
+        locate the effect's linear-predictor contribution and include it in
+        the decomposition.  The default assumes the effect registers
+        ``f"{self.prefix}_effect_contribution"`` (the convention used by
+        :class:`LinearTrendEffect` and :class:`EventEffect`); effects that
+        register a different name must override this property.
+
+        Raises
+        ------
+        NotImplementedError
+            If the effect has no ``prefix`` attribute and does not override
+            this property.
+        """
+        prefix = getattr(self, "prefix", None)
+        if prefix is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define 'contribution_var_name'."
+            )
+        return f"{prefix}_effect_contribution"
+
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return supplementary data groups to store in DataTree.
+
+        Override in subclasses that need to persist large DataFrames or
+        other non-JSON-serializable data alongside the model.
+
+        Each entry is stored as a top-level group in the DataTree
+        netCDF file during ``save()`` and is available to custom
+        deserializers via ``DeserializationContext(idata=...)``.
+
+        Returns
+        -------
+        dict[str, xr.Dataset]
+            Group name to xarray Dataset mapping.
+        """
+        return {}
+
+
+class DataVarMuEffect(MuEffect, ABC):
+    """MuEffect that reads its data from the xarray Dataset.
+
+    Subclasses only need to implement ``create_effect``.
+    ``create_data`` and ``set_data`` are provided by default.
+
+    Parameters
+    ----------
+    data_vars : list[str]
+        Names of the data variables in ``mmm.xarray_dataset`` to register
+        as PyMC data variables.  At least one variable is required.
+    prefix : str
+        Prefix for effect variable names.
+    """
+
+    data_vars: Annotated[list[str], Field(min_length=1)]
+    prefix: str
+
+    def create_data(self, mmm: Model) -> None:
+        """Register each data variable as ``pm.Data``.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        """
+        for var_name in self.data_vars:
+            da = mmm.xarray_dataset[var_name]
+            pmd.Data(var_name, da.values, dims=da.dims)
+
+    @abstractmethod
+    def create_effect(self, mmm: Model) -> XTensorVariable:
+        """Create the additive effect in the model."""
+
+    def set_data(self, mmm: Model, model: pm.Model, X: xr.Dataset) -> None:
+        """Update ``pm.Data`` variables from a new prediction dataset.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        model : pm.Model
+            The PyMC model.
+        X : xr.Dataset
+            The new prediction dataset.
+        """
+        for var_name in self.data_vars:
+            if var_name in X.data_vars:
+                pm.set_data({var_name: X[var_name].values}, model=model)
+
+
+class MediaMuEffect(DataVarMuEffect):
+    """Effect that applies a media transformation to a data variable.
+
+    Parameters
+    ----------
+    data_vars : list[str]
+        Names of the media data variables in ``mmm.xarray_dataset``.
+        Typically a single element, e.g. ``["media_product"]``.
+    media_transformation : MediaTransformation
+        Transformation combining adstock and saturation with configurable order.
+        Its ``dims`` must include the channel dimension plus any extra dims
+        (e.g. ``("product", "channel")``).
+    channel_dim : str, optional
+        Name of the channel dimension to aggregate over.
+        Default is ``"channel"``.
+    prefix : str
+        Prefix for effect variable names.
+    """
+
+    media_transformation: InstanceOf[MediaTransformation]
+    channel_dim: str = "channel"
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    @property
+    def effect_dims(self) -> tuple[str, ...]:
+        """Dimensions of this effect (``media_transformation.dims`` minus the channel dimension)."""
+        return tuple(d for d in self.media_transformation.dims if d != self.channel_dim)
+
+    def create_data(self, mmm: Model) -> None:
+        """Set prior dims and register data variables.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+        """
+        prior_dims = self.media_transformation.dims
+        self.media_transformation.adstock = (
+            self.media_transformation.adstock.with_default_prior_dims(prior_dims)
+        )
+        self.media_transformation.saturation = (
+            self.media_transformation.saturation.with_default_prior_dims(prior_dims)
+        )
+        super().create_data(mmm)
+
+    def create_effect(self, mmm: Model) -> XTensorVariable:
+        """Apply the media transformation, sum over the channel dimension.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+
+        Returns
+        -------
+        XTensorVariable
+            The media contribution with dims ``("date", *effect_dims)``.
+        """
+        var_name = self.data_vars[0]
+        data = mmm.model[var_name]
+        effect = self.media_transformation(data, dim="date")
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            effect.sum(dim=self.channel_dim),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict."""
+        return {
+            "data_vars": self.data_vars,
+            "channel_dim": self.channel_dim,
+            "media_transformation": self.media_transformation.to_dict(),
+            "prefix": self.prefix,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "MediaMuEffect":
+        """Reconstruct from a dict."""
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        return cls(
+            data_vars=work["data_vars"],
+            channel_dim=work.get("channel_dim", "channel"),
+            media_transformation=serialization.deserialize(
+                work["media_transformation"]
+            ),
+            prefix=work["prefix"],
+        )
+
+
+class ControlMuEffect(DataVarMuEffect):
+    """Effect that applies a user-configurable prior to each control variable.
+
+    Parameters
+    ----------
+    data_vars : list[str]
+        Names of the control data variables in ``mmm.xarray_dataset``.
+    prefix : str
+        Prefix for effect variable names.
+    prior : Prior, optional
+        Prior distribution for the control coefficients.
+        Default is ``Prior("Normal", mu=0, sigma=2)``.
+    """
+
+    prior: VariableFactory = Prior("Normal", mu=0, sigma=2)
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def create_effect(self, mmm: Model) -> XTensorVariable:
+        """Create coefficients for each control variable and sum contributions.
+
+        Parameters
+        ----------
+        mmm : Model
+            The MMM model instance.
+
+        Returns
+        -------
+        XTensorVariable
+            The total control contribution summed over all variables.
+        """
+        model = mmm.model
+        contributions = []
+        for var_name in self.data_vars:
+            data = model[var_name]
+            coef = self.prior.create_variable(
+                f"{self.prefix}_{var_name}_coef",
+                xdist=True,
+            )
+            contributions.append(data * coef)
+        total = sum(contributions)
+        # Sum over any dims not in {"date", *mmm.dims} (e.g. "control")
+        extra_dims = [d for d in set(total.dims) if d not in {"date", *mmm.dims}]
+        if extra_dims:
+            total = total.sum(dim=extra_dims)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            total,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to a dict."""
+        return {
+            "data_vars": self.data_vars,
+            "prefix": self.prefix,
+            "prior": self.prior.to_dict(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ControlMuEffect":
+        """Reconstruct from a dict."""
+        from pymc_extras.deserialize import deserialize
+
+        work = {k: v for k, v in data.items() if k != "__type__"}
+        prior_data = work["prior"]
+        if "__type__" in prior_data:
+            prior = serialization.deserialize(prior_data)
+        else:
+            prior = deserialize(prior_data)
+        return cls(
+            data_vars=work["data_vars"],
+            prefix=work["prefix"],
+            prior=prior,
+        )
+
 
 class FourierEffect(MuEffect):
     """Fourier seasonality additive effect for MMM."""
 
     fourier: InstanceOf[FourierBase]
     date_dim_name: str = Field("date")
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Fourier effects register ``f"{fourier.prefix}_contribution"``."""
+        return f"{self.fourier.prefix}_contribution"
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""
@@ -385,6 +764,7 @@ class LinearTrendEffect(MuEffect):
         import matplotlib.pyplot as plt
 
         import pymc as pm
+        import pymc.dims as pmd
 
         from pymc_marketing.mmm.linear_trend import LinearTrend
         from pymc_marketing.mmm.additive_effect import LinearTrendEffect
@@ -445,8 +825,8 @@ class LinearTrendEffect(MuEffect):
         draw = rng.choice(range(idata.posterior.sizes["draw"]))
         sel = dict(chain=0, draw=draw)
 
-        before = idata.posterior.effect.sel(sel).to_series()
-        after = idata.posterior_predictive.effect.sel(sel).to_series()
+        before = idata.posterior["effect"].sel(sel).to_series()
+        after = idata.posterior_predictive["effect"].sel(sel).to_series()
 
         ax = before.plot(color="C0")
         after.plot(color="C0", linestyle="dashed", ax=ax)
@@ -704,6 +1084,14 @@ class EventAdditiveEffect(MuEffect):
         }
         pm.set_data(new_data=new_data, model=model)
 
+    def idata_groups(self) -> dict[str, xr.Dataset]:
+        """Return the events DataFrame as a supplementary idata group."""
+        return {
+            f"supplementary_data_{self.prefix}": xr.Dataset.from_dataframe(
+                self.df_events.reset_index(drop=True)
+            ),
+        }
+
 
 def _deserialize_event_additive_effect(
     data: dict[str, Any],
@@ -715,18 +1103,19 @@ def _deserialize_event_additive_effect(
 
     if context is None or context.idata is None:
         raise SerializationError(
-            f"Cannot deserialize EventAdditiveEffect: no InferenceData "
+            f"Cannot deserialize EventAdditiveEffect: no DataTree "
             f"provided. The df_events DataFrame is stored in idata group "
             f"'{group_name}' and requires a DeserializationContext with idata."
         )
 
     try:
         ds = context.idata[group_name]
+        if hasattr(ds, "dataset"):
+            ds = ds.dataset
         df_events = ds.to_dataframe().reset_index()
     except (KeyError, AttributeError) as e:
         raise SerializationError(
-            f"Cannot read supplementary data group '{group_name}' from "
-            f"InferenceData: {e}"
+            f"Cannot read supplementary data group '{group_name}' from DataTree: {e}"
         ) from e
 
     effect_data = data["effect"]

@@ -1,6 +1,6 @@
 # original_scale_vars accidentally indented under model (should be top-level)
 model:
-  class: pymc_marketing.mmm.multidimensional.MMM
+  class: pymc_marketing.mmm.mmm.MMM
   kwargs:
     date_column: "date"
     channel_columns:

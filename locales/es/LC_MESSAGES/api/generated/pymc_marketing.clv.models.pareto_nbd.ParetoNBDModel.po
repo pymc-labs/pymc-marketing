@@ -355,8 +355,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 2d4c6cd2a5f94f58800ad70e77820891
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 0b74c5c50ea04ce68c48fe2f31d29444
@@ -601,9 +601,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 357d0f147d074e5fa28718c61bde2cd3
-msgid "Create the initialization kwargs from an InferenceData object."
+msgid "Create the initialization kwargs from a DataTree object."
 msgstr ""
-"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+"Cree los kwargs de inicialización a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 846c8cd4cca646fda1326e380941d035
@@ -634,9 +634,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 4c083b66d6dc4266a05ebdbbdfc5561e
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 17aa2fed339e46a88e4c63f3d443bffe
@@ -667,8 +667,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: 966e6f8b7c8a4d7ca59f61dfa1e58e26
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.pareto_nbd.ParetoNBDModel.rst:44:<autosummary>:1
 #: d7540020385842f5a9530e187cadb933

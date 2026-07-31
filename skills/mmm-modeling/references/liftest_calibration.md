@@ -121,7 +121,7 @@ Always compare a calibrated model against an uncalibrated baseline to quantify t
 
 ```python
 import arviz as az
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 # Uncalibrated model
 mmm_uncalibrated = MMM(

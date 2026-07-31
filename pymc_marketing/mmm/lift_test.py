@@ -34,7 +34,7 @@ from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 
-Index = Sequence[int]
+Index = Sequence[int] | npt.NDArray[np.integer]
 Indices = dict[str, Index]
 Values = npt.NDArray[np.int_] | npt.NDArray | npt.NDArray[np.str_]
 
@@ -236,10 +236,12 @@ def add_saturation_observations(
     ----------
     df_lift_test : pd.DataFrame
         DataFrame with lift test results with at least the following columns:
-            * `x`: x axis value of the lift test.
-            * `delta_x`: change in x axis value of the lift test.
-            * `delta_y`: change in y axis value of the lift test.
-            * `sigma`: standard deviation of the lift test.
+
+        * ``x``: x axis value of the lift test.
+        * ``delta_x``: change in x axis value of the lift test.
+        * ``delta_y``: change in y axis value of the lift test.
+        * ``sigma``: standard deviation of the lift test.
+
         Any additional columns are assumed to be coordinates in the model.
     variable_mapping : dict[str, str]
         Dictionary of variable names to dimensions.

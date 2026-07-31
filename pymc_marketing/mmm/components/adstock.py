@@ -57,7 +57,6 @@ Plot the default priors for an adstock transformation:
 
 from __future__ import annotations
 
-import warnings
 from typing import Any
 
 import numpy as np
@@ -144,9 +143,6 @@ class AdstockTransformation(Transformation):
         """Reconstruct an adstock transformation from a dict."""
         data = data.copy()
         data.pop("__type__", None)
-        data.pop(
-            "lookup_name", None
-        )  # TODO(1.0): Remove once Legacy MMM is removed (#2430)
 
         if "priors" in data:
             data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
@@ -196,7 +192,14 @@ class AdstockTransformation(Transformation):
 class BinomialAdstock(AdstockTransformation):
     """Wrapper around the binomial adstock function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.binomial_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.binomial_adstock` with the wrapper's
+    ``l_max``, ``normalize`` and ``mode`` settings.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Retention rate of the ad effect; must be between 0 and 1. Default prior:
+        ``Prior("Beta", alpha=1, beta=3)``.
 
     .. plot::
         :context: close-figs
@@ -233,7 +236,14 @@ class BinomialAdstock(AdstockTransformation):
 class GeometricAdstock(AdstockTransformation):
     """Wrapper around geometric adstock function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.geometric_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.geometric_adstock` with the wrapper's
+    ``l_max``, ``normalize`` and ``mode`` settings.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Retention rate of the ad effect; must be between 0 and 1. Default prior:
+        ``Prior("Beta", alpha=1, beta=3)``.
 
     .. plot::
         :context: close-figs
@@ -270,7 +280,17 @@ class GeometricAdstock(AdstockTransformation):
 class DelayedAdstock(AdstockTransformation):
     """Wrapper around delayed adstock function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.delayed_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.delayed_adstock` with the wrapper's
+    ``l_max``, ``normalize`` and ``mode`` settings.
+
+    Parameters
+    ----------
+    alpha : tensor
+        Retention rate of the ad effect; must be between 0 and 1. Default prior:
+        ``Prior("Beta", alpha=1, beta=3)``.
+    theta : tensor
+        Delay of the peak effect; must be between 0 and ``l_max - 1``. Default prior:
+        ``Prior("HalfNormal", sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -311,7 +331,18 @@ class DelayedAdstock(AdstockTransformation):
 class WeibullPDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with PDF function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.weibull_adstock` with
+    ``type=WeibullType.PDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
+    settings.
+
+    Parameters
+    ----------
+    lam : tensor
+        Scale parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=2, sigma=1)``.
+    k : tensor
+        Shape parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=3, sigma=1)``.
 
     .. plot::
         :context: close-figs
@@ -353,7 +384,18 @@ class WeibullPDFAdstock(AdstockTransformation):
 class WeibullCDFAdstock(AdstockTransformation):
     """Wrapper around weibull adstock with CDF function.
 
-    For more information, see :func:`pymc_marketing.mmm.transformers.weibull_adstock`.
+    Calls :func:`pymc_marketing.mmm.transformers.weibull_adstock` with
+    ``type=WeibullType.CDF`` and the wrapper's ``l_max``, ``normalize`` and ``mode``
+    settings.
+
+    Parameters
+    ----------
+    lam : tensor
+        Scale parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=2, sigma=2.5)``.
+    k : tensor
+        Shape parameter of the Weibull distribution; must be positive. Default prior:
+        ``Prior("Gamma", mu=2, sigma=2.5)``.
 
     .. plot::
         :context: close-figs
@@ -393,7 +435,11 @@ class WeibullCDFAdstock(AdstockTransformation):
 
 @serialization.register
 class NoAdstock(AdstockTransformation):
-    """Wrapper around no adstock transformation."""
+    """Wrapper around no adstock transformation.
+
+    Identity transformation that returns the input unchanged. Useful as a no-op
+    placeholder when carryover is not modelled. Takes no priors.
+    """
 
     def function(self, x, *, dim: str | None = None):
         """No adstock function."""
@@ -405,47 +451,3 @@ class NoAdstock(AdstockTransformation):
     def update_priors(self, priors):
         """Update priors for the no adstock transformation."""
         return
-
-
-# TODO(1.0): Remove this dict once Legacy MMM is removed (see #2430)
-ADSTOCK_TRANSFORMATIONS: dict[str, type[AdstockTransformation]] = {
-    "geometric": GeometricAdstock,
-    "delayed": DelayedAdstock,
-    "weibull_cdf": WeibullCDFAdstock,
-    "weibull_pdf": WeibullPDFAdstock,
-    "binomial": BinomialAdstock,
-    "no_adstock": NoAdstock,
-}
-
-
-def adstock_from_dict(data: dict) -> AdstockTransformation:
-    """Create an adstock transformation from a dictionary.
-
-    .. deprecated:: 0.18.2
-        `adstock_from_dict` is deprecated and will be removed in 0.20.0.
-        Use ``from pymc_marketing.serialization import serialization; serialization.deserialize(data)`` instead.
-    """
-    warnings.warn(
-        "adstock_from_dict is deprecated and will be removed in 0.20.0. "
-        "Use `from pymc_marketing.serialization import serialization; "
-        "serialization.deserialize(data)` instead.",
-        FutureWarning,
-        stacklevel=2,
-    )
-    data = data.copy()
-    type_key = data.pop("__type__", None)
-    lookup_name = data.pop("lookup_name", None)
-
-    if lookup_name:
-        cls = ADSTOCK_TRANSFORMATIONS[lookup_name]
-    elif type_key:
-        return serialization.deserialize({**data, "__type__": type_key})
-    else:
-        raise ValueError(
-            "Cannot deserialize adstock: missing both 'lookup_name' and '__type__'"
-        )
-
-    if "priors" in data:
-        data["priors"] = {k: deserialize(v) for k, v in data["priors"].items()}
-
-    return cls(**data)

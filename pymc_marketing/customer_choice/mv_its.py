@@ -22,6 +22,7 @@ import matplotlib.ticker as mtick
 import numpy as np
 import pandas as pd
 import pymc as pm
+import xarray as xr
 from matplotlib.axes import Axes
 from pymc_extras.prior import Prior
 from pytensor.tensor import as_tensor
@@ -74,6 +75,7 @@ class MVITS(RegressionModelBuilder):
         self.mu_effects: list[MuEffect] = []
         # extras dims for the likelihood
         self.dims = ("existing_product",)
+        self.xarray_dataset: xr.Dataset = xr.Dataset()
 
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
@@ -91,12 +93,12 @@ class MVITS(RegressionModelBuilder):
             )
 
     def create_idata_attrs(self) -> dict[str, str]:
-        """Create the attributes for the InferenceData object.
+        """Create the attributes for the DataTree object.
 
         Returns
         -------
         dict[str, str]
-            The attributes for the InferenceData object.
+            The attributes for the DataTree object.
 
         """
         attrs = super().create_idata_attrs()
@@ -107,12 +109,12 @@ class MVITS(RegressionModelBuilder):
 
     @classmethod
     def attrs_to_init_kwargs(cls, attrs) -> dict[str, Any]:
-        """Convert the attributes of the InferenceData object to the __init__ kwargs.
+        """Convert the attributes of the DataTree object to the __init__ kwargs.
 
         Parameters
         ----------
         attrs : dict
-            The attributes of the InferenceData object.
+            The attributes of the DataTree object.
 
         Returns
         -------
@@ -327,7 +329,7 @@ class MVITS(RegressionModelBuilder):
                 observed=_existing_sales,
             )
 
-    def _data_setter(
+    def _data_setter(  # type: ignore[override]
         self,
         X: np.ndarray | pd.DataFrame,
         y: np.ndarray | pd.Series | None = None,
@@ -344,7 +346,7 @@ class MVITS(RegressionModelBuilder):
     ) -> None:
         """Calculate the counterfactual scenario of never releasing the new product.
 
-        Extends the InferenceData object
+        Extends the DataTree object
 
         Parameters
         ----------
@@ -358,14 +360,14 @@ class MVITS(RegressionModelBuilder):
         zero_sales = np.zeros_like(self.y, dtype=np.int32)
         self.counterfactual_model = pm.do(self.model, {"treatment_sales": zero_sales})
         with self.counterfactual_model:
-            self.idata.extend(  # type: ignore
-                pm.sample_posterior_predictive(
-                    self.posterior,
-                    var_names=["mu", self.output_var],
-                    random_seed=random_seed,
-                    predictions=True,
-                )
+            counterfactual_idata = pm.sample_posterior_predictive(
+                self.posterior,
+                var_names=["mu", self.output_var],
+                random_seed=random_seed,
+                predictions=True,
             )
+            counterfactual_idata.attrs = dict(self.idata.attrs)  # type: ignore[union-attr]
+            self.idata.update(counterfactual_idata)  # type: ignore
 
     def sample(
         self,
@@ -490,18 +492,19 @@ class MVITS(RegressionModelBuilder):
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
         existing_products = self.coords["existing_product"]
+        hdi = az.hdi(
+            self.posterior_predictive[variable].transpose(..., "time"),  # type: ignore
+            prob=0.94,
+        )
         for i, existing_product in enumerate(existing_products):
-            az.plot_hdi(
+            hdi_product = hdi.sel(existing_product=existing_product)
+            ax.fill_between(
                 x,
-                self.posterior_predictive[variable]  # type: ignore
-                .transpose(..., "time")
-                .sel(existing_product=existing_product),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
-                },
-                smooth=False,
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
 
         # formatting
@@ -551,18 +554,19 @@ class MVITS(RegressionModelBuilder):
         # plot posterior predictive distribution of sales for each of the existing products
         x = cast(pd.DataFrame, self.X).index.values
         existing_products = self.coords["existing_product"]
+        hdi = az.hdi(
+            self.predictions[variable].transpose(..., "time"),  # type: ignore
+            prob=0.94,
+        )
         for i, existing_product in enumerate(existing_products):
-            az.plot_hdi(
+            hdi_product = hdi.sel(existing_product=existing_product)
+            ax.fill_between(
                 x,
-                self.predictions[variable]  # type: ignore
-                .transpose(..., "time")
-                .sel(existing_product=existing_product),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
-                },
-                smooth=False,
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
 
         # formatting
@@ -603,18 +607,19 @@ class MVITS(RegressionModelBuilder):
         x = self.X.index.values  # type: ignore
         existing_products = self.coords["existing_product"]
 
+        hdi = az.hdi(
+            self.causal_impact(variable=variable).transpose(..., "time"),
+            prob=0.94,
+        )
         for i, existing_product in enumerate(existing_products):
-            az.plot_hdi(
+            hdi_product = hdi.sel(existing_product=existing_product)
+            ax.fill_between(
                 x,
-                self.causal_impact(variable=variable)
-                .transpose(..., "time")
-                .sel(existing_product=existing_product),
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": "Posterior predictive (HDI)",
-                },
-                smooth=False,
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
         ax.set(ylabel="Change in sales caused by new product")
 
@@ -651,32 +656,28 @@ class MVITS(RegressionModelBuilder):
 
         # plot posterior predictive distribution of sales for each of the existing products
         x = self.X.index.values  # type: ignore
-        existing_products = list(self.idata.observed_data.existing_product.data)  # type: ignore
+        existing_products = list(self.idata.observed_data["existing_product"].data)  # type: ignore
 
         # divide the causal impact change in sales by the counterfactual predicted sales
         variable = "mu"
-        for i, existing_product in enumerate(existing_products):
-            causal_impact = (
-                self.causal_impact(variable=variable)
-                .transpose(..., "time")
-                .sel(existing_product=existing_product)
-            )
-            total_sales = (
-                self.predictions[variable]  # type: ignore
-                .transpose(..., "time")
-                .sum(dim="existing_product")
-            )
-            causal_impact_market_share = (causal_impact / total_sales) * 100
+        causal_impact = self.causal_impact(variable=variable).transpose(..., "time")
+        total_sales = (
+            self.predictions[variable]  # type: ignore
+            .transpose(..., "time")
+            .sum(dim="existing_product")
+        )
+        causal_impact_market_share = (causal_impact / total_sales) * 100
 
-            az.plot_hdi(
+        hdi = az.hdi(causal_impact_market_share, prob=0.94)
+        for i, existing_product in enumerate(existing_products):
+            hdi_product = hdi.sel(existing_product=existing_product)
+            ax.fill_between(
                 x,
-                causal_impact_market_share,
-                fill_kwargs={
-                    "alpha": HDI_ALPHA,
-                    "color": f"C{i}",
-                    "label": f"{existing_product} - Posterior predictive (HDI)",
-                },
-                smooth=False,
+                hdi_product.sel(ci_bound="lower"),
+                hdi_product.sel(ci_bound="upper"),
+                alpha=HDI_ALPHA,
+                color=f"C{i}",
+                label=f"{existing_product} - Posterior predictive (HDI)",
             )
         ax.set(ylabel="Change in market share caused by new product")
         ax.yaxis.set_major_formatter(mtick.PercentFormatter())

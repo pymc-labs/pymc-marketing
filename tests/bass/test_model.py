@@ -23,9 +23,11 @@ import pymc as pm
 import pytensor
 import pytensor.tensor as pt
 import pytest
+import xarray as xr
 from pydantic import BaseModel, ConfigDict
 from pymc_extras.prior import Prior, Scaled
 
+from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
 
 
@@ -636,3 +638,310 @@ def test_derivative() -> None:
             f_fn(p_, q_, t_),
             F_prime_fn(p_, q_, t_),
         )
+
+
+class TestBassModelClass:
+    """Tests for the BassModel class (ModelBuilder interface)."""
+
+    @pytest.fixture
+    def y(self) -> np.ndarray:
+        return np.random.default_rng(42).poisson(lam=100, size=20)
+
+    @pytest.fixture
+    def multi_product_ds(self) -> xr.Dataset:
+        counts = np.random.default_rng(42).poisson(lam=100, size=(20, 3))
+        return xr.Dataset(
+            {"observed": (("T", "product"), counts)},
+            coords={"T": np.arange(20), "product": ["A", "B", "C"]},
+        )
+
+    @pytest.fixture
+    def fitted_model(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
+        model = BassModel()
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        return model
+
+    @pytest.fixture
+    def fitted_model_positive_m(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=100, sigma=10),
+                "p": Prior("Beta", alpha=1.5, beta=20),
+                "q": Prior("Beta", alpha=2, beta=5),
+                "likelihood": Prior("Poisson"),
+            },
+        )
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        return model
+
+    def test_default_model_config(self):
+        model = BassModel()
+        config = model.default_model_config
+        assert "m" in config
+        assert "p" in config
+        assert "q" in config
+        assert "likelihood" in config
+
+    def test_default_sampler_config(self):
+        model = BassModel()
+        config = model.default_sampler_config
+        assert "draws" in config
+        assert "tune" in config
+        assert "chains" in config
+
+    def test_build_model_from_array(self):
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        model = BassModel()
+        model.build_model(data=y)
+        assert hasattr(model, "model")
+        assert all(
+            v in model.model.named_vars for v in ["m", "p", "q", "adopters", "y"]
+        )
+
+    @pytest.mark.parametrize(
+        "data,model_config",
+        [
+            pytest.param(
+                pd.DataFrame(
+                    {"observed": np.random.default_rng(42).poisson(lam=100, size=20)}
+                ),
+                BassModel().default_model_config,
+                id="dataframe",
+            ),
+            pytest.param(
+                xr.Dataset(
+                    {
+                        "observed": (
+                            "T",
+                            np.random.default_rng(42).poisson(lam=100, size=20),
+                        )
+                    },
+                    coords={"T": np.arange(20)},
+                ),
+                BassModel().default_model_config,
+                id="xarray_single",
+            ),
+            pytest.param(
+                xr.Dataset(
+                    {
+                        "observed": (
+                            ("T", "product"),
+                            np.random.default_rng(42).poisson(lam=100, size=(20, 3)),
+                        )
+                    },
+                    coords={"T": np.arange(20), "product": ["A", "B", "C"]},
+                ),
+                {
+                    "m": Prior("Normal", mu=1000, sigma=200, dims="product"),
+                    "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                    "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+                    "likelihood": Prior("Poisson", dims="product"),
+                },
+                id="xarray_multi_product",
+            ),
+        ],
+    )
+    def test_build_model(self, data, model_config):
+        model = BassModel(model_config=model_config)
+        model.build_model(data=data)
+        assert "adopters" in model.model.named_vars
+
+    def test_build_model_no_data_raises(self):
+        model = BassModel()
+        with pytest.raises(ValueError, match="Data must be provided"):
+            model.build_model()
+
+    def test_build_model_without_observed(self):
+        ds = xr.Dataset({"T": np.arange(20)})
+        model = BassModel()
+        model.build_model(data=ds)
+        assert hasattr(model, "model")
+
+    def test_fit_basic(self, fitted_model: BassModel):
+        idata = fitted_model.idata
+        assert "posterior" in idata
+        assert "/fit_data" in idata.groups
+
+    def test_fit_deterministics(self, fitted_model: BassModel):
+        # Read through the public ``posterior`` accessor (the DataTree node),
+        # which is what the plotting methods use. Asserting against
+        # ``idata.posterior`` would pass even with the deterministics missing
+        # from the node, since under arviz>=1.2 a stray ``idata.posterior =``
+        # assignment leaves a shadowing attribute behind.
+        for var in ["adopters", "innovators", "imitators", "peak"]:
+            assert var in fitted_model.posterior, f"Missing deterministic: {var}"
+
+    def test_fit_with_dataframe(self, mock_pymc_sample):
+        df = pd.DataFrame(
+            {"observed": np.random.default_rng(42).poisson(lam=100, size=20)}
+        )
+        model = BassModel()
+        idata = model.fit(data=df, draws=5, tune=5, chains=1, random_seed=42)
+        assert "posterior" in idata
+
+    def test_model_id_stability(self, mock_pymc_sample):
+        y = np.random.default_rng(42).poisson(lam=100, size=20)
+        model_a = BassModel()
+        model_a.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+        id_a = model_a.id
+
+        y2 = np.random.default_rng(42).poisson(lam=100, size=20)
+        model_b = BassModel()
+        model_b.fit(data=y2, draws=5, tune=5, chains=1, random_seed=42)
+        assert model_b.id == id_a
+
+    def test_model_id_changes_with_config(self):
+        model_a = BassModel()
+        model_b = BassModel(model_config={"m": Prior("Normal", mu=100, sigma=20)})
+        assert model_a.id != model_b.id
+
+    def test_serializable_model_config(self, fitted_model: BassModel):
+        config = fitted_model._serializable_model_config
+        assert isinstance(config, dict)
+        assert "m" in config
+
+    def test_output_var(self):
+        assert BassModel().output_var == "y"
+
+    def test_save_load_round_trip(self, mock_pymc_sample, y: np.ndarray, tmp_path):
+        model = BassModel(model_config={"m": Prior("Normal", mu=2000, sigma=200)})
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        for key in ["m", "p", "q", "likelihood"]:
+            assert isinstance(loaded.model_config[key], Prior)
+        # Stronger than isinstance: catches parameters dropped in the round-trip.
+        assert loaded.model_config == model.model_config
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_save_load_round_trip_scaled_priors(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset, tmp_path
+    ):
+        model = BassModel(
+            model_config={
+                "m": Scaled(
+                    Prior("Gamma", mu=1, sigma=0.1, dims="product"), factor=50_000
+                ),
+                "p": Prior("Beta", mu=0.02, dims="product").constrain(
+                    lower=0.01, upper=0.03
+                ),
+                "q": Prior("Beta", dims="product").constrain(lower=0.3, upper=0.5),
+                "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model_scaled.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        assert isinstance(loaded.model_config["m"], Scaled)
+        assert loaded.model_config["m"].factor == 50_000
+        assert isinstance(loaded.model_config["m"].dist, Prior)
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_multi_product_forecast_without_observed(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+
+        # sample_posterior_predictive returns the extracted "y" DataArray
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
+
+    def test_transposed_dataset_dims(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        # A user Dataset with (product, T) order must still fit and forecast:
+        # _from_xarray moves T to the front so y_obs matches the model layout,
+        # and the forecast placeholder shape is derived from the declared dims.
+        transposed = multi_product_ds.transpose("product", "T")
+        assert transposed["observed"].dims == ("product", "T")
+
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=transposed, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
+
+    def test_posterior_predictive_in_sample(self, fitted_model_positive_m: BassModel):
+        with fitted_model_positive_m.model:
+            pp = pm.sample_posterior_predictive(
+                fitted_model_positive_m.idata,
+                extend_inferencedata=True,
+                random_seed=42,
+            )
+        assert "posterior_predictive" in pp
+
+    def test_data_setter_updates_time(self, fitted_model: BassModel):
+        new_t = np.arange(20) * 2
+        fitted_model._data_setter(xr.Dataset({"T": new_t}))
+        np.testing.assert_array_equal(fitted_model.model["t"].get_value(), new_t)
+
+    def test_data_setter_changes_T_length(self, fitted_model: BassModel):
+        new_t = np.arange(30)
+        fitted_model._data_setter(xr.Dataset({"T": new_t}))
+        np.testing.assert_array_equal(fitted_model.model["t"].get_value(), new_t)
+
+    @pytest.mark.parametrize(
+        "X,expected_T",
+        [
+            pytest.param(
+                xr.Dataset({"T": np.arange(20) * 2}),
+                20,
+                id="in_sample",
+            ),
+            pytest.param(
+                xr.Dataset({"T": np.arange(20, 30)}),
+                10,
+                id="out_of_sample",
+            ),
+            pytest.param(
+                xr.Dataset({"T": np.arange(30)}),
+                30,
+                id="extended_window",
+            ),
+        ],
+    )
+    def test_sample_posterior_predictive(
+        self, fitted_model_positive_m: BassModel, X: xr.Dataset, expected_T: int
+    ):
+        pp = fitted_model_positive_m.sample_posterior_predictive(
+            X=X, extend_idata=True, random_seed=42
+        )
+        assert "posterior_predictive" in fitted_model_positive_m.idata
+        assert isinstance(pp, xr.DataArray)
+        assert pp.name == "y"
+        assert pp.sizes["T"] == expected_T
+
+    def test_sample_posterior_predictive_extend_false(
+        self, fitted_model_positive_m: BassModel
+    ):
+        pp = fitted_model_positive_m.sample_posterior_predictive(
+            X=xr.Dataset({"T": np.arange(20)}),
+            extend_idata=False,
+            random_seed=42,
+        )
+        assert isinstance(pp, xr.DataArray)
+        assert "posterior_predictive" not in fitted_model_positive_m.idata

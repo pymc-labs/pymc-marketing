@@ -48,7 +48,7 @@ def _minimal_model_config():
     """Reusable minimal MMM config dict (no data/idata sections)."""
     return {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],
@@ -289,7 +289,7 @@ def test_special_prior_in_yaml(tmp_path, mock_pymc_sample):
 
     config = {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],
@@ -368,7 +368,7 @@ def test_lognormal_prior_class_key_in_yaml(tmp_path, mock_pymc_sample):
 
     config = {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],
@@ -492,10 +492,14 @@ def test_build_mmm_raises_when_y_missing_and_no_data_path(
 def test_build_mmm_loads_idata_from_path(tmp_path, _minimal_model_config, _sample_data):
     """idata_path in YAML causes InferenceData to be loaded into model."""
     import arviz as az
+    import numpy as np
 
     X, y = _sample_data
 
-    idata = az.from_dict(posterior={"intercept": [1.0, 2.0, 3.0]})
+    idata = az.from_dict(
+        {"posterior": {"intercept": np.array([1.0, 2.0, 3.0])}},
+        sample_dims=["draw"],
+    )
     idata_file = tmp_path / "idata.nc"
     idata.to_netcdf(str(idata_file))
 
@@ -581,7 +585,7 @@ def test_original_scale_vars_none_is_harmless(tmp_path):
 
     config = {
         "model": {
-            "class": "pymc_marketing.mmm.multidimensional.MMM",
+            "class": "pymc_marketing.mmm.mmm.MMM",
             "kwargs": {
                 "date_column": "date",
                 "channel_columns": ["channel_1", "channel_2"],

@@ -584,6 +584,7 @@ class ModifiedBetaGeoNBD(PositiveContinuous):
     Based on Batislam, et al. in [1]_, and Wagner & Hopper in [2]_ .
 
     .. math::
+
         \mathbb{LL}(a, b, \alpha, r | x, t_x, T) = \ln \left[
         A_1 * A_2 * (A_3 + \delta_{x>0} A_4) \right] \text{, where:} \\
         \begin{align}
@@ -592,6 +593,7 @@ class ModifiedBetaGeoNBD(PositiveContinuous):
         A_3 &= \left( \frac{1}{\alpha + T} \right)^(r+x) \\
         A_4 &= \left( \frac{a}{b+x} \right) \left( \frac{1}{\alpha + t_x} \right)^(r+x) \\
         \end{align}
+
     ========  ===============================================
     Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
     Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {_2}{F}{_1}(r,b;a+b-1;\frac{t}{\alpha + t}) \right]`

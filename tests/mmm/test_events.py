@@ -33,7 +33,7 @@ from pymc_marketing.mmm.events import (
     HalfGaussianBasis,
     days_from_reference,
 )
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.plot import plot_curve
 from pymc_marketing.serialization import serialization
 

@@ -66,32 +66,12 @@ class HSGPKwargs(BaseModel):
         By default it is None (resolved to ``Matern52`` at model-build time).
     """  # noqa E501
 
-    m: int = Field(200, description="Number of basis functions")
-    L: (
-        Annotated[
-            float,
-            Field(
-                gt=0,
-                description="""
-                Extent of basis functions. Set this to reflect the expected range of in+out-of-sample data
-                (considering that time-indices are zero-centered).Default is `X_mid * 2` (identical to `c=2` in HSGP)
-                """,
-            ),
-        ]
-        | None
-    ) = None
-    eta_lam: float = Field(1.0, gt=0, description="Exponential prior for the variance")
-    ls_mu: float = Field(
-        5.0, gt=0, description="Mean of the inverse gamma prior for the lengthscale"
-    )
-    ls_sigma: float = Field(
-        5.0,
-        gt=0,
-        description="Standard deviation of the inverse gamma prior for the lengthscale",
-    )
-    cov_func: CovFunc | None = Field(
-        None, description="Covariance function enum (ExpQuad, Matern52, Matern32)"
-    )
+    m: int = 200
+    L: Annotated[float, Field(gt=0)] | None = None
+    eta_lam: float = Field(1.0, gt=0)
+    ls_mu: float = Field(5.0, gt=0)
+    ls_sigma: float = Field(5.0, gt=0)
+    cov_func: CovFunc | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a dict. ``__type__`` is injected by the registry wrapper."""

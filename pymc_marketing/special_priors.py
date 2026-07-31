@@ -29,9 +29,13 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
+from numpy.typing import (
+    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+)
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
     Prior,
+    Scaled,
     VariableFactory,
     _param_value_with_dims,
     sample_prior,
@@ -59,6 +63,25 @@ def _is_xarray_dataarray_dict(data: Any) -> bool:
 register_deserialization(
     is_type=_is_xarray_dataarray_dict,
     deserialize=xr.DataArray.from_dict,
+)
+
+
+def _serialize_scaled(obj: Scaled) -> dict:
+    return {
+        "__type__": f"{Scaled.__module__}.{Scaled.__qualname__}",
+        "dist": obj.dist.to_dict(),
+        "factor": obj.factor,
+    }
+
+
+def _deserialize_scaled(data: dict, context: Any = None) -> Scaled:
+    return Scaled(dist=deserialize(data["dist"]), factor=data["factor"])
+
+
+serialization.register(
+    Scaled,
+    serializer=_serialize_scaled,
+    deserializer=_deserialize_scaled,
 )
 
 

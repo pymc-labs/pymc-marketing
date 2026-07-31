@@ -22,7 +22,7 @@ from pymc_extras.prior import Prior
 from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.special_priors import (
     LaplacePrior,
     LogNormalPrior,

@@ -50,23 +50,23 @@ class BetaGeoBetaBinomModel(CLVModel):
     data : ~pandas.DataFrame
         DataFrame containing the following columns:
 
-        * `customer_id`: Unique customer identifier
-        * `frequency`: Number of repeat purchases
-        * `recency`: Purchase opportunities between the first and the last purchase
-        * `T`: Total purchase opportunities.
-          Model assumptions require *T >= recency* and all customers share the same value for *T.
+        * ``customer_id``: Unique customer identifier
+        * ``frequency``: Number of repeat purchases
+        * ``recency``: Purchase opportunities between the first and the last purchase
+        * ``T``: Total purchase opportunities.
+          Model assumptions require *T >= recency* and all customers share the same value for *T*.
 
     model_config : dict, optional
         Dictionary containing model parameters:
 
-        * `alpha`: Shape parameter of purchase process; defaults to `phi_purchase` * `kappa_purchase`
-        * `beta`: Shape parameter of purchase process; defaults to `1-phi_purchase` * `kappa_purchase`
-        * `gamma`: Shape parameter of dropout process; defaults to `phi_purchase` * `kappa_purchase`
-        * `delta`: Shape parameter of dropout process; defaults to `1-phi_dropout` * `kappa_dropout`
-        * `phi_purchase`: Nested prior for alpha and beta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-        * `kappa_purchase`: Nested prior for alpha and beta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
-        * `phi_dropout`: Nested prior for gamma and delta priors; defaults to `Prior("Uniform", lower=0, upper=1)`
-        * `kappa_dropout`: Nested prior for gamma and delta priors; defaults to `Prior("Pareto", alpha=1, m=1)`
+        * ``alpha``: Shape parameter of purchase process; defaults to ``phi_purchase * kappa_purchase``
+        * ``beta``: Shape parameter of purchase process; defaults to ``(1 - phi_purchase) * kappa_purchase``
+        * ``gamma``: Shape parameter of dropout process; defaults to ``phi_purchase * kappa_purchase``
+        * ``delta``: Shape parameter of dropout process; defaults to ``(1 - phi_dropout) * kappa_dropout``
+        * ``phi_purchase``: Nested prior for alpha and beta priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_purchase``: Nested prior for alpha and beta priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
+        * ``phi_dropout``: Nested prior for gamma and delta priors; defaults to ``Prior("Uniform", lower=0, upper=1)``
+        * ``kappa_dropout``: Nested prior for gamma and delta priors; defaults to ``Prior("Pareto", alpha=1, m=1)``
 
         If not provided, the model will use default priors specified in the `default_model_config` class attribute.
     sampler_config : dict, optional
@@ -144,16 +144,15 @@ class BetaGeoBetaBinomModel(CLVModel):
     """
 
     _model_type = "BG/BB"  # Beta-Geometric, Beta-Binomial Distribution
+    _skipped_config_keys = {"alpha", "beta", "gamma", "delta"}
 
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=None,
@@ -184,28 +183,16 @@ class BetaGeoBetaBinomModel(CLVModel):
             must_be_homogenous=["T"],
         )
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, frequency, recency, and T columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "obs_var": ["recency", "frequency"],
@@ -340,7 +327,8 @@ class BetaGeoBetaBinomModel(CLVModel):
                 gamma,
                 delta,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         )
 
     def expected_purchases(
@@ -367,7 +355,7 @@ class BetaGeoBetaBinomModel(CLVModel):
         * `frequency`: Number of repeat purchases
         * `recency`: Purchase opportunities between the first and the last purchase
         * `T`: Total purchase opportunities.
-          Model assumptions require *T >= recency* and all customers share the same value for *T.
+          Model assumptions require *T >= recency* and all customers share the same value for *T*.
         * `future_t`: Optional column for *future_t* parametrization.
 
         If not provided, predictions will be ran with data used to fit model.
@@ -444,7 +432,7 @@ class BetaGeoBetaBinomModel(CLVModel):
             * `frequency`: Number of repeat purchases
             * `recency`: Purchase opportunities between the first and the last purchase
             * `T`: Total purchase opportunities.
-              Model assumptions require *T >= recency* and all customers share the same value for *T.
+              Model assumptions require *T >= recency* and all customers share the same value for *T*.
             * `future_t`: Optional column for *future_t* parametrization.
 
             If not provided, predictions will be ran with data used to fit model.

@@ -14,7 +14,7 @@
 ## MMM Constructor Reference
 
 ```python
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 mmm = MMM(
     date_column="date",

@@ -29,10 +29,10 @@ msgstr "NestedLogit.idata\\_to\\_init\\_kwargs"
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:2
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData a argumentos de palabra clave."
+" de DataTree a argumentos de palabra clave."
 
 #: e534580225c84f75bfc6a9f694a80835 of
 #: pymc_marketing.model_builder.ModelIO.idata_to_init_kwargs:4

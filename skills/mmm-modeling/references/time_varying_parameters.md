@@ -34,7 +34,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 model_config = {
     "intercept": Prior("LogitNormal", mu=0, sigma=0.1),
@@ -90,7 +90,7 @@ y_t = alpha + lambda_t * sum_m(beta_m * f(x_m,t)) + sum_c(gamma_c * z_c,t) + eps
 ```python
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import GeometricAdstock, MichaelisMentenSaturation
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 hsgp_kwargs = HSGPKwargs(
     ls_mu=11.0,

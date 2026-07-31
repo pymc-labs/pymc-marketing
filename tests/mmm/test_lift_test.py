@@ -42,7 +42,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
     scale_target_for_lift_measurements,
 )
-from pymc_marketing.mmm.multidimensional import MMM
+from pymc_marketing.mmm.mmm import MMM
 
 
 @pytest.fixture(scope="module")

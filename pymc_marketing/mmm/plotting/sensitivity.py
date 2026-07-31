@@ -21,7 +21,7 @@ sensitivity sweep run via :class:`~pymc_marketing.mmm.SensitivityAnalysis`:
 * :meth:`~SensitivityPlots.marginal`  — marginal effects along the sweep
 
 The class is normally accessed through the ``mmm.plots.sensitivity`` shortcut on a
-fitted :class:`~pymc_marketing.mmm.multidimensional.MMM` instance, but it can also be constructed
+fitted :class:`~pymc_marketing.mmm.mmm.MMM` instance, but it can also be constructed
 directly from any :class:`~pymc_marketing.data.idata.MMMIDataWrapper`.
 
 Examples
@@ -67,7 +67,6 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-import arviz as az
 import arviz_plots as azp
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
@@ -96,7 +95,7 @@ class SensitivityPlots:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's ``InferenceData``.
+        Validated wrapper around the fitted model's ``DataTree``.
     """
 
     def __init__(self, data: MMMIDataWrapper) -> None:
@@ -104,7 +103,7 @@ class SensitivityPlots:
 
     def analysis(
         self,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         aggregation: dict[str, str | list[str]] | None = None,
         x_sweep_axis: Literal["relative", "absolute"] = "relative",
@@ -121,7 +120,7 @@ class SensitivityPlots:
 
         Parameters
         ----------
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.  When provided, an ``MMMIDataWrapper`` is
             constructed from this ``idata`` and used for this call only.
         dims : dict, optional
@@ -190,7 +189,7 @@ class SensitivityPlots:
 
     def uplift(
         self,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         aggregation: dict[str, str | list[str]] | None = None,
         x_sweep_axis: Literal["relative", "absolute"] = "relative",
@@ -201,13 +200,14 @@ class SensitivityPlots:
         return_as_pc: bool = False,
         line_kwargs: dict[str, Any] | None = None,
         hdi_kwargs: dict[str, Any] | None = None,
+        reference_lines: bool = True,
         **pc_kwargs,
     ) -> tuple[Figure, NDArray[Axes]] | PlotCollection:
         """Plot uplift curves (``idata.sensitivity_analysis["uplift_curve"]``).
 
         Parameters
         ----------
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict, optional
             Dimension filters.
@@ -231,6 +231,12 @@ class SensitivityPlots:
             Extra keyword arguments for the mean line visual.
         hdi_kwargs : dict, optional
             Extra keyword arguments for the HDI band visual.
+        reference_lines : bool, default True
+            Whether to draw the reference lines (vertical baseline at the
+            no-change sweep value and horizontal line at zero uplift). Turn this
+            off to let each panel's y-axis auto-scale to the data; useful when
+            the uplift is far from zero (e.g. control-variable sweeps), where the
+            horizontal zero line would otherwise flatten the credible band.
         **pc_kwargs
             Forwarded to ``PlotCollection.grid()``.
 
@@ -277,6 +283,9 @@ class SensitivityPlots:
             hdi_kwargs=hdi_kwargs,
             **pc_kwargs,
         )
+        if not reference_lines:
+            return _extract_matplotlib_result(pc, return_as_pc)
+
         # Add reference lines at appropriate positions
         if x_sweep_axis == "relative":
             ref_x = 1.0
@@ -312,7 +321,7 @@ class SensitivityPlots:
 
     def marginal(
         self,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         aggregation: dict[str, str | list[str]] | None = None,
         x_sweep_axis: Literal["relative", "absolute"] = "relative",
@@ -329,7 +338,7 @@ class SensitivityPlots:
 
         Parameters
         ----------
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict, optional
             Dimension filters.
@@ -461,7 +470,7 @@ class SensitivityPlots:
         )
 
         # Step 7: HDI band
-        hdi_da = sa_ds.azstats.hdi(hdi_prob)
+        hdi_da = sa_ds.azstats.hdi(prob=hdi_prob)
         pc.map(
             azp.visuals.fill_between_y,
             x=sweep_x,

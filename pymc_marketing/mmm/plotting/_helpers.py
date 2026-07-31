@@ -18,8 +18,10 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
+import arviz_plots as azp
 import numpy as np
 import xarray as xr
+from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -295,3 +297,92 @@ def _extract_matplotlib_result(
     fig = pc.viz.ds["figure"].item()
     axes = np.atleast_1d(np.array(fig.get_axes()))
     return fig, axes
+
+
+def _plot_timeseries_channel(
+    ds: xr.Dataset,
+    sample_dims: list[str],
+    color_dim: str,
+    extra_dims: list[str],
+    hdi_prob: float,
+    backend: str | None,
+    line_kwargs: dict[str, Any] | None,
+    hdi_kwargs: dict[str, Any] | None,
+    facet_color_dim: bool = False,
+    **pc_kwargs,
+) -> PlotCollection:
+    """Render a time-series Dataset as one line+HDI band per ``color_dim`` value.
+
+    Parameters
+    ----------
+    ds : xr.Dataset
+        Data with a single variable and dims including ``date``, ``color_dim``,
+        and zero or more dims in ``extra_dims``.  Sample dims must be
+        ``(chain, draw)`` — use :func:`_ensure_chain_draw_dims` on the source
+        DataArray before building the Dataset if the raw data has a ``sample``
+        dimension.
+    sample_dims : list of str
+        Dimensions to reduce for the mean line (e.g. ``["chain", "draw"]``).
+    color_dim : str
+        Dimension mapped to the colour aesthetic (e.g. ``"channel"`` or
+        ``"component"``).
+    extra_dims : list of str
+        Additional dimensions used to create facet panels (e.g. ``["geo"]``).
+    hdi_prob : float
+        HDI probability mass.
+    backend : str or None
+        Rendering backend.
+    line_kwargs, hdi_kwargs : dict or None
+        Extra kwargs forwarded to line and HDI visuals respectively.
+    facet_color_dim : bool, default False
+        If True, also facet by ``color_dim`` so each of its values is drawn in
+        its own panel instead of overlaid in a single panel coloured by
+        ``color_dim``. Faceting combines with ``extra_dims``, so the panel
+        count is ``len(color_dim) * prod(len(extra_dims))``. When True the
+        per-colour legend is omitted because each panel's title already
+        identifies its ``color_dim`` value.
+    **pc_kwargs
+        Forwarded to ``PlotCollection.wrap()``.
+
+    Returns
+    -------
+    PlotCollection
+    """
+    pc_kwargs.setdefault("col_wrap", 1)
+    cols = [color_dim, *extra_dims] if facet_color_dim else list(extra_dims)
+    pc = PlotCollection.wrap(
+        ds,
+        cols=cols,
+        backend=backend,
+        aes={"color": [color_dim]},
+        **pc_kwargs,
+    )
+
+    hdi_da = ds.azstats.hdi(prob=hdi_prob)
+
+    pc.map(
+        azp.visuals.fill_between_y,
+        x=ds.date,
+        y_bottom=hdi_da.sel(ci_bound="lower"),
+        y_top=hdi_da.sel(ci_bound="upper"),
+        **{"alpha": 0.2, **(hdi_kwargs or {})},
+    )
+    pc.map(
+        azp.visuals.line_xy,
+        x=ds.date,
+        y=ds.mean(dim=sample_dims),
+        **(line_kwargs or {}),
+    )
+
+    pc.map(azp.visuals.labelled_x, text="Date", ignore_aes={"color"})
+    pc.map(azp.visuals.labelled_y, text="Contribution", ignore_aes={"color"})
+    pc.map(
+        azp.visuals.labelled_title,
+        subset_info=True,
+        labeller=mix_labellers((NoVarLabeller, DimCoordLabeller))(),
+        ignore_aes={"color"},
+    )
+    if not facet_color_dim:
+        pc.add_legend(color_dim)
+
+    return pc

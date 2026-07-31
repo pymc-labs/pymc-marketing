@@ -3,6 +3,9 @@
 
 ```{toctree}
 :hidden:
+:glob:
+
+/notebooks/**
 ```
 
 ## Introduction
@@ -51,6 +54,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_sensitivity_analysis.html
 :::
 
+:::{grid-item-card} Additive vs Log vs Log-Log MMMs
+:img-top: ../gallery/images/mmm_multiplicative.png
+:link: ../notebooks/mmm/mmm_multiplicative.html
+:::
+
 :::{grid-item-card} Interactive MMM Visualizations
 :img-top: ../gallery/images/plot_interactive.png
 :link: ../notebooks/mmm/plot_interactive.html
@@ -75,9 +83,15 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_dims_migration_guide.png
 :link: ../notebooks/mmm/mmm_dims_migration_guide.html
 :::
+
+:::{grid-item-card} MMM Plot Suite Migration Guide
+:img-top: ../gallery/images/mmm_plot_suite_migration_guide.png
+:link: ../notebooks/mmm/mmm_plot_suite_migration_guide.html
+:::
 ::::
 
 ### Custom Models
+
 ::::{grid} 1 2 3 3
 :gutter: 3
 
@@ -212,12 +226,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_upper_funnel_causal_approach.html
 :::
 
+:::{grid-item-card} Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`
+:img-top: ../gallery/images/mmm_funnel_mueffect.png
+:link: ../notebooks/mmm/mmm_funnel_mueffect.html
+:::
+
 :::{grid-item-card} Causal Reasoning and Discovery
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
 :::
-
-:::::
+::::
 
 ### Case Studies
 
@@ -269,11 +287,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/sbg.png
 :link: ../notebooks/clv/sbg.html
 :::
-
-:::{grid-item-card} sBG Model for Individuals
-:img-top: ../gallery/images/sBG_individual.png
-:link: ../notebooks/clv/sBG_individual.html
-:::
 ::::
 
 ## Customer Choice Models
@@ -315,6 +328,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/maxdiff.png
 :link: ../notebooks/customer_choice/maxdiff.html
 :::
+
+:::{grid-item-card} Bayesian BLP: Structural Demand on Aggregate Shares
+:img-top: ../gallery/images/bayesian_blp.png
+:link: ../notebooks/customer_choice/bayesian_blp.html
+:::
+
+:::{grid-item-card} Bayesian BLP on the Nevo Cereal Panel
+:img-top: ../gallery/images/bayesian_blp_nevo.png
+:link: ../notebooks/customer_choice/bayesian_blp_nevo.html
+:::
 ::::
 
 ## Bass Diffusion Model
@@ -325,6 +348,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Bass Diffusion Model Example
 :img-top: ../gallery/images/bass_example.png
 :link: ../notebooks/bass/bass_example.html
+:::
+::::
+
+## Predicted Incrementality by Experimentation (PIE)
+
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} Predicting Campaign Incrementality with PIE
+:img-top: ../gallery/images/pie_example.png
+:link: ../notebooks/pie/pie_example.html
 :::
 ::::
 

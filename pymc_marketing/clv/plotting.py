@@ -13,7 +13,6 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
-import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -363,7 +362,6 @@ def plot_expected_purchases_over_time(
     xlabel: str = "Time Periods",
     ylabel: str = "Purchases",
     ax: plt.Axes | None = None,
-    t_unobserved: int | None = None,
     **kwargs,
 ) -> plt.Axes:
     """Plot actual and expected purchases over time for a fitted ``BetaGeoModel`` or ``ParetoNBDModel``.
@@ -427,8 +425,8 @@ def plot_expected_purchases_over_time(
     References
     ----------
     .. [1] Fader, Peter S., Bruce G.S. Hardie, and Ka Lok Lee (2005),
-    A Note on Implementing the Pareto/NBD Model in MATLAB.
-    http://brucehardie.com/notes/008/
+       A Note on Implementing the Pareto/NBD Model in MATLAB.
+       http://brucehardie.com/notes/008/
     """
     if ax is None:
         ax = plt.subplot(111)
@@ -456,15 +454,6 @@ def plot_expected_purchases_over_time(
 
     # TODO: After utility func supports xarrays, refactor this for matplotlib API.
     ax = df_cum_purchases.plot(ax=ax, title=title, **kwargs)
-
-    if t_unobserved:
-        warnings.warn(
-            "t_unobserved is deprecated and will be removed in a future release. "
-            "Use t_start_eval instead.",
-            DeprecationWarning,
-            stacklevel=1,
-        )
-        t_start_eval = t_unobserved
 
     if t_start_eval:
         if set_index_date:
@@ -496,8 +485,7 @@ def plot_expected_purchases_ppc(
     Parameters
     ----------
     model : CLVModel
-        Prior predictive checks can be performed before or after a model is fit.
-        Posterior predictive checks require a fitted model.
+        A built CLV model is required for prior predictive checks, and a fitted model for posterior predictive checks.
     ppc : string, optional
         Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
     max_purchases : int, optional
@@ -519,10 +507,8 @@ def plot_expected_purchases_ppc(
         ax = plt.subplot(111)
 
     match ppc:
+        # TODO: Revisit prior logic after adding PPC support for CLVModels in ModelBuilder
         case "prior":
-            # build model if it has not been fit yet
-            model.build_model()
-
             prior_idata = pm.sample_prior_predictive(
                 draws=samples,
                 model=model.model,
