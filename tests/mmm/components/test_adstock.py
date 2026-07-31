@@ -139,6 +139,26 @@ def test_geometric_adstock_sample_prior_constant_alpha() -> None:
     np.testing.assert_allclose(prior["adstock_alpha"].values[0, 0], [0.5, 0.3, 0.2])
 
 
+def test_geometric_adstock_curve_constant_alpha_with_dims() -> None:
+    """A constant ``alpha`` carrying dims must reach ``sample_curve`` (#1749).
+
+    ``pm.DiracDelta`` refuses ``XTensorVariable`` input, so the constant is
+    unwrapped and its dims are passed along. The prior then keeps the named
+    dim instead of an anonymous one, and the curve can be evaluated.
+    """
+    alpha = as_xtensor(np.array([0.5, 0.3, 0.2]), dims=("channel",))
+    adstock = GeometricAdstock(l_max=4, priors={"alpha": alpha})
+
+    prior = adstock.sample_prior(coords={"channel": ["A", "B", "C"]})
+
+    assert prior.sizes["channel"] == 3
+    np.testing.assert_allclose(prior["adstock_alpha"].values[0, 0], [0.5, 0.3, 0.2])
+
+    curve = adstock.sample_curve(prior)
+
+    assert curve.sizes["channel"] == 3
+
+
 class TestAdstockRoundtrips:
     """Every AdstockTransformation subclass round-trips with all params."""
 

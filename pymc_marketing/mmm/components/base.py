@@ -442,7 +442,15 @@ class Transformation:
                 # DiracDelta to give ``sample_prior_predictive`` something to
                 # sample. Distributions return a freshly created variable.
                 if variables[parameter_name] is self.function_priors[parameter_name]:
-                    pm.DiracDelta(variable_name, variables[parameter_name])
+                    constant = variables[parameter_name]
+                    if isinstance(constant, XTensorVariable):
+                        # pm.DiracDelta refuses XTensorVariable input, but the
+                        # dims it carries are the ones the draws should keep.
+                        pm.DiracDelta(
+                            variable_name, constant.values, dims=constant.type.dims
+                        )
+                    else:
+                        pm.DiracDelta(variable_name, constant)
             prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
             return prior_pred["/prior"].to_dataset()
 
