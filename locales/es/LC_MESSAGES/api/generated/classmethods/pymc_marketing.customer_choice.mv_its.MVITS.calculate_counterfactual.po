@@ -34,8 +34,8 @@ msgstr ""
 
 #: 1490578bf1694670bea610c8f3c5db2e of
 #: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual:4
-msgid "Extends the InferenceData object"
-msgstr "Extiende el objeto InferenceData"
+msgid "Extends the DataTree object"
+msgstr "Extiende el objeto DataTree"
 
 #: 9b92b8445d3c4cbc9c7a9bedbcf98ef7 of
 #: pymc_marketing.customer_choice.mv_its.MVITS.calculate_counterfactual

@@ -701,7 +701,7 @@ class MMMSummaryFactory:
         data : MMMIDataWrapper or None, optional
             Optional data wrapper to use for sampling curves. If None (default),
             uses self.data. This allows sampling curves from a different
-            InferenceData, such as from a subset of samples or another model.
+            DataTree, such as from a subset of samples or another model.
         max_value : float, default 1.0
             Maximum value for the curve x-axis, in scaled space (consistent with
             model internals). This represents the maximum spend level in scaled
@@ -812,7 +812,7 @@ class MMMSummaryFactory:
         data : MMMIDataWrapper or None, optional
             Optional data wrapper to use for sampling curves. If None (default),
             uses self.data. This allows sampling curves from a different
-            InferenceData, such as from a subset of samples or another model.
+            DataTree, such as from a subset of samples or another model.
         amount : float, default 1.0
             Amount to apply the adstock transformation to. This represents an
             impulse of spend at time 0, and the curve shows how this effect

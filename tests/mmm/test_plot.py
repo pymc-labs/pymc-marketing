@@ -4692,7 +4692,7 @@ def test_cv_predictions_missing_posterior_predictive_raises():
     idata = xr.DataTree.from_dict({})
     with pytest.raises(
         ValueError,
-        match=r"Provided InferenceData must include a 'cv_metadata' group with a 'metadata' DataArray",
+        match=r"Provided DataTree must include a 'cv_metadata' group with a 'metadata' DataArray",
     ):
         suite.cv_predictions(idata)
 
@@ -4759,7 +4759,7 @@ def test_param_stability_missing_cv_coordinate(mock_suite):
     # Expect ValueError when calling param_stability without 'cv' coordinate
     with pytest.raises(
         ValueError,
-        match=r"Provided InferenceData does not contain a 'cv' coordinate",
+        match=r"Provided DataTree does not contain a 'cv' coordinate",
     ):
         suite.param_stability(results=invalid_idata, parameter=["test_param"])
 

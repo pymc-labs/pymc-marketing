@@ -41,18 +41,18 @@ msgstr "Parámetros"
 
 #: 3ad6fa9bc11c4bdc963a0a9d61bd5a30 of
 #: pymc_marketing.mlflow.log_arviz_summary:8
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: 4adbbd55c9494d04a98693ed22a7989c of
 #: pymc_marketing.mlflow.log_arviz_summary:7
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: cbccb78dbc69405d890f2dcef4b92b7d of
 #: pymc_marketing.mlflow.log_arviz_summary:9
-msgid "The InferenceData object returned by the sampling method."
-msgstr "El objeto InferenceData devuelto por el método de muestreo."
+msgid "The DataTree object returned by the sampling method."
+msgstr "El objeto DataTree devuelto por el método de muestreo."
 
 #: 59dc5cfaeeab4e0cbf4498d9163e276d of
 #: pymc_marketing.mlflow.log_arviz_summary:11
@@ -83,10 +83,10 @@ msgstr "python:list[python:str], opcional"
 #: pymc_marketing.mlflow.log_arviz_summary:15
 msgid ""
 "The names of the variables to include in the summary. Default is all the "
-"variables in the InferenceData object."
+"variables in the DataTree object."
 msgstr ""
 "Los nombres de las variables que se incluirán en el resumen. El valor "
-"predeterminado son todas las variables en el objeto InferenceData."
+"predeterminado son todas las variables en el objeto DataTree."
 
 #: a201d5bcd13943aebc3cfd3209a53f7a of
 #: pymc_marketing.mlflow.log_arviz_summary:18
