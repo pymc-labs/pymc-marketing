@@ -898,19 +898,20 @@ class DiscountedEventEffect(OptimizableMuEffect):
       :math:`d_k^* = (\beta_k - 1)/(\beta_k + 1)` for :math:`\beta_k > 1`
       (else 0).
 
-    * ``link="identity"`` — the same multiplier applied to the model's own
-      baseline :math:`\mu^{\text{base}}_t` (intercept + media + controls +
-      seasonality, in scaled units), with the volume uplift linearised as
-      :math:`1 + \beta_k \ln(1 + d_k)` to keep the additive form:
+    * ``link="identity"`` — the **same multiplier** applied to the model's
+      own baseline :math:`\mu^{\text{base}}_t` (everything in :math:`\mu`
+      except the optimizable repricing effects themselves; see below):
 
       .. math::
 
           \Delta\mu_t = w_{tk} \, \mu^{\text{base}}_t
-              \left[ (1 - d_k)\bigl(1 + \beta_k \ln(1 + d_k)\bigr) - 1 \right]
+              \left[ (1 - d_k)(1 + d_k)^{\beta_k} - 1 \right]
 
     where :math:`w_{tk}` is the 0/1 event-window indicator.  Both links give
-    :math:`\Delta\mu(0) = 0` and drive in-window revenue to zero at
-    :math:`d_k = 1` (100 % discount).
+    :math:`\Delta\mu(0) = 0`, drive in-window revenue to zero at
+    :math:`d_k = 1` (100 % discount), and — because the multiplier is
+    identical — share the same standalone optimum
+    :math:`d_k^* = (\beta_k - 1)/(\beta_k + 1)`.
 
     **Cost semantics.** No external cost term is imposed: the price-retention
     factor :math:`(1 - d_k)` *is* the give-back, applied to all units as part
@@ -928,14 +929,39 @@ class DiscountedEventEffect(OptimizableMuEffect):
 
     **Caveats.**
 
-    * Overlapping event windows are rejected at build time under the identity
-      link (each event's multiplier would apply to the same
-      :math:`\mu^{\text{base}}_t` on the shared dates, double-counting it);
-      under the log link overlapping windows compose multiplicatively, which
-      is the economically correct behaviour.
+    * **The lift curve is functional form, not data, away from the observed
+      depth.** Each event typically has a single historical
+      ``discount_pct``, so :math:`\beta_k \ln(1 + d_k)` is exactly the
+      event's fitted in-window level shift re-expressed — the shape of
+      :math:`(1 - d)(1 + d)^{\beta_k}` at any *other* depth follows from the
+      assumed parametric form, not from observed variation in depth.  Treat
+      prescribed depths as model-based extrapolations.
+    * Under the identity link the baseline that gets repriced is
+      ``MMM._mu_baseline`` — everything in :math:`\mu` **except** effects
+      applied at or after the optimizable-effects stage.  Non-optimizable
+      mu-effects (e.g. :class:`FourierEffect`, :class:`LinearTrendEffect`)
+      are included; other :class:`OptimizableMuEffect` instances are not
+      (two discount effects never reprice each other).  Under the log link
+      everything in :math:`\mu` composes multiplicatively, including
+      concurrent media.
+    * Because media flows through the repricing multiplier during event
+      windows, ``total_media_contribution_original_scale`` no longer
+      captures media's full marginal effect when this effect is present —
+      use ``total_response_original_scale`` as the optimization objective.
+    * Event windows that share a **model date** are rejected at build time
+      under the identity link (both events would reprice the same
+      :math:`\mu^{\text{base}}_t`); under the log link shared dates simply
+      sum in log space, i.e. the multipliers stack multiplicatively.
+    * Under the log link, ``discount_max`` (and any historical
+      ``discount_pct``) must be strictly below 1: :math:`\ln(1 - d)` is
+      :math:`-\infty` at :math:`d = 1`.
     * For events outside the training window, :math:`\beta_k` is prior-driven
       (there are no in-sample dates to inform it) — treat prescriptions for
       such events as prior predictive, not fitted.
+    * Per-event contributions are registered as
+      ``f"{prefix}_event_contribution"``; an original-scale version exists
+      only after
+      ``mmm.add_original_scale_contribution_variable([..., f"{prefix}_event_contribution"])``.
 
     Parameters
     ----------
@@ -1042,16 +1068,21 @@ class DiscountedEventEffect(OptimizableMuEffect):
     # MuEffect contract
     # ------------------------------------------------------------------
 
-    def _overlapping_event_pairs(self) -> list[tuple[str, str]]:
-        """Return pairs of event names whose date windows overlap (inclusive)."""
-        starts = pd.to_datetime(self.df_events["start_date"]).to_numpy()
-        ends = pd.to_datetime(self.df_events["end_date"]).to_numpy()
-        names = self.df_events["name"].to_numpy()
+    @staticmethod
+    def _events_sharing_model_dates(window: xr.DataArray) -> list[str]:
+        """Return event names active on at least one shared model date.
+
+        Calendar-overlapping windows that resolve to disjoint model dates
+        (e.g. short windows on weekly data) are fine; only events whose
+        resolved 0/1 masks are simultaneously active on some model date are
+        returned.
+        """
+        prefix_dim = window.dims[-1]
+        shared = window.where(window.sum(prefix_dim) > 1, 0.0)
         return [
-            (str(names[i]), str(names[j]))
-            for i in range(len(names))
-            for j in range(i + 1, len(names))
-            if starts[i] <= ends[j] and starts[j] <= ends[i]
+            str(name)
+            for name in window.coords[prefix_dim].values
+            if float(shared.sel({prefix_dim: name}).sum()) > 0
         ]
 
     def _window_mask(self, dates) -> xr.DataArray:
@@ -1084,20 +1115,28 @@ class DiscountedEventEffect(OptimizableMuEffect):
         Raises
         ------
         ValueError
-            Under the identity link, if any two event windows overlap: each
-            event's repricing multiplier would apply to the same baseline on
-            the shared dates, double-counting it.  Overlapping windows are
-            only supported under ``link="log"``, where they compose
-            multiplicatively.
+            Under the identity link, if two event windows are active on the
+            same model date (both would reprice the same baseline —
+            double-counting; only ``link="log"`` composes shared dates).
+            Under the log link, if ``discount_max`` or any historical
+            ``discount_pct`` is >= 1 (``ln(1 - d)`` is ``-inf`` at ``d=1``).
         """
         link = getattr(mmm, "link", LinkFunction.IDENTITY)
-        if link != LinkFunction.LOG and (pairs := self._overlapping_event_pairs()):
-            raise ValueError(
-                f"DiscountedEventEffect('{self.prefix}'): event windows overlap "
-                f"for {pairs}, which double-counts the baseline repricing under "
-                'the identity link. Merge the overlapping events, or use link="log", '
-                "where overlapping discounts compose multiplicatively."
+
+        if link == LinkFunction.LOG:
+            pct_vals = (
+                self.df_events.get(
+                    "discount_pct", pd.Series(0.0, index=self.df_events.index)
+                )
+                .fillna(0.0)
+                .to_numpy(dtype="float64")
             )
+            if self.discount_max >= 1.0 or (pct_vals >= 1.0).any():
+                raise ValueError(
+                    f"DiscountedEventEffect('{self.prefix}') with link='log': "
+                    "discount_max and all historical discount_pct values must "
+                    "be strictly below 1 (ln(1 - d) is -inf at d = 1)."
+                )
 
         model: pm.Model = mmm.model
 
@@ -1106,9 +1145,21 @@ class DiscountedEventEffect(OptimizableMuEffect):
         )
         model.add_coord(self.prefix, self.df_events["name"].to_numpy())
 
+        window = self._window_mask(model_dates)
+        if link != LinkFunction.LOG and (
+            shared := self._events_sharing_model_dates(window)
+        ):
+            raise ValueError(
+                f"DiscountedEventEffect('{self.prefix}'): events {shared} are "
+                "active on the same model date, which double-counts the "
+                "baseline repricing under the identity link. Merge the "
+                'overlapping events, or use link="log", where shared dates '
+                "stack multiplicatively."
+            )
+
         pmd.Data(
             f"{self.prefix}_window",
-            self._window_mask(model_dates),
+            window,
             dims=(self.date_dim_name, self.prefix),
         )
         # Discount fraction per event -- the lever node, static (prefix,). The
@@ -1141,8 +1192,7 @@ class DiscountedEventEffect(OptimizableMuEffect):
                     + \beta_k \ln(1 + d_k) \right]
                     & \text{link} = \log \\
                 \mu^{\text{base}}_t \sum_k w_{tk}
-                    \left[ (1 - d_k)\bigl(1 + \beta_k \ln(1 + d_k)\bigr)
-                    - 1 \right]
+                    \left[ (1 - d_k)(1 + d_k)^{\beta_k} - 1 \right]
                     & \text{link} = \text{identity}
             \end{cases}
 
@@ -1191,9 +1241,11 @@ class DiscountedEventEffect(OptimizableMuEffect):
                     "MMM (which sets it in build_model), or link='log' (which "
                     "needs no baseline)."
                 )
-            # Repricing multiplier on the baseline: (1-d)(1 + beta*ln(1+d)) - 1,
-            # zero at d=0 and -1 (in-window revenue -> 0) at d=1.
-            multiplier = (1.0 - discount_pct) * (1.0 + beta * log_pct) - 1.0
+            # Exact repricing multiplier on the baseline:
+            # (1-d)(1+d)^beta - 1 -- identical to the log link's factor, so
+            # both links share the same standalone optimum. Zero at d=0 and
+            # -1 (in-window revenue -> 0) at d=1.
+            multiplier = (1.0 - discount_pct) * ptx.math.exp(beta * log_pct) - 1.0
             # (date, prefix, *mmm.dims): baseline repriced on event dates only.
             contributions = mu_baseline * (multiplier * window_mask)
 

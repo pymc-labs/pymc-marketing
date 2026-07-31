@@ -1461,14 +1461,20 @@ class BudgetOptimizer(BaseModel):
 
         # 8b. Structural reachability: every optimizable var must influence the
         # response variable, otherwise its gradient is identically zero and the
-        # "optimum" returned would just be the seed. Checked on the original
-        # graph, where the vars are still named nodes.
-        if self._var_slices and self.response_variable in self.model.named_vars:
-            response_ancestors = set(ancestors([self.model[self.response_variable]]))
+        # "optimum" returned would just be the seed. Checked on the same graph
+        # the objective is compiled from (do() keeps the substituted vars as
+        # named nodes). A complementary *numeric* check at x0 lives in
+        # allocate_budget -- it also catches levers that are structurally
+        # connected but inert in the optimization window (e.g. an event whose
+        # window mask is all zeros there).
+        if self._var_slices:
+            response_ancestors = set(
+                ancestors([self._pymc_model[self.response_variable]])
+            )
             unreachable = [
                 name
                 for name, _, _, _ in self._var_slices
-                if self.model[name] not in response_ancestors
+                if self._pymc_model[name] not in response_ancestors
             ]
             if unreachable:
                 raise ValueError(
@@ -1959,31 +1965,82 @@ class BudgetOptimizer(BaseModel):
 
         # 4. Construct the initial guess (x0) if not provided: spread
         # total_budget evenly over the media entries (feasible w.r.t. the
-        # default sum constraint); seed each optimizable-var entry at its
-        # native lower bound (in-scale and always feasible), or 0 if unbounded.
+        # default sum constraint); warm-start each optimizable-var entry at
+        # the variable's current model value (clipped to its bounds) -- a
+        # physically meaningful, in-bounds seed (e.g. the historical discount
+        # depth) rather than a corner of the feasible box.
         if x0 is None:
             x0 = np.zeros(budgets_size, dtype=self._budgets_flat.type.dtype)
             x0[:media_size] = total_budget / media_size
-            for _, _, var_bounds, flat_slice in self._var_slices:
+            for name, _, var_bounds, flat_slice in self._var_slices:
+                current = np.ravel(self.model[name].get_value())
                 if var_bounds is not None:
-                    x0[flat_slice] = [low or 0.0 for low, _ in var_bounds]
+                    lows = np.array(
+                        [-np.inf if low is None else low for low, _ in var_bounds]
+                    )
+                    highs = np.array(
+                        [np.inf if high is None else high for _, high in var_bounds]
+                    )
+                    current = np.clip(current, lows, highs)
+                x0[flat_slice] = current
 
         # filter x0 based on shape/type of self._budgets_flat
         # will raise a TypeError if x0 does not have acceptable shape and/or type
         x0 = self._budgets_flat.type.filter(x0)
 
-        # 4b. With optimizable vars, the decision vector mixes units (monetary
-        # media budgets vs native-unit levers), and their gradient magnitudes
-        # can differ by orders of magnitude. SLSQP's line search then clips the
-        # lever segment against its bounds and stops prematurely. Normalizing
-        # the objective (and its gradient) by |f(x0)| is argmax-invariant and
-        # restores a well-scaled problem. Media-only optimizations are left
-        # untouched.
+        # 4b. With optimizable vars, evaluate the objective and gradient once
+        # at x0 to (a) normalize the objective and (b) detect numerically
+        # inert lever segments. Media-only optimizations are left untouched.
+        #
+        # Normalization: the objective's absolute magnitude (often ~1e6 for a
+        # revenue response) interacts badly with SLSQP's absolute ftol and
+        # internal step acceptance when native-unit lever segments are
+        # present; dividing objective and gradient by the constant |f(x0)| is
+        # argmax-invariant and brings the problem to O(1). (It does not change
+        # the *relative* scaling between media and lever gradient components
+        # -- a scalar cannot -- but empirically SLSQP converges to the
+        # analytic lever optimum with it and stalls at a non-stationary point
+        # without it on some platforms; see the FOC end-to-end tests.)
+        # result.fun / result.jac are rescaled back after minimize, so all
+        # reported quantities stay in original objective units.
         objective_and_grad = self._compiled_functions[self.utility_function][
             "objective_and_grad"
         ]
+        objective_scale = 1.0
         if self._var_slices:
-            f0, _ = objective_and_grad(x0.copy())
+            f0, g0 = objective_and_grad(x0.copy())
+            if not np.isfinite(f0):
+                raise ValueError(
+                    f"Objective is not finite at the initial point (f(x0)={f0}). "
+                    "Check bounds and data (e.g. a discount depth of 1.0 under "
+                    "the log link)."
+                )
+
+            # Numeric inert-lever check: a lever coordinate whose gradient is
+            # exactly zero at x0 (e.g. an event whose window mask is all
+            # zeros inside the optimization window) cannot be optimized -- it
+            # would come back at its seed. The structural ancestry check at
+            # construction cannot see this, since the lever is still
+            # connected on the graph.
+            g0 = np.asarray(g0)
+            inert: list[str] = []
+            for name, dim, _, flat_slice in self._var_slices:
+                segment = g0[flat_slice]
+                if np.any(segment == 0.0):
+                    coords = list(self.model.coords[dim])
+                    inert.extend(
+                        f"{name}[{coords[i]}]" for i in np.flatnonzero(segment == 0.0)
+                    )
+            if inert:
+                warnings.warn(
+                    f"optimizable_vars entries {inert} have a zero gradient "
+                    "at the initial point (e.g. their event windows fall "
+                    "outside the optimization window). They will be returned "
+                    "at their current values, not optimized.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
             objective_scale = abs(float(f0)) or 1.0
             _base_objective_and_grad = objective_and_grad
 
@@ -2047,6 +2104,14 @@ class BudgetOptimizer(BaseModel):
             callback=scipy_callback,
             **minimize_kwargs,
         )
+
+        # Undo the objective normalization so result.fun / result.jac (and
+        # anything compared against callback_info, which uses the raw compiled
+        # function) are in original objective units.
+        if objective_scale != 1.0:
+            result.fun = float(result.fun) * objective_scale
+            if getattr(result, "jac", None) is not None:
+                result.jac = np.asarray(result.jac) * objective_scale
 
         # 6. Process results
         if result.success or return_if_fail:
