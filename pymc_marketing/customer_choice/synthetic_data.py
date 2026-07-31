@@ -306,11 +306,12 @@ def generate_blp_panel(
     nu = halton_draws(n_dgp_draws, n_random, seed=halton_seed)
     nu_alpha = nu[:, 0]
     nu_beta_idx = np.where(sigma_beta > 0)[0]
-    nu_beta_cols = {k: nu[:, 1 + i] for i, k in enumerate(nu_beta_idx)}
+    nu_beta_cols = {int(k): nu[:, 1 + i] for i, k in enumerate(nu_beta_idx)}
 
     delta = alpha_r[:, None, None] * price + np.einsum("rk,rtjk->rtj", beta_r, x) + xi
     mu_dev = sigma_alpha * nu_alpha[None, None, None, :] * price[..., None]
-    for k in nu_beta_idx:
+    for k_idx in nu_beta_idx:
+        k = int(k_idx)
         mu_dev = mu_dev + (
             sigma_beta[k] * nu_beta_cols[k][None, None, None, :] * x[..., k, None]
         )

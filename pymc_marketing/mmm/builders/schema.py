@@ -159,7 +159,7 @@ class MMMYamlConfig(BaseModel):
     calibration: list[CalibrationStep] | None = Field(
         None, description="Calibration steps."
     )
-    idata_path: str | None = Field(None, description="Path to InferenceData file.")
+    idata_path: str | None = Field(None, description="Path to DataTree file.")
 
     @model_validator(mode="before")
     @classmethod

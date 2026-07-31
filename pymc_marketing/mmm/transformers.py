@@ -1265,4 +1265,9 @@ def root_saturation(
     """
     x = as_xtensor(x)
     alpha = as_xtensor(alpha)
-    return x**alpha
+    x_tensor = x.values
+    alpha_tensor = alpha.values
+    x_safe = pt.where(x_tensor > 0, x_tensor, 1.0)
+    result = pt.where(x_tensor > 0, x_safe**alpha_tensor, 0.0)
+    result_dims = x.dims + tuple(d for d in alpha.dims if d not in x.dims)
+    return as_xtensor(result, dims=result_dims)

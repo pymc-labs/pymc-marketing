@@ -32,10 +32,10 @@ msgstr "Soporte de autolog para modelos PyMC y modelos PyMC-Marketing."
 #: 480b9a74c59042f9be4f414f6405017d of pymc_marketing.mlflow.autolog:4
 msgid ""
 "Includes logging of sampler diagnostics, model information, data used in the"
-" model, and InferenceData objects upon sampling the models."
+" model, and DataTree objects upon sampling the models."
 msgstr ""
 "Incluye el registro de diagnósticos del muestreador, información del modelo,"
-" datos utilizados en el modelo y objetos InferenceData al muestrear los "
+" datos utilizados en el modelo y objetos DataTree al muestrear los "
 "modelos."
 
 #: cff7b3b9bf4041fbb94d2acf30ce0852 of pymc_marketing.mlflow.autolog:7
@@ -129,10 +129,10 @@ msgstr "python:list[python:str], opcional"
 #: 86bdaf0d1eac49ae8063a5a90ab3c246 of pymc_marketing.mlflow.autolog:26
 msgid ""
 "The names of the variables to include in the ArviZ summary. Default is all "
-"the variables in the InferenceData object."
+"the variables in the DataTree object."
 msgstr ""
 "Los nombres de las variables que se incluirán en el resumen de ArviZ. El "
-"valor predeterminado son todas las variables en el objeto InferenceData."
+"valor predeterminado son todas las variables en el objeto DataTree."
 
 #: 2aef233c61ab428195a413858d8c3397 of pymc_marketing.mlflow.autolog:29
 msgid "**arviz_summary_kwargs** : :class:`python:dict`, optional"

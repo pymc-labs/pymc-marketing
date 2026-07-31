@@ -27,9 +27,9 @@ msgstr "BetaGeoBetaBinomModel.cargar\\_de\\_idata"
 
 #: 0defc11f2bd04684aa8a12e12c3480c8 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:2
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: f0122f2abb6f4c42a7a805a9f0307a8e of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:4
@@ -38,21 +38,21 @@ msgstr "Este método de clase tiene algunos pasos:"
 
 #: 25e78221c3f14e4c90d69a7ceaf3c551 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:6
-msgid "Construct a new instance of the model using the InferenceData attrs"
+msgid "Construct a new instance of the model using the DataTree attrs"
 msgstr ""
 "Construya una nueva instancia del modelo utilizando los atributos de "
-"InferenceData."
+"DataTree."
 
 #: cf4b9bac7c5a4f7883b251053fd7c570 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:7
-msgid "Build the model from the InferenceData"
-msgstr "Construya el modelo a partir de los InferenceData."
+msgid "Build the model from the DataTree"
+msgstr "Construya el modelo a partir de los DataTree."
 
 #: e5d14987c81d48d1811556a0d8e5a2ba of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:8
-msgid "Check if the model id matches the id in the InferenceData loaded."
+msgid "Check if the model id matches the id in the DataTree loaded."
 msgstr ""
-"Verifique si el id del modelo coincide con el id en los InferenceData "
+"Verifique si el id del modelo coincide con el id en los DataTree "
 "cargados."
 
 #: d304416093864617a34b7c9004037f26 of
@@ -62,18 +62,18 @@ msgstr "Parámetros"
 
 #: 7fa0d0804a4649bf935f6b305f90774a of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:12
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: c3f261e0373e4f8e8f6cd28ec44ae2b3 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:11
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 1a04623a01214119a9d8f459a9baadf0 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:13
-msgid "The InferenceData object to load the model from."
-msgstr "El objeto InferenceData del cual cargar el modelo."
+msgid "The DataTree object to load the model from."
+msgstr "El objeto DataTree del cual cargar el modelo."
 
 #: 230b036ed605403785600a9d4562e1fc of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:15
@@ -88,11 +88,11 @@ msgstr "bool, opcional"
 #: e9c1cf01c98248d6b1bff85ff7194049 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:16
 msgid ""
-"Whether to check if the model id matches the id in the InferenceData loaded."
+"Whether to check if the model id matches the id in the DataTree loaded."
 " Defaults to True."
 msgstr ""
 "Si se debe verificar si el id del modelo coincide con el id en los "
-"InferenceData cargados. Por defecto es True."
+"DataTree cargados. Por defecto es True."
 
 #: 0d5c81ec424f4c16b91ae480f9a5caf3 of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata
@@ -122,7 +122,7 @@ msgstr ":obj:`DifferentModelError`"
 #: 4bb7d39eb949468ca854174370bb1dca of
 #: pymc_marketing.model_builder.ModelIO.load_from_idata:32
 msgid ""
-"If the model id in the InferenceData does not match the model id built."
+"If the model id in the DataTree does not match the model id built."
 msgstr ""
-"Si el id del modelo en los InferenceData no coincide con el id del modelo "
+"Si el id del modelo en los DataTree no coincide con el id del modelo "
 "construido."

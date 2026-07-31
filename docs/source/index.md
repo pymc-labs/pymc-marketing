@@ -24,7 +24,8 @@ PyMC-Marketing is an open-source Python library for Bayesian marketing analytics
 :::{div} sd-text-center
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
-[![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
+[![GitHub stars](https://img.shields.io/github/stars/pymc-labs/pymc-marketing?style=flat&logo=github&label=Stars)](https://github.com/pymc-labs/pymc-marketing)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/pymc-labs/pymc-marketing/blob/main/LICENSE)
 :::
 
 :::{div} sd-text-center sd-text-muted
@@ -45,6 +46,14 @@ Powered by
 :scale: 10 %
 :alt: PyMC Labs logo
 :class: only-light
+:::
+
+## Trusted in production
+
+PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. Data science teams use it to plan and defend real marketing budgets, with results validated against experiments and lift tests.
+
+:::{div} sd-text-center
+**750,000+ downloads** · **1,100+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
 :::
 
 ## Get started
@@ -203,6 +212,12 @@ See our example notebooks for [saturated markets](https://www.pymc-marketing.io/
 Forecast the adoption of new products with the **Bass Diffusion Model**. The model captures how innovators and imitators drive cumulative adoption over time, which is useful for product launch forecasts, demand planning, and growth analysis.
 
 See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html) for a worked example.
+
+## Predicted Incrementality by Experimentation (PIE)
+
+Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomised experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did.
+
+The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
 ---
 

@@ -11,7 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Standalone utility functions for InferenceData operations."""
+"""Standalone utility functions for DataTree operations."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ import functools
 from pathlib import Path
 from typing import Literal
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -29,48 +28,34 @@ from pymc_marketing.data.idata.schema import Frequency
 
 
 def idata_to_zarr(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     store: str | Path,
     groups: list[str] | None = None,
 ) -> None:
-    """Save an InferenceData to a Zarr store.
-
-    TODO: Remove this shim once we require ``arviz>=1.0``.
-
-    Works with zarr>=3, which is not supported by
-    ``arviz.InferenceData.to_zarr()``. Mirrors the approach taken by
-    arviz>=1.0: ``idata.to_datatree().to_zarr(store)``.
+    """Save a DataTree to a Zarr store.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        The inference data to save.
+    idata : xr.DataTree
+        The DataTree to save.
     store : str or Path
         Path to the Zarr store directory.
     groups : list of str, optional
         Groups to save. If None, all groups are saved.
     """
     if groups is not None:
-        filtered_idata = az.InferenceData(
-            **{group: getattr(idata, group) for group in groups if group in idata}
-        )
-        filtered_idata.attrs = idata.attrs.copy()
-        idata = filtered_idata
+        attrs = idata.attrs.copy()
+        idata = idata.filter(lambda g: g.name in groups)
+        idata.attrs = attrs
 
-    idata.to_datatree().to_zarr(store)
+    idata.to_zarr(store)
 
 
 _open_datatree_zarr = functools.partial(xr.open_datatree, engine="zarr")
 
 
-def idata_from_zarr(store: str | Path) -> az.InferenceData:
-    """Load an InferenceData from a Zarr store.
-
-    TODO: Remove this shim once we require ``arviz>=1.0``.
-
-    Counterpart to :func:`idata_to_zarr`. Works with zarr>=3. Mirrors the
-    approach taken by arviz>=1.0, where ``from_zarr`` is
-    ``functools.partial(open_datatree, engine="zarr")``.
+def idata_from_zarr(store: str | Path) -> xr.DataTree:
+    """Load a DataTree from a Zarr store.
 
     Parameters
     ----------
@@ -79,22 +64,22 @@ def idata_from_zarr(store: str | Path) -> az.InferenceData:
 
     Returns
     -------
-    az.InferenceData
+    xr.DataTree
     """
-    return az.from_datatree(_open_datatree_zarr(store))
+    return _open_datatree_zarr(store)
 
 
 def filter_idata_by_dates(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     start_date: str | pd.Timestamp | None = None,
     end_date: str | pd.Timestamp | None = None,
-) -> az.InferenceData:
-    """Filter InferenceData to a date range.
+) -> xr.DataTree:
+    """Filter DataTree to a date range.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object to filter
+    idata : xr.DataTree
+        DataTree to filter
     start_date : str or pd.Timestamp, optional
         Start date (inclusive)
     end_date : str or pd.Timestamp, optional
@@ -102,39 +87,40 @@ def filter_idata_by_dates(
 
     Returns
     -------
-    az.InferenceData
-        New InferenceData with filtered groups
+    xr.DataTree
+        New DataTree with filtered groups
 
     Examples
     --------
     >>> filtered = filter_idata_by_dates(idata, "2024-01-01", "2024-12-31")
     """
     if start_date is None and end_date is None:
-        return idata  # No filtering needed
+        return idata
 
     date_slice = {"date": slice(start_date, end_date)}
 
     filtered_groups = {}
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
-        if "date" in group.dims:
-            filtered_groups[group_name] = group.sel(**date_slice)
-        else:
-            filtered_groups[group_name] = group
+    for name, child in idata.children.items():
+        ds = child.dataset
+        if "date" in ds.dims:
+            ds = ds.sel(**date_slice)
+        filtered_groups[name] = ds
 
-    return az.InferenceData(**filtered_groups)
+    result = xr.DataTree.from_dict({f"/{k}": v for k, v in filtered_groups.items()})
+    result.attrs = idata.attrs.copy()
+    return result
 
 
 def filter_idata_by_dims(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     **dim_filters,
-) -> az.InferenceData:
-    """Filter InferenceData by dimension values.
+) -> xr.DataTree:
+    """Filter DataTree by dimension values.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object to filter
+    idata : xr.DataTree
+        DataTree to filter
     **dim_filters
         Dimension filters, e.g., country="US", channel=["TV", "Radio"]
         Note: When filtering to a single value, the dimension is dropped
@@ -143,8 +129,8 @@ def filter_idata_by_dims(
 
     Returns
     -------
-    az.InferenceData
-        New InferenceData with filtered groups
+    xr.DataTree
+        New DataTree with filtered groups
 
     Raises
     ------
@@ -161,11 +147,12 @@ def filter_idata_by_dims(
     if not dim_filters:
         return idata
 
-    # Validate that all dimensions exist in at least one group
     all_dims = set()
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
-        all_dims.update(group.dims)
+    for path in idata.groups:
+        if path == "/":
+            continue
+        ds = idata[path].dataset
+        all_dims.update(ds.dims)
 
     for dim in dim_filters:
         if dim not in all_dims:
@@ -174,40 +161,40 @@ def filter_idata_by_dims(
                 f"Available dimensions: {sorted(all_dims)}"
             )
 
-    # Filter all groups
     filtered_groups = {}
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
+    for path in idata.groups:
+        if path == "/":
+            continue
+        group_name = path.lstrip("/")
+        ds = idata[path].dataset
 
-        # Build selection for this group's dimensions
         group_sel = {}
         for dim, values in dim_filters.items():
-            if dim in group.dims:
+            if dim in ds.dims:
                 group_sel[dim] = values
 
         if group_sel:
-            # Filter the group
-            # Note: xarray's sel() drops dimensions when selecting a single value
-            # This is the desired behavior - dimensions are dropped when filtered to single coordinate
-            filtered = group.sel(**group_sel)
+            filtered = ds.sel(**group_sel)
             filtered_groups[group_name] = filtered
         else:
-            filtered_groups[group_name] = group
+            filtered_groups[group_name] = ds
 
-    return az.InferenceData(**filtered_groups)
+    result = xr.DataTree.from_dict({f"/{k}": v for k, v in filtered_groups.items()})
+    result.attrs = idata.attrs.copy()
+    return result
 
 
 def aggregate_idata_time(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     period: Frequency,
     method: Literal["sum", "mean"] = "sum",
-) -> az.InferenceData:
-    """Aggregate InferenceData over time periods.
+) -> xr.DataTree:
+    """Aggregate DataTree over time periods.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object to aggregate
+    idata : xr.DataTree
+        DataTree to aggregate
     period : {"original", "weekly", "monthly", "quarterly", "yearly", "all_time"}
         Time period to aggregate to. Use "original" for no aggregation (returns
         unchanged), "all_time" to aggregate over the entire time dimension
@@ -217,8 +204,8 @@ def aggregate_idata_time(
 
     Returns
     -------
-    az.InferenceData
-        New InferenceData with aggregated groups (or unchanged if period="original")
+    xr.DataTree
+        New DataTree with aggregated groups (or unchanged if period="original")
 
     Examples
     --------
@@ -226,34 +213,36 @@ def aggregate_idata_time(
     >>> monthly = aggregate_idata_time(idata, "monthly", method="sum")
     >>> total = aggregate_idata_time(idata, "all_time", method="sum")
     """
-    # Handle "original" - no aggregation, return unchanged
     if period == "original":
         return idata
 
-    # Handle "all_time" aggregation (removes date dimension entirely)
     if period == "all_time":
         aggregated_groups = {}
-        for group_name in idata.groups():
-            group = getattr(idata, group_name)
+        for path in idata.groups:
+            if path == "/":
+                continue
+            group_name = path.lstrip("/")
+            ds = idata[path].dataset
 
-            if "date" not in group.dims:
-                aggregated_groups[group_name] = group
+            if "date" not in ds.dims:
+                aggregated_groups[group_name] = ds
                 continue
 
             if method == "sum":
-                aggregated = group.sum(dim="date")
+                aggregated = ds.sum(dim="date")
             elif method == "mean":
-                aggregated = group.mean(dim="date")
+                aggregated = ds.mean(dim="date")
             else:
                 raise ValueError(f"Unknown aggregation method: {method}")
 
             aggregated_groups[group_name] = aggregated
 
-        return az.InferenceData(**aggregated_groups)
+        result = xr.DataTree.from_dict(
+            {f"/{k}": v for k, v in aggregated_groups.items()}
+        )
+        result.attrs = idata.attrs.copy()
+        return result
 
-    # Map period to pandas offset for periodic aggregation
-    # Note: "ME", "QE", "YE" are the modern pandas 2.2+ aliases
-    # (previously "M", "Q", "Y" which are now deprecated)
     period_map = {
         "weekly": "W",
         "monthly": "ME",
@@ -262,40 +251,44 @@ def aggregate_idata_time(
     }
     freq = period_map[period]
 
-    # Aggregate all groups with date dimension
     aggregated_groups = {}
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
+    for path in idata.groups:
+        if path == "/":
+            continue
+        group_name = path.lstrip("/")
+        ds = idata[path].dataset
 
-        if "date" not in group.dims:
-            aggregated_groups[group_name] = group
+        if "date" not in ds.dims:
+            aggregated_groups[group_name] = ds
             continue
 
         if method == "sum":
-            aggregated = group.resample(date=freq).sum(dim="date")
+            aggregated = ds.resample(date=freq).sum(dim="date")
         elif method == "mean":
-            aggregated = group.resample(date=freq).mean(dim="date")
+            aggregated = ds.resample(date=freq).mean(dim="date")
         else:
             raise ValueError(f"Unknown aggregation method: {method}")
 
         aggregated_groups[group_name] = aggregated
 
-    return az.InferenceData(**aggregated_groups)
+    result = xr.DataTree.from_dict({f"/{k}": v for k, v in aggregated_groups.items()})
+    result.attrs = idata.attrs.copy()
+    return result
 
 
 def aggregate_idata_dims(
-    idata: az.InferenceData,
+    idata: xr.DataTree,
     dim: str,
     values: list[str],
     new_label: str,
     method: Literal["sum", "mean"] = "sum",
-) -> az.InferenceData:
+) -> xr.DataTree:
     """Aggregate multiple dimension values into one.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object to aggregate
+    idata : xr.DataTree
+        DataTree to aggregate
     dim : str
         Dimension to aggregate (e.g., "channel", "country")
     values : list of str
@@ -307,8 +300,8 @@ def aggregate_idata_dims(
 
     Returns
     -------
-    az.InferenceData
-        New InferenceData with aggregated dimension values
+    xr.DataTree
+        New DataTree with aggregated dimension values
 
     Raises
     ------
@@ -327,11 +320,12 @@ def aggregate_idata_dims(
     ...     method="sum",
     ... )
     """
-    # Validate that dimension exists in at least one group
     all_dims = set()
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
-        all_dims.update(group.dims)
+    for path in idata.groups:
+        if path == "/":
+            continue
+        ds = idata[path].dataset
+        all_dims.update(ds.dims)
 
     if dim not in all_dims:
         raise ValueError(
@@ -339,12 +333,12 @@ def aggregate_idata_dims(
             f"Available dimensions: {sorted(all_dims)}"
         )
 
-    # Pre-validate that new_label doesn't conflict with non-aggregated values
-    # Check across all groups to fail fast with a clear error
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
-        if dim in group.dims:
-            existing_coords = set(group[dim].values)
+    for path in idata.groups:
+        if path == "/":
+            continue
+        ds = idata[path].dataset
+        if dim in ds.dims:
+            existing_coords = set(ds[dim].values)
             non_aggregated = existing_coords - set(values)
             if new_label in non_aggregated:
                 raise ValueError(
@@ -352,30 +346,27 @@ def aggregate_idata_dims(
                     f"in dimension '{dim}' that is not being aggregated. "
                     f"Existing values not being aggregated: {sorted(non_aggregated)}"
                 )
-            break  # Only need to check one group since coords are consistent
+            break
 
     aggregated_groups = {}
-    for group_name in idata.groups():
-        group = getattr(idata, group_name)
+    for path in idata.groups:
+        if path == "/":
+            continue
+        group_name = path.lstrip("/")
+        ds = idata[path].dataset
 
-        if dim not in group.dims:
-            aggregated_groups[group_name] = group
+        if dim not in ds.dims:
+            aggregated_groups[group_name] = ds
             continue
 
-        # Get other values (not aggregated)
-        all_coords = set(group[dim].values)
+        all_coords = set(ds[dim].values)
         other_values = list(all_coords - set(values))
 
-        # Process variables individually to avoid adding dimension to variables
-        # that don't have it (e.g., dayofyear with only 'date' dim when
-        # aggregating 'country')
         result_vars = {}
-        for var_name, var in group.data_vars.items():
+        for var_name, var in ds.data_vars.items():
             if dim not in var.dims:
-                # Variable doesn't have the dimension - preserve as-is
                 result_vars[var_name] = var
             else:
-                # Variable has the dimension - aggregate it
                 selected_var = var.sel({dim: values})
 
                 if method == "sum":
@@ -385,7 +376,6 @@ def aggregate_idata_dims(
                 else:
                     raise ValueError(f"Unknown aggregation method: {method}")
 
-                # Add the new label
                 aggregated_var = aggregated_var.expand_dims({dim: [new_label]})
 
                 if other_values:
@@ -399,16 +389,18 @@ def aggregate_idata_dims(
         combined = xr.Dataset(result_vars)
         aggregated_groups[group_name] = combined
 
-    return az.InferenceData(**aggregated_groups)
+    result = xr.DataTree.from_dict({f"/{k}": v for k, v in aggregated_groups.items()})
+    result.attrs = idata.attrs.copy()
+    return result
 
 
-def get_posterior_predictive(idata: az.InferenceData) -> xr.Dataset:
+def get_posterior_predictive(idata: xr.DataTree) -> xr.Dataset:
     """Return the posterior_predictive group from *idata*.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object holding the fitted model results.
+    idata : xr.DataTree
+        DataTree holding the fitted model results.
 
     Returns
     -------
@@ -420,21 +412,21 @@ def get_posterior_predictive(idata: az.InferenceData) -> xr.Dataset:
     ValueError
         If posterior_predictive is absent from idata.
     """
-    if not hasattr(idata, "posterior_predictive") or idata.posterior_predictive is None:
+    if "posterior_predictive" not in idata.children:
         raise ValueError(
             "No posterior_predictive data found in idata. "
             "Run MMM.sample_posterior_predictive() first."
         )
-    return idata.posterior_predictive
+    return idata["/posterior_predictive"].to_dataset()
 
 
-def get_prior_predictive(idata: az.InferenceData) -> xr.Dataset:
+def get_prior_predictive(idata: xr.DataTree) -> xr.Dataset:
     """Return the prior_predictive group from *idata*.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object holding the fitted model results.
+    idata : xr.DataTree
+        DataTree holding the fitted model results.
 
     Returns
     -------
@@ -446,21 +438,21 @@ def get_prior_predictive(idata: az.InferenceData) -> xr.Dataset:
     ValueError
         If prior_predictive is absent from idata.
     """
-    if not hasattr(idata, "prior_predictive") or idata.prior_predictive is None:
+    if "prior_predictive" not in idata.children:
         raise ValueError(
             "No prior_predictive data found in idata. "
             "Run MMM.sample_prior_predictive() first."
         )
-    return idata.prior_predictive
+    return idata["/prior_predictive"].to_dataset()
 
 
-def get_prior(idata: az.InferenceData) -> xr.Dataset:
+def get_prior(idata: xr.DataTree) -> xr.Dataset:
     """Return the prior group from *idata*.
 
     Parameters
     ----------
-    idata : az.InferenceData
-        InferenceData object holding the fitted model results.
+    idata : xr.DataTree
+        DataTree holding the fitted model results.
 
     Returns
     -------
@@ -472,11 +464,11 @@ def get_prior(idata: az.InferenceData) -> xr.Dataset:
     ValueError
         If prior is absent from idata.
     """
-    if not hasattr(idata, "prior") or idata.prior is None:
+    if "prior" not in idata.children:
         raise ValueError(
             "No prior data found in idata. Run MMM.sample_prior_predictive() first."
         )
-    return idata.prior
+    return idata["/prior"].to_dataset()
 
 
 def subsample_draws(
