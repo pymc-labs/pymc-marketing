@@ -437,7 +437,7 @@ def check_coverage() -> tuple[list[str], list[str]]:
 
     on_disk: set[str] = set()
     for nb in NOTEBOOK_DIR.rglob("*.ipynb"):
-        if "dev" in nb.parts:
+        if "dev" in nb.parts or ".ipynb_checkpoints" in nb.parts:
             continue
         on_disk.add(nb.relative_to(NOTEBOOK_DIR).with_suffix("").as_posix())
 

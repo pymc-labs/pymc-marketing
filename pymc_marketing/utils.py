@@ -16,19 +16,19 @@
 import warnings
 from pathlib import Path
 
-import arviz as az
+import xarray as xr
 
 from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
 
 __all__ = ["from_netcdf", "idata_from_zarr", "idata_to_zarr"]
 
 
-def from_netcdf(filepath: str | Path) -> az.InferenceData:
+def from_netcdf(filepath: str | Path) -> xr.DataTree:
     """Load inference data from a netcdf file.
 
     .. deprecated::
         ``from_netcdf`` will be removed in a future release.
-        Use ``arviz.from_netcdf`` directly instead.
+        Use ``xr.open_datatree`` directly instead.
 
     Parameters
     ----------
@@ -37,13 +37,13 @@ def from_netcdf(filepath: str | Path) -> az.InferenceData:
 
     Returns
     -------
-    az.InferenceData
+    xr.DataTree
         The inference data.
     """
     warnings.warn(
         "pymc_marketing.utils.from_netcdf is deprecated and will be removed "
-        "in a future release. Use arviz.from_netcdf directly instead.",
+        "in a future release. Use xr.open_datatree directly instead.",
         FutureWarning,
         stacklevel=2,
     )
-    return az.from_netcdf(filepath)
+    return xr.open_datatree(filepath)

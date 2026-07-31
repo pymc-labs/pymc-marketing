@@ -38,7 +38,7 @@ Filter to a single geo dimension:
 
     fig, axes = tp.saturation_scatterplot(dims={"geo": "geo_a"})
 
-Pass a date-filtered ``InferenceData`` without rebuilding the helper:
+Pass a date-filtered ``DataTree`` without rebuilding the helper:
 
 .. code-block:: python
 
@@ -89,7 +89,6 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
-import arviz as az
 import arviz_plots as azp
 import numpy as np
 import xarray as xr
@@ -132,7 +131,7 @@ class TransformationPlots:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's ``InferenceData``.
+        Validated wrapper around the fitted model's ``DataTree``.
     """
 
     def __init__(self, data: MMMIDataWrapper) -> None:
@@ -142,7 +141,7 @@ class TransformationPlots:
         self,
         original_scale: bool = True,
         apply_cost_per_unit: bool = True,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -162,7 +161,7 @@ class TransformationPlots:
         apply_cost_per_unit : bool, default True
             If True and cost-per-unit data is available, the x-axis shows
             spend.  If False, shows raw channel data.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.  When provided, an ``MMMIDataWrapper``
             is constructed from this ``idata`` and used for all access.
         dims : dict, optional
@@ -250,7 +249,7 @@ class TransformationPlots:
         hdi_prob: float | None = 0.94,
         random_seed: np.random.Generator | None = None,
         apply_cost_per_unit: bool = True,
-        idata: az.InferenceData | None = None,
+        idata: xr.DataTree | None = None,
         dims: dict[str, Any] | None = None,
         figsize: tuple[float, float] | None = None,
         backend: str | None = None,
@@ -306,7 +305,7 @@ class TransformationPlots:
             RNG for reproducible sample selection.
         apply_cost_per_unit : bool, default True
             If True and cost-per-unit data is available, the x-axis shows spend.
-        idata : az.InferenceData, optional
+        idata : xr.DataTree, optional
             Override instance data.
         dims : dict, optional
             Dimension filters.
@@ -383,7 +382,7 @@ class TransformationPlots:
 
         # plot the hdi band
         if hdi_prob is not None:
-            hdi = curves.azstats.hdi(hdi_prob)
+            hdi = curves.azstats.hdi(prob=hdi_prob)
             pc.map(
                 azp.visuals.fill_between_y,
                 x=spend_data,

@@ -10,10 +10,13 @@ You may wish to run the app locally rather than relying on the [deployment](http
 To run the app, you need a Python environment with **Python 3.11 or newer**.
 
 1. **Set up the environment:**
-   Create a new environment (or ensure your existing one uses Python 3.11 or higher).
    ```bash
-   conda create -c conda-forge -n marketing_stream python=3.11 pymc-marketing
-   conda activate marketing_stream
+   uv pip install pymc-marketing streamlit
+   ```
+   Or with pip:
+   ```bash
+   pip install pymc-marketing streamlit
+   ```
 2. **Install App Dependencies:**
 
 The Streamlit app has additional dependencies listed in `streamlit/mmm-explainer/requirements.txt`.

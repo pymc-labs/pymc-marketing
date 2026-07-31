@@ -13,12 +13,12 @@
 #   limitations under the License.
 
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 
 from pymc_marketing.customer_choice.nested_logit import NestedLogit
 
@@ -229,7 +229,7 @@ def test_sample(nstL, sample_df, utility_eqs, mock_pymc_sample):
     assert "fit_data" in nstL.idata
 
     nstL.sample_posterior_predictive(choice_df=sample_df, extend_idata=True)
-    assert isinstance(nstL.idata, az.InferenceData)
+    assert isinstance(nstL.idata, xr.DataTree)
 
     nstL.fit(choice_df=sample_df, utility_equations=utility_eqs)
 

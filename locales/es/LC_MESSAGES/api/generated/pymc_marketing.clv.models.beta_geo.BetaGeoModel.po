@@ -367,8 +367,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: 0609fa8c47e6446983651b7a61acc168
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: cb48d17d1f6f4e5d81ac890140a87f20
@@ -613,9 +613,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: cb1f704618b441bd843e0e75c16a3b10
-msgid "Create the initialization kwargs from an InferenceData object."
+msgid "Create the initialization kwargs from a DataTree object."
 msgstr ""
-"Cree los kwargs de inicialización a partir de un objeto InferenceData."
+"Cree los kwargs de inicialización a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: c5b3ac40a528439cb43fbf972349156f
@@ -646,9 +646,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: 70b464b8c13e4a17ae141af96f012990
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: b4343198766d43bdabcf6b8db5a02deb
@@ -679,8 +679,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: 42af027a62214fc49c54a25767ed7d0a
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.clv.models.beta_geo.BetaGeoModel.rst:44:<autosummary>:1
 #: e9ef0e87f66d4d4aa66ce0074eee0af3

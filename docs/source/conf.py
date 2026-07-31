@@ -115,7 +115,7 @@ plot_pre_code = (
     "import numpy as np\n"
     "import arviz  # registers arviz styles with matplotlib\n"
     "from matplotlib import pyplot as plt\n"
-    "plt.style.use('arviz-darkgrid')\n"
+    "plt.style.use('arviz-vibrant')\n"
 )
 
 # myst config
@@ -166,7 +166,7 @@ numpydoc_xref_aliases = {
     "TensorVariable": ":class:`~pytensor.tensor.TensorVariable`",
     "RandomVariable": ":class:`~pytensor.tensor.random.RandomVariable`",
     "ndarray": ":class:`~numpy.ndarray`",
-    "InferenceData": ":class:`~arviz.InferenceData`",
+    "DataTree": ":class:`~xarray.DataTree`",
     "Model": ":class:`~pymc.Model`",
     "tensor_like": ":term:`tensor_like`",
     "unnamed_distribution": ":term:`unnamed_distribution`",

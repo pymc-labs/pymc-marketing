@@ -62,11 +62,11 @@ msgstr "**\\*\\*kwargs**"
 #: bf85130fd2ee4d0e928aa91b7631d842 of
 #: pymc_marketing.model_builder.ModelIO.save:11
 msgid ""
-"Additional keyword arguments to pass to arviz.InferenceData.to_netcdf(). "
+"Additional keyword arguments to pass to arviz.DataTree.to_netcdf(). "
 "Common options include: - engine : str, optional (default \"netcdf4\")"
 msgstr ""
 "Argumentos adicionales de palabras clave para pasar a "
-"arviz.InferenceData.to_netcdf(). Las opciones comunes incluyen: - engine : "
+"arviz.DataTree.to_netcdf(). Las opciones comunes incluyen: - engine : "
 "str, opcional (predeterminado \"netcdf4\")"
 
 #: fb24244eb2064898b4b7e31d4c8b8176 of

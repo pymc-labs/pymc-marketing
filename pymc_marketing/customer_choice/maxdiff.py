@@ -26,7 +26,6 @@ import json
 import warnings
 from typing import Any, Literal, Self, TypedDict
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import patsy
@@ -675,7 +674,9 @@ class MaxDiffMixedLogit(ModelBuilder):
             new_respondents=new_respondents,
             draw_batch_size=draw_batch_size,
         )
-        self.intervention_idata = az.InferenceData(posterior_predictive=result)
+        self.intervention_idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": result}
+        )
         return result
 
     def score_new_items(
@@ -741,7 +742,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         posterior = self.idata["posterior"]
         beta_feat_vals = posterior["beta_feat"].values  # (C, D, P)
         # (C, D, I+N) — softmax is location-invariant so centering is unnecessary.
-        U_all = np.einsum("cdp,ip->cdi", beta_feat_vals, X_all)
+        U_all = np.einsum("cdp,ip->cdi", np.asarray(beta_feat_vals), X_all)
         U_shift = U_all - U_all.max(axis=-1, keepdims=True)
         exp_u = np.exp(U_shift)
         shares = exp_u / exp_u.sum(axis=-1, keepdims=True)
@@ -757,7 +758,9 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "items": all_items,
             },
         )
-        self.intervention_idata = az.InferenceData(posterior_predictive=result)
+        self.intervention_idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": result}
+        )
         return result
 
     @property
@@ -1033,12 +1036,19 @@ class MaxDiffMixedLogit(ModelBuilder):
         sigma_feat = self.model_config["sigma_feat"].create_variable("sigma_feat")
         z_feat = self.model_config["z_feat"].create_variable("z_feat")
 
-        # Per-respondent deviation on the random-feature subset only.
-        # dev has shape (respondents, features) with zeros outside rc columns,
-        # so beta_full_r = beta_feat + dev is (respondents, features).
-        dev = pt.zeros((n_respondents, len(self.feature_names)))
-        dev = pt.set_subtensor(dev[:, rc_idx], z_feat * sigma_feat[None, :])
-        beta_full_r = beta_feat[None, :] + dev  # (R, P)
+        # Per-respondent utilities: broadcast the population part-worths to
+        # (respondents, features), then add the non-centered deviation on the
+        # random-feature columns only. We increment those columns in place rather
+        # than building ``beta_feat[None, :] + zeros[:, rc].set(dev)``: the latter
+        # trips a PyTensor rewrite (``local_add_of_sparse_write``) that fails to
+        # broadcast the operand it fuses, spamming a benign but noisy traceback.
+        beta_full_r = pt.broadcast_to(
+            beta_feat[None, :], (n_respondents, len(self.feature_names))
+        )
+        beta_full_r = pt.set_subtensor(
+            beta_full_r[:, rc_idx],
+            beta_full_r[:, rc_idx] + z_feat * sigma_feat[None, :],
+        )  # (R, P)
         # Apply the same population shift so U_item_r[r] and U_item_pop live on
         # the same scale: U_item_r[r, i] = U_item_pop[i] + X[i,rc]@z_feat[r]*sigma.
         U_item_r = pm.Deterministic(
@@ -1121,19 +1131,19 @@ class MaxDiffMixedLogit(ModelBuilder):
         df_xr = df_xr.rename({"index": "row"})
         return df_xr
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Rebuild the PyMC model from a loaded InferenceData."""
-        self.task_df = idata["fit_data"].to_dataframe().reset_index(drop=True)
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Rebuild the PyMC model from a loaded DataTree."""
+        self.task_df = idata["fit_data"].dataset.to_dataframe().reset_index(drop=True)
         if not hasattr(self, "model"):
             self.build_model()
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from the prior predictive distribution."""
         if task_df is not None:
             self.task_df = task_df
@@ -1142,26 +1152,26 @@ class MaxDiffMixedLogit(ModelBuilder):
             self.build_model()
 
         with self.model:
-            prior_pred = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred = pm.sample_prior_predictive(draws=samples, **kwargs)
             prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
             prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
         return prior_pred
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit the model via NUTS and attach the result to ``self.idata``."""
         if task_df is not None:
             self.task_df = task_df
@@ -1181,33 +1191,33 @@ class MaxDiffMixedLogit(ModelBuilder):
 
         if self.idata:
             self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "fit_data" in self.idata.children:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self._create_fit_data()
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
                 category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
+                message="The group fit_data is not defined in the DataTree scheme",
             )
-            self.idata.add_groups(fit_data=fit_data)
+            self.idata["/fit_data"] = fit_data
 
         self.set_idata_attrs(self.idata)
         return self.idata
 
-    def sample_posterior_predictive(
+    def sample_posterior_predictive(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from the posterior predictive distribution.
 
         Appropriate for **in-sample posterior predictive checks** on training
@@ -1263,7 +1273,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         return post_pred
 
@@ -1349,7 +1359,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             reference_item=self.reference_item,
         )
 
-        posterior = self.idata["posterior"]
+        posterior = self.idata["/posterior"].dataset
         rng = (
             random_seed
             if isinstance(random_seed, np.random.Generator)

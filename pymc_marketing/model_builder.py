@@ -50,33 +50,33 @@ except ImportError:
 
 
 def create_idata_accessor(value: str, message: str):
-    """Create a property accessor for an InferenceData object.
+    """Create a property accessor for a group of the model's DataTree.
 
-    Underlying object must have an InferenceData object attribute named 'idata'.
+    Underlying object must have a ``xr.DataTree`` attribute named 'idata'.
 
     Parameters
     ----------
     value : str
-        The value to access in the InferenceData object.
+        The group to access in the DataTree.
     message : str
-        The error message to raise if the value is not found in the InferenceData object.
+        The error message to raise if the group is not found in the DataTree.
 
     Returns
     -------
     property
-        The property accessor for the InferenceData object.
+        The property accessor for the DataTree group.
 
     """
 
     def accessor(self) -> xr.Dataset:
-        if self.idata is None or value not in self.idata:
+        if self.idata is None or value not in self.idata.children:
             raise RuntimeError(message)
 
-        return self.idata[value]
+        return self.idata[f"/{value}"].to_dataset()
 
     return property(
         accessor,
-        doc=f"Access the '{value}' attribute of the InferenceData object.",
+        doc=f"Access the '{value}' group of the DataTree.",
     )
 
 
@@ -143,7 +143,7 @@ class ModelIO:
 
     _model_type: str
     version: str
-    idata: az.InferenceData | None
+    idata: xr.DataTree | None
     sampler_config: dict
     model_config: dict
 
@@ -255,35 +255,33 @@ class ModelIO:
 
         return attrs
 
-    def set_idata_attrs(
-        self, idata: az.InferenceData | None = None
-    ) -> az.InferenceData:
-        """Set attributes on an InferenceData object.
+    def set_idata_attrs(self, idata: xr.DataTree | None = None) -> xr.DataTree:
+        """Set attributes on a DataTree object.
 
         Parameters
         ----------
-        idata : arviz.InferenceData, optional
-            The InferenceData object to set attributes on.
+        idata : xr.DataTree, optional
+            The DataTree object to set attributes on.
 
         Raises
         ------
         ValueError
             If the attrs are missing for a property initialization of the class
         RuntimeError
-            If no InferenceData object is provided.
+            If no DataTree object is provided.
 
         Returns
         -------
-        InferenceData
-            The InferenceData instance with the attrs set
+        DataTree
+            The DataTree instance with the attrs set
 
         Examples
         --------
-        Set the attrs for an InferenceData object manually.
+        Set the attrs for a DataTree object manually.
 
         .. code-block:: python
 
-            idata: az.InferenceData = ...
+            idata: xr.DataTree = ...
             model.set_idata_attrs(idata=idata)
 
         """
@@ -309,7 +307,7 @@ class ModelIO:
             raise ValueError(msg)
 
         init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
-        # Remove data attr since it will be stored in the fit_data group of InferenceData
+        # Remove data attr since it will be stored in the fit_data group of DataTree
         init_parameters -= {"data"}
 
         if missing_keys := init_parameters - attrs_keys:
@@ -330,7 +328,7 @@ class ModelIO:
         fname : str
             The name and path of the file to save the inference data with model parameters.
         **kwargs
-            Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
+            Additional keyword arguments to pass to xr.DataTree.to_netcdf().
             Common options include:
 
             - ``engine`` : str, optional (default ``"netcdf4"``)
@@ -374,10 +372,22 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
+            groups = kwargs.pop("groups", None)
+            idata_to_save = self.idata
+            if groups is not None:
+                groups_with_slash = {
+                    g if g.startswith("/") else f"/{g}" for g in groups
+                }
+                nodes_to_drop = [
+                    node[1:]
+                    for node in self.idata.groups
+                    if node != "/" and node not in groups_with_slash
+                ]
+                idata_to_save = self.idata.drop_nodes(nodes_to_drop)
             if file.suffix == ".zarr" or file.is_dir():
-                idata_to_zarr(self.idata, file, **kwargs)
+                idata_to_zarr(idata_to_save, file, **kwargs)
             else:
-                self.idata.to_netcdf(str(file), **kwargs)
+                idata_to_save.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -421,16 +431,16 @@ class ModelIO:
         }
 
     @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
-        """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
+    def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict[str, Any]:
+        """Create  the model configuration and sampler configuration from the DataTree to keyword arguments.
 
         This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
     @abstractmethod
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Build the model from the InferenceData object."""
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build the model from the DataTree object."""
 
     @classmethod
     def load(cls, fname: str, check: bool = True):
@@ -440,17 +450,17 @@ class ModelIO:
 
         This class method has a few steps:
 
-        - Load the InferenceData from the file.
-        - Construct a new instance of the model using the InferenceData attrs
-        - Build the model from the InferenceData
-        - Check if the model id matches the id in the InferenceData loaded.
+        - Load the DataTree from the file.
+        - Construct a new instance of the model using the DataTree attrs
+        - Build the model from the DataTree
+        - Check if the model id matches the id in the DataTree loaded.
 
         Parameters
         ----------
         fname : string
             This denotes the name with path from where idata should be loaded from.
         check : bool, optional
-            Whether to check if the model id matches the id in the InferenceData loaded.
+            Whether to check if the model id matches the id in the DataTree loaded.
             Defaults to True.
 
         Returns
@@ -476,34 +486,34 @@ class ModelIO:
         if filepath.suffix == ".zarr" or filepath.is_dir():
             idata = idata_from_zarr(filepath)
         else:
-            idata = az.from_netcdf(str(filepath))
+            idata = xr.open_datatree(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
         except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
-                "an InferenceData of the same model "
+                "a DataTree of the same model "
                 f"or configuration as '{cls._model_type}'"
             )
             raise DifferentModelError(error_msg) from e
 
     @classmethod
-    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> "ModelIO":
-        """Create a ModelBuilder instance from an InferenceData object.
+    def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> "ModelIO":
+        """Create a ModelBuilder instance from a DataTree object.
 
         This class method has a few steps:
 
-        - Construct a new instance of the model using the InferenceData attrs
-        - Build the model from the InferenceData
-        - Check if the model id matches the id in the InferenceData loaded.
+        - Construct a new instance of the model using the DataTree attrs
+        - Build the model from the DataTree
+        - Check if the model id matches the id in the DataTree loaded.
 
         Parameters
         ----------
-        idata : az.InferenceData
-            The InferenceData object to load the model from.
+        idata : xr.DataTree
+            The DataTree object to load the model from.
         check : bool, optional
-            Whether to check if the model id matches the id in the InferenceData loaded.
+            Whether to check if the model id matches the id in the DataTree loaded.
             Defaults to True.
 
         Returns
@@ -514,7 +524,7 @@ class ModelIO:
         Raises
         ------
         DifferentModelError
-            If the model id in the InferenceData does not match the model id built.
+            If the model id in the DataTree does not match the model id built.
 
         """
         init_kwargs = cls.idata_to_init_kwargs(idata)
@@ -545,7 +555,7 @@ class ModelIO:
             loaded_version := idata.attrs["version"]
         ):
             msg = (
-                f"The model version ({loaded_version}) in the InferenceData does not "
+                f"The model version ({loaded_version}) in the DataTree does not "
                 f"match the model version ({model_version}). "
                 "There was no error loading the inference data, but the model structure "
                 "is different. "
@@ -554,7 +564,7 @@ class ModelIO:
 
         if model.id != idata.attrs["id"]:
             msg = (
-                "The model id in the InferenceData does not match the model id. "
+                "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
                 "be different. "
                 "Investigate if the model structure or configuration has changed."
@@ -571,7 +581,7 @@ class ModelBuilder(ABC, ModelIO):
     - default_model_config: Returns a dictionary for default model configuration.
     - default_sampler_config: Returns a dictionary for default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
-    - build_from_idata: Builds the model from an InferenceData object. Needed for loading models.
+    - build_from_idata: Builds the model from a DataTree object. Needed for loading models.
     - fit: Fits the model based on the provided data and sampler configurations.
     - attrs_to_init_kwargs: Override to add additional init keyword arguments.
     - _serializable_model_config: Needed for saving and loading the model.
@@ -580,6 +590,7 @@ class ModelBuilder(ABC, ModelIO):
 
     _model_type = "BaseClass"
     version = "None"
+    _skipped_config_keys: set[str] = set()
 
     def __init__(
         self,
@@ -593,6 +604,8 @@ class ModelBuilder(ABC, ModelIO):
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
+            A ``UserWarning`` is raised for any key not present in
+            ``default_model_config``, since such keys are ignored by the model.
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
@@ -615,12 +628,27 @@ class ModelBuilder(ABC, ModelIO):
         self.sampler_config = (
             self.default_sampler_config | sampler_config
         )  # Parameters for fit sampling
+        default_model_config = self.default_model_config
         self.model_config = (
-            self.default_model_config | model_config
+            default_model_config | model_config
         )  # parameters for priors etc.
 
+        # Warn about model_config keys that the model does not use, so that
+        # typos (e.g. "alphaa" instead of "alpha") don't silently get ignored.
+        unused_model_config_keys = (
+            set(model_config) - set(default_model_config) - self._skipped_config_keys
+        )
+        if unused_model_config_keys:
+            warnings.warn(
+                "The following model_config keys are not used by the model "
+                f"and will be ignored: {sorted(unused_model_config_keys)}. "
+                f"Valid keys are: {sorted(default_model_config)}.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         self.model: pm.Model
-        self.idata: az.InferenceData | None = None  # idata is generated during fitting
+        self.idata: xr.DataTree | None = None  # idata is generated during fitting
         self.is_fitted_ = False
 
     @property
@@ -713,14 +741,14 @@ class ModelBuilder(ABC, ModelIO):
     def fit(
         self,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit a model using the data passed as a parameter.
 
         Sets attrs to inference data of the model.
 
         Returns
         -------
-        self : az.InferenceData
+        self : xr.DataTree
             Returns inference data of the fitted model.
 
         """
@@ -764,7 +792,7 @@ class ModelBuilder(ABC, ModelIO):
 
         Returns
         -------
-        InferenceData object.
+        DataTree object.
 
         """
         return create_idata_accessor(
@@ -772,27 +800,36 @@ class ModelBuilder(ABC, ModelIO):
         ).__get__(self)
 
     @fit_result.setter
-    def fit_result(self, res: az.InferenceData) -> None:
+    def fit_result(self, res: xr.DataTree) -> None:
         """Create a setter method to overwrite the pre-existing fit_result.
 
         Parameters
         ----------
-        res : az.InferenceData
-            The inferencedata object to be set
-
-        Returns
-        -------
-        property
-            The property setter for the InferenceData object.
+        res : xr.DataTree
+            The DataTree object to be set
 
         """
         if self.idata is None:
             self.idata = res
-        elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
-            self.idata.posterior = res
+        elif "posterior" in self.idata.children:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=2)
+            self.idata["/posterior"] = res["/posterior"].to_dataset()
         else:
-            self.idata.posterior = res
+            if "posterior" in res.children:
+                self.idata["/posterior"] = res["/posterior"].to_dataset()
+            else:
+                # ``res`` has no explicit posterior group (e.g. a flat DataTree
+                # built from a bare Dataset): flatten every group's variables
+                # into a single posterior Dataset, keeping the first occurrence
+                # of each variable name.
+                posterior_flat = xr.Dataset()
+                for g in res.groups:
+                    if g == "/":
+                        continue
+                    for var_name, var in res[g].dataset.variables.items():
+                        if var_name not in posterior_flat:
+                            posterior_flat[var_name] = var
+                self.idata["/posterior"] = posterior_flat
 
     prior = create_idata_accessor(
         "prior",
@@ -913,8 +950,8 @@ class RegressionModelBuilder(ModelBuilder):
 
         """
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Build model from the InferenceData object.
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build model from the DataTree object.
 
         This is part of the :func:`load` method. See :func:`load` for more larger context.
 
@@ -923,11 +960,12 @@ class RegressionModelBuilder(ModelBuilder):
 
         Parameters
         ----------
-        idata : az.InferenceData
-            The InferenceData object to build the model from.
+        idata : xr.DataTree
+            The DataTree object to build the model from.
 
         """
-        dataset = idata.fit_data.to_dataframe()  # type: ignore
+        self.idata = idata
+        dataset = idata.fit_data.dataset.to_dataframe()  # type: ignore
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]
 
@@ -966,7 +1004,7 @@ class RegressionModelBuilder(ModelBuilder):
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Fit a model using the data passed as a parameter.
 
         Sets attrs to inference data of the model.
@@ -986,7 +1024,7 @@ class RegressionModelBuilder(ModelBuilder):
 
         Returns
         -------
-        self : az.InferenceData
+        self : xr.DataTree
             Returns inference data of the fitted model.
 
         Examples
@@ -1033,30 +1071,22 @@ class RegressionModelBuilder(ModelBuilder):
 
         # Compute deterministics after sampling
         with sampling_model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
+            idata["/posterior"] = pm.compute_deterministics(
+                idata["/posterior"], merge_dataset=True
             )
 
         if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "fit_data" in self.idata.children:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
+        self.idata["/fit_data"] = fit_data
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
@@ -1121,12 +1151,12 @@ class RegressionModelBuilder(ModelBuilder):
         *,
         fit_kwargs: dict[str, Any] | None = None,
         sample_kwargs: dict[str, Any] | None = None,
-    ) -> az.InferenceData:
-        """Fit a model using Variational Inference and return InferenceData.
+    ) -> xr.DataTree:
+        """Fit a model using Variational Inference and return a DataTree.
 
         This performs variational inference via `pymc.fit`, then draws posterior samples
         from the fitted approximation via `Approximation.sample`, returning an
-        `arviz.InferenceData` compatible with the rest of the API (same structure as `.fit`).
+        `xr.DataTree` compatible with the rest of the API (same structure as `.fit`).
 
         Parameters
         ----------
@@ -1145,8 +1175,8 @@ class RegressionModelBuilder(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
-            Inference data of the variationally fitted model.
+        xr.DataTree
+            DataTree of the variationally fitted model.
         """
         if (
             isinstance(y, pd.Series)
@@ -1188,39 +1218,30 @@ class RegressionModelBuilder(ModelBuilder):
                 _sample_kwargs.setdefault("random_seed", random_seed)
             _sample_kwargs.setdefault("return_inferencedata", True)
 
-            idata: az.InferenceData = approximation.sample(**_sample_kwargs)  # type: ignore[assignment]
+            idata: xr.DataTree = approximation.sample(**_sample_kwargs)  # type: ignore[assignment]
 
         # Compute deterministics after sampling for parity with MCMC `.fit`
         with self.model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
+            idata["/posterior"] = pm.compute_deterministics(
+                idata["/posterior"], merge_dataset=True
             )
 
         self.post_sample_model_transformation()
 
         # Extend or set self.idata
         if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
         # Annotate, attach fit_data, and set attrs
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+        if "fit_data" in self.idata.children:
+            self.idata = self.idata.drop_nodes("fit_data")
 
         fit_data = self.create_fit_data(X, y)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
-
+        self.idata["/fit_data"] = fit_data
         self.set_idata_attrs(self.idata)
         return self.idata  # type: ignore
 
@@ -1268,22 +1289,25 @@ class RegressionModelBuilder(ModelBuilder):
             self.build_model(X, y)
 
         with self.model:  # sample with new input data
-            prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
-            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
-            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
+            prior_pred: xr.DataTree = pm.sample_prior_predictive(
+                draws=samples, **kwargs
+            )
+            prior_pred["/prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["/prior_predictive"].attrs["pymc_marketing_version"] = (
+                __version__
+            )
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
-        prior_predictive_samples = az.extract(
-            prior_pred, "prior_predictive", combined=combined
+        result = az.extract(
+            prior_pred, "prior_predictive", combined=combined, keep_dataset=True
         )
-
-        return prior_predictive_samples
+        return result
 
     def sample_posterior_predictive(
         self,
@@ -1320,7 +1344,7 @@ class RegressionModelBuilder(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")  # type: ignore
+            self.idata.update(post_pred)  # type: ignore
 
         variable_name = (
             "predictions"
@@ -1328,7 +1352,10 @@ class RegressionModelBuilder(ModelBuilder):
             else "posterior_predictive"
         )
 
-        return az.extract(post_pred, variable_name, combined=combined)
+        result = az.extract(
+            post_pred, variable_name, combined=combined, keep_dataset=True
+        )
+        return result
 
     def predict_proba(
         self,

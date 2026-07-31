@@ -648,6 +648,14 @@ class TestBassModelClass:
         return np.random.default_rng(42).poisson(lam=100, size=20)
 
     @pytest.fixture
+    def multi_product_ds(self) -> xr.Dataset:
+        counts = np.random.default_rng(42).poisson(lam=100, size=(20, 3))
+        return xr.Dataset(
+            {"observed": (("T", "product"), counts)},
+            coords={"T": np.arange(20), "product": ["A", "B", "C"]},
+        )
+
+    @pytest.fixture
     def fitted_model(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
         model = BassModel()
         model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
@@ -752,11 +760,16 @@ class TestBassModelClass:
     def test_fit_basic(self, fitted_model: BassModel):
         idata = fitted_model.idata
         assert "posterior" in idata
-        assert "fit_data" in idata.groups()
+        assert "/fit_data" in idata.groups
 
     def test_fit_deterministics(self, fitted_model: BassModel):
+        # Read through the public ``posterior`` accessor (the DataTree node),
+        # which is what the plotting methods use. Asserting against
+        # ``idata.posterior`` would pass even with the deterministics missing
+        # from the node, since under arviz>=1.2 a stray ``idata.posterior =``
+        # assignment leaves a shadowing attribute behind.
         for var in ["adopters", "innovators", "imitators", "peak"]:
-            assert var in fitted_model.idata.posterior, f"Missing deterministic: {var}"
+            assert var in fitted_model.posterior, f"Missing deterministic: {var}"
 
     def test_fit_with_dataframe(self, mock_pymc_sample):
         df = pd.DataFrame(
@@ -789,6 +802,88 @@ class TestBassModelClass:
 
     def test_output_var(self):
         assert BassModel().output_var == "y"
+
+    def test_save_load_round_trip(self, mock_pymc_sample, y: np.ndarray, tmp_path):
+        model = BassModel(model_config={"m": Prior("Normal", mu=2000, sigma=200)})
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        for key in ["m", "p", "q", "likelihood"]:
+            assert isinstance(loaded.model_config[key], Prior)
+        # Stronger than isinstance: catches parameters dropped in the round-trip.
+        assert loaded.model_config == model.model_config
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_save_load_round_trip_scaled_priors(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset, tmp_path
+    ):
+        model = BassModel(
+            model_config={
+                "m": Scaled(
+                    Prior("Gamma", mu=1, sigma=0.1, dims="product"), factor=50_000
+                ),
+                "p": Prior("Beta", mu=0.02, dims="product").constrain(
+                    lower=0.01, upper=0.03
+                ),
+                "q": Prior("Beta", dims="product").constrain(lower=0.3, upper=0.5),
+                "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model_scaled.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        assert isinstance(loaded.model_config["m"], Scaled)
+        assert loaded.model_config["m"].factor == 50_000
+        assert isinstance(loaded.model_config["m"].dist, Prior)
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_multi_product_forecast_without_observed(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+
+        # sample_posterior_predictive returns the extracted "y" DataArray
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
+
+    def test_transposed_dataset_dims(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        # A user Dataset with (product, T) order must still fit and forecast:
+        # _from_xarray moves T to the front so y_obs matches the model layout,
+        # and the forecast placeholder shape is derived from the declared dims.
+        transposed = multi_product_ds.transpose("product", "T")
+        assert transposed["observed"].dims == ("product", "T")
+
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=transposed, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
 
     def test_posterior_predictive_in_sample(self, fitted_model_positive_m: BassModel):
         with fitted_model_positive_m.model:
@@ -836,8 +931,8 @@ class TestBassModelClass:
             X=X, extend_idata=True, random_seed=42
         )
         assert "posterior_predictive" in fitted_model_positive_m.idata
-        assert isinstance(pp, xr.Dataset)
-        assert "y" in pp.data_vars
+        assert isinstance(pp, xr.DataArray)
+        assert pp.name == "y"
         assert pp.sizes["T"] == expected_T
 
     def test_sample_posterior_predictive_extend_false(
@@ -848,5 +943,5 @@ class TestBassModelClass:
             extend_idata=False,
             random_seed=42,
         )
-        assert isinstance(pp, xr.Dataset)
+        assert isinstance(pp, xr.DataArray)
         assert "posterior_predictive" not in fitted_model_positive_m.idata

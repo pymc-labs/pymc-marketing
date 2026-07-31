@@ -213,6 +213,12 @@ Forecast the adoption of new products with the **Bass Diffusion Model**. The mod
 
 See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html) for a worked example.
 
+## Predicted Incrementality by Experimentation (PIE)
+
+Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomised experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did.
+
+The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
+
 ---
 
 ## Resources

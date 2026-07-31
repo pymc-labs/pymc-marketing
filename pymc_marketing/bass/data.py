@@ -102,8 +102,16 @@ def to_bass_dataset(data):
 @to_bass_dataset.register(xr.Dataset)
 def _from_xarray(data: xr.Dataset) -> xr.Dataset:
     """Preserve an ``xr.Dataset``, adding ``T`` when missing."""
+    if "observed" in data:
+        obs_dims = data["observed"].dims
+        if "T" in obs_dims and obs_dims[0] != "T":
+            # Keep ``T`` as the leading dim so ``y_obs`` matches the model layout
+            # regardless of the order the user passed (e.g. a (product, T) Dataset).
+            # Transpose before adding the coord so the ``T`` length is read from the
+            # ``T`` dim, not whichever dim happens to come first.
+            data = data.transpose("T", ...)
     if "T" not in data.coords:
-        n = next(iter(data.dims.values()))
+        n = data.sizes["T"] if "T" in data.sizes else next(iter(data.sizes.values()))
         data = data.assign_coords(T=np.arange(n))
     return data
 

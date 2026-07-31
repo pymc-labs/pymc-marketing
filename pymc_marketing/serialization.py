@@ -56,8 +56,8 @@ class DeserializationContext:
 
     Attributes
     ----------
-    idata : InferenceData or None
-        The InferenceData object being loaded from, used by deserializers
+    idata : xr.DataTree or None
+        The DataTree object being loaded from, used by deserializers
         that need to read supplementary data groups (e.g., EventAdditiveEffect
         reads df_events from a named idata group).
     """

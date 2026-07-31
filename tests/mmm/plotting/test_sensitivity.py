@@ -15,7 +15,6 @@
 
 from __future__ import annotations
 
-import arviz as az
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,7 +40,7 @@ def close_figures():
 
 
 @pytest.fixture(scope="module")
-def simple_sa_idata() -> az.InferenceData:
+def simple_sa_idata() -> xr.DataTree:
     """InferenceData with a sensitivity_analysis group.
 
     Dims: (sample=50, sweep=11, channel=3).
@@ -94,7 +93,9 @@ def simple_sa_idata() -> az.InferenceData:
         }
     )
 
-    return az.InferenceData(sensitivity_analysis=sa_ds, constant_data=constant_data)
+    return xr.DataTree.from_dict(
+        {"/sensitivity_analysis": sa_ds, "/constant_data": constant_data}
+    )
 
 
 @pytest.fixture(scope="module")
@@ -128,7 +129,9 @@ def test_marginal_reads_correct_key(sensitivity_plots):
 
 
 def test_missing_sa_group_raises(simple_sa_idata):
-    idata_no_sa = az.InferenceData(constant_data=simple_sa_idata.constant_data)
+    idata_no_sa = xr.DataTree.from_dict(
+        {"/constant_data": simple_sa_idata.constant_data}
+    )
     data = MMMIDataWrapper(idata_no_sa, validate_on_init=False)
     plots = SensitivityPlots(data)
     with pytest.raises(ValueError, match="sensitivity_analysis"):
@@ -137,9 +140,11 @@ def test_missing_sa_group_raises(simple_sa_idata):
 
 def test_missing_key_raises(simple_sa_idata):
     sa_ds = xr.Dataset({"x": simple_sa_idata.sensitivity_analysis["x"]})
-    idata_partial = az.InferenceData(
-        sensitivity_analysis=sa_ds,
-        constant_data=simple_sa_idata.constant_data,
+    idata_partial = xr.DataTree.from_dict(
+        {
+            "/sensitivity_analysis": sa_ds,
+            "/constant_data": simple_sa_idata.constant_data,
+        }
     )
     data = MMMIDataWrapper(idata_partial, validate_on_init=False)
     plots = SensitivityPlots(data)
@@ -192,9 +197,11 @@ def test_idata_override(sensitivity_plots, simple_sa_idata):
             )
         }
     )
-    new_idata = az.InferenceData(
-        sensitivity_analysis=new_sa_ds,
-        constant_data=simple_sa_idata.constant_data,
+    new_idata = xr.DataTree.from_dict(
+        {
+            "/sensitivity_analysis": new_sa_ds,
+            "/constant_data": simple_sa_idata.constant_data,
+        }
     )
 
     fig, _ = sensitivity_plots.analysis(idata=new_idata)
@@ -272,6 +279,17 @@ def test_uplift_has_horizontal_line_at_zero(sensitivity_plots):
     ax = axes.flat[0]
     hlines = [line for line in ax.get_lines() if list(line.get_ydata()) == [0.0, 0.0]]
     assert hlines, "Expected a horizontal reference line at y=0.0"
+
+
+def test_uplift_reference_lines_false(sensitivity_plots):
+    _, axes = sensitivity_plots.uplift(reference_lines=False)
+    ax = axes.flat[0]
+    vlines = [line for line in ax.get_lines() if list(line.get_xdata()) == [1.0, 1.0]]
+    hlines = [line for line in ax.get_lines() if list(line.get_ydata()) == [0.0, 0.0]]
+    assert not vlines, "Expected no vertical reference line when reference_lines=False"
+    assert not hlines, (
+        "Expected no horizontal reference line when reference_lines=False"
+    )
 
 
 def test_uplift_absolute_aggregated_channel_ref_line(
