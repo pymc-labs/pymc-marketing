@@ -27,5 +27,5 @@ msgstr "ModifiedBetaGeoModel.build\\_from\\_idata"
 
 #: d77c948c9c3c4596b0307bb80be185ba of
 #: pymc_marketing.clv.models.basic.CLVModel.build_from_idata:2
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."

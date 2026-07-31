@@ -42,13 +42,13 @@ msgstr "Devoluciones"
 
 #: 863d4b1d6aa7403e9456723f2c390e14 of
 #: pymc_marketing.model_builder.ModelBuilder.fit:11
-msgid "**self** : :obj:`az.InferenceData`"
-msgstr "**self** : :obj:`az.InferenceData`"
+msgid "**self** : :obj:`az.DataTree`"
+msgstr "**self** : :obj:`az.DataTree`"
 
 #: 6e6d2826dd674436957d876d68e6e9d4 of
 #: pymc_marketing.model_builder.ModelBuilder.fit:10
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: a0807d73369346d1a75db6c254ff3b1c of
 #: pymc_marketing.model_builder.ModelBuilder.fit:12

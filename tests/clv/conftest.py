@@ -69,7 +69,7 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
         warnings.filterwarnings(
             "ignore",
             category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
+            message="The group fit_data is not defined in the DataTree scheme",
         )
         model.idata["/fit_data"] = model.data.to_xarray()
     model.set_idata_attrs(fit)

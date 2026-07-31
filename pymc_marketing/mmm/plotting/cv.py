@@ -39,7 +39,7 @@ from pymc_marketing.mmm.plotting._helpers import (
 
 
 def _validate_cv_results(cv_data: xr.DataTree) -> None:
-    """Raise if cv_data is not a valid CV InferenceData.
+    """Raise if cv_data is not a valid CV DataTree.
 
     Minimum required: correct type + cv_metadata group present.
     Method-specific checks (e.g. posterior_predictive contents) are
@@ -51,7 +51,7 @@ def _validate_cv_results(cv_data: xr.DataTree) -> None:
         raise ValueError(
             "cv_data must have a 'cv_metadata' group. "
             "Ensure TimeSliceCrossValidator.run() has been called and the "
-            "resulting InferenceData is passed here."
+            "resulting DataTree is passed here."
         )
 
 
@@ -77,7 +77,7 @@ def _build_predictions_arrays(
     Parameters
     ----------
     cv_data : xr.DataTree
-        Full CV InferenceData (already validated by the caller).
+        Full CV DataTree (already validated by the caller).
     pp : xr.DataArray
         ``posterior_predictive["y_original_scale"]`` with dims
         ``(cv, chain, draw, date, ...)``.
@@ -159,7 +159,7 @@ def _pred_matrix_for_rows(
     Parameters
     ----------
     cv_data : xr.DataTree
-        Full CV InferenceData (already validated by the caller).
+        Full CV DataTree (already validated by the caller).
     cv_label : str
         Label identifying the CV fold to select.
     rows_df : pd.DataFrame
@@ -257,7 +257,7 @@ class MMMCVPlotSuite:
     Parameters
     ----------
     cv_data : xr.DataTree
-        Combined InferenceData produced by ``TimeSliceCrossValidator.run()``.
+        Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
         Must contain a ``cv_metadata`` group with per-fold metadata.
     """
 
@@ -435,7 +435,7 @@ class MMMCVPlotSuite:
         if "cv" not in data.posterior.dims:
             raise ValueError(
                 "No 'cv' coordinate found in cv_data.posterior. "
-                "Ensure the InferenceData was produced by TimeSliceCrossValidator.run()."
+                "Ensure the DataTree was produced by TimeSliceCrossValidator.run()."
             )
 
         posterior = data["/posterior"].dataset

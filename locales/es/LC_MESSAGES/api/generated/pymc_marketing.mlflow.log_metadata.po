@@ -55,13 +55,13 @@ msgid "The PyMC model object."
 msgstr "El objeto del modelo PyMC."
 
 #: 8ae4758468e7486fa18f4342cda7ba21 of pymc_marketing.mlflow.log_metadata:12
-msgid "**idata** : :obj:`az.InferenceData`"
-msgstr "**idata** : :obj:`az.InferenceData`"
+msgid "**idata** : :obj:`az.DataTree`"
+msgstr "**idata** : :obj:`az.DataTree`"
 
 #: 3a5dec100eb94fec944a7066e33ffd8d of pymc_marketing.mlflow.log_metadata:11
-msgid "az.InferenceData"
-msgstr "az.InferenceData"
+msgid "az.DataTree"
+msgstr "az.DataTree"
 
 #: 8145f8bab1d940ebb72bd368318c7538 of pymc_marketing.mlflow.log_metadata:13
-msgid "The InferenceData object returned by the sampling method."
-msgstr "El objeto InferenceData devuelto por el método de muestreo."
+msgid "The DataTree object returned by the sampling method."
+msgstr "El objeto DataTree devuelto por el método de muestreo."

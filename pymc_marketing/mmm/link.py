@@ -129,7 +129,7 @@ class LinkSpec(ABC):
         Parameters
         ----------
         posterior : xr.Dataset
-            Posterior group of the fitted model's ``InferenceData``.
+            Posterior group of the fitted model's ``DataTree``.
         output_var : str, default ``"y"``
             Name of the observed variable, used to locate the likelihood
             scale parameter in the posterior.

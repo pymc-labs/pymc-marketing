@@ -1507,11 +1507,11 @@ msgstr ""
 msgid ""
 "**NOTE:** If the method is being called **multiple times**, set the "
 "`extend_idata` argument to False in order to not overwrite the "
-"`observed_data` in the `InferenceData`"
+"`observed_data` in the `DataTree`"
 msgstr ""
 "**NOTA:** Si el método se llama **múltiples veces**, establece el argumento "
 "`extend_idata` a False para no sobrescribir los `observed_data` en el "
-"`InferenceData`"
+"`DataTree`"
 
 #: ../source/notebooks/mmm/mmm_example.ipynb:1430002
 #: 390bdfd5aa4b4bc48107a3d5e50ed284

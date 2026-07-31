@@ -38,7 +38,7 @@ Filter to a single geo dimension:
 
     fig, axes = tp.saturation_scatterplot(dims={"geo": "geo_a"})
 
-Pass a date-filtered ``InferenceData`` without rebuilding the helper:
+Pass a date-filtered ``DataTree`` without rebuilding the helper:
 
 .. code-block:: python
 
@@ -131,7 +131,7 @@ class TransformationPlots:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's ``InferenceData``.
+        Validated wrapper around the fitted model's ``DataTree``.
     """
 
     def __init__(self, data: MMMIDataWrapper) -> None:

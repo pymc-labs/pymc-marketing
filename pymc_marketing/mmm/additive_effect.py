@@ -1115,8 +1115,7 @@ def _deserialize_event_additive_effect(
         df_events = ds.to_dataframe().reset_index()
     except (KeyError, AttributeError) as e:
         raise SerializationError(
-            f"Cannot read supplementary data group '{group_name}' from "
-            f"InferenceData: {e}"
+            f"Cannot read supplementary data group '{group_name}' from DataTree: {e}"
         ) from e
 
     effect_data = data["effect"]

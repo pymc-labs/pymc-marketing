@@ -122,7 +122,7 @@ def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Datas
     Parameters
     ----------
     data : MMMIDataWrapper
-        Wrapper holding the model's InferenceData.
+        Wrapper holding the model's DataTree.
     original_scale : bool
         If True, return ``idata.prior`` (contains ``y_original_scale``).
         If False, return ``idata.prior_predictive`` (contains ``y``).
@@ -151,7 +151,7 @@ class DiagnosticsPlots:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's InferenceData.
+        Validated wrapper around the fitted model's DataTree.
     """
 
     def __init__(self, data: MMMIDataWrapper) -> None:
@@ -740,7 +740,7 @@ class DiagnosticsPlots:
         var_names : list[str] | str | None, optional
             Variable(s) to plot. ``None`` plots all variables in *group*.
         group : str, default "posterior"
-            InferenceData group to draw from. Use ``"prior"`` to quickly inspect
+            DataTree group to draw from. Use ``"prior"`` to quickly inspect
             the prior without calling ``prior_vs_posterior``.
         idata : xr.DataTree, optional
             Override instance data for this call only.

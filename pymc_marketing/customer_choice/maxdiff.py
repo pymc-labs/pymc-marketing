@@ -1205,7 +1205,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             warnings.filterwarnings(
                 "ignore",
                 category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
+                message="The group fit_data is not defined in the DataTree scheme",
             )
             self.idata["/fit_data"] = fit_data
 
