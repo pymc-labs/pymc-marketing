@@ -26,9 +26,11 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor
 import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.printing import model_table
+from pytensor.compile import Mode, get_default_mode
 from rich.table import Table
 
 from pymc_marketing.data.idata.utils import idata_from_zarr, idata_to_zarr
@@ -997,6 +999,21 @@ class RegressionModelBuilder(ModelBuilder):
     def _get_sampling_model(self) -> pm.Model:
         return self.model
 
+    def _get_sampling_rewrites(self) -> list[str]:
+        """Return PyTensor rewrite names to enable during MCMC sampling.
+
+        Subclasses can override this to inject custom rewrites into the
+        logp compilation pipeline.  Rewrites are applied **only** during
+        ``pm.sample()``; ``compute_deterministics`` runs under the
+        default mode.
+
+        Returns
+        -------
+        list[str]
+            Names of rewrites registered in ``optdb``.
+        """
+        return []
+
     def fit(  # type: ignore[override]
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
@@ -1064,10 +1081,25 @@ class RegressionModelBuilder(ModelBuilder):
 
         sampling_model = self._get_sampling_model()
 
-        # Sample without deterministics first
+        rewrites = self._get_sampling_rewrites()
         var_names = [var.name for var in sampling_model.free_RVs]
-        with sampling_model:
-            idata = pm.sample(var_names=var_names, **sampler_kwargs)
+
+        # Sample without deterministics first.
+        # When rewrites are specified, compile the logp function with
+        # those PyTensor optimizations enabled.  This is scoped so that
+        # ``compute_deterministics`` below runs under the default mode.
+        if rewrites:
+            mode = get_default_mode()
+            opt_qry = mode.provided_optimizer
+            for rw in rewrites:
+                opt_qry = opt_qry.including(rw)
+            custom_mode = Mode(linker=mode.linker, optimizer=opt_qry)
+            with sampling_model:
+                with pytensor.config.change_flags(mode=custom_mode):
+                    idata = pm.sample(var_names=var_names, **sampler_kwargs)
+        else:
+            with sampling_model:
+                idata = pm.sample(var_names=var_names, **sampler_kwargs)
 
         # Compute deterministics after sampling
         with sampling_model:
