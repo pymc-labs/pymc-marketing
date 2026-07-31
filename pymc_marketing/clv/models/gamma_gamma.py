@@ -174,7 +174,9 @@ class BaseGammaGammaModel(CLVModel):
 
         In addition, it applies a discount rate for net present value estimations.
 
-        Note `future_t` is measured in months regardless of `time_unit` specified.
+        Note: ``future_t`` is always in months regardless of the ``time_unit``
+        used for the transaction model. The value is converted internally to
+        the given ``time_unit`` for computing expected purchases per period.
 
         Adapted from the legacy ``lifetimes`` library:
         https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/fitters/gamma_gamma_fitter.py#L246
@@ -192,7 +194,8 @@ class BaseGammaGammaModel(CLVModel):
             * `T`: Time between the first purchase and the end of the observation period
             * `monetary_value`: Mean spend values of repeat purchases for each customer
         future_t : int, optional
-            The lifetime expected for the user in months. Default: 12
+            The number of months to project lifetime value for. This is always
+            specified in months, independent of ``time_unit``. Default: 12
         discount_rate : float, optional
             The monthly adjusted discount rate. Default: 0.00
         time_unit : string, optional

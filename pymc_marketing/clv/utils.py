@@ -54,7 +54,10 @@ def customer_lifetime_value(
 
     Compute the average lifetime value for a group of one or more customers
     and apply a discount rate for net present value estimations.
-    Note `future_t` is measured in months regardless of `time_unit` specified.
+
+    Note: ``future_t`` is always in months regardless of the ``time_unit``
+    used for the transaction model. The value is converted internally to
+    the given ``time_unit`` for computing expected purchases per period.
 
     Adapted from the legacy ``lifetimes`` library:
     https://github.com/CamDavidsonPilon/lifetimes/blob/41e394923ad72b17b5da93e88cfabab43f51abe2/lifetimes/utils.py#L449
@@ -72,7 +75,8 @@ def customer_lifetime_value(
         * `T`: Time between the first purchase and the end of the observation period
         * `future_spend`: Predicted monetary values for each customer
     future_t : int, optional
-        The lifetime expected for the user in months. Default: 12
+        The number of months to project lifetime value for. This is always
+        specified in months, independent of ``time_unit``. Default: 12
     discount_rate : float, optional
         The monthly adjusted discount rate. Default: 0.00
     time_unit : string, optional
