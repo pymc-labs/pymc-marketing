@@ -432,7 +432,7 @@ class ModelIO:
 
     @classmethod
     def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict[str, Any]:
-        """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
+        """Create  the model configuration and sampler configuration from the DataTree to keyword arguments.
 
         This method must be overridden in child classes to add additional keyword arguments.
         """
@@ -555,7 +555,7 @@ class ModelIO:
             loaded_version := idata.attrs["version"]
         ):
             msg = (
-                f"The model version ({loaded_version}) in the InferenceData does not "
+                f"The model version ({loaded_version}) in the DataTree does not "
                 f"match the model version ({model_version}). "
                 "There was no error loading the inference data, but the model structure "
                 "is different. "
@@ -564,7 +564,7 @@ class ModelIO:
 
         if model.id != idata.attrs["id"]:
             msg = (
-                "The model id in the InferenceData does not match the model id. "
+                "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
                 "be different. "
                 "Investigate if the model structure or configuration has changed."
@@ -581,7 +581,7 @@ class ModelBuilder(ABC, ModelIO):
     - default_model_config: Returns a dictionary for default model configuration.
     - default_sampler_config: Returns a dictionary for default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
-    - build_from_idata: Builds the model from an InferenceData object. Needed for loading models.
+    - build_from_idata: Builds the model from a DataTree object. Needed for loading models.
     - fit: Fits the model based on the provided data and sampler configurations.
     - attrs_to_init_kwargs: Override to add additional init keyword arguments.
     - _serializable_model_config: Needed for saving and loading the model.
@@ -792,7 +792,7 @@ class ModelBuilder(ABC, ModelIO):
 
         Returns
         -------
-        InferenceData object.
+        DataTree object.
 
         """
         return create_idata_accessor(

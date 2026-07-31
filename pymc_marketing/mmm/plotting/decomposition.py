@@ -48,7 +48,7 @@ class DecompositionPlots:
     Parameters
     ----------
     data : MMMIDataWrapper
-        Validated wrapper around the fitted model's InferenceData.
+        Validated wrapper around the fitted model's DataTree.
     """
 
     def __init__(self, data: MMMIDataWrapper) -> None:
