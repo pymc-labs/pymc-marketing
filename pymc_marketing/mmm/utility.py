@@ -51,14 +51,16 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 UtilityFunctionType = Callable[[XTensorVariable, XTensorVariable], float]
 
 
-def _check_samples_dimensionality(samples: XTensorVariable) -> XTensorVariable:
-    """Check if samples is a 1D tensor variable."""
-    ndim = samples.type.ndim
-    if ndim == 1:
+def _check_samples_dimensionality(
+    samples: XTensorVariable, ndim: int = 1
+) -> XTensorVariable:
+    """Check if samples is a tensor variable with `ndim` dimensions."""
+    samples_ndim = samples.type.ndim
+    if samples_ndim == ndim:
         return samples
     else:
         raise ValueError(
-            f"Function expected samples to be a 1D tensor variable. Got {ndim} dimensions."
+            f"Function expected samples to be a {ndim}D tensor variable. Got {samples_ndim} dimensions."
         )
 
 
@@ -574,9 +576,14 @@ def diversification_ratio(
     Parameters
     ----------
     samples : XTensorVariable
-        2D PyTensor tensor variable where each column represents the returns of an asset.
+        2D PyTensor tensor variable with a ``"sample"`` dim and an asset dim, holding the
+        per-asset returns. Unlike the other utility functions, which take samples of the
+        total response, this one needs the response broken down per asset (e.g.
+        ``"channel_contribution"`` summed over ``"date"``), since it measures how the
+        assets co-vary.
     budgets : XTensorVariable
         1D PyTensor tensor variable representing the investment amounts in each asset.
+        Its dim must match the asset dim of ``samples``.
 
     Returns
     -------
@@ -586,6 +593,20 @@ def diversification_ratio(
     This ratio provides insight into how individual asset volatilities and their correlations
     contribute to the overall portfolio risk.
 
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        from pytensor.xtensor import as_xtensor
+
+        from pymc_marketing.mmm.utility import diversification_ratio
+
+        rng = np.random.default_rng(0)
+        samples = as_xtensor(rng.normal(size=(100, 3)), dims=("sample", "channel"))
+        budgets = as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("channel",))
+        diversification_ratio(samples, budgets).eval()
+
     References
     ----------
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
@@ -593,7 +614,7 @@ def diversification_ratio(
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
-    samples = _check_samples_dimensionality(samples)
+    samples = _check_samples_dimensionality(samples, ndim=2)
     weights = budgets / budgets.sum()
     individual_volatilities = samples.std(dim="sample", ddof=1)
 
@@ -602,7 +623,7 @@ def diversification_ratio(
 
     # w'Σw
     portfolio_var = ptx.dot(
-        weights.rename({asset_dim: f"{asset_dim}'"}, ptx.dot(cov_matrix, weights)),
+        weights.rename({asset_dim: f"{asset_dim}'"}), ptx.dot(cov_matrix, weights)
     )
     portfolio_volatility = ptx.math.sqrt(portfolio_var)
     weighted_avg_volatility = (weights * individual_volatilities).sum()

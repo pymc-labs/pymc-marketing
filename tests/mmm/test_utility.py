@@ -25,6 +25,7 @@ from pymc_marketing.mmm.utility import (
     adjusted_value_at_risk_score,
     average_response,
     conditional_value_at_risk,
+    diversification_ratio,
     mean_tightness_score,
     portfolio_entropy,
     raroc,
@@ -397,6 +398,82 @@ def test_general_functions(samples, budgets, func):
         assert pytensor_result is not None, "Function returned None"
     except Exception as e:
         pytest.fail(f"Function {func.__name__} raised an unexpected exception: {e!s}")
+
+
+def _numpy_diversification_ratio(samples, budgets):
+    """Reference implementation of the diversification ratio."""
+    weights = budgets / budgets.sum()
+    weighted_avg_volatility = (weights * samples.std(axis=0, ddof=1)).sum()
+    portfolio_volatility = np.sqrt(weights @ np.cov(samples, rowvar=False) @ weights)
+    return weighted_avg_volatility / portfolio_volatility
+
+
+@pytest.mark.parametrize(
+    "samples, budgets",
+    [
+        (
+            np.array([[1.0, 2.0], [3.0, 5.0], [5.0, 4.0], [7.0, 9.0]]),
+            np.array([100.0, 300.0]),
+        ),
+        (
+            pm.draw(pm.Normal.dist(mu=10, sigma=2, size=(100, 4)), random_seed=rng),
+            np.array([100.0, 200.0, 300.0, 400.0]),
+        ),
+        (
+            pm.draw(pm.Normal.dist(mu=10, sigma=2, size=(50, 3)), random_seed=rng),
+            np.array([1.0, 1.0, 1.0]),  # Equal weights
+        ),
+    ],
+)
+def test_diversification_ratio_matches_numpy(samples, budgets):
+    pt_samples = as_xtensor(samples, dims=("sample", "channel"))
+    pt_budgets = as_xtensor(budgets, dims=("channel",))
+
+    np.testing.assert_allclose(
+        diversification_ratio(pt_samples, pt_budgets).eval(),
+        _numpy_diversification_ratio(samples, budgets),
+        rtol=1e-8,
+        err_msg="Diversification Ratio mismatch",
+    )
+
+
+def test_diversification_ratio_perfectly_correlated_assets():
+    """A portfolio of perfectly correlated assets is not diversified at all (DR == 1)."""
+    common_factor = pm.draw(pm.Normal.dist(size=(100, 1)), random_seed=rng)
+    samples = common_factor * np.array([1.0, 2.0, 3.0])
+
+    result = diversification_ratio(
+        as_xtensor(samples, dims=("sample", "channel")),
+        as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("channel",)),
+    ).eval()
+
+    np.testing.assert_allclose(result, 1.0, rtol=1e-8)
+
+
+def test_diversification_ratio_rewards_uncorrelated_assets():
+    """Uncorrelated assets diversify better than correlated ones with the same volatilities."""
+    common_factor = pm.draw(pm.Normal.dist(size=(500, 1)), random_seed=rng)
+    correlated = common_factor * np.array([1.0, 1.0, 1.0])
+    uncorrelated = pm.draw(pm.Normal.dist(size=(500, 3)), random_seed=rng)
+    budgets = as_xtensor(np.array([100.0, 100.0, 100.0]), dims=("channel",))
+
+    correlated_dr = diversification_ratio(
+        as_xtensor(correlated, dims=("sample", "channel")), budgets
+    ).eval()
+    uncorrelated_dr = diversification_ratio(
+        as_xtensor(uncorrelated, dims=("sample", "channel")), budgets
+    ).eval()
+
+    assert uncorrelated_dr > correlated_dr
+
+
+def test_diversification_ratio_requires_2d_samples(test_data):
+    samples, budgets = test_data
+    with pytest.raises(
+        ValueError,
+        match=r"Function expected samples to be a 2D tensor variable. Got 1 dimensions.",
+    ):
+        diversification_ratio(samples, budgets)
 
 
 @pytest.mark.parametrize(
