@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 from arviz_plots import PlotCollection
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.decomposition import DecompositionPlots
@@ -361,6 +362,24 @@ class TestWaterfall:
         monkeypatch.setattr(plt_mod, "gcf", patched_gcf)
         simple_plots.waterfall()
         assert called == [], "waterfall must not call plt.gcf()"
+
+    def test_keeps_ambient_layout_engine(self, simple_plots, panel_plots):
+        """A layout engine installed by the caller's style must survive."""
+        with plt.rc_context({"figure.constrained_layout.use": True}):
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "error", message="The figure layout has changed"
+                )
+                for plots in (simple_plots, panel_plots):
+                    fig, _axes = plots.waterfall()
+                    assert isinstance(fig.get_layout_engine(), ConstrainedLayoutEngine)
+
+    def test_lays_out_figure_without_ambient_engine(self, simple_plots):
+        """Without an ambient engine the figure is still laid out tightly."""
+        fig, _axes = simple_plots.waterfall()
+        assert fig.axes[0].get_position().x0 != pytest.approx(
+            plt.rcParams["figure.subplot.left"]
+        )
 
     def test_baseline_bar_present(self, simple_plots):
         """Waterfall must include a 'baseline' bar."""

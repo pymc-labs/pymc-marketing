@@ -391,7 +391,10 @@ class DecompositionPlots:
 
             self._plot_waterfall_panel(ax, panel_entries, safe_bar_kwargs)
 
-        fig.tight_layout()
+        # Only lay out the figure when the caller's style has not installed a
+        # layout engine; tight_layout() would replace it and warn.
+        if fig.get_layout_engine() is None:
+            fig.tight_layout()
         return fig, np.atleast_1d(np.array(axes_flat))
 
     def channel_share_hdi(
