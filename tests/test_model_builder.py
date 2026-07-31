@@ -19,7 +19,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import arviz as az
 import graphviz
 import numpy as np
 import pandas as pd
@@ -223,7 +222,7 @@ class ModelBuilderTest(ModelBuilder):
             # Very simple model to avoid compilation issues
             pm.Normal("test", 0, 1)
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         self.build_model()
 
     def create_idata_attrs(self):
@@ -248,6 +247,10 @@ class ModelBuilderTest(ModelBuilder):
             "target_accept": 0.95,
         }
 
+    @property
+    def output_var(self) -> str:
+        return "output"
+
     def fit(self, **kwargs):
         """Override fit method for ModelBuilderTest."""
         if not hasattr(self, "model"):
@@ -263,8 +266,7 @@ class ModelBuilderTest(ModelBuilder):
             idata = pm.sample(**sampler_kwargs)
 
         if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
+            self.idata.update(idata)
         else:
             self.idata = idata
 
@@ -292,6 +294,38 @@ def test_model_configuration(model_class, expected_type, test_config):
     assert nondefault.sampler_config != nondefault.default_sampler_config
     assert nondefault.model_config == default.model_config | test_config
     assert nondefault.sampler_config == default.sampler_config | {"draws": 42}
+
+
+def test_model_config_warns_on_unused_keys():
+    """Unknown model_config keys should warn so typos are not silently ignored."""
+    with pytest.warns(UserWarning, match="not used by the model"):
+        ModelBuilderTest(model_config={"mu_loc": 5, "typo_key": 1})
+
+
+def test_model_config_no_warning_for_valid_keys(recwarn):
+    """No unused-key warning is raised when every key is a valid default key."""
+    ModelBuilderTest(model_config={"mu_loc": 5})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_no_warning_for_skipped_keys(recwarn):
+    """No unused-key warning for keys listed in _skipped_config_keys."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a", "extra_b"}
+
+    SkippedKeysModel(model_config={"extra_a": 1, "extra_b": 2})
+    assert not [w for w in recwarn if "not used by the model" in str(w.message)]
+
+
+def test_model_config_warns_on_non_skipped_keys():
+    """Keys not in defaults or _skipped_config_keys still warn."""
+
+    class SkippedKeysModel(ModelBuilderTest):
+        _skipped_config_keys = {"extra_a"}
+
+    with pytest.warns(UserWarning, match="not used by the model"):
+        SkippedKeysModel(model_config={"extra_a": 1, "typo_key": 2})
 
 
 @pytest.mark.parametrize(
@@ -365,7 +399,7 @@ def test_model_io_comprehensive():
     fake_idata = pm.sample_prior_predictive(
         draws=10, model=simple_model, random_seed=1234
     )
-    fake_idata.add_groups(dict(posterior=fake_idata.prior))
+    fake_idata["/posterior"] = fake_idata["/prior"].to_dataset()
 
     result_idata = regression_model.set_idata_attrs(fake_idata)
     assert result_idata.attrs["id"] == regression_model.id
@@ -522,7 +556,9 @@ def test_base_model_save_load(fitted_base_model_instance):
 
     test_builder2 = ModelBuilderTest.load(temp.name)
 
-    assert fitted_base_model_instance.idata.groups() == test_builder2.idata.groups()
+    assert set(fitted_base_model_instance.idata.groups) == set(
+        test_builder2.idata.groups
+    )
     assert fitted_base_model_instance.id == test_builder2.id
     assert fitted_base_model_instance.model_config == test_builder2.model_config
     assert fitted_base_model_instance.sampler_config == test_builder2.sampler_config
@@ -534,7 +570,7 @@ def test_initial_build_and_fit(
 ) -> RegressionModelBuilder:
     if check_idata:
         assert fitted_regression_model_instance.idata is not None
-        assert "posterior" in fitted_regression_model_instance.idata.groups()
+        assert "/posterior" in fitted_regression_model_instance.idata.groups
 
 
 def test_save_with_kwargs(fitted_regression_model_instance):
@@ -546,8 +582,9 @@ def test_save_with_kwargs(fitted_regression_model_instance):
     ) as mock_to_netcdf:
         temp = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
 
-        # Test with kwargs supported by InferenceData.to_netcdf()
-        kwargs = {"engine": "netcdf4", "groups": ["posterior", "log_likelihood"]}
+        # groups is handled by save() (filters DataTree before saving)
+        # and not passed through to to_netcdf
+        kwargs = {"engine": "netcdf4"}
 
         fitted_regression_model_instance.save(temp.name, **kwargs)
 
@@ -576,12 +613,12 @@ def test_save_with_kwargs_integration(
     if suffix == ".zarr":
         loaded_idata = idata_from_zarr(path_arg)
     else:
-        loaded_idata = az.from_netcdf(str(file_path))
+        loaded_idata = xr.open_datatree(str(file_path))
 
     assert loaded_idata is not None
-    assert "posterior" in loaded_idata.groups()
+    assert "/posterior" in loaded_idata.groups
     # Should only have posterior since we specified groups=["posterior"]
-    assert "fit_data" not in loaded_idata.groups()
+    assert "/fit_data" not in loaded_idata.groups
 
 
 def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
@@ -598,7 +635,7 @@ def test_save_kwargs_backward_compatibility(fitted_regression_model_instance):
         assert os.path.exists(temp_path)
         loaded_model = RegressionModelBuilderTest.load(temp_path)
         assert loaded_model.idata is not None
-        assert "posterior" in loaded_model.idata.groups()
+        assert "/posterior" in loaded_model.idata.groups
 
     finally:
         # Clean up
@@ -613,13 +650,13 @@ def test_empty_sampler_config_fit(toy_X, toy_y, mock_pymc_sample):
         X=toy_X, y=toy_y, chains=1, draws=100, tune=100
     )
     assert model_builder.idata is not None
-    assert "posterior" in model_builder.idata.groups()
+    assert "/posterior" in model_builder.idata.groups
 
 
 def test_fit(fitted_regression_model_instance):
     rng = np.random.default_rng(42)
     assert fitted_regression_model_instance.idata is not None
-    assert "posterior" in fitted_regression_model_instance.idata.groups()
+    assert "/posterior" in fitted_regression_model_instance.idata.groups
     assert fitted_regression_model_instance.idata.posterior.sizes["draw"] == 100
 
     prediction_data = pd.DataFrame({"input": rng.uniform(low=0, high=1, size=100)})
@@ -638,7 +675,7 @@ def test_fit_no_t(toy_X, mock_pymc_sample):
     model_builder.idata = model_builder.fit(X=toy_X, chains=1, draws=100, tune=100)
     assert model_builder.model is not None
     assert model_builder.idata is not None
-    assert "posterior" in model_builder.idata.groups()
+    assert "/posterior" in model_builder.idata.groups
 
 
 def test_set_fit_result(toy_X, toy_y):
@@ -646,7 +683,7 @@ def test_set_fit_result(toy_X, toy_y):
     model.build_model(X=toy_X, y=toy_y)
     model.idata = None
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=1234)
-    fake_fit.add_groups(dict(posterior=fake_fit.prior))
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     model.fit_result = fake_fit
     with pytest.warns(UserWarning, match="Overriding pre-existing fit_result"):
         model.fit_result = fake_fit
@@ -721,7 +758,7 @@ def test_sample_xxx_predictive_keeps_second(
     with pytest.raises(AssertionError):
         xr.testing.assert_allclose(first_sample, second_sample)
 
-    sample = getattr(fitted_regression_model_instance.idata, name)
+    sample = getattr(fitted_regression_model_instance, name)
     xr.testing.assert_allclose(sample, second_sample)
 
 
@@ -756,6 +793,28 @@ def test_sample_prior_predictive_has_pymc_marketing_version(
     assert (
         "pymc_marketing_version" in model_with_prior_predictive.prior_predictive.attrs
     )
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_prior_predictive_returns_dataset_with_attrs(toy_X, combined):
+    model = RegressionModelBuilderTest()
+    result = model.sample_prior_predictive(toy_X, combined=combined)
+    assert isinstance(result, xr.Dataset)
+    assert "pymc_marketing_version" in result.attrs
+    assert "inference_library" in result.attrs
+    assert "inference_library_version" in result.attrs
+
+
+@pytest.mark.parametrize("combined", [True, False])
+def test_sample_posterior_predictive_returns_dataset_with_attrs(
+    fitted_regression_model_instance, toy_X, combined
+):
+    result = fitted_regression_model_instance.sample_posterior_predictive(
+        toy_X, combined=combined, extend_idata=False
+    )
+    assert isinstance(result, xr.Dataset)
+    assert "inference_library" in result.attrs
+    assert "inference_library_version" in result.attrs
 
 
 def test_fit_after_prior_keeps_prior(
@@ -977,7 +1036,7 @@ def test_fit_sampler_config_with_rng(toy_X, toy_y, mock_pymc_sample) -> None:
     model = RegressionModelBuilderTest(sampler_config=sampler_config)
 
     idata = model.fit(toy_X, toy_y)
-    assert isinstance(idata, az.InferenceData)
+    assert isinstance(idata, xr.DataTree)
 
 
 def test_unmatched_index(toy_X, toy_y) -> None:
@@ -1003,14 +1062,14 @@ def test_approximate_fit_variational(toy_X, toy_y) -> None:
     )
 
     assert idata is not None
-    assert "posterior" in idata.groups()
+    assert "/posterior" in idata.groups
     assert idata.posterior.sizes["draw"] == 20
     assert idata.posterior.sizes["chain"] == 1
     assert "fit_data" in idata
 
 
 @pytest.fixture(scope="module")
-def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
+def stale_idata(fitted_regression_model_instance) -> xr.DataTree:
     idata = fitted_regression_model_instance.idata.copy()
     idata.attrs["version"] = "0.0.1"
 
@@ -1018,7 +1077,7 @@ def stale_idata(fitted_regression_model_instance) -> az.InferenceData:
 
 
 @pytest.fixture(scope="module")
-def different_configuration_idata(fitted_regression_model_instance) -> az.InferenceData:
+def different_configuration_idata(fitted_regression_model_instance) -> xr.DataTree:
     idata = fitted_regression_model_instance.idata.copy()
 
     model_config = json.loads(idata.attrs["model_config"])
@@ -1127,7 +1186,7 @@ def test_xarray_model_builder(X_is_array, xarray_X, xarray_y, mock_pymc_sample) 
     model.fit(X, xarray_y)
 
     xr.testing.assert_equal(
-        model.idata.fit_data,  # type: ignore
+        model.idata.fit_data.to_dataset(),
         pd.DataFrame(
             {
                 "x": [1, 2, 3, 4],
@@ -1204,7 +1263,7 @@ def test_load_from_idata_check_false(fitted_regression_model_instance):
 def test_load_from_idata_without_fit_data_warns(fitted_regression_model_instance):
     idata = fitted_regression_model_instance.idata.copy()
     assert "fit_data" in idata
-    del idata.fit_data
+    del idata["fit_data"]
     with pytest.warns(UserWarning, match="fit_data used for training"):
         model = RegressionModelBuilderTest.load_from_idata(idata)
     assert isinstance(model, RegressionModelBuilderTest)
@@ -1216,9 +1275,9 @@ def test_fit_result_setter_else_branch():
     """Covers line 707: else branch in fit_result setter."""
     model = RegressionModelBuilderTest()
     # Create idata with no 'posterior'
-    import arviz as az
-
-    idata = az.from_dict(prior={"a": np.ones((1, 1, 1))})
+    idata = xr.DataTree.from_dict(
+        {"/prior": xr.Dataset({"a": (("chain", "draw", "dim_2"), np.ones((1, 1, 1)))})}
+    )
     model.idata = idata
     model.fit_result = idata
     assert hasattr(model.idata, "posterior")

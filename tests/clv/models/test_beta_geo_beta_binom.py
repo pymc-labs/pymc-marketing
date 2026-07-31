@@ -74,8 +74,8 @@ class TestBetaGeoBetaBinomModel:
         cls.pred_data_N = len(test_customer_ids)
 
         # Instantiate model with CDNOW data for testing
-        cls.model = BetaGeoBetaBinomModel(cls.data)
-        cls.model.build_model()
+        cls.model = BetaGeoBetaBinomModel()
+        cls.model.build_model(data=cls.data)
 
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.data)
@@ -105,16 +105,14 @@ class TestBetaGeoBetaBinomModel:
     def test_model(self, model_config):
         # this test requires a different setup from other models due to default_model_config containing NoneTypes
         default_model = BetaGeoBetaBinomModel(
-            data=self.data,
             model_config=None,
         )
         custom_model = BetaGeoBetaBinomModel(
-            data=self.data,
             model_config=model_config,
         )
 
         for model in (default_model, custom_model):
-            model.build_model()
+            model.build_model(data=self.data)
             assert isinstance(
                 model.model["alpha"].owner.op,
                 ViewOp | Elemwise
@@ -254,17 +252,16 @@ class TestBetaGeoBetaBinomModel:
                 "\nkappa_purchase~Pareto(1,1)"
                 "\nphi_dropout~Uniform(0,1)"
                 "\nkappa_dropout~Pareto(1,1)"
-                "\nalpha~Deterministic(f(kappa_purchase,phi_purchase))"
-                "\nbeta~Deterministic(f(kappa_purchase,phi_purchase))"
-                "\ngamma~Deterministic(f(kappa_dropout,phi_dropout))"
-                "\ndelta~Deterministic(f(kappa_dropout,phi_dropout))"
+                "\nalpha=Deterministic(f(kappa_purchase,phi_purchase))"
+                "\nbeta=Deterministic(f(kappa_purchase,phi_purchase))"
+                "\ngamma=Deterministic(f(kappa_dropout,phi_dropout))"
+                "\ndelta=Deterministic(f(kappa_dropout,phi_dropout))"
                 "\nrecency_frequency~BetaGeoBetaBinom(alpha,beta,gamma,delta,<constant>)"
             )
         model = BetaGeoBetaBinomModel(
-            data=self.data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
 
         assert model.__repr__().replace(" ", "") == repr
 
@@ -281,13 +278,14 @@ class TestBetaGeoBetaBinomModel:
     )
     def test_model_convergence(self, method, rtol, model_config):
         model = BetaGeoBetaBinomModel(
-            data=self.sample_data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.sample_data)
 
         sample_kwargs = dict(random_seed=self.rng, chains=2) if method == "mcmc" else {}
-        model.fit(method=method, progressbar=False, **sample_kwargs)
+        model.fit(
+            data=self.sample_data, method=method, progressbar=False, **sample_kwargs
+        )
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -310,12 +308,13 @@ class TestBetaGeoBetaBinomModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=self.pred_data,
             tune=5,
             chains=2,
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -463,16 +462,16 @@ class TestBetaGeoBetaBinomModel:
         assert est_prob_alive.mean() > est_prob_alive_t.mean()
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = BetaGeoBetaBinomModel(
-            data=self.sample_data,
-        )
-        mock_model.build_model()
+        mock_model = BetaGeoBetaBinomModel()
+        mock_model.build_model(data=self.sample_data)
         mock_model.idata = az.from_dict(
             {
-                "alpha": [self.alpha_true],
-                "beta": [self.beta_true],
-                "delta": [self.delta_true],
-                "gamma": [self.gamma_true],
+                "posterior": {
+                    "alpha": np.array([[self.alpha_true]]),
+                    "beta": np.array([[self.beta_true]]),
+                    "delta": np.array([[self.delta_true]]),
+                    "gamma": np.array([[self.gamma_true]]),
+                }
             }
         )
 

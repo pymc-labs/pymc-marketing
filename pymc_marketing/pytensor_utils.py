@@ -18,7 +18,7 @@ from collections import Counter
 
 import arviz as az
 import pandas as pd
-from arviz import InferenceData
+import xarray as xr
 from pymc.model.core import Model
 from pymc.model.fgraph import (
     ModelVar,
@@ -26,8 +26,7 @@ from pymc.model.fgraph import (
     fgraph_from_model,
     model_from_fgraph,
 )
-from pymc.pytensorf import rvs_in_graph
-from pytensor import as_symbolic
+from pymc.pytensorf import StringConstant, rvs_in_graph
 from pytensor.graph.basic import Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
@@ -89,7 +88,7 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
 
     # Don't rename dimensions that belong to excluded variables
     dims_rename = {
-        dim: as_symbolic(f"{prefix}_{dim.data}")
+        dim: StringConstant(dim.type, f"{prefix}_{dim.data}")
         for dim in dims
         if dim.data not in exclude_dims
     }
@@ -265,7 +264,7 @@ def validate_unique_value_vars(model: Model) -> None:
 
 def extract_response_distribution(
     pymc_model: Model,
-    idata: InferenceData,
+    idata: xr.DataTree,
     response_variable: str,
     frozen_deterministics: list[str] | None = None,
 ) -> Variable:
@@ -275,7 +274,7 @@ def extract_response_distribution(
     ----------
     pymc_model : Model
         The PyMC model to extract the response distribution from.
-    idata : InferenceData
+    idata : xr.DataTree
         The inference data containing posterior samples.
     response_variable : str
         The name of the response variable to extract.
@@ -294,7 +293,7 @@ def extract_response_distribution(
     returns a graph that computes `"channel_contribution"` as a function of both
     the newly introduced budgets and the posterior of model parameters.
     """
-    # Convert InferenceData to a sample-major xarray
+    # Convert DataTree to a sample-major xarray
     posterior = az.extract(idata).transpose("sample", ...)  # type: ignore
 
     # The PyMC variable to extract
@@ -331,9 +330,11 @@ def extract_response_distribution(
     # Replace placeholders with actual posterior samples
     replace_dict = {}
     for placeholder in placeholder_replace_dict.values():
+        posterior_da = posterior[placeholder.name].astype(placeholder.dtype)
         replace_dict[placeholder] = xtensor_constant(
-            posterior[placeholder.name].astype(placeholder.dtype),
+            posterior_da.values,
             name=placeholder.name,
+            dims=posterior_da.dims,
         )
 
     # Vectorize across samples

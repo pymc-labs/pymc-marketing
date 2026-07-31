@@ -226,7 +226,6 @@ from abc import abstractmethod
 from collections.abc import Iterable
 from typing import Any, Self
 
-import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
@@ -511,11 +510,13 @@ class FourierBase(BaseModel):
         """
         coords = coords or {}
         coords[self.prefix] = self.nodes
+        if "samples" in kwargs:
+            kwargs["draws"] = kwargs.pop("samples")
         return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
 
     def sample_curve(
         self,
-        parameters: az.InferenceData | xr.Dataset,
+        parameters: xr.DataTree | xr.Dataset,
         use_dates: bool = False,
         start_date: str | datetime.datetime | None = None,
     ) -> xr.DataArray:
@@ -523,7 +524,7 @@ class FourierBase(BaseModel):
 
         Parameters
         ----------
-        parameters : az.InferenceData | xr.Dataset
+        parameters : xr.DataTree | xr.Dataset
             Inference data or dataset containing the Fourier parameters.
             Can be posterior or prior.
         use_dates : bool, optional

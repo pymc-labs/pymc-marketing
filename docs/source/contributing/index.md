@@ -57,22 +57,12 @@ For more instructions see the [Pull request checklist](pull-request-checklist)
 1. Create a dedicated development environment from the file present in the repo:
 
     ```bash
-    conda env create -f environment.yml
+    uv sync
     ```
 
-    This will create an environment called `pymc-marketing-dev`. Activate the environment.
+    This will create a virtual environment and install the package in editable mode with all dependencies.
 
-    ```bash
-    conda activate pymc-marketing-dev
-    ```
-
-    Install the package (in editable mode) and its development dependencies:
-
-    ```bash
-    make init
-    ```
-
-    Set [pre-commit hooks](https://pre-commit.com/). First install pre-commit package (either `pip install pre-commit`, see the package's installation instructions). Alternatively you can run `make check_lint` which will install the `pre-commit` package. Then run this to set up the git hook scripts:
+    Set [pre-commit hooks](https://pre-commit.com/). First install the pre-commit package (either `pip install pre-commit`, see the package's installation instructions). Alternatively you can run `make check_lint` which will install the `pre-commit` package. Then run this to set up the git hook scripts:
 
     ```bash
     pre-commit install

@@ -15,7 +15,6 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pytest
@@ -28,7 +27,7 @@ SEED = 42
 
 @pytest.fixture(scope="module")
 def cv_results_idata():
-    """Minimal az.InferenceData for MMMCVPlotSuite tests.
+    """Minimal xr.DataTree for MMMCVPlotSuite tests.
 
     Three folds over 30 daily dates:
       fold_0 — train 0-19, test 20-29
@@ -99,10 +98,12 @@ def cv_results_idata():
         }
     )
 
-    return az.InferenceData(
-        posterior=posterior_ds,
-        posterior_predictive=pp_ds,
-        cv_metadata=cv_metadata_ds,
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": posterior_ds,
+            "/posterior_predictive": pp_ds,
+            "/cv_metadata": cv_metadata_ds,
+        }
     )
 
 
@@ -131,13 +132,13 @@ class TestInit:
     def test_raises_type_error_for_non_idata(self):
         from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 
-        with pytest.raises(TypeError, match=r"az\.InferenceData"):
+        with pytest.raises(TypeError, match=r"xr\.DataTree"):
             MMMCVPlotSuite({"not": "idata"})
 
     def test_raises_value_error_without_cv_metadata(self):
         from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 
-        bad = az.InferenceData(posterior=xr.Dataset())
+        bad = xr.DataTree.from_dict({"/posterior": xr.Dataset()})
         with pytest.raises(ValueError, match="cv_metadata"):
             MMMCVPlotSuite(bad)
 
@@ -170,15 +171,15 @@ class TestPredictions:
         assert len(colors) >= 2, "Expected at least two fill colors (train/test)"
 
     def test_missing_cv_metadata_raises(self, cv_plot, cv_results_idata):
-        bad = az.InferenceData(
-            posterior_predictive=cv_results_idata.posterior_predictive
+        bad = xr.DataTree.from_dict(
+            {"/posterior_predictive": cv_results_idata.posterior_predictive}
         )
         # bad has no cv_metadata — _validate_cv_results raises ValueError
         with pytest.raises((TypeError, ValueError)):
             cv_plot.predictions(cv_data=bad)
 
     def test_missing_posterior_predictive_raises(self, cv_plot, cv_results_idata):
-        bad = az.InferenceData(cv_metadata=cv_results_idata.cv_metadata)
+        bad = xr.DataTree.from_dict({"/cv_metadata": cv_results_idata.cv_metadata})
         with pytest.raises(ValueError, match="posterior_predictive"):
             cv_plot.predictions(cv_data=bad)
 
@@ -255,9 +256,11 @@ class TestParamStability:
 
         # Strip cv coordinate from posterior
         posterior = cv_results_idata.posterior.isel(cv=0, drop=True)
-        bad = az.InferenceData(
-            posterior=posterior,
-            cv_metadata=cv_results_idata.cv_metadata,
+        bad = xr.DataTree.from_dict(
+            {
+                "/posterior": posterior,
+                "/cv_metadata": cv_results_idata.cv_metadata,
+            }
         )
         suite = MMMCVPlotSuite(bad)
         with pytest.raises(ValueError, match="cv"):
@@ -273,7 +276,7 @@ class TestParamStability:
 
 @pytest.fixture(scope="module")
 def cv_results_idata_geo():
-    """az.InferenceData with an extra 'geo' dimension in y_original_scale.
+    """xr.DataTree with an extra 'geo' dimension in y_original_scale.
 
     Mirrors a real multidimensional MMM where the model is fit per geo.
     Used to reproduce the CRPS all-NaN bug.
@@ -345,8 +348,12 @@ def cv_results_idata_geo():
     cv_metadata_ds = xr.Dataset(
         {"metadata": xr.DataArray(meta_arr, dims=["cv"], coords={"cv": cv_labels})}
     )
-    return az.InferenceData(
-        posterior=posterior_ds, posterior_predictive=pp_ds, cv_metadata=cv_metadata_ds
+    return xr.DataTree.from_dict(
+        {
+            "/posterior": posterior_ds,
+            "/posterior_predictive": pp_ds,
+            "/cv_metadata": cv_metadata_ds,
+        }
     )
 
 
@@ -390,8 +397,8 @@ class TestCRPS:
         assert any("test" in t for t in titles), "No title contains 'test'"
 
     def test_missing_cv_metadata_raises(self, cv_plot, cv_results_idata):
-        bad = az.InferenceData(
-            posterior_predictive=cv_results_idata.posterior_predictive
+        bad = xr.DataTree.from_dict(
+            {"/posterior_predictive": cv_results_idata.posterior_predictive}
         )
         with pytest.raises((TypeError, ValueError)):
             cv_plot.crps(cv_data=bad)

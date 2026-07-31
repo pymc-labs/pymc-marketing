@@ -389,10 +389,11 @@ class HSGPBase(BaseModel):
         with pm.Model(coords=coords) as model:
             self.create_variable("f", xdist=True)
 
-        return pm.sample_prior_predictive(
+        prior_pred = pm.sample_prior_predictive(
             model=model,
             **sample_prior_predictive_kwargs,
-        ).prior
+        )
+        return prior_pred["/prior"].to_dataset()
 
     def plot_curve(
         self,
