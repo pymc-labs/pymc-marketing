@@ -80,12 +80,10 @@ def local_sum_mul_to_dot(fgraph, node):
     a, b = mul_inputs
 
     def _unwrap_weight(var):
-        """Return the inner 1D vector if *var* is a DimShuffle of one."""
-        if var.owner is not None and isinstance(var.owner.op, DimShuffle):
-            inner = var.owner.inputs[0]
-            if inner.type.ndim == 1:
-                return inner
-        return None
+        """Return the inner 1D vector, walking through any DimShuffle chain."""
+        while var.owner is not None and isinstance(var.owner.op, DimShuffle):
+            var = var.owner.inputs[0]
+        return var if var.type.ndim == 1 else None
 
     weight_a = _unwrap_weight(a)
     if weight_a is not None:

@@ -178,6 +178,65 @@ class TestNumericalEquivalence:
 # -- rewrite conditions -----------------------------------------------------
 
 
+class TestNestedDimShuffle:
+    """Verify the rewrite handles chained DimShuffles from canonicalization."""
+
+    def test_unwraps_nested_dimshuffles(self):
+        """Rewrite should recursively unwrap DimShuffle chains to find 1D weight.
+
+        When the canonicalizer inserts geo-broadcasting DimShuffles (as in
+        Fourier contributions on geo models), the weight can end up behind
+        multiple nested DimShuffles.  The rewrite must walk the full chain.
+        """
+        T, C = 10, 4
+        X = pt.matrix("X")
+        w = pt.dvector("w")
+
+        # Simulate canonicalized geo-broadcasting:
+        # weight gets chained DimShuffles: ExpandDims + geo-insertion
+        w1 = w.dimshuffle("x", 0)
+        w2 = w1.dimshuffle("x", 0, 1)
+        X3 = X.dimshuffle("x", 0, 1)
+
+        expr = (X3 * w2).sum(axis=-1)
+
+        mode = create_sampling_mode()
+        fn = function([X, w], expr, mode=mode)
+
+        # Post-fix: rewrite should fire
+        assert _has_op(fn, Dot), (
+            "Rewrite should unwrap nested DimShuffles to find the 1D weight"
+        )
+
+        xv = np.random.randn(T, C).astype("float64")
+        wv = np.random.randn(C).astype("float64")
+        result = fn(xv, wv)
+
+        # Expression has extra (1,) broadcast dims from DimShuffles,
+        # so baseline should match: (1, T, C) * (1, 1, C) → sum → (1, T)
+        expected = (xv[None, :, :] * wv).sum(axis=-1)
+        np.testing.assert_allclose(result, expected)
+
+    def test_nested_unwrap_numerical_match(self):
+        """Deep chain: 3 layers of DimShuffle still resolve to correct dot."""
+        T, C = 10, 4
+        X = pt.matrix("X")
+        w = pt.dvector("w")
+
+        w1 = w.dimshuffle("x", 0)
+        w2 = w1.dimshuffle("x", 0, 1)
+        X3 = X.dimshuffle("x", 0, 1)
+
+        expr = (X3 * w2).sum(axis=-1)
+
+        mode = create_sampling_mode()
+        fn = function([X, w], expr, mode=mode)
+        xv = np.random.randn(T, C).astype("float64")
+        wv = np.random.randn(C).astype("float64")
+        result = fn(xv, wv)
+        np.testing.assert_allclose(result.squeeze(), (xv * wv).sum(axis=-1))
+
+
 class TestRewriteConditions:
     """Verify rewrite only fires for the intended patterns."""
 
@@ -247,8 +306,15 @@ class TestRewriteConditions:
         expected = (xv * wv).sum(axis=(0, 1))
         np.testing.assert_allclose(result, expected)
 
-    def test_works_across_linkers(self):
-        """Rewrite works with CVM and Numba linkers."""
+    @pytest.mark.parametrize("linker", ["cvm", "numba", "jax", "mlx"])
+    def test_works_across_linkers(self, linker):
+        """Rewrite works across all available linkers."""
+        # Skip if linker package not installed
+        if linker == "jax":
+            pytest.importorskip("jax")
+        if linker == "mlx":
+            pytest.importorskip("mlx")
+
         T, C = 10, 4
         X = pt.matrix("X")
         w = pt.dvector("w")
@@ -258,16 +324,15 @@ class TestRewriteConditions:
         wv = np.random.randn(C).astype("float64")
         expected = (xv * wv).sum(axis=-1)
 
-        for linker in ["cvm", "numba"]:
-            base = Mode(linker=linker, optimizer="fast_run")
-            mode = create_sampling_mode(base_mode=base)
-            try:
-                fn = function([X, w], expr, mode=mode)
-                result = fn(xv, wv)
-                assert np.allclose(result, expected), f"Failed with linker={linker}"
-                assert _has_op(fn, Dot), f"Dot should appear with linker={linker}"
-            except Exception as e:
-                pytest.fail(f"Linker {linker} failed: {e}")
+        base = Mode(linker=linker, optimizer="fast_run")
+        mode = create_sampling_mode(base_mode=base)
+        try:
+            fn = function([X, w], expr, mode=mode)
+            result = fn(xv, wv)
+            assert np.allclose(result, expected), f"Failed with linker={linker}"
+            assert _has_op(fn, Dot), f"Dot should appear with linker={linker}"
+        except Exception as e:
+            pytest.fail(f"Linker {linker} failed: {e}")
 
 
 # -- integration with MMM ---------------------------------------------------
