@@ -1152,6 +1152,10 @@ def test_discounted_event_effect_optimization_end_to_end(mock_pymc_sample, link)
     assert result.success
     # Media still sums to the budget; the discount stays out of the pot.
     assert np.isclose(float(optimal_budgets.sum()), 100.0)
+    # The media block genuinely optimizes -- it must move off the uniform
+    # seed (regression: an objective-only rescale left the constraint
+    # unscaled and froze media at x0 while only the levers moved).
+    assert not np.allclose(result.x[:2], [50.0, 50.0], atol=1e-6)
 
     depths = result.optimized_vars["promo_data"]
     assert depths.dims == ("promo",)
@@ -1191,6 +1195,10 @@ def test_optimizable_vars_names_only(mock_pymc_sample):
             contribution = pmd.Deterministic(
                 f"{self.prefix}_effect_contribution", data * coef, dims=self.prefix
             )
+            # A names-only user supplies their own objective node --
+            # total_response_original_scale is only registered for
+            # OptimizableMuEffect models.
+            pmd.Deterministic(f"{self.prefix}_objective", contribution.sum())
             return contribution.sum(dim=self.prefix)
 
         def set_data(self, mmm, model, X) -> None:
@@ -1220,7 +1228,7 @@ def test_optimizable_vars_names_only(mock_pymc_sample):
         start_date=date_range[-1] + pd.Timedelta(weeks=1),
         end_date=date_range[-1] + pd.Timedelta(weeks=4),
         optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
-        response_variable="total_response_original_scale",
+        response_variable="promo_objective",
     )
     optimal_budgets, result = optimizer.allocate_budget(total_budget=100.0)
 
@@ -1369,6 +1377,64 @@ def test_optimized_vars_empty_without_optimizable_vars(mock_pymc_sample):
     _, result = optimizer.allocate_budget(total_budget=100.0)
     assert result.success
     assert result.optimized_vars == {}
+
+
+def test_direct_budget_optimizer_wrapper_infers_levers(mock_pymc_sample):
+    """BudgetOptimizer(model=<wrapper>) infers effect levers, duck-typed.
+
+    The legacy direct-construction path must not silently freeze the discount
+    calendar: _handle_legacy_model_arg pulls optimizable_vars off the wrapper
+    via _effect_optimizable_vars (no marketing imports).
+    """
+    date_range = pd.date_range("2023-01-01", periods=20, freq="W")
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["spring_sale"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-03-15"],
+                "discount_pct": [0.10],
+            }
+        ),
+        prefix="promo",
+        discount_min=0.05,
+        discount_max=0.45,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(effect)
+    mmm.fit(X, y, random_seed=1)
+
+    with pytest.warns(DeprecationWarning, match="BudgetOptimizerWrapper"):
+        wrapper = BudgetOptimizerWrapper(
+            model=mmm, start_date=date_range[2], end_date=date_range[12]
+        )
+    optimizer = BudgetOptimizer(
+        model=wrapper,
+        num_periods=wrapper.num_periods,
+        response_variable="total_response_original_scale",
+    )
+    assert optimizer.optimizable_vars == {"promo_data": [(0.05, 0.45)]}
+    assert [name for name, *_ in optimizer._var_slices] == ["promo_data"]
+
+    # An explicit opt-out on the direct path is respected, too.
+    optimizer_off = BudgetOptimizer(
+        model=wrapper, num_periods=wrapper.num_periods, optimizable_vars={}
+    )
+    assert optimizer_off._var_slices == []
 
 
 def test_optimizable_vars_empty_dict_opts_out(mock_pymc_sample):

@@ -2378,8 +2378,7 @@ class MMM(RegressionModelBuilder):
             # Non-optimizable mu effects (seasonality, trend, holiday events,
             # ...) are part of the baseline; optimizable repricing effects
             # (e.g. DiscountedEventEffect under the identity link) apply on
-            # top of it, so they are created after the stash. Two optimizable
-            # effects never reprice each other.
+            # top of it, so they are created after the stash.
             for mu_effect in self.mu_effects:
                 if not isinstance(mu_effect, OptimizableMuEffect):
                     mu_var += mu_effect.create_effect(self)
@@ -2392,6 +2391,12 @@ class MMM(RegressionModelBuilder):
             for mu_effect in self.mu_effects:
                 if isinstance(mu_effect, OptimizableMuEffect):
                     mu_var += mu_effect.create_effect(self)
+                    # Refresh the stash so consecutive repricing effects
+                    # compose multiplicatively -- mu_base * (1+m1) * (1+m2),
+                    # order-independent -- instead of summing multipliers on
+                    # the same baseline (an additive double-count on shared
+                    # dates). Matches how the log link composes them.
+                    self._mu_baseline = mu_var
 
             if self.link == LinkFunction.LOG:
                 mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
@@ -2404,10 +2409,17 @@ class MMM(RegressionModelBuilder):
                 target_scale=_target_scale,
                 output_var=self.output_var,
             )
-            self._link_spec.create_total_response_deterministic(
-                mu_var=mu_var,
-                target_scale=_target_scale,
-            )
+            # Registered only when there is an optimizable effect lever to
+            # score against it -- it is that machinery's objective, and
+            # registering it unconditionally would silently add a variable to
+            # every existing user's posterior.
+            if any(
+                isinstance(effect, OptimizableMuEffect) for effect in self.mu_effects
+            ):
+                self._link_spec.create_total_response_deterministic(
+                    mu_var=mu_var,
+                    target_scale=_target_scale,
+                )
 
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,

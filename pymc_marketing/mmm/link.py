@@ -50,6 +50,11 @@ class LinkSpec(ABC):
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
       ``total_media_contribution_original_scale``.
+
+    One concrete helper is shared by all links:
+    :meth:`create_total_response_deterministic` (the optimizable-effect
+    objective ``total_response_original_scale``, registered by
+    ``MMM.build_model`` only when the model has an optimizable effect).
     """
 
     link: LinkFunction

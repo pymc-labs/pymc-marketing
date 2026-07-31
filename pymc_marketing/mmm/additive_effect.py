@@ -291,7 +291,8 @@ class OptimizableMuEffect(MuEffect, ABC):
     """A :class:`MuEffect` whose own lever can be optimized jointly with media budgets.
 
     The lever is the ``pm.Data`` node named by :attr:`lever_var_name`
-    (registered in :meth:`MuEffect.create_data` with a single non-date dim;
+    (registered in :meth:`MuEffect.create_data` with a single dim, which must
+    not be the date dim;
     defaults to ``f"{prefix}_data"``).
     ``MMM.budget_optimizer`` translates each optimizable effect into an
     ``optimizable_vars`` entry -- the node name plus the effect's native
@@ -929,6 +930,15 @@ class DiscountedEventEffect(OptimizableMuEffect):
 
     **Caveats.**
 
+    * **The optimal depth is a closed form in** :math:`\beta_k` **alone.**
+      Under the default mean utility the lever enters the objective through a
+      strictly positive, depth-independent weight, so
+      :math:`d_k^* = (\beta_k - 1)/(\beta_k + 1)` regardless of the baseline
+      level, the media plan, or the total budget — the coupling is
+      one-directional (the discount changes the media optimum; media never
+      moves :math:`d_k^*`).  This stops holding for risk-adjusted
+      ``utility_function`` s, where the weighting across posterior draws
+      matters and the joint machinery genuinely earns its keep.
     * **The lift curve is functional form, not data, away from the observed
       depth.** Each event typically has a single historical
       ``discount_pct``, so :math:`\beta_k \ln(1 + d_k)` is exactly the
@@ -937,13 +947,15 @@ class DiscountedEventEffect(OptimizableMuEffect):
       assumed parametric form, not from observed variation in depth.  Treat
       prescribed depths as model-based extrapolations.
     * Under the identity link the baseline that gets repriced is
-      ``MMM._mu_baseline`` — everything in :math:`\mu` **except** effects
-      applied at or after the optimizable-effects stage.  Non-optimizable
-      mu-effects (e.g. :class:`FourierEffect`, :class:`LinearTrendEffect`)
-      are included; other :class:`OptimizableMuEffect` instances are not
-      (two discount effects never reprice each other).  Under the log link
-      everything in :math:`\mu` composes multiplicatively, including
-      concurrent media.
+      ``MMM._mu_baseline``.  Non-optimizable mu-effects (e.g.
+      :class:`FourierEffect`, :class:`LinearTrendEffect`) are always part of
+      it; optimizable repricing effects apply after it and **compose
+      multiplicatively** — with two effects the result is
+      :math:`\mu^{\text{base}}(1 + m_1)(1 + m_2)`, the same composition the
+      log link produces.  The composed total is order-independent; on shared
+      dates the *per-effect* contribution deterministics attribute the
+      overlap following declaration order.  Under the log link everything
+      in :math:`\mu` composes multiplicatively, including concurrent media.
     * Because media flows through the repricing multiplier during event
       windows, ``total_media_contribution_original_scale`` no longer
       captures media's full marginal effect when this effect is present —

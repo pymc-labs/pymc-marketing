@@ -865,6 +865,116 @@ def test_discount_identity_baseline_includes_non_optimizable_effects():
     np.testing.assert_allclose(contrib, expected, rtol=1e-8)
 
 
+def test_discount_two_effects_compose_multiplicatively():
+    """Two repricing effects sharing a model date give mu_base*(1+m1)(1+m2).
+
+    build_model refreshes _mu_baseline after each optimizable effect, so
+    multipliers compose (as under the log link) instead of summing on the
+    same baseline -- the additive cross-effect double-count.
+    """
+    rng = np.random.default_rng(1)
+    dates_ = pd.date_range("2023-01-01", periods=52, freq="W")
+    X = pd.DataFrame(
+        {
+            "date": dates_,
+            "ch1": rng.uniform(100, 500, size=len(dates_)),
+            "ch2": rng.uniform(100, 500, size=len(dates_)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+
+    def make(prefix, d):
+        return DiscountedEventEffect(
+            df_events=pd.DataFrame(
+                {
+                    "name": [f"{prefix}_event"],
+                    "start_date": ["2023-03-01"],
+                    "end_date": ["2023-03-31"],  # same window: shared dates
+                    "discount_pct": [d],
+                }
+            ),
+            prefix=prefix,
+        )
+
+    mmm = (
+        MMM(
+            date_column="date",
+            channel_columns=["ch1", "ch2"],
+            target_column="target",
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+            link="identity",
+        )
+        .add_mu_effect(make("promo", 0.30))
+        .add_mu_effect(make("loyalty", 0.20))
+    )
+    mmm.build_model(X, y)
+
+    beta1, beta2 = 2.0, 1.5
+    d1, d2 = 0.30, 0.20
+    fixed = pm.do(
+        mmm.model,
+        {"promo_beta": np.array([beta1]), "loyalty_beta": np.array([beta2])},
+    )
+    c1, c2, window, intercept, channel = pm.draw(
+        [
+            fixed["promo_effect_contribution"],
+            fixed["loyalty_effect_contribution"],
+            fixed["promo_window"],
+            fixed["intercept_contribution"],
+            fixed["channel_contribution"],
+        ],
+        random_seed=1,
+    )
+    baseline = intercept + channel.sum(axis=-1)  # (date,)
+    m1 = (1 - d1) * (1 + d1) ** beta1 - 1.0
+    m2 = (1 - d2) * (1 + d2) ** beta2 - 1.0
+    w = window[:, 0]  # shared window (date,)
+    # Total on shared dates: mu_base * ((1+m1)(1+m2) - 1), NOT mu_base*(m1+m2)
+    expected_total = baseline * w * ((1 + m1) * (1 + m2) - 1.0)
+    np.testing.assert_allclose(c1 + c2, expected_total, rtol=1e-8)
+    additive_double_count = baseline * w * (m1 + m2)
+    assert not np.allclose(c1 + c2, additive_double_count)
+
+
+def test_total_response_not_registered_without_optimizable_effect():
+    """No silent posterior addition: the objective node is gated.
+
+    Plain models (and models with only non-optimizable mu effects) must not
+    gain total_response_original_scale.
+    """
+    rng = np.random.default_rng(1)
+    dates_ = pd.date_range("2023-01-01", periods=20, freq="W")
+    X = pd.DataFrame(
+        {
+            "date": dates_,
+            "ch1": rng.uniform(100, 500, size=len(dates_)),
+            "ch2": rng.uniform(100, 500, size=len(dates_)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(dates_)), name="target")
+
+    plain = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    plain.build_model(X, y)
+    assert "total_response_original_scale" not in plain.model.named_vars
+
+    with_fourier = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(FourierEffect(fourier=YearlyFourier(n_order=2)))
+    with_fourier.build_model(X, y)
+    assert "total_response_original_scale" not in with_fourier.model.named_vars
+
+
 def test_discount_identity_requires_mu_baseline(dates):
     """A custom model without the _mu_baseline stash gets a clear error."""
     from types import SimpleNamespace
