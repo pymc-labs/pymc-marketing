@@ -26,7 +26,7 @@ from pytensor.graph.basic import ancestors
 from xarray import DataArray
 
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
-from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm import MMM, BudgetOptimizerWrapper
 from pymc_marketing.mmm.additive_effect import (
     DiscountedEventEffect,
     MuEffect,
@@ -969,10 +969,11 @@ def test_budget_optimizer_with_optimizable_mu_effect(mock_pymc_sample):
 
     A minimal per-item lever (dim "promo") is added via `add_mu_effect`, the
     model is built/fit through the normal `MMM` API, and `mmm.budget_optimizer`
-    wires `mu_effects` into `BudgetOptimizer` automatically. Checks that the
-    effect's own data node depends on the optimizer's flat decision vector,
-    and that the lever stays out of the default sum constraint (extra
-    optimizable vars never enter it) -- only media sums to `total_budget`.
+    wires `mu_effects` into `BudgetOptimizer` automatically. Checks the
+    inert-lever guard (default media-only objective has no gradient for the
+    lever -> raise), that the effect's own data node depends on the optimizer's
+    flat decision vector, and that the lever stays out of the default sum
+    constraint -- only media sums to `total_budget`.
     """
 
     class PromoEffect(OptimizableMuEffect):
@@ -996,6 +997,10 @@ def test_budget_optimizer_with_optimizable_mu_effect(mock_pymc_sample):
 
         def set_data(self, mmm, model, X) -> None:
             pass
+
+        @property
+        def lever_bounds(self):
+            return [(0.0, 1.0), (0.0, 1.0)]
 
         # The lever integrates by name: MMM.budget_optimizer translates this
         # effect into an optimizable_vars entry for its promo_data node.
@@ -1021,9 +1026,19 @@ def test_budget_optimizer_with_optimizable_mu_effect(mock_pymc_sample):
 
     mmm.fit(X, y, random_seed=0)
 
+    # Inert-lever guard: the default media-only objective does not depend on
+    # the promo lever, so its gradient is identically zero -- constructing the
+    # optimizer raises instead of silently returning the seed as an "optimum".
+    with pytest.raises(ValueError, match="does not depend on optimizable_vars"):
+        mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        )
+
     optimizer = mmm.budget_optimizer(
         start_date=date_range[-1] + pd.Timedelta(weeks=1),
         end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        response_variable="total_response_original_scale",
     )
 
     # The effect's own data node should now depend on the optimizer's flat
@@ -1046,15 +1061,13 @@ def test_budget_optimizer_with_optimizable_mu_effect(mock_pymc_sample):
     assert promo_opt.dims == ("promo",)
     assert list(promo_opt.coords["promo"].values) == ["evt1", "evt2"]
     np.testing.assert_allclose(promo_opt.values, result.x[2:])
-    # Under the default media-only objective the lever has no gradient, so it
-    # stays at its seed (up to solver jitter) -- pass
-    # response_variable="total_response_original_scale" to actually optimize it
-    # (covered by the tests below).
-    np.testing.assert_allclose(promo_opt.values, 0.0, atol=1e-9)
+    # The positive-coefficient contribution gives the objective a positive
+    # gradient in promo_data, so the lever climbs to its upper bound.
+    np.testing.assert_allclose(promo_opt.values, 1.0, atol=1e-6)
 
     # Default x0 spreads total_budget over the media head only (feasible w.r.t.
-    # the sum constraint) and seeds effect levers at 0. With maxiter=0 the
-    # solver returns x0 unchanged, exposing the seed.
+    # the sum constraint) and seeds effect levers at their lower bound. With
+    # maxiter=0 the solver returns x0 unchanged, exposing the seed.
     _, result_x0 = optimizer.allocate_budget(
         total_budget=100.0,
         minimize_kwargs={"options": {"maxiter": 0}},
@@ -1066,14 +1079,20 @@ def test_budget_optimizer_with_optimizable_mu_effect(mock_pymc_sample):
 
 @pytest.mark.parametrize("link", ["identity", "log"])
 def test_discounted_event_effect_optimization_end_to_end(mock_pymc_sample, link):
-    """DiscountedEventEffect optimizes through total_response_original_scale.
+    """DiscountedEventEffect prescribes event-specific depths matching the FOC.
 
-    The discount lever only has gradient when the objective includes the
-    effect's contribution -- total_response_original_scale (registered by the
-    LinkSpec) provides it for both links. Asserts the optimized depths respect
-    the native [discount_min, discount_max] bounds, media still sums to the
-    budget, and the depths are decoded into result.optimized_vars.
+    Two events with (near-)pinned betas: the stronger event justifies a deeper
+    discount under both links, and each depth matches the analytic/numeric
+    optimum of the effect's own lift curve:
+
+    * log:      d* = (beta - 1) / (beta + 1)
+    * identity: d* = argmax (1 - d)(1 + beta * ln(1 + d))
+
+    Also asserts media still sums to the budget (the discount stays out of the
+    cash pot) and depths are decoded into result.optimized_vars.
     """
+    from pymc_extras.prior import Prior
+
     date_range = pd.date_range("2023-01-01", periods=20, freq="W")
     rng = np.random.default_rng(1)
     X = pd.DataFrame(
@@ -1085,17 +1104,20 @@ def test_discounted_event_effect_optimization_end_to_end(mock_pymc_sample, link)
     )
     y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
 
+    betas = np.array([2.5, 1.2])  # strong_sale, weak_sale
     effect = DiscountedEventEffect(
         df_events=pd.DataFrame(
             {
-                "name": ["spring_sale"],
-                "start_date": ["2023-02-01"],
-                "end_date": ["2023-03-15"],
-                "discount_pct": [0.10],
+                "name": ["strong_sale", "weak_sale"],
+                "start_date": ["2023-02-01", "2023-04-01"],
+                "end_date": ["2023-03-01", "2023-04-28"],
+                "discount_pct": [0.10, 0.10],
             }
         ),
         prefix="promo",
-        discount_min=0.05,
+        # Near-degenerate prior pins beta so the optimum is analytic.
+        beta_prior=Prior("Normal", mu=betas, sigma=0.001),
+        discount_min=0.02,
         discount_max=0.45,
     )
 
@@ -1112,9 +1134,10 @@ def test_discounted_event_effect_optimization_end_to_end(mock_pymc_sample, link)
     # The LinkSpec registers the full-response objective for both links.
     assert "total_response_original_scale" in mmm.model.named_vars
 
+    # Retrospective window covering both event windows.
     optimizer = mmm.budget_optimizer(
-        start_date=date_range[3],
-        end_date=date_range[10],
+        start_date=date_range[2],
+        end_date=date_range[18],
         response_variable="total_response_original_scale",
     )
     optimal_budgets, result = optimizer.allocate_budget(total_budget=100.0)
@@ -1125,16 +1148,23 @@ def test_discounted_event_effect_optimization_end_to_end(mock_pymc_sample, link)
 
     depths = result.optimized_vars["promo_data"]
     assert depths.dims == ("promo",)
-    assert list(depths.coords["promo"].values) == ["spring_sale"]
+    assert list(depths.coords["promo"].values) == ["strong_sale", "weak_sale"]
+    depth_values = depths.values
     # Native bounds respected.
-    depth = float(depths.sel(promo="spring_sale"))
-    assert 0.05 - 1e-8 <= depth <= 0.45 + 1e-8
-    if link == "identity":
-        # For this fixture the identity-link optimum is interior: the depth
-        # moves off its lower-bound seed, proving the objective carries
-        # gradient to the lever. (Under the log link this fixture's optimum
-        # legitimately sits at the bound.)
-        assert depth > 0.05 + 1e-4
+    assert ((depth_values >= 0.02 - 1e-8) & (depth_values <= 0.45 + 1e-8)).all()
+
+    if link == "log":
+        # Analytic FOC of ln(1-d) + beta*ln(1+d): d* = (beta-1)/(beta+1).
+        expected = (betas - 1.0) / (betas + 1.0)
+    else:
+        # Numeric argmax of the repricing multiplier (1-d)(1+beta*ln(1+d)).
+        grid = np.linspace(0.02, 0.45, 2001)
+        expected = np.array(
+            [grid[np.argmax((1 - grid) * (1 + b * np.log1p(grid)))] for b in betas]
+        )
+    np.testing.assert_allclose(depth_values, expected, atol=0.02)
+    # Event-specific: the stronger event justifies the deeper discount.
+    assert depth_values[0] > depth_values[1]
 
 
 def test_optimizable_vars_names_only(mock_pymc_sample):
@@ -1287,10 +1317,117 @@ def test_optimizable_vars_bounds_length_mismatch_raises(mock_pymc_sample):
     ).add_mu_effect(PromoEffect())
     mmm.fit(X, y, random_seed=0)
 
+    # The mismatch is knowable at construction: it raises there, not at
+    # allocate_budget time.
+    with pytest.raises(ValueError, match="bounds have 1 entries"):
+        mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+            optimizable_vars={"promo_data": [(0.0, 1.0)]},  # variable has 2 entries
+        )
+
+
+def test_optimizable_vars_multidim_var_raises(panel_fitted_mmm):
+    """A variable with more than one non-date dim is rejected at construction."""
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    with pytest.raises(ValueError, match="exactly one"):
+        panel_fitted_mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+            # channel_data has (date, country, channel) -> two non-date dims
+            optimizable_vars={"channel_data": None},
+        )
+
+
+def test_optimized_vars_empty_without_optimizable_vars(mock_pymc_sample):
+    """Backward compat: plain optimizations return result.optimized_vars == {}."""
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.fit(X, y, random_seed=0)
+
     optimizer = mmm.budget_optimizer(
         start_date=date_range[-1] + pd.Timedelta(weeks=1),
         end_date=date_range[-1] + pd.Timedelta(weeks=4),
-        optimizable_vars={"promo_data": [(0.0, 1.0)]},  # variable has 2 entries
     )
-    with pytest.raises(ValueError, match="bounds have 1 entries"):
-        optimizer.allocate_budget(total_budget=100.0)
+    _, result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.success
+    assert result.optimized_vars == {}
+
+
+def test_optimize_budget_wires_effect_levers(mock_pymc_sample):
+    """BudgetOptimizerWrapper.optimize_budget passes effect levers through.
+
+    A model with a DiscountedEventEffect optimized via the legacy
+    ``optimize_budget`` API must co-optimize the discount lever, not silently
+    drop it.
+    """
+    date_range = pd.date_range("2023-01-01", periods=20, freq="W")
+    rng = np.random.default_rng(1)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+
+    effect = DiscountedEventEffect(
+        df_events=pd.DataFrame(
+            {
+                "name": ["spring_sale"],
+                "start_date": ["2023-02-01"],
+                "end_date": ["2023-03-15"],
+                "discount_pct": [0.10],
+            }
+        ),
+        prefix="promo",
+        discount_min=0.05,
+        discount_max=0.45,
+    )
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(effect)
+    mmm.fit(X, y, random_seed=1)
+
+    with pytest.warns(DeprecationWarning, match="BudgetOptimizerWrapper"):
+        wrapper = BudgetOptimizerWrapper(
+            model=mmm,
+            start_date=date_range[2],
+            end_date=date_range[12],
+        )
+
+    # The default media-only response cannot reach the lever: the guard fires
+    # instead of silently returning the seed.
+    with pytest.raises(ValueError, match="does not depend on optimizable_vars"):
+        wrapper.optimize_budget(budget=100.0)
+
+    _optimal_budgets, result = wrapper.optimize_budget(
+        budget=100.0,
+        response_variable="total_response_original_scale",
+    )
+    assert result.success
+    depths = result.optimized_vars["promo_data"]
+    assert list(depths.coords["promo"].values) == ["spring_sale"]
+    depth = float(depths.sel(promo="spring_sale"))
+    assert 0.05 - 1e-8 <= depth <= 0.45 + 1e-8

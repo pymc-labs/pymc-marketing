@@ -106,11 +106,9 @@ Tips for custom components
   - In ``set_data``, update the data variables when dates/dims change.
 """
 
-import warnings
 from abc import ABC, abstractmethod
 from typing import Any, Protocol
 
-import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
@@ -124,6 +122,7 @@ from pytensor.xtensor.type import XTensorVariable
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.validating import _validate_non_numeric_dtype
 from pymc_marketing.serialization import SerializableBaseModel
 
@@ -291,8 +290,9 @@ class MuEffect(SerializableBaseModel, ABC):
 class OptimizableMuEffect(MuEffect, ABC):
     """A :class:`MuEffect` whose own lever can be optimized jointly with media budgets.
 
-    The lever is the effect's ``f"{prefix}_data"`` node (a ``pm.Data`` variable
-    registered in :meth:`MuEffect.create_data` with a single non-date dim).
+    The lever is the ``pm.Data`` node named by :attr:`lever_var_name`
+    (registered in :meth:`MuEffect.create_data` with a single non-date dim;
+    defaults to ``f"{prefix}_data"``).
     ``MMM.budget_optimizer`` translates each optimizable effect into an
     ``optimizable_vars`` entry -- the node name plus the effect's native
     :attr:`lever_bounds` -- and the
@@ -316,6 +316,27 @@ class OptimizableMuEffect(MuEffect, ABC):
         order.
         """
         return None
+
+    @property
+    def lever_var_name(self) -> str:
+        """Name of the ``pm.Data`` node the optimizer substitutes for this effect.
+
+        The default assumes the effect registers ``f"{self.prefix}_data"`` in
+        :meth:`MuEffect.create_data`; effects that register a different lever
+        node (or have no ``prefix`` attribute) must override this property.
+
+        Raises
+        ------
+        NotImplementedError
+            If the effect has no ``prefix`` attribute and does not override
+            this property.
+        """
+        prefix = getattr(self, "prefix", None)
+        if prefix is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define 'lever_var_name'."
+            )
+        return f"{prefix}_data"
 
 
 class FourierEffect(MuEffect):
@@ -849,7 +870,7 @@ _register_event_additive_effect()
 
 
 class DiscountedEventEffect(OptimizableMuEffect):
-    r"""Promotional event effect with a log-log discount-depth lever.
+    r"""Promotional event effect with a discount-depth lever (price × volume).
 
     Each event window (e.g. Black Friday, Summer Sale) has a known date range.
     The optimizer decides *how deep* to discount for each event.  The lever is
@@ -857,36 +878,64 @@ class DiscountedEventEffect(OptimizableMuEffect):
     discount), optimized directly in native units between
     :attr:`discount_min` and :attr:`discount_max`.
 
-    The per-event lift uses a full revenue-retention specification:
+    **Economics.** During event *k* the discount reprices *every* unit sold —
+    baseline and incremental alike — so revenue decomposes as
+    price :math:`\times` volume: a price factor :math:`(1 - d_k)` and a volume
+    uplift with log-linear elasticity :math:`\beta_k \ln(1 + d_k)`.  The effect
+    is expressed per link so both are units-coherent:
 
-    .. math::
+    * ``link="log"`` (``mu`` is log-scale) — purely additive in log space,
+      no baseline access needed:
 
-        \text{lift}_k = \beta_k \cdot \ln(1 + d_k) \cdot (1 - d_k)
-                        - d_k \cdot r_k
+      .. math::
 
-    * :math:`\ln(1 + d_k)` — volume uplift (log-linear elasticity).
-    * :math:`(1 - d_k)` — price retention; at 100 % discount the business
-      collects nothing per unit, so the :math:`\beta` term vanishes.
-    * :math:`-d_k \cdot r_k` — margin forgone on the existing customer base:
-      a fraction :math:`d_k` of the baseline per-period revenue :math:`r_k` is
-      sacrificed.
+          \Delta\mu_t = w_{tk} \left[ \ln(1 - d_k)
+                        + \beta_k \ln(1 + d_k) \right]
 
-    :math:`r_k = \text{event\_revenue}_k / n\_periods_k` is the average observed
-    revenue per in-sample period during event *k*, normalised to the model's
-    internal (scaled) units and auto-computed from the observed target ``y``.
+      so :math:`\exp(\mu)` composes it multiplicatively:
+      :math:`y_t = \text{baseline}_t (1 - d_k)(1 + d_k)^{\beta_k}`.
+      The optimum is event-specific,
+      :math:`d_k^* = (\beta_k - 1)/(\beta_k + 1)` for :math:`\beta_k > 1`
+      (else 0).
 
-    **Cost semantics.** The discount's economic cost lives entirely in the
-    ``-d_k \cdot r_k`` term of the response — i.e. it is captured as forgone
-    revenue, not as consumption of the media budget.  The lever is therefore
-    optimized in native ``[0, 1]`` units with its own :attr:`lever_bounds` and
-    does **not** enter the media budget sum constraint.
+    * ``link="identity"`` — the same multiplier applied to the model's own
+      baseline :math:`\mu^{\text{base}}_t` (intercept + media + controls +
+      seasonality, in scaled units), with the volume uplift linearised as
+      :math:`1 + \beta_k \ln(1 + d_k)` to keep the additive form:
 
-    **Optimizer integration.** The lever is the ``f"{prefix}_data"`` node;
-    ``MMM.budget_optimizer`` translates it into an ``optimizable_vars`` entry
-    and the optimizer co-optimizes it purely by name on the model graph.  Use
+      .. math::
+
+          \Delta\mu_t = w_{tk} \, \mu^{\text{base}}_t
+              \left[ (1 - d_k)\bigl(1 + \beta_k \ln(1 + d_k)\bigr) - 1 \right]
+
+    where :math:`w_{tk}` is the 0/1 event-window indicator.  Both links give
+    :math:`\Delta\mu(0) = 0` and drive in-window revenue to zero at
+    :math:`d_k = 1` (100 % discount).
+
+    **Cost semantics.** No external cost term is imposed: the price-retention
+    factor :math:`(1 - d_k)` *is* the give-back, applied to all units as part
+    of the revenue response itself.  The lever is therefore optimized in
+    native ``[0, 1]`` units with its own :attr:`lever_bounds` and does **not**
+    enter the media budget sum constraint.
+
+    **Optimizer integration.** The lever is the node named by
+    :attr:`lever_var_name` (``f"{prefix}_data"``); ``MMM.budget_optimizer``
+    translates it into an ``optimizable_vars`` entry and the optimizer
+    co-optimizes it purely by name on the model graph.  Use
     ``response_variable="total_response_original_scale"`` so the discount's
     contribution (and, under the log link, its media amplification) enters the
     objective.
+
+    **Caveats.**
+
+    * Overlapping event windows are rejected at build time under the identity
+      link (each event's multiplier would apply to the same
+      :math:`\mu^{\text{base}}_t` on the shared dates, double-counting it);
+      under the log link overlapping windows compose multiplicatively, which
+      is the economically correct behaviour.
+    * For events outside the training window, :math:`\beta_k` is prior-driven
+      (there are no in-sample dates to inform it) — treat prescriptions for
+      such events as prior predictive, not fitted.
 
     Parameters
     ----------
@@ -993,62 +1042,17 @@ class DiscountedEventEffect(OptimizableMuEffect):
     # MuEffect contract
     # ------------------------------------------------------------------
 
-    def _compute_event_revenue(self, mmm: Model) -> xr.DataArray:
-        """Return average per-period revenue per event, from the observed target.
-
-        For each event, sums ``y`` over its date window and divides by the number
-        of in-sample periods the window covers (reusing :meth:`_window_mask`).
-        Events with no in-sample coverage (e.g. purely future events) yield zero
-        and trigger a warning, because their margin-cost term ``-d * r_k``
-        collapses to zero and the optimizer would otherwise drive their discount
-        to ``discount_max`` without an offsetting cost.
-
-        Parameters
-        ----------
-        mmm : Model
-            The MMM instance; must expose ``y``, ``X``, and ``date_column``.
-
-        Returns
-        -------
-        revenue_per_period : xarray.DataArray, dims ``(prefix,)``
-        """
-        y = getattr(mmm, "y", None)
-        X = getattr(mmm, "X", None)
-        date_column = getattr(mmm, "date_column", None)
-
-        if y is None or X is None or date_column is None:
-            raise ValueError(
-                "Cannot compute event_revenue: the MMM instance does not expose "
-                "'y', 'X', or 'date_column'. Use a standard MMM instance and "
-                "call build_model(X, y) first."
-            )
-
-        window = self._window_mask(pd.to_datetime(X[date_column]))  # (date, prefix)
-        y_da = xr.DataArray(np.asarray(y), dims=(self.date_dim_name,))  # (date,)
-
-        n_periods = window.sum(self.date_dim_name)  # (prefix,)
-        event_revenue = (window * y_da).sum(self.date_dim_name)  # (prefix,)
-        # where(n>0, 1) guards div-by-zero; zero-coverage events have zero revenue
-        # anyway, so they map to 0.
-        revenue_per_period = event_revenue / n_periods.where(n_periods > 0, 1.0)
-
-        zero_coverage = [
-            str(name)
-            for name, n in zip(self.df_events["name"], n_periods.values, strict=True)
-            if n == 0
+    def _overlapping_event_pairs(self) -> list[tuple[str, str]]:
+        """Return pairs of event names whose date windows overlap (inclusive)."""
+        starts = pd.to_datetime(self.df_events["start_date"]).to_numpy()
+        ends = pd.to_datetime(self.df_events["end_date"]).to_numpy()
+        names = self.df_events["name"].to_numpy()
+        return [
+            (str(names[i]), str(names[j]))
+            for i in range(len(names))
+            for j in range(i + 1, len(names))
+            if starts[i] <= ends[j] and starts[j] <= ends[i]
         ]
-        if zero_coverage:
-            warnings.warn(
-                f"Events {zero_coverage} have no in-sample dates, so their "
-                "per-period revenue (and thus the -d*r_k margin-cost term) is "
-                "zero. The optimizer will tend to push their discount to "
-                "discount_max. Provide an in-sample window or cap discount_max "
-                "for these events.",
-                UserWarning,
-                stacklevel=3,
-            )
-
-        return revenue_per_period
 
     def _window_mask(self, dates) -> xr.DataArray:
         """Return a ``(date, prefix)`` 0/1 event-window indicator DataArray.
@@ -1070,27 +1074,30 @@ class DiscountedEventEffect(OptimizableMuEffect):
         )
 
     def create_data(self, mmm: Model) -> None:
-        """Register the event-window, discount-fraction, and revenue-per-period nodes.
-
-        ``revenue_per_period`` is computed from the observed target ``y`` and
-        normalised by ``target_scale`` so the ``-d * r_k`` term lives in the
-        same internal scale as ``beta`` and the predicted mean.
+        """Register the event-window indicator and discount-fraction lever nodes.
 
         Parameters
         ----------
         mmm : MMM
             The MMM model instance.
-        """
-        revenue_per_period = self._compute_event_revenue(mmm)
 
-        # Normalise to model-internal scale.  ``scalers`` is accessed via getattr
-        # because the Model protocol does not expose it (MMM-specific), keeping
-        # the protocol clean.
-        _scalers = getattr(mmm, "scalers", None)
-        target_scale = float(_scalers._target) if _scalers is not None else 1.0
-        revenue_per_period_normalized = revenue_per_period / (
-            target_scale if target_scale > 0 else 1.0
-        )
+        Raises
+        ------
+        ValueError
+            Under the identity link, if any two event windows overlap: each
+            event's repricing multiplier would apply to the same baseline on
+            the shared dates, double-counting it.  Overlapping windows are
+            only supported under ``link="log"``, where they compose
+            multiplicatively.
+        """
+        link = getattr(mmm, "link", LinkFunction.IDENTITY)
+        if link != LinkFunction.LOG and (pairs := self._overlapping_event_pairs()):
+            raise ValueError(
+                f"DiscountedEventEffect('{self.prefix}'): event windows overlap "
+                f"for {pairs}, which double-counts the baseline repricing under "
+                'the identity link. Merge the overlapping events, or use link="log", '
+                "where overlapping discounts compose multiplicatively."
+            )
 
         model: pm.Model = mmm.model
 
@@ -1121,24 +1128,36 @@ class DiscountedEventEffect(OptimizableMuEffect):
             discount_per_event,
             dims=(self.prefix,),
         )
-        pmd.Data(
-            f"{self.prefix}_revenue_per_period",
-            revenue_per_period_normalized.astype("float64"),
-            dims=(self.prefix,),
-        )
 
     def create_effect(self, mmm: Model) -> XTensorVariable:
-        r"""Build the discount contribution via the full revenue-retention model.
+        r"""Build the discount contribution via the price × volume revenue model.
+
+        Link-aware (see the class docstring for the economics):
 
         .. math::
 
-            \text{lift}_k = \beta_k \cdot \ln(1 + d_k) \cdot (1 - d_k)
-                            - d_k \cdot r_k
+            \Delta\mu_t = \begin{cases}
+                \sum_k w_{tk} \left[ \ln(1 - d_k)
+                    + \beta_k \ln(1 + d_k) \right]
+                    & \text{link} = \log \\
+                \mu^{\text{base}}_t \sum_k w_{tk}
+                    \left[ (1 - d_k)\bigl(1 + \beta_k \ln(1 + d_k)\bigr)
+                    - 1 \right]
+                    & \text{link} = \text{identity}
+            \end{cases}
 
         Returns
         -------
         XTensorVariable
-            Shape ``(date,)`` — the additive contribution to the model mean.
+            Dims ``("date", *mmm.dims)`` — the additive contribution to the
+            model mean.
+
+        Raises
+        ------
+        ValueError
+            Under the identity link, if the MMM instance does not expose the
+            symbolic baseline ``_mu_baseline`` (set by ``MMM.build_model``
+            just before the mu-effects loop).
         """
         model: pm.Model = mmm.model
 
@@ -1148,7 +1167,7 @@ class DiscountedEventEffect(OptimizableMuEffect):
         # BudgetOptimizer substitutes it with this variable's segment of the
         # flat decision vector (an `optimizable_vars` entry).
         discount_pct = model[f"{self.prefix}_data"]
-        log_pct = ptx.math.log1p(discount_pct)
+        log_pct = ptx.math.log1p(discount_pct)  # ln(1 + d)
 
         beta_prior = self.beta_prior.deepcopy()
         beta_prior.dims = (self.prefix,)
@@ -1156,21 +1175,35 @@ class DiscountedEventEffect(OptimizableMuEffect):
             f"{self.prefix}_beta", xdist=True
         )  # (prefix,)
 
-        r_per_period = model[f"{self.prefix}_revenue_per_period"]  # (prefix,)
+        link = getattr(mmm, "link", LinkFunction.IDENTITY)
+        if link == LinkFunction.LOG:
+            # Additive in log space: exp(mu) composes the price factor (1 - d)
+            # and the volume uplift (1 + d)^beta multiplicatively.
+            lift = ptx.math.log1p(-discount_pct) + beta * log_pct  # (prefix,)
+            contributions = lift * window_mask  # (date, prefix)
+        else:
+            mu_baseline = getattr(mmm, "_mu_baseline", None)
+            if mu_baseline is None:
+                raise ValueError(
+                    f"DiscountedEventEffect('{self.prefix}') under the identity "
+                    "link needs the model's symbolic baseline, but the MMM "
+                    "instance has no '_mu_baseline' attribute. Use a standard "
+                    "MMM (which sets it in build_model), or link='log' (which "
+                    "needs no baseline)."
+                )
+            # Repricing multiplier on the baseline: (1-d)(1 + beta*ln(1+d)) - 1,
+            # zero at d=0 and -1 (in-window revenue -> 0) at d=1.
+            multiplier = (1.0 - discount_pct) * (1.0 + beta * log_pct) - 1.0
+            # (date, prefix, *mmm.dims): baseline repriced on event dates only.
+            contributions = mu_baseline * (multiplier * window_mask)
 
-        # Full revenue-retention lift (see class docstring), per event (prefix,).
-        lift = beta * log_pct * (1.0 - discount_pct) - discount_pct * r_per_period
-
-        # Per-event contributions (date, prefix): the window mask broadcasts the
-        # static lift over the event's dates. Tracked for attribution under the
-        # f"{prefix}_channel_contribution" convention.
-        contributions = lift * window_mask
+        # Per-event contributions, tracked for attribution.
         pmd.Deterministic(
-            f"{self.prefix}_channel_contribution",
-            contributions,
+            f"{self.prefix}_event_contribution",
+            contributions.transpose(self.date_dim_name, ...),
         )
 
-        signal = contributions.sum(dim=self.prefix)  # (date,)
+        signal = contributions.sum(dim=self.prefix)  # (date, *mmm.dims)
         return pmd.Deterministic(
             self.contribution_var_name,
             signal,

@@ -2375,6 +2375,12 @@ class MMM(RegressionModelBuilder):
 
                 mu_var += yearly_seasonality_contribution
 
+            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            # Symbolic baseline (intercept + media + controls + seasonality)
+            # before mu effects are applied; consumed by effects that reprice
+            # the baseline (e.g. DiscountedEventEffect under the identity link).
+            self._mu_baseline = mu_var
+
             for mu_effect in self.mu_effects:
                 mu_var += mu_effect.create_effect(self)
 
@@ -2388,6 +2394,10 @@ class MMM(RegressionModelBuilder):
                 channel_contribution=channel_contribution,
                 target_scale=_target_scale,
                 output_var=self.output_var,
+            )
+            self._link_spec.create_total_response_deterministic(
+                mu_var=mu_var,
+                target_scale=_target_scale,
             )
 
             self.model_config["likelihood"].create_likelihood_variable(
@@ -2585,6 +2595,21 @@ class MMM(RegressionModelBuilder):
 
         return pymc_model
 
+    def _effect_optimizable_vars(
+        self,
+    ) -> dict[str, list[tuple[float | None, float | None]] | None]:
+        """Translate each :class:`OptimizableMuEffect` into an ``optimizable_vars`` entry.
+
+        Maps the effect's :attr:`lever_var_name` node to its native
+        :attr:`lever_bounds`; the optimizer only ever sees variable names on
+        the model graph.
+        """
+        return {
+            effect.lever_var_name: effect.lever_bounds
+            for effect in self.mu_effects
+            if isinstance(effect, OptimizableMuEffect)
+        }
+
     def budget_optimizer(
         self,
         start_date: str | pd.Timestamp,
@@ -2649,16 +2674,14 @@ class MMM(RegressionModelBuilder):
                 )
 
         # Translate each optimizable effect's lever into an `optimizable_vars`
-        # entry (its f"{prefix}_data" node + native bounds) -- the optimizer
+        # entry (its lever_var_name node + native bounds) -- the optimizer
         # itself only ever sees variable names on the graph (#2621). Explicit
         # caller entries win. Pair with
         # response_variable="total_response_original_scale" so the levers enter
         # the objective.
-        optimizable_vars = {
-            f"{effect.prefix}_data": effect.lever_bounds
-            for effect in self.mu_effects
-            if isinstance(effect, OptimizableMuEffect)
-        } | kwargs.pop("optimizable_vars", {})
+        optimizable_vars = self._effect_optimizable_vars() | kwargs.pop(
+            "optimizable_vars", {}
+        )
 
         return BudgetOptimizer(
             model=pymc_model,
@@ -3919,7 +3942,12 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
         response_variable : str
-            Response variable to optimize.
+            Response variable to optimize. If the model has
+            :class:`~pymc_marketing.mmm.additive_effect.OptimizableMuEffect`
+            instances, pass ``"total_response_original_scale"`` so their
+            levers enter the objective -- the default media-only response has
+            no gradient with respect to them, and the optimizer raises in
+            that case.
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
@@ -4002,6 +4030,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             cost_per_unit=cost_per_unit_da,
             model=self,
             compile_kwargs=self.compile_kwargs,
+            optimizable_vars=self._effect_optimizable_vars(),
         )
 
         return allocator.allocate_budget(

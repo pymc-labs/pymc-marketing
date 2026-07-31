@@ -240,6 +240,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
@@ -1400,6 +1401,11 @@ class BudgetOptimizer(BaseModel):
                     f"{tuple(self.model.named_vars_to_dims[name])}."
                 )
             size = len(self.model.coords[var_dims[0]])
+            if var_bounds is not None and len(var_bounds) != size:
+                raise ValueError(
+                    f"optimizable_vars['{name}'] bounds have {len(var_bounds)} "
+                    f"entries but the variable has {size}."
+                )
             start, stop = stop, stop + size
             self._var_slices.append((name, var_dims[0], var_bounds, slice(start, stop)))
 
@@ -1452,6 +1458,26 @@ class BudgetOptimizer(BaseModel):
                 f"PyMC model. Available variables: {available}. "
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
+
+        # 8b. Structural reachability: every optimizable var must influence the
+        # response variable, otherwise its gradient is identically zero and the
+        # "optimum" returned would just be the seed. Checked on the original
+        # graph, where the vars are still named nodes.
+        if self._var_slices and self.response_variable in self.model.named_vars:
+            response_ancestors = set(ancestors([self.model[self.response_variable]]))
+            unreachable = [
+                name
+                for name, _, _, _ in self._var_slices
+                if self.model[name] not in response_ancestors
+            ]
+            if unreachable:
+                raise ValueError(
+                    f"response_variable={self.response_variable!r} does not "
+                    f"depend on optimizable_vars {unreachable}; their gradient "
+                    "is identically zero, so they cannot be optimized. Pass a "
+                    "response variable that includes their contribution, e.g. "
+                    'response_variable="total_response_original_scale".'
+                )
 
         # 9. Compile objective & gradient
         self._compiled_functions = {}
@@ -1811,8 +1837,13 @@ class BudgetOptimizer(BaseModel):
             - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
               specifying [low, high] per channel cell.
         x0 : np.ndarray, optional
-            Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
-            None, the total budget is spread uniformly across all drivers to be optimized.
+            Initial guess. Array of real elements of size (n,), where n is the
+            number of driver budgets to optimize **plus, when
+            ``optimizable_vars`` is set, one entry per optimizable-var
+            coordinate** (media entries first, then each variable's segment in
+            declaration order). If None, the total budget is spread uniformly
+            across the media drivers and each optimizable-var entry is seeded
+            at its native lower bound (or 0 if unbounded).
         minimize_kwargs : dict, optional
             Extra kwargs for `scipy.optimize.minimize`. Defaults to method="SLSQP",
             ftol=1e-9, maxiter=1_000.
@@ -1827,9 +1858,13 @@ class BudgetOptimizer(BaseModel):
         Returns
         -------
         optimal_budgets : xarray.DataArray
-            The optimized budget allocation across channels.
+            The optimized budget allocation across channels (media only).
         result : OptimizeResult
-            The raw scipy optimization result.
+            The raw scipy optimization result, extended with an
+            ``optimized_vars`` attribute: a ``dict[str, xarray.DataArray]``
+            mapping each ``optimizable_vars`` entry to its optimal values on
+            the variable's own dim (empty dict when ``optimizable_vars`` is
+            not set).
         callback_info : list[dict[str, Any]], optional
             Only returned if callback=True. List of dictionaries containing optimization
             information at each iteration.
@@ -1910,16 +1945,13 @@ class BudgetOptimizer(BaseModel):
             (low, high)
             for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
         ]
-        for name, _, var_bounds, flat_slice in self._var_slices:
+        for _, _, var_bounds, flat_slice in self._var_slices:
             size = flat_slice.stop - flat_slice.start
-            if var_bounds is None:
-                var_bounds = [(None, None)] * size
-            elif len(var_bounds) != size:
-                raise ValueError(
-                    f"optimizable_vars['{name}'] bounds have {len(var_bounds)} "
-                    f"entries but the variable has {size}."
-                )
-            bounds.extend(var_bounds)
+            # Bounds length is validated against the variable's dim size at
+            # construction (model_post_init).
+            bounds.extend(
+                var_bounds if var_bounds is not None else [(None, None)] * size
+            )
 
         # 3. Determine how many budget entries we optimize (media + vars)
         media_size = int(self.budgets_to_optimize.sum().item())  # type: ignore
@@ -1939,6 +1971,28 @@ class BudgetOptimizer(BaseModel):
         # filter x0 based on shape/type of self._budgets_flat
         # will raise a TypeError if x0 does not have acceptable shape and/or type
         x0 = self._budgets_flat.type.filter(x0)
+
+        # 4b. With optimizable vars, the decision vector mixes units (monetary
+        # media budgets vs native-unit levers), and their gradient magnitudes
+        # can differ by orders of magnitude. SLSQP's line search then clips the
+        # lever segment against its bounds and stops prematurely. Normalizing
+        # the objective (and its gradient) by |f(x0)| is argmax-invariant and
+        # restores a well-scaled problem. Media-only optimizations are left
+        # untouched.
+        objective_and_grad = self._compiled_functions[self.utility_function][
+            "objective_and_grad"
+        ]
+        if self._var_slices:
+            f0, _ = objective_and_grad(x0.copy())
+            objective_scale = abs(float(f0)) or 1.0
+            _base_objective_and_grad = objective_and_grad
+
+            def objective_and_grad(x):
+                val, grad = _base_objective_and_grad(x)
+                return (
+                    np.asarray(val) / objective_scale,
+                    np.asarray(grad) / objective_scale,
+                )
 
         # 5. Set up callback tracking if requested
         callback_info = []
@@ -1985,7 +2039,7 @@ class BudgetOptimizer(BaseModel):
         scipy_callback = track_progress if callback else None
 
         result = minimize(
-            fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
+            fun=objective_and_grad,
             x0=x0,
             jac=True,
             bounds=bounds,
