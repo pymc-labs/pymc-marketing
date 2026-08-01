@@ -251,7 +251,6 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
-from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
@@ -260,6 +259,10 @@ from pymc_marketing.mmm.constraints import (
     Constraint,
     build_default_sum_constraint,
     compile_constraints_for_scipy,
+)
+from pymc_marketing.mmm.optimization_variables import (
+    MediaVariable,
+    OptimizationVariables,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
@@ -1262,6 +1265,7 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
+    _variables: OptimizationVariables = PrivateAttr()
     _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
@@ -1410,24 +1414,7 @@ class BudgetOptimizer(BaseModel):
             *self._budget_dims
         )
 
-        size_budgets = self.budgets_to_optimize.sum().item()
-
-        self._budgets_flat = ptx.xtensor(
-            "budgets_flat",
-            shape=(size_budgets,),
-            dims=("budgets_flat",),
-        )
-
-        # Fill a zero array, then set only the True positions
-        budgets_zeros = pt.zeros(self._budget_shape)
-        budgets_zeros.name = "budgets_zeros"
-        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        self._budgets = as_xtensor(
-            budgets_zeros[bool_mask].set(self._budgets_flat.values[:size_budgets]),
-            dims=self._budget_dims,
-        )
-
-        # 6. Validate and process budget_distribution_over_period
+        # 5. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
             self._validate_and_process_budget_distribution(
                 budget_distribution_over_period=self.budget_distribution_over_period,
@@ -1438,7 +1425,7 @@ class BudgetOptimizer(BaseModel):
             )
         )
 
-        # 6b. Validate and process cost_per_unit
+        # 5b. Validate and process cost_per_unit
         self._cost_per_unit_tensor = self._validate_and_process_cost_per_unit(
             cost_per_unit=self.cost_per_unit,
             num_periods=self.num_periods,
@@ -1447,9 +1434,27 @@ class BudgetOptimizer(BaseModel):
             date_dim=self.date_dim,
         )
 
-        # 7. Replace channel_data with budgets in the PyMC model
-        self._pymc_model = self._replace_channel_data_by_optimization_variable(
-            self.model
+        # 6. Build the optimization variables; media is variable #0
+        media_variable = MediaVariable(
+            name=self.channel_data_var,
+            mask=self.budgets_to_optimize,
+            num_periods=self.num_periods,
+            adstock_periods=self.adstock_periods,
+            channel_scales=self.channel_scales,
+            dtype=self.model[self.channel_data_var].dtype,
+            date_dim=self.date_dim,
+            budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
+            cost_per_unit_tensor=self._cost_per_unit_tensor,
+        )
+        self._variables = OptimizationVariables([media_variable])
+        self._budgets_flat = self._variables.flat
+        self._budgets = media_variable.scattered(self._variables.flat)
+
+        # 7. Substitute the decision variables into the PyMC model graph.
+        # One do() call over every variable keeps the gradients joint.
+        self._pymc_model = do(
+            freeze_dims_and_data(self.model, data=[]),
+            self._variables.substitutions(),
         )
 
         # 8. Validate that the requested response variable actually exists in
@@ -1627,105 +1632,6 @@ class BudgetOptimizer(BaseModel):
         values = cost_per_unit.transpose(*expected_dims)
         return ptx.as_xtensor(values, name="cost_per_unit")
 
-    def _apply_budget_distribution_over_period(
-        self,
-        budgets: XTensorVariable,
-        num_periods: int,
-    ) -> XTensorVariable:
-        """Apply budget distribution over periods to budgets across time periods.
-
-        Parameters
-        ----------
-        budgets : XTensorVariable
-            The scaled budget tensor with shape matching budget dimensions.
-        num_periods : int
-            Number of time periods to distribute budget across.
-
-        Returns
-        -------
-        XTensorVariable
-            Budget tensor repeated across time periods with distribution factors applied.
-            Shape will be (*budget_dims[:date_dim_idx], num_periods, *budget_dims[date_dim_idx:])
-        """
-        # Apply time distribution factors
-        # The time factors are already masked and have shape (num_periods, num_optimized_budgets)
-        # budgets has full shape (e.g., (2, 2) for geo x channel)
-        # We need to extract only the optimized budgets
-
-        # Get the optimized budget values
-        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        budgets_optimized = self._budgets_flat
-
-        repeated_budgets_flat = (
-            budgets_optimized * self._budget_distribution_over_period_tensor
-        ).transpose(self.date_dim, "budgets_flat")
-
-        # Reconstruct the full shape for each time period
-        budgets = ptx.zeros_like(budgets).expand_dims(
-            **{self.date_dim: num_periods}, axis=0
-        )
-        repeated_budgets = budgets.values[:, bool_mask].set(
-            repeated_budgets_flat.values
-        )
-        # Back to xtensor
-        repeated_budgets = as_xtensor(repeated_budgets, dims=budgets.dims)
-
-        repeated_budgets *= num_periods
-
-        return repeated_budgets
-
-    def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-        """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
-        num_periods = self.num_periods
-        max_lag = self.adstock_periods
-        channel_scales = self.channel_scales
-        channel_data_dtype = model[self.channel_data_var].dtype
-        if np.dtype(channel_data_dtype).kind != "f":
-            raise ValueError(
-                f"Optimization requires channel data of float type, got {channel_data_dtype}"
-            )
-
-        # Scale budgets by channel_scales
-        budgets = self._budgets
-        budgets /= as_xtensor(
-            channel_scales, dims=() if np.ndim(channel_scales) == 0 else ("channel",)
-        )
-
-        # Repeat budgets over num_periods (still in monetary units)
-        if self._budget_distribution_over_period_tensor is not None:
-            # Apply time distribution factors
-            repeated_budgets = self._apply_budget_distribution_over_period(
-                budgets, num_periods
-            )
-        else:
-            # Default behavior: distribute evenly across periods
-            repeated_budgets = budgets.expand_dims(**{self.date_dim: num_periods})
-
-        # Convert from monetary units to original units using date-specific rates.
-        # Applied AFTER time distribution so each period uses its own cost rate.
-        if self._cost_per_unit_tensor is not None:
-            repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
-
-        repeated_budgets.name = "repeated_budgets"
-
-        repeated_budgets_with_carry_over = ptx.concat(
-            [
-                repeated_budgets.astype(channel_data_dtype),
-                ptx.as_xtensor(
-                    pt.zeros(max_lag, dtype=channel_data_dtype),
-                    dims=(self.date_dim,),
-                ),
-            ],
-            dim=self.date_dim,
-        )
-        repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
-
-        # Freeze dims & data in the underlying PyMC model
-        model = freeze_dims_and_data(model, data=[])
-
-        # Use `do(...)` to replace `channel_data_var` with repeated_budgets_with_carry_over
-        return do(model, {self.channel_data_var: repeated_budgets_with_carry_over})
-
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
@@ -1776,7 +1682,7 @@ class BudgetOptimizer(BaseModel):
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        x0: np.ndarray | None = None,
+        x0: np.ndarray | DataArray | dict[str, DataArray] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
         callback: bool = False,
@@ -1797,9 +1703,13 @@ class BudgetOptimizer(BaseModel):
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
             - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
               specifying [low, high] per channel cell.
-        x0 : np.ndarray, optional
-            Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
-            None, the total budget is spread uniformly across all drivers to be optimized.
+        x0 : np.ndarray, DataArray or dict, optional
+            Initial guess. A labelled ``DataArray`` over the budget dims (e.g. a
+            previous solution or a current spend plan) is packed into the flat
+            decision vector automatically; a dict maps decision-variable names to
+            labelled ``DataArray``s. A flat ``np.ndarray`` of size (n,) in the
+            optimization variables' flat order is also accepted. If None, the total
+            budget is spread uniformly across all drivers to be optimized.
         minimize_kwargs : dict, optional
             Extra kwargs for `scipy.optimize.minimize`. Defaults to method="SLSQP",
             ftol=1e-9, maxiter=1_000.
@@ -1891,20 +1801,22 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
-        # 2. Build the final bounds list
-        bounds = [
+        # 2. Build the final bounds list, variable by variable
+        media_bounds = [
             (low, high)
             for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
         ]
+        bounds = self._variables.bounds(
+            total_budget, overrides={self.channel_data_var: media_bounds}
+        )
 
-        # 3. Determine how many budget entries we optimize
-        budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
-
-        # 4. Construct the initial guess (x0) if not provided
+        # 3. Construct the initial guess (x0) if not provided; labelled values
+        # are packed into flat order by the optimization variables.
         if x0 is None:
-            x0 = (np.ones(budgets_size) * (total_budget / budgets_size)).astype(
-                self._budgets_flat.type.dtype
-            )
+            x0 = self._variables.x0(total_budget)
+        elif isinstance(x0, DataArray | dict):
+            x0 = self._variables.pack(x0)
+        x0 = np.asarray(x0).astype(self._budgets_flat.type.dtype)
 
         # filter x0 based on shape/type of self._budgets_flat
         # will raise a TypeError if x0 does not have acceptable shape and/or type
@@ -1962,18 +1874,10 @@ class BudgetOptimizer(BaseModel):
             **minimize_kwargs,
         )
 
-        # 6. Process results
+        # 6. Process results: each variable's slice is labelled
         if result.success or return_if_fail:
-            # Fill zeros, then place the solution in masked positions
-            optimal_budgets = np.zeros_like(
-                self.budgets_to_optimize.values,  # type: ignore
-                dtype=float,
-            )
-            optimal_budgets[self.budgets_to_optimize.values] = result.x  # type: ignore
-
-            optimal_budgets = DataArray(
-                optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
-            )
+            unpacked = self._variables.unpack(result.x)
+            optimal_budgets = unpacked[self.channel_data_var]
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
             return BudgetOptimizationResult(

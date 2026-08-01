@@ -455,9 +455,9 @@ def test_allocate_budget_custom_minimize_args(
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    with pytest.raises(
-        ValueError, match=r"NumPy boolean array indexing assignment cannot assign"
-    ):
+    # The mocked minimize returns a Mock result.x, which fails the decision
+    # space's shape validation when unpacking — after minimize was called.
+    with pytest.raises(ValueError, match=r"expected shape"):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
         )
@@ -701,6 +701,31 @@ def test_allocate_budget_result_object(mmm_wrapper):
     assert len(unpacked) == 2
     assert unpacked[0] is result.budgets
     assert unpacked[1] is result.scipy_result
+
+
+def test_allocate_budget_x0_dataarray(mmm_wrapper):
+    """A labelled x0 warm start gives the same result as the flat vector."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    x0_flat = np.array([70.0, 30.0])
+    x0_labelled = xr.DataArray(
+        x0_flat,
+        dims=("channel",),
+        coords={"channel": ["channel_1", "channel_2"]},
+    )
+
+    result_flat = optimizer.allocate_budget(total_budget=100, x0=x0_flat)
+    result_labelled = optimizer.allocate_budget(total_budget=100, x0=x0_labelled)
+    result_dict = optimizer.allocate_budget(
+        total_budget=100, x0={"channel_data": x0_labelled}
+    )
+
+    xr.testing.assert_allclose(result_flat.budgets, result_labelled.budgets)
+    xr.testing.assert_allclose(result_flat.budgets, result_dict.budgets)
 
 
 def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
