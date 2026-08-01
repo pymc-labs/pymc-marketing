@@ -1678,6 +1678,103 @@ class BudgetOptimizer(BaseModel):
 
         self._objective_and_grad = objective_and_grad_func
 
+    @staticmethod
+    def _probe_coordinate(
+        x0_value: float, low: float | None, high: float | None
+    ) -> float | None:
+        """Return an in-bounds point away from ``x0_value``, or None if pinned.
+
+        A coordinate whose box is degenerate (``low == high``) is deliberately
+        fixed by the user and cannot be probed — perturbing it would leave the
+        feasible set, and reporting it as inert would be wrong.
+        """
+        if low is not None and high is not None:
+            if high == low:
+                return None
+            midpoint = 0.5 * (low + high)
+            if np.isclose(x0_value, midpoint):
+                return 0.25 * low + 0.75 * high
+            return midpoint
+        if low is not None:
+            return low + 1.0 if not np.isclose(x0_value, low + 1.0) else low + 2.0
+        if high is not None:
+            return high - 1.0 if not np.isclose(x0_value, high - 1.0) else high - 2.0
+        return x0_value + 1.0
+
+    def _warn_zero_gradient_variables(
+        self,
+        x0: np.ndarray,
+        bounds: list[tuple[float | None, float | None]],
+    ) -> None:
+        """Warn about optimization variables whose gradient is identically zero.
+
+        Evaluates the compiled gradient at ``x0`` once. Any variable whose whole
+        slice (excluding pinned coordinates, where ``low == high``) is exactly
+        zero is re-probed at a perturbed in-bounds point; if the gradient is
+        still exactly zero there, the objective very likely does not depend on
+        that variable and the solver will simply return its seed. This check is
+        uniform over every variable — the media budgets included — because with a
+        configurable ``response_variable`` no variable is guaranteed to reach the
+        objective.
+        """
+        _, g0 = self._objective_and_grad(x0)
+        g0 = np.asarray(g0)
+
+        free = np.array(
+            [
+                not (low is not None and high is not None and high == low)
+                for (low, high) in bounds
+            ]
+        )
+
+        suspicious = [
+            variable
+            for variable in self._variables.variables
+            if free[self._variables.slices[variable.name]].any()
+            and np.all(
+                g0[self._variables.slices[variable.name]][
+                    free[self._variables.slices[variable.name]]
+                ]
+                == 0.0
+            )
+        ]
+        if not suspicious:
+            return
+
+        x_probe = np.array(x0, copy=True)
+        for variable in suspicious:
+            flat_slice = self._variables.slices[variable.name]
+            for idx in range(flat_slice.start, flat_slice.stop):
+                if not free[idx]:
+                    continue
+                probe = self._probe_coordinate(x_probe[idx], *bounds[idx])
+                if probe is not None:
+                    x_probe[idx] = probe
+        x_probe = self._budgets_flat.type.filter(x_probe)
+        _, g_probe = self._objective_and_grad(x_probe)
+        g_probe = np.asarray(g_probe)
+
+        inert = [
+            variable.name
+            for variable in suspicious
+            if np.all(
+                g_probe[self._variables.slices[variable.name]][
+                    free[self._variables.slices[variable.name]]
+                ]
+                == 0.0
+            )
+        ]
+        if inert:
+            warnings.warn(
+                f"Optimization variable(s) {inert} have an identically zero gradient "
+                f"at the initial point and at a perturbed probe point. The "
+                f"response variable {self.response_variable!r} likely does not "
+                "depend on them; the optimizer will return their seed values "
+                "unchanged.",
+                UserWarning,
+                stacklevel=2,
+            )
+
     def allocate_budget(
         self,
         total_budget: float,
@@ -1821,6 +1918,9 @@ class BudgetOptimizer(BaseModel):
         # filter x0 based on shape/type of self._budgets_flat
         # will raise a TypeError if x0 does not have acceptable shape and/or type
         x0 = self._budgets_flat.type.filter(x0)
+
+        # 4. Warn about optimization variables the objective cannot see
+        self._warn_zero_gradient_variables(cast(np.ndarray, x0), bounds)
 
         # 5. Set up callback tracking if requested
         callback_info: list[OptimizationIterationInfo] = []

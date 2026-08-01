@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -726,6 +727,62 @@ def test_allocate_budget_x0_dataarray(mmm_wrapper):
 
     xr.testing.assert_allclose(result_flat.budgets, result_labelled.budgets)
     xr.testing.assert_allclose(result_flat.budgets, result_dict.budgets)
+
+
+@pytest.fixture
+def optimizer_with_zero_gradient(mmm_wrapper):
+    """Optimizer whose compiled gradient is identically zero everywhere."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    optimizer._objective_and_grad = lambda x: (np.float64(0.0), np.zeros_like(x))
+    return optimizer
+
+
+def test_zero_gradient_block_warns(optimizer_with_zero_gradient):
+    """A block the objective cannot see is reported by name."""
+    bounds = optimizer_xarray_builder(
+        np.array([[0, 50], [0, 50]]),
+        channel=["channel_1", "channel_2"],
+        bound=["lower", "upper"],
+    )
+    with pytest.warns(UserWarning, match=r"\['channel_data'\].*zero gradient"):
+        optimizer_with_zero_gradient.allocate_budget(
+            total_budget=100, budget_bounds=bounds
+        )
+
+
+def test_zero_gradient_pinned_block_does_not_warn(optimizer_with_zero_gradient):
+    """Coordinates pinned by degenerate bounds (low == high) are not probed."""
+    bounds = optimizer_xarray_builder(
+        np.array([[50, 50], [50, 50]]),
+        channel=["channel_1", "channel_2"],
+        bound=["lower", "upper"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        optimizer_with_zero_gradient.allocate_budget(
+            total_budget=100, budget_bounds=bounds
+        )
+
+
+def test_nonzero_gradient_does_not_warn(mmm_wrapper):
+    """A block that reaches the response produces no zero-gradient warning."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    bounds = optimizer_xarray_builder(
+        np.array([[0, 100], [0, 100]]),
+        channel=["channel_1", "channel_2"],
+        bound=["lower", "upper"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        optimizer.allocate_budget(total_budget=100, budget_bounds=bounds)
 
 
 def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
