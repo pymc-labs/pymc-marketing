@@ -16,7 +16,6 @@
 import pymc as pm
 import pymc.dims as pmd
 from pymc.model.fgraph import (
-    extract_dims,
     fgraph_from_model,
     model_free_rv,
     model_from_fgraph,
@@ -27,6 +26,8 @@ from pytensor.tensor import TensorVariable
 from pytensor.tensor.basic import infer_shape_db
 from pytensor.tensor.rewriting.shape import ShapeFeature
 from pytensor.xtensor.type import XTensorVariable
+
+from pymc_marketing.pytensor_utils import extract_dims
 
 
 def get_symbolic_rv_shape(
@@ -145,6 +146,7 @@ def deterministics_to_flat(model: pm.Model, names: list[str]) -> pm.Model:
             new_rv,
             new_rv.type(name=model_var.name),
             None,
+            model_var.name,
             *dims,
         )
 

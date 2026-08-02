@@ -15,18 +15,19 @@
 """PyTensor utility functions."""
 
 from collections import Counter
+from copy import copy
 
 import arviz as az
 import pandas as pd
 import xarray as xr
 from pymc.model.core import Model
 from pymc.model.fgraph import (
+    ModelValuedVar,
     ModelVar,
-    extract_dims,
     fgraph_from_model,
     model_from_fgraph,
 )
-from pymc.pytensorf import StringConstant, rvs_in_graph
+from pymc.pytensorf import rvs_in_graph
 from pytensor.graph.basic import Variable
 from pytensor.graph.fg import FunctionGraph
 from pytensor.graph.replace import clone_replace
@@ -36,8 +37,28 @@ from pytensor.xtensor import xtensor_constant
 from pytensor.xtensor.vectorization import vectorize_graph
 
 
+def extract_dims(var) -> tuple[str, ...]:
+    """Return the dim names of a ``ModelVar`` output variable.
+
+    Successor of ``pymc.model.fgraph.extract_dims`` (removed after pymc
+    6.0.x): since pymc 6.2 dims are stored as op properties (``op.dims``,
+    a tuple of strings) rather than symbolic string inputs.
+    """
+    node = var.owner
+    if node is not None and isinstance(node.op, ModelVar):
+        return tuple(getattr(node.op, "dims", ()) or ())
+    return ()
+
+
 def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
     """Prefix variable and dimension names in a FunctionGraph.
+
+    Since pymc 6.2 the names and dims used to rebuild a model are stored as
+    ``__props__`` on the ``ModelVar`` ops (see pymc#8340), so prefixing the
+    ops is sufficient for ``model_from_fgraph`` — variable names in the graph
+    are not authoritative and are left untouched. The one exception is value
+    variables, which carry their own names (e.g. ``x_log__``) and must stay
+    unique across merged models.
 
     Variables listed in ``exclude_vars`` (e.g., a shared variable like ``channel_data``)
     are kept unprefixed, and their dims/coords are also preserved without prefix.
@@ -46,54 +67,36 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
         exclude_vars = set()
 
     # First, collect dimensions that belong to excluded variables
-    exclude_dims = set()
+    exclude_dims: set[str] = set()
     for v in f2.outputs:
         if v.name in exclude_vars:
-            v_dims = extract_dims(v)
-            for dim in v_dims:
-                exclude_dims.add(dim.data)
+            exclude_dims.update(extract_dims(v))
 
-    # Track dims and build a mapping from base variable names to prefixed names
-    dims = set()
-    base_to_prefixed: dict[str, str] = {}
-    for v in f2.outputs:
-        # Only prefix if not in exclude_vars and has a valid name
-        old_name = getattr(v, "name", None)
-        if old_name and (old_name not in exclude_vars):
-            new_name = f"{prefix}_{old_name}"
-            v.name = new_name
-            if isinstance(v.owner.op, ModelVar):
-                rv = v.owner.inputs[0]
-                rv.name = new_name
-            # Record base to prefixed mapping for subsequent value-var renaming
-            base_to_prefixed[old_name] = new_name
-        dims.update(extract_dims(v))
-
-    # Also collect ModelVar outputs that may not be listed among f2.outputs
-    # (e.g., observed RVs or deterministics created internally)
-    for var in list(f2.variables):
+    for node in list(f2.apply_nodes):
+        op = node.op
+        if not isinstance(op, ModelVar):
+            continue
+        op_name = getattr(op, "name", None)
         if (
-            (owner := getattr(var, "owner", None)) is not None
-            and isinstance(owner.op, ModelVar)
-            and isinstance(name := getattr(var, "name", None), str)
-            and name
-            and name not in exclude_vars
-            and name not in base_to_prefixed
-            and not name.startswith(prefix + "_")
+            not isinstance(op_name, str)
+            or not op_name
+            or op_name in exclude_vars
+            or op_name.startswith(prefix + "_")
         ):
-            new_name = f"{prefix}_{name}"
-            var.name = new_name
-            owner.inputs[0].name = new_name
-            base_to_prefixed[name] = new_name
-
-    # Don't rename dimensions that belong to excluded variables
-    dims_rename = {
-        dim: StringConstant(dim.type, f"{prefix}_{dim.data}")
-        for dim in dims
-        if dim.data not in exclude_dims
-    }
-    if dims_rename:
-        f2.replace_all(tuple(dims_rename.items()))
+            continue
+        # Copy rather than mutate in place: name/dims are __props__
+        # (hash/eq-bearing), and the op may be registered in hashed containers.
+        new_op = copy(op)
+        new_op.name = f"{prefix}_{op_name}"
+        new_op.dims = tuple(
+            dim if dim in exclude_dims else f"{prefix}_{dim}"
+            for dim in (getattr(op, "dims", ()) or ())
+        )
+        node.op = new_op
+        if isinstance(op, ModelValuedVar):
+            value = node.inputs[1]
+            if isinstance(getattr(value, "name", None), str) and value.name:
+                value.name = f"{prefix}_{value.name}"
 
     # Don't prefix coordinates for excluded dimensions
     new_coords = {}
@@ -103,35 +106,6 @@ def _prefix_model(f2, prefix: str, exclude_vars: set | None = None):
         else:
             new_coords[k] = v
     f2._coords = new_coords  # type: ignore[attr-defined]
-
-    # Also rename associated transformed/value variables to keep names unique across merged graphs.
-    # Example patterns include: "<base>", "<base>_log__", "<base>_logodds__", etc.
-    # We only attempt renames for bases we actually prefixed above.
-    if base_to_prefixed:
-        for var in list(f2.variables):
-            if (
-                isinstance(name := getattr(var, "name", None), str)
-                and name
-                and name not in exclude_vars
-                and (
-                    match := next(
-                        (
-                            (base, prefixed)
-                            for base, prefixed in base_to_prefixed.items()
-                            if isinstance(base, str)
-                            and base
-                            and (
-                                name == base
-                                or name.startswith(base + "_")
-                                or name.startswith(base + "__")
-                            )
-                        ),
-                        None,
-                    )
-                )
-            ):
-                base, prefixed = match
-                var.name = name.replace(base, prefixed, 1)
 
     return f2
 
