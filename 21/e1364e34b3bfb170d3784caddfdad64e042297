@@ -1,0 +1,23 @@
+pymc_marketing/mmm/components/base.py
+  s_6f9e3d2cdd0786::t_6ce3ea9cb1f342 61
+pyproject.toml
+  s_6f9e3d2cdd0786::t_e3f9a762414fea 86-87
+uv.lock
+  s_6f9e3d2cdd0786::t_5e57382ccdee64 4035,4095
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "21e1364e34b3bfb170d3784caddfdad64e042297",
+  "prompts": {},
+  "sessions": {
+    "s_6f9e3d2cdd0786": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c1f2c1c-b754-45cf-927a-0175eba13c78",
+        "model": "claude-fable-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
