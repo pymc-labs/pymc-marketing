@@ -22,6 +22,7 @@ import pytest
 import xarray as xr
 import yaml
 from pydantic import ValidationError
+from pymc_extras.deserialize import DeserializableError
 
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.builders.yaml import (
@@ -175,7 +176,7 @@ def test_wrong_distribution():
     """Test that a model with an invalid distribution fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_distribution.yml")
 
-    with pytest.raises(ModelConfigError):
+    with pytest.raises(DeserializableError):
         build_mmm_from_yaml(wrong_config_path)
 
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -187,7 +188,7 @@ def test_wrong_parameter_type():
     """Test that a model with a wrong parameter type fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_parameter_type.yml")
 
-    with pytest.raises(ModelConfigError):
+    with pytest.raises(DeserializableError):
         build_mmm_from_yaml(wrong_config_path)
 
     cfg = yaml.safe_load(wrong_config_path.read_text())

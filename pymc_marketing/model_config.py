@@ -13,11 +13,8 @@
 #   limitations under the License.
 """Model configuration utilities."""
 
-import warnings
-from collections.abc import Sequence
 from typing import Any
 
-from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
 
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
@@ -33,7 +30,6 @@ ModelConfig = dict[str, VariableFactory | HSGPKwargs | Prior | Any]
 def parse_model_config(
     model_config: ModelConfig,
     hsgp_kwargs_fields: list[str] | None = None,
-    non_distributions: list[str] | None = None,
 ) -> ModelConfig:
     """Parse the model config dictionary.
 
@@ -43,9 +39,6 @@ def parse_model_config(
         The model configuration dictionary.
     hsgp_kwargs_fields : list[str], optional
         A list of keys to parse as HSGP kwargs.
-    non_distributions : list[str], optional
-        A list of keys to ignore when parsing the model configuration
-        dictionary due to them not being distributions.
 
     Returns
     -------
@@ -54,7 +47,7 @@ def parse_model_config(
 
     Examples
     --------
-    Parse all keys in model configuration but ignore the key "tvp_intercept".
+    Parse the HSGP kwargs field in a model configuration.
 
     .. code-block:: python
 
@@ -63,13 +56,7 @@ def parse_model_config(
         from pymc_extras.prior import Prior
 
         model_config = {
-            "alpha": {
-                "dist": "Normal",
-                "kwargs": {
-                    "mu": 0,
-                    "sigma": 1,
-                },
-            },
+            "alpha": Prior("Normal", mu=0, sigma=1),
             "beta": Prior("HalfNormal"),
             "intercept_tvp_config": {
                 "m": 200,
@@ -87,73 +74,19 @@ def parse_model_config(
         parsed_model_config = parse_model_config(
             model_config,
             hsgp_kwargs_fields=["intercept_tvp_config"],
-            non_distributions=["other_intercept"],
         )
-        # {'alpha': Prior("Normal", mu=0, sigma=1),
-        #  'beta': Prior("HalfNormal"),
+        # {'alpha': Prior("Normal", mu=0, sigma=1),  # unchanged
+        #  'beta': Prior("HalfNormal"),  # unchanged
         #  'intercept_tvp_config': HSGPKwargs(m=200, L=119.17, eta_lam=1.0, ls_mu=5.0, ls_sigma=10.0, cov_func=None),
         #  'other_intercept': {'key': 'Some other non-distribution configuration'}}
 
-    Parsing with an error:
-
-    .. code-block:: python
-
-        from pymc_marketing.model_config import (
-            parse_model_config,
-            ModelConfigError,
-        )
-
-        model_config = {
-            "alpha": {"key": "Non distribution"},
-            "beta": {"dist": "UnknownDistribution"},
-            "gamma": "Completely wrong",
-        }
-
-        try:
-            parse_model_config(model_config)
-        except ModelConfigError as e:
-            print(e)
-
     """
-    non_distributions = non_distributions or []
     hsgp_kwargs_fields = hsgp_kwargs_fields or []
 
-    # Convert to sets for O(1) lookup
-    non_distributions_set = set(non_distributions)
+    # Convert to a set for O(1) lookup
     hsgp_kwargs_set = set(hsgp_kwargs_fields)
 
     parse_errors = []
-
-    def handle_prior_config(name, prior_config):
-        # Early return for non-distribution fields - must be first check
-        if name in non_distributions_set or name in hsgp_kwargs_set:
-            return prior_config
-
-        if isinstance(prior_config, Prior | VariableFactory):
-            return prior_config
-
-        # Skip deserialization for non-dict, non-string sequence types (lists, tuples, etc.)
-        # These are not distribution configurations and should never be deserialized
-        if isinstance(prior_config, Sequence) and not isinstance(prior_config, str):
-            return prior_config
-
-        # Skip deserialization for other non-dict types (strings, numbers, etc.)
-        # These are not distribution configurations
-        if not isinstance(prior_config, dict):
-            return prior_config
-
-        try:
-            dist = deserialize(prior_config)
-        except Exception as e:
-            parse_errors.append(f"Parameter {name}: {e}")
-        else:
-            msg = (
-                f"{name} is automatically converted to {dist}. "
-                "Use the Prior class to avoid this warning."
-            )
-            warnings.warn(msg, DeprecationWarning, stacklevel=2)
-
-            return dist
 
     def handle_hggp_kwargs(name, config):
         if name not in hsgp_kwargs_set:
@@ -185,13 +118,34 @@ def parse_model_config(
             parse_errors.append(f"Parameter {name}: {e}")
             return config
 
-    # Parse the model configuration to extrat the `Prior` objects.
+    def check_legacy_prior_spec(name, config):
+        # Require a string value, matching the sibling checks in
+        # `ModelIO._model_config_formatting` and `mmm.builders.factories`, so
+        # non-prior mappings that merely contain such a key are not flagged.
+        if (
+            name not in hsgp_kwargs_set
+            and isinstance(config, dict)
+            and (
+                isinstance(config.get("dist"), str)
+                or isinstance(config.get("distribution"), str)
+            )
+        ):
+            parse_errors.append(
+                f"Parameter {name!r} looks like a legacy dict-format prior spec. "
+                "Dict-format priors were removed in v1.0.0; use "
+                "pymc_extras.prior.Prior instead, e.g. "
+                'Prior("Normal", mu=0, sigma=1) or Prior.from_dict(...)'
+            )
+        return config
+
+    # Priors already arrive as `Prior`/`VariableFactory` objects and pass through
+    # untouched; only the `HSGPKwargs` fields need converting from dicts. Dicts
+    # that look like removed dict-format prior specs are rejected with a
+    # migration hint instead of failing later with an opaque AttributeError.
     result: ModelConfig = {
-        name: handle_prior_config(name, prior_config)
-        for name, prior_config in model_config.items()
+        name: check_legacy_prior_spec(name, handle_hggp_kwargs(name, config))
+        for name, config in model_config.items()
     }
-    # Parse the model configuration to extract the `HSGPKwargs` objects.
-    result = {name: handle_hggp_kwargs(name, config) for name, config in result.items()}
 
     if parse_errors:
         combined_errors = ", ".join(parse_errors)

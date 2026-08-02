@@ -1422,3 +1422,45 @@ class TestModelConfigFormattingTypeDetection:
         model_config = {"n_obs": 100, "name": "test"}
         result = ModelIO._model_config_formatting(model_config)
         assert result == {"n_obs": 100, "name": "test"}
+
+
+class TestModelConfigFormattingClassForm:
+    """Wrapper factories serialized as ``class``/``data`` must be rebuilt.
+
+    ``Censored`` is not in the TypeRegistry, so it serializes via ``to_dict()``
+    rather than the ``__type__`` path. Without a dedicated branch it comes back
+    as a plain dict and fails later on ``.create_variable``.
+    """
+
+    def test_censored_rebuilt_from_class_form(self):
+        from pymc_extras.prior import Censored, Prior
+
+        prior = Censored(Prior("Normal", mu=0, sigma=1), lower=0)
+        model_config = json.loads(json.dumps({"likelihood": prior.to_dict()}))
+
+        result = ModelIO._model_config_formatting(model_config)
+
+        assert isinstance(result["likelihood"], Censored)
+        assert result["likelihood"] == prior
+
+    def test_class_form_takes_precedence_over_recursion(self):
+        """The wrapper is rebuilt whole, not recursed into.
+
+        Recursing first would convert the nested ``dist`` to a ``Prior`` and
+        leave the wrapper as an unreadable dict.
+        """
+        from pymc_extras.prior import Censored, Prior
+
+        prior = Censored(Prior("Normal", mu=0, sigma=1), lower=0)
+        model_config = json.loads(json.dumps({"likelihood": prior.to_dict()}))
+
+        result = ModelIO._model_config_formatting(model_config)
+
+        assert not isinstance(result["likelihood"], dict)
+        assert isinstance(result["likelihood"].distribution, Prior)
+
+    def test_non_prior_mapping_with_class_key_unchanged(self):
+        """A plain config mapping is not misrouted to the deserializer."""
+        model_config = {"settings": {"class": "premium", "tier": 2}}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result["settings"] == {"class": "premium", "tier": 2}

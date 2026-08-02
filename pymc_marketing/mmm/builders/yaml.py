@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import os
-import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -121,9 +120,7 @@ def build_mmm_from_yaml(
     model_spec = cfg.model.model_dump(by_alias=True)
     model_spec["kwargs"] = {**model_spec.get("kwargs", {}), **(model_kwargs or {})}
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        model = build(model_spec)
+    model = build(model_spec)
 
     # 2 -- resolve covariates / target
     data_cfg = cfg.data
