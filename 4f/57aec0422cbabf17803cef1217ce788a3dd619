@@ -1,0 +1,27 @@
+pyproject.toml
+  s_6f9e3d2cdd0786::t_5ed59648b0752f 36
+tests/test_pytensor_utils.py
+  s_6f9e3d2cdd0786::t_5ed59648b0752f 25,551-556,559-560
+pymc_marketing/model_graph.py
+  s_6f9e3d2cdd0786::t_5ed59648b0752f 30-31,149
+pymc_marketing/pytensor_utils.py
+  s_6f9e3d2cdd0786::t_5ed59648b0752f 18,25,30,40-52,56-62,70,73,75-79,81-84,86-99
+uv.lock
+  s_6f9e3d2cdd0786::t_2d96782c34eb25 1604,3308,3903,3918,3920,4118,4180,4190,4192-4204,4720,4769
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "4f57aec0422cbabf17803cef1217ce788a3dd619",
+  "prompts": {},
+  "sessions": {
+    "s_6f9e3d2cdd0786": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c1f2c1c-b754-45cf-927a-0175eba13c78",
+        "model": "claude-fable-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
