@@ -58,7 +58,7 @@ type SupportedPrior = (
     | InstanceOf[Variable]
     | InstanceOf[VariableFactory]
     | list
-    | InstanceOf[npt.NDArray[np.floating]]
+    | InstanceOf[np.ndarray]
 )
 
 

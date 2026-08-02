@@ -4091,7 +4091,7 @@ requires-dist = [
     { name = "networkx", marker = "extra == 'docs'" },
     { name = "networkx", marker = "extra == 'test'" },
     { name = "numba", marker = "extra == 'docs'" },
-    { name = "numpy", specifier = ">=2.0,<3.0" },
+    { name = "numpy", specifier = ">=2.0,<2.5" },
     { name = "numpydoc", marker = "extra == 'docs'" },
     { name = "numpyro", marker = "extra == 'docs'" },
     { name = "numpyro", marker = "extra == 'test'" },
