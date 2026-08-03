@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_brand_metrics_long_term.ipynb
+  s_ae65acb0132fc0::t_2df627611f054d 1376-1380,1651-1669,2432,2894,2896,2978-2995,3166,3170-3173,3192-3198,3218-3243,3330-3350,3654,3846-3854,3864,3889-3891,3897,3903,3908,3917-3923,3926-3929,3944,3946-3948,3987-3992,4078-4085,4410-4413,4528
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3c2c9c9cf4f4888cfc627e45074dfd8893abc826",
+  "prompts": {},
+  "sessions": {
+    "s_ae65acb0132fc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ce53c3a-f3c8-4aa9-b610-b74408a5f9f2",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
