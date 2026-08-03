@@ -147,8 +147,13 @@ class MediaVariable(OptimizationVariable):
     name : str
         Name of the model's channel data variable.
     mask : DataArray
-        Boolean mask over the budget dims selecting cells to optimize,
-        already transposed to the model's budget-dimension order.
+        Boolean mask over the budget dims selecting cells to optimize, already
+        reindexed and transposed to the model's coordinate and dimension
+        order. That alignment is load-bearing: the mask is consumed
+        positionally by the forward map (scatter into the model's tensor
+        layout) *and* supplies the labels for the inverse map, so a mask in a
+        different coordinate order would silently attribute each value to the
+        wrong cell.
     num_periods : int
         Number of periods budget is allocated over.
     adstock_periods : int

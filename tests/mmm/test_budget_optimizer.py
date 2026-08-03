@@ -1071,3 +1071,88 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
+
+
+def test_shuffled_mask_labels_match_model_coords(mmm_wrapper):
+    """A mask in a different coord order than the model must not shift labels.
+
+    The mask is consumed positionally by the forward map (scatter into the
+    model's tensor layout) and also supplies the labels for the inverse map,
+    so it is reindexed to the model's coordinate order at construction. This
+    pins the inverse map to the forward map: with per-channel bounds that make
+    the optimum distinguishable, the value attributed to a channel must be the
+    one its own bounds produced.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # model order: channel_1, channel_2
+    shuffled = list(reversed(channels))
+
+    mask = xr.DataArray(
+        np.ones(len(shuffled), dtype=bool),
+        dims=("channel",),
+        coords={"channel": shuffled},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    # The mask is realigned to the model's coordinate order.
+    assert list(optimizer.budgets_to_optimize.coords["channel"].values) == channels
+
+    # channel_1 is capped at 5, channel_2 must take the remaining 95.
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 5.0], [0.0, 95.0]]),
+        channel=channels,
+        bound=["lower", "upper"],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    assert float(result.budgets.sel(channel="channel_1")) <= 5.0 + 1e-6
+    np.testing.assert_allclose(
+        float(result.budgets.sel(channel="channel_2")), 95.0, atol=1e-4
+    )
+
+
+def test_partial_mask_result_is_invariant_to_coord_order(mmm_wrapper):
+    """A partial mask must select the same cells however its coords are ordered.
+
+    With a partial mask the label shift and the positional selection shift can
+    cancel in the labelled output while the model optimizes the *other*
+    channel's curve -- the reported allocation looks right but the objective
+    behind it is wrong. Optimizing the same intent written in two coord orders
+    must agree on both the allocation and the objective value.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # [channel_1, channel_2]
+
+    def optimize(coord_order):
+        # Intent in every ordering: optimize channel_2 only.
+        mask = xr.DataArray(
+            np.array([c == "channel_2" for c in coord_order]),
+            dims=("channel",),
+            coords={"channel": coord_order},
+        )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+        bounds = optimizer_xarray_builder(
+            np.array([[0.0, 100.0], [0.0, 100.0]]),
+            channel=channels,
+            bound=["lower", "upper"],
+        )
+        return optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    in_model_order = optimize(channels)
+    in_shuffled_order = optimize(list(reversed(channels)))
+
+    xr.testing.assert_allclose(in_model_order.budgets, in_shuffled_order.budgets)
+    np.testing.assert_allclose(
+        in_model_order.scipy_result.fun, in_shuffled_order.scipy_result.fun, rtol=1e-8
+    )
+    # And the intent was honoured: the frozen channel got nothing.
+    np.testing.assert_allclose(
+        float(in_shuffled_order.budgets.sel(channel="channel_1")), 0.0, atol=1e-8
+    )

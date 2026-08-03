@@ -1410,9 +1410,22 @@ class BudgetOptimizer(BaseModel):
                         "information."
                     )
 
-        self.budgets_to_optimize = self.budgets_to_optimize.transpose(
-            *self._budget_dims
-        )
+        # Align the mask with the model's coordinate order, not just its dim
+        # order: the mask is consumed positionally downstream (scatter into the
+        # model's tensor layout, and the labels the solution is unpacked with),
+        # so a user-supplied mask ordered differently from the model would
+        # otherwise select the wrong cells and label them with the wrong
+        # coordinates. `cost_per_unit` and `budget_bounds` are reindexed for
+        # the same reason.
+        self.budgets_to_optimize = self.budgets_to_optimize.reindex(
+            self._budget_coords
+        ).transpose(*self._budget_dims)
+        if bool(self.budgets_to_optimize.isnull().any()):
+            raise ValueError(
+                "budgets_to_optimize is missing coordinates present in the "
+                f"model; expected {self._budget_coords}."
+            )
+        self.budgets_to_optimize = self.budgets_to_optimize.astype(bool)
 
         # 5. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
