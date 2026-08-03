@@ -251,6 +251,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
@@ -261,6 +262,7 @@ from pymc_marketing.mmm.constraints import (
     compile_constraints_for_scipy,
 )
 from pymc_marketing.mmm.optimization_variables import (
+    LeverVariable,
     MediaVariable,
     OptimizationVariables,
 )
@@ -1166,6 +1168,28 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
+        Field(
+            default_factory=dict,
+            description=(
+                "Additional pm.Data variables to co-optimize alongside "
+                "`channel_data_var`, keyed by variable name. Each value gives the "
+                "native (low, high) bounds per entry in the variable's coordinate "
+                "order, or None for unbounded. Each variable must have exactly one "
+                "dim (not the date dim -- date-varying variables are not "
+                "supported); its optimal values are substituted via the same "
+                "do() as the media budgets and returned in `result.optimized_vars`. "
+                "These variables never enter the default budget-sum constraint "
+                "(pass a custom `constraints=` including their flat-vector segment "
+                "to make one compete for total_budget). "
+                "MMM.budget_optimizer fills this from its OptimizableMuEffect "
+                "levers (f'{prefix}_data' with the effect's lever_bounds); pair "
+                "with response_variable='total_response_original_scale' so their "
+                "contribution enters the objective."
+            ),
+        )
+    )
+
     response_variable: str = Field(
         default="total_media_contribution_original_scale",
         description="The response variable to optimize.",
@@ -1335,6 +1359,13 @@ class BudgetOptimizer(BaseModel):
                 stacklevel=2,
             )
             data.pop("mu_effects")
+        # Infer optimizable vars from the wrapper's effects (duck-typed so this
+        # layer never imports marketing classes), so the direct
+        # BudgetOptimizer(model=<wrapper>) path doesn't silently freeze them.
+        if "optimizable_vars" not in data and hasattr(
+            model, "_effect_optimizable_vars"
+        ):
+            data["optimizable_vars"] = model._effect_optimizable_vars()
         if "frozen_deterministics" not in data and hasattr(
             model, "frozen_deterministics"
         ):
@@ -1459,9 +1490,47 @@ class BudgetOptimizer(BaseModel):
             budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
             cost_per_unit_tensor=self._cost_per_unit_tensor,
         )
-        self._variables = OptimizationVariables([media_variable])
+        # 6b. Optimizable vars become lever variables appended after media.
+        # Levers never enter the budget-sum constraint; a discount depth is
+        # not a dollar amount drawn from the shared pool.
+        lever_variables = []
+        for lever_name, lever_bounds in self.optimizable_vars.items():
+            if lever_name not in self.model.named_vars_to_dims:
+                raise ValueError(
+                    f"optimizable_vars entry '{lever_name}' is not a variable "
+                    "with named dims in the model."
+                )
+            lever_dims = list(self.model.named_vars_to_dims[lever_name])
+            if len(lever_dims) != 1 or lever_dims[0] == self.date_dim:
+                raise ValueError(
+                    f"optimizable_vars entry '{lever_name}' must have exactly "
+                    f"one dim, and not the {self.date_dim!r} dim; got "
+                    f"{tuple(self.model.named_vars_to_dims[lever_name])}. "
+                    "Date-varying optimizable variables are not supported."
+                )
+            lever_dim = lever_dims[0]
+            lever_size = len(self.model.coords[lever_dim])
+            if lever_bounds is not None and len(lever_bounds) != lever_size:
+                raise ValueError(
+                    f"optimizable_vars['{lever_name}'] bounds have "
+                    f"{len(lever_bounds)} entries but the variable has "
+                    f"{lever_size}."
+                )
+            lever_variables.append(
+                LeverVariable(
+                    name=lever_name,
+                    dim=lever_dim,
+                    coords=list(self.model.coords[lever_dim]),
+                    bounds=lever_bounds,
+                    initial_value=self.model[lever_name].get_value(),
+                )
+            )
+
+        self._variables = OptimizationVariables([media_variable, *lever_variables])
         self._budgets_flat = self._variables.flat
-        self._budgets = media_variable.scattered(self._variables.flat)
+        self._budgets = media_variable.scattered(
+            self._variables.variable_slice(self.channel_data_var)
+        )
 
         # 7. Substitute the decision variables into the PyMC model graph.
         # One do() call over every variable keeps the gradients joint.
@@ -1479,6 +1548,48 @@ class BudgetOptimizer(BaseModel):
                 f"PyMC model. Available variables: {available}. "
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
+
+        # 8b. Structural reachability: every optimizable var must influence the
+        # response variable, otherwise its gradient is identically zero and the
+        # "optimum" returned would just be the seed. Checked on the same graph
+        # the objective is compiled from (do() keeps the substituted vars as
+        # named nodes). A complementary *numeric* check at x0 lives in
+        # allocate_budget -- it also catches levers that are structurally
+        # connected but inert in the optimization window (e.g. an event whose
+        # window mask is all zeros there).
+        if self.optimizable_vars:
+            response_ancestors = set(
+                ancestors([self._pymc_model[self.response_variable]])
+            )
+            unreachable = [
+                name
+                for name in self.optimizable_vars
+                if self._pymc_model[name] not in response_ancestors
+            ]
+            if unreachable:
+                raise ValueError(
+                    f"response_variable={self.response_variable!r} does not "
+                    f"depend on optimizable_vars {unreachable}; their gradient "
+                    "is identically zero, so they cannot be optimized. Pass a "
+                    "response variable that includes their contribution, e.g. "
+                    'response_variable="total_response_original_scale".'
+                )
+
+            # 8c. The reverse trap: under the log link the media-contribution
+            # objective *does* reach the levers (mu contains the effect), so
+            # the ancestry check above passes -- but the levers would then be
+            # tuned to maximize incremental media contribution, not total
+            # response. Warn instead of silently accepting the default.
+            if self.response_variable == "total_media_contribution_original_scale":
+                warnings.warn(
+                    "optimizable_vars are being optimized against the "
+                    "media-contribution objective "
+                    "'total_media_contribution_original_scale'. If you want "
+                    "them tuned to maximize the total predicted response, "
+                    'pass response_variable="total_response_original_scale".',
+                    UserWarning,
+                    stacklevel=2,
+                )
 
         # 9. Compile objective & gradient
         self._compile_objective_and_grad()
@@ -1751,19 +1862,26 @@ class BudgetOptimizer(BaseModel):
         self,
         x0: np.ndarray,
         bounds: list[tuple[float | None, float | None]],
+        g0: np.ndarray | None = None,
     ) -> None:
-        """Warn about optimization variables whose gradient is identically zero.
+        """Warn about coordinates whose gradient is identically zero.
 
-        Evaluates the compiled gradient at ``x0`` once. Any variable whose whole
-        slice (excluding pinned coordinates, where ``low == high``) is exactly
-        zero is re-probed at a perturbed in-bounds point; if the gradient is
-        still exactly zero there, the objective very likely does not depend on
-        that variable and the solver will simply return its seed. This check is
-        uniform over every variable — the media budgets included — because with a
-        configurable ``response_variable`` no variable is guaranteed to reach the
-        objective.
+        Evaluates the compiled gradient at ``x0`` once. Any coordinate that is
+        exactly zero there (excluding pinned coordinates, where
+        ``low == high``) is re-probed at a perturbed in-bounds point: a zero
+        gradient at ``x0`` is either a warm start sitting at that coordinate's
+        optimum (nonzero at the probe point -- fine) or a genuinely inert
+        coordinate, e.g. an event whose window falls outside the optimization
+        window (zero everywhere -- the solver would silently return its seed).
+        The check is uniform over every variable — the media budgets included —
+        because with a configurable ``response_variable`` no variable is
+        guaranteed to reach the objective.
+
+        ``g0`` may be supplied when the caller has already evaluated the
+        gradient at ``x0``, so the check costs nothing extra.
         """
-        _, g0 = self._objective_and_grad(x0)
+        if g0 is None:
+            _, g0 = self._objective_and_grad(x0)
         g0 = np.asarray(g0)
 
         free = np.array(
@@ -1773,70 +1891,62 @@ class BudgetOptimizer(BaseModel):
             ]
         )
 
-        suspicious = [
-            variable
-            for variable in self._variables.variables
-            if free[self._variables.slices[variable.name]].any()
-            and np.all(
-                g0[self._variables.slices[variable.name]][
-                    free[self._variables.slices[variable.name]]
-                ]
-                == 0.0
-            )
-        ]
-        if not suspicious:
+        zero0 = free & (g0 == 0.0)
+        if not zero0.any():
             return
 
-        # Settle each suspicious variable with two probes, evaluated lazily: a
-        # local step (honest for a saturating response, where a distant point
+        # Settle each suspicious coordinate with two probes, evaluated lazily:
+        # a local step (honest for a saturating response, where a distant point
         # is flatter still) and a far one (the only way out of a dead zone,
         # where the objective is flat here but responsive further out). A
-        # variable is inert only if both agree, so the second evaluation is
-        # spent only on variables the first could not clear.
+        # coordinate is inert only if both agree, so the second evaluation is
+        # spent only on coordinates the first could not clear.
+        suspicious = zero0
         for far in (False, True):
             x_probe = np.array(x0, copy=True)
-            probed = np.zeros(len(x0), dtype=bool)
-            for variable in suspicious:
-                flat_slice = self._variables.slices[variable.name]
-                for idx in range(flat_slice.start, flat_slice.stop):
-                    if not free[idx]:
-                        continue
-                    probe = self._probe_coordinate(x_probe[idx], *bounds[idx], far=far)
-                    if probe is not None:
-                        x_probe[idx] = probe
-                        probed[idx] = True
+            probed = np.zeros_like(suspicious)
+            for idx in np.flatnonzero(suspicious):
+                probe = self._probe_coordinate(x_probe[idx], *bounds[idx], far=far)
+                if probe is not None:
+                    x_probe[idx] = probe
+                    probed[idx] = True
+            if not probed.any():
+                break
             _, g_probe = self._objective_and_grad(
                 self._budgets_flat.type.filter(x_probe)
             )
-            g_probe = np.asarray(g_probe)
-            # A variable clears if any probed coordinate responds. Coordinates
-            # with no distinct probe point (a box narrower than machine
-            # precision) cannot clear it, but neither do they convict it: they
-            # simply carry no evidence.
-            suspicious = [
-                variable
-                for variable in suspicious
-                if np.all(
-                    g_probe[self._variables.slices[variable.name]][
-                        probed[self._variables.slices[variable.name]]
-                    ]
-                    == 0.0
-                )
-            ]
-            if not suspicious:
+            # A coordinate with no distinct probe point carries no evidence
+            # either way, so it stays suspicious rather than being convicted on
+            # a re-evaluation at x0 itself.
+            suspicious = suspicious & probed & (np.asarray(g_probe) == 0.0)
+            if not suspicious.any():
                 return
 
-        inert = [variable.name for variable in suspicious]
-        if inert:
-            warnings.warn(
-                f"Optimization variable(s) {inert} have an identically zero gradient "
-                f"at the initial point and at a perturbed probe point. The "
-                f"response variable {self.response_variable!r} likely does not "
-                "depend on them; the optimizer will return their seed values "
-                "unchanged.",
-                UserWarning,
-                stacklevel=2,
-            )
+        inert = suspicious
+        if not inert.any():
+            return
+
+        inert_labels: list[str] = []
+        for variable in self._variables.variables:
+            flat_slice = self._variables.slices[variable.name]
+            var_inert = inert[flat_slice]
+            if not var_inert.any():
+                continue
+            if var_inert.all() or len(variable.dims) != 1:
+                inert_labels.append(variable.name)
+            else:
+                coords = variable.coords[variable.dims[0]]
+                inert_labels.extend(
+                    f"{variable.name}[{coords[i]!r}]" for i in np.flatnonzero(var_inert)
+                )
+        warnings.warn(
+            f"Optimization entries {inert_labels} have an identically zero "
+            f"gradient at the initial point and at a perturbed probe point "
+            "(e.g. their event windows fall outside the optimization window). "
+            "They will be returned at their current values, not optimized.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     def allocate_budget(
         self,
@@ -1990,11 +2100,28 @@ class BudgetOptimizer(BaseModel):
         # already coerced the dtype, so this is a shape check in practice.
         x0 = self._budgets_flat.type.filter(x0)
 
-        # 4. Warn about optimization variables the objective cannot see. Costs
-        # one objective+grad evaluation (two when a variable looks inert), so
-        # callers sweeping many budgets can switch it off.
-        if check_gradients:
-            self._warn_zero_gradient_variables(cast(np.ndarray, x0), bounds)
+        # 4. Pre-solve checks at the warm start. Both read the same single
+        # objective+gradient evaluation (the probe adds a second one only when
+        # a variable looks inert), so callers sweeping many budgets can switch
+        # the gradient check off after a first solve.
+        #
+        # The objective is deliberately passed to SLSQP unscaled: dividing it
+        # (but not the compiled constraints) by |f(x0)| changes the
+        # objective/constraint ratio in the QP subproblem, which was measured
+        # to freeze the media block at its uniform seed while only the
+        # box-bounded levers moved.
+        if check_gradients or self.optimizable_vars:
+            f0, g0 = self._objective_and_grad(np.array(x0, copy=True))
+            if self.optimizable_vars and not np.isfinite(f0):
+                raise ValueError(
+                    f"Objective is not finite at the initial point (f(x0)={f0}). "
+                    "Check bounds and data (e.g. a discount depth of 1.0 under "
+                    "the log link)."
+                )
+            if check_gradients:
+                self._warn_zero_gradient_variables(
+                    cast(np.ndarray, x0), bounds, g0=np.asarray(g0)
+                )
 
         # 5. Set up callback tracking if requested
         callback_info: list[OptimizationIterationInfo] = []
@@ -2051,12 +2178,13 @@ class BudgetOptimizer(BaseModel):
         # 6. Process results: each variable's slice is labelled
         if result.success or return_if_fail:
             unpacked = self._variables.unpack(result.x)
-            optimal_budgets = unpacked[self.channel_data_var]
+            optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
+                optimized_vars=unpacked,
                 callback_info=callback_info if callback else None,
             )
 

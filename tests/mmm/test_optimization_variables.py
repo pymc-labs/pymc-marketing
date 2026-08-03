@@ -16,6 +16,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.optimization_variables import (
+    LeverVariable,
     MediaVariable,
     OptimizationVariable,
     OptimizationVariables,
@@ -197,6 +198,76 @@ def test_non_float_dtype_raises():
             channel_scales=1.0,
             dtype="int64",
         )
+
+
+def make_lever_variable(
+    bounds=((0.05, 0.45), (0.05, 0.45)),
+    initial=(0.30, 0.20),
+) -> LeverVariable:
+    return LeverVariable(
+        name="promo_data",
+        dim="promo",
+        coords=["spring", "fall"],
+        bounds=list(bounds) if bounds is not None else None,
+        initial_value=np.asarray(initial),
+    )
+
+
+def test_lever_pack_unpack_round_trip():
+    lever = make_lever_variable()
+    x = np.array([0.11, 0.42])
+    da = lever.unpack(x)
+    assert da.dims == ("promo",)
+    assert list(da.coords["promo"].values) == ["spring", "fall"]
+    np.testing.assert_array_equal(lever.pack(da), x)
+    # order-invariant pack
+    np.testing.assert_array_equal(lever.pack(da.sel(promo=["fall", "spring"])), x)
+
+
+def test_lever_warm_start_clipped_to_bounds():
+    lever = make_lever_variable(initial=(0.80, 0.01))
+    np.testing.assert_allclose(lever.default_x0(100.0), [0.45, 0.05])
+    # unbounded lever warm-starts at the raw model value
+    free = make_lever_variable(bounds=None, initial=(0.80, 0.01))
+    np.testing.assert_allclose(free.default_x0(100.0), [0.80, 0.01])
+
+
+def test_lever_default_bounds():
+    lever = make_lever_variable()
+    assert lever.default_bounds(100.0) == [(0.05, 0.45), (0.05, 0.45)]
+    free = make_lever_variable(bounds=None)
+    assert free.default_bounds(100.0) == [(None, None)] * 2
+
+
+def test_lever_validation_raises():
+    with pytest.raises(ValueError, match="bounds pairs"):
+        make_lever_variable(bounds=[(0.0, 1.0)])
+    with pytest.raises(ValueError, match="entries, expected"):
+        make_lever_variable(initial=(0.3,))
+
+
+def test_media_and_lever_space_layout():
+    """Media head + lever tail: slices tile, x0 and bounds concatenate."""
+    rng = np.random.default_rng(10)
+    media = make_media_variable(rng, sizes=(3,))
+    lever = make_lever_variable()
+    opt_vars = OptimizationVariables([media, lever])
+
+    assert opt_vars.slices["channel_data"] == slice(0, 3)
+    assert opt_vars.slices["promo_data"] == slice(3, 5)
+    assert opt_vars.size == 5
+
+    x0 = opt_vars.x0(total_budget=90.0)
+    np.testing.assert_allclose(x0[:3], 30.0)
+    np.testing.assert_allclose(x0[3:], [0.30, 0.20])
+
+    bounds = opt_vars.bounds(total_budget=90.0)
+    assert bounds[:3] == [(0.0, 90.0)] * 3
+    assert bounds[3:] == [(0.05, 0.45), (0.05, 0.45)]
+
+    unpacked = opt_vars.unpack(np.array([10.0, 30.0, 50.0, 0.1, 0.2]))
+    assert set(unpacked) == {"channel_data", "promo_data"}
+    np.testing.assert_allclose(unpacked["promo_data"].values, [0.1, 0.2])
 
 
 class _ScalarVariable(OptimizationVariable):
