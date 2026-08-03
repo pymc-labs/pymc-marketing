@@ -213,13 +213,24 @@ Notes
   historical information using
   ``idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)``.
 - Default bounds are ``[0, total_budget]`` on each optimized cell.
-- Set ``callback=True`` in ``allocate_budget(...)`` to receive per‑iteration diagnostics
-  (objective, gradient, constraints) for monitoring.
+- ``allocate_budget(...)`` returns a :class:`BudgetOptimizationResult`. It unpacks as
+  ``optimal, res = optimizer.allocate_budget(...)`` for backward compatibility; set
+  ``callback=True`` to additionally populate ``result.callback_info`` with per‑iteration
+  diagnostics (objective, gradient, constraints) for monitoring.
 """
 
 import warnings
-from collections.abc import Sequence
-from typing import Any, ClassVar, Protocol, cast, runtime_checkable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    ClassVar,
+    NotRequired,
+    Protocol,
+    TypedDict,
+    cast,
+    runtime_checkable,
+)
 
 import numpy as np
 import pymc as pm
@@ -255,6 +266,62 @@ from pymc_marketing.pytensor_utils import merge_models
 from pymc_marketing.version import __version__
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
+
+
+class ConstraintIterationInfo(TypedDict):
+    """Constraint state at one solver iteration."""
+
+    type: str
+    value: float | np.ndarray
+    jac: np.ndarray | None
+
+
+class OptimizationIterationInfo(TypedDict):
+    """Solver state at one iteration, recorded when ``callback=True``."""
+
+    x: np.ndarray
+    fun: float
+    jac: np.ndarray
+    constraint_info: NotRequired[list[ConstraintIterationInfo]]
+
+
+@dataclass
+class BudgetOptimizationResult:
+    """Result of :meth:`BudgetOptimizer.allocate_budget`.
+
+    Iterating the result yields ``(budgets, scipy_result)``, so the
+    long-standing two-element unpacking keeps working unchanged::
+
+        optimal_budgets, scipy_result = optimizer.allocate_budget(...)
+
+    Attribute access is the recommended interface going forward.
+
+    Attributes
+    ----------
+    budgets : xarray.DataArray
+        The optimized budget allocation in monetary units, labelled with the
+        model's budget dims and coords.
+    scipy_result : scipy.optimize.OptimizeResult
+        The raw scipy optimization result (solver diagnostics, ``x``, ``fun``,
+        convergence status).
+    optimized_vars : dict[str, xarray.DataArray]
+        Optimal values of any non-media decision variables co-optimized
+        alongside the media budgets. Empty until such variables are declared
+        (see https://github.com/pymc-labs/pymc-marketing/pull/2621).
+    callback_info : list[OptimizationIterationInfo] or None
+        Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
+        when ``allocate_budget(callback=True)``; ``None`` otherwise.
+    """
+
+    budgets: DataArray
+    scipy_result: OptimizeResult
+    optimized_vars: dict[str, DataArray] = field(default_factory=dict)
+    callback_info: list[OptimizationIterationInfo] | None = None
+
+    def __iter__(self):
+        """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
+        yield self.budgets
+        yield self.scipy_result
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -1096,11 +1163,6 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
-    mu_effects: Sequence = Field(
-        default_factory=list,
-        description="List of mu_effects objects with budget-aware optimization support.",
-    )
-
     response_variable: str = Field(
         default="total_media_contribution_original_scale",
         description="The response variable to optimize.",
@@ -1200,10 +1262,9 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
-    _compiled_functions: dict = PrivateAttr()
+    _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
-    _optimizable_mu_effects: list = PrivateAttr()
 
     @model_validator(mode="before")
     @classmethod
@@ -1259,9 +1320,17 @@ class BudgetOptimizer(BaseModel):
                 data["channel_scales"] = model._channel_scales
             elif hasattr(model, "channel_scales"):
                 data["channel_scales"] = model.channel_scales
-        # Infer mu_effects from wrapper if not already set
-        if "mu_effects" not in data and hasattr(model, "mu_effects"):
-            data["mu_effects"] = list(model.mu_effects)
+        # Drop mu_effects if a caller still passes it (removed field): the
+        # optimizer never consumed it; non-optimizable effects are already
+        # baked into the model graph by the time it is built.
+        if "mu_effects" in data:
+            warnings.warn(
+                "BudgetOptimizer no longer accepts mu_effects; the argument is "
+                "ignored. Effects are baked into the model graph at build time.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            data.pop("mu_effects")
         if "frozen_deterministics" not in data and hasattr(
             model, "frozen_deterministics"
         ):
@@ -1343,16 +1412,6 @@ class BudgetOptimizer(BaseModel):
 
         size_budgets = self.budgets_to_optimize.sum().item()
 
-        # 5. Check for optimizable mu_effects (not yet supported; see #2621)
-        self._optimizable_mu_effects = [
-            e for e in self.mu_effects if hasattr(e, "replace_for_optimization")
-        ]
-        if self._optimizable_mu_effects:
-            raise NotImplementedError(
-                "OptimizableMuEffect integration is not yet supported. "
-                "See https://github.com/pymc-labs/pymc-marketing/pull/2621"
-            )
-
         self._budgets_flat = ptx.xtensor(
             "budgets_flat",
             shape=(size_budgets,),
@@ -1404,7 +1463,6 @@ class BudgetOptimizer(BaseModel):
             )
 
         # 9. Compile objective & gradient
-        self._compiled_functions = {}
         self._compile_objective_and_grad()
 
         # 10. Build constraints
@@ -1712,9 +1770,7 @@ class BudgetOptimizer(BaseModel):
         if hasattr(objective_and_grad_func, "trust_input"):
             objective_and_grad_func.trust_input = True
 
-        self._compiled_functions[self.utility_function] = {
-            "objective_and_grad": objective_and_grad_func,
-        }
+        self._objective_and_grad = objective_and_grad_func
 
     def allocate_budget(
         self,
@@ -1724,10 +1780,7 @@ class BudgetOptimizer(BaseModel):
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
         callback: bool = False,
-    ) -> (
-        tuple[DataArray, OptimizeResult]
-        | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
-    ):
+    ) -> BudgetOptimizationResult:
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
 
@@ -1753,20 +1806,20 @@ class BudgetOptimizer(BaseModel):
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
         callback : bool, optional
-            Whether to return callback information tracking optimization progress. When True, returns a third
-            element containing a list of dictionaries with optimization information at each iteration including
-            'x' (parameter values), 'fun' (objective value), 'jac' (gradient), and constraint information.
-            Default is False for backward compatibility.
+            Whether to track optimization progress. When True, ``result.callback_info`` is
+            populated with a list of dictionaries with optimization information at
+            each iteration including 'x' (parameter values), 'fun' (objective value),
+            'jac' (gradient), and constraint information. Default is False.
 
         Returns
         -------
-        optimal_budgets : xarray.DataArray
-            The optimized budget allocation across channels.
-        result : OptimizeResult
-            The raw scipy optimization result.
-        callback_info : list[dict[str, Any]], optional
-            Only returned if callback=True. List of dictionaries containing optimization
-            information at each iteration.
+        BudgetOptimizationResult
+            Result object with ``budgets`` (the optimized allocation across
+            channels, monetary units), ``scipy_result`` (the raw scipy
+            optimization result), ``optimized_vars`` (empty for now), and
+            ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
+            ``None``). Iterating the result yields ``(budgets, scipy_result)``,
+            so ``optimal, res = optimizer.allocate_budget(...)`` keeps working.
 
         Raises
         ------
@@ -1858,17 +1911,15 @@ class BudgetOptimizer(BaseModel):
         x0 = self._budgets_flat.type.filter(x0)
 
         # 5. Set up callback tracking if requested
-        callback_info = []
+        callback_info: list[OptimizationIterationInfo] = []
 
         def track_progress(xk):
             """Track optimization progress at each iteration."""
             # Evaluate objective and gradient
-            obj_val, grad_val = self._compiled_functions[self.utility_function][
-                "objective_and_grad"
-            ](xk)
+            obj_val, grad_val = self._objective_and_grad(xk)
 
             # Store iteration info
-            iter_info = {
+            iter_info: OptimizationIterationInfo = {
                 "x": np.array(xk),  # Current parameter values
                 "fun": float(obj_val),  # Objective function value (scalar)
                 "jac": np.array(grad_val),  # Gradient values
@@ -1876,7 +1927,7 @@ class BudgetOptimizer(BaseModel):
 
             # Evaluate constraint values and gradients if available
             if self._compiled_constraints:
-                constraint_info = []
+                constraint_info: list[ConstraintIterationInfo] = []
 
                 for _, constraint in enumerate(self._compiled_constraints):
                     # Evaluate constraint function
@@ -1902,7 +1953,7 @@ class BudgetOptimizer(BaseModel):
         scipy_callback = track_progress if callback else None
 
         result = minimize(
-            fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
+            fun=self._objective_and_grad,
             x0=x0,
             jac=True,
             bounds=bounds,
@@ -1925,10 +1976,11 @@ class BudgetOptimizer(BaseModel):
             )
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
-            if callback:
-                return optimal_budgets, result, callback_info
-            else:
-                return optimal_budgets, result
+            return BudgetOptimizationResult(
+                budgets=optimal_budgets,
+                scipy_result=result,
+                callback_info=callback_info if callback else None,
+            )
 
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")
