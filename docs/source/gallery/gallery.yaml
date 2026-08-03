@@ -96,7 +96,7 @@ sections:
             notebook: mmm/mmm_upper_funnel_causal_approach
           - title: "Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`"
             notebook: mmm/mmm_funnel_mueffect
-          - title: Long-Term Brand Effects with Brand Metrics and a Bayesian VARX
+          - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
             notebook: mmm/mmm_brand_metrics_long_term
           - title: Causal Reasoning and Discovery
             notebook: mmm/mmm_causal_reasoning_and_discovery
