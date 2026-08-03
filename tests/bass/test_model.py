@@ -661,19 +661,6 @@ class TestBassModelClass:
         model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
         return model
 
-    @pytest.fixture
-    def fitted_model_positive_m(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
-        model = BassModel(
-            model_config={
-                "m": Prior("Normal", mu=100, sigma=10),
-                "p": Prior("Beta", alpha=1.5, beta=20),
-                "q": Prior("Beta", alpha=2, beta=5),
-                "likelihood": Prior("Poisson"),
-            },
-        )
-        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
-        return model
-
     def test_default_model_config(self):
         model = BassModel()
         config = model.default_model_config
@@ -913,10 +900,10 @@ class TestBassModelClass:
         assert pp.sizes["T"] == 10
         assert pp.sizes["product"] == 3
 
-    def test_posterior_predictive_in_sample(self, fitted_model_positive_m: BassModel):
-        with fitted_model_positive_m.model:
+    def test_posterior_predictive_in_sample(self, fitted_model: BassModel):
+        with fitted_model.model:
             pp = pm.sample_posterior_predictive(
-                fitted_model_positive_m.idata,
+                fitted_model.idata,
                 extend_inferencedata=True,
                 random_seed=42,
             )
@@ -953,23 +940,21 @@ class TestBassModelClass:
         ],
     )
     def test_sample_posterior_predictive(
-        self, fitted_model_positive_m: BassModel, X: xr.Dataset, expected_T: int
+        self, fitted_model: BassModel, X: xr.Dataset, expected_T: int
     ):
-        pp = fitted_model_positive_m.sample_posterior_predictive(
+        pp = fitted_model.sample_posterior_predictive(
             X=X, extend_idata=True, random_seed=42
         )
-        assert "posterior_predictive" in fitted_model_positive_m.idata
+        assert "posterior_predictive" in fitted_model.idata
         assert isinstance(pp, xr.DataArray)
         assert pp.name == "y"
         assert pp.sizes["T"] == expected_T
 
-    def test_sample_posterior_predictive_extend_false(
-        self, fitted_model_positive_m: BassModel
-    ):
-        pp = fitted_model_positive_m.sample_posterior_predictive(
+    def test_sample_posterior_predictive_extend_false(self, fitted_model: BassModel):
+        pp = fitted_model.sample_posterior_predictive(
             X=xr.Dataset({"T": np.arange(20)}),
             extend_idata=False,
             random_seed=42,
         )
         assert isinstance(pp, xr.DataArray)
-        assert "posterior_predictive" not in fitted_model_positive_m.idata
+        assert "posterior_predictive" not in fitted_model.idata
