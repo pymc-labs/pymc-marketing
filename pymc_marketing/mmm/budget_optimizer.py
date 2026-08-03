@@ -1693,26 +1693,51 @@ class BudgetOptimizer(BaseModel):
 
     @staticmethod
     def _probe_coordinate(
-        x0_value: float, low: float | None, high: float | None
+        x0_value: float,
+        low: float | None,
+        high: float | None,
+        rel_step: float = 1e-3,
     ) -> float | None:
-        """Return an in-bounds point away from ``x0_value``, or None if pinned.
+        """Return a nearby in-bounds point, or None if the coordinate is pinned.
+
+        The perturbation is *relative to* ``x0`` rather than a jump to the
+        middle of the box. Probing far from ``x0`` asks the wrong question: for
+        a saturating response already flat at ``x0``, a distant point is
+        flatter still, so an "inert" verdict can be confirmed by moving in the
+        one direction guaranteed to agree with it (and for media with default
+        bounds the box midpoint is total_budget/2 *per cell*, far outside the
+        sum constraint). A small step keeps the probe local, where a genuinely
+        inert coordinate is zero and a merely stationary one is not.
 
         A coordinate whose box is degenerate (``low == high``) is deliberately
         fixed by the user and cannot be probed — perturbing it would leave the
         feasible set, and reporting it as inert would be wrong.
         """
+        if low is not None and high is not None and high == low:
+            return None
+
+        # Scale the step to the coordinate itself, falling back to the box (or
+        # unity) when x0 sits at zero.
+        scale = abs(x0_value)
+        if scale == 0.0:
+            if low is not None and high is not None and np.isfinite(high - low):
+                scale = abs(high - low)
+            else:
+                scale = 1.0
+        step = rel_step * scale
+
+        for candidate in (x0_value + step, x0_value - step):
+            if low is not None and candidate < low:
+                continue
+            if high is not None and candidate > high:
+                continue
+            return candidate
+        # Both directions leave the box: it is narrower than the step, so probe
+        # the far end of whatever room exists.
         if low is not None and high is not None:
-            if high == low:
-                return None
-            midpoint = 0.5 * (low + high)
-            if np.isclose(x0_value, midpoint):
-                return 0.25 * low + 0.75 * high
-            return midpoint
-        if low is not None:
-            return low + 1.0 if not np.isclose(x0_value, low + 1.0) else low + 2.0
-        if high is not None:
-            return high - 1.0 if not np.isclose(x0_value, high - 1.0) else high - 2.0
-        return x0_value + 1.0
+            far_end = high if abs(high - x0_value) >= abs(x0_value - low) else low
+            return None if np.isclose(far_end, x0_value) else far_end
+        return None
 
     def _warn_zero_gradient_variables(
         self,
@@ -1796,6 +1821,7 @@ class BudgetOptimizer(BaseModel):
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
         callback: bool = False,
+        check_gradients: bool = True,
     ) -> BudgetOptimizationResult:
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
@@ -1830,6 +1856,13 @@ class BudgetOptimizer(BaseModel):
             populated with a list of dictionaries with optimization information at
             each iteration including 'x' (parameter values), 'fun' (objective value),
             'jac' (gradient), and constraint information. Default is False.
+        check_gradients : bool, optional
+            Whether to check, before solving, that every optimization variable
+            can actually move the objective, warning about any whose gradient
+            is identically zero. Costs one objective+gradient evaluation (two
+            when a variable looks inert), so sweeps over many budgets on a
+            large posterior may want to disable it after a first solve.
+            Default is True.
 
         Returns
         -------
@@ -1928,12 +1961,15 @@ class BudgetOptimizer(BaseModel):
             x0 = self._variables.pack(x0)
         x0 = np.asarray(x0).astype(self._budgets_flat.type.dtype)
 
-        # filter x0 based on shape/type of self._budgets_flat
-        # will raise a TypeError if x0 does not have acceptable shape and/or type
+        # Conform x0 to the compiled input's shape/dtype. The astype above
+        # already coerced the dtype, so this is a shape check in practice.
         x0 = self._budgets_flat.type.filter(x0)
 
-        # 4. Warn about optimization variables the objective cannot see
-        self._warn_zero_gradient_variables(cast(np.ndarray, x0), bounds)
+        # 4. Warn about optimization variables the objective cannot see. Costs
+        # one objective+grad evaluation (two when a variable looks inert), so
+        # callers sweeping many budgets can switch it off.
+        if check_gradients:
+            self._warn_zero_gradient_variables(cast(np.ndarray, x0), bounds)
 
         # 5. Set up callback tracking if requested
         callback_info: list[OptimizationIterationInfo] = []

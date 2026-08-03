@@ -1156,3 +1156,53 @@ def test_partial_mask_result_is_invariant_to_coord_order(mmm_wrapper):
     np.testing.assert_allclose(
         float(in_shuffled_order.budgets.sel(channel="channel_1")), 0.0, atol=1e-8
     )
+
+
+@pytest.mark.parametrize(
+    "x0_value, low, high, expected",
+    [
+        # Two finite bounds: a small step up, local to x0 (not the box midpoint).
+        (50.0, 0.0, 100.0, 50.05),
+        # Pinned coordinate: no probe exists inside the feasible set.
+        (7.0, 7.0, 7.0, None),
+        # At the lower bound, the step must go up (down would leave the box).
+        (0.0, 0.0, 100.0, 0.1),
+        # At the upper bound, the step must go down.
+        (100.0, 0.0, 100.0, 99.9),
+        # Lower bound only.
+        (2.0, 0.0, None, 2.002),
+        # Upper bound only.
+        (2.0, None, 5.0, 2.002),
+        # Unbounded.
+        (4.0, None, None, 4.004),
+        # x0 at zero and unbounded: step falls back to unit scale.
+        (0.0, None, None, 0.001),
+    ],
+    ids=[
+        "interior",
+        "pinned",
+        "at_lower",
+        "at_upper",
+        "lower_only",
+        "upper_only",
+        "unbounded",
+        "zero_unbounded",
+    ],
+)
+def test_probe_coordinate_stays_local_and_in_bounds(x0_value, low, high, expected):
+    """The probe perturbs relative to x0 and never leaves the box.
+
+    A jump to the box midpoint asks the wrong question: for a saturating
+    response already flat at x0, a distant point is flatter still, so an
+    "inert" verdict gets confirmed by construction.
+    """
+    probe = BudgetOptimizer._probe_coordinate(x0_value, low, high)
+    if expected is None:
+        assert probe is None
+        return
+    np.testing.assert_allclose(probe, expected, rtol=1e-9)
+    assert probe != x0_value
+    if low is not None:
+        assert probe >= low
+    if high is not None:
+        assert probe <= high

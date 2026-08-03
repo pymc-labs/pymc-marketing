@@ -17,6 +17,7 @@ import xarray as xr
 
 from pymc_marketing.mmm.optimization_variables import (
     MediaVariable,
+    OptimizationVariable,
     OptimizationVariables,
 )
 
@@ -196,3 +197,101 @@ def test_non_float_dtype_raises():
             channel_scales=1.0,
             dtype="int64",
         )
+
+
+class _ScalarVariable(OptimizationVariable):
+    """Minimal second variable: its flat slice is the model tensor as-is."""
+
+    def __init__(self, name: str, coords: list, flat_dim: str = "budgets_flat"):
+        self.name = name
+        self.dims = ("lever",)
+        self.coords = {"lever": list(coords)}
+        self.flat_dim = flat_dim
+
+    @property
+    def size(self) -> int:
+        return len(self.coords["lever"])
+
+    def to_model(self, z):
+        return z.rename({self.flat_dim: "lever"})
+
+    def unpack(self, x):
+        return xr.DataArray(
+            np.asarray(x, dtype=float), dims=self.dims, coords=self.coords
+        )
+
+    def pack(self, da):
+        return da.reindex(self.coords).transpose(*self.dims).values
+
+    def default_x0(self, total_budget):
+        return np.full(self.size, 0.5)
+
+    def default_bounds(self, total_budget):
+        return [(0.0, 1.0)] * self.size
+
+
+def test_multi_variable_layout_and_isel_path():
+    """Two variables: the isel branch of variable_slice runs and stays correct.
+
+    With one variable the slice covers the whole flat vector and
+    `variable_slice` short-circuits to `self.flat`, so the `isel` branch every
+    additional variable depends on never executes.
+    """
+    from pytensor import function
+
+    rng = np.random.default_rng(11)
+    media = make_media_variable(rng, sizes=(3,))
+    lever = _ScalarVariable("lever_data", ["a", "b"])
+    opt_vars = OptimizationVariables([media, lever])
+
+    # Layout: contiguous, tiling, media first.
+    assert opt_vars.slices == {
+        "channel_data": slice(0, 3),
+        "lever_data": slice(3, 5),
+    }
+    assert opt_vars.size == 5
+
+    # The isel branch is what the second variable takes.
+    media_slice = opt_vars.variable_slice("channel_data")
+    lever_slice = opt_vars.variable_slice("lever_data")
+    assert media_slice is not opt_vars.flat  # no short-circuit with 2 variables
+    assert lever_slice.type.shape == (2,)
+
+    # to_model on the isel'd slice reads the right entries of the flat vector.
+    x = np.array([10.0, 20.0, 30.0, 0.25, 0.75])
+    lever_tensor = function(
+        [opt_vars.flat], lever.to_model(lever_slice).values, on_unused_input="ignore"
+    )(x)
+    np.testing.assert_allclose(lever_tensor, [0.25, 0.75])
+
+    # x0 and bounds concatenate in variable order.
+    np.testing.assert_allclose(opt_vars.x0(90.0), [30.0, 30.0, 30.0, 0.5, 0.5])
+    assert opt_vars.bounds(90.0) == [(0.0, 90.0)] * 3 + [(0.0, 1.0)] * 2
+
+    # pack/unpack round-trip across both variables.
+    unpacked = opt_vars.unpack(x)
+    assert set(unpacked) == {"channel_data", "lever_data"}
+    np.testing.assert_allclose(unpacked["lever_data"].values, [0.25, 0.75])
+    np.testing.assert_array_equal(opt_vars.pack(unpacked), x)
+
+    # substitutions has one entry per variable.
+    assert set(opt_vars.substitutions()) == {"channel_data", "lever_data"}
+
+
+def test_container_owns_flat_dim():
+    """A variable built with a different flat_dim is realigned by the container."""
+    rng = np.random.default_rng(12)
+    media = make_media_variable(rng, sizes=(2,))
+    lever = _ScalarVariable("lever_data", ["a"], flat_dim="something_else")
+    OptimizationVariables([media, lever], flat_dim="budgets_flat")
+    assert lever.flat_dim == "budgets_flat"
+    assert media.flat_dim == "budgets_flat"
+
+
+def test_pack_extra_dim_raises():
+    rng = np.random.default_rng(13)
+    variable = make_media_variable(rng, sizes=(3,))
+    opt_vars = OptimizationVariables([variable])
+    da = opt_vars.unpack(np.arange(3.0))["channel_data"].expand_dims(geo=["G1"])
+    with pytest.raises(ValueError, match="unexpected dims"):
+        opt_vars.pack({"channel_data": da})

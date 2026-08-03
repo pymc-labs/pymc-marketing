@@ -64,11 +64,15 @@ class OptimizationVariable(ABC):
         Dimension names of the variable's labelled representation.
     coords : dict[str, list]
         Coordinates for ``dims``.
+    flat_dim : str
+        Name of the flat decision vector's dimension. Owned by the containing
+        :class:`OptimizationVariables`, which assigns it at construction.
     """
 
     name: str
     dims: tuple[str, ...]
     coords: dict[str, list]
+    flat_dim: str
 
     @property
     @abstractmethod
@@ -305,6 +309,12 @@ class MediaVariable(OptimizationVariable):
             raise ValueError(
                 f"{self.name}: DataArray is missing required dims {sorted(missing)}"
             )
+        extra = set(da.dims) - set(self.dims)
+        if extra:
+            raise ValueError(
+                f"{self.name}: DataArray has unexpected dims {sorted(extra)}; "
+                f"expected exactly {list(self.dims)}"
+            )
         aligned = da.reindex(self.coords).transpose(*self.dims)
         values = aligned.values[self._bool_mask]
         if np.isnan(values).any():
@@ -356,6 +366,11 @@ class OptimizationVariables:
             raise ValueError(f"Duplicate variable names: {names}")
         self.variables = list(variables)
         self.flat_dim = flat_dim
+        # The container owns the flat dimension's name: a variable carrying a
+        # different one builds a silently wrong graph in the uniform branch and
+        # only fails in the temporal-distribution branch.
+        for variable in self.variables:
+            variable.flat_dim = flat_dim
 
         self.slices: dict[str, slice] = {}
         start = 0
