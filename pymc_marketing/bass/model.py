@@ -504,9 +504,16 @@ class BassModel(ModelBuilder):
 
     @property
     def default_model_config(self) -> dict:
-        """Default model configuration with weakly informative priors."""
+        """Default model configuration with weakly informative priors.
+
+        ``m`` is the market potential, a headcount, so its prior is restricted to
+        positive values. A prior straddling zero puts the Poisson mean at zero at
+        ``model.initial_point()``, making the likelihood ``-inf`` there; ``fit(
+        method="map")`` then fails outright, while ``"mcmc"`` only survives it
+        because ``jitter+adapt_diag`` moves off the starting point.
+        """
         return {
-            "m": Prior("Normal", mu=0, sigma=10),
+            "m": Prior("HalfNormal", sigma=10),
             "p": Prior("Beta", alpha=1.5, beta=20),
             "q": Prior("Beta", alpha=2, beta=5),
             "likelihood": Prior("Poisson"),

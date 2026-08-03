@@ -689,6 +689,34 @@ class TestBassModelClass:
         assert "tune" in config
         assert "chains" in config
 
+    def test_default_m_prior_has_positive_support(self):
+        """Market potential is a headcount, so ``m`` must never go negative."""
+        with pm.Model():
+            m = BassModel().default_model_config["m"].create_variable("m")
+            draws = pm.draw(m, draws=500, random_seed=42)
+
+        assert (draws > 0).all()
+
+    def test_initial_point_logp_is_finite(self, y: np.ndarray):
+        """Guard against a degenerate starting point.
+
+        An ``m`` prior whose support point is zero drives the Poisson mean to
+        zero, making the likelihood evaluate to ``-inf`` before sampling starts.
+        """
+        model = BassModel()
+        model.build_model(data=y)
+
+        logps = model.model.point_logps(model.model.initial_point())
+        assert np.isfinite(list(logps.values())).all(), logps
+
+    def test_fit_map(self, y: np.ndarray):
+        """MAP has no jitter to escape a degenerate initial point, unlike NUTS."""
+        model = BassModel()
+        idata = model.fit(data=y, method="map")
+
+        assert "posterior" in idata
+        assert (idata.posterior["m"].to_numpy() > 0).all()
+
     def test_build_model_from_array(self):
         y = np.random.default_rng(42).poisson(lam=100, size=20)
         model = BassModel()
