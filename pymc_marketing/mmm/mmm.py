@@ -199,7 +199,6 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
-from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -256,7 +255,10 @@ from pymc_marketing.serialization import DeserializationContext, serialization
 from pymc_marketing.version import __version__
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+    from pymc_marketing.mmm.budget_optimizer import (
+        BudgetOptimizationResult,
+        BudgetOptimizer,
+    )
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -2656,7 +2658,6 @@ class MMM(RegressionModelBuilder):
             budgets_to_optimize=budgets_to_optimize,
             cost_per_unit=cost_per_unit,
             compile_kwargs=compile_kwargs,
-            mu_effects=list(self.mu_effects),
             frozen_deterministics=self.frozen_deterministics,
             **kwargs,
         )
@@ -3892,10 +3893,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
         **allocate_budget_kwargs,
-    ) -> (
-        tuple[xr.DataArray, OptimizeResult]
-        | tuple[xr.DataArray, OptimizeResult, list[dict[str, Any]]]
-    ):
+    ) -> BudgetOptimizationResult:
         """Optimize the budget allocation for the model.
 
         Parameters
@@ -3944,15 +3942,17 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
             **This is independent of the historical cost_per_unit.**
         callback : bool
-            Whether to return callback information tracking optimization progress.
+            Whether to track optimization progress; when True the returned
+            result's ``callback_info`` attribute holds per-iteration information.
         **allocate_budget_kwargs
             Additional arguments for :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget`.
 
         Returns
         -------
-        tuple
-            Optimal budgets and optimization result. If callback=True, also returns
-            a list of dictionaries with optimization information at each iteration.
+        BudgetOptimizationResult
+            Result object with ``budgets``, ``scipy_result``, ``optimized_vars``
+            and ``callback_info`` attributes. Iterating it yields
+            ``(budgets, scipy_result)``, so two-element unpacking keeps working.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 

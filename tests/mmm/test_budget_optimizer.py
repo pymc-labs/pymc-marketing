@@ -11,6 +11,7 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
 from unittest.mock import patch
 
 import numpy as np
@@ -18,12 +19,15 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from xarray import DataArray
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
+    BudgetOptimizationResult,
     BudgetOptimizer,
     CustomModelWrapper,
     MinimizeException,
@@ -454,9 +458,9 @@ def test_allocate_budget_custom_minimize_args(
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    with pytest.raises(
-        ValueError, match=r"NumPy boolean array indexing assignment cannot assign"
-    ):
+    # The mocked minimize returns a Mock result.x, which fails the decision
+    # space's shape validation when unpacking — after minimize was called.
+    with pytest.raises(ValueError, match=r"expected shape"):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
         )
@@ -604,11 +608,11 @@ def test_allocate_budget_custom_response_constraint(
 
 
 @pytest.mark.parametrize(
-    "callback, total_budget, expected_return_length",
+    "callback, total_budget",
     [
         # Basic cases
-        (False, 100, 2),  # Default behavior - no callback
-        (True, 100, 3),  # With callback
+        (False, 100),  # Default behavior - no callback
+        (True, 100),  # With callback
     ],
     ids=[
         "default_no_callback",
@@ -619,7 +623,6 @@ def test_callback_functionality_parametrized(
     mmm_wrapper,
     callback,
     total_budget,
-    expected_return_length,
 ):
     """Test callback functionality with various parameter combinations."""
     optimizer = BudgetOptimizer(
@@ -633,12 +636,13 @@ def test_callback_functionality_parametrized(
         callback=callback,
     )
 
-    # Check return length
-    assert len(result) == expected_return_length
+    # The result always unpacks to two elements regardless of callback
+    assert isinstance(result, BudgetOptimizationResult)
+    assert len(list(result)) == 2
 
     if callback:
-        # Unpack with callback
-        optimal_budgets, opt_result, callback_info = result
+        optimal_budgets, opt_result = result
+        callback_info = result.callback_info
 
         # Verify callback info structure
         assert isinstance(callback_info, list)
@@ -668,6 +672,7 @@ def test_callback_functionality_parametrized(
     else:
         # Unpack without callback
         optimal_budgets, opt_result = result
+        assert result.callback_info is None
 
     # Common checks
     assert isinstance(optimal_budgets, xr.DataArray)
@@ -676,6 +681,121 @@ def test_callback_functionality_parametrized(
 
     # Check budget allocation sums to total
     assert np.abs(optimal_budgets.sum().item() - total_budget) < 1e-3
+
+
+def test_allocate_budget_result_object(mmm_wrapper):
+    """allocate_budget returns a BudgetOptimizationResult with stable attributes."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    result = optimizer.allocate_budget(total_budget=100)
+
+    assert isinstance(result, BudgetOptimizationResult)
+    assert isinstance(result.budgets, xr.DataArray)
+    assert hasattr(result.scipy_result, "x")
+    assert result.optimized_vars == {}
+    assert result.callback_info is None
+
+    # Iteration contract: exactly (budgets, scipy_result)
+    unpacked = list(result)
+    assert len(unpacked) == 2
+    assert unpacked[0] is result.budgets
+    assert unpacked[1] is result.scipy_result
+
+
+def test_allocate_budget_x0_dataarray(mmm_wrapper):
+    """A labelled x0 warm start gives the same result as the flat vector."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    x0_flat = np.array([70.0, 30.0])
+    x0_labelled = xr.DataArray(
+        x0_flat,
+        dims=("channel",),
+        coords={"channel": ["channel_1", "channel_2"]},
+    )
+
+    result_flat = optimizer.allocate_budget(total_budget=100, x0=x0_flat)
+    result_labelled = optimizer.allocate_budget(total_budget=100, x0=x0_labelled)
+    result_dict = optimizer.allocate_budget(
+        total_budget=100, x0={"channel_data": x0_labelled}
+    )
+
+    xr.testing.assert_allclose(result_flat.budgets, result_labelled.budgets)
+    xr.testing.assert_allclose(result_flat.budgets, result_dict.budgets)
+
+
+@pytest.fixture
+def optimizer_with_zero_gradient(mmm_wrapper):
+    """Optimizer whose compiled gradient is identically zero everywhere."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    optimizer._objective_and_grad = lambda x: (np.float64(0.0), np.zeros_like(x))
+    return optimizer
+
+
+def test_zero_gradient_block_warns(optimizer_with_zero_gradient):
+    """A block the objective cannot see is reported by name."""
+    bounds = optimizer_xarray_builder(
+        np.array([[0, 50], [0, 50]]),
+        channel=["channel_1", "channel_2"],
+        bound=["lower", "upper"],
+    )
+    with pytest.warns(UserWarning, match=r"\['channel_data'\].*zero gradient"):
+        optimizer_with_zero_gradient.allocate_budget(
+            total_budget=100, budget_bounds=bounds
+        )
+
+
+def test_zero_gradient_pinned_block_does_not_warn(optimizer_with_zero_gradient):
+    """Coordinates pinned by degenerate bounds (low == high) are not probed."""
+    bounds = optimizer_xarray_builder(
+        np.array([[50, 50], [50, 50]]),
+        channel=["channel_1", "channel_2"],
+        bound=["lower", "upper"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        optimizer_with_zero_gradient.allocate_budget(
+            total_budget=100, budget_bounds=bounds
+        )
+
+
+def test_nonzero_gradient_does_not_warn(mmm_wrapper):
+    """A block that reaches the response produces no zero-gradient warning."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    bounds = optimizer_xarray_builder(
+        np.array([[0, 100], [0, 100]]),
+        channel=["channel_1", "channel_2"],
+        bound=["lower", "upper"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        optimizer.allocate_budget(total_budget=100, budget_bounds=bounds)
+
+
+def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
+    """Passing mu_effects warns and is ignored."""
+    with pytest.warns(DeprecationWarning, match="no longer accepts mu_effects"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            response_variable="total_media_contribution_original_scale",
+            mu_effects=[],
+        )
 
 
 @pytest.mark.parametrize(
@@ -953,3 +1073,282 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
+
+
+def test_shuffled_mask_labels_match_model_coords(mmm_wrapper):
+    """A mask in a different coord order than the model must not shift labels.
+
+    The mask is consumed positionally by the forward map (scatter into the
+    model's tensor layout) and also supplies the labels for the inverse map,
+    so it is reindexed to the model's coordinate order at construction. This
+    pins the inverse map to the forward map: with per-channel bounds that make
+    the optimum distinguishable, the value attributed to a channel must be the
+    one its own bounds produced.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # model order: channel_1, channel_2
+    shuffled = list(reversed(channels))
+
+    mask = xr.DataArray(
+        np.ones(len(shuffled), dtype=bool),
+        dims=("channel",),
+        coords={"channel": shuffled},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    # The mask is realigned to the model's coordinate order.
+    assert list(optimizer.budgets_to_optimize.coords["channel"].values) == channels
+
+    # channel_1 is capped at 5, channel_2 must take the remaining 95.
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 5.0], [0.0, 95.0]]),
+        channel=channels,
+        bound=["lower", "upper"],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    assert float(result.budgets.sel(channel="channel_1")) <= 5.0 + 1e-6
+    np.testing.assert_allclose(
+        float(result.budgets.sel(channel="channel_2")), 95.0, atol=1e-4
+    )
+
+
+def test_partial_mask_result_is_invariant_to_coord_order(mmm_wrapper):
+    """A partial mask must select the same cells however its coords are ordered.
+
+    With a partial mask the label shift and the positional selection shift can
+    cancel in the labelled output while the model optimizes the *other*
+    channel's curve -- the reported allocation looks right but the objective
+    behind it is wrong. Optimizing the same intent written in two coord orders
+    must agree on both the allocation and the objective value.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # [channel_1, channel_2]
+
+    def optimize(coord_order):
+        # Intent in every ordering: optimize channel_2 only.
+        mask = xr.DataArray(
+            np.array([c == "channel_2" for c in coord_order]),
+            dims=("channel",),
+            coords={"channel": coord_order},
+        )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+        bounds = optimizer_xarray_builder(
+            np.array([[0.0, 100.0], [0.0, 100.0]]),
+            channel=channels,
+            bound=["lower", "upper"],
+        )
+        return optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    in_model_order = optimize(channels)
+    in_shuffled_order = optimize(list(reversed(channels)))
+
+    xr.testing.assert_allclose(in_model_order.budgets, in_shuffled_order.budgets)
+    np.testing.assert_allclose(
+        in_model_order.scipy_result.fun, in_shuffled_order.scipy_result.fun, rtol=1e-8
+    )
+    # And the intent was honoured: the frozen channel got nothing.
+    np.testing.assert_allclose(
+        float(in_shuffled_order.budgets.sel(channel="channel_1")), 0.0, atol=1e-8
+    )
+
+
+@pytest.mark.parametrize(
+    "x0_value, low, high, expected",
+    [
+        # Two finite bounds: the furthest one, which is how a dead zone is escaped.
+        (50.0, 0.0, 100.0, 100.0),
+        (90.0, 0.0, 100.0, 0.0),
+        (7.0, 7.0, 7.0, None),
+        (2.0, 0.0, None, 0.0),
+        (2.0, None, 5.0, 5.0),
+        (4.0, None, None, 8.0),
+    ],
+    ids=["interior", "near_upper", "pinned", "lower_only", "upper_only", "unbounded"],
+)
+def test_probe_coordinate_far_reaches_the_bounds(x0_value, low, high, expected):
+    """The far probe leaves a dead zone the local step cannot escape."""
+    probe = BudgetOptimizer._probe_coordinate(x0_value, low, high, far=True)
+    if expected is None:
+        assert probe is None
+        return
+    np.testing.assert_allclose(probe, expected, rtol=1e-9)
+    if low is not None:
+        assert probe >= low
+    if high is not None:
+        assert probe <= high
+
+
+@pytest.mark.parametrize(
+    "x0_value, low, high",
+    [
+        (1e6, 1e6 - 1.0, 1e6),
+        (1e6, 1e6 - 5.0, 1e6),
+        (1e-12, 0.0, 100.0),
+    ],
+    ids=["narrow_box_width_1", "narrow_box_width_5", "tiny_x0_wide_box"],
+)
+def test_probe_coordinate_never_gives_up_on_a_free_coordinate(x0_value, low, high):
+    """A non-degenerate box always yields a distinct, in-bounds probe.
+
+    Returning None here would be silently damning: the second gradient
+    evaluation would land on x0 itself and the inert verdict would be
+    automatic. Million-scale budgets with tight per-channel bounds are the
+    normal case, not an exotic one.
+    """
+    for far in (False, True):
+        probe = BudgetOptimizer._probe_coordinate(x0_value, low, high, far=far)
+        assert probe is not None
+        assert probe != x0_value
+        assert low <= probe <= high
+
+
+@pytest.mark.parametrize(
+    "x0_value, low, high, expected",
+    [
+        # Two finite bounds: a small step up, local to x0 (not the box midpoint).
+        (50.0, 0.0, 100.0, 50.05),
+        # Pinned coordinate: no probe exists inside the feasible set.
+        (7.0, 7.0, 7.0, None),
+        # At the lower bound, the step must go up (down would leave the box).
+        (0.0, 0.0, 100.0, 0.001),
+        # At the upper bound, the step must go down.
+        (100.0, 0.0, 100.0, 99.9),
+        # Lower bound only.
+        (2.0, 0.0, None, 2.002),
+        # Upper bound only.
+        (2.0, None, 5.0, 2.002),
+        # Unbounded.
+        (4.0, None, None, 4.004),
+        # x0 at zero and unbounded: step falls back to unit scale.
+        (0.0, None, None, 0.001),
+    ],
+    ids=[
+        "interior",
+        "pinned",
+        "at_lower",
+        "at_upper",
+        "lower_only",
+        "upper_only",
+        "unbounded",
+        "zero_unbounded",
+    ],
+)
+def test_probe_coordinate_stays_local_and_in_bounds(x0_value, low, high, expected):
+    """The probe perturbs relative to x0 and never leaves the box.
+
+    A jump to the box midpoint asks the wrong question: for a saturating
+    response already flat at x0, a distant point is flatter still, so an
+    "inert" verdict gets confirmed by construction.
+    """
+    probe = BudgetOptimizer._probe_coordinate(x0_value, low, high)
+    if expected is None:
+        assert probe is None
+        return
+    np.testing.assert_allclose(probe, expected, rtol=1e-9)
+    assert probe != x0_value
+    if low is not None:
+        assert probe >= low
+    if high is not None:
+        assert probe <= high
+
+
+def test_dead_zone_objective_does_not_warn(mmm_wrapper):
+    """A flat-here-but-responsive-further-out objective is not called inert.
+
+    ``utility_function`` is user-supplied, so a utility counting only the
+    response above a threshold creates a genuine dead zone: the gradient at x0
+    is exactly zero and a purely local probe cannot escape it. The far probe
+    can, so the variable must not be reported as inert.
+    """
+    channels = list(mmm_wrapper.channel_columns)
+
+    def mean_response(samples, budgets):
+        return samples.mean(dim="sample")
+
+    # Measure the response at the warm start and far out, then put the
+    # threshold between them so the dead zone is real but escapable.
+    reference = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        utility_function=mean_response,
+    )
+
+    def response_at(values):
+        flat = reference._budgets_flat.type.filter(np.asarray(values, dtype=float))
+        return -float(reference._objective_and_grad(flat)[0])
+
+    near = response_at([1.0, 1.0])
+    far = response_at([100.0, 100.0])
+    assert far > near, "fixture response is not increasing in spend"
+    threshold = 0.5 * (near + far)
+
+    def threshold_utility(samples, budgets):
+        return ptx.math.maximum(samples.mean(dim="sample") - threshold, 0.0)
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        utility_function=threshold_utility,
+    )
+
+    # The premise: the gradient really is exactly zero at the warm start.
+    x0 = optimizer._budgets_flat.type.filter(np.array([1.0, 1.0]))
+    _, g0 = optimizer._objective_and_grad(x0)
+    assert np.all(np.asarray(g0) == 0.0), "fixture no longer has a dead zone at x0"
+
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 100.0], [0.0, 100.0]]),
+        channel=channels,
+        bound=["lower", "upper"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", message="No budget bounds provided")
+        optimizer.allocate_budget(total_budget=2.0, budget_bounds=bounds)
+
+
+def test_mask_missing_model_coords_raises(mmm_wrapper):
+    """A mask that does not cover the model's coordinates is rejected.
+
+    Reindexing such a mask would leave NaN, which `astype(bool)` would quietly
+    turn into True -- optimizing a cell the user never named.
+    """
+    mask = xr.DataArray(
+        np.array([True]),
+        dims=("channel",),
+        coords={"channel": ["channel_1"]},  # model also has channel_2
+    )
+    with pytest.raises(ValidationError, match="missing coordinates present in the"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_integer_mask_is_coerced_to_bool(mmm_wrapper):
+    """A 0/1 mask works: reindexing makes it float, so it is cast back."""
+    mask = xr.DataArray(
+        np.array([1, 0]),
+        dims=("channel",),
+        coords={"channel": list(mmm_wrapper.channel_columns)},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer.budgets_to_optimize.dtype == bool
+    assert optimizer._variables.size == 1  # only channel_1 optimized
