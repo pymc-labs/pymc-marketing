@@ -146,6 +146,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_multi_objective_optimization.png
 :link: ../notebooks/mmm/mmm_multi_objective_optimization.html
 :::
+
+:::{grid-item-card} Combining an MMM and a Bayesian VAR in One Budget Decision
+:img-top: ../gallery/images/mmm_var_budget_optimization.png
+:link: ../notebooks/mmm/mmm_var_budget_optimization.html
+:::
 ::::
 
 ### Lift Test Calibration
@@ -226,6 +231,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_upper_funnel_causal_approach.html
 :::
 
+:::{grid-item-card} Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`
+:img-top: ../gallery/images/mmm_funnel_mueffect.png
+:link: ../notebooks/mmm/mmm_funnel_mueffect.html
+:::
+
 :::{grid-item-card} Causal Reasoning and Discovery
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
@@ -282,11 +292,6 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/sbg.png
 :link: ../notebooks/clv/sbg.html
 :::
-
-:::{grid-item-card} sBG Model for Individuals
-:img-top: ../gallery/images/sBG_individual.png
-:link: ../notebooks/clv/sBG_individual.html
-:::
 ::::
 
 ## Customer Choice Models
@@ -328,6 +333,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/maxdiff.png
 :link: ../notebooks/customer_choice/maxdiff.html
 :::
+
+:::{grid-item-card} Bayesian BLP: Structural Demand on Aggregate Shares
+:img-top: ../gallery/images/bayesian_blp.png
+:link: ../notebooks/customer_choice/bayesian_blp.html
+:::
+
+:::{grid-item-card} Bayesian BLP on the Nevo Cereal Panel
+:img-top: ../gallery/images/bayesian_blp_nevo.png
+:link: ../notebooks/customer_choice/bayesian_blp_nevo.html
+:::
 ::::
 
 ## Bass Diffusion Model
@@ -338,6 +353,17 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Bass Diffusion Model Example
 :img-top: ../gallery/images/bass_example.png
 :link: ../notebooks/bass/bass_example.html
+:::
+::::
+
+## Predicted Incrementality by Experimentation (PIE)
+
+::::{grid} 1 2 3 3
+:gutter: 3
+
+:::{grid-item-card} Predicting Campaign Incrementality with PIE
+:img-top: ../gallery/images/pie_example.png
+:link: ../notebooks/pie/pie_example.html
 :::
 ::::
 

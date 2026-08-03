@@ -322,9 +322,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 276b1b6905ac4f648c74b7b858780afa
-msgid "Fit a model using Variational Inference and return InferenceData."
+msgid "Fit a model using Variational Inference and return DataTree."
 msgstr ""
-"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 67f24c59d6f94a9d87c58fe4b536f0ce
@@ -359,8 +359,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: f4025f4ec8814de6a37774d831b98fe1
-msgid "Build model from the InferenceData object."
-msgstr "Construir el modelo a partir del objeto InferenceData."
+msgid "Build model from the DataTree object."
+msgstr "Construir el modelo a partir del objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 6bb82b103d2544068562711d15749c3c
@@ -425,8 +425,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 66168af12da64f2db0c10b05c6b2f0dc
-msgid "Create the attributes for the InferenceData object."
-msgstr "Cree los atributos para el objeto InferenceData."
+msgid "Create the attributes for the DataTree object."
+msgstr "Cree los atributos para el objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 59ca7405c91644cb92e4ea592710f884
@@ -475,10 +475,10 @@ msgstr ""
 #: d09891254dc44acebcd2ee3595226d62
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData como argumentos de palabra clave."
+" de DataTree como argumentos de palabra clave."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: c336b142389340d78113093d8eae233d
@@ -509,9 +509,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 9bdf1e7d6eb64dba9024d639b50b6503
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 6a3986d5e4814ebb8d57874f62e8d47b
@@ -780,8 +780,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: 18c84c024fed4b4984f15fac1c6a9402
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.customer_choice.nested_logit.NestedLogit.rst:52:<autosummary>:1
 #: e9d7b4ac7fb84424b4fa6ed86b187ff4

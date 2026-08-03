@@ -31,10 +31,10 @@ msgstr "Cargar un modelo MMM de PyMC-Marketing desde MLflow."
 
 #: 8b1a7dee7e11424db6f0527e07112597 of pymc_marketing.mlflow.load_mmm:4
 msgid ""
-"Can either load the full model including the InferenceData, or just the "
+"Can either load the full model including the DataTree, or just the "
 "lighter PyFuncModel version."
 msgstr ""
-"Puede cargar el modelo completo, incluyendo el InferenceData, o solo la "
+"Puede cargar el modelo completo, incluyendo el DataTree, o solo la "
 "versión más ligera del PyFuncModel."
 
 #: d52fea1f78e040b5ac166f4c81f3c4e5 of pymc_marketing.mlflow.load_mmm
@@ -65,9 +65,9 @@ msgid "bool, default=True"
 msgstr "bool, predeterminado=True"
 
 #: 6ac8736f23004ad197783cfce96f7e05 of pymc_marketing.mlflow.load_mmm:12
-msgid "If True, load the full MMM model including the InferenceData."
+msgid "If True, load the full MMM model including the DataTree."
 msgstr ""
-"Si es verdadero, carga el modelo MMM completo incluyendo los InferenceData."
+"Si es verdadero, carga el modelo MMM completo incluyendo los DataTree."
 
 #: 2152037c89e24510ba1dff2f5c967799 of pymc_marketing.mlflow.load_mmm:14
 msgid ""
@@ -81,9 +81,9 @@ msgid "bool, default=False"
 msgstr "bool, predeterminado=False"
 
 #: c0fac218363a4be6a22e347f8222a62e of pymc_marketing.mlflow.load_mmm:15
-msgid "If True, keep the downloaded InferenceData saved locally."
+msgid "If True, keep the downloaded DataTree saved locally."
 msgstr ""
-"Si es verdadero, mantenga los InferenceData descargados guardados "
+"Si es verdadero, mantenga los DataTree descargados guardados "
 "localmente."
 
 #: f18219c3724842c093c15e31b65848b6 of pymc_marketing.mlflow.load_mmm:17
@@ -112,11 +112,11 @@ msgstr "python:str | python:None, por defecto=None"
 #: 6048d20d647a4285a5989121784f0ff8 of pymc_marketing.mlflow.load_mmm:21
 #, python-brace-format
 msgid ""
-"The local destination path where the InferenceData will be downloaded. If "
+"The local destination path where the DataTree will be downloaded. If "
 "None, defaults to \"idata_{run_id}\" to avoid conflicts when loading "
 "multiple models."
 msgstr ""
-"La ruta de destino local donde se descargará el InferenceData. Si es None, "
+"La ruta de destino local donde se descargará el DataTree. Si es None, "
 "se establece por defecto en \"idata_{run_id}\" para evitar conflictos al "
 "cargar múltiples modelos."
 

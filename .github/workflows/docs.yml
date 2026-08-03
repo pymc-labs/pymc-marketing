@@ -26,7 +26,7 @@ jobs:
     outputs:
       should_build: ${{ steps.filter.outputs.docs }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -43,9 +43,9 @@ jobs:
     if: ${{ needs.changes.outputs.should_build == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v8.3.2
       - name: Set up Python
         run: uv python install 3.12
       - name: Set up environment

@@ -1036,12 +1036,19 @@ class MaxDiffMixedLogit(ModelBuilder):
         sigma_feat = self.model_config["sigma_feat"].create_variable("sigma_feat")
         z_feat = self.model_config["z_feat"].create_variable("z_feat")
 
-        # Per-respondent deviation on the random-feature subset only.
-        # dev has shape (respondents, features) with zeros outside rc columns,
-        # so beta_full_r = beta_feat + dev is (respondents, features).
-        dev = pt.zeros((n_respondents, len(self.feature_names)))
-        dev = pt.set_subtensor(dev[:, rc_idx], z_feat * sigma_feat[None, :])
-        beta_full_r = beta_feat[None, :] + dev  # (R, P)
+        # Per-respondent utilities: broadcast the population part-worths to
+        # (respondents, features), then add the non-centered deviation on the
+        # random-feature columns only. We increment those columns in place rather
+        # than building ``beta_feat[None, :] + zeros[:, rc].set(dev)``: the latter
+        # trips a PyTensor rewrite (``local_add_of_sparse_write``) that fails to
+        # broadcast the operand it fuses, spamming a benign but noisy traceback.
+        beta_full_r = pt.broadcast_to(
+            beta_feat[None, :], (n_respondents, len(self.feature_names))
+        )
+        beta_full_r = pt.set_subtensor(
+            beta_full_r[:, rc_idx],
+            beta_full_r[:, rc_idx] + z_feat * sigma_feat[None, :],
+        )  # (R, P)
         # Apply the same population shift so U_item_r[r] and U_item_pop live on
         # the same scale: U_item_r[r, i] = U_item_pop[i] + X[i,rc]@z_feat[r]*sigma.
         U_item_r = pm.Deterministic(
@@ -1198,7 +1205,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             warnings.filterwarnings(
                 "ignore",
                 category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
+                message="The group fit_data is not defined in the DataTree scheme",
             )
             self.idata["/fit_data"] = fit_data
 

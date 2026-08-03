@@ -161,7 +161,7 @@ def mock_fit(model, X: pd.DataFrame, y: pd.Series, random_seed=None, **kwargs):
         warnings.filterwarnings(
             "ignore",
             category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
+            message="The group fit_data is not defined in the DataTree scheme",
         )
         idata["/posterior"] = idata["/prior"].to_dataset()
         idata["/fit_data"] = fit_data

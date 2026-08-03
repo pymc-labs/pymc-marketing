@@ -18,14 +18,6 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
-from pymc_marketing.clv.models import (
-    BetaGeoBetaBinomModel,
-    BetaGeoModel,
-    GammaGammaModel,
-    ModifiedBetaGeoModel,
-    ParetoNBDModel,
-    ShiftedBetaGeoModel,
-)
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.model_builder import DifferentModelError
 from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
@@ -36,7 +28,7 @@ class CLVModelTest(CLVModel):
 
     def __init__(
         self,
-        data=None,
+        data: pd.DataFrame | None = None,
         model_config=None,
         sampler_config: dict | None = None,
     ):
@@ -44,11 +36,11 @@ class CLVModelTest(CLVModel):
             data = pd.DataFrame({"y": np.random.randn(10)})
 
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=[],
         )
+        self.data = data
 
     @property
     def default_model_config(self):
@@ -90,11 +82,12 @@ class CLVModelForLoadTest(CLVModelTest):
     ):
         CLVModel.__init__(
             self,
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
             non_distributions=[],
         )
+        if data is not None:
+            self.data = data
 
 
 @pytest.fixture(scope="module")
@@ -114,7 +107,7 @@ class TestCLVModel:
         model = CLVModelTest()
         assert model.__repr__() == "CLVModelTest"
 
-        model.build_model()
+        model.build_model(model.data)
         assert model.__repr__() == "CLVModelTest\nx ~ Normal(0, 1)\ny ~ Normal(x, 1)"
 
     def test_fit_mcmc(self, mocker):
@@ -123,6 +116,7 @@ class TestCLVModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=model.data,
             tune=5,
             chains=2,
             draws=10,
@@ -138,7 +132,10 @@ class TestCLVModel:
         model = CLVModelTest()
 
         mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
-        idata = model.fit(method="map")
+        idata = model.fit(
+            data=model.data,
+            method="map",
+        )
 
         assert isinstance(idata, xr.DataTree)
         assert idata["/posterior"].to_dataset().sizes["chain"] == 1
@@ -156,6 +153,7 @@ class TestCLVModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=model.data,
             method="demz",
             tune=5,
             chains=2,
@@ -173,6 +171,7 @@ class TestCLVModel:
         model = CLVModelTest()
         # mocker.patch("pymc.sample", mock_sample)
         idata = model.fit(
+            data=model.data,
             method="advi",
             tune=5,
             chains=2,
@@ -190,11 +189,42 @@ class TestCLVModel:
             match=r"The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",  # noqa: E501
         ):
             model.fit(
+                data=model.data,
                 method="advi",
                 tune=5,
                 chains=2,
                 draws=10,
             )
+
+    def test_fit_raises_if_data_changed(self, mocker):
+        model = CLVModelTest()
+        mocker.patch("pymc.sample", mock_sample)
+
+        model.build_model(model.data)
+        new_data = pd.DataFrame({"y": np.random.randn(10)})
+        with pytest.raises(
+            ValueError,
+            match="The model was built with different data",
+        ):
+            model.fit(
+                data=new_data,
+                tune=0,
+                chains=2,
+                draws=5,
+            )
+
+    def test_fit_does_not_raise_if_data_unchanged(self, mocker):
+        model = CLVModelTest()
+        mocker.patch("pymc.sample", mock_sample)
+
+        model.build_model(model.data)
+        idata = model.fit(
+            data=model.data,
+            tune=0,
+            chains=2,
+            draws=5,
+        )
+        assert isinstance(idata, xr.DataTree)
 
     def test_wrong_method(self):
         model = CLVModelTest()
@@ -202,18 +232,10 @@ class TestCLVModel:
             ValueError,
             match=r"Fit method options are \['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'\], got: wrong_method",
         ):
-            model.fit(method="wrong_method")
-
-    def test_fit_exception(self, mock_pymc_sample):
-        model = CLVModelTest()
-        with pytest.warns(
-            DeprecationWarning,
-            match=(
-                "'fit_method' is deprecated and will be removed in version 1.0. "
-                "Use 'method' instead."
-            ),
-        ):
-            model.fit(fit_method="mcmc")
+            model.fit(
+                data=model.data,
+                method="wrong_method",
+            )
 
     def test_load(self, mocker, tmp_path):
         model = CLVModelTest()
@@ -221,14 +243,13 @@ class TestCLVModel:
 
         mocker.patch("pymc.sample", mock_sample)
 
-        model.fit(tune=0, chains=2, draws=5)
+        model.fit(data=model.data, tune=0, chains=2, draws=5)
         model.save(save_path)
         model2 = model.load(save_path)
 
         assert model2.fit_result is not None
 
-        # TODO: Add this to the model_builder.py load method?
-        model2.build_model()
+        model2.build_model(data=model.data)
         assert model2.model is not None
 
     def test_load_from_idata_without_fit_data_warns(self, mocker):
@@ -254,7 +275,7 @@ class TestCLVModel:
         model = CLVModelTest()
 
         mocker.patch("pymc.sample", mock_sample)
-        model.fit(tune=0, chains=2, draws=5)
+        model.fit(data=model.data, tune=0, chains=2, draws=5)
         summ = model.fit_summary()
         assert isinstance(summ, pd.DataFrame)
 
@@ -273,7 +294,7 @@ class TestCLVModel:
         mock_basic = CLVModelTest()
         save_path = tmp_path / "test_model"
         mocker.patch("pymc.sample", mock_sample)
-        mock_basic.fit(tune=0, chains=2, draws=5)
+        mock_basic.fit(data=mock_basic.data, tune=0, chains=2, draws=5)
         mock_basic.save(save_path)
 
         # Apply the monkeypatch for the property
@@ -286,8 +307,8 @@ class TestCLVModel:
 
     def test_thin_fit_result(self):
         data = pd.DataFrame(dict(y=[-3, -2, -1]))
-        model = CLVModelTest(data=data)
-        model.build_model()
+        model = CLVModelTest()
+        model.build_model(data=data)
         fake_idata = xr.DataTree.from_dict(
             {
                 "/posterior": xr.Dataset(
@@ -329,21 +350,3 @@ class TestCLVModel:
 
         with pytest.raises(ValueError, match=expected_error_msg):
             CLVModel._validate_cols(data=data, required_cols=required)
-
-
-@pytest.mark.parametrize(
-    "model_cls",
-    [
-        BetaGeoModel,
-        ParetoNBDModel,
-        ModifiedBetaGeoModel,
-        BetaGeoBetaBinomModel,
-        ShiftedBetaGeoModel,
-        GammaGammaModel,
-    ],
-)
-def test_build_model_without_data_raises_value_error(model_cls):
-    """Test that build_model() without data raises ValueError when data is unspecified."""
-    model = model_cls()
-    with pytest.raises(ValueError, match="requires data parameter"):
-        model.build_model()

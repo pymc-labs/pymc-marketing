@@ -27,8 +27,8 @@ msgstr "ModelIO.set\\_idata\\_attrs"
 
 #: a79a7fb53ac14993bdc33955333ef78a of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:2
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: f60f42cf762f438baf09e6dcc6dffefb of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs
@@ -37,18 +37,18 @@ msgstr "Parámetros"
 
 #: 7f7514119e5e43beb6b65ab29ebb466e of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:7
-msgid "**idata** : :obj:`arviz.InferenceData`, optional"
-msgstr "**idata** : :obj:`arviz.InferenceData`, opcional"
+msgid "**idata** : :obj:`arviz.DataTree`, optional"
+msgstr "**idata** : :obj:`arviz.DataTree`, opcional"
 
 #: f7a19942a95948338da3b7f340228019 of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:6
-msgid "arviz.InferenceData, optional"
-msgstr "arviz.InferenceData, opcional"
+msgid "arviz.DataTree, optional"
+msgstr "arviz.DataTree, opcional"
 
 #: ca289e17989c481d9fe607943d8edc64 of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:8
-msgid "The InferenceData object to set attributes on."
-msgstr "El objeto InferenceData en el que establecer atributos."
+msgid "The DataTree object to set attributes on."
+msgstr "El objeto DataTree en el que establecer atributos."
 
 #: 559c10b0ae6e4e38b0fef3593decfe95 of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs
@@ -57,13 +57,13 @@ msgstr "Devoluciones"
 
 #: f426876ebab746c18e526cf476dc9f3c of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:14
-msgid ":class:`~arviz.InferenceData`"
-msgstr ":class:`~arviz.InferenceData`"
+msgid ":class:`~arviz.DataTree`"
+msgstr ":class:`~arviz.DataTree`"
 
 #: bfccacb5f207476fa4fd32143dffa031 of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:15
-msgid "The InferenceData instance with the attrs set"
-msgstr "La instancia de InferenceData con los atributos establecidos"
+msgid "The DataTree instance with the attrs set"
+msgstr "La instancia de DataTree con los atributos establecidos"
 
 #: 808d9b7e9d4e4179b7344003c7e2dad5 of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs
@@ -88,8 +88,8 @@ msgstr ":obj:`RuntimeError`"
 
 #: 4ca175c60c8849c99f7f3cea3927c0af of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:26
-msgid "If no InferenceData object is provided."
-msgstr "Si no se proporciona un objeto InferenceData."
+msgid "If no DataTree object is provided."
+msgstr "Si no se proporciona un objeto DataTree."
 
 #: e77f69de84e84a4fb25014827a89b87b of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:34
@@ -98,5 +98,5 @@ msgstr "Ejemplos"
 
 #: 654df66a42c44db3bd0c54c905f19881 of
 #: pymc_marketing.model_builder.ModelIO.set_idata_attrs:35
-msgid "Set the attrs for an InferenceData object manually."
-msgstr "Establezca los attrs para un objeto InferenceData manualmente."
+msgid "Set the attrs for a DataTree object manually."
+msgstr "Establezca los attrs para un objeto DataTree manualmente."

@@ -14,6 +14,11 @@
 """Marketing Mix Models (MMM)."""
 
 from pymc_marketing.mmm import preprocessing, validating
+from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
+    DataVarMuEffect,
+    MediaMuEffect,
+)
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizer,
     merge_inference_data,
@@ -91,8 +96,10 @@ __all__ = [
     "BinomialAdstock",
     "BudgetOptimizer",
     "BudgetOptimizerWrapper",
+    "ControlMuEffect",
     "CovFunc",
     "DataDerivedScaling",
+    "DataVarMuEffect",
     "DelayedAdstock",
     "FancyLinearRegression",
     "FixedScaling",
@@ -108,6 +115,7 @@ __all__ = [
     "MMMPlotSuiteFacade",
     "MediaConfig",
     "MediaConfigList",
+    "MediaMuEffect",
     "MediaTransformation",
     "MichaelisMentenSaturation",
     "MonthlyFourier",

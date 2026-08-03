@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+from collections.abc import Generator
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -26,6 +28,12 @@ from pymc_marketing.plot import (
     selections,
     set_subplot_kwargs_defaults,
 )
+
+
+@pytest.fixture
+def auto_close_figures() -> Generator[None]:
+    yield
+    plt.close("all")
 
 
 @pytest.mark.parametrize(
@@ -109,6 +117,28 @@ def test_plot_functions(mock_curve, plot_func, same_axes: bool, legend: bool) ->
 
     assert axes.size == (1 if same_axes else mock_curve.sizes["geo"])
     assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_curve_datetime_axis() -> None:
+    # A datetime coordinate must be drawn with the matplotlib date converter so the
+    # sample lines and the HDI band share the same x units. Without x_compat=True,
+    # pandas draws the lines in period ordinals while the band uses matplotlib date
+    # ordinals, which mangles the x-axis tick labels. See issue #2682.
+    dates = pd.date_range("2023-01-01", periods=25, freq="D")
+    curve = xr.DataArray(
+        np.random.randn(1, 15, 25),
+        coords={"chain": [0], "draw": np.arange(15), "date": dates},
+        dims=("chain", "draw", "date"),
+        name="curve",
+    )
+
+    fig, axes = plot_curve(curve, "date", n_samples=5)
+    ax = np.ravel(axes)[0]
+    fig.canvas.draw()
+
+    line_x = ax.get_lines()[0].get_xdata()
+    assert all(isinstance(x, pd.Timestamp) for x in line_x)
     plt.close(fig)
 
 
@@ -224,6 +254,86 @@ def test_plot_curve_combined_sample_n_samples(mock_curve_combined) -> None:
     assert axes.size == mock_curve_combined.sizes["geo"]
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+
+
+@pytest.fixture(scope="module")
+def mock_curve_multi_dim() -> xr.DataArray:
+    coords = {
+        "chain": np.arange(1),
+        "draw": np.arange(15),
+        "brand": np.arange(3),
+        "geo": np.arange(5),
+        "day": np.arange(31),
+    }
+    return xr.DataArray(
+        np.ones((1, 15, 3, 5, 31)),
+        coords=coords,
+    )
+
+
+def test_plot_curve_color_dim_faceting(
+    mock_curve_multi_dim, auto_close_figures
+) -> None:
+    fig, axes = plot_curve(mock_curve_multi_dim, {"day"}, color_dim="brand")
+
+    assert axes.size == mock_curve_multi_dim.sizes["geo"]
+    assert isinstance(fig, plt.Figure)
+
+
+def test_plot_curve_color_dim_same_axes(
+    mock_curve_multi_dim, auto_close_figures
+) -> None:
+    fig, axes = plot_curve(
+        mock_curve_multi_dim, {"day"}, color_dim="brand", same_axes=True
+    )
+
+    assert axes.size == 1
+    assert isinstance(fig, plt.Figure)
+
+
+def test_plot_curve_color_dim_legend(mock_curve_multi_dim, auto_close_figures) -> None:
+    _, axes = plot_curve(mock_curve_multi_dim, {"day"}, color_dim="brand")
+
+    leg = axes[0].get_legend()
+    assert leg is not None
+    labels = [t.get_text() for t in leg.texts]
+    assert labels == ["0", "1", "2"]
+
+
+def test_plot_curve_color_dim_hdi_only(
+    mock_curve_multi_dim, auto_close_figures
+) -> None:
+    _, axes = plot_curve(mock_curve_multi_dim, {"day"}, color_dim="brand", n_samples=0)
+
+    assert axes.size == mock_curve_multi_dim.sizes["geo"]
+
+    leg = axes[0].get_legend()
+    assert leg is not None
+    labels = [t.get_text() for t in leg.texts]
+    assert labels == ["0", "1", "2"]
+
+
+def test_plot_curve_color_dim_custom_colors(
+    mock_curve_multi_dim, auto_close_figures
+) -> None:
+    colors = ["red", "green", "blue"]
+
+    _, axes = plot_curve(
+        mock_curve_multi_dim, {"day"}, color_dim="brand", colors=colors
+    )
+
+    ax = axes.flat[0]
+    colored_lines = [line for line in ax.get_lines() if line.get_color() in colors]
+    assert len(colored_lines) >= 3
+
+
+def test_plot_curve_color_dim_no_legend(
+    mock_curve_multi_dim, auto_close_figures
+) -> None:
+    _, axes = plot_curve(mock_curve_multi_dim, {"day"}, color_dim="brand", legend=False)
+
+    leg = axes[0].get_legend()
+    assert leg is None
 
 
 def test_plot_curve_n_samples_zero(mock_curve) -> None:
