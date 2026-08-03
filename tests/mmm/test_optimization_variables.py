@@ -278,14 +278,18 @@ def test_multi_variable_layout_and_isel_path():
     assert set(opt_vars.substitutions()) == {"channel_data", "lever_data"}
 
 
-def test_container_owns_flat_dim():
-    """A variable built with a different flat_dim is realigned by the container."""
+def test_container_rejects_mismatched_flat_dim():
+    """A variable naming a different flat dim is rejected, not silently renamed.
+
+    Renaming would turn an internally coherent variable (its own tensors keyed
+    on its own name) into an incoherent graph that only fails later, in the
+    temporal-distribution branch.
+    """
     rng = np.random.default_rng(12)
     media = make_media_variable(rng, sizes=(2,))
     lever = _ScalarVariable("lever_data", ["a"], flat_dim="something_else")
-    OptimizationVariables([media, lever], flat_dim="budgets_flat")
-    assert lever.flat_dim == "budgets_flat"
-    assert media.flat_dim == "budgets_flat"
+    with pytest.raises(ValueError, match="does not match the container"):
+        OptimizationVariables([media, lever], flat_dim="budgets_flat")
 
 
 def test_pack_extra_dim_raises():

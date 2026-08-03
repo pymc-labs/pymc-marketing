@@ -19,8 +19,10 @@ import pandas as pd
 import pymc as pm
 import pymc.dims as pmd
 import pytensor
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from xarray import DataArray
 
 from pymc_marketing.mmm import MMM
@@ -1161,12 +1163,62 @@ def test_partial_mask_result_is_invariant_to_coord_order(mmm_wrapper):
 @pytest.mark.parametrize(
     "x0_value, low, high, expected",
     [
+        # Two finite bounds: the furthest one, which is how a dead zone is escaped.
+        (50.0, 0.0, 100.0, 100.0),
+        (90.0, 0.0, 100.0, 0.0),
+        (7.0, 7.0, 7.0, None),
+        (2.0, 0.0, None, 0.0),
+        (2.0, None, 5.0, 5.0),
+        (4.0, None, None, 8.0),
+    ],
+    ids=["interior", "near_upper", "pinned", "lower_only", "upper_only", "unbounded"],
+)
+def test_probe_coordinate_far_reaches_the_bounds(x0_value, low, high, expected):
+    """The far probe leaves a dead zone the local step cannot escape."""
+    probe = BudgetOptimizer._probe_coordinate(x0_value, low, high, far=True)
+    if expected is None:
+        assert probe is None
+        return
+    np.testing.assert_allclose(probe, expected, rtol=1e-9)
+    if low is not None:
+        assert probe >= low
+    if high is not None:
+        assert probe <= high
+
+
+@pytest.mark.parametrize(
+    "x0_value, low, high",
+    [
+        (1e6, 1e6 - 1.0, 1e6),
+        (1e6, 1e6 - 5.0, 1e6),
+        (1e-12, 0.0, 100.0),
+    ],
+    ids=["narrow_box_width_1", "narrow_box_width_5", "tiny_x0_wide_box"],
+)
+def test_probe_coordinate_never_gives_up_on_a_free_coordinate(x0_value, low, high):
+    """A non-degenerate box always yields a distinct, in-bounds probe.
+
+    Returning None here would be silently damning: the second gradient
+    evaluation would land on x0 itself and the inert verdict would be
+    automatic. Million-scale budgets with tight per-channel bounds are the
+    normal case, not an exotic one.
+    """
+    for far in (False, True):
+        probe = BudgetOptimizer._probe_coordinate(x0_value, low, high, far=far)
+        assert probe is not None
+        assert probe != x0_value
+        assert low <= probe <= high
+
+
+@pytest.mark.parametrize(
+    "x0_value, low, high, expected",
+    [
         # Two finite bounds: a small step up, local to x0 (not the box midpoint).
         (50.0, 0.0, 100.0, 50.05),
         # Pinned coordinate: no probe exists inside the feasible set.
         (7.0, 7.0, 7.0, None),
         # At the lower bound, the step must go up (down would leave the box).
-        (0.0, 0.0, 100.0, 0.1),
+        (0.0, 0.0, 100.0, 0.001),
         # At the upper bound, the step must go down.
         (100.0, 0.0, 100.0, 99.9),
         # Lower bound only.
@@ -1206,3 +1258,97 @@ def test_probe_coordinate_stays_local_and_in_bounds(x0_value, low, high, expecte
         assert probe >= low
     if high is not None:
         assert probe <= high
+
+
+def test_dead_zone_objective_does_not_warn(mmm_wrapper):
+    """A flat-here-but-responsive-further-out objective is not called inert.
+
+    ``utility_function`` is user-supplied, so a utility counting only the
+    response above a threshold creates a genuine dead zone: the gradient at x0
+    is exactly zero and a purely local probe cannot escape it. The far probe
+    can, so the variable must not be reported as inert.
+    """
+    channels = list(mmm_wrapper.channel_columns)
+
+    def mean_response(samples, budgets):
+        return samples.mean(dim="sample")
+
+    # Measure the response at the warm start and far out, then put the
+    # threshold between them so the dead zone is real but escapable.
+    reference = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        utility_function=mean_response,
+    )
+
+    def response_at(values):
+        flat = reference._budgets_flat.type.filter(np.asarray(values, dtype=float))
+        return -float(reference._objective_and_grad(flat)[0])
+
+    near = response_at([1.0, 1.0])
+    far = response_at([100.0, 100.0])
+    assert far > near, "fixture response is not increasing in spend"
+    threshold = 0.5 * (near + far)
+
+    def threshold_utility(samples, budgets):
+        return ptx.math.maximum(samples.mean(dim="sample") - threshold, 0.0)
+
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+        utility_function=threshold_utility,
+    )
+
+    # The premise: the gradient really is exactly zero at the warm start.
+    x0 = optimizer._budgets_flat.type.filter(np.array([1.0, 1.0]))
+    _, g0 = optimizer._objective_and_grad(x0)
+    assert np.all(np.asarray(g0) == 0.0), "fixture no longer has a dead zone at x0"
+
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 100.0], [0.0, 100.0]]),
+        channel=channels,
+        bound=["lower", "upper"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        warnings.filterwarnings("ignore", message="No budget bounds provided")
+        optimizer.allocate_budget(total_budget=2.0, budget_bounds=bounds)
+
+
+def test_mask_missing_model_coords_raises(mmm_wrapper):
+    """A mask that does not cover the model's coordinates is rejected.
+
+    Reindexing such a mask would leave NaN, which `astype(bool)` would quietly
+    turn into True -- optimizing a cell the user never named.
+    """
+    mask = xr.DataArray(
+        np.array([True]),
+        dims=("channel",),
+        coords={"channel": ["channel_1"]},  # model also has channel_2
+    )
+    with pytest.raises(ValidationError, match="missing coordinates present in the"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_integer_mask_is_coerced_to_bool(mmm_wrapper):
+    """A 0/1 mask works: reindexing makes it float, so it is cast back."""
+    mask = xr.DataArray(
+        np.array([1, 0]),
+        dims=("channel",),
+        coords={"channel": list(mmm_wrapper.channel_columns)},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer.budgets_to_optimize.dtype == bool
+    assert optimizer._variables.size == 1  # only channel_1 optimized

@@ -1696,48 +1696,56 @@ class BudgetOptimizer(BaseModel):
         x0_value: float,
         low: float | None,
         high: float | None,
+        *,
+        far: bool = False,
         rel_step: float = 1e-3,
     ) -> float | None:
-        """Return a nearby in-bounds point, or None if the coordinate is pinned.
+        """Return an in-bounds probe point for one coordinate, or None if pinned.
 
-        The perturbation is *relative to* ``x0`` rather than a jump to the
-        middle of the box. Probing far from ``x0`` asks the wrong question: for
-        a saturating response already flat at ``x0``, a distant point is
-        flatter still, so an "inert" verdict can be confirmed by moving in the
-        one direction guaranteed to agree with it (and for media with default
-        bounds the box midpoint is total_budget/2 *per cell*, far outside the
-        sum constraint). A small step keeps the probe local, where a genuinely
-        inert coordinate is zero and a merely stationary one is not.
+        Two probes are needed because a single one cannot settle inertness:
 
-        A coordinate whose box is degenerate (``low == high``) is deliberately
-        fixed by the user and cannot be probed — perturbing it would leave the
-        feasible set, and reporting it as inert would be wrong.
+        - the ``far`` probe (the bound furthest from ``x0``) is the only way to
+          leave a *dead zone* -- a region where the objective is genuinely flat
+          but becomes responsive further out, which a user-supplied
+          ``utility_function`` can create;
+        - the local probe is the only one that is honest about a *saturating*
+          response, where a distant point is flatter still and would confirm an
+          "inert" verdict by construction.
+
+        A coordinate is called inert only when both agree.
+
+        The local step scales with the coordinate, floored at unit scale so a
+        near-zero ``x0`` still moves, and falls back to the furthest reachable
+        bound when the box is narrower than the step -- compared absolutely,
+        since the room available is absolute while ``x0`` may be large.
         """
         if low is not None and high is not None and high == low:
             return None
 
-        # Scale the step to the coordinate itself, falling back to the box (or
-        # unity) when x0 sits at zero.
-        scale = abs(x0_value)
-        if scale == 0.0:
-            if low is not None and high is not None and np.isfinite(high - low):
-                scale = abs(high - low)
-            else:
-                scale = 1.0
-        step = rel_step * scale
+        if far:
+            if low is not None and high is not None:
+                return high if (high - x0_value) >= (x0_value - low) else low
+            if high is not None:
+                return high
+            if low is not None:
+                return low
+            return x0_value + max(abs(x0_value), 1.0)
 
+        step = rel_step * max(abs(x0_value), 1.0)
         for candidate in (x0_value + step, x0_value - step):
             if low is not None and candidate < low:
                 continue
             if high is not None and candidate > high:
                 continue
             return candidate
-        # Both directions leave the box: it is narrower than the step, so probe
-        # the far end of whatever room exists.
-        if low is not None and high is not None:
-            far_end = high if abs(high - x0_value) >= abs(x0_value - low) else low
-            return None if np.isclose(far_end, x0_value) else far_end
-        return None
+
+        # Only a two-sided box can block the step in both directions, so both
+        # bounds are set here. Probe the furthest reachable one: any
+        # non-degenerate box leaves room, so a free coordinate always gets a
+        # probe.
+        assert low is not None and high is not None  # noqa: S101
+        far_end = high if (high - x0_value) >= (x0_value - low) else low
+        return None if far_end == x0_value else far_end
 
     def _warn_zero_gradient_variables(
         self,
@@ -1779,29 +1787,46 @@ class BudgetOptimizer(BaseModel):
         if not suspicious:
             return
 
-        x_probe = np.array(x0, copy=True)
-        for variable in suspicious:
-            flat_slice = self._variables.slices[variable.name]
-            for idx in range(flat_slice.start, flat_slice.stop):
-                if not free[idx]:
-                    continue
-                probe = self._probe_coordinate(x_probe[idx], *bounds[idx])
-                if probe is not None:
-                    x_probe[idx] = probe
-        x_probe = self._budgets_flat.type.filter(x_probe)
-        _, g_probe = self._objective_and_grad(x_probe)
-        g_probe = np.asarray(g_probe)
-
-        inert = [
-            variable.name
-            for variable in suspicious
-            if np.all(
-                g_probe[self._variables.slices[variable.name]][
-                    free[self._variables.slices[variable.name]]
-                ]
-                == 0.0
+        # Settle each suspicious variable with two probes, evaluated lazily: a
+        # local step (honest for a saturating response, where a distant point
+        # is flatter still) and a far one (the only way out of a dead zone,
+        # where the objective is flat here but responsive further out). A
+        # variable is inert only if both agree, so the second evaluation is
+        # spent only on variables the first could not clear.
+        for far in (False, True):
+            x_probe = np.array(x0, copy=True)
+            probed = np.zeros(len(x0), dtype=bool)
+            for variable in suspicious:
+                flat_slice = self._variables.slices[variable.name]
+                for idx in range(flat_slice.start, flat_slice.stop):
+                    if not free[idx]:
+                        continue
+                    probe = self._probe_coordinate(x_probe[idx], *bounds[idx], far=far)
+                    if probe is not None:
+                        x_probe[idx] = probe
+                        probed[idx] = True
+            _, g_probe = self._objective_and_grad(
+                self._budgets_flat.type.filter(x_probe)
             )
-        ]
+            g_probe = np.asarray(g_probe)
+            # A variable clears if any probed coordinate responds. Coordinates
+            # with no distinct probe point (a box narrower than machine
+            # precision) cannot clear it, but neither do they convict it: they
+            # simply carry no evidence.
+            suspicious = [
+                variable
+                for variable in suspicious
+                if np.all(
+                    g_probe[self._variables.slices[variable.name]][
+                        probed[self._variables.slices[variable.name]]
+                    ]
+                    == 0.0
+                )
+            ]
+            if not suspicious:
+                return
+
+        inert = [variable.name for variable in suspicious]
         if inert:
             warnings.warn(
                 f"Optimization variable(s) {inert} have an identically zero gradient "

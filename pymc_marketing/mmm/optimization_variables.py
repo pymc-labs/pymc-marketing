@@ -366,11 +366,21 @@ class OptimizationVariables:
             raise ValueError(f"Duplicate variable names: {names}")
         self.variables = list(variables)
         self.flat_dim = flat_dim
-        # The container owns the flat dimension's name: a variable carrying a
-        # different one builds a silently wrong graph in the uniform branch and
-        # only fails in the temporal-distribution branch.
+        # Reject a variable naming a different flat dimension rather than
+        # realigning it: a variable whose own tensors are keyed on its name is
+        # internally coherent, and silently renaming it produces a graph that
+        # is not. The optimizer always builds both with the same name, so this
+        # only ever fires on a hand-built inconsistency.
         for variable in self.variables:
-            variable.flat_dim = flat_dim
+            variable_flat_dim = getattr(variable, "flat_dim", None)
+            if variable_flat_dim is None:
+                variable.flat_dim = flat_dim
+            elif variable_flat_dim != flat_dim:
+                raise ValueError(
+                    f"{variable.name}: flat_dim {variable_flat_dim!r} does not "
+                    f"match the container's {flat_dim!r}. Build the variable "
+                    "with the same flat dimension name."
+                )
 
         self.slices: dict[str, slice] = {}
         start = 0
