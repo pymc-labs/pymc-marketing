@@ -15,17 +15,11 @@
 
 import warnings
 from collections.abc import Sequence
-from typing import Literal, cast
 
 import arviz as az
 import pandas as pd
-import pymc as pm
 import xarray as xr
 from pydantic import ConfigDict, InstanceOf, validate_call
-from pymc.backends import NDArray
-from pymc.backends.base import MultiTrace
-from pymc.model.core import Model
-from pymc.variational.callbacks import CheckParametersConvergence
 
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
 from pymc_marketing.model_config import ModelConfig, parse_model_config
@@ -85,162 +79,18 @@ class CLVModel(ModelBuilder):
         else:
             return f"{self._model_type}\n{self.model.str_repr()}"
 
-    def _add_fit_data_group(self, data: pd.DataFrame) -> None:
-        assert self.idata is not None  # noqa: S101
-        self.idata["/fit_data"] = data.to_xarray()
+    def _prepare_fit(self, data: pd.DataFrame | None = None) -> None:
+        """Build the model on first fit, and reject a second fit on different data.
 
-    def fit(  # type: ignore
-        self,
-        data: pd.DataFrame,
-        method: str = "mcmc",
-        **kwargs,
-    ) -> xr.DataTree:
-        """Infer model posterior.
-
-        Parameters
-        ----------
-        data : pd.DataFrame
-            Input data for model fitting.
-        method: str
-            Method used to fit the model. Options are:
-            - "mcmc": Samples from the posterior via `pymc.sample` (default)
-            - "map": Finds maximum a posteriori via `pymc.find_MAP`
-            - "demz": Samples from the posterior via `pymc.sample` using DEMetropolisZ
-            - "advi": Samples from the posterior via `pymc.fit(method="advi")` and `pymc.sample`
-            - "fullrank_advi": Samples from the posterior via `pymc.fit(method="fullrank_advi")` and `pymc.sample`
-        kwargs:
-            Other keyword arguments passed to the underlying PyMC routines
-
+        CLV models bake the training data into the model graph, so refitting a built
+        model with new data would silently sample the wrong likelihood.
         """
-        # Check if model was already built, and if fit data matches build data
         if not hasattr(self, "model"):
-            self.build_model(data)  # type: ignore
-        else:
-            if not self.data.equals(data):  # type: ignore
-                raise ValueError(
-                    "The model was built with different data. "
-                    "Create a new model instance to fit new data."
-                )
-
-        approx = None
-        match method:
-            case "mcmc":
-                idata = self._fit_mcmc(**kwargs)
-            case "map":
-                idata = self._fit_MAP(**kwargs)
-            case "demz":
-                idata = self._fit_DEMZ(**kwargs)
-            case "advi":
-                approx, idata = self._fit_approx(method="advi", **kwargs)
-            case "fullrank_advi":
-                approx, idata = self._fit_approx(method="fullrank_advi", **kwargs)
-            case _:
-                raise ValueError(
-                    f"Fit method options are ['mcmc', 'map', 'demz', 'advi', 'fullrank_advi'], got: {method}"
-                )
-
-        self.idata = idata
-        if approx:
-            self.approx = approx
-        self.set_idata_attrs(self.idata)
-        if self.data is not None:  # type: ignore
-            self._add_fit_data_group(self.data)  # type: ignore
-
-        return self.idata
-
-    def _fit_mcmc(self, **kwargs) -> xr.DataTree:
-        """Fit a model with NUTS."""
-        sampler_config = {}
-        if self.sampler_config is not None:
-            sampler_config = self.sampler_config.copy()
-        sampler_config.update(**kwargs)
-        return pm.sample(**sampler_config, model=self.model)
-
-    def _fit_MAP(self, **kwargs) -> xr.DataTree:
-        """Find model maximum a posteriori using scipy optimizer."""
-        model = self.model
-        map_res = pm.find_MAP(model=model, **kwargs)
-        # Filter non-value variables
-        value_vars_names = set(v.name for v in cast(Model, model).value_vars)
-        map_res = {k: v for k, v in map_res.items() if k in value_vars_names}
-        # Convert map result to DataTree
-        map_strace = NDArray(model=model)
-        map_strace.setup(draws=1, chain=0)
-        try:
-            map_strace.record(map_res, in_warmup=False)
-        except TypeError:
-            map_strace.record(map_res)
-        map_strace.close()
-        trace = MultiTrace([map_strace])
-        return pm.to_inference_data(trace, model=model)
-
-    def _fit_DEMZ(self, **kwargs) -> xr.DataTree:
-        """Fit a model with DEMetropolisZ gradient-free sampler."""
-        sampler_config = {}
-        if self.sampler_config is not None:
-            sampler_config = self.sampler_config.copy()
-        sampler_config.update(**kwargs)
-        with self.model:
-            return pm.sample(step=pm.DEMetropolisZ(), **sampler_config)
-
-    def _fit_approx(
-        self, method: Literal["advi", "fullrank_advi"] = "advi", **kwargs
-    ) -> xr.DataTree:
-        """Fit a model with ADVI."""
-        sampler_config = {}
-        if self.sampler_config is not None:
-            sampler_config = self.sampler_config.copy()
-
-        sampler_config = {**sampler_config, **kwargs}
-        if sampler_config.get("method") is not None:
+            self.build_model(data)  # type: ignore[call-arg]
+        elif data is not None and not self.data.equals(data):  # type: ignore[attr-defined]
             raise ValueError(
-                "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
-            )
-
-        if sampler_config.get("chains", 1) > 1:
-            warnings.warn(
-                "The 'chains' parameter must be 1 with 'advi'. Sampling only 1 chain despite the provided parameter.",
-                UserWarning,
-                stacklevel=2,
-            )
-
-        with self.model:
-            approx = pm.fit(
-                method=method,
-                callbacks=[CheckParametersConvergence(diff="absolute")],
-                **{
-                    k: v
-                    for k, v in sampler_config.items()
-                    if k
-                    in [
-                        "n",
-                        "random_seed",
-                        "inf_kwargs",
-                        "start",
-                        "start_sigma",
-                        "score",
-                        "callbacks",
-                        "progressbar",
-                        "progressbar_theme",
-                        "obj_n_mc",
-                        "tf_n_mc",
-                        "obj_optimizer",
-                        "test_optimizer",
-                        "more_obj_params",
-                        "more_tf_params",
-                        "more_updates",
-                        "total_grad_norm_constraint",
-                        "fn_kwargs",
-                        "more_replacements",
-                    ]
-                },
-            )
-            return approx, approx.sample(
-                **{
-                    k: v
-                    for k, v in sampler_config.items()
-                    if k in ["draws", "random_seed", "return_inferencedata"]
-                }
+                "The model was built with different data. "
+                "Create a new model instance to fit new data."
             )
 
     @classmethod

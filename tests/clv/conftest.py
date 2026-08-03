@@ -78,8 +78,9 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
 def set_idata(model):
     """Part of basic fit method for CLVModel."""
     model.set_idata_attrs(model.idata)
-    if model.data is not None:
-        model._add_fit_data_group(model.data)
+    fit_data = model.create_fit_data_group()
+    if fit_data is not None:
+        model.idata["/fit_data"] = fit_data
 
 
 def create_mock_fit(params: dict[str, float]):

@@ -35,7 +35,7 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
@@ -393,6 +393,11 @@ class MaxDiffMixedLogit(ModelBuilder):
     the joint ``(best, worst)`` generatively — best first, then worst
     conditioned on the *sampled* best — producing a coherent joint draw.
     """
+
+    #: ``U``, ``chol_L``, ``corr_matrix`` and the per-respondent utilities are large
+    #: enough that a vectorized recompute would spike transient memory. Keep them
+    #: streaming draw-by-draw out of the sampler instead.
+    _recompute_deterministics = False
 
     _model_type = "MaxDiff Mixed Logit"
     version = "0.3.0"
@@ -1125,7 +1130,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             "sampler_config": json.loads(attrs["sampler_config"]),
         }
 
-    def _create_fit_data(self) -> xr.Dataset:
+    def create_fit_data_group(self) -> xr.Dataset:
         """Serialise ``task_df`` so :meth:`load` can reconstruct the model."""
         df_xr = self.task_df.reset_index(drop=True).to_xarray()
         df_xr = df_xr.rename({"index": "row"})
@@ -1170,47 +1175,46 @@ class MaxDiffMixedLogit(ModelBuilder):
         task_df: pd.DataFrame | None = None,
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        method: SamplingMethod = "mcmc",
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> xr.DataTree:
-        """Fit the model via NUTS and attach the result to ``self.idata``."""
+        """Fit the model and attach the result to ``self.idata``.
+
+        Thin wrapper around :meth:`ModelFitter.fit`; see there for the full parameter
+        reference.
+
+        Parameters
+        ----------
+        task_df : pd.DataFrame, optional
+            New task data. If None, uses data from initialization.
+        progressbar : bool, optional
+            Show progress bar during sampling.
+        random_seed : RandomState, optional
+            Random seed for reproducibility.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
+        **kwargs
+            Additional arguments passed to the underlying PyMC routine.
+
+        Returns
+        -------
+        xr.DataTree
+            Fitted model with posterior samples.
+        """
         if task_df is not None:
             self.task_df = task_df
 
-        if not hasattr(self, "model"):
-            self.build_model()
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
+        return super().fit(
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
             **kwargs,
         )
-
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.update(idata)
-        else:
-            self.idata = idata
-
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata.children:
-            self.idata = self.idata.drop_nodes("fit_data")
-
-        fit_data = self._create_fit_data()
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the DataTree scheme",
-            )
-            self.idata["/fit_data"] = fit_data
-
-        self.set_idata_attrs(self.idata)
-        return self.idata
 
     def sample_posterior_predictive(  # type: ignore[override]
         self,
@@ -1636,7 +1640,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         self.sample_prior_predictive(
             extend_idata=True, **sample_prior_predictive_kwargs
         )
-        self.fit(extend_idata=True, **fit_kwargs)
+        self.fit(**fit_kwargs)
         self.sample_posterior_predictive(
             extend_idata=True, **sample_posterior_predictive_kwargs
         )

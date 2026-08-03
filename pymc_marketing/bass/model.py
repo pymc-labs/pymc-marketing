@@ -154,7 +154,7 @@ from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handl
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
@@ -500,6 +500,7 @@ class BassModel(ModelBuilder):
         # Restore Prior objects from the dicts produced by the JSON
         # round-trip in save/load
         self.model_config = parse_model_config(self.model_config)
+        self.data: xr.Dataset | None = None
 
     @property
     def default_model_config(self) -> dict:
@@ -682,25 +683,49 @@ class BassModel(ModelBuilder):
                 model=self.model,
             )
 
+    def _prepare_fit(
+        self,
+        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+    ) -> None:
+        """Normalize the input data and rebuild the model against it.
+
+        The Bass model bakes the time grid into the graph, so the model is rebuilt on
+        every fit rather than reused.
+        """
+        self.data = to_bass_dataset(data) if data is not None else self.data
+        if self.data is None:
+            raise ValueError("Data must be provided to fit the Bass model.")
+        self.build_model(self.data)
+
     def fit(  # type: ignore[override]
         self,
-        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray,
+        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
-        """Fit the Bass diffusion model via MCMC.
+        """Fit the Bass diffusion model.
+
+        Thin wrapper around :meth:`ModelFitter.fit`; see there for the full parameter
+        reference.
 
         Parameters
         ----------
         data : xr.Dataset, pd.DataFrame, pd.Series, np.ndarray
             Adoption counts over time. See :func:`to_bass_dataset` for formats.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Whether to show the progress bar. Defaults to ``True``.
         random_seed : optional
             Random seed for reproducibility.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs
-            Additional arguments forwarded to :func:`pymc.sample`.
+            Additional arguments forwarded to the underlying PyMC routine.
 
         Returns
         -------
@@ -732,37 +757,14 @@ class BassModel(ModelBuilder):
 
             pp = model.sample_posterior_predictive(X=new_data)
         """
-        ds = to_bass_dataset(data)
-        self.build_model(ds)
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config, progressbar, random_seed, **kwargs
+        return super().fit(
+            data=data,
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
+            **kwargs,
         )
-        var_names = [v.name for v in self.model.free_RVs]
-
-        with self.model:
-            idata = pm.sample(var_names=var_names, **sampler_kwargs)
-            # Assign to the DataTree node, not the ``posterior`` property.
-            # ``idata.posterior = ...`` sets a shadowing instance attribute and
-            # leaves the actual group unchanged, dropping the deterministics.
-            idata["posterior"] = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
-
-        if self.idata is not None:
-            self.idata = self.idata.copy()
-            self.idata.update(idata)
-        else:
-            self.idata = idata
-
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata:
-            del self.idata["fit_data"]
-
-        self.idata["fit_data"] = xr.DataTree(ds)
-        self.set_idata_attrs(self.idata)
-        return self.idata
 
     def plot_adoption_curve(
         self, **kwargs: Any

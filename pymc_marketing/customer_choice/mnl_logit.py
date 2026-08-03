@@ -14,9 +14,8 @@
 """Multinomial Logit for Product Preference Analysis."""
 
 import json
-import warnings
 from collections.abc import Sequence
-from typing import Self
+from typing import Any, Self
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,7 +29,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.model_builder import (
     ModelBuilder,
-    create_sample_kwargs,
+    SamplingMethod,
 )
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
@@ -97,6 +96,11 @@ class MNLogit(ModelBuilder):
         ]
 
     """
+
+    #: Deterministics on these models span the full (obs, alts) panel, so the
+    #: vectorized recompute would spike transient memory. Keep them streaming
+    #: draw-by-draw out of the sampler instead.
+    _recompute_deterministics = False
 
     _model_type = "Multinomial Logit Model"
     version = "0.2.0"
@@ -531,7 +535,7 @@ class MNLogit(ModelBuilder):
 
         return prior_pred
 
-    def _create_fit_data(self) -> xr.Dataset:
+    def create_fit_data_group(self) -> xr.Dataset:
         """
         Create xarray Dataset for storing choice_df in DataTree.
 
@@ -552,6 +556,8 @@ class MNLogit(ModelBuilder):
         utility_equations: list[str] | None = None,
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        method: SamplingMethod = "mcmc",
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> xr.DataTree:
         """
@@ -567,8 +573,13 @@ class MNLogit(ModelBuilder):
             Show progress bar during sampling
         random_seed : RandomState, optional
             Random seed for reproducibility
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs
-            Additional arguments passed to pm.sample()
+            Additional arguments passed to the underlying PyMC routine
 
         Returns
         -------
@@ -581,50 +592,13 @@ class MNLogit(ModelBuilder):
         if utility_equations is not None:
             self.utility_equations = utility_equations
 
-        # Build model if not already built
-        if not hasattr(self, "model"):
-            self.build_model()
-
-        # Configure sampler
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
+        return super().fit(
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
             **kwargs,
         )
-
-        # Sample
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        # Store and extend results
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.update(idata)
-        else:
-            self.idata = idata
-
-        # Add version metadata
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        # Add fit_data group
-        if "fit_data" in self.idata.children:
-            self.idata = self.idata.drop_nodes("fit_data")
-
-        fit_data = self._create_fit_data()
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the DataTree scheme",
-            )
-            self.idata["/fit_data"] = fit_data
-
-        # Set attributes for save/load
-        self.set_idata_attrs(self.idata)
-
-        return self.idata
 
     def build_from_idata(self, idata: xr.DataTree) -> None:
         """
@@ -728,7 +702,7 @@ class MNLogit(ModelBuilder):
         self.sample_prior_predictive(
             extend_idata=True, **sample_prior_predictive_kwargs
         )
-        self.fit(extend_idata=True, **fit_kwargs)
+        self.fit(**fit_kwargs)
         self.sample_posterior_predictive(
             extend_idata=True, **sample_posterior_predictive_kwargs
         )
