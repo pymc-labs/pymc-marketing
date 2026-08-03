@@ -18,6 +18,8 @@ from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
     MediaMuEffect,
+    MuEffect,
+    OptimizableMuEffect,
 )
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
@@ -127,8 +129,10 @@ __all__ = [
     "MediaVariable",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
+    "MuEffect",
     "NoAdstock",
     "NoSaturation",
+    "OptimizableMuEffect",
     "OptimizationVariable",
     "OptimizationVariables",
     "PeriodicCovFunc",

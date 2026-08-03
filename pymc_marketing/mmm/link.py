@@ -50,6 +50,11 @@ class LinkSpec(ABC):
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
       ``total_media_contribution_original_scale``.
+
+    One concrete helper is shared by all links:
+    :meth:`create_total_response_deterministic` (the optimizable-effect
+    objective ``total_response_original_scale``, registered by
+    ``MMM.build_model`` only when the model has an optimizable effect).
     """
 
     link: LinkFunction
@@ -111,6 +116,39 @@ class LinkSpec(ABC):
         link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
         nodes.
         """
+
+    def create_total_response_deterministic(
+        self,
+        mu_var: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> None:
+        """Register ``total_response_original_scale``.
+
+        The total predicted response (original scale, scalar per draw),
+        computed via :meth:`original_scale_transform` so it is correct for
+        every link.  Because ``mu_var`` already includes every additive
+        mu-effect, this is the natural objective for optimizing effect levers
+        jointly with media
+        (:class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` with
+        ``response_variable="total_response_original_scale"``).
+
+        .. warning::
+
+            Unlike ``total_media_contribution_original_scale``, this quantity
+            includes the (approximately constant) baseline response.  For the
+            default mean utility the ``argmax`` is unchanged, but for
+            risk-adjusted utility functions the baseline shifts the
+            mean/variance trade-off -- prefer a media/effect-contribution
+            response variable for those.  In an optimization model the sum
+            runs over the full date coord, which includes the
+            ``adstock_periods`` carry-over tail -- an event window landing in
+            that tail would be optimized against periods outside the intended
+            plan.
+        """
+        pmd.Deterministic(
+            "total_response_original_scale",
+            self.original_scale_transform(mu_var, target_scale).sum(dim="date").sum(),
+        )
 
     @abstractmethod
     def mean_correction(
