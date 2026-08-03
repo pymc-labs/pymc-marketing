@@ -400,6 +400,59 @@ class MuEffect(SerializableBaseModel, ABC):
         return {}
 
 
+class OptimizableMuEffect(MuEffect, ABC):
+    """A :class:`MuEffect` whose own lever can be optimized jointly with media budgets.
+
+    The lever is the ``pm.Data`` node named by :attr:`lever_var_name`
+    (registered in :meth:`MuEffect.create_data` with a single dim, which must
+    not be the date dim;
+    defaults to ``f"{prefix}_data"``).
+    ``MMM.budget_optimizer`` translates each optimizable effect into an
+    ``optimizable_vars`` entry -- the node name plus the effect's native
+    :attr:`lever_bounds` -- and the
+    :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` co-optimizes
+    that variable purely by name on the model graph, alongside the media
+    budgets. The optimal values come back in ``result.optimized_vars``.
+
+    The lever never enters the media budget-sum constraint; its economic cost
+    (if any) belongs in the model response. Pair the optimization with
+    ``response_variable="total_response_original_scale"`` so the effect's
+    contribution enters the objective.
+    """
+
+    @property
+    def lever_bounds(self) -> list[tuple[float | None, float | None]] | None:
+        """Per-lever ``(low, high)`` bounds in the lever's native units.
+
+        ``None`` (default) leaves the lever unbounded. Effects with a naturally
+        bounded lever (e.g. a discount fraction) should override this with one
+        ``(low, high)`` tuple per lever entry, in the lever dim's coordinate
+        order.
+        """
+        return None
+
+    @property
+    def lever_var_name(self) -> str:
+        """Name of the ``pm.Data`` node the optimizer substitutes for this effect.
+
+        The default assumes the effect registers ``f"{self.prefix}_data"`` in
+        :meth:`MuEffect.create_data`; effects that register a different lever
+        node (or have no ``prefix`` attribute) must override this property.
+
+        Raises
+        ------
+        NotImplementedError
+            If the effect has no ``prefix`` attribute and does not override
+            this property.
+        """
+        prefix = getattr(self, "prefix", None)
+        if prefix is None:
+            raise NotImplementedError(
+                f"{type(self).__name__} must define 'lever_var_name'."
+            )
+        return f"{prefix}_data"
+
+
 class DataVarMuEffect(MuEffect, ABC):
     """MuEffect that reads its data from the xarray Dataset.
 

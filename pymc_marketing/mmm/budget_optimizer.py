@@ -213,13 +213,24 @@ Notes
   historical information using
   ``idata.posterior.channel_contribution.mean(("chain","draw","date")).astype(bool)``.
 - Default bounds are ``[0, total_budget]`` on each optimized cell.
-- Set ``callback=True`` in ``allocate_budget(...)`` to receive per‑iteration diagnostics
-  (objective, gradient, constraints) for monitoring.
+- ``allocate_budget(...)`` returns a :class:`BudgetOptimizationResult`. It unpacks as
+  ``optimal, res = optimizer.allocate_budget(...)`` for backward compatibility; set
+  ``callback=True`` to additionally populate ``result.callback_info`` with per‑iteration
+  diagnostics (objective, gradient, constraints) for monitoring.
 """
 
 import warnings
-from collections.abc import Sequence
-from typing import Any, ClassVar, Protocol, cast, runtime_checkable
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from typing import (
+    Any,
+    ClassVar,
+    NotRequired,
+    Protocol,
+    TypedDict,
+    cast,
+    runtime_checkable,
+)
 
 import numpy as np
 import pymc as pm
@@ -240,7 +251,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
-from pytensor.xtensor import as_xtensor
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
@@ -250,11 +261,72 @@ from pymc_marketing.mmm.constraints import (
     build_default_sum_constraint,
     compile_constraints_for_scipy,
 )
+from pymc_marketing.mmm.optimization_variables import (
+    LeverVariable,
+    MediaVariable,
+    OptimizationVariables,
+)
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
 from pymc_marketing.version import __version__
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
+
+
+class ConstraintIterationInfo(TypedDict):
+    """Constraint state at one solver iteration."""
+
+    type: str
+    value: float | np.ndarray
+    jac: np.ndarray | None
+
+
+class OptimizationIterationInfo(TypedDict):
+    """Solver state at one iteration, recorded when ``callback=True``."""
+
+    x: np.ndarray
+    fun: float
+    jac: np.ndarray
+    constraint_info: NotRequired[list[ConstraintIterationInfo]]
+
+
+@dataclass
+class BudgetOptimizationResult:
+    """Result of :meth:`BudgetOptimizer.allocate_budget`.
+
+    Iterating the result yields ``(budgets, scipy_result)``, so the
+    long-standing two-element unpacking keeps working unchanged::
+
+        optimal_budgets, scipy_result = optimizer.allocate_budget(...)
+
+    Attribute access is the recommended interface going forward.
+
+    Attributes
+    ----------
+    budgets : xarray.DataArray
+        The optimized budget allocation in monetary units, labelled with the
+        model's budget dims and coords.
+    scipy_result : scipy.optimize.OptimizeResult
+        The raw scipy optimization result (solver diagnostics, ``x``, ``fun``,
+        convergence status).
+    optimized_vars : dict[str, xarray.DataArray]
+        Optimal values of any non-media decision variables co-optimized
+        alongside the media budgets. Empty until such variables are declared
+        (see https://github.com/pymc-labs/pymc-marketing/pull/2621).
+    callback_info : list[OptimizationIterationInfo] or None
+        Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
+        when ``allocate_budget(callback=True)``; ``None`` otherwise.
+    """
+
+    budgets: DataArray
+    scipy_result: OptimizeResult
+    optimized_vars: dict[str, DataArray] = field(default_factory=dict)
+    callback_info: list[OptimizationIterationInfo] | None = None
+
+    def __iter__(self):
+        """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
+        yield self.budgets
+        yield self.scipy_result
 
 
 def optimizer_xarray_builder(value, **kwargs):
@@ -1096,9 +1168,26 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
-    mu_effects: Sequence = Field(
-        default_factory=list,
-        description="List of mu_effects objects with budget-aware optimization support.",
+    optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
+        Field(
+            default_factory=dict,
+            description=(
+                "Additional pm.Data variables to co-optimize alongside "
+                "`channel_data_var`, keyed by variable name. Each value gives the "
+                "native (low, high) bounds per entry in the variable's coordinate "
+                "order, or None for unbounded. Each variable must have exactly one "
+                "dim (not the date dim -- date-varying variables are not "
+                "supported); its optimal values are substituted via the same "
+                "do() as the media budgets and returned in `result.optimized_vars`. "
+                "These variables never enter the default budget-sum constraint "
+                "(pass a custom `constraints=` including their flat-vector segment "
+                "to make one compete for total_budget). "
+                "MMM.budget_optimizer fills this from its OptimizableMuEffect "
+                "levers (f'{prefix}_data' with the effect's lever_bounds); pair "
+                "with response_variable='total_response_original_scale' so their "
+                "contribution enters the objective."
+            ),
+        )
     )
 
     response_variable: str = Field(
@@ -1200,10 +1289,10 @@ class BudgetOptimizer(BaseModel):
     _budget_distribution_over_period_tensor: XTensorVariable | None = PrivateAttr()
     _cost_per_unit_tensor: XTensorVariable | None = PrivateAttr()
     _pymc_model: Model = PrivateAttr()
-    _compiled_functions: dict = PrivateAttr()
+    _variables: OptimizationVariables = PrivateAttr()
+    _objective_and_grad: Callable = PrivateAttr()
     _constraints: dict = PrivateAttr()
     _compiled_constraints: list[dict] = PrivateAttr()
-    _optimizable_mu_effects: list = PrivateAttr()
 
     @model_validator(mode="before")
     @classmethod
@@ -1259,9 +1348,24 @@ class BudgetOptimizer(BaseModel):
                 data["channel_scales"] = model._channel_scales
             elif hasattr(model, "channel_scales"):
                 data["channel_scales"] = model.channel_scales
-        # Infer mu_effects from wrapper if not already set
-        if "mu_effects" not in data and hasattr(model, "mu_effects"):
-            data["mu_effects"] = list(model.mu_effects)
+        # Drop mu_effects if a caller still passes it (removed field): the
+        # optimizer never consumed it; non-optimizable effects are already
+        # baked into the model graph by the time it is built.
+        if "mu_effects" in data:
+            warnings.warn(
+                "BudgetOptimizer no longer accepts mu_effects; the argument is "
+                "ignored. Effects are baked into the model graph at build time.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            data.pop("mu_effects")
+        # Infer optimizable vars from the wrapper's effects (duck-typed so this
+        # layer never imports marketing classes), so the direct
+        # BudgetOptimizer(model=<wrapper>) path doesn't silently freeze them.
+        if "optimizable_vars" not in data and hasattr(
+            model, "_effect_optimizable_vars"
+        ):
+            data["optimizable_vars"] = model._effect_optimizable_vars()
         if "frozen_deterministics" not in data and hasattr(
             model, "frozen_deterministics"
         ):
@@ -1337,38 +1441,24 @@ class BudgetOptimizer(BaseModel):
                         "information."
                     )
 
-        self.budgets_to_optimize = self.budgets_to_optimize.transpose(
-            *self._budget_dims
-        )
-
-        size_budgets = self.budgets_to_optimize.sum().item()
-
-        # 5. Check for optimizable mu_effects (not yet supported; see #2621)
-        self._optimizable_mu_effects = [
-            e for e in self.mu_effects if hasattr(e, "replace_for_optimization")
-        ]
-        if self._optimizable_mu_effects:
-            raise NotImplementedError(
-                "OptimizableMuEffect integration is not yet supported. "
-                "See https://github.com/pymc-labs/pymc-marketing/pull/2621"
+        # Align the mask with the model's coordinate order, not just its dim
+        # order: the mask is consumed positionally downstream (scatter into the
+        # model's tensor layout, and the labels the solution is unpacked with),
+        # so a user-supplied mask ordered differently from the model would
+        # otherwise select the wrong cells and label them with the wrong
+        # coordinates. `cost_per_unit` and `budget_bounds` are reindexed for
+        # the same reason.
+        self.budgets_to_optimize = self.budgets_to_optimize.reindex(
+            self._budget_coords
+        ).transpose(*self._budget_dims)
+        if bool(self.budgets_to_optimize.isnull().any()):
+            raise ValueError(
+                "budgets_to_optimize is missing coordinates present in the "
+                f"model; expected {self._budget_coords}."
             )
+        self.budgets_to_optimize = self.budgets_to_optimize.astype(bool)
 
-        self._budgets_flat = ptx.xtensor(
-            "budgets_flat",
-            shape=(size_budgets,),
-            dims=("budgets_flat",),
-        )
-
-        # Fill a zero array, then set only the True positions
-        budgets_zeros = pt.zeros(self._budget_shape)
-        budgets_zeros.name = "budgets_zeros"
-        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        self._budgets = as_xtensor(
-            budgets_zeros[bool_mask].set(self._budgets_flat.values[:size_budgets]),
-            dims=self._budget_dims,
-        )
-
-        # 6. Validate and process budget_distribution_over_period
+        # 5. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
             self._validate_and_process_budget_distribution(
                 budget_distribution_over_period=self.budget_distribution_over_period,
@@ -1379,7 +1469,7 @@ class BudgetOptimizer(BaseModel):
             )
         )
 
-        # 6b. Validate and process cost_per_unit
+        # 5b. Validate and process cost_per_unit
         self._cost_per_unit_tensor = self._validate_and_process_cost_per_unit(
             cost_per_unit=self.cost_per_unit,
             num_periods=self.num_periods,
@@ -1388,9 +1478,65 @@ class BudgetOptimizer(BaseModel):
             date_dim=self.date_dim,
         )
 
-        # 7. Replace channel_data with budgets in the PyMC model
-        self._pymc_model = self._replace_channel_data_by_optimization_variable(
-            self.model
+        # 6. Build the optimization variables; media is variable #0
+        media_variable = MediaVariable(
+            name=self.channel_data_var,
+            mask=self.budgets_to_optimize,
+            num_periods=self.num_periods,
+            adstock_periods=self.adstock_periods,
+            channel_scales=self.channel_scales,
+            dtype=self.model[self.channel_data_var].dtype,
+            date_dim=self.date_dim,
+            budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
+            cost_per_unit_tensor=self._cost_per_unit_tensor,
+        )
+        # 6b. Optimizable vars become lever variables appended after media.
+        # Levers never enter the budget-sum constraint; a discount depth is
+        # not a dollar amount drawn from the shared pool.
+        lever_variables = []
+        for lever_name, lever_bounds in self.optimizable_vars.items():
+            if lever_name not in self.model.named_vars_to_dims:
+                raise ValueError(
+                    f"optimizable_vars entry '{lever_name}' is not a variable "
+                    "with named dims in the model."
+                )
+            lever_dims = list(self.model.named_vars_to_dims[lever_name])
+            if len(lever_dims) != 1 or lever_dims[0] == self.date_dim:
+                raise ValueError(
+                    f"optimizable_vars entry '{lever_name}' must have exactly "
+                    f"one dim, and not the {self.date_dim!r} dim; got "
+                    f"{tuple(self.model.named_vars_to_dims[lever_name])}. "
+                    "Date-varying optimizable variables are not supported."
+                )
+            lever_dim = lever_dims[0]
+            lever_size = len(self.model.coords[lever_dim])
+            if lever_bounds is not None and len(lever_bounds) != lever_size:
+                raise ValueError(
+                    f"optimizable_vars['{lever_name}'] bounds have "
+                    f"{len(lever_bounds)} entries but the variable has "
+                    f"{lever_size}."
+                )
+            lever_variables.append(
+                LeverVariable(
+                    name=lever_name,
+                    dim=lever_dim,
+                    coords=list(self.model.coords[lever_dim]),
+                    bounds=lever_bounds,
+                    initial_value=self.model[lever_name].get_value(),
+                )
+            )
+
+        self._variables = OptimizationVariables([media_variable, *lever_variables])
+        self._budgets_flat = self._variables.flat
+        self._budgets = media_variable.scattered(
+            self._variables.variable_slice(self.channel_data_var)
+        )
+
+        # 7. Substitute the decision variables into the PyMC model graph.
+        # One do() call over every variable keeps the gradients joint.
+        self._pymc_model = do(
+            freeze_dims_and_data(self.model, data=[]),
+            self._variables.substitutions(),
         )
 
         # 8. Validate that the requested response variable actually exists in
@@ -1403,8 +1549,49 @@ class BudgetOptimizer(BaseModel):
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
 
+        # 8b. Structural reachability: every optimizable var must influence the
+        # response variable, otherwise its gradient is identically zero and the
+        # "optimum" returned would just be the seed. Checked on the same graph
+        # the objective is compiled from (do() keeps the substituted vars as
+        # named nodes). A complementary *numeric* check at x0 lives in
+        # allocate_budget -- it also catches levers that are structurally
+        # connected but inert in the optimization window (e.g. an event whose
+        # window mask is all zeros there).
+        if self.optimizable_vars:
+            response_ancestors = set(
+                ancestors([self._pymc_model[self.response_variable]])
+            )
+            unreachable = [
+                name
+                for name in self.optimizable_vars
+                if self._pymc_model[name] not in response_ancestors
+            ]
+            if unreachable:
+                raise ValueError(
+                    f"response_variable={self.response_variable!r} does not "
+                    f"depend on optimizable_vars {unreachable}; their gradient "
+                    "is identically zero, so they cannot be optimized. Pass a "
+                    "response variable that includes their contribution, e.g. "
+                    'response_variable="total_response_original_scale".'
+                )
+
+            # 8c. The reverse trap: under the log link the media-contribution
+            # objective *does* reach the levers (mu contains the effect), so
+            # the ancestry check above passes -- but the levers would then be
+            # tuned to maximize incremental media contribution, not total
+            # response. Warn instead of silently accepting the default.
+            if self.response_variable == "total_media_contribution_original_scale":
+                warnings.warn(
+                    "optimizable_vars are being optimized against the "
+                    "media-contribution objective "
+                    "'total_media_contribution_original_scale'. If you want "
+                    "them tuned to maximize the total predicted response, "
+                    'pass response_variable="total_response_original_scale".',
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         # 9. Compile objective & gradient
-        self._compiled_functions = {}
         self._compile_objective_and_grad()
 
         # 10. Build constraints
@@ -1569,105 +1756,6 @@ class BudgetOptimizer(BaseModel):
         values = cost_per_unit.transpose(*expected_dims)
         return ptx.as_xtensor(values, name="cost_per_unit")
 
-    def _apply_budget_distribution_over_period(
-        self,
-        budgets: XTensorVariable,
-        num_periods: int,
-    ) -> XTensorVariable:
-        """Apply budget distribution over periods to budgets across time periods.
-
-        Parameters
-        ----------
-        budgets : XTensorVariable
-            The scaled budget tensor with shape matching budget dimensions.
-        num_periods : int
-            Number of time periods to distribute budget across.
-
-        Returns
-        -------
-        XTensorVariable
-            Budget tensor repeated across time periods with distribution factors applied.
-            Shape will be (*budget_dims[:date_dim_idx], num_periods, *budget_dims[date_dim_idx:])
-        """
-        # Apply time distribution factors
-        # The time factors are already masked and have shape (num_periods, num_optimized_budgets)
-        # budgets has full shape (e.g., (2, 2) for geo x channel)
-        # We need to extract only the optimized budgets
-
-        # Get the optimized budget values
-        bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
-        budgets_optimized = self._budgets_flat
-
-        repeated_budgets_flat = (
-            budgets_optimized * self._budget_distribution_over_period_tensor
-        ).transpose(self.date_dim, "budgets_flat")
-
-        # Reconstruct the full shape for each time period
-        budgets = ptx.zeros_like(budgets).expand_dims(
-            **{self.date_dim: num_periods}, axis=0
-        )
-        repeated_budgets = budgets.values[:, bool_mask].set(
-            repeated_budgets_flat.values
-        )
-        # Back to xtensor
-        repeated_budgets = as_xtensor(repeated_budgets, dims=budgets.dims)
-
-        repeated_budgets *= num_periods
-
-        return repeated_budgets
-
-    def _replace_channel_data_by_optimization_variable(self, model: Model) -> Model:
-        """Replace `channel_data` in the model graph with our newly created `_budgets` variable."""
-        num_periods = self.num_periods
-        max_lag = self.adstock_periods
-        channel_scales = self.channel_scales
-        channel_data_dtype = model[self.channel_data_var].dtype
-        if np.dtype(channel_data_dtype).kind != "f":
-            raise ValueError(
-                f"Optimization requires channel data of float type, got {channel_data_dtype}"
-            )
-
-        # Scale budgets by channel_scales
-        budgets = self._budgets
-        budgets /= as_xtensor(
-            channel_scales, dims=() if np.ndim(channel_scales) == 0 else ("channel",)
-        )
-
-        # Repeat budgets over num_periods (still in monetary units)
-        if self._budget_distribution_over_period_tensor is not None:
-            # Apply time distribution factors
-            repeated_budgets = self._apply_budget_distribution_over_period(
-                budgets, num_periods
-            )
-        else:
-            # Default behavior: distribute evenly across periods
-            repeated_budgets = budgets.expand_dims(**{self.date_dim: num_periods})
-
-        # Convert from monetary units to original units using date-specific rates.
-        # Applied AFTER time distribution so each period uses its own cost rate.
-        if self._cost_per_unit_tensor is not None:
-            repeated_budgets = repeated_budgets / self._cost_per_unit_tensor
-
-        repeated_budgets.name = "repeated_budgets"
-
-        repeated_budgets_with_carry_over = ptx.concat(
-            [
-                repeated_budgets.astype(channel_data_dtype),
-                ptx.as_xtensor(
-                    pt.zeros(max_lag, dtype=channel_data_dtype),
-                    dims=(self.date_dim,),
-                ),
-            ],
-            dim=self.date_dim,
-        )
-        repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
-
-        # Freeze dims & data in the underlying PyMC model
-        model = freeze_dims_and_data(model, data=[])
-
-        # Use `do(...)` to replace `channel_data_var` with repeated_budgets_with_carry_over
-        return do(model, {self.channel_data_var: repeated_budgets_with_carry_over})
-
     def extract_response_distribution(self, response_variable: str) -> XTensorVariable:
         """Extract the response distribution graph, conditioned on posterior parameters.
 
@@ -1712,22 +1800,164 @@ class BudgetOptimizer(BaseModel):
         if hasattr(objective_and_grad_func, "trust_input"):
             objective_and_grad_func.trust_input = True
 
-        self._compiled_functions[self.utility_function] = {
-            "objective_and_grad": objective_and_grad_func,
-        }
+        self._objective_and_grad = objective_and_grad_func
+
+    @staticmethod
+    def _probe_coordinate(
+        x0_value: float,
+        low: float | None,
+        high: float | None,
+        *,
+        far: bool = False,
+        rel_step: float = 1e-3,
+    ) -> float | None:
+        """Return an in-bounds probe point for one coordinate, or None if pinned.
+
+        Two probes are needed because a single one cannot settle inertness:
+
+        - the ``far`` probe (the bound furthest from ``x0``) is the only way to
+          leave a *dead zone* -- a region where the objective is genuinely flat
+          but becomes responsive further out, which a user-supplied
+          ``utility_function`` can create;
+        - the local probe is the only one that is honest about a *saturating*
+          response, where a distant point is flatter still and would confirm an
+          "inert" verdict by construction.
+
+        A coordinate is called inert only when both agree.
+
+        The local step scales with the coordinate, floored at unit scale so a
+        near-zero ``x0`` still moves, and falls back to the furthest reachable
+        bound when the box is narrower than the step -- compared absolutely,
+        since the room available is absolute while ``x0`` may be large.
+        """
+        if low is not None and high is not None and high == low:
+            return None
+
+        if far:
+            if low is not None and high is not None:
+                return high if (high - x0_value) >= (x0_value - low) else low
+            if high is not None:
+                return high
+            if low is not None:
+                return low
+            return x0_value + max(abs(x0_value), 1.0)
+
+        step = rel_step * max(abs(x0_value), 1.0)
+        for candidate in (x0_value + step, x0_value - step):
+            if low is not None and candidate < low:
+                continue
+            if high is not None and candidate > high:
+                continue
+            return candidate
+
+        # Only a two-sided box can block the step in both directions, so both
+        # bounds are set here. Probe the furthest reachable one: any
+        # non-degenerate box leaves room, so a free coordinate always gets a
+        # probe.
+        assert low is not None and high is not None  # noqa: S101
+        far_end = high if (high - x0_value) >= (x0_value - low) else low
+        return None if far_end == x0_value else far_end
+
+    def _warn_zero_gradient_variables(
+        self,
+        x0: np.ndarray,
+        bounds: list[tuple[float | None, float | None]],
+        g0: np.ndarray | None = None,
+    ) -> None:
+        """Warn about coordinates whose gradient is identically zero.
+
+        Evaluates the compiled gradient at ``x0`` once. Any coordinate that is
+        exactly zero there (excluding pinned coordinates, where
+        ``low == high``) is re-probed at a perturbed in-bounds point: a zero
+        gradient at ``x0`` is either a warm start sitting at that coordinate's
+        optimum (nonzero at the probe point -- fine) or a genuinely inert
+        coordinate, e.g. an event whose window falls outside the optimization
+        window (zero everywhere -- the solver would silently return its seed).
+        The check is uniform over every variable — the media budgets included —
+        because with a configurable ``response_variable`` no variable is
+        guaranteed to reach the objective.
+
+        ``g0`` may be supplied when the caller has already evaluated the
+        gradient at ``x0``, so the check costs nothing extra.
+        """
+        if g0 is None:
+            _, g0 = self._objective_and_grad(x0)
+        g0 = np.asarray(g0)
+
+        free = np.array(
+            [
+                not (low is not None and high is not None and high == low)
+                for (low, high) in bounds
+            ]
+        )
+
+        zero0 = free & (g0 == 0.0)
+        if not zero0.any():
+            return
+
+        # Settle each suspicious coordinate with two probes, evaluated lazily:
+        # a local step (honest for a saturating response, where a distant point
+        # is flatter still) and a far one (the only way out of a dead zone,
+        # where the objective is flat here but responsive further out). A
+        # coordinate is inert only if both agree, so the second evaluation is
+        # spent only on coordinates the first could not clear.
+        suspicious = zero0
+        for far in (False, True):
+            x_probe = np.array(x0, copy=True)
+            probed = np.zeros_like(suspicious)
+            for idx in np.flatnonzero(suspicious):
+                probe = self._probe_coordinate(x_probe[idx], *bounds[idx], far=far)
+                if probe is not None:
+                    x_probe[idx] = probe
+                    probed[idx] = True
+            if not probed.any():
+                break
+            _, g_probe = self._objective_and_grad(
+                self._budgets_flat.type.filter(x_probe)
+            )
+            # A coordinate with no distinct probe point carries no evidence
+            # either way, so it stays suspicious rather than being convicted on
+            # a re-evaluation at x0 itself.
+            suspicious = suspicious & probed & (np.asarray(g_probe) == 0.0)
+            if not suspicious.any():
+                return
+
+        inert = suspicious
+        if not inert.any():
+            return
+
+        inert_labels: list[str] = []
+        for variable in self._variables.variables:
+            flat_slice = self._variables.slices[variable.name]
+            var_inert = inert[flat_slice]
+            if not var_inert.any():
+                continue
+            if var_inert.all() or len(variable.dims) != 1:
+                inert_labels.append(variable.name)
+            else:
+                coords = variable.coords[variable.dims[0]]
+                inert_labels.extend(
+                    f"{variable.name}[{coords[i]!r}]" for i in np.flatnonzero(var_inert)
+                )
+        warnings.warn(
+            f"Optimization entries {inert_labels} have an identically zero "
+            f"gradient at the initial point and at a perturbed probe point "
+            "(e.g. their event windows fall outside the optimization window). "
+            "They will be returned at their current values, not optimized.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     def allocate_budget(
         self,
         total_budget: float,
         budget_bounds: DataArray | dict[str, tuple[float, float]] | None = None,
-        x0: np.ndarray | None = None,
+        x0: np.ndarray | DataArray | dict[str, DataArray] | None = None,
         minimize_kwargs: dict[str, Any] | None = None,
         return_if_fail: bool = False,
         callback: bool = False,
-    ) -> (
-        tuple[DataArray, OptimizeResult]
-        | tuple[DataArray, OptimizeResult, list[dict[str, Any]]]
-    ):
+        check_gradients: bool = True,
+    ) -> BudgetOptimizationResult:
         """
         Allocate the budget based on `total_budget`, optional `budget_bounds`, and custom constraints.
 
@@ -1744,29 +1974,40 @@ class BudgetOptimizer(BaseModel):
             - If a dict, must map each channel to (low, high) budget pairs (only valid if there's one dimension).
             - If an xarray.DataArray, must have dims ``(*budget_dims, "bound")``,
               specifying [low, high] per channel cell.
-        x0 : np.ndarray, optional
-            Initial guess. Array of real elements of size (n,), where n is the number of driver budgets to optimize. If
-            None, the total budget is spread uniformly across all drivers to be optimized.
+        x0 : np.ndarray, DataArray or dict, optional
+            Initial guess. A labelled ``DataArray`` over the budget dims (e.g. a
+            previous solution or a current spend plan) is packed into the flat
+            decision vector automatically; a dict maps decision-variable names to
+            labelled ``DataArray``s. A flat ``np.ndarray`` of size (n,) in the
+            optimization variables' flat order is also accepted. If None, the total
+            budget is spread uniformly across all drivers to be optimized.
         minimize_kwargs : dict, optional
             Extra kwargs for `scipy.optimize.minimize`. Defaults to method="SLSQP",
             ftol=1e-9, maxiter=1_000.
         return_if_fail : bool, optional
             Return output even if optimization fails. Default is False.
         callback : bool, optional
-            Whether to return callback information tracking optimization progress. When True, returns a third
-            element containing a list of dictionaries with optimization information at each iteration including
-            'x' (parameter values), 'fun' (objective value), 'jac' (gradient), and constraint information.
-            Default is False for backward compatibility.
+            Whether to track optimization progress. When True, ``result.callback_info`` is
+            populated with a list of dictionaries with optimization information at
+            each iteration including 'x' (parameter values), 'fun' (objective value),
+            'jac' (gradient), and constraint information. Default is False.
+        check_gradients : bool, optional
+            Whether to check, before solving, that every optimization variable
+            can actually move the objective, warning about any whose gradient
+            is identically zero. Costs one objective+gradient evaluation (two
+            when a variable looks inert), so sweeps over many budgets on a
+            large posterior may want to disable it after a first solve.
+            Default is True.
 
         Returns
         -------
-        optimal_budgets : xarray.DataArray
-            The optimized budget allocation across channels.
-        result : OptimizeResult
-            The raw scipy optimization result.
-        callback_info : list[dict[str, Any]], optional
-            Only returned if callback=True. List of dictionaries containing optimization
-            information at each iteration.
+        BudgetOptimizationResult
+            Result object with ``budgets`` (the optimized allocation across
+            channels, monetary units), ``scipy_result`` (the raw scipy
+            optimization result), ``optimized_vars`` (empty for now), and
+            ``callback_info`` (per-iteration diagnostics when ``callback=True``, else
+            ``None``). Iterating the result yields ``(budgets, scipy_result)``,
+            so ``optimal, res = optimizer.allocate_budget(...)`` keeps working.
 
         Raises
         ------
@@ -1838,37 +2079,60 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
-        # 2. Build the final bounds list
-        bounds = [
+        # 2. Build the final bounds list, variable by variable
+        media_bounds = [
             (low, high)
             for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
         ]
+        bounds = self._variables.bounds(
+            total_budget, overrides={self.channel_data_var: media_bounds}
+        )
 
-        # 3. Determine how many budget entries we optimize
-        budgets_size = self.budgets_to_optimize.sum().item()  # type: ignore
-
-        # 4. Construct the initial guess (x0) if not provided
+        # 3. Construct the initial guess (x0) if not provided; labelled values
+        # are packed into flat order by the optimization variables.
         if x0 is None:
-            x0 = (np.ones(budgets_size) * (total_budget / budgets_size)).astype(
-                self._budgets_flat.type.dtype
-            )
+            x0 = self._variables.x0(total_budget)
+        elif isinstance(x0, DataArray | dict):
+            x0 = self._variables.pack(x0)
+        x0 = np.asarray(x0).astype(self._budgets_flat.type.dtype)
 
-        # filter x0 based on shape/type of self._budgets_flat
-        # will raise a TypeError if x0 does not have acceptable shape and/or type
+        # Conform x0 to the compiled input's shape/dtype. The astype above
+        # already coerced the dtype, so this is a shape check in practice.
         x0 = self._budgets_flat.type.filter(x0)
 
+        # 4. Pre-solve checks at the warm start. Both read the same single
+        # objective+gradient evaluation (the probe adds a second one only when
+        # a variable looks inert), so callers sweeping many budgets can switch
+        # the gradient check off after a first solve.
+        #
+        # The objective is deliberately passed to SLSQP unscaled: dividing it
+        # (but not the compiled constraints) by |f(x0)| changes the
+        # objective/constraint ratio in the QP subproblem, which was measured
+        # to freeze the media block at its uniform seed while only the
+        # box-bounded levers moved.
+        if check_gradients or self.optimizable_vars:
+            f0, g0 = self._objective_and_grad(np.array(x0, copy=True))
+            if self.optimizable_vars and not np.isfinite(f0):
+                raise ValueError(
+                    f"Objective is not finite at the initial point (f(x0)={f0}). "
+                    "Check bounds and data (e.g. a discount depth of 1.0 under "
+                    "the log link)."
+                )
+            if check_gradients:
+                self._warn_zero_gradient_variables(
+                    cast(np.ndarray, x0), bounds, g0=np.asarray(g0)
+                )
+
         # 5. Set up callback tracking if requested
-        callback_info = []
+        callback_info: list[OptimizationIterationInfo] = []
 
         def track_progress(xk):
             """Track optimization progress at each iteration."""
             # Evaluate objective and gradient
-            obj_val, grad_val = self._compiled_functions[self.utility_function][
-                "objective_and_grad"
-            ](xk)
+            obj_val, grad_val = self._objective_and_grad(xk)
 
             # Store iteration info
-            iter_info = {
+            iter_info: OptimizationIterationInfo = {
                 "x": np.array(xk),  # Current parameter values
                 "fun": float(obj_val),  # Objective function value (scalar)
                 "jac": np.array(grad_val),  # Gradient values
@@ -1876,7 +2140,7 @@ class BudgetOptimizer(BaseModel):
 
             # Evaluate constraint values and gradients if available
             if self._compiled_constraints:
-                constraint_info = []
+                constraint_info: list[ConstraintIterationInfo] = []
 
                 for _, constraint in enumerate(self._compiled_constraints):
                     # Evaluate constraint function
@@ -1902,7 +2166,7 @@ class BudgetOptimizer(BaseModel):
         scipy_callback = track_progress if callback else None
 
         result = minimize(
-            fun=self._compiled_functions[self.utility_function]["objective_and_grad"],
+            fun=self._objective_and_grad,
             x0=x0,
             jac=True,
             bounds=bounds,
@@ -1911,24 +2175,18 @@ class BudgetOptimizer(BaseModel):
             **minimize_kwargs,
         )
 
-        # 6. Process results
+        # 6. Process results: each variable's slice is labelled
         if result.success or return_if_fail:
-            # Fill zeros, then place the solution in masked positions
-            optimal_budgets = np.zeros_like(
-                self.budgets_to_optimize.values,  # type: ignore
-                dtype=float,
-            )
-            optimal_budgets[self.budgets_to_optimize.values] = result.x  # type: ignore
-
-            optimal_budgets = DataArray(
-                optimal_budgets, dims=self._budget_dims, coords=self._budget_coords
-            )
+            unpacked = self._variables.unpack(result.x)
+            optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
 
-            if callback:
-                return optimal_budgets, result, callback_info
-            else:
-                return optimal_budgets, result
+            return BudgetOptimizationResult(
+                budgets=optimal_budgets,
+                scipy_result=result,
+                optimized_vars=unpacked,
+                callback_info=callback_info if callback else None,
+            )
 
         else:
             raise MinimizeException(f"Optimization failed: {result.message}")
