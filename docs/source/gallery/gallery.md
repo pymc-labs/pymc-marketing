@@ -115,7 +115,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
 
-:::{grid-item-card} Marketing Funnel Effects with MuEffect
+:::{grid-item-card} Modeling Marketing Funnel Effects with MuEffect
 :img-top: ../gallery/images/mmm_mu_effect_funnel.png
 :link: ../notebooks/mmm/mmm_mu_effect_funnel.html
 :::
