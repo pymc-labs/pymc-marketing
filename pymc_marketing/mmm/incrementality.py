@@ -150,6 +150,11 @@ Three things follow, and they are why mediation is not free:
   behind the model's own outlives it, so the evaluation window is sized for
   the longest path spend can take -- measured on the graph, not declared.
 
+Both the measurement and the check that the increment is complete live in
+:mod:`~pymc_marketing.mmm.spend_reach`, which reads them off a single
+single-date spend perturbation.  This module asks it for a window length and a
+mode and otherwise knows nothing about either.
+
 Estimands
 ---------
 :meth:`Incrementality.compute_incremental_contribution` is a *unilateral
@@ -225,29 +230,30 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
 import xarray as xr
-from pandas.tseries.offsets import BaseOffset
 from pydantic import ConfigDict, validate_call
-from pytensor.graph.basic import Variable
-from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
 from pymc_marketing.mmm.counterfactual import (
-    JOINT_CHANNEL,
     CounterfactualEvaluator,
     CounterfactualScenarios,
     Estimand,
     EvaluationWindows,
 )
 from pymc_marketing.mmm.link import LinkFunction
+from pymc_marketing.mmm.spend_reach import (
+    CHANNEL_CONTRIBUTION,
+    SpendProbe,
+    linear_predictor,
+    resolve_channel_dependent_effects,
+)
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
@@ -255,7 +261,6 @@ if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
 
 __all__ = [
-    "JOINT_CHANNEL",
     "CentralTendency",
     "CounterfactualEvaluator",
     "CounterfactualScenarios",
@@ -313,13 +318,14 @@ class IncrementalReducer(ABC):
         ----------
         delta : xr.DataArray
             :math:`\Delta_{t,m}`, the counterfactual-minus-baseline change in
-            the linear-predictor contribution.  Its first dimension is
-            ``"sample"``, followed by ``"date"`` and then the model's own
-            non-date dimensions -- panel models order these
-            ``(*custom_dims, "channel")``, so do not assume ``"channel"``
-            comes first.  Reductions here are by dimension *name* for exactly
-            that reason.  The ``date`` coordinates span the evaluation window
-            of a single period.
+            the linear-predictor contribution.  It carries ``"sample"``,
+            ``"date"``, the model's own non-date dimensions and -- for the
+            per-channel estimand -- ``"channel"``, and **no dimension order is
+            guaranteed**: the per-channel path concatenates along ``"channel"``
+            last, which puts it first, while a panel model's own dims arrive in
+            the layout the graph produced.  Reductions here are by dimension
+            *name* for exactly that reason.  The ``date`` coordinates span the
+            evaluation window of a single period.
 
         Returns
         -------
@@ -407,97 +413,6 @@ class LogLinkReducer(IncrementalReducer):
         return (baseline * np.expm1(delta)).sum(dim="date")
 
 
-CHANNEL_CONTRIBUTION = "channel_contribution"
-"""Response variable holding the per-channel linear-predictor contribution."""
-
-LINEAR_PREDICTOR = "mu"
-"""Name the MMM gives its linear predictor, registered or not."""
-
-
-@dataclass(frozen=True)
-class ChannelDependentEffect:
-    """A ``mu_effect`` whose contribution a spend counterfactual can reach.
-
-    Produced by :meth:`Incrementality._resolve_channel_dependent_effects` for
-    every effect that (a) has ``channel_data`` among the ancestors of its
-    contribution variable and (b) opted in via
-    :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
-
-    Parameters
-    ----------
-    contribution_var : str
-        Name of the deterministic holding the term this effect adds to the
-        linear predictor.
-    label : str
-        Class name of the originating effect, for error messages.
-    declared_carryover_lags : int or None
-        Extra evaluation-window length declared by the effect's
-        :class:`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`, or
-        ``None`` to have it measured.
-    declared_evaluation_mode : {"auto", "window", "full"}
-        The spec's ``evaluation_mode``.
-    """
-
-    contribution_var: str
-    label: str
-    declared_carryover_lags: int | None
-    declared_evaluation_mode: Literal["auto", "window", "full"]
-
-
-@dataclass(frozen=True)
-class TemporalReach:
-    """How much of the date axis the counterfactual has to be evaluated over.
-
-    Measured by :meth:`Incrementality._measure_temporal_reach` rather than taken
-    on trust, because an effect that under-declares its reach would have its
-    mediated tail cut off by the evaluation window and the increment would come
-    back quietly low.  Measured *per effect*, so that one effect's long tail
-    cannot be held against another effect's honest declaration of a short one.
-
-    Parameters
-    ----------
-    additional_carryover_lags : int
-        Periods beyond the model's own ``adstock.l_max`` over which the effect
-        still moves after a change in spend at a single date.
-    requires_full_axis : bool
-        Whether the effect has to see the complete fitted date axis.  True when
-        a perturbation still moves the contribution at the far end of the axis,
-        or moves dates *before* the perturbed one -- the signature of a
-        reduction over ``date``, which takes a different value on a truncated
-        axis and so cannot be windowed at all.
-    """
-
-    additional_carryover_lags: int
-    requires_full_axis: bool
-
-    @classmethod
-    def none(cls) -> TemporalReach:
-        """Return the reach of an effect a change in spend does not move."""
-        return cls(additional_carryover_lags=0, requires_full_axis=False)
-
-    @classmethod
-    def widest(cls, reaches: Iterable[TemporalReach]) -> TemporalReach:
-        """Combine per-effect reaches into the one an evaluation has to satisfy.
-
-        Parameters
-        ----------
-        reaches : iterable of TemporalReach
-            The individual reaches.  Empty means nothing to accommodate.
-
-        Returns
-        -------
-        TemporalReach
-            Long enough for the longest, and full-axis if any one of them is.
-        """
-        reaches = list(reaches)
-        return cls(
-            additional_carryover_lags=max(
-                (reach.additional_carryover_lags for reach in reaches), default=0
-            ),
-            requires_full_axis=any(reach.requires_full_axis for reach in reaches),
-        )
-
-
 class Incrementality:
     """Incrementality and counterfactual analysis for MMM models.
 
@@ -536,26 +451,6 @@ class Incrementality:
     >>> incr = mmm.incrementality
     >>> roas = incr.contribution_over_spend(frequency="quarterly")
     >>> cac = incr.spend_over_contribution(frequency="monthly")
-    """
-
-    REACH_TOLERANCE = 1e-9
-    """Relative size below which a probed move counts as no move at all.
-
-    :meth:`_measure_temporal_reach` compares each date's move against the
-    largest move the same effect makes, so the threshold is scale-free.  The
-    tails it is applied to decay geometrically and are usually cut to exactly
-    zero by an adstock's own truncation, which puts the real signal many orders
-    of magnitude above float noise.
-    """
-
-    COMPLETENESS_TOLERANCE = 1e-6
-    """Relative slack allowed between the predictor's move and the accounted one.
-
-    :meth:`_assert_increment_is_complete` compares two float sums of the same
-    terms in different orders, so they agree to rounding and not beyond.  An
-    unaccounted path, by contrast, leaves a discrepancy of the size of a real
-    contribution -- there is nothing in between for the threshold to have to
-    discriminate.
     """
 
     def __init__(
@@ -726,446 +621,6 @@ class Incrementality:
             "Add an IncrementalReducer subclass describing how a change in the "
             "linear predictor maps to the response scale under this link."
         )
-
-    # ==================== Effect Resolution ====================
-
-    def _resolve_channel_dependent_effects(self) -> tuple[ChannelDependentEffect, ...]:
-        """Find the ``mu_effects`` a spend counterfactual reaches.
-
-        The counterfactual perturbs ``channel_data``, so any effect with
-        ``channel_data`` among its ancestors carries part of the resulting change
-        in the linear predictor and has to be evaluated alongside
-        ``channel_contribution``.  A funnel mediator is the motivating case:
-        upper-funnel spend moves latent demand, demand moves lower-funnel spend,
-        and only then does the target respond.
-
-        Effects that do not depend on ``channel_data`` -- a linear trend, an
-        event window, seasonality -- are part of the baseline.  They cancel in
-        the difference and are skipped without consulting their spec.
-
-        An effect whose contribution cannot be located at all is *not* an error
-        here.  Duck-typed effects are a documented pattern (see the module
-        docstring of :mod:`~pymc_marketing.mmm.additive_effect`) and need not
-        carry a ``contribution_var_name``; a ``MuEffect`` built without a
-        ``prefix`` raises rather than returning one.  Neither says anything
-        about whether spend reaches the effect, so the failure is deferred: such
-        an effect is left unaccounted, and
-        :meth:`_assert_no_unaccounted_spend_paths` raises only if a spend path
-        really does escape through it.  Raising eagerly instead would break
-        every model that merely *owns* such an effect.
-
-        Returns
-        -------
-        tuple of ChannelDependentEffect
-            One entry per effect to include, in ``mu_effects`` order.  Empty for
-            a model with no channel-dependent effects, which is the separable
-            case the module was originally written for.
-
-        Raises
-        ------
-        NotImplementedError
-            If an effect is known to depend on ``channel_data`` but has not
-            opted in via
-            :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
-            A refusal to guess: the alternative is dropping a real part of the
-            increment and reporting the remainder as if it were the whole.
-        ValueError
-            If an included effect's contribution carries dimensions outside
-            ``("date", *model.dims)``.
-        """
-        model = self.model.model
-        channel_data = model[CounterfactualEvaluator.CHANNEL_DATA]
-        allowed_dims = {"date", *self.model.dims}
-        resolved: list[ChannelDependentEffect] = []
-
-        for effect in self.model.mu_effects:
-            label = type(effect).__name__
-            try:
-                name = effect.contribution_var_name
-            except (AttributeError, NotImplementedError):
-                continue
-            if name not in model.named_vars:
-                continue
-
-            node = model[name]
-            if channel_data not in set(ancestors([node])):
-                continue
-
-            spec = getattr(effect, "incrementality_spec", lambda: None)()
-            if spec is None:
-                raise NotImplementedError(
-                    f"The mu_effect {label!r} contributes {name!r}, which "
-                    "depends on channel spend, so a spend counterfactual moves "
-                    "it and it forms part of the incremental response.  It has "
-                    "not opted in to incrementality: implement "
-                    "'incrementality_spec' returning an IncrementalitySpec.  "
-                    "Ignoring the effect would report the direct path alone as "
-                    "if it were the total."
-                )
-
-            effect_dims = set(model.named_vars_to_dims.get(name, ()))
-            if not effect_dims <= allowed_dims:
-                raise ValueError(
-                    f"The contribution {name!r} of mu_effect {label!r} has "
-                    f"dimensions {tuple(sorted(effect_dims))}, which is not a "
-                    f"subset of {tuple(sorted(allowed_dims))}.  A term added to "
-                    "the linear predictor cannot carry dimensions the linear "
-                    "predictor does not have."
-                )
-
-            resolved.append(
-                ChannelDependentEffect(
-                    contribution_var=name,
-                    label=label,
-                    declared_carryover_lags=spec.additional_carryover_lags,
-                    declared_evaluation_mode=spec.evaluation_mode,
-                )
-            )
-
-        return tuple(resolved)
-
-    def _linear_predictor(self) -> Variable | None:
-        """Find the node the increment is assembled to reproduce.
-
-        Under a log link the MMM registers its linear predictor as the
-        ``Deterministic`` ``mu``.  Under an identity link the same quantity is
-        an anonymous intermediate that only carries the *name* ``mu``, so it has
-        to be recovered from the graph of the observed variable.
-
-        Returns
-        -------
-        Variable or None
-            The linear predictor, or ``None`` if this model does not expose one
-            -- in which case :meth:`_assert_increment_is_complete` has nothing
-            to check against and says so.
-        """
-        model = self.model.model
-        if LINEAR_PREDICTOR in model.named_vars:
-            if LINEAR_PREDICTOR in self.model.frozen_deterministics:
-                # Frozen at its posterior value, so it would not respond to the
-                # probe and the completeness check would compare zero to zero.
-                return None
-            return model[LINEAR_PREDICTOR]
-
-        output_var = self.model.output_var
-        if output_var not in model.named_vars:
-            return None
-        observed = model[output_var]
-        return next(
-            (
-                node
-                for node in ancestors([observed])
-                if getattr(node, "name", None) == LINEAR_PREDICTOR
-                and node is not observed
-            ),
-            None,
-        )
-
-    def _assert_increment_is_complete(
-        self,
-        *,
-        baseline: dict[str, np.ndarray],
-        probed: dict[str, np.ndarray],
-        effects: Sequence[ChannelDependentEffect],
-        non_date_dims: Mapping[str, tuple[str, ...]],
-    ) -> None:
-        r"""Check the evaluated nodes account for the whole move in the predictor.
-
-        Everything downstream rests on one identity:
-
-        .. math::
-
-            \Delta \mu_t = \sum_c \Delta v_{t,c} + \sum_j \Delta e_{t,j}
-
-        -- spend moves the linear predictor through ``channel_contribution`` and
-        the resolved effects, and through nothing else.  Up to here that is an
-        assumption, and three separate mistakes break it silently: an effect
-        that reports the wrong contribution variable, an effect that cannot be
-        attributed at all, and a model-level node that reads ``channel_data``
-        outside any effect.  Each drops a real part of the increment and reports
-        the remainder as if it were the whole.
-
-        So it is checked rather than assumed, against the probe evaluation that
-        :meth:`_measure_temporal_reach` already paid for.  A structural check --
-        does spend reach :math:`\mu` other than through the accounted nodes --
-        would miss the misreporting case, because a variable *upstream* of the
-        true contribution blocks the same paths while entering :math:`\mu`
-        through a nonlinearity that makes the sum above false.
-
-        Parameters
-        ----------
-        baseline : dict
-            Unperturbed evaluation, per node.
-        probed : dict
-            Evaluation under the single-date probe perturbation, per node.
-        effects : sequence of ChannelDependentEffect
-            The effects being evaluated alongside ``channel_contribution``.
-        non_date_dims : mapping
-            Per node, the dimensions its evaluation carries after ``sample`` and
-            ``date``.  The terms are added by name: an effect may legitimately
-            drop a dimension the predictor has, and a panel model's predictor
-            need not order the ones it keeps the way spend does.
-
-        Raises
-        ------
-        NotImplementedError
-            If the accounted nodes do not reproduce the predictor's move.
-        """
-        if LINEAR_PREDICTOR not in baseline:
-            return
-
-        def moved(name: str) -> xr.DataArray:
-            return xr.DataArray(
-                probed[name] - baseline[name],
-                dims=("sample", "date", *non_date_dims[name]),
-            )
-
-        # channel_contribution carries a channel dimension the predictor does
-        # not: it enters mu summed over channels.
-        accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
-        for effect in effects:
-            accounted = accounted + moved(effect.contribution_var)
-
-        expected = moved(LINEAR_PREDICTOR)
-        expected, accounted = xr.broadcast(expected, accounted)
-        scale = float(np.abs(expected).max())
-        if scale == 0.0 or np.allclose(
-            accounted.values,
-            expected.values,
-            rtol=0.0,
-            atol=self.COMPLETENESS_TOLERANCE * scale,
-        ):
-            return
-
-        accounted_names = ", ".join(
-            [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
-        )
-        largest = float(np.abs(accounted - expected).max()) / scale
-        raise NotImplementedError(
-            "Perturbing channel spend moved the linear predictor by more than "
-            f"the variables incrementality is evaluating ({accounted_names}) "
-            f"account for -- by {largest:.1%} of the predictor's own largest "
-            "move.  Some path from spend to the response is unattributed, so "
-            "the increment would report part of it as the whole.  Every "
-            "mu_effect that spend reaches has to register the term it adds to "
-            "the linear predictor as a Deterministic, return that name from "
-            "'contribution_var_name', and opt in through 'incrementality_spec'."
-        )
-
-    @staticmethod
-    def _probe_spend(
-        *,
-        evaluator: CounterfactualEvaluator,
-        baseline_array: np.ndarray,
-        counterfactual_spend_factor: float,
-    ) -> tuple[dict[str, np.ndarray], int]:
-        """Evaluate every node with spend at one interior date perturbed.
-
-        A single-date perturbation on the untruncated axis is what makes the
-        two properties the module cannot afford to assume observable: how far
-        forward a change in spend still moves each effect, and whether the
-        evaluated nodes account for the whole move in the linear predictor.
-
-        Parameters
-        ----------
-        evaluator : CounterfactualEvaluator
-            Compiled evaluator over the accounted nodes.
-        baseline_array : np.ndarray
-            Actual spend, ``(n_dates, *extra_shape)``.
-        counterfactual_spend_factor : float
-            The factor the caller will apply, so the measurement is taken where
-            the analysis will be run.  A factor of exactly ``1.0`` perturbs
-            nothing, so the probe falls back to zeroing the date out.
-
-        Returns
-        -------
-        tuple of (dict, int)
-            The evaluation, per node, and the index of the perturbed date.
-        """
-        n_dates = baseline_array.shape[0]
-        # Far enough in that a forward tail has room to show, near enough the
-        # front that a backward move has room too.
-        probe_index = n_dates // 4
-        factor = (
-            counterfactual_spend_factor if counterfactual_spend_factor != 1.0 else 0.0
-        )
-
-        probe_array = baseline_array.astype(evaluator.channel_dtype, copy=True)
-        probe_array[probe_index] = probe_array[probe_index] * factor
-        return evaluator.evaluate_baseline(probe_array), probe_index
-
-    def _measure_temporal_reach(
-        self,
-        *,
-        effects: Sequence[ChannelDependentEffect],
-        baseline: dict[str, np.ndarray],
-        probed: dict[str, np.ndarray],
-        probe_index: int,
-        l_max: int,
-    ) -> dict[str, TemporalReach]:
-        r"""Measure how far in time a change in spend moves the included effects.
-
-        The evaluation window is sized by this number, so getting it from the
-        effect's own declaration alone is a hazard: declare too little and the
-        mediated tail falls outside the window, which returns a smaller
-        increment with no indication anything was cut.  So it is measured.  Each
-        effect's contribution under :meth:`_probe_spend` is compared against the
-        baseline, and the last date that moves by more than
-        :attr:`REACH_TOLERANCE` of that effect's largest move fixes its reach.
-
-        Two outcomes select full-axis evaluation instead of a window: a
-        perturbation that still moves the far end of the axis (reach longer than
-        the axis can show), and one that moves dates *before* the perturbed one.
-        The latter cannot happen through a causal filter and identifies a
-        reduction over ``date`` -- ``x / x.mean("date")`` and its relatives --
-        whose value depends on the whole series, so no window reproduces it.
-
-        Parameters
-        ----------
-        effects : sequence of ChannelDependentEffect
-            The effects to measure.  Empty means nothing to measure.
-        baseline : dict
-            Baseline evaluation, per node ``(n_samples, n_dates, *non_date_dims)``.
-        probed : dict
-            Probe evaluation, same shapes.
-        probe_index : int
-            Index of the perturbed date.
-        l_max : int
-            The model's own ``adstock.l_max``, subtracted from the measured
-            reach because the window already carries it.
-
-        Returns
-        -------
-        dict
-            One :class:`TemporalReach` per effect, keyed by contribution
-            variable.  Per effect rather than aggregated, because the
-            declaration each one is checked against is its own: a slow mediator
-            beside a fast one must not make the fast one's honest declaration
-            look like an under-declaration.
-        """
-        measured: dict[str, TemporalReach] = {}
-        for effect in effects:
-            name = effect.contribution_var
-            # Collapse samples and every non-date dim: the question is which
-            # dates moved, not which cells.
-            per_date = np.abs(probed[name] - baseline[name])
-            n_dates = per_date.shape[1]
-            per_date = per_date.reshape(per_date.shape[0], n_dates, -1).max(axis=(0, 2))
-            largest = per_date.max()
-            if largest == 0.0:
-                measured[name] = TemporalReach.none()
-                continue
-
-            moved = per_date > self.REACH_TOLERANCE * largest
-            last_moved = int(np.flatnonzero(moved)[-1])
-            if moved[:probe_index].any() or last_moved == n_dates - 1:
-                measured[name] = TemporalReach(
-                    additional_carryover_lags=0, requires_full_axis=True
-                )
-                continue
-            measured[name] = TemporalReach(
-                additional_carryover_lags=max(last_moved - probe_index - l_max, 0),
-                requires_full_axis=False,
-            )
-
-        return measured
-
-    @staticmethod
-    def _reconcile_declared_reach(
-        effects: Sequence[ChannelDependentEffect],
-        measured: Mapping[str, TemporalReach],
-    ) -> TemporalReach:
-        """Combine measured reach with what the effects declared.
-
-        A declaration wider than the measurement is honoured -- a wider window
-        only costs compute, and a caller may know of a tail the probe's single
-        perturbation left below tolerance.  A narrower one is rejected rather
-        than quietly overridden, because it is evidence that the effect's author
-        believes something false about it.  Each declaration is judged against
-        that effect's own measurement, and only then are the results combined.
-
-        Parameters
-        ----------
-        effects : sequence of ChannelDependentEffect
-            Effects whose specs are being reconciled.
-        measured : mapping
-            Per-effect result of :meth:`_measure_temporal_reach`.  An effect
-            missing from it was not measured to move at all.
-
-        Returns
-        -------
-        TemporalReach
-            The reach to size the evaluation with.
-
-        Raises
-        ------
-        ValueError
-            If an effect declares fewer carryover lags than were measured for
-            it, or declares ``evaluation_mode="window"`` while being measured to
-            need the full axis.
-        """
-        reconciled: list[TemporalReach] = []
-        for effect in effects:
-            own = measured.get(effect.contribution_var, TemporalReach.none())
-            lags = own.additional_carryover_lags
-            requires_full_axis = own.requires_full_axis
-
-            declared = effect.declared_carryover_lags
-            if declared is not None:
-                if declared < lags:
-                    raise ValueError(
-                        f"The mu_effect {effect.label!r} declares "
-                        f"additional_carryover_lags={declared}, but a change in "
-                        "spend was measured still moving "
-                        f"{effect.contribution_var!r} {lags} periods further "
-                        "than the model's own adstock.  Evaluating on the "
-                        "declared window would cut that tail off and understate "
-                        f"the increment.  Raise the declaration to at least "
-                        f"{lags}, or drop it and have it measured."
-                    )
-                lags = max(lags, declared)
-
-            if effect.declared_evaluation_mode == "full":
-                requires_full_axis = True
-            elif effect.declared_evaluation_mode == "window" and requires_full_axis:
-                raise ValueError(
-                    f"The mu_effect {effect.label!r} declares "
-                    "evaluation_mode='window', but a change in spend at one "
-                    f"date was measured moving {effect.contribution_var!r} "
-                    "either before that date or all the way to the end of the "
-                    "date axis.  Neither is reproducible on a window, so the "
-                    "declaration would produce a truncated evaluation.  Use "
-                    "'auto' or 'full'."
-                )
-
-            reconciled.append(
-                TemporalReach(
-                    additional_carryover_lags=lags,
-                    requires_full_axis=requires_full_axis,
-                )
-            )
-
-        return TemporalReach.widest(reconciled)
-
-    @staticmethod
-    def _effective_l_max(l_max: int, reach: TemporalReach) -> int:
-        """Evaluation-window half-length covering every path spend can take.
-
-        Parameters
-        ----------
-        l_max : int
-            The model's own ``adstock.l_max``, which bounds the direct path.
-        reach : TemporalReach
-            Measured (and declaration-reconciled) reach of the included effects.
-
-        Returns
-        -------
-        int
-            ``l_max`` plus the effects' extra carryover.  A mediated path that
-            chains a second adstock outlives the direct one, and a window sized
-            for the direct path alone would cut the tail off.
-        """
-        return l_max + reach.additional_carryover_lags
 
     # ==================== Core Computation ====================
 
@@ -1522,7 +977,7 @@ class Incrementality:
         # compiling anything, so an unsupported link or an effect that has not
         # opted in fails fast rather than after the expensive work.
         reducer = self._build_reducer(posterior_sub, central_tendency)
-        effects = self._resolve_channel_dependent_effects()
+        effects = resolve_channel_dependent_effects(self.model)
 
         # Create period groups based on frequency
         dates = self.data.dates
@@ -1542,10 +997,14 @@ class Incrementality:
         # A model carrying mu_effects also evaluates the linear predictor, whose
         # only use is the completeness check below -- it costs a few additions
         # on top of a subgraph already being computed, and it is the difference
-        # between assuming the increment is complete and knowing it.
+        # between assuming the increment is complete and knowing it.  A model
+        # without mu_effects does not need it: an MMM assembles its predictor as
+        # intercept plus channel_contribution plus controls, seasonality and the
+        # effects, so with no effects there is no route by which spend could
+        # reach mu other than the one already being evaluated.
         posterior_predictive_model = self.model.model
         effect_names = tuple(effect.contribution_var for effect in effects)
-        predictor = self._linear_predictor() if self.model.mu_effects else None
+        predictor = linear_predictor(self.model) if self.model.mu_effects else None
         evaluator = CounterfactualEvaluator(
             pymc_model=posterior_predictive_model,
             posterior=posterior_sub,
@@ -1566,45 +1025,33 @@ class Incrementality:
         baseline = evaluator.evaluate_baseline(baseline_array)
         # Per node: (n_samples, n_dates, *non_date_dims)
 
-        # A mediated path outlives the direct one, so the window is sized for
-        # the longest path spend can take, not just for the model's own adstock.
-        # How much longer is measured on the compiled graph rather than taken
-        # from the effects' declarations, which is why this comes after the
-        # baseline: an effect that under-declares its reach would otherwise have
-        # its tail cut off with nothing to show for it.
-        reach = TemporalReach.none()
-        if self.model.mu_effects:
-            probed, probe_index = self._probe_spend(
-                evaluator=evaluator,
-                baseline_array=baseline_array,
-                counterfactual_spend_factor=counterfactual_spend_factor,
-            )
-            self._assert_increment_is_complete(
-                baseline=baseline,
-                probed=probed,
-                effects=effects,
-                non_date_dims=evaluator.non_date_dims,
-            )
-            reach = self._reconcile_declared_reach(
-                effects,
-                self._measure_temporal_reach(
-                    effects=effects,
-                    baseline=baseline,
-                    probed=probed,
-                    probe_index=probe_index,
-                    l_max=self.model.adstock.l_max,
-                ),
-            )
-        l_max = self._effective_l_max(self.model.adstock.l_max, reach)
+        # What the window is allowed to assume, measured on the compiled graph
+        # rather than declared.  Unconditional: a mediated path that outlives the
+        # direct one is the obvious reason a window has to be widened, but it is
+        # not the only one -- a custom adstock or saturation that reduces over
+        # ``date`` is not a causal filter, and a plain MMM carrying one cannot be
+        # windowed at all.  Costs one more call to an already-compiled function.
+        probe = SpendProbe(
+            evaluator=evaluator,
+            baseline=baseline,
+            baseline_array=baseline_array,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+        probe.assert_increment_is_complete(
+            effects=effects, non_date_dims=evaluator.non_date_dims
+        )
+        reach = probe.measure(effects=effects, l_max=self.model.adstock.l_max)
+        l_max = reach.effective_l_max
 
-        # The stretch of dates each period is evaluated over, and the length
-        # they all stack to.
+        # The stretch of dates each period is evaluated over, which of them enter
+        # the sum, and the length they all stack to.
         windows = EvaluationWindows.build(
             periods=periods,
             dates=dates,
             l_max=l_max,
             freq_offset=freq_offset,
             full_axis=reach.requires_full_axis,
+            include_carryover=include_carryover,
         )
 
         # Where a channel sits among channel_data's non-date axes.  Needed only
@@ -1627,9 +1074,6 @@ class Incrementality:
         scenarios = windows.build_scenarios(
             baseline_array=baseline_array,
             counterfactual_spend_factor=counterfactual_spend_factor,
-            include_carryover=include_carryover,
-            l_max=l_max,
-            freq_offset=freq_offset,
             dtype=evaluator.channel_dtype,
             channel_axis=channel_axis,
             n_channels=len(self.model.channel_columns),
@@ -1641,16 +1085,12 @@ class Incrementality:
 
         # Assemble results
         return self._compute_period_increments(
-            periods=periods,
+            windows=windows,
             scenarios=scenarios,
             baseline=baseline,
             counterfactual=counterfactual,
             non_date_dims=evaluator.non_date_dims,
             effect_names=effect_names,
-            dates=dates,
-            include_carryover=include_carryover,
-            l_max=l_max,
-            freq_offset=freq_offset,
             counterfactual_spend_factor=counterfactual_spend_factor,
             frequency=frequency,
             n_chains=n_chains,
@@ -1744,10 +1184,14 @@ class Incrementality:
             Row of the counterfactual predictions to read, from
             :attr:`CounterfactualScenarios.rows`.
         cf_mask : np.ndarray
-            Boolean mask over the padded window selecting the evaluation dates.
+            Boolean mask over the padded window selecting the evaluation dates,
+            from :meth:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_mask`.
         window_dates : pd.DatetimeIndex
-            The evaluation dates themselves, used as coordinates so the reducer
-            can align a baseline response by label.
+            The same dates as labels, from
+            :attr:`~pymc_marketing.mmm.counterfactual.PeriodWindow.eval_dates`, so
+            the reducer can align a baseline response by label.  Coming from one
+            place is what makes them the same dates: derived separately, their
+            agreement would rest on two expressions being kept in step.
         baseline : dict
             Per response variable, unperturbed predictions already restricted to
             the evaluation dates, shape ``(n_samples, n_eval_dates, *non_date_dims)``.
@@ -1792,16 +1236,12 @@ class Incrementality:
 
     def _compute_period_increments(
         self,
-        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
+        windows: EvaluationWindows,
         scenarios: CounterfactualScenarios,
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
         non_date_dims: dict[str, tuple[str, ...]],
         effect_names: Sequence[str],
-        dates: pd.DatetimeIndex,
-        include_carryover: bool,
-        l_max: int,
-        freq_offset: BaseOffset,
         counterfactual_spend_factor: float,
         frequency: Frequency,
         n_chains: int,
@@ -1819,8 +1259,10 @@ class Incrementality:
 
         Parameters
         ----------
-        periods : list of (pd.Timestamp, pd.Timestamp)
-            Period ``(start, end)`` pairs.
+        windows : EvaluationWindows
+            The per-period windows the scenarios were built for.  They own the
+            evaluation dates, so this method neither knows nor recomputes the
+            carry-out length.
         scenarios : CounterfactualScenarios
             Scenario bookkeeping, used to find the row belonging to each
             (period, perturbation) pair.
@@ -1834,14 +1276,6 @@ class Incrementality:
         effect_names : sequence of str
             Contribution variables of the included effects, which is a subset of
             the evaluated nodes.
-        dates : pd.DatetimeIndex
-            All dates from the fitted data.
-        include_carryover : bool
-            Whether to include carryover effects in eval mask.
-        l_max : int
-            Evaluation-window half-length from :meth:`_effective_l_max`.
-        freq_offset : pd.DateOffset
-            Calendar-aware frequency offset.
         counterfactual_spend_factor : float
             Multiplicative factor used for sign convention.
         frequency : Frequency
@@ -1875,35 +1309,29 @@ class Incrementality:
         )
         results = []
 
-        for period_idx, (t0, t1) in enumerate(periods):
-            # Baseline: the same eval dates, taken from the full-dataset
-            # prediction.  bl_mask picks [t0, eval_end] out of the full date
-            # index; cf_mask picks the actual-data positions of that same range
-            # out of the padded window, in the same order.
-            eval_end = t1 + l_max * freq_offset if include_carryover else t1
-            bl_mask = (dates >= t0) & (dates <= eval_end)
-            cf_mask = scenarios.eval_masks[period_idx]
-
-            # Unperturbed prediction over the same evaluation dates, in the same
-            # order: bl_mask picks [t0, eval_end] out of the full date index,
-            # cf_mask picks those same dates out of the padded window.
+        for period_idx, window in enumerate(windows.windows):
+            # The same evaluation dates on both sides of the difference, in the
+            # same order: ``in_eval`` picks them out of the full-axis baseline and
+            # ``eval_mask`` picks them out of the padded counterfactual window.
+            # Both come from the window itself, so there is no second expression
+            # to keep in step with the first.
             period_baseline = {
-                name: values[:, bl_mask] for name, values in baseline.items()
+                name: values[:, window.in_eval] for name, values in baseline.items()
             }
 
             # (scenario key, channel to read) per output slice.  The joint
             # estimand reads a single scenario and sums the channel dimension
             # away; the per-channel one reads its own scenario per channel.
-            slices: list[tuple[int, int | None]] = (
+            slices: list[tuple[int | None, int | None]] = (
                 [(idx, idx) for idx in range(len(channels))]
                 if estimand == "per_channel"
-                else [(JOINT_CHANNEL, None)]
+                else [(None, None)]
             )
             deltas = [
                 self._delta_mu(
                     row=scenarios.rows[(period_idx, key)],
-                    cf_mask=cf_mask,
-                    window_dates=dates[bl_mask],
+                    cf_mask=window.eval_mask(windows.max_window),
+                    window_dates=window.eval_dates,
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     non_date_dims=non_date_dims,
@@ -1943,7 +1371,7 @@ class Incrementality:
                 coords["channel"] = channels
             results.append(
                 xr.DataArray(reshaped, dims=("chain", "draw", *out_dims), coords=coords)
-                .assign_coords(date=scenarios.period_labels[period_idx])
+                .assign_coords(date=window.end)
                 .expand_dims("date")
             )
 

@@ -366,6 +366,62 @@ def log_link_fitted_mmm(log_link_mmm_data):
     return _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
 
 
+def _split_posterior_into_two_chains(mmm):
+    """Re-lay the fitted posterior's draws out as two chains instead of one.
+
+    ``mock_fit`` stands a prior-predictive sample in for a posterior, and that
+    always arrives with ``chain=1``.  Incrementality flattens ``(chain, draw)``
+    into a single ``sample`` axis to line the posterior up with a batched graph
+    evaluation, and with one chain that flattening is a no-op -- so a mismatch
+    between its ordering and ``arviz``'s would be invisible, and would show up as
+    a silently wrong number rather than an error.  Splitting the same draws
+    across two chains makes the ordering observable while leaving every value
+    unchanged, so the oracle stays comparable.
+
+    The tree is rebuilt rather than patched in place: the ``prior`` groups the
+    stand-in fit leaves behind keep the original draw count, and a ``DataTree``
+    will not hold two sizes for one dimension.  They are of no use to anything
+    downstream, so they go.
+    """
+    posterior = mmm.idata["/posterior"].to_dataset()
+    half = posterior.sizes["draw"] // 2
+
+    def chain(start):
+        return posterior.isel(chain=0, draw=slice(start, start + half)).assign_coords(
+            draw=np.arange(half)
+        )
+
+    groups = {
+        "/posterior": xr.concat(
+            [chain(0), chain(half)], dim="chain", join="exact"
+        ).assign_coords(chain=[0, 1])
+    }
+    for name in ("fit_data", "constant_data", "observed_data"):
+        if name in mmm.idata.children:
+            groups[f"/{name}"] = mmm.idata[name].to_dataset()
+
+    idata = xr.DataTree.from_dict(groups)
+    mmm.idata = idata
+    mmm.set_idata_attrs(idata=idata)
+    return mmm
+
+
+@pytest.fixture
+def log_link_two_chain_fitted_mmm(log_link_mmm_data):
+    """A log-link MMM whose posterior carries two chains rather than one."""
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+    )
+    _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
+    return _split_posterior_into_two_chains(mmm)
+
+
 @pytest.fixture
 def log_link_single_channel_fitted_mmm(log_link_mmm_data):
     """Create a fitted log-link MMM with exactly one channel.
@@ -623,6 +679,24 @@ class MisreportedFunnelEffect(FunnelEffect):
         return f"{self.prefix}_demand"
 
 
+class FullAxisFunnelEffect(FunnelEffect):
+    """A funnel effect that asks for the full date axis it does not need.
+
+    Its reach is bounded and measurable, so ``evaluation_mode="auto"`` would give
+    it a window.  Declaring ``"full"`` has to override that: an effect's author
+    may know of a dependence on the whole series the probe's single perturbation
+    cannot show, and the cost of honouring the declaration is compute rather than
+    correctness.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in, declare the reach, and insist on the full axis anyway."""
+        return IncrementalitySpec(
+            additional_carryover_lags=self.demand_transform.adstock.l_max,
+            evaluation_mode="full",
+        )
+
+
 class GlobalNormalizationEffect(MuEffect):
     """An effect that divides spend by its own mean over the whole date axis.
 
@@ -656,6 +730,20 @@ class GlobalNormalizationEffect(MuEffect):
             f"{self.prefix}_effect_contribution",
             beta * spend / spend.mean(dim="date"),
         )
+
+
+class WindowedGlobalNormalizationEffect(GlobalNormalizationEffect):
+    """A date-reducing effect that insists a window is enough for it.
+
+    The declaration is false, and falsifiably so: the probe measures the effect
+    moving dates before the perturbed one.  Honouring it would evaluate a
+    different function -- the mean of the window rather than of the series -- so
+    it has to be refused rather than accepted or silently widened.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare a mode the effect demonstrably cannot be evaluated in."""
+        return IncrementalitySpec(evaluation_mode="window")
 
 
 class DuckTypedEffect:
@@ -1021,6 +1109,50 @@ def funnel_instantaneous_adstock_fitted_mmm(funnel_mmm_data):
 
 
 @pytest.fixture
+def funnel_full_axis_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose effect declares ``evaluation_mode="full"``."""
+    return _build_funnel_mmm(
+        funnel_mmm_data, link="log", effect_cls=FullAxisFunnelEffect
+    )
+
+
+@pytest.fixture
+def dark_start_funnel_mmm_data(funnel_mmm_data):
+    """Funnel data whose first third carries no spend at all.
+
+    A flighted campaign, a seasonal blackout, or a panel cell that starts late:
+    every one of them puts a run of all-zero rows at the front of
+    ``channel_data``.  The point is what that does to a *probe*.  Perturbing
+    spend at an all-zero date multiplicatively changes nothing, so every node
+    comes back unmoved, the measured reach is zero and the completeness check
+    compares zero against zero -- both guards pass by seeing nothing.  A probe
+    that picks its date by position rather than by spend walks straight into it.
+
+    The spike at :data:`DARK_START` is where a probe that looks at spend will
+    land, and it is early enough in the remaining series for the mediated tail to
+    end before the last date, so the reach comes out bounded and the assertion can
+    be a number.
+    """
+    data = {key: value.copy(deep=True) for key, value in funnel_mmm_data.items()}
+    data["X"]["media"][:DARK_START] = 0.0
+    data["X"]["media"][DARK_START] *= 4.0
+    media = data["X"]["media"].values
+    for i, channel in enumerate(["channel_1", "channel_2"]):
+        data["X_df"][channel] = media[:, i]
+    return data
+
+
+DARK_START = 9
+"""First date carrying spend in :func:`dark_start_funnel_mmm_data`."""
+
+
+@pytest.fixture
+def dark_start_funnel_fitted_mmm(dark_start_funnel_mmm_data):
+    """Funnel MMM fit on data whose first third carries no spend."""
+    return _build_funnel_mmm(dark_start_funnel_mmm_data, link="log")
+
+
+@pytest.fixture
 def funnel_time_varying_media_fitted_mmm(funnel_mmm_data):
     """Funnel MMM with a time-varying media multiplier.
 
@@ -1085,6 +1217,14 @@ def global_normalization_fitted_mmm(funnel_mmm_data):
     """MMM whose effect normalizes spend by its mean over the whole date axis."""
     return _build_simple_effect_mmm(
         funnel_mmm_data, GlobalNormalizationEffect(prefix="global")
+    )
+
+
+@pytest.fixture
+def windowed_global_normalization_fitted_mmm(funnel_mmm_data):
+    """MMM whose date-reducing effect declares ``evaluation_mode="window"``."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, WindowedGlobalNormalizationEffect(prefix="global")
     )
 
 

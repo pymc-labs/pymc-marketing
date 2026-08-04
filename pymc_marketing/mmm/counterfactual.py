@@ -54,17 +54,24 @@ from pytensor.xtensor.vectorization import vectorize_graph
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 __all__ = [
-    "JOINT_CHANNEL",
     "CounterfactualEvaluator",
     "CounterfactualScenarios",
     "DateIndexedInput",
     "Estimand",
     "EvaluationWindows",
     "PeriodWindow",
+    "ScenarioKey",
 ]
 
-JOINT_CHANNEL = -1
-"""Sentinel channel index for the scenario that perturbs every channel at once."""
+ScenarioKey = tuple[int, int | None]
+"""Which scenario a row of :attr:`CounterfactualScenarios.spend` answers for.
+
+``(period_idx, channel_idx)``, with ``channel_idx=None`` for the scenario that
+perturbs every channel at once.  ``None`` rather than a negative sentinel because
+the entry is also a channel *position*: ``-1`` is a perfectly good index into a
+channel axis, meaning the last channel, and the two readings cannot be told apart
+at the point of use.
+"""
 
 Estimand = Literal["per_channel", "joint"]
 """Which counterfactual an increment answers for.
@@ -79,24 +86,99 @@ number per period.
 class PeriodWindow:
     """The stretch of fitted dates one period is evaluated over.
 
+    Two nested date ranges, and the distinction between them is load-bearing.
+    The *window* is what the graph is handed, wide enough on both sides that the
+    perturbation's whole effect is computed correctly.  The *evaluation dates* are
+    the subset whose differences are summed into the increment.  Both are recorded
+    here, in the two forms the rest of the code needs them in -- a mask over the
+    full date axis, for slicing a full-axis baseline, and the dates themselves,
+    for labelling coordinates -- so that no caller has to recompute either from
+    ``l_max`` and a frequency offset and hope it lands on the same answer.
+
     Parameters
     ----------
     start, end : pd.Timestamp
         Bounds of the period itself -- the dates the counterfactual factor is
         applied to, as opposed to the wider window it is evaluated over.
-    n_actual : int
-        How many fitted dates fall in the window.
     in_window : np.ndarray
-        Boolean mask over the full date axis selecting them.
+        Boolean mask over the full date axis selecting the window's dates.
     actual_dates : pd.DatetimeIndex
+        Those dates, in order.
+    in_eval : np.ndarray
+        Boolean mask over the full date axis selecting the dates that enter the
+        sum.  A subset of :attr:`in_window`, by construction.
+    eval_dates : pd.DatetimeIndex
         Those dates, in order.
     """
 
     start: pd.Timestamp
     end: pd.Timestamp
-    n_actual: int
     in_window: np.ndarray
     actual_dates: pd.DatetimeIndex
+    in_eval: np.ndarray
+    eval_dates: pd.DatetimeIndex
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        start: pd.Timestamp,
+        end: pd.Timestamp,
+        dates: pd.DatetimeIndex,
+        in_window: np.ndarray,
+        eval_end: pd.Timestamp,
+    ) -> PeriodWindow:
+        """Derive both date ranges from the window mask and the carry-out end.
+
+        Parameters
+        ----------
+        start, end : pd.Timestamp
+            Bounds of the period itself.
+        dates : pd.DatetimeIndex
+            The full fitted date axis.
+        in_window : np.ndarray
+            Boolean mask over *dates* selecting the window.
+        eval_end : pd.Timestamp
+            Last date to sum, which is *end* plus the carry-out length when
+            carryover is included and *end* itself when it is not.
+
+        Returns
+        -------
+        PeriodWindow
+            The window, with its evaluation subset intersected against it so the
+            two cannot disagree.
+        """
+        in_eval = in_window & (dates >= start) & (dates <= eval_end)
+        return cls(
+            start=start,
+            end=end,
+            in_window=in_window,
+            actual_dates=dates[in_window],
+            in_eval=in_eval,
+            eval_dates=dates[in_eval],
+        )
+
+    @property
+    def n_actual(self) -> int:
+        """How many fitted dates fall in the window."""
+        return len(self.actual_dates)
+
+    def eval_mask(self, max_window: int) -> np.ndarray:
+        """Positions in the padded window that enter the sum.
+
+        Parameters
+        ----------
+        max_window : int
+            Padded window length every period is stacked to.
+
+        Returns
+        -------
+        np.ndarray
+            Boolean mask of length *max_window*.
+        """
+        mask = np.zeros(max_window, dtype=bool)
+        mask[np.flatnonzero(self.in_eval[self.in_window])] = True
+        return mask
 
     def offsets_within(self, first: pd.Timestamp, last: pd.Timestamp) -> np.ndarray:
         """Positions inside the window of the dates in ``[first, last]``.
@@ -159,8 +241,9 @@ class EvaluationWindows:
         l_max: int,
         freq_offset: BaseOffset,
         full_axis: bool = False,
+        include_carryover: bool = True,
     ) -> EvaluationWindows:
-        """Work out the window of each period.
+        """Work out the window of each period, and which of its dates are summed.
 
         Parameters
         ----------
@@ -173,6 +256,11 @@ class EvaluationWindows:
             path.
         freq_offset : pd.DateOffset
             Calendar-aware frequency offset.
+        include_carryover : bool, default=True
+            Whether the *evaluation* range reaches ``l_max`` past the period to
+            pick up its carry-out.  Independent of the window, which always does:
+            the two lengths do different jobs and collapsing them would change
+            the numbers inside the period too.
         full_axis : bool, default=False
             Evaluate every period on the complete fitted date axis, for an
             effect whose value depends on the whole series.  Expressed as a
@@ -197,12 +285,12 @@ class EvaluationWindows:
                     dates <= end + l_max * freq_offset
                 )
             windows.append(
-                PeriodWindow(
+                PeriodWindow.build(
                     start=start,
                     end=end,
-                    n_actual=int(in_window.sum()),
+                    dates=dates,
                     in_window=in_window,
-                    actual_dates=dates[in_window],
+                    eval_end=end + l_max * freq_offset if include_carryover else end,
                 )
             )
 
@@ -272,9 +360,6 @@ class EvaluationWindows:
         *,
         baseline_array: np.ndarray,
         counterfactual_spend_factor: float,
-        include_carryover: bool,
-        l_max: int,
-        freq_offset: BaseOffset,
         dtype: str,
         channel_axis: int | None,
         n_channels: int,
@@ -303,13 +388,6 @@ class EvaluationWindows:
             Actual channel spend, shape ``(n_dates, *extra_shape)``.
         counterfactual_spend_factor : float
             Multiplicative factor for counterfactual spend.
-        include_carryover : bool
-            Whether the evaluation mask reaches past the period for carryover.
-        l_max : int
-            Evaluation-window half-length, already widened for any mediated
-            path.
-        freq_offset : pd.DateOffset
-            Calendar-aware frequency offset.
         dtype : str
             NumPy dtype for the output array.
         channel_axis : int or None
@@ -328,7 +406,7 @@ class EvaluationWindows:
         -------
         CounterfactualScenarios
             Perturbed spend plus the bookkeeping needed to find the row for a
-            given (period, channel) and to broadcast per-period arrays over
+            given :data:`ScenarioKey` and to broadcast per-period arrays over
             scenarios.
         """
         separable = channel_axis is None
@@ -343,23 +421,17 @@ class EvaluationWindows:
 
         spend: list[np.ndarray] = []
         period_index: list[int] = []
-        channel_index: list[int] = []
-        rows: dict[tuple[int, int], int] = {}
-        eval_masks: list[np.ndarray] = []
-        period_labels: list[pd.Timestamp] = []
+        rows: dict[ScenarioKey, int] = {}
 
         for period_idx, window in enumerate(self.windows):
-            period_labels.append(window.end)
             target_offsets = window.offsets_within(window.start, window.end)
 
-            perturbed = (
-                [JOINT_CHANNEL]
-                if separable or estimand == "joint"
-                else list(range(n_channels))
+            perturbed: list[int | None] = (
+                [None] if separable or estimand == "joint" else list(range(n_channels))
             )
             for channel in perturbed:
                 padded = windowed[period_idx].copy()
-                if channel == JOINT_CHANNEL:
+                if channel is None:
                     padded[target_offsets] *= counterfactual_spend_factor
                 else:
                     padded[(target_offsets, *channel_prefix, channel)] *= (
@@ -368,31 +440,17 @@ class EvaluationWindows:
                 rows[(period_idx, channel)] = len(spend)
                 spend.append(padded)
                 period_index.append(period_idx)
-                channel_index.append(channel)
 
             if separable:
                 # One row serves every channel, and it is the joint row too.
-                joint_row = rows[(period_idx, JOINT_CHANNEL)]
+                joint_row = rows[(period_idx, None)]
                 for channel in range(n_channels):
                     rows[(period_idx, channel)] = joint_row
-
-            # Eval mask: actual-data positions in [start, carryout_end].  Only
-            # actual positions, so it stays consistent with the baseline
-            # evaluation, which covers actual dates alone.
-            eval_end = (
-                window.end + l_max * freq_offset if include_carryover else window.end
-            )
-            cf_mask = np.zeros(self.max_window, dtype=bool)
-            cf_mask[window.offsets_within(window.start, eval_end)] = True
-            eval_masks.append(cf_mask)
 
         return CounterfactualScenarios(
             spend=np.stack(spend, axis=0),
             period_index=np.asarray(period_index, dtype=int),
-            channel_index=np.asarray(channel_index, dtype=int),
             rows=rows,
-            eval_masks=eval_masks,
-            period_labels=period_labels,
         )
 
 
@@ -466,25 +524,17 @@ class CounterfactualScenarios:
         Period each scenario belongs to, shape ``(n_scenarios,)``.  Indexes any
         per-period array (a windowed data variable, a ``time_index`` row) up to
         the scenario axis.
-    channel_index : np.ndarray
-        Channel each scenario perturbs, shape ``(n_scenarios,)``, or
-        :data:`JOINT_CHANNEL` for the all-channels scenario.
     rows : dict
-        Maps ``(period_idx, channel_idx)`` to a row of :attr:`spend`, with
-        :data:`JOINT_CHANNEL` as the channel of the all-channels scenario.
-    eval_masks : list of np.ndarray
-        Per-period boolean mask over the padded window selecting the dates that
-        enter the sum.
-    period_labels : list of pd.Timestamp
-        End date of each period.
+        Maps a :data:`ScenarioKey` to a row of :attr:`spend`.
+
+    See Also
+    --------
+    PeriodWindow : Which dates each period is evaluated over, and which are summed.
     """
 
     spend: np.ndarray
     period_index: np.ndarray
-    channel_index: np.ndarray
-    rows: dict[tuple[int, int], int]
-    eval_masks: list[np.ndarray]
-    period_labels: list[pd.Timestamp]
+    rows: dict[ScenarioKey, int]
 
 
 class CounterfactualEvaluator:
