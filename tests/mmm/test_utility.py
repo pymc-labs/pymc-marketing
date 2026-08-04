@@ -480,27 +480,33 @@ def test_diversification_ratio_requires_2d_samples(test_data):
         diversification_ratio(samples, budgets)
 
 
-def test_diversification_ratio_requires_sample_dim():
+@pytest.mark.parametrize(
+    "samples_dims, budgets_dims, match",
+    [
+        (
+            ("draw", "channel"),
+            ("channel",),
+            r"Function expected samples to have a \"sample\" dim. Got dims \('draw', 'channel'\).",
+        ),
+        (
+            ("sample", "channel"),
+            ("asset",),
+            r"Function expected samples to have the budgets dim \"asset\". Got dims \('sample', 'channel'\).",
+        ),
+        (
+            ("sample", "channel"),
+            ("sample",),
+            r"Function expected the budgets dim to be an asset dim, not \"sample\".",
+        ),
+    ],
+    ids=["misnamed_sample_dim", "budgets_dim_absent", "budgets_dim_is_sample"],
+)
+def test_diversification_ratio_dim_validation(samples_dims, budgets_dims, match):
     samples = pm.draw(pm.Normal.dist(size=(100, 3)), random_seed=rng)
-    with pytest.raises(
-        ValueError,
-        match=r"Function expected samples to have a \"sample\" dim. Got dims \('draw', 'channel'\).",
-    ):
+    with pytest.raises(ValueError, match=match):
         diversification_ratio(
-            as_xtensor(samples, dims=("draw", "channel")),
-            as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("channel",)),
-        )
-
-
-def test_diversification_ratio_requires_matching_budgets_dim():
-    samples = pm.draw(pm.Normal.dist(size=(100, 3)), random_seed=rng)
-    with pytest.raises(
-        ValueError,
-        match=r"Function expected samples to have the budgets dim \"asset\". Got dims \('sample', 'channel'\).",
-    ):
-        diversification_ratio(
-            as_xtensor(samples, dims=("sample", "channel")),
-            as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("asset",)),
+            as_xtensor(samples, dims=samples_dims),
+            as_xtensor(np.array([100.0, 200.0, 300.0]), dims=budgets_dims),
         )
 
 

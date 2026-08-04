@@ -626,6 +626,10 @@ def diversification_ratio(
         )
 
     [asset_dim] = budgets.dims
+    if asset_dim == "sample":
+        raise ValueError(
+            'Function expected the budgets dim to be an asset dim, not "sample".'
+        )
     if asset_dim not in samples.dims:
         raise ValueError(
             f'Function expected samples to have the budgets dim "{asset_dim}". '
