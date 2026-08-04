@@ -1,0 +1,19 @@
+tests/mmm/test_incrementality.py
+  s_03fb9e2d1ad2bd::t_93e2a1a07d26c3 1298-1301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "4cb244ac082c65d7e869136ce082a6b9d084d642",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
