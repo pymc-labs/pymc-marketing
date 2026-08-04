@@ -15,6 +15,8 @@
 """PyTensor utility functions."""
 
 from collections import Counter
+from collections.abc import Sequence
+from typing import cast, overload
 
 import arviz as az
 import pandas as pd
@@ -262,12 +264,30 @@ def validate_unique_value_vars(model: Model) -> None:
         )
 
 
+@overload
 def extract_response_distribution(
     pymc_model: Model,
     idata: xr.DataTree,
     response_variable: str,
+    frozen_deterministics: list[str] | None = ...,
+) -> Variable: ...
+
+
+@overload
+def extract_response_distribution(
+    pymc_model: Model,
+    idata: xr.DataTree,
+    response_variable: Sequence[str],
+    frozen_deterministics: list[str] | None = ...,
+) -> list[Variable]: ...
+
+
+def extract_response_distribution(
+    pymc_model: Model,
+    idata: xr.DataTree,
+    response_variable: str | Sequence[str],
     frozen_deterministics: list[str] | None = None,
-) -> Variable:
+) -> Variable | list[Variable]:
     """Extract the response distribution graph, conditioned on posterior parameters.
 
     Parameters
@@ -276,16 +296,23 @@ def extract_response_distribution(
         The PyMC model to extract the response distribution from.
     idata : xr.DataTree
         The inference data containing posterior samples.
-    response_variable : str
-        The name of the response variable to extract.
+    response_variable : str or sequence of str
+        The name of the response variable to extract.  A sequence extracts
+        several variables in a single pass, so any subgraph they share is
+        conditioned, rewritten and vectorized once and stays shared in the
+        result -- which is what makes it cheap to evaluate, say,
+        ``channel_contribution`` alongside a mediated effect that reads the
+        same spend data.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values instead of recomputing from the graph.
         Some models (e.g, those containing HSGP) need this to to obtain a valid conditional posterior graph.
 
     Returns
     -------
-    pt.TensorVariable
-        The response distribution graph.
+    pt.TensorVariable or list of pt.TensorVariable
+        The response distribution graph.  A list -- matching
+        ``response_variable`` element-wise -- when a sequence was passed, a
+        single variable otherwise.
 
     Examples
     --------
@@ -296,8 +323,15 @@ def extract_response_distribution(
     # Convert DataTree to a sample-major xarray
     posterior = az.extract(idata).transpose("sample", ...)  # type: ignore
 
-    # The PyMC variable to extract
-    response_var = pymc_model[response_variable]
+    # A single name keeps the historical scalar return type; a sequence opts
+    # into the list form.  Everything in between is list-shaped.
+    single = isinstance(response_variable, str)
+    names = [response_variable] if single else list(response_variable)
+    if not names:
+        raise ValueError("'response_variable' must name at least one variable.")
+
+    # The PyMC variables to extract
+    response_vars = [pymc_model[name] for name in names]
 
     # Identify which free RVs are needed to compute `response_var`.
     # Frozen deterministics are treated as additional blockers so their
@@ -312,20 +346,28 @@ def extract_response_distribution(
 
     blockers = free_rvs | frozen_vars
     needed_rvs = [
-        rv for rv in ancestors([response_var], blockers=blockers) if rv in blockers
+        rv for rv in ancestors(response_vars, blockers=blockers) if rv in blockers
     ]
     placeholder_replace_dict = {pymc_model[rv.name]: rv.clone() for rv in needed_rvs}
 
-    [response_var] = clone_replace(
-        [response_var],
-        replace=placeholder_replace_dict,
+    response_vars = list(
+        clone_replace(
+            response_vars,
+            replace=placeholder_replace_dict,
+        )
     )
 
-    if rvs_in_graph([response_var]):
+    if rvs_in_graph(response_vars):
         raise RuntimeError("RVs found in the extracted graph, this is likely a bug")
 
-    # Cleanup graph
-    response_var = rewrite_graph(response_var, include=("canonicalize", "ShapeOpt"))
+    # Cleanup graph.  rewrite_graph mirrors the shape of what it is given, so a
+    # list of outputs comes back as a list.
+    response_vars = list(
+        cast(
+            Sequence[Variable],
+            rewrite_graph(response_vars, include=("canonicalize", "ShapeOpt")),
+        )
+    )
 
     # Replace placeholders with actual posterior samples
     replace_dict = {}
@@ -338,19 +380,24 @@ def extract_response_distribution(
         )
 
     # Vectorize across samples
-    response_distribution = vectorize_graph(response_var, replace=replace_dict)
+    response_distribution = list(vectorize_graph(response_vars, replace=replace_dict))
 
     # Final cleanup
-    response_distribution = rewrite_graph(
-        response_distribution,
-        include=(
-            "useless",
-            "local_eager_useless_unbatched_blockwise",
-            "local_useless_unbatched_blockwise",
-        ),
+    response_distribution = list(
+        cast(
+            Sequence[Variable],
+            rewrite_graph(
+                response_distribution,
+                include=(
+                    "useless",
+                    "local_eager_useless_unbatched_blockwise",
+                    "local_useless_unbatched_blockwise",
+                ),
+            ),
+        )
     )
 
-    return response_distribution
+    return response_distribution[0] if single else response_distribution
 
 
 class ModelSamplerEstimator:

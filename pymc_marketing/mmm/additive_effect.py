@@ -208,6 +208,7 @@ coefficients.
 """
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Annotated, Any, Protocol
 
 import numpy.typing as npt
@@ -339,6 +340,58 @@ class Model(Protocol):
         """
 
 
+@dataclass(frozen=True)
+class IncrementalitySpec:
+    r"""Declaration that an effect may take part in incrementality analysis.
+
+    Returned by :meth:`MuEffect.incrementality_spec`.  Only effects whose
+    contribution depends on ``channel_data`` need one: a spend counterfactual
+    cannot reach any other effect, so those are part of the baseline and are
+    left alone.
+
+    :class:`~pymc_marketing.mmm.incrementality.Incrementality` discovers the
+    date-indexed ``pm.Data`` variables an effect reads directly from the graph,
+    so they do not have to be listed here.  What it *cannot* discover is how far
+    in time the effect propagates a change in spend, because that depends on how
+    the effect composes its transformations rather than on the shape of any
+    input.
+
+    Parameters
+    ----------
+    additional_carryover_lags : int
+        Number of periods *beyond* the model's own ``adstock.l_max`` over which
+        a change in spend at time *t* can still move this effect's contribution.
+        Zero for an effect that transforms spend without any further lagging.
+        For an effect that chains a second adstock behind the model's -- as a
+        funnel mediator does, with
+        ``upper_transform`` feeding ``demand_transform`` -- it is the ``l_max``
+        of that second adstock.  Getting it too small truncates the evaluation
+        window and understates the increment; too large only costs compute.
+
+    Examples
+    --------
+    A funnel effect whose mediator applies a second adstock of ``l_max=8``:
+
+    .. code-block:: python
+
+        class FunnelEffect(DataVarMuEffect):
+            def incrementality_spec(self) -> IncrementalitySpec:
+                return IncrementalitySpec(
+                    additional_carryover_lags=self.demand_transform.adstock.l_max
+                )
+    """
+
+    additional_carryover_lags: int
+
+    def __post_init__(self) -> None:
+        """Reject a negative carryover length."""
+        if self.additional_carryover_lags < 0:
+            raise ValueError(
+                "additional_carryover_lags must be >= 0, got "
+                f"{self.additional_carryover_lags}"
+            )
+
+
 class MuEffect(SerializableBaseModel, ABC):
     """Abstract base class for arbitrary additive mu effects.
 
@@ -381,6 +434,33 @@ class MuEffect(SerializableBaseModel, ABC):
                 f"{type(self).__name__} must define 'contribution_var_name'."
             )
         return f"{prefix}_effect_contribution"
+
+    def incrementality_spec(self) -> IncrementalitySpec | None:
+        """Opt this effect in to spend-counterfactual incrementality analysis.
+
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality` perturbs
+        ``channel_data`` and reads the resulting change in the linear predictor.
+        An effect that depends on ``channel_data`` -- a funnel mediator, say --
+        carries part of that change, and is only included in the increment if it
+        returns a spec here.
+
+        The default returns ``None``, which is correct for every effect whose
+        contribution does not depend on ``channel_data``: such an effect belongs
+        to the baseline, is unaffected by the counterfactual, and is skipped
+        without ever consulting this method.  An effect that *does* depend on
+        ``channel_data`` and returns ``None`` raises ``NotImplementedError``
+        rather than being silently dropped from the increment.
+
+        Returns
+        -------
+        IncrementalitySpec or None
+            ``None`` to opt out.
+
+        See Also
+        --------
+        IncrementalitySpec : What has to be declared, and why.
+        """
+        return None
 
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.

@@ -18,11 +18,21 @@ import warnings
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
+import xarray as xr
+from pydantic import InstanceOf
 from pymc_extras.prior import Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
+from pymc_marketing.mmm.additive_effect import (
+    DataVarMuEffect,
+    IncrementalitySpec,
+    LinearTrendEffect,
+)
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
+from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.special_priors import LogNormalPrior
 
@@ -498,4 +508,241 @@ def panel_fitted_mmm(panel_mmm_data):
 
     mock_fit(mmm, X, y)
 
+    return mmm
+
+
+# ============================================================================
+# Funnel (mediated) MuEffect Fixtures
+# ============================================================================
+#
+# A funnel effect is the motivating case for incrementality that reaches the
+# response through a ``mu_effect``: upper-funnel spend moves latent demand,
+# demand moves lower-funnel spend, and only then does the target respond.  Two
+# properties make it the interesting test case rather than just another effect:
+#
+# 1. It reads ``channel_data`` (through ``mmm.channel_data_scaled``), so a spend
+#    counterfactual moves it.  Ignoring it reports the direct path alone.
+# 2. It sums the channel dimension away *inside* a nonlinear transform, so no
+#    per-channel column survives to be read off a single all-channels
+#    counterfactual.  One counterfactual per channel becomes mandatory.
+#
+# It also brings its own date-indexed ``pm.Data`` (``lf_budget``) and chains a
+# second adstock behind the model's own, which is what the evaluation window has
+# to be widened for.  Mirrors the ``mmm_funnel_mueffect`` example notebook.
+
+
+class FunnelEffect(DataVarMuEffect):
+    """Upper-funnel spend -> latent demand -> lower-funnel spend -> target.
+
+    Parameters
+    ----------
+    upper_transform : MediaTransformation
+        Adstock/saturation applied to channel spend before it enters demand.
+    demand_transform : MediaTransformation
+        Adstock/saturation applied to the mediator before it reaches the target.
+        Its ``l_max`` is the extra carryover the effect adds.
+    """
+
+    upper_transform: InstanceOf[MediaTransformation]
+    demand_transform: InstanceOf[MediaTransformation]
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {
+            "data_vars": self.data_vars,
+            "prefix": self.prefix,
+            "upper_transform": self.upper_transform.to_dict(),
+            "demand_transform": self.demand_transform.to_dict(),
+        }
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in, declaring the second adstock's reach."""
+        return IncrementalitySpec(
+            additional_carryover_lags=self.demand_transform.adstock.l_max
+        )
+
+    def create_effect(self, mmm):
+        """Build the mediator equation and the term it adds to the target mean."""
+        model = mmm.model
+        # (date, channel) -> (date): every channel pushes the same demand pool,
+        # so the channel dimension is summed away inside the transform.
+        upper_on_demand = self.upper_transform(mmm.channel_data_scaled, dim="date").sum(
+            dim="channel"
+        )
+        baseline = pmd.HalfNormal(f"{self.prefix}_baseline", sigma=1.0)
+        demand = pmd.Deterministic(f"{self.prefix}_demand", baseline + upper_on_demand)
+        lam = pmd.HalfNormal(f"{self.prefix}_lambda", sigma=0.5)
+        # Lower-funnel spend responds to demand and to its own exogenous budget,
+        # the latter a date-indexed pm.Data the evaluation has to window too.
+        lf_spend = pmd.Deterministic(
+            f"{self.prefix}_lf_spend", demand + lam * model["lf_budget"]
+        )
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            self.demand_transform(lf_spend, dim="date"),
+        )
+
+
+class UnregisteredFunnelEffect(FunnelEffect):
+    """A funnel effect that has *not* opted in to incrementality."""
+
+    def incrementality_spec(self) -> None:
+        """Opt out, so incrementality has to refuse rather than guess."""
+        return None
+
+
+def _media_transformation(prefix, dims, l_max, beta_sigma=1.0):
+    """Adstock/saturation pair with priors carrying *dims*.
+
+    ``beta_sigma`` scales the transform's output.  The funnel's two transforms
+    compose, so each one's saturation damps the next one's sensitivity to spend;
+    without a wider prior the mediated path ends up a rounding correction on the
+    direct one, and a test asserting the path is included would have nothing to
+    fail on.
+    """
+    dim = dims[0] if dims else None
+    return MediaTransformation(
+        adstock=GeometricAdstock(
+            l_max=l_max,
+            prefix=f"adstock_{prefix}",
+            priors={"alpha": Prior("Beta", alpha=2, beta=3, dims=dim)},
+        ),
+        saturation=LogisticSaturation(
+            prefix=f"saturation_{prefix}",
+            priors={
+                "lam": Prior("HalfNormal", sigma=1.0, dims=dim),
+                "beta": Prior("HalfNormal", sigma=beta_sigma, dims=dim),
+            },
+        ),
+        dims=dims,
+        adstock_first=True,
+    )
+
+
+FUNNEL_L_MAX = 3
+"""Adstock length used by both the model and the funnel's second transform."""
+
+
+@pytest.fixture
+def funnel_mmm_data():
+    """Spend, an exogenous lower-funnel budget, and a strictly positive target.
+
+    Two shapes of the same data, as the funnel example notebook uses: an
+    ``xr.Dataset`` to build the model from, because the effect's ``lf_budget``
+    only exists there, and a plain frame of date plus channels for ``fit_data``,
+    whose long-form conversion cannot align a separate ``y`` against a variable
+    carrying a ``channel`` dimension.
+    """
+    n_dates = 24
+    local_rng = np.random.default_rng(20260804)
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=n_dates)
+    media = np.abs(local_rng.normal(1.0, 0.35, size=(n_dates, 2))) + 0.2
+    lf_budget = np.abs(local_rng.normal(0.8, 0.2, size=n_dates))
+    target = np.exp(1.0 + 0.4 * media[:, 0] + 0.3 * media[:, 1] + 0.25 * lf_budget)
+    channels = ["channel_1", "channel_2"]
+
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(media, dims=("date", "channel")),
+            "lf_budget": xr.DataArray(lf_budget, dims=("date",)),
+        },
+        coords={"date": dates, "channel": channels},
+    )
+    y = xr.DataArray(target, dims=("date",), coords={"date": dates})
+    X_df = pd.DataFrame({"date": dates, **dict(zip(channels, media.T, strict=True))})
+    return {"X": X, "y": y, "X_df": X_df, "y_series": pd.Series(target, name="y")}
+
+
+def _build_funnel_mmm(data, link, effect_cls=FunnelEffect):
+    """Fit a funnel MMM under *link* with prior draws standing in for a posterior.
+
+    Mirrors the funnel example notebook: build from the ``xr.Dataset`` so the
+    effect's data variables register, then create ``fit_data`` from the frame.
+    ``lf_budget`` therefore never reaches ``fit_data``, which is why the evaluator
+    reads auxiliary inputs from the model's own shared variables.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=FUNNEL_L_MAX),
+        saturation=LogisticSaturation(),
+        link=link,
+    )
+    mmm.add_mu_effect(
+        effect_cls(
+            data_vars=["lf_budget"],
+            prefix="funnel",
+            upper_transform=_media_transformation(
+                "upper", ("channel",), FUNNEL_L_MAX, beta_sigma=3.0
+            ),
+            demand_transform=_media_transformation(
+                "demand", (), FUNNEL_L_MAX, beta_sigma=3.0
+            ),
+        )
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mmm.build_model(X=data["X"], y=data["y"])
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+        mmm._set_xarray_data(mmm.xarray_dataset, model=mmm.model)
+        with mmm.model:
+            # A small draw count keeps the per-(period, channel) oracle these
+            # fixtures are checked against affordable; the algebra under test does
+            # not depend on how many draws there are.
+            idata = pm.sample_prior_predictive(draws=50, random_seed=seed)
+        idata["/posterior"] = idata["/prior"].to_dataset()
+        idata["/fit_data"] = mmm.create_fit_data(data["X_df"], data["y_series"])
+    mmm.idata = idata
+    mmm.set_idata_attrs(idata=idata)
+    return mmm
+
+
+@pytest.fixture
+def funnel_log_link_fitted_mmm(funnel_mmm_data):
+    """Multiplicative funnel MMM: nonlinear link *and* a mediated path."""
+    return _build_funnel_mmm(funnel_mmm_data, link="log")
+
+
+@pytest.fixture
+def funnel_identity_fitted_mmm(funnel_mmm_data):
+    """Additive funnel MMM: the mediated path without the link nonlinearity."""
+    return _build_funnel_mmm(funnel_mmm_data, link="identity")
+
+
+@pytest.fixture
+def funnel_not_opted_in_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose effect never opted in to incrementality."""
+    return _build_funnel_mmm(
+        funnel_mmm_data, link="log", effect_cls=UnregisteredFunnelEffect
+    )
+
+
+@pytest.fixture
+def trend_effect_fitted_mmm(funnel_mmm_data):
+    """MMM with a ``mu_effect`` that does not read spend.
+
+    A linear trend cancels in a spend counterfactual, so incrementality must skip
+    it without ever asking it to opt in -- otherwise every effect that already
+    exists would suddenly have to.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=FUNNEL_L_MAX),
+        saturation=LogisticSaturation(),
+    )
+    mmm.add_mu_effect(
+        LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(
+            mmm, funnel_mmm_data["X_df"], funnel_mmm_data["y_series"], random_seed=seed
+        )
     return mmm
