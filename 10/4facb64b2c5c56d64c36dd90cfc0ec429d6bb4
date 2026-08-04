@@ -1,0 +1,19 @@
+tests/mmm/conftest.py
+  s_f0651831172c20::t_6cceda50d424a3 380-384,388-405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "104facb64b2c5c56d64c36dd90cfc0ec429d6bb4",
+  "prompts": {},
+  "sessions": {
+    "s_f0651831172c20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0d5367-5612-422c-9643-879881620410",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Claude <noreply@anthropic.com>"
+    }
+  }
+}
