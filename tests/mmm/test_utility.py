@@ -361,6 +361,10 @@ def test_roas_distribution(samples, budgets):
     )
 
 
+# `diversification_ratio` cannot join this parametrization: it is the only utility function
+# needing 2D samples and a budgets dim matching the asset dim of the samples, whereas this
+# harness hardcodes 1D `("sample",)` samples and a `("budget",)` dim. It is covered by the
+# dedicated tests below instead.
 @pytest.mark.parametrize(
     "samples, budgets, func",
     [
@@ -474,6 +478,30 @@ def test_diversification_ratio_requires_2d_samples(test_data):
         match=r"Function expected samples to be a 2D tensor variable. Got 1 dimensions.",
     ):
         diversification_ratio(samples, budgets)
+
+
+def test_diversification_ratio_requires_sample_dim():
+    samples = pm.draw(pm.Normal.dist(size=(100, 3)), random_seed=rng)
+    with pytest.raises(
+        ValueError,
+        match=r"Function expected samples to have a \"sample\" dim. Got dims \('draw', 'channel'\).",
+    ):
+        diversification_ratio(
+            as_xtensor(samples, dims=("draw", "channel")),
+            as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("channel",)),
+        )
+
+
+def test_diversification_ratio_requires_matching_budgets_dim():
+    samples = pm.draw(pm.Normal.dist(size=(100, 3)), random_seed=rng)
+    with pytest.raises(
+        ValueError,
+        match=r"Function expected samples to have the budgets dim \"asset\". Got dims \('sample', 'channel'\).",
+    ):
+        diversification_ratio(
+            as_xtensor(samples, dims=("sample", "channel")),
+            as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("asset",)),
+        )
 
 
 @pytest.mark.parametrize(

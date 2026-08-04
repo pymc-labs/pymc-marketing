@@ -580,7 +580,11 @@ def diversification_ratio(
         per-asset returns. Unlike the other utility functions, which take samples of the
         total response, this one needs the response broken down per asset (e.g.
         ``"channel_contribution"`` summed over ``"date"``), since it measures how the
-        assets co-vary.
+        assets co-vary. To drive this from
+        :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`, register such a
+        per-channel deterministic on the model and pass its name as ``response_variable``;
+        the default ``"total_media_contribution_original_scale"`` is a scalar per sample
+        and will not work.
     budgets : XTensorVariable
         1D PyTensor tensor variable representing the investment amounts in each asset.
         Its dim must match the asset dim of ``samples``.
@@ -615,11 +619,26 @@ def diversification_ratio(
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
     samples = _check_samples_dimensionality(samples, ndim=2)
-    weights = budgets / budgets.sum()
-    individual_volatilities = samples.std(dim="sample", ddof=1)
 
-    [asset_dim] = weights.dims
+    if "sample" not in samples.dims:
+        raise ValueError(
+            f'Function expected samples to have a "sample" dim. Got dims {samples.dims}.'
+        )
+
+    [asset_dim] = budgets.dims
+    if asset_dim not in samples.dims:
+        raise ValueError(
+            f'Function expected samples to have the budgets dim "{asset_dim}". '
+            f"Got dims {samples.dims}."
+        )
+
+    weights = budgets / budgets.sum()
     cov_matrix = _covariance_matrix(samples, asset_dim=asset_dim)
+    # The covariance diagonal holds the same ddof=1 variances as samples.std(dim="sample"),
+    # so reusing it avoids a second pass over the samples on every optimizer iteration.
+    individual_volatilities = ptx.math.sqrt(
+        as_xtensor(pt.diagonal(cov_matrix.values), dims=(asset_dim,))
+    )
 
     # w'Σw
     portfolio_var = ptx.dot(
