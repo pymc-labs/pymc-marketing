@@ -40,6 +40,7 @@ from pymc_marketing.mmm.incrementality import (
 from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
     LINEAR_PREDICTOR,
+    ChannelDependentEffect,
     SpendProbe,
     TemporalReach,
     linear_predictor,
@@ -1630,6 +1631,33 @@ class TestSpendProbe:
 
         assert node is not None
         assert node.name == LINEAR_PREDICTOR
+
+    def test_declared_carryover_survives_an_unprobeable_axis(self):
+        """With nothing to probe, a declaration is all there is to go on.
+
+        ``requires_full_axis`` widens the *window*, but the carry-out that enters
+        each period's sum is sized by ``effective_l_max``, so falling back to the
+        model's own ``l_max`` would silently shorten the sum by the declared
+        mediated tail -- a narrower failure than the one the fallback exists to
+        avoid, but the same kind.  Nothing was measured, so nothing can contradict
+        the declaration and it is taken at face value.
+        """
+        probe = self._probe(
+            self._spend(dark=self.n_dates),
+            **{CHANNEL_CONTRIBUTION: causal_filter(2), "mediator": causal_filter(2)},
+        )
+        effect = ChannelDependentEffect(
+            contribution_var="mediator",
+            label="Mediator",
+            declared_carryover_lags=4,
+            declared_evaluation_mode="auto",
+        )
+
+        with pytest.warns(UserWarning, match="could not be measured"):
+            reach = probe.measure(effects=(effect,), l_max=self.l_max)
+
+        assert reach.requires_full_axis
+        assert reach.effective_l_max == self.l_max + 4
 
     def test_a_plain_mmm_has_its_direct_path_measured(self, simple_fitted_mmm):
         """The probe runs on a model with no ``mu_effects`` in sight.

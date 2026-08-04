@@ -549,7 +549,17 @@ class SpendProbe:
                 UserWarning,
                 stacklevel=3,
             )
-            return SpendReach(effective_l_max=l_max, requires_full_axis=True)
+            # The declarations are all there is to go on, and they still have to
+            # be honoured: full-axis mode widens the *window*, but the carry-out
+            # that enters each period's sum is sized by effective_l_max, so
+            # dropping a declared mediated tail here would shorten the sum rather
+            # than merely the window.  Nothing was measured, so no declaration can
+            # be contradicted and neither check in _reconcile_declarations fires.
+            declared = TemporalReach.widest(self._reconcile_declarations(effects, {}))
+            return SpendReach(
+                effective_l_max=l_max + declared.additional_carryover_lags,
+                requires_full_axis=True,
+            )
 
         probed, probe_index = self.probed, self.probe_index
         measured = {
