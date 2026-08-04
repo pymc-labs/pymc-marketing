@@ -28,9 +28,23 @@ todos:
   - id: "validate"
     content: "Run the mock notebook runner, do a real execution, and run pre-commit on the changed files"
     status: pending
+  - id: "remove-plan"
+    content: "LAST STEP, before opening the PR: run `git rm .cursor/plans/mmm-control-dimensionality-roas.plan.md` and commit, so the plan does not appear in the PR diff"
+    status: pending
 isProject: false
 ---
 # Case study: control dimensionality and ROAS in an MMM
+
+> **Housekeeping: delete this file before opening the PR.**
+>
+> This plan is committed to the branch only so that the agent doing the work can read it. It is not meant to ship. As the final step, before opening the PR, run:
+>
+> ```bash
+> git rm .cursor/plans/mmm-control-dimensionality-roas.plan.md
+> git commit -m "chore: remove working plan"
+> ```
+>
+> Because a PR diff is computed against the base branch, a file that is added and then removed on the same branch does not appear in "Files changed" at all. Note that `.cursor/plans` is in `.gitignore`, so this file only exists in git because it was force-added.
 
 Translate Experiment 4 of [To select or not to select](https://arxiv.org/abs/2606.22850) (Section 5.4, Figure 9) into a media mix modelling setting: hold the data-generating process fixed, fit an MMM on expanding nested subsets of control variables, and compare how the total media ROAS estimate evolves under independent Normal priors versus a split R2D2 prior on the control coefficients.
 
