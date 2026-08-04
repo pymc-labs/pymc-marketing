@@ -17,6 +17,7 @@ from pymc_marketing.mmm import preprocessing, validating
 from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
+    IncrementalitySpec,
     MediaMuEffect,
 )
 from pymc_marketing.mmm.components.adstock import (
@@ -101,6 +102,7 @@ __all__ = [
     "HSGPPeriodic",
     "HillSaturation",
     "HillSaturationSigmoid",
+    "IncrementalitySpec",
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogSaturation",
