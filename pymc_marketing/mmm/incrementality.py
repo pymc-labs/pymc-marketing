@@ -80,6 +80,32 @@ the model's target variable is revenue; taking the reciprocal
 (spend / contribution) gives **CAC** (Customer Acquisition Cost) when the
 target is customer count.  The same logic applies to any target variable.
 
+Link functions
+--------------
+The counterfactual is applied to spend and evaluated on
+``channel_contribution``, which lives in the **linear predictor**
+:math:`\mu_t = \text{base}_t + \sum_c v_{t,c}` -- not on the response
+scale.  Turning a change in :math:`v_{t,m}` into a change in
+:math:`\hat{Y}_t = \text{inv}(\mu_t)\,s` is link-dependent, and is the job
+of an :class:`IncrementalReducer`:
+
+* ``link="identity"`` (:class:`IdentityLinkReducer`) -- the response is
+  additive in the media contributions, the base term cancels, and the
+  increment is :math:`s \sum_t \Delta_{t,m}`.  Per-channel increments are
+  independent of the baseline and of each other, and they sum to the total
+  media increment.
+* ``link="log"`` (:class:`LogLinkReducer`) -- the response is
+  *multiplicative*, so the base term does **not** cancel and the increment
+  is :math:`\sum_t \hat{Y}_t [\exp(\Delta_{t,m}) - 1]`.  Per-channel
+  increments depend on the baseline, the controls and the other channels,
+  and they do **not** sum to the total media increment.  This is a property
+  of the model, not of the estimator: the paper's derivation of
+  :math:`\text{ROAS}_m` assumes an additive response, and that assumption
+  does not survive a non-linear link.
+
+Because the increment is formed per posterior draw and only then
+aggregated, credible intervals are correct under both links.
+
 Examples
 --------
 Compute quarterly incremental contributions:
@@ -125,7 +151,8 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
@@ -140,12 +167,148 @@ from pytensor.xtensor.vectorization import vectorize_graph
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
+from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
 
     from pymc_marketing.mmm.mmm import MMM
+
+CentralTendency = Literal["median", "mean"]
+
+
+class IncrementalReducer(ABC):
+    r"""Map a linear-predictor perturbation to a response-scale increment.
+
+    :class:`Incrementality` perturbs spend and evaluates
+    ``channel_contribution``, which lives in the **linear predictor**
+
+    .. math::
+
+        \mu_t = \text{base}_t + \sum_c v_{t,c}
+
+    where :math:`v_{t,c}` is channel *c*'s contribution and
+    :math:`\text{base}_t` collects the intercept, controls and seasonality.
+    The response is :math:`\hat{Y}_t = \text{inv}(\mu_t)\,s` for inverse link
+    :math:`\text{inv}` and target scale :math:`s`.
+
+    Translating :math:`\Delta_{t,m} = v^{\text{cf}}_{t,m} - v_{t,m}` into a
+    change in :math:`\hat{Y}` is the *only* link-dependent step of the
+    calculation, so it is isolated here.  Subclasses correspond one-to-one to
+    the :class:`~pymc_marketing.mmm.link.LinkSpec` implementations; see
+    :meth:`Incrementality._build_reducer` for the dispatch.
+
+    Notes
+    -----
+    Every subclass assumes the counterfactual reaches the response *only*
+    through ``channel_contribution``.  That assumption is what lets a single
+    all-channels evaluation be read per channel: :math:`v_{t,c}` depends on
+    channel *c*'s spend alone, so column *m* of an all-channels counterfactual
+    equals column *m* of a channel-*m*-only counterfactual.
+
+    See Also
+    --------
+    IdentityLinkReducer : Additive response (``link="identity"``).
+    LogLinkReducer : Multiplicative response (``link="log"``).
+    """
+
+    @abstractmethod
+    def counterfactual_minus_baseline(self, delta: xr.DataArray) -> xr.DataArray:
+        r"""Return :math:`\sum_t [\hat{Y}^{\text{cf}}_t - \hat{Y}_t]`.
+
+        Parameters
+        ----------
+        delta : xr.DataArray
+            :math:`\Delta_{t,m}`, the counterfactual-minus-baseline change in
+            the linear-predictor contribution, with dimensions
+            ``("sample", "date", "channel", *custom_dims)``.  The ``date``
+            coordinates span the evaluation window of a single period.
+
+        Returns
+        -------
+        xr.DataArray
+            Response-scale difference summed over ``date``.  The ``date``
+            dimension is dropped; every other dimension is preserved.
+        """
+
+
+class IdentityLinkReducer(IncrementalReducer):
+    r"""Increment reducer for an additive response (``link="identity"``).
+
+    With :math:`\text{inv} = \text{id}` the base term cancels exactly:
+
+    .. math::
+
+        \sum_t [\hat{Y}^{\text{cf}}_t - \hat{Y}_t] = s \sum_t \Delta_{t,m}
+
+    Per-channel increments are therefore independent of the baseline, of the
+    control variables and of the other channels, and they sum to the total
+    media increment -- the setting in which the paper's :math:`\text{ROAS}_m`
+    is derived.
+
+    Parameters
+    ----------
+    scale : xr.DataArray or float
+        Target scale :math:`s` mapping the linear predictor back to the
+        response scale.  Scalar, or dimensioned for panel models
+        (e.g. ``("country",)``).
+    """
+
+    def __init__(self, scale: xr.DataArray | float) -> None:
+        self.scale = scale
+
+    def counterfactual_minus_baseline(self, delta: xr.DataArray) -> xr.DataArray:
+        """See :meth:`IncrementalReducer.counterfactual_minus_baseline`."""
+        return delta.sum(dim="date") * self.scale
+
+
+class LogLinkReducer(IncrementalReducer):
+    r"""Increment reducer for a multiplicative response (``link="log"``).
+
+    With :math:`\text{inv} = \exp` the base term does **not** cancel.  Because
+    the linear predictor is additive in the channel contributions, perturbing
+    channel *m* alone gives
+    :math:`\exp(\mu^{\text{cf}}_t) = \exp(\mu_t)\exp(\Delta_{t,m})`, hence
+
+    .. math::
+
+        \sum_t [\hat{Y}^{\text{cf}}_t - \hat{Y}_t]
+            = \sum_t \hat{Y}_t \bigl[\exp(\Delta_{t,m}) - 1\bigr]
+
+    so the baseline response :math:`\hat{Y}_t` enters as a weight.  This is
+    the same estimand as
+    :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`,
+    evaluated per posterior draw, but with the spend counterfactual and
+    carryover window of the incrementality module rather than a whole-component
+    knock-out.
+
+    Two consequences follow, and both are properties of the *model* rather
+    than artefacts of this implementation: per-channel increments depend on
+    the baseline, the controls and the other channels; and they do not sum to
+    the total media increment.
+
+    ``expm1`` is used instead of ``exp(x) - 1`` because marginal
+    incrementality perturbs spend by only 1%, which makes :math:`\Delta` small
+    and the subtraction cancellation-prone.
+
+    Parameters
+    ----------
+    baseline_response : xr.DataArray
+        Baseline prediction on the response scale -- the model's
+        ``{output_var}_original_scale`` deterministic -- with dimensions
+        ``("sample", "date", *custom_dims)`` and ``date`` coordinates spanning
+        the fitted data.  It already carries ``target_scale``, so the
+        increment needs no further rescaling.
+    """
+
+    def __init__(self, baseline_response: xr.DataArray) -> None:
+        self.baseline_response = baseline_response
+
+    def counterfactual_minus_baseline(self, delta: xr.DataArray) -> xr.DataArray:
+        """See :meth:`IncrementalReducer.counterfactual_minus_baseline`."""
+        baseline = self.baseline_response.sel(date=delta.coords["date"])
+        return (baseline * np.expm1(delta)).sum(dim="date")
 
 
 class Incrementality:
@@ -215,6 +378,145 @@ class Incrementality:
                 "first, then aggregate the results."
             )
 
+    # ==================== Link Dispatch ====================
+
+    @staticmethod
+    def _stack_samples(da: xr.DataArray, dims: tuple[str, ...]) -> xr.DataArray:
+        """Flatten ``(chain, draw)`` into a single ``sample`` dimension.
+
+        Uses the same C-order (chain-major) flattening as the batched graph
+        evaluation, so positions along ``sample`` line up with the evaluated
+        predictions.
+
+        Parameters
+        ----------
+        da : xr.DataArray
+            Array with ``chain`` and ``draw`` dimensions.
+        dims : tuple of str
+            Remaining dimensions, in the order they should appear after
+            ``sample``.
+
+        Returns
+        -------
+        xr.DataArray
+            Array with dimensions ``("sample", *dims)``.  Only the ``date``
+            coordinate is carried over, since it is the one dimension that is
+            aligned by label downstream.
+        """
+        values = da.transpose("chain", "draw", *dims).values
+        coords = {"date": da.coords["date"]} if "date" in dims else {}
+        return xr.DataArray(
+            values.reshape(-1, *values.shape[2:]),
+            dims=("sample", *dims),
+            coords=coords,
+        )
+
+    def _mean_correction(
+        self,
+        posterior: xr.Dataset,
+        central_tendency: CentralTendency,
+    ) -> xr.DataArray:
+        """Per-draw factor rescaling a median-scale prediction to the mean scale.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior samples (already subsampled).
+        central_tendency : {"median", "mean"}
+            Requested central tendency of the counterfactual predictions.
+
+        Returns
+        -------
+        xr.DataArray
+            Scalar ``1.0`` when no correction applies, otherwise a factor with
+            a single ``sample`` dimension.
+        """
+        if central_tendency == "median":
+            return xr.DataArray(1.0)
+
+        correction = self.model._link_spec.mean_correction(
+            posterior, self.model.output_var
+        )
+        if "chain" not in correction.dims:
+            return correction
+        return self._stack_samples(correction, dims=())
+
+    def _baseline_response(self, posterior: xr.Dataset) -> xr.DataArray:
+        """Baseline prediction on the response scale, flattened over samples.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior samples (already subsampled).
+
+        Returns
+        -------
+        xr.DataArray
+            ``{output_var}_original_scale`` with dimensions
+            ``("sample", "date", *custom_dims)``.
+
+        Raises
+        ------
+        ValueError
+            If the deterministic is absent from the posterior.
+        """
+        name = f"{self.model.output_var}_original_scale"
+        if name not in posterior:
+            raise ValueError(
+                f"Incrementality under link='{self.model.link}' needs the baseline "
+                f"response-scale prediction '{name}', which is not in the posterior. "
+                "It is registered automatically when a log-link model is built, so "
+                "this posterior was most likely sampled with a restricted "
+                "'var_names'. Refit without filtering it out."
+            )
+        return self._stack_samples(posterior[name], dims=("date", *self.model.dims))
+
+    def _build_reducer(
+        self,
+        posterior: xr.Dataset,
+        central_tendency: CentralTendency,
+    ) -> IncrementalReducer:
+        """Select the :class:`IncrementalReducer` matching the model's link.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior samples (already subsampled).
+        central_tendency : {"median", "mean"}
+            Requested central tendency of the counterfactual predictions.
+
+        Returns
+        -------
+        IncrementalReducer
+            Reducer that maps linear-predictor perturbations to response-scale
+            increments.
+
+        Raises
+        ------
+        NotImplementedError
+            If the model's link function has no reducer.  Failing here is
+            deliberate: silently reusing the additive reduction under a
+            non-additive link returns numbers that are not incremental
+            response.
+        """
+        correction = self._mean_correction(posterior, central_tendency)
+
+        if self.model.link == LinkFunction.IDENTITY:
+            return IdentityLinkReducer(
+                scale=self.data.get_target_scale() * correction,
+            )
+        if self.model.link == LinkFunction.LOG:
+            return LogLinkReducer(
+                baseline_response=self._baseline_response(posterior) * correction,
+            )
+        raise NotImplementedError(
+            f"Incrementality is not implemented for link='{self.model.link}'. "
+            "Add an IncrementalReducer subclass describing how a change in the "
+            "linear predictor maps to the response scale under this link."
+        )
+
+    # ==================== Core Computation ====================
+
     def compute_incremental_contribution(
         self,
         frequency: Frequency,
@@ -224,15 +526,18 @@ class Incrementality:
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
         counterfactual_spend_factor: float = 0.0,
+        central_tendency: CentralTendency = "median",
     ) -> xr.DataArray:
-        """Compute incremental channel contributions using counterfactual analysis.
+        r"""Compute incremental channel contributions using counterfactual analysis.
 
         Core incrementality function.  Compares the model's prediction under
         actual spend with its prediction under a counterfactual spend
         scenario, properly accounting for adstock carryover.  Results are
-        always returned in the original scale of the target variable.
-        See the :mod:`module docstring <pymc_marketing.mmm.incrementality>`
-        for the full mathematical formulation.
+        always returned in the original scale of the target variable, with the
+        model's link function applied -- see the :mod:`module docstring
+        <pymc_marketing.mmm.incrementality>` for the full mathematical
+        formulation and for what per-channel increments do and do not mean
+        under a multiplicative (log-link) model.
 
         Parameters
         ----------
@@ -267,6 +572,14 @@ class Incrementality:
               incremental contribution (response to a 1 % spend increase).
             - Any value ≥ 0: Supported.  Values > 1 measure the upside of
               *more* spend; values in (0, 1) measure the cost of *less* spend.
+        central_tendency : {"median", "mean"}, default="median"
+            Central tendency of the predictions being differenced.  Only
+            meaningful for non-linear links: under ``link="log"`` the model's
+            response-scale prediction :math:`\exp(\mu)\,s` is the *median* of
+            the ``LogNormal`` likelihood, and ``"mean"`` rescales it by
+            :math:`\exp(\sigma^2 / 2)` to give an increment on the
+            conditional-mean scale.  Ignored under ``link="identity"``, where
+            the Normal mean and median coincide.
 
         Returns
         -------
@@ -291,7 +604,10 @@ class Incrementality:
         ------
         ValueError
             If frequency is invalid, period dates are outside fitted data
-            range, or ``counterfactual_spend_factor`` is negative.
+            range, ``counterfactual_spend_factor`` is negative, or
+            ``central_tendency`` is not one of ``{"median", "mean"}``.
+        NotImplementedError
+            If the model's link function has no :class:`IncrementalReducer`.
 
         References
         ----------
@@ -342,6 +658,10 @@ class Incrementality:
             raise ValueError(
                 f"counterfactual_spend_factor must be >= 0, got {counterfactual_spend_factor}"
             )
+        if central_tendency not in ("median", "mean"):
+            raise ValueError(
+                f"central_tendency must be 'median' or 'mean', got {central_tendency!r}"
+            )
 
         # Validate and parse dates
         start_date_ts, end_date_ts = self._validate_input(start_date, end_date)
@@ -354,6 +674,10 @@ class Incrementality:
         )
         n_chains = posterior_sub.sizes["chain"]
         n_draws = posterior_sub.sizes["draw"]
+
+        # Resolve the link-specific reduction before compiling the graph, so an
+        # unsupported link fails fast rather than after the expensive work.
+        reducer = self._build_reducer(posterior_sub, central_tendency)
 
         # Extract response distribution (batched over samples)
         posterior_predictive_model = self.model.model
@@ -442,7 +766,10 @@ class Incrementality:
             )
         )
         non_date_dims = [d for d in cc_dims if d != "date"]
-        extra_shape = baseline_array.shape[1:]  # (channel, *custom_dims)
+        # Non-date axes of channel_data, in the model's own order.  This is NOT
+        # always (channel, *custom_dims): panel models lay it out as
+        # (date, *custom_dims, channel).
+        extra_shape = baseline_array.shape[1:]
 
         # Compute, for each period, the required window metadata including
         # the start/end indices into `dates` and any necessary left/right padding,
@@ -503,6 +830,7 @@ class Incrementality:
             frequency=frequency,
             n_chains=n_chains,
             n_draws=n_draws,
+            reducer=reducer,
         )
 
     def _validate_input(
@@ -670,7 +998,7 @@ class Incrementality:
         max_window : int
             Maximum padded window size across all periods.
         baseline_array : np.ndarray
-            Actual channel spend data, shape ``(n_dates, channel, *custom_dims)``.
+            Actual channel spend data, shape ``(n_dates, *extra_shape)``.
         counterfactual_spend_factor : float
             Multiplicative factor for counterfactual spend.
         include_carryover : bool
@@ -680,7 +1008,8 @@ class Incrementality:
         freq_offset : pd.DateOffset
             Calendar-aware frequency offset.
         extra_shape : tuple
-            Shape of non-date dimensions ``(channel, *custom_dims)``.
+            Shape of the non-date dimensions of ``channel_data``, in the
+            model's own dimension order.
         dtype : str
             NumPy dtype for the output array.
 
@@ -803,14 +1132,16 @@ class Incrementality:
         frequency: Frequency,
         n_chains: int,
         n_draws: int,
+        reducer: IncrementalReducer,
     ) -> xr.DataArray:
         """Assemble per-period incremental results into a single DataArray.
 
-        For each period, sums baseline and counterfactual predictions over
-        the evaluation window, computes the difference (with appropriate
-        sign convention), reshapes the flattened sample dimension back to
+        For each period, forms the per-date change in the linear-predictor
+        contribution over the evaluation window, hands it to *reducer* to be
+        converted into a response-scale increment, applies the sign
+        convention, reshapes the flattened sample dimension back to
         ``(chain, draw)``, and concatenates all periods into a single
-        ``xr.DataArray`` in original scale.
+        ``xr.DataArray``.
 
         Parameters
         ----------
@@ -844,6 +1175,10 @@ class Incrementality:
             Number of MCMC chains in the posterior.
         n_draws : int
             Number of draws per chain.
+        reducer : IncrementalReducer
+            Link-specific reduction from a linear-predictor perturbation to a
+            response-scale increment.  It owns the rescaling to original
+            units, so no further ``target_scale`` multiplication happens here.
 
         Returns
         -------
@@ -866,23 +1201,30 @@ class Incrementality:
             else:
                 bl_eval_mask = (dates >= t0) & (dates <= t1)
 
-            baseline_sum = baseline_pred[:, bl_eval_mask].sum(axis=1)
+            # Per-date change in the linear-predictor contribution.  The two
+            # masks select the same dates in the same order: bl_eval_mask picks
+            # [t0, carryout_end] out of the full date index, cf_mask picks the
+            # actual-data positions of that same range out of the padded window.
+            delta = xr.DataArray(
+                cf_predictions[period_idx][:, cf_eval_masks[period_idx]]
+                - baseline_pred[:, bl_eval_mask],
+                dims=("sample", "date", *non_date_dims),
+                coords={"date": dates[bl_eval_mask]},
+            )
 
-            # Counterfactual: sum over matching actual-data positions
-            cf_mask = cf_eval_masks[period_idx]
-            cf_sum = cf_predictions[period_idx][:, cf_mask].sum(axis=1)
-
-            # Sign convention:
+            # Link-specific reduction to a response-scale difference, then the
+            # sign convention:
             # factor > 1 → Y(perturbed) - Y(actual)    (marginal)
             # factor < 1 → Y(actual) - Y(counterfactual) (total)
-            if counterfactual_spend_factor > 1.0:
-                total_incremental = cf_sum - baseline_sum
-            else:
-                total_incremental = baseline_sum - cf_sum
+            total_incremental = reducer.counterfactual_minus_baseline(delta).transpose(
+                "sample", *non_date_dims
+            )
+            if counterfactual_spend_factor <= 1.0:
+                total_incremental = -total_incremental
             # Shape: (n_samples, *non_date_dims) where n_samples = n_chains * n_draws
 
             # Reshape flattened sample → (chain, draw) to preserve MCMC structure
-            reshaped = total_incremental.reshape(
+            reshaped = total_incremental.values.reshape(
                 n_chains, n_draws, *total_incremental.shape[1:]
             )
 
@@ -915,13 +1257,9 @@ class Incrementality:
         dim_order = ["chain", "draw", "date", "channel", *self.model.dims]
         if frequency == "all_time":
             dim_order.remove("date")
-        result = result.transpose(*dim_order)
-
-        # Always apply original scale
-        target_scale = self.data.get_target_scale()
-        result = result * target_scale
-
-        return result
+        # Already on the original (response) scale: the reducer applied the
+        # link's inverse transform and target_scale per draw, before summing.
+        return result.transpose(*dim_order)
 
     # ==================== Convenience Methods ====================
 
@@ -933,6 +1271,7 @@ class Incrementality:
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
+        central_tendency: CentralTendency = "median",
     ) -> xr.DataArray:
         """Compute incremental contribution per unit of spend.
 
@@ -954,6 +1293,10 @@ class Incrementality:
             Number of posterior samples to use. If None, all samples are used.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
+        central_tendency : {"median", "mean"}, default="median"
+            Central tendency of the counterfactual predictions.  Only
+            meaningful for non-linear links; see
+            :meth:`compute_incremental_contribution`.
 
         Returns
         -------
@@ -978,6 +1321,7 @@ class Incrementality:
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=0.0,
+            central_tendency=central_tendency,
         )
 
         spend = self._aggregate_spend(frequency, start_date, end_date)
@@ -993,6 +1337,7 @@ class Incrementality:
         include_carryover: bool = True,
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
+        central_tendency: CentralTendency = "median",
     ) -> xr.DataArray:
         """Compute spend per unit of incremental contribution.
 
@@ -1012,6 +1357,10 @@ class Incrementality:
             Number of posterior samples to use. If None, all samples are used.
         random_state : RandomState or Generator or None, optional
             Random state for reproducible subsampling.
+        central_tendency : {"median", "mean"}, default="median"
+            Central tendency of the counterfactual predictions.  Only
+            meaningful for non-linear links; see
+            :meth:`compute_incremental_contribution`.
 
         Returns
         -------
@@ -1033,6 +1382,7 @@ class Incrementality:
             include_carryover=include_carryover,
             num_samples=num_samples,
             random_state=random_state,
+            central_tendency=central_tendency,
         )
 
         return 1.0 / ratio
@@ -1046,6 +1396,7 @@ class Incrementality:
         num_samples: int | None = None,
         random_state: RandomState | Generator | None = None,
         spend_increase_pct: float = 0.01,
+        central_tendency: CentralTendency = "median",
     ) -> xr.DataArray:
         """Compute marginal contribution per additional unit of spend.
 
@@ -1074,6 +1425,10 @@ class Incrementality:
             Fractional spend increase for the perturbation (default 1 %).
             Must be > 0.  Smaller values give a closer approximation to the
             true derivative but may suffer from numerical noise.
+        central_tendency : {"median", "mean"}, default="median"
+            Central tendency of the counterfactual predictions.  Only
+            meaningful for non-linear links; see
+            :meth:`compute_incremental_contribution`.
 
         Returns
         -------
@@ -1110,6 +1465,7 @@ class Incrementality:
             num_samples=num_samples,
             random_state=random_state,
             counterfactual_spend_factor=factor,
+            central_tendency=central_tendency,
         )
 
         spend = self._aggregate_spend(frequency, start_date, end_date)

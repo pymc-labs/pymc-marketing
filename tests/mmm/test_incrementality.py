@@ -22,21 +22,21 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from pymc_marketing.mmm.incrementality import Incrementality
+from pymc_marketing.mmm.incrementality import (
+    IdentityLinkReducer,
+    Incrementality,
+    IncrementalReducer,
+    LogLinkReducer,
+)
 from pymc_marketing.model_graph import deterministics_to_flat
 
 
-def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
-    """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.
+def evaluate_under_spend(mmm, channel_data_values, var_name):
+    """Evaluate ``var_name`` for given channel_data using sample_posterior_predictive.
 
     Uses the standard PyMC evaluation path (completely independent from
     extract_response_distribution + vectorize_graph) as an oracle.
     """
-    var_name = (
-        "channel_contribution_original_scale"
-        if original_scale
-        else "channel_contribution"
-    )
     names = mmm.frozen_deterministics
     if names:
         model = deterministics_to_flat(mmm.model, names=names)
@@ -55,6 +55,16 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
             var_names=[var_name],
         )
     return result.posterior_predictive[var_name]
+
+
+def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
+    """Evaluate channel_contribution for given channel_data (identity-link oracle)."""
+    var_name = (
+        "channel_contribution_original_scale"
+        if original_scale
+        else "channel_contribution"
+    )
+    return evaluate_under_spend(mmm, channel_data_values, var_name)
 
 
 def compute_ground_truth_incremental_by_period(
@@ -151,7 +161,11 @@ def compute_ground_truth_incremental_by_period(
         period_incr = period_incr.assign_coords(date=t1).expand_dims("date")
         period_results.append(period_incr)
 
-    # Concatenate and format
+    return _format_ground_truth(period_results, frequency)
+
+
+def _format_ground_truth(period_results, frequency):
+    """Concatenate per-period ground truth and match the module's dimension order."""
     if frequency == "all_time":
         result = period_results[0].squeeze("date", drop=True)
     else:
@@ -167,6 +181,95 @@ def compute_ground_truth_incremental_by_period(
         dim_order = ["chain", "draw", "date", "channel", *extra_dims]
 
     return result.transpose(*dim_order)
+
+
+def compute_log_link_ground_truth_by_period(
+    mmm,
+    frequency="all_time",
+    counterfactual_spend_factor=0.0,
+    include_carryover=True,
+):
+    """Ground truth incremental contribution for a multiplicative (log-link) model.
+
+    Deliberately brute force, and deliberately **per channel**: under a log
+    link the response is multiplicative, so channel *m*'s increment cannot be
+    read off a single all-channels counterfactual the way it can under an
+    identity link.  Each ``(period, channel)`` pair therefore gets its own
+    counterfactual, evaluated on the model's response-scale prediction
+    ``{output_var}_original_scale`` through ``sample_posterior_predictive``.
+
+    Shares no code with the incrementality module -- in particular it never
+    forms a linear-predictor difference -- so it is an independent check of
+    both the algebra and the carryover window.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM built with ``link="log"``.
+    frequency : str
+        One of ``"original"``, ``"monthly"``, ``"all_time"``, etc.
+    counterfactual_spend_factor : float
+        Factor applied to the target period's spend (``0.0`` = zero-out).
+    include_carryover : bool
+        Whether to include adstock carryover effects.
+
+    Returns
+    -------
+    xr.DataArray
+        Ground truth with dimensions matching
+        ``compute_incremental_contribution`` output.
+    """
+    actual_data = mmm.model["channel_data"].get_value()
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    channels = list(mmm.channel_columns)
+    response_var = f"{mmm.output_var}_original_scale"
+
+    # Do not assume channel sits on axis 1: panel models lay channel_data out as
+    # (date, *custom_dims, channel), so the axis has to be looked up.
+    channel_axis = list(mmm.data.get_channel_data().dims).index("channel")
+
+    periods = mmm.incrementality._create_period_groups(dates[0], dates[-1], frequency)
+    l_max = mmm.adstock.l_max
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+
+    baseline = evaluate_under_spend(mmm, actual_data, response_var)
+
+    period_results = []
+    for t0, t1 in periods:
+        target_mask = (dates >= t0) & (dates <= t1)
+        if include_carryover:
+            eval_mask = (dates >= t0) & (dates <= t1 + l_max * freq_offset)
+        else:
+            eval_mask = (dates >= t0) & (dates <= t1)
+
+        channel_results = []
+        for i, channel in enumerate(channels):
+            # Perturb ONE channel; every other channel keeps actual spend.
+            selector = [slice(None)] * actual_data.ndim
+            selector[0] = target_mask
+            selector[channel_axis] = i
+            selector = tuple(selector)
+
+            cf_data = actual_data.copy()
+            cf_data[selector] = actual_data[selector] * counterfactual_spend_factor
+            cf = evaluate_under_spend(mmm, cf_data, response_var)
+
+            # Sign convention matches compute_incremental_contribution.
+            if counterfactual_spend_factor > 1.0:
+                diff = cf - baseline
+            else:
+                diff = baseline - cf
+
+            channel_results.append(
+                diff.sel(date=dates[eval_mask])
+                .sum(dim="date")
+                .assign_coords(channel=channel)
+            )
+
+        period_incr = xr.concat(channel_results, dim="channel")
+        period_results.append(period_incr.assign_coords(date=t1).expand_dims("date"))
+
+    return _format_ground_truth(period_results, frequency)
 
 
 @pytest.fixture
@@ -703,3 +806,300 @@ class TestConvenienceFunctions:
             random_state=42,
         )
         assert result.sizes["draw"] == 10
+
+
+class TestIncrementalReducers:
+    """Unit tests for the link-specific reduction, without a fitted model.
+
+    These exercise the one piece of the calculation that depends on the link
+    function, in isolation from the counterfactual machinery.
+    """
+
+    @staticmethod
+    def _delta(values, dates):
+        return xr.DataArray(
+            np.asarray(values, dtype=float),
+            dims=("sample", "date", "channel"),
+            coords={"date": dates},
+        )
+
+    def test_identity_reducer_is_scaled_sum_over_date(self):
+        """Identity link: the base term cancels, leaving s * sum_t delta."""
+        dates = pd.date_range("2024-01-01", periods=3, freq="W")
+        delta = self._delta([[[1.0, -2.0], [3.0, 4.0], [0.5, 0.5]]], dates)
+
+        result = IdentityLinkReducer(scale=10.0).counterfactual_minus_baseline(delta)
+
+        np.testing.assert_allclose(result.values, [[45.0, 25.0]])
+        assert result.dims == ("sample", "channel")
+
+    def test_log_reducer_weights_by_baseline_response(self):
+        """Log link: sum_t yhat_t * (exp(delta) - 1)."""
+        dates = pd.date_range("2024-01-01", periods=2, freq="W")
+        delta = self._delta([[[0.1, -0.2], [0.3, -0.4]]], dates)
+        baseline = xr.DataArray(
+            [[100.0, 200.0]],
+            dims=("sample", "date"),
+            coords={"date": dates},
+        )
+
+        result = LogLinkReducer(baseline_response=baseline)
+        result = result.counterfactual_minus_baseline(delta)
+
+        expected = [
+            [
+                100.0 * np.expm1(0.1) + 200.0 * np.expm1(0.3),
+                100.0 * np.expm1(-0.2) + 200.0 * np.expm1(-0.4),
+            ]
+        ]
+        np.testing.assert_allclose(result.values, expected)
+
+    def test_log_reducer_selects_baseline_by_date_label(self):
+        """The baseline spans the fitted data; only the eval window is used."""
+        all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
+        baseline = xr.DataArray(
+            [[1.0, 2.0, 4.0, 8.0, 16.0]],
+            dims=("sample", "date"),
+            coords={"date": all_dates},
+        )
+        window = all_dates[2:4]
+        delta = self._delta([[[0.5], [0.25]]], window)
+
+        result = LogLinkReducer(
+            baseline_response=baseline
+        ).counterfactual_minus_baseline(delta)
+
+        expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
+        np.testing.assert_allclose(result.values, [[expected]])
+
+    def test_log_reducer_zero_perturbation_gives_zero(self):
+        """No change in the linear predictor means no incremental response."""
+        dates = pd.date_range("2024-01-01", periods=3, freq="W")
+        delta = self._delta(np.zeros((2, 3, 2)), dates)
+        baseline = xr.DataArray(
+            np.full((2, 3), 50.0),
+            dims=("sample", "date"),
+            coords={"date": dates},
+        )
+
+        result = LogLinkReducer(
+            baseline_response=baseline
+        ).counterfactual_minus_baseline(delta)
+
+        np.testing.assert_allclose(result.values, np.zeros((2, 2)))
+
+    def test_log_reducer_beats_naive_exp_minus_one_on_tiny_perturbation(self):
+        """expm1 keeps precision where exp(x) - 1 loses it.
+
+        Marginal incrementality perturbs spend by 1 %, so delta is small and
+        ``exp(delta) - 1`` cancels leading digits.
+        """
+        dates = pd.date_range("2024-01-01", periods=1, freq="W")
+        tiny = 1e-17
+        delta = self._delta([[[tiny]]], dates)
+        baseline = xr.DataArray(
+            [[1.0]], dims=("sample", "date"), coords={"date": dates}
+        )
+
+        result = LogLinkReducer(
+            baseline_response=baseline
+        ).counterfactual_minus_baseline(delta)
+
+        # exp(1e-17) - 1 rounds to exactly 0 in float64; expm1 does not.
+        assert np.exp(tiny) - 1.0 == 0.0
+        np.testing.assert_allclose(result.values, [[tiny]])
+
+    def test_reducer_is_abstract(self):
+        """The base class cannot be instantiated without a reduction."""
+        with pytest.raises(TypeError):
+            IncrementalReducer()
+
+
+class TestLogLinkIncrementality:
+    """Incrementality for multiplicative (log-link) models."""
+
+    @pytest.mark.parametrize(
+        "model_fixture, frequency, include_carryover, counterfactual_spend_factor",
+        [
+            ("log_link_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_fitted_mmm", "monthly", True, 0.0),
+            ("log_link_fitted_mmm", "all_time", False, 0.0),
+            ("log_link_fitted_mmm", "all_time", True, 1.01),
+            ("log_link_panel_fitted_mmm", "all_time", True, 0.0),
+        ],
+    )
+    def test_matches_per_channel_ground_truth(
+        self,
+        request,
+        model_fixture,
+        frequency,
+        include_carryover,
+        counterfactual_spend_factor,
+    ):
+        """Validate against brute-force per-channel response-scale counterfactuals.
+
+        The ground truth runs one ``sample_posterior_predictive`` per
+        ``(period, channel)`` on ``y_original_scale``.  Matching it confirms
+        that reading per-channel increments off a single all-channels
+        perturbation stays valid under a log link, provided the baseline
+        response is used as the weight.
+        """
+        mmm = request.getfixturevalue(model_fixture)
+
+        gt = compute_log_link_ground_truth_by_period(
+            mmm,
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+        )
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+        )
+
+        assert not np.isnan(gt).any()  # sanity check
+        xr.testing.assert_allclose(result, gt, rtol=1e-6)
+
+    def test_single_channel_equals_total_media_contribution(
+        self, log_link_single_channel_fitted_mmm
+    ):
+        """With one channel, incrementality must equal the model's own counterfactual.
+
+        ``LogLinkSpec.create_media_contribution_deterministic`` registers
+        ``total_media_contribution_original_scale`` as
+        ``sum_t [exp(mu) - exp(mu - mu_media)] * s``.  With a single channel
+        ``mu_media`` is that channel's contribution, and ``LogSaturation`` maps
+        zero spend to zero contribution, so a full-range zero-out counterfactual
+        must reproduce it draw for draw.
+        """
+        mmm = log_link_single_channel_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time",
+            counterfactual_spend_factor=0.0,
+        ).squeeze("channel", drop=True)
+        expected = mmm.idata.posterior["total_media_contribution_original_scale"]
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_result_is_not_the_linear_predictor_difference(self, log_link_fitted_mmm):
+        """Guard against a regression to summing linear-predictor contributions.
+
+        The pre-fix behaviour summed ``channel_contribution`` differences and
+        multiplied by ``target_scale``, which is not incremental response under
+        a log link.  Assert the two disagree, so an accidental revert fails
+        loudly rather than returning plausible-looking numbers.
+        """
+        mmm = log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time",
+            counterfactual_spend_factor=0.0,
+        )
+
+        actual_data = mmm.model["channel_data"].get_value()
+        baseline = evaluate_under_spend(mmm, actual_data, "channel_contribution")
+        cf = evaluate_under_spend(
+            mmm, np.zeros_like(actual_data), "channel_contribution"
+        )
+        linear_predictor_version = (baseline - cf).sum(
+            dim="date"
+        ) * mmm.data.get_target_scale()
+
+        assert not np.allclose(
+            result.values, linear_predictor_version.transpose(*result.dims).values
+        )
+
+    def test_mean_central_tendency_applies_lognormal_correction(
+        self, log_link_fitted_mmm
+    ):
+        """``central_tendency="mean"`` rescales by exp(sigma**2 / 2) per draw.
+
+        The correction multiplies the baseline response, which enters the
+        increment linearly, so it factors straight through the sum.
+        """
+        incr = log_link_fitted_mmm.incrementality
+        kwargs = {"frequency": "all_time", "counterfactual_spend_factor": 0.0}
+
+        median = incr.compute_incremental_contribution(
+            central_tendency="median", **kwargs
+        )
+        mean = incr.compute_incremental_contribution(central_tendency="mean", **kwargs)
+
+        sigma = log_link_fitted_mmm.idata.posterior["y_sigma"]
+        expected_ratio = np.exp(sigma**2 / 2)
+
+        ratio = (mean / median).transpose("chain", "draw", "channel")
+        np.testing.assert_allclose(
+            ratio.values,
+            np.broadcast_to(
+                expected_ratio.values[..., None],
+                ratio.shape,
+            ),
+            rtol=1e-6,
+        )
+
+    def test_convenience_methods_run_under_log_link(self, log_link_fitted_mmm):
+        """ROAS, CAC and mROAS all reduce through the log-link path."""
+        incr = log_link_fitted_mmm.incrementality
+
+        roas = incr.contribution_over_spend(frequency="all_time")
+        cac = incr.spend_over_contribution(frequency="all_time")
+        mroas = incr.marginal_contribution_over_spend(frequency="all_time")
+
+        for result in (roas, cac, mroas):
+            assert set(result.dims) == {"chain", "draw", "channel"}
+            assert np.isfinite(result.values).all()
+        np.testing.assert_allclose(cac.values, 1.0 / roas.values, rtol=1e-10)
+
+
+class TestLinkDispatch:
+    """Selection of the link-specific reducer."""
+
+    def test_identity_link_uses_identity_reducer(self, simple_fitted_mmm):
+        incr = simple_fitted_mmm.incrementality
+        reducer = incr._build_reducer(incr.idata.posterior.dataset, "median")
+        assert isinstance(reducer, IdentityLinkReducer)
+
+    def test_log_link_uses_log_reducer(self, log_link_fitted_mmm):
+        incr = log_link_fitted_mmm.incrementality
+        reducer = incr._build_reducer(incr.idata.posterior.dataset, "median")
+        assert isinstance(reducer, LogLinkReducer)
+
+    def test_unknown_link_raises_not_implemented(self, simple_fitted_mmm):
+        """A new link must add a reducer rather than silently reuse the additive one."""
+        incr = simple_fitted_mmm.incrementality
+        incr.model.link = "sqrt"
+
+        with pytest.raises(NotImplementedError, match="link='sqrt'"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_invalid_central_tendency_raises(self, simple_fitted_mmm):
+        incr = simple_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="central_tendency must be"):
+            incr.compute_incremental_contribution(
+                frequency="all_time", central_tendency="mode"
+            )
+
+    def test_central_tendency_is_a_no_op_for_identity_link(self, simple_fitted_mmm):
+        """The Normal likelihood's mean equals its median, so both agree."""
+        incr = simple_fitted_mmm.incrementality
+
+        median = incr.compute_incremental_contribution(
+            frequency="all_time", central_tendency="median"
+        )
+        mean = incr.compute_incremental_contribution(
+            frequency="all_time", central_tendency="mean"
+        )
+
+        xr.testing.assert_allclose(median, mean)
+
+    def test_missing_baseline_response_raises(self, log_link_fitted_mmm):
+        """A posterior stripped of the response-scale prediction fails clearly."""
+        incr = log_link_fitted_mmm.incrementality
+        posterior = incr.idata.posterior.dataset.drop_vars("y_original_scale")
+
+        with pytest.raises(ValueError, match="y_original_scale"):
+            incr._build_reducer(posterior, "median")

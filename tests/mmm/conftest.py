@@ -21,7 +21,7 @@ import pymc as pm
 import pytest
 from pymc_extras.prior import Prior
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.special_priors import LogNormalPrior
@@ -103,6 +103,20 @@ def monthly_mmm_data():
     - y: Series with target values
     """
     return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
+
+
+@pytest.fixture
+def log_link_mmm_data():
+    """Create MMM data for a multiplicative (log-link) model.
+
+    Two channels keep the per-channel counterfactual ground truth cheap, and
+    the target is strictly positive as the log link requires.
+
+    Returns dict with:
+    - X: DataFrame with date and 2 channels (14 weekly periods)
+    - y: Series with strictly positive target values
+    """
+    return _make_mmm_data(periods=14, freq="W", n_channels=2, seed=42)
 
 
 @pytest.fixture
@@ -303,6 +317,88 @@ def time_varying_intercept_fitted_mmm(simple_mmm_data):
     mmm.post_sample_model_transformation()
 
     return mmm
+
+
+def _mock_fit_log_link(mmm, X, y):
+    """Run ``mock_fit`` on a log-link model, silencing its two expected warnings.
+
+    ``link="log"`` is flagged experimental, and ``mock_fit`` registers
+    ``channel_contribution_original_scale``, which warns under a log link
+    because a per-component ``*_original_scale`` variable is a multiplicative
+    factor rather than an additive contribution.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(mmm, X, y, random_seed=seed)
+    return mmm
+
+
+@pytest.fixture
+def log_link_fitted_mmm(log_link_mmm_data):
+    """Create a fitted multiplicative (log-link) MMM.
+
+    Pairs ``link="log"`` with :class:`LogSaturation`, the usual specification
+    for a multiplicative model.  ``LogSaturation`` maps zero spend to zero
+    contribution, which the total-media invariant test relies on.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+    )
+
+    return _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
+
+
+@pytest.fixture
+def log_link_single_channel_fitted_mmm(log_link_mmm_data):
+    """Create a fitted log-link MMM with exactly one channel.
+
+    With a single channel the media term of the linear predictor *is* that
+    channel's contribution, so its incremental contribution must equal the
+    model's own ``total_media_contribution_original_scale``.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+    )
+
+    return _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
+
+
+@pytest.fixture
+def log_link_panel_fitted_mmm(panel_mmm_data):
+    """Create a fitted panel (multidimensional) log-link MMM.
+
+    Exercises the broadcast between the baseline response, which carries
+    ``(date, country)``, and the perturbation, which carries
+    ``(date, channel, country)``.
+    """
+    X = panel_mmm_data["X"].copy()
+    for col in X.columns[X.columns.str.startswith("channel_")]:
+        X[col] = X[col].astype(np.float64)
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        dims=("country",),
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+    )
+
+    return _mock_fit_log_link(mmm, X, panel_mmm_data["y"])
 
 
 @pytest.fixture
