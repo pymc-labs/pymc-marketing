@@ -23,9 +23,9 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+from pymc_marketing.mmm import incrementality as incrementality_module
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import (
-    JOINT_CHANNEL,
     CounterfactualEvaluator,
     CounterfactualScenarios,
     EvaluationWindows,
@@ -36,7 +36,14 @@ from pymc_marketing.mmm.incrementality import (
     Incrementality,
     IncrementalReducer,
     LogLinkReducer,
+)
+from pymc_marketing.mmm.spend_reach import (
+    CHANNEL_CONTRIBUTION,
+    LINEAR_PREDICTOR,
+    SpendProbe,
     TemporalReach,
+    linear_predictor,
+    resolve_channel_dependent_effects,
 )
 from pymc_marketing.model_graph import deterministics_to_flat
 
@@ -224,8 +231,9 @@ def compute_log_link_ground_truth_by_period(
     l_max : int, optional
         Carry-out length of the evaluation window.  Defaults to the model's own
         ``adstock.l_max``; a mediated effect that chains a second adstock needs a
-        longer window, and the module's :meth:`Incrementality._effective_l_max`
-        is what it has to agree with.
+        longer window, and the module's
+        :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.effective_l_max` is
+        what it has to agree with.
     joint : bool, default False
         Perturb every channel in one counterfactual and return a single number
         per period, matching
@@ -643,9 +651,6 @@ class TestHelperMethods:
         scenarios = windows.build_scenarios(
             baseline_array=baseline_array,
             counterfactual_spend_factor=0.0,
-            include_carryover=True,
-            l_max=l_max,
-            freq_offset=freq_offset,
             dtype="float64",
             channel_axis=None,
             n_channels=baseline_array.shape[-1],
@@ -658,8 +663,7 @@ class TestHelperMethods:
             windows.max_window,
             *extra_shape,
         )
-        assert len(scenarios.eval_masks) == len(periods)
-        assert len(scenarios.period_labels) == len(periods)
+        assert [window.end for window in windows.windows] == [end for _, end in periods]
         # Every channel of a period reads that period's single scenario.
         assert {
             scenarios.rows[(0, channel)] for channel in range(baseline_array.shape[-1])
@@ -683,9 +687,6 @@ class TestHelperMethods:
             return windows.build_scenarios(
                 baseline_array=baseline_array,
                 counterfactual_spend_factor=factor,
-                include_carryover=True,
-                l_max=l_max,
-                freq_offset=freq_offset,
                 dtype="float64",
                 channel_axis=None,
                 n_channels=baseline_array.shape[-1],
@@ -1284,39 +1285,77 @@ class TestLinkDispatch:
             incr._build_reducer(posterior, "median")
 
 
-def measure_reach(mmm, counterfactual_spend_factor=0.0):
-    """Run the module's own probe against *mmm* and return what it measured.
+def build_probe(mmm, counterfactual_spend_factor=0.0, include_predictor=False):
+    """Run the module's own probe against *mmm* and return it.
 
     Reassembles the pieces :meth:`Incrementality._compute_increments` puts
     together, so a test can ask what the probe concluded without inferring it
-    from the numbers that come out the other end.  Returns one
-    :class:`TemporalReach` per effect, keyed by contribution variable.
+    from the numbers that come out the other end.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted model to probe.
+    counterfactual_spend_factor : float, default 0.0
+        Factor the probe perturbs with.
+    include_predictor : bool, default False
+        Evaluate the linear predictor too, which is what
+        :meth:`SpendProbe.assert_increment_is_complete` needs.
+
+    Returns
+    -------
+    tuple of (SpendProbe, CounterfactualEvaluator)
+        The probe, and the evaluator it ran on -- the latter for its
+        ``non_date_dims``.
     """
     incr = mmm.incrementality
-    effects = incr._resolve_channel_dependent_effects()
+    effects = resolve_channel_dependent_effects(mmm)
+    predictor = linear_predictor(mmm)
     evaluator = CounterfactualEvaluator(
         pymc_model=mmm.model,
         posterior=incr.idata.posterior.dataset,
         response_vars=[
-            "channel_contribution",
+            CHANNEL_CONTRIBUTION,
             *(effect.contribution_var for effect in effects),
+            *([predictor] if include_predictor and predictor is not None else []),
         ],
         frozen_deterministics=mmm.frozen_deterministics,
         dates=incr.data.dates,
     )
     baseline_array = incr.data.get_channel_data().values
-    probed, probe_index = Incrementality._probe_spend(
+    probe = SpendProbe(
         evaluator=evaluator,
+        baseline=evaluator.evaluate_baseline(baseline_array),
         baseline_array=baseline_array,
         counterfactual_spend_factor=counterfactual_spend_factor,
     )
-    return incr._measure_temporal_reach(
-        effects=effects,
-        baseline=evaluator.evaluate_baseline(baseline_array),
-        probed=probed,
-        probe_index=probe_index,
-        l_max=mmm.adstock.l_max,
+    return probe, evaluator
+
+
+def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
+    """Return the :class:`SpendReach` the module's probe arrives at for *mmm*."""
+    probe, _ = build_probe(mmm, counterfactual_spend_factor)
+    return probe.measure(
+        effects=resolve_channel_dependent_effects(mmm), l_max=mmm.adstock.l_max
     )
+
+
+def measure_reach(mmm, counterfactual_spend_factor=0.0):
+    """Return the per-node :class:`TemporalReach` the probe measured for *mmm*."""
+    return measure_spend_reach(mmm, counterfactual_spend_factor).measured
+
+
+def effective_l_max(mmm):
+    """Evaluation-window half-length the module will use for *mmm*.
+
+    The oracle these tests compare against sums over the same window, so it has
+    to agree with the module about the length.  Derived rather than hard-coded
+    because the fixtures differ in both the model's own ``l_max`` and the
+    mediator's, and a literal here would be a literal repeated eleven times; the
+    two headline fixtures pin the value itself in
+    ``test_the_window_length_is_a_known_number``.
+    """
+    return measure_spend_reach(mmm).effective_l_max
 
 
 def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
@@ -1346,13 +1385,7 @@ def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
     actual = mmm.model["channel_data"].get_value()
     target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
     if l_max is None:
-        l_max = Incrementality._effective_l_max(
-            mmm.adstock.l_max,
-            Incrementality._reconcile_declared_reach(
-                mmm.incrementality._resolve_channel_dependent_effects(),
-                measure_reach(mmm),
-            ),
-        )
+        l_max = effective_l_max(mmm)
     freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
     eval_dates = dates[dates <= dates[-1] + l_max * freq_offset]
     # Panel models lay channel_data out as (date, *custom_dims, channel), so the
@@ -1402,21 +1435,6 @@ class TestMediatedMuEffects:
     has not opted in is refused instead of silently dropped.
     """
 
-    @staticmethod
-    def _effective_l_max(mmm):
-        """Carry-out length the oracle has to use to agree with the module.
-
-        Built from the effects' *declarations* on the strength of the fixture
-        declaring more than the probe measures -- which
-        ``test_measured_reach_is_covered_by_the_declaration`` checks rather than
-        assumes, so the oracle cannot drift away from the module in silence.
-        """
-        effects = mmm.incrementality._resolve_channel_dependent_effects()
-        return Incrementality._effective_l_max(
-            mmm.adstock.l_max,
-            Incrementality._reconcile_declared_reach(effects, {}),
-        )
-
     @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
     @pytest.mark.parametrize("counterfactual_spend_factor", [0.0, 1.01])
     def test_matches_oracle_under_log_link(
@@ -1440,7 +1458,7 @@ class TestMediatedMuEffects:
             mmm,
             frequency=frequency,
             counterfactual_spend_factor=counterfactual_spend_factor,
-            l_max=self._effective_l_max(mmm),
+            l_max=effective_l_max(mmm),
         )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
@@ -1459,7 +1477,7 @@ class TestMediatedMuEffects:
             frequency="all_time"
         )
         expected = mediated_identity_oracle(
-            mmm, "funnel_effect_contribution", l_max=self._effective_l_max(mmm)
+            mmm, "funnel_effect_contribution", l_max=effective_l_max(mmm)
         )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
@@ -1474,7 +1492,7 @@ class TestMediatedMuEffects:
         expected = compute_log_link_ground_truth_by_period(
             mmm,
             frequency="all_time",
-            l_max=self._effective_l_max(mmm),
+            l_max=effective_l_max(mmm),
             joint=True,
         )
 
@@ -1531,14 +1549,14 @@ class TestMediatedMuEffects:
         full = incr.compute_incremental_contribution(frequency="all_time")
 
         monkeypatch.setattr(
-            type(incr), "_resolve_channel_dependent_effects", lambda self: ()
+            incrementality_module, "resolve_channel_dependent_effects", lambda model: ()
         )
         with pytest.raises(NotImplementedError, match="Some path from spend"):
             incr.compute_incremental_contribution(frequency="all_time")
 
         monkeypatch.setattr(
-            type(incr),
-            "_assert_increment_is_complete",
+            SpendProbe,
+            "assert_increment_is_complete",
             lambda self, **kwargs: None,
         )
         direct_only = incr.compute_incremental_contribution(frequency="all_time")
@@ -1561,7 +1579,7 @@ class TestMediatedMuEffects:
         """
         incr = trend_effect_fitted_mmm.incrementality
 
-        assert incr._resolve_channel_dependent_effects() == ()
+        assert resolve_channel_dependent_effects(incr.model) == ()
         # And the computation still runs, on the separable path.
         result = incr.compute_incremental_contribution(frequency="all_time")
         assert set(result.dims) == {"chain", "draw", "channel"}
@@ -1586,7 +1604,7 @@ class TestMediatedMuEffects:
         """
         incr = duck_typed_baseline_effect_fitted_mmm.incrementality
 
-        assert incr._resolve_channel_dependent_effects() == ()
+        assert resolve_channel_dependent_effects(incr.model) == ()
         result = incr.compute_incremental_contribution(frequency="all_time")
         assert set(result.dims) == {"chain", "draw", "channel"}
 
@@ -1687,7 +1705,7 @@ class TestMediatedMuEffects:
         oracle disagree about the window rather than about the algebra.
         """
         mmm = funnel_log_link_fitted_mmm
-        effects = mmm.incrementality._resolve_channel_dependent_effects()
+        effects = resolve_channel_dependent_effects(mmm)
         measured = measure_reach(mmm)["funnel_effect_contribution"]
 
         assert not measured.requires_full_axis
@@ -1699,17 +1717,12 @@ class TestMediatedMuEffects:
     def test_effective_l_max_widens_the_window(self, funnel_log_link_fitted_mmm):
         """A mediated path that chains a second adstock lengthens the window."""
         mmm = funnel_log_link_fitted_mmm
-        effects = mmm.incrementality._resolve_channel_dependent_effects()
+        effects = resolve_channel_dependent_effects(mmm)
 
         assert len(effects) == 1
         assert effects[0].contribution_var == "funnel_effect_contribution"
         extra = mmm.mu_effects[0].demand_transform.adstock.l_max
-        assert self._effective_l_max(mmm) == mmm.adstock.l_max + extra
-        # No effects means no widening: the separable path is untouched.
-        assert (
-            Incrementality._effective_l_max(mmm.adstock.l_max, TemporalReach.none())
-            == mmm.adstock.l_max
-        )
+        assert effective_l_max(mmm) == mmm.adstock.l_max + extra
 
     def test_evaluator_discovers_the_effect_s_own_data(
         self, funnel_log_link_fitted_mmm
@@ -1723,7 +1736,7 @@ class TestMediatedMuEffects:
         """
         mmm = funnel_log_link_fitted_mmm
         incr = mmm.incrementality
-        effects = incr._resolve_channel_dependent_effects()
+        effects = resolve_channel_dependent_effects(incr.model)
 
         evaluator = CounterfactualEvaluator(
             pymc_model=mmm.model,
@@ -1771,9 +1784,6 @@ class TestMediatedMuEffects:
         return periods, windows.build_scenarios(
             baseline_array=baseline_array,
             counterfactual_spend_factor=0.0,
-            include_carryover=True,
-            l_max=l_max,
-            freq_offset=freq_offset,
             dtype="float64",
             channel_axis=channel_axis,
             n_channels=baseline_array.shape[-1],
@@ -1831,7 +1841,7 @@ class TestMediatedMuEffects:
         keys = (
             range(2)
             if estimand == "per_channel" and channel_axis is not None
-            else [JOINT_CHANNEL]
+            else [None]
         )
         for period_idx in range(len(periods)):
             for key in keys:
@@ -1846,7 +1856,7 @@ class TestMediatedMuEffects:
             frequency="all_time",
         )
 
-        assert (scenarios.spend[scenarios.rows[(0, JOINT_CHANNEL)]] == 0).all()
+        assert (scenarios.spend[scenarios.rows[(0, None)]] == 0).all()
 
 
 def build_aux_dims_model(aux_dims, n_dates, n_country):
@@ -1918,12 +1928,12 @@ class TestDateIndexedInputs:
             in_window[window_slice] = True
             actual_dates = self.dates[in_window]
             windows.append(
-                PeriodWindow(
+                PeriodWindow.build(
                     start=actual_dates[0],
                     end=actual_dates[-1],
-                    n_actual=int(in_window.sum()),
+                    dates=self.dates,
                     in_window=in_window,
-                    actual_dates=actual_dates,
+                    eval_end=actual_dates[-1],
                 )
             )
         return EvaluationWindows(
@@ -1984,10 +1994,7 @@ class TestDateIndexedInputs:
         scenarios = CounterfactualScenarios(
             spend=np.ones((1, 4, 2, 1)),
             period_index=np.array([0]),
-            channel_index=np.array([JOINT_CHANNEL]),
-            rows={(0, JOINT_CHANNEL): 0},
-            eval_masks=[np.ones(4, dtype=bool)],
-            period_labels=[self.dates[3]],
+            rows={(0, None): 0},
         )
 
         results = []
@@ -2015,10 +2022,7 @@ class TestDateIndexedInputs:
         scenarios = CounterfactualScenarios(
             spend=rng.normal(size=(5, 4, 2, 1)),
             period_index=np.array([0, 0, 1, 1, 1]),
-            channel_index=np.array([0, JOINT_CHANNEL, 0, 1, JOINT_CHANNEL]),
-            rows={(0, JOINT_CHANNEL): 1, (1, JOINT_CHANNEL): 4},
-            eval_masks=[np.ones(4, dtype=bool)] * 2,
-            period_labels=[self.dates[3], self.dates[-1]],
+            rows={(0, None): 1, (1, None): 4},
         )
         one_shot = evaluator.evaluate_counterfactual(
             scenarios, windows=windows, batch_size=len(scenarios.spend)
@@ -2063,17 +2067,6 @@ class TestMediatedEdgeCases:
     collected.
     """
 
-    @staticmethod
-    def _oracle_l_max(mmm):
-        """Carry-out length the oracle needs, reconciled the way the module does."""
-        return Incrementality._effective_l_max(
-            mmm.adstock.l_max,
-            Incrementality._reconcile_declared_reach(
-                mmm.incrementality._resolve_channel_dependent_effects(),
-                measure_reach(mmm),
-            ),
-        )
-
     def test_the_window_comes_from_the_mediator_when_the_model_carries_nothing(
         self, funnel_instantaneous_adstock_fitted_mmm
     ):
@@ -2087,7 +2080,7 @@ class TestMediatedEdgeCases:
         mmm = funnel_instantaneous_adstock_fitted_mmm
 
         assert mmm.adstock.l_max == 1
-        l_max = self._oracle_l_max(mmm)
+        l_max = effective_l_max(mmm)
         assert l_max > mmm.adstock.l_max
 
         result = mmm.incrementality.compute_incremental_contribution(
@@ -2119,7 +2112,7 @@ class TestMediatedEdgeCases:
             mmm,
             frequency="monthly",
             include_carryover=False,
-            l_max=self._oracle_l_max(mmm),
+            l_max=effective_l_max(mmm),
         )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
@@ -2145,7 +2138,7 @@ class TestMediatedEdgeCases:
             frequency="monthly"
         )
         expected = compute_log_link_ground_truth_by_period(
-            mmm, frequency="monthly", l_max=self._oracle_l_max(mmm)
+            mmm, frequency="monthly", l_max=effective_l_max(mmm)
         )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
@@ -2160,20 +2153,20 @@ class TestMediatedEdgeCases:
         real path.  A single-effect fixture cannot tell any of these apart.
         """
         mmm = two_mediators_fitted_mmm
-        effects = mmm.incrementality._resolve_channel_dependent_effects()
+        effects = resolve_channel_dependent_effects(mmm)
 
         assert {effect.contribution_var for effect in effects} == {
             "funnel_effect_contribution",
             "slow_effect_contribution",
         }
         declared = [effect.declared_carryover_lags for effect in effects]
-        assert self._oracle_l_max(mmm) == mmm.adstock.l_max + max(declared)
+        assert effective_l_max(mmm) == mmm.adstock.l_max + max(declared)
 
         result = mmm.incrementality.compute_incremental_contribution(
             frequency="all_time"
         )
         expected = compute_log_link_ground_truth_by_period(
-            mmm, frequency="all_time", l_max=self._oracle_l_max(mmm)
+            mmm, frequency="all_time", l_max=effective_l_max(mmm)
         )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
@@ -2194,7 +2187,7 @@ class TestMediatedEdgeCases:
         mmm = panel_mediated_fitted_mmm
         incr = mmm.incrementality
 
-        (effect,) = incr._resolve_channel_dependent_effects()
+        (effect,) = resolve_channel_dependent_effects(incr.model)
         assert effect.contribution_var == "global_effect_contribution"
 
         result = incr.compute_incremental_contribution(frequency="all_time")
@@ -2260,7 +2253,7 @@ class TestMediatedEdgeCases:
             mmm,
             frequency="all_time",
             counterfactual_spend_factor=counterfactual_spend_factor,
-            l_max=self._oracle_l_max(mmm),
+            l_max=effective_l_max(mmm),
             joint=estimand == "joint",
         )
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
@@ -2324,9 +2317,6 @@ class TestPeriodEdgeCases:
         scenarios = windows.build_scenarios(
             baseline_array=np.ones((len(self.dates), 2)),
             counterfactual_spend_factor=0.0,
-            include_carryover=True,
-            l_max=1,
-            freq_offset=self.freq_offset,
             dtype="float64",
             channel_axis=None,
             n_channels=2,
@@ -2334,8 +2324,9 @@ class TestPeriodEdgeCases:
         )
 
         # The empty period contributes a row of padding and sums to nothing.
-        assert not scenarios.eval_masks[1].any()
-        assert (scenarios.spend[scenarios.rows[(1, JOINT_CHANNEL)]] == 0).all()
+        assert not empty.eval_mask(windows.max_window).any()
+        assert len(empty.eval_dates) == 0
+        assert (scenarios.spend[scenarios.rows[(1, None)]] == 0).all()
 
     def test_a_single_date_period_keeps_its_carryover(self):
         """One date wide, and still evaluated over the carryover that follows it.
@@ -2359,9 +2350,6 @@ class TestPeriodEdgeCases:
         scenarios = windows.build_scenarios(
             baseline_array=np.ones((len(self.dates), 2)),
             counterfactual_spend_factor=0.0,
-            include_carryover=True,
-            l_max=2,
-            freq_offset=self.freq_offset,
             dtype="float64",
             channel_axis=None,
             n_channels=2,
@@ -2369,9 +2357,11 @@ class TestPeriodEdgeCases:
         )
 
         # Perturbed on its own date; summed over that date and the two after.
-        (mask,) = scenarios.eval_masks
-        np.testing.assert_array_equal(mask, [False, False, True, True, True])
-        spend = scenarios.spend[scenarios.rows[(0, JOINT_CHANNEL)]]
+        np.testing.assert_array_equal(
+            window.eval_mask(windows.max_window), [False, False, True, True, True]
+        )
+        np.testing.assert_array_equal(window.eval_dates, self.dates[4:7])
+        spend = scenarios.spend[scenarios.rows[(0, None)]]
         np.testing.assert_array_equal(spend[:, 0], [1.0, 1.0, 0.0, 1.0, 1.0])
 
     def test_carryover_is_dropped_from_the_mask_but_not_from_the_window(self):
@@ -2386,24 +2376,15 @@ class TestPeriodEdgeCases:
             dates=self.dates,
             l_max=2,
             freq_offset=self.freq_offset,
-        )
-
-        scenarios = windows.build_scenarios(
-            baseline_array=np.ones((len(self.dates), 2)),
-            counterfactual_spend_factor=0.0,
             include_carryover=False,
-            l_max=2,
-            freq_offset=self.freq_offset,
-            dtype="float64",
-            channel_axis=None,
-            n_channels=2,
-            estimand="per_channel",
         )
 
-        assert windows.windows[0].n_actual == 5
+        (window,) = windows.windows
+        assert window.n_actual == 5
         np.testing.assert_array_equal(
-            scenarios.eval_masks[0], [False, False, True, False, False]
+            window.eval_mask(windows.max_window), [False, False, True, False, False]
         )
+        np.testing.assert_array_equal(window.eval_dates, self.dates[4:5])
 
 
 class TestIncrementalitySpecValidation:
