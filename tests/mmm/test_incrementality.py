@@ -402,42 +402,58 @@ class TestIncrementality:
         assert result_sub.sizes["chain"] == 1
         assert result_sub.sizes["draw"] == 10
 
-    def test_num_samples_respects_total_across_chains(self, simple_fitted_mmm):
-        """Test that num_samples returns exactly num_samples with multi-chain posteriors."""
-        import copy
+    def test_num_samples_selects_whole_draws_across_chains(self, simple_fitted_mmm):
+        """``num_samples`` counts across chains and carries whole draws through.
 
+        The second chain gets a rescaled ``saturation_beta`` so every
+        ``(chain, draw)`` pair yields a distinct increment.  Duplicating the
+        posterior instead would let a chain-major/draw-major mix-up pass
+        unnoticed, since both orderings would then select equal values.
+        """
         mmm = simple_fitted_mmm
+        posterior = mmm.idata.posterior
+        if hasattr(posterior, "dataset"):
+            posterior = posterior.dataset
 
-        # Duplicate posterior along chain dim to simulate 2 chains
-        original_posterior = mmm.idata.posterior
-        if hasattr(original_posterior, "dataset"):
-            original_posterior = original_posterior.dataset
-        chain2 = original_posterior.assign_coords(
-            chain=[original_posterior.chain.values[0] + 1]
-        )
-        multi_chain_posterior = xr.concat([original_posterior, chain2], dim="chain")
+        chain2 = posterior.assign_coords(chain=[posterior.chain.values[0] + 1])
+        chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
+        multi_chain = xr.concat([posterior, chain2], dim="chain")
+        mmm.idata["posterior"] = multi_chain
 
-        # Replace posterior in idata with multi-chain version
-        mmm_idata_backup = copy.copy(mmm.idata)
-        mmm.idata["posterior"] = multi_chain_posterior
-
-        # Sanity: verify we now have 2 chains
-        n_chains = mmm.idata.posterior.dims["chain"]
-        assert n_chains == 2, f"Expected 2 chains, got {n_chains}"
-
+        n_chains = multi_chain.sizes["chain"]
+        n_draws = multi_chain.sizes["draw"]
         num_samples = 10
-        incr = mmm.incrementality
-        result = incr.compute_incremental_contribution(
+        assert n_chains == 2
+
+        full = mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        subset = mmm.incrementality.compute_incremental_contribution(
             frequency="all_time",
             num_samples=num_samples,
             random_state=42,
         )
 
-        assert result.sizes["chain"] == 1
-        assert result.sizes["draw"] == num_samples
+        # num_samples is a total, not a per-chain count.
+        assert subset.sizes["chain"] == 1
+        assert subset.sizes["draw"] == num_samples
 
-        # Restore original idata
-        mmm.idata = mmm_idata_backup
+        # The premise: the chains genuinely disagree, so draw identity matters.
+        assert not np.allclose(full.isel(chain=0).values, full.isel(chain=1).values)
+
+        # Same chain-major flat selection that subsample_draws makes.
+        flat_indices = np.random.default_rng(42).choice(
+            n_chains * n_draws, size=num_samples, replace=False
+        )
+        expected = (
+            full.stack(sample=("chain", "draw"))
+            .isel(sample=flat_indices)
+            .transpose("sample", ...)
+        )
+
+        np.testing.assert_allclose(
+            subset.squeeze("chain", drop=True).transpose("draw", ...).values,
+            expected.values,
+            rtol=1e-10,
+        )
 
     def test_random_state_makes_subsampling_reproducible(self, simple_fitted_mmm):
         """Test that random_state ensures reproducible subsampling."""
@@ -808,6 +824,44 @@ class TestConvenienceFunctions:
         assert result.sizes["draw"] == 10
 
 
+class TestStackSamples:
+    """Flattening ``(chain, draw)`` ahead of the link-specific reduction."""
+
+    def test_preserves_custom_dims_and_their_coords(self):
+        """Panel quantities keep every non-sample dimension, labels included.
+
+        ``y_sigma`` and ``y_original_scale`` both carry the model's custom
+        dims, and the reduction broadcasts them against a ``(date, channel,
+        *custom_dims)`` perturbation by name, so the labels have to survive.
+        """
+        da = xr.DataArray(
+            np.arange(2 * 3 * 2, dtype=float).reshape(2, 3, 2),
+            dims=("chain", "draw", "country"),
+            coords={"country": ["US", "UK"]},
+        )
+
+        stacked = Incrementality._stack_samples(da)
+
+        assert stacked.dims == ("sample", "country")
+        assert stacked.coords["country"].values.tolist() == ["US", "UK"]
+
+    def test_flattening_is_chain_major(self):
+        """Positions along ``sample`` must line up with the batched evaluation.
+
+        ``extract_response_distribution`` stacks the posterior chain-major, so
+        anything multiplied into its output has to use the same order.
+        """
+        da = xr.DataArray(
+            np.arange(2 * 3, dtype=float).reshape(2, 3),
+            dims=("chain", "draw"),
+        )
+
+        stacked = Incrementality._stack_samples(da)
+
+        assert stacked.dims == ("sample",)
+        np.testing.assert_allclose(stacked.values, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+
+
 class TestIncrementalReducers:
     """Unit tests for the link-specific reduction, without a fitted model.
 
@@ -925,7 +979,20 @@ class TestLogLinkIncrementality:
             ("log_link_fitted_mmm", "monthly", True, 0.0),
             ("log_link_fitted_mmm", "all_time", False, 0.0),
             ("log_link_fitted_mmm", "all_time", True, 1.01),
+            # Factors strictly between 0 and 1 measure the cost of *less*
+            # spend, and 1.0 is the no-op boundary of the sign convention.
+            ("log_link_fitted_mmm", "all_time", True, 0.5),
+            ("log_link_fitted_mmm", "all_time", True, 1.0),
+            # Controls enter the baseline weight rather than cancelling.
+            ("log_link_control_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_control_fitted_mmm", "all_time", True, 1.01),
+            # HSGP media multiplier on the date-dependent evaluation path.
+            ("log_link_time_varying_media_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_time_varying_media_fitted_mmm", "monthly", True, 0.0),
             ("log_link_panel_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_panel_fitted_mmm", "monthly", True, 0.0),
+            ("log_link_panel_fitted_mmm", "all_time", False, 0.0),
+            ("log_link_panel_fitted_mmm", "all_time", True, 1.01),
         ],
     )
     def test_matches_per_channel_ground_truth(
@@ -983,6 +1050,39 @@ class TestLogLinkIncrementality:
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
+    def test_channel_increments_exceed_total_media_by_the_overlap(
+        self, log_link_fitted_mmm
+    ):
+        """Per-channel increments must not sum to the total media increment.
+
+        Under a log link, removing both channels at once is not the sum of
+        removing each alone.  Writing :math:`e_m = \\exp(-v_m)`, the per-channel
+        increments sum to :math:`\\sum_t \\hat{Y}_t (2 - e_1 - e_2)` while the
+        joint knock-out is :math:`\\sum_t \\hat{Y}_t (1 - e_1 e_2)`, leaving an
+        overlap of :math:`\\sum_t \\hat{Y}_t (1 - e_1)(1 - e_2) > 0` whenever
+        both contributions are positive.  So the per-channel sum *overstates*
+        the joint effect: media effects double count where they coincide.
+
+        This is a property of the model, not of the estimator.  Asserting the
+        direction pins the interpretation down, so nobody "fixes" the module
+        into forcing additivity.
+        """
+        mmm = log_link_fitted_mmm
+
+        per_channel = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time",
+            counterfactual_spend_factor=0.0,
+        )
+        joint = mmm.idata.posterior["total_media_contribution_original_scale"]
+
+        # LogSaturation with a HalfNormal beta keeps every contribution
+        # positive, which is what fixes the sign of the overlap term.
+        assert (mmm.idata.posterior["channel_contribution"] > 0).all()
+
+        summed = per_channel.sum(dim="channel")
+        assert (summed > joint).all()
+        assert not np.allclose(summed.values, joint.values)
+
     def test_result_is_not_the_linear_predictor_difference(self, log_link_fitted_mmm):
         """Guard against a regression to summing linear-predictor contributions.
 
@@ -1038,6 +1138,31 @@ class TestLogLinkIncrementality:
                 ratio.shape,
             ),
             rtol=1e-6,
+        )
+
+    def test_panel_mean_central_tendency_corrects_each_custom_dim_cell(
+        self, log_link_panel_fitted_mmm
+    ):
+        """Panel ``central_tendency="mean"`` applies each cell's own sigma.
+
+        A panel ``y_sigma`` keeps the model's custom dims, so the LogNormal
+        correction differs per country.  Collapsing it to a single factor --
+        or dropping the dim while stacking samples -- has to fail here.
+        """
+        incr = log_link_panel_fitted_mmm.incrementality
+        kwargs = {"frequency": "all_time", "counterfactual_spend_factor": 0.0}
+
+        median = incr.compute_incremental_contribution(
+            central_tendency="median", **kwargs
+        )
+        mean = incr.compute_incremental_contribution(central_tendency="mean", **kwargs)
+
+        sigma = log_link_panel_fitted_mmm.idata.posterior["y_sigma"]
+        assert "country" in sigma.dims  # guards the premise of this test
+
+        ratio = mean / median
+        xr.testing.assert_allclose(
+            ratio, np.exp(sigma**2 / 2).broadcast_like(ratio), rtol=1e-6
         )
 
     def test_convenience_methods_run_under_log_link(self, log_link_fitted_mmm):

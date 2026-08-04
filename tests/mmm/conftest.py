@@ -376,6 +376,57 @@ def log_link_single_channel_fitted_mmm(log_link_mmm_data):
 
 
 @pytest.fixture
+def log_link_control_fitted_mmm(log_link_mmm_data):
+    """Create a fitted log-link MMM with a control variable.
+
+    Controls sit in the baseline, and under a log link the baseline *weights*
+    the increment instead of cancelling out of it, so a channel's incremental
+    contribution depends on them.  Pairs with the per-channel oracle to check
+    that dependence is handled rather than assumed away.
+    """
+    X = log_link_mmm_data["X"].copy()
+    X["control_1"] = np.linspace(-1.0, 1.0, len(X))
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        control_columns=["control_1"],
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+    )
+
+    return _mock_fit_log_link(mmm, X, log_link_mmm_data["y"])
+
+
+@pytest.fixture
+def log_link_time_varying_media_fitted_mmm(log_link_mmm_data):
+    """Create a fitted log-link MMM with ``time_varying_media=True``.
+
+    ``channel_contribution`` then carries the HSGP
+    ``media_temporal_latent_multiplier``, which depends on ``time_index``, so
+    this combines the log-link reduction with the module's date-dependent
+    evaluation path.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+        time_varying_media=True,
+    )
+
+    mmm = _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
+    mmm.post_sample_model_transformation()
+
+    return mmm
+
+
+@pytest.fixture
 def log_link_panel_fitted_mmm(panel_mmm_data):
     """Create a fitted panel (multidimensional) log-link MMM.
 

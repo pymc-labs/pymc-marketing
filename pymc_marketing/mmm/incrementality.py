@@ -74,6 +74,13 @@ length (``l_max``), *Ω* the posterior parameter samples, and
 :math:`[t_0, t_1]` is always kept at its actual value so that adstock
 carry-in is correctly accounted for.
 
+The intervention is on **spend**, not on a channel's effect.  With
+:math:`\alpha = 0` the two agree only if the saturation sends zero spend to
+zero contribution; otherwise (or with ``time_varying_media``) a residual
+effect survives the counterfactual.  To remove a component's effect
+directly, see
+:meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`.
+
 Incrementality is a **general-purpose building block**.  Dividing
 incremental contribution by spend gives **ROAS** (Return on Ad Spend) when
 the model's target variable is revenue; taking the reciprocal
@@ -221,9 +228,13 @@ class IncrementalReducer(ABC):
         ----------
         delta : xr.DataArray
             :math:`\Delta_{t,m}`, the counterfactual-minus-baseline change in
-            the linear-predictor contribution, with dimensions
-            ``("sample", "date", "channel", *custom_dims)``.  The ``date``
-            coordinates span the evaluation window of a single period.
+            the linear-predictor contribution.  Its first dimension is
+            ``"sample"``, followed by ``"date"`` and then the model's own
+            non-date dimensions -- panel models order these
+            ``(*custom_dims, "channel")``, so do not assume ``"channel"``
+            comes first.  Reductions here are by dimension *name* for exactly
+            that reason.  The ``date`` coordinates span the evaluation window
+            of a single period.
 
         Returns
         -------
@@ -381,34 +392,38 @@ class Incrementality:
     # ==================== Link Dispatch ====================
 
     @staticmethod
-    def _stack_samples(da: xr.DataArray, dims: tuple[str, ...]) -> xr.DataArray:
+    def _stack_samples(da: xr.DataArray) -> xr.DataArray:
         """Flatten ``(chain, draw)`` into a single ``sample`` dimension.
 
         Uses the same C-order (chain-major) flattening as the batched graph
         evaluation, so positions along ``sample`` line up with the evaluated
         predictions.
 
+        Every dimension other than ``chain`` and ``draw`` is kept, along with
+        its coordinates: the reduction broadcasts these arrays against the
+        perturbation by dimension *name*, so a panel model's custom dims have
+        to survive the flattening.
+
         Parameters
         ----------
         da : xr.DataArray
             Array with ``chain`` and ``draw`` dimensions.
-        dims : tuple of str
-            Remaining dimensions, in the order they should appear after
-            ``sample``.
 
         Returns
         -------
         xr.DataArray
-            Array with dimensions ``("sample", *dims)``.  Only the ``date``
-            coordinate is carried over, since it is the one dimension that is
-            aligned by label downstream.
+            Array with dimensions ``("sample", *other_dims)``, where
+            ``other_dims`` are *da*'s remaining dimensions in their original
+            order.
         """
-        values = da.transpose("chain", "draw", *dims).values
-        coords = {"date": da.coords["date"]} if "date" in dims else {}
+        other_dims = tuple(d for d in da.dims if d not in ("chain", "draw"))
+        stacked = da.transpose("chain", "draw", *other_dims)
         return xr.DataArray(
-            values.reshape(-1, *values.shape[2:]),
-            dims=("sample", *dims),
-            coords=coords,
+            stacked.values.reshape(-1, *stacked.shape[2:]),
+            dims=("sample", *other_dims),
+            coords={
+                dim: stacked.coords[dim] for dim in other_dims if dim in stacked.coords
+            },
         )
 
     def _mean_correction(
@@ -428,8 +443,9 @@ class Incrementality:
         Returns
         -------
         xr.DataArray
-            Scalar ``1.0`` when no correction applies, otherwise a factor with
-            a single ``sample`` dimension.
+            Scalar ``1.0`` when no correction applies, otherwise a factor over
+            ``sample`` and any dimensions the likelihood scale carries -- for a
+            panel model the correction differs per custom-dim cell.
         """
         if central_tendency == "median":
             return xr.DataArray(1.0)
@@ -439,7 +455,7 @@ class Incrementality:
         )
         if "chain" not in correction.dims:
             return correction
-        return self._stack_samples(correction, dims=())
+        return self._stack_samples(correction)
 
     def _baseline_response(self, posterior: xr.Dataset) -> xr.DataArray:
         """Baseline prediction on the response scale, flattened over samples.
@@ -469,7 +485,7 @@ class Incrementality:
                 "this posterior was most likely sampled with a restricted "
                 "'var_names'. Refit without filtering it out."
             )
-        return self._stack_samples(posterior[name], dims=("date", *self.model.dims))
+        return self._stack_samples(posterior[name])
 
     def _build_reducer(
         self,
@@ -572,6 +588,16 @@ class Incrementality:
               incremental contribution (response to a 1 % spend increase).
             - Any value ≥ 0: Supported.  Values > 1 measure the upside of
               *more* spend; values in (0, 1) measure the cost of *less* spend.
+
+            Note that *α* intervenes on **spend**, which is not the same as
+            removing a channel's *effect*.  The two coincide only when the
+            saturation maps zero spend to zero contribution (as
+            :class:`~pymc_marketing.mmm.components.saturation.LogSaturation`
+            does).  With a saturation whose value at zero spend is non-zero,
+            or with ``time_varying_media`` scaling the contribution, ``0.0``
+            still leaves a residual channel effect in the response.  To remove
+            a component's effect outright, use
+            :meth:`~pymc_marketing.mmm.mmm.MMM.compute_counterfactual_contributions_dataset`.
         central_tendency : {"median", "mean"}, default="median"
             Central tendency of the predictions being differenced.  Only
             meaningful for non-linear links: under ``link="log"`` the model's
@@ -687,7 +713,9 @@ class Incrementality:
             response_variable="channel_contribution",
             frozen_deterministics=self.model.frozen_deterministics,
         )
-        # Shape: (sample, date, channel, *custom_dims) where sample = chain x draw
+        # Shape: (sample, date, *non_date_dims) where sample = chain x draw.
+        # The graph keeps the model's own dim order, which puts channel last
+        # for panel models, so downstream reductions go by dim name.
 
         # Create period groups based on frequency
         dates = self.data.dates
@@ -783,7 +811,7 @@ class Incrementality:
         )
 
         # Build counterfactual scenarios:
-        #   - cf_array: array of counterfactual channel_data with shaped (n_periods, max_window, channel, *custom_dims)
+        #   - cf_array: array of counterfactual channel_data shaped (n_periods, max_window, *extra_shape)
         #   - cf_eval_masks: period-specific boolean masks indicating which
         #     max_window indices correspond to the period's actual dates
         #   - period_labels: labels (dates or ranges) identifying each incrementality window/period
@@ -812,7 +840,7 @@ class Incrementality:
                 )
             )
         cf_predictions = evaluator(*cf_eval_args)
-        # Shape: (n_periods, n_samples, max_window, channel, *custom_dims)
+        # Shape: (n_periods, n_samples, max_window, *non_date_dims)
 
         # Assemble results
         return self._compute_period_increments(
