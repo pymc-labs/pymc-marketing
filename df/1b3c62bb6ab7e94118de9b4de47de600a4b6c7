@@ -1,0 +1,21 @@
+pymc_marketing/mmm/spend_reach.py
+  s_f0651831172c20::t_faa76f934cf163 552-562
+tests/mmm/test_incrementality.py
+  s_f0651831172c20::t_a75a1edaad48b1 43,1635-1661
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "df1b3c62bb6ab7e94118de9b4de47de600a4b6c7",
+  "prompts": {},
+  "sessions": {
+    "s_f0651831172c20": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf0d5367-5612-422c-9643-879881620410",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Claude <noreply@anthropic.com>"
+    }
+  }
+}
