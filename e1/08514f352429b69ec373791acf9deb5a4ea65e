@@ -1,0 +1,31 @@
+pymc_marketing/mmm/incrementality.py
+  s_03fb9e2d1ad2bd::t_dfa5e693502bc8 1847
+  s_03fb9e2d1ad2bd::t_942133c6400111 1699-1700,1704-1706
+  s_03fb9e2d1ad2bd::t_7ff4b5d6065f60 319-331
+  s_03fb9e2d1ad2bd::t_e43643b8018148 1600
+  s_03fb9e2d1ad2bd::t_813fa0ce463e4d 1955-1969
+  s_03fb9e2d1ad2bd::t_6a3818eac04fdf 1983
+  s_03fb9e2d1ad2bd::t_db2ca98860b810 1328-1330,1332-1336
+  s_03fb9e2d1ad2bd::t_2ac39bb83df810 1828-1829
+  s_03fb9e2d1ad2bd::t_1e2cf8f531ac34 1654-1657
+  s_03fb9e2d1ad2bd::t_787d489a7d4abe 1376
+  s_03fb9e2d1ad2bd::t_939e9d41560ffd 1899-1900
+tests/mmm/test_incrementality.py
+  s_03fb9e2d1ad2bd::t_ef57726e04d150 604,645,1413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "e108514f352429b69ec373791acf9deb5a4ea65e",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
