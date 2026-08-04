@@ -1,0 +1,19 @@
+tests/mmm/conftest.py
+  s_03fb9e2d1ad2bd::t_07aa7b86d25b78 572-579,586,593,596-597,601-607,621,627-635,680-682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "c555631d5c0d164e2016c5b706e0e3fdbe2818bf",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
