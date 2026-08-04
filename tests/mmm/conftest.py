@@ -377,16 +377,32 @@ def _split_posterior_into_two_chains(mmm):
     a silently wrong number rather than an error.  Splitting the same draws
     across two chains makes the ordering observable while leaving every value
     unchanged, so the oracle stays comparable.
+
+    The tree is rebuilt rather than patched in place: the ``prior`` groups the
+    stand-in fit leaves behind keep the original draw count, and a ``DataTree``
+    will not hold two sizes for one dimension.  They are of no use to anything
+    downstream, so they go.
     """
     posterior = mmm.idata["/posterior"].to_dataset()
     half = posterior.sizes["draw"] // 2
-    mmm.idata["/posterior"] = xr.concat(
-        [
-            posterior.isel(chain=0, draw=slice(0, half)),
-            posterior.isel(chain=0, draw=slice(half, 2 * half)),
-        ],
-        dim="chain",
-    ).assign_coords(chain=[0, 1], draw=np.arange(half))
+
+    def chain(start):
+        return posterior.isel(chain=0, draw=slice(start, start + half)).assign_coords(
+            draw=np.arange(half)
+        )
+
+    groups = {
+        "/posterior": xr.concat(
+            [chain(0), chain(half)], dim="chain", join="exact"
+        ).assign_coords(chain=[0, 1])
+    }
+    for name in ("fit_data", "constant_data", "observed_data"):
+        if name in mmm.idata.children:
+            groups[f"/{name}"] = mmm.idata[name].to_dataset()
+
+    idata = xr.DataTree.from_dict(groups)
+    mmm.idata = idata
+    mmm.set_idata_attrs(idata=idata)
     return mmm
 
 
