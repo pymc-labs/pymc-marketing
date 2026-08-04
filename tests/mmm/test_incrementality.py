@@ -306,6 +306,50 @@ def compute_log_link_ground_truth_by_period(
     return _format_ground_truth(period_results, frequency, joint=joint)
 
 
+def source_spend(X, frequency, channels):
+    """Total spend per channel per period, computed from the source frame.
+
+    Independent of both the module and ``MMMIDataWrapper``.  A ROAS test whose
+    denominator comes from ``_aggregate_spend`` -- the very call the method under
+    test makes -- verifies a division and nothing else, and would pass with an
+    arbitrarily wrong numerator.
+
+    Parameters
+    ----------
+    X : pd.DataFrame
+        The fixture's own source frame, with a ``date`` column.
+    frequency : str
+        ``"all_time"`` or ``"monthly"``.
+    channels : sequence of str
+        Channel columns, in the model's order.
+
+    Returns
+    -------
+    xr.DataArray
+        Dimensions ``("date", "channel")``, or ``("channel",)`` for
+        ``"all_time"``.  Period labels are the period *ends*, matching
+        :meth:`Incrementality._create_period_groups`.
+    """
+    frame = X.set_index("date")[list(channels)]
+    if frequency == "all_time":
+        return xr.DataArray(
+            frame.to_numpy().sum(axis=0),
+            dims="channel",
+            coords={"channel": list(channels)},
+        )
+    totals = frame.groupby(frame.index.to_period("M")).sum()
+    return xr.DataArray(
+        totals.to_numpy(),
+        dims=("date", "channel"),
+        coords={
+            "date": [
+                period.to_timestamp(how="end").normalize() for period in totals.index
+            ],
+            "channel": list(channels),
+        },
+    )
+
+
 @pytest.fixture
 def incrementality_lite():
     """Lightweight Incrementality stub for testing helpers without model fitting.
@@ -727,51 +771,59 @@ class TestConvenienceFunctions:
     """Test convenience wrapper functions."""
 
     @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
-    def test_contribution_over_spend_ground_truth(self, simple_fitted_mmm, frequency):
-        """Test that contribution_over_spend matches ground truth."""
-        incr = simple_fitted_mmm.incrementality
-        roas = incr.contribution_over_spend(frequency=frequency)
+    def test_contribution_over_spend_matches_the_oracle(
+        self, simple_fitted_mmm, simple_mmm_data, frequency
+    ):
+        """ROAS against a numerator and a denominator the module did not compute.
 
-        ground_truth = incr.compute_incremental_contribution(
-            frequency=frequency, counterfactual_spend_factor=0.0
+        Both halves are independent: the increment comes from the
+        ``sample_posterior_predictive`` oracle, the spend from the fixture's own
+        frame.  Dividing the module's own increment by the module's own spend --
+        as this test used to -- checks the division and would pass with an
+        arbitrarily wrong increment, which is the whole of what ROAS is.
+        """
+        roas = simple_fitted_mmm.incrementality.contribution_over_spend(
+            frequency=frequency
         )
-        spend = simple_fitted_mmm.data.aggregate_time(
-            period=frequency, method="sum"
-        ).get_channel_spend()
-        roas_ground_truth = ground_truth / spend
-        # check that we didn't drop any dates (sanity check)
-        if frequency != "all_time":
-            assert len(roas.date) == len(spend.date)
-        # check no Nans in ground truth (sanity check)
-        assert not np.isnan(roas_ground_truth).any()
-        # check that roas is not empty (sanity check)
-        assert roas.size > 0
-        xr.testing.assert_allclose(roas, roas_ground_truth)
+        increment = compute_ground_truth_incremental_by_period(
+            simple_fitted_mmm, frequency=frequency
+        )
+        spend = source_spend(
+            simple_mmm_data["X"], frequency, simple_fitted_mmm.channel_columns
+        )
+
+        assert roas.size > 0  # sanity check
+        assert not np.isnan(roas).any()  # sanity check
+        xr.testing.assert_allclose(roas, increment / spend, rtol=1e-6)
 
     @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
-    def test_marginal_contribution_over_spend_ground_truth(
-        self, simple_fitted_mmm, frequency
+    def test_marginal_contribution_over_spend_matches_the_oracle(
+        self, simple_fitted_mmm, simple_mmm_data, frequency
     ):
-        """Test that marginal_contribution_over_spend matches ground truth."""
-        incr = simple_fitted_mmm.incrementality
+        """mROAS is equation (11): a 1 % perturbation over 1 % of the spend.
+
+        Same independence as the total: the numerator is the oracle's increment at
+        ``alpha = 1.01`` and the denominator is one percent of the source frame's
+        spend, so the factor and the divisor are checked rather than cancelled.
+        """
         spend_increase_pct = 0.01
 
-        mroas = incr.marginal_contribution_over_spend(
+        mroas = simple_fitted_mmm.incrementality.marginal_contribution_over_spend(
             frequency=frequency, spend_increase_pct=spend_increase_pct
         )
+        increment = compute_ground_truth_incremental_by_period(
+            simple_fitted_mmm,
+            frequency=frequency,
+            counterfactual_spend_factor=1.0 + spend_increase_pct,
+        )
+        spend = source_spend(
+            simple_mmm_data["X"], frequency, simple_fitted_mmm.channel_columns
+        )
 
-        ground_truth = incr.compute_incremental_contribution(
-            frequency=frequency, counterfactual_spend_factor=1.0 + spend_increase_pct
+        assert not np.isnan(mroas).any()  # sanity check
+        xr.testing.assert_allclose(
+            mroas, increment / (spend_increase_pct * spend), rtol=1e-6
         )
-        spend = simple_fitted_mmm.data.aggregate_time(
-            period=frequency, method="sum"
-        ).get_channel_spend()
-        incremental_spend = spend_increase_pct * spend
-        incremental_spend_safe = xr.where(
-            incremental_spend == 0, np.nan, incremental_spend
-        )
-        mroas_ground_truth = ground_truth / incremental_spend_safe
-        xr.testing.assert_allclose(mroas, mroas_ground_truth)
 
     def test_contribution_over_spend_handles_zero_spend(self, simple_fitted_mmm):
         """Test that zero spend results in NaN ROAS."""
@@ -1220,18 +1272,80 @@ class TestLogLinkIncrementality:
             ratio, np.exp(sigma**2 / 2).broadcast_like(ratio), rtol=1e-6
         )
 
-    def test_convenience_methods_run_under_log_link(self, log_link_fitted_mmm):
-        """ROAS, CAC and mROAS all reduce through the log-link path."""
+    def test_convenience_methods_match_the_log_link_oracle(
+        self, log_link_fitted_mmm, log_link_mmm_data
+    ):
+        """ROAS and mROAS under a log link, against response-scale counterfactuals.
+
+        This is the headline of the change and it needs a number, not a shape.
+        Asserting only that the results are finite and reciprocal -- as this used
+        to -- passes for any increment whatsoever, so the correctness of the
+        log-link ROAS rested entirely on the increment's own tests.
+        """
+        mmm = log_link_fitted_mmm
+        incr = mmm.incrementality
+        spend = source_spend(log_link_mmm_data["X"], "all_time", mmm.channel_columns)
+
+        roas = incr.contribution_over_spend(frequency="all_time")
+        mroas = incr.marginal_contribution_over_spend(frequency="all_time")
+
+        xr.testing.assert_allclose(
+            roas,
+            compute_log_link_ground_truth_by_period(mmm, frequency="all_time") / spend,
+            rtol=1e-6,
+        )
+        xr.testing.assert_allclose(
+            mroas,
+            compute_log_link_ground_truth_by_period(
+                mmm, frequency="all_time", counterfactual_spend_factor=1.01
+            )
+            / (0.01 * spend),
+            rtol=1e-6,
+        )
+
+    def test_cac_is_the_reciprocal_of_roas_under_log_link(self, log_link_fitted_mmm):
+        """CAC adds nothing but a reciprocal, and the dimensions survive it."""
         incr = log_link_fitted_mmm.incrementality
 
         roas = incr.contribution_over_spend(frequency="all_time")
         cac = incr.spend_over_contribution(frequency="all_time")
-        mroas = incr.marginal_contribution_over_spend(frequency="all_time")
 
-        for result in (roas, cac, mroas):
+        for result in (roas, cac):
             assert set(result.dims) == {"chain", "draw", "channel"}
             assert np.isfinite(result.values).all()
         np.testing.assert_allclose(cac.values, 1.0 / roas.values, rtol=1e-10)
+
+    def test_a_two_chain_posterior_matches_the_oracle(
+        self, log_link_two_chain_fitted_mmm
+    ):
+        """Draws are flattened chain-major, and the flattening has to be right.
+
+        The reduction lines a posterior array up against a batched graph
+        evaluation positionally, so its ``(chain, draw)`` flattening has to agree
+        with the one ``extract_response_distribution`` used.  With a single chain
+        both orders coincide and a mismatch is invisible; with two it is a wrong
+        number rather than an error, which is why every log-link fixture having
+        ``chain=1`` was worth fixing.
+        """
+        mmm = log_link_two_chain_fitted_mmm
+        assert mmm.idata.posterior.dataset.sizes["chain"] == 2  # guards the premise
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(mmm, frequency="all_time")
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+        # The mean correction is also per draw, so it has to survive the same
+        # flattening rather than being broadcast against the wrong chain.
+        mean = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", central_tendency="mean"
+        )
+        sigma = mmm.idata.posterior["y_sigma"]
+        xr.testing.assert_allclose(
+            mean / result, np.exp(sigma**2 / 2).broadcast_like(result), rtol=1e-6
+        )
 
 
 class TestLinkDispatch:
@@ -1285,39 +1399,323 @@ class TestLinkDispatch:
             incr._build_reducer(posterior, "median")
 
 
-def build_probe(mmm, counterfactual_spend_factor=0.0, include_predictor=False):
-    """Run the module's own probe against *mmm* and return it.
+class FakeEvaluator:
+    """Evaluator stand-in whose nodes are known functions of spend.
+
+    :class:`SpendProbe` asks two things of an evaluator: the dtype the spend array
+    has to be in, and an evaluation of every node under a given spend array.
+    Supplying analytic nodes -- a causal filter of a chosen length, a reduction
+    over ``date`` -- makes the measurement checkable against arithmetic rather
+    than against a fitted model, and makes the degenerate spend arrays the probe
+    has to survive cheap to construct.
+    """
+
+    channel_dtype = "float64"
+
+    def __init__(self, **nodes):
+        self.nodes = nodes
+
+    def evaluate_baseline(self, channel_data):
+        """Evaluate every node under *channel_data*."""
+        return {name: node(channel_data) for name, node in self.nodes.items()}
+
+
+def causal_filter(reach):
+    """A ``channel_contribution``-shaped node moving for *reach* dates after spend.
+
+    An impulse at date *i* therefore moves dates ``i .. i + reach - 1`` and no
+    others, which is what an adstock of ``l_max = reach`` does.
+    """
+
+    def node(spend):
+        out = np.zeros_like(spend, dtype="float64")
+        for lag in range(reach):
+            out[lag:] += spend[: len(spend) - lag] / (lag + 1)
+        return out[np.newaxis]
+
+    return node
+
+
+def date_normalized(spend):
+    """A node whose value at every date depends on every date.
+
+    ``x / x.mean("date")`` and its relatives: not a causal filter, so no window
+    reproduces it.  Written here as a ``channel_contribution``, because a custom
+    saturation is free to do this and no ``mu_effect`` need be involved.
+    """
+    total = spend.reshape(len(spend), -1).sum(axis=1)
+    return (total / total.mean())[np.newaxis]
+
+
+def constant_node(spend):
+    """A node a change in spend does not move at all."""
+    return np.ones((1, len(spend)))
+
+
+class TestSpendProbe:
+    """What the probe establishes, and what happens when it cannot.
+
+    Two facts about the fitted graph are read off one single-date perturbation:
+    how far in time it moves each evaluated node, and whether those nodes account
+    for the whole move in the linear predictor.  Both are only as good as the date
+    the probe picks, so the choice is tested here directly rather than inferred
+    from the numbers a fitted model happens to produce.
+    """
+
+    n_dates = 24
+    l_max = 3
+    dark = 9
+    """Dates before this carry no spend in the flighted-spend cases below."""
+
+    @staticmethod
+    def _spend(n_dates=24, n_channels=2, dark=0, spike=None):
+        """Flat spend, less a dark run at the front and plus one spike."""
+        spend = np.full((n_dates, n_channels), 2.0)
+        spend[:dark] = 0.0
+        if spike is not None:
+            spend[spike] = 10.0
+        return spend
+
+    def _probe(self, spend, **nodes):
+        """A probe over analytic nodes, built the way the module builds one."""
+        evaluator = FakeEvaluator(**nodes)
+        return SpendProbe(
+            evaluator=evaluator,
+            baseline=evaluator.evaluate_baseline(spend),
+            baseline_array=spend,
+            counterfactual_spend_factor=0.0,
+        )
+
+    # ---------- reach ----------
+
+    def test_a_causal_filter_is_measured_at_its_own_length(self):
+        """A node reaching past the model's adstock widens the window by the excess."""
+        probe = self._probe(
+            self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max + 3)}
+        )
+
+        reach = probe.measure(effects=(), l_max=self.l_max)
+
+        assert not reach.requires_full_axis
+        # Reaching l_max + 3 dates is l_max + 2 lags, of which l_max is covered.
+        assert reach.effective_l_max == self.l_max + 2
+
+    def test_a_filter_inside_the_model_s_own_window_widens_nothing(self):
+        """The ordinary case has to cost nothing: the same window as before."""
+        probe = self._probe(
+            self._spend(), **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max)}
+        )
+
+        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
+
+    def test_a_reduction_over_date_cannot_be_windowed(self):
+        """A direct path that is not causal in ``date`` selects the full axis.
+
+        No ``mu_effect`` is involved: a custom adstock or saturation that
+        normalises over the date axis puts a reduction inside
+        ``channel_contribution`` itself.  Measuring only the effects would leave
+        such a model windowed silently wrong -- the window's mean standing in for
+        the series' mean -- which is a different function, not a truncation.
+        """
+        probe = self._probe(self._spend(), **{CHANNEL_CONTRIBUTION: date_normalized})
+
+        reach = probe.measure(effects=(), l_max=self.l_max)
+
+        assert reach.measured[CHANNEL_CONTRIBUTION].requires_full_axis
+        assert reach.requires_full_axis
+
+    def test_the_probe_avoids_a_date_that_carries_no_spend(self):
+        """With a dark run at the front, the probe lands past it and still measures.
+
+        Scaling an all-zero row by anything leaves it alone, so a probe placed by
+        position measures nothing and reports a bounded reach it never observed.
+        """
+        spend = self._spend(dark=self.dark, spike=self.dark)
+        probe = self._probe(
+            spend, **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max + 3)}
+        )
+
+        # The date a fixed positional heuristic picks is inside the dark run.
+        assert not spend[len(spend) // 4].any()
+        assert spend[probe.probe_index].any()
+        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == (
+            self.l_max + 2
+        )
+
+    def test_perturbing_a_dark_date_moves_nothing_at_all(self):
+        """The failure mode the choice of date exists to avoid, stated directly.
+
+        Without this, the previous test could pass for the wrong reason -- a probe
+        anywhere in the dark run happening to work.  It does not: every node comes
+        back bit-identical, so the reach measurement sees a node spend does not
+        move and the completeness check compares zero against zero.
+        """
+        spend = self._spend(dark=self.dark, spike=self.dark)
+        evaluator = FakeEvaluator(
+            **{CHANNEL_CONTRIBUTION: causal_filter(self.l_max + 3)}
+        )
+
+        probed = evaluator.evaluate_baseline(
+            SpendProbe._perturb(
+                baseline_array=spend,
+                probe_index=len(spend) // 4,
+                counterfactual_spend_factor=0.0,
+                dtype="float64",
+            )
+        )
+
+        np.testing.assert_array_equal(
+            probed[CHANNEL_CONTRIBUTION],
+            evaluator.evaluate_baseline(spend)[CHANNEL_CONTRIBUTION],
+        )
+
+    @pytest.mark.parametrize("spend_on_first_date", [False, True])
+    def test_no_interior_spend_falls_back_to_the_full_axis(self, spend_on_first_date):
+        """Spend nowhere, or only on the first date, leaves nothing to probe.
+
+        The first date is excluded deliberately: an impulse there has no earlier
+        date to move, so a reduction over ``date`` could not be told apart from a
+        causal filter.  With nothing measured, the window falls back to the only
+        mode that is correct without a measurement, and says so.
+        """
+        spend = self._spend(dark=self.n_dates)
+        if spend_on_first_date:
+            spend[0] = 2.0
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(2)})
+
+        assert probe.probe_index is None
+        with pytest.warns(UserWarning, match="could not be measured"):
+            reach = probe.measure(effects=(), l_max=self.l_max)
+
+        assert reach.requires_full_axis
+        assert reach.effective_l_max == self.l_max
+        assert reach.measured == {}
+
+    def test_the_widest_reach_wins_on_both_counts(self):
+        """Combining per-node reaches takes the longest tail and any full axis.
+
+        Per node rather than aggregated, because a declaration is judged against
+        its own node's measurement -- a slow mediator beside a fast one must not
+        make the fast one's honest declaration look like an under-declaration.
+        """
+        combined = TemporalReach.widest(
+            [
+                TemporalReach(additional_carryover_lags=2, requires_full_axis=False),
+                TemporalReach.full_axis(),
+            ]
+        )
+
+        assert combined.additional_carryover_lags == 2
+        assert combined.requires_full_axis
+        assert TemporalReach.widest([]) == TemporalReach.none()
+
+    def test_the_predictor_is_recoverable_under_an_identity_link(
+        self, simple_fitted_mmm
+    ):
+        """An identity-link MMM only *names* its linear predictor.
+
+        ``mmm.py`` wraps it in a ``Deterministic`` under a log link and assigns
+        ``.name`` under an identity one, so it cannot be looked up in
+        ``named_vars`` and has to be recovered from the observed variable's
+        ancestors instead.
+        """
+        assert LINEAR_PREDICTOR not in simple_fitted_mmm.model.named_vars
+
+        node = linear_predictor(simple_fitted_mmm)
+
+        assert node is not None
+        assert node.name == LINEAR_PREDICTOR
+
+    def test_a_plain_mmm_has_its_direct_path_measured(self, simple_fitted_mmm):
+        """The probe runs on a model with no ``mu_effects`` in sight.
+
+        Which is the point: the hazards above need no effect to exist, and gating
+        the probe on ``mu_effects`` would leave every plain MMM unmeasured.  For an
+        ordinary adstock the answer is that nothing changes.
+        """
+        reach = measure_spend_reach(simple_fitted_mmm)
+
+        assert set(reach.measured) == {CHANNEL_CONTRIBUTION}
+        assert not reach.requires_full_axis
+        assert reach.effective_l_max == simple_fitted_mmm.adstock.l_max
+
+    # ---------- completeness ----------
+
+    def _assert_complete(self, **nodes):
+        """Run the completeness check over analytic nodes."""
+        probe = self._probe(self._spend(), **nodes)
+        probe.assert_increment_is_complete(
+            effects=(),
+            non_date_dims={CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()},
+        )
+
+    def test_a_predictor_the_accounted_nodes_reproduce_is_accepted(self):
+        """The identity the whole increment rests on, satisfied."""
+        node = causal_filter(self.l_max)
+
+        self._assert_complete(
+            **{
+                CHANNEL_CONTRIBUTION: node,
+                LINEAR_PREDICTOR: lambda spend: node(spend).sum(axis=-1),
+            }
+        )
+
+    def test_a_predictor_that_moves_more_than_the_accounted_nodes_is_refused(self):
+        """Spend reaching the predictor by an unattributed route is caught."""
+        node = causal_filter(self.l_max)
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            self._assert_complete(
+                **{
+                    CHANNEL_CONTRIBUTION: node,
+                    LINEAR_PREDICTOR: lambda spend: 2 * node(spend).sum(axis=-1),
+                }
+            )
+
+    def test_accounted_nodes_moving_while_the_predictor_does_not_is_refused(self):
+        """A predictor that stands still cannot excuse nodes that move.
+
+        Scaling the comparison by the *predictor's* own move alone makes this pass
+        vacuously: the tolerance collapses to zero and the guard returns early
+        rather than comparing anything.  A frozen or misidentified predictor is
+        exactly the case where that matters, since the increment would then be
+        assembled from nodes nothing has vouched for.
+        """
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            self._assert_complete(
+                **{
+                    CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                    LINEAR_PREDICTOR: constant_node,
+                }
+            )
+
+    def test_nothing_moving_anywhere_is_not_an_error(self):
+        """Two nodes spend does not reach agree, and there is nothing to report."""
+        self._assert_complete(
+            **{
+                CHANNEL_CONTRIBUTION: lambda spend: np.ones(
+                    (1, len(spend), spend.shape[-1])
+                ),
+                LINEAR_PREDICTOR: constant_node,
+            }
+        )
+
+
+def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
+    """Return the :class:`SpendReach` the module's probe arrives at for *mmm*.
 
     Reassembles the pieces :meth:`Incrementality._compute_increments` puts
-    together, so a test can ask what the probe concluded without inferring it
-    from the numbers that come out the other end.
-
-    Parameters
-    ----------
-    mmm : MMM
-        Fitted model to probe.
-    counterfactual_spend_factor : float, default 0.0
-        Factor the probe perturbs with.
-    include_predictor : bool, default False
-        Evaluate the linear predictor too, which is what
-        :meth:`SpendProbe.assert_increment_is_complete` needs.
-
-    Returns
-    -------
-    tuple of (SpendProbe, CounterfactualEvaluator)
-        The probe, and the evaluator it ran on -- the latter for its
-        ``non_date_dims``.
+    together, so a test can ask what the probe concluded without inferring it from
+    the numbers that come out the other end.
     """
     incr = mmm.incrementality
     effects = resolve_channel_dependent_effects(mmm)
-    predictor = linear_predictor(mmm)
     evaluator = CounterfactualEvaluator(
         pymc_model=mmm.model,
         posterior=incr.idata.posterior.dataset,
         response_vars=[
             CHANNEL_CONTRIBUTION,
             *(effect.contribution_var for effect in effects),
-            *([predictor] if include_predictor and predictor is not None else []),
         ],
         frozen_deterministics=mmm.frozen_deterministics,
         dates=incr.data.dates,
@@ -1329,15 +1727,7 @@ def build_probe(mmm, counterfactual_spend_factor=0.0, include_predictor=False):
         baseline_array=baseline_array,
         counterfactual_spend_factor=counterfactual_spend_factor,
     )
-    return probe, evaluator
-
-
-def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
-    """Return the :class:`SpendReach` the module's probe arrives at for *mmm*."""
-    probe, _ = build_probe(mmm, counterfactual_spend_factor)
-    return probe.measure(
-        effects=resolve_channel_dependent_effects(mmm), l_max=mmm.adstock.l_max
-    )
+    return probe.measure(effects=effects, l_max=mmm.adstock.l_max)
 
 
 def measure_reach(mmm, counterfactual_spend_factor=0.0):
@@ -1723,6 +2113,82 @@ class TestMediatedMuEffects:
         assert effects[0].contribution_var == "funnel_effect_contribution"
         extra = mmm.mu_effects[0].demand_transform.adstock.l_max
         assert effective_l_max(mmm) == mmm.adstock.l_max + extra
+
+    def test_the_window_length_is_a_known_number(self, funnel_log_link_fitted_mmm):
+        """The window the oracle sums over, written down rather than derived.
+
+        Every other mediated test takes its window from ``effective_l_max``, which
+        reads it back off the module.  Narrow the module's own calculation and both
+        sides narrow together, so a dozen oracle comparisons keep passing while the
+        mediated tail is quietly cut off.  One literal is what breaks that tie.
+        """
+        mmm = funnel_log_link_fitted_mmm
+
+        assert mmm.adstock.l_max == 3
+        assert mmm.mu_effects[0].demand_transform.adstock.l_max == 3
+        assert effective_l_max(mmm) == 6
+
+    def test_a_declared_full_axis_mode_is_honoured(self, funnel_full_axis_fitted_mmm):
+        """``evaluation_mode="full"`` overrides a measurement that says otherwise.
+
+        The effect's reach is bounded and the probe says so, so ``"auto"`` would
+        give it a window.  An author may still know of a dependence on the whole
+        series that one perturbation cannot reveal, and honouring the declaration
+        costs compute rather than correctness -- which the oracle then confirms.
+        """
+        mmm = funnel_full_axis_fitted_mmm
+
+        reach = measure_spend_reach(mmm)
+        assert not reach.measured["funnel_effect_contribution"].requires_full_axis
+        assert reach.requires_full_axis
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", l_max=effective_l_max(mmm)
+        )
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_declaring_a_window_for_a_date_reduction_is_refused(
+        self, windowed_global_normalization_fitted_mmm
+    ):
+        """``evaluation_mode="window"`` against a measured full-axis need raises.
+
+        The mirror image of an under-declared carryover: the declaration is
+        falsifiable, the probe falsifies it, and honouring it would evaluate the
+        mean of the window in place of the mean of the series.
+        """
+        incr = windowed_global_normalization_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="evaluation_mode='window'"):
+            incr.compute_incremental_contribution(frequency="monthly")
+
+    def test_a_dark_start_still_measures_the_mediated_reach(
+        self, dark_start_funnel_fitted_mmm
+    ):
+        """A flighted campaign does not disable the probe.
+
+        The end-to-end form of :class:`TestSpendProbe`'s blocker: with no spend
+        before the tenth date, a probe placed a quarter of the way along the axis
+        perturbs an all-zero row, measures nothing, and sizes the window from the
+        model's own adstock alone.  The mediated tail then falls outside it and the
+        increment comes back low with nothing to indicate anything was cut, so the
+        oracle -- which sums over the *right* window -- is what catches it.
+        """
+        mmm = dark_start_funnel_fitted_mmm
+        spend = mmm.data.get_channel_data().values
+        assert not spend[len(spend) // 4].any()  # guards the premise
+
+        assert effective_l_max(mmm) == 6
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", l_max=6
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
     def test_evaluator_discovers_the_effect_s_own_data(
         self, funnel_log_link_fitted_mmm
