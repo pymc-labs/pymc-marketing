@@ -1,0 +1,19 @@
+tests/test_pytensor_utils.py
+  s_03fb9e2d1ad2bd::t_0fea997b13dc68 572,574,579-581,594-599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "b3adf212531a3765c9f7ecf5d2a554bf32967751",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
