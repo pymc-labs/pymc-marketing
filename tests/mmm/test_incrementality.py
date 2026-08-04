@@ -438,7 +438,12 @@ class TestIncrementality:
         )
         # check no Nans in ground truth
         assert not np.isnan(gt).any()  # sanity check
-        xr.testing.assert_allclose(result, gt, rtol=1e-4)
+        # The identity-link reduction is a sum of differences against the
+        # oracle's difference of sums, so the two agree to float rounding and
+        # nothing about the algebra is approximate.  Measured across this whole
+        # parametrisation the worst relative error is 2.2e-11, so the tolerance
+        # keeps three orders of margin rather than the seven 1e-4 allowed.
+        xr.testing.assert_allclose(result, gt, rtol=1e-8)
 
     def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""
