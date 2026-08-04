@@ -17,6 +17,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytest
 from pymc.model_graph import fast_eval
+from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import MaxAbsScaler
@@ -35,6 +36,7 @@ from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_observations,
     add_cost_per_target_potentials,
     add_lift_measurements_to_likelihood_from_saturation,
+    add_temporal_lift_observations,
     assert_monotonic,
     create_time_varying_saturation,
     exact_row_indices,
@@ -284,6 +286,54 @@ def test_works_with_negative_delta(df_lift_test_with_numerics) -> None:
             pm.sample(draws=10, tune=10)
     except pm.SamplingError:
         pytest.fail("Negative delta values caused a sampling error.")
+
+
+def test_temporal_lift_observations_mu_depends_on_adstock_alpha() -> None:
+    dates = pd.date_range("2024-01-01", periods=5)
+    df_lift_test = pd.DataFrame(
+        {
+            "date": dates,
+            "channel": "C1",
+            "x": 0.0,
+            "delta_x": [1.0, 0.0, 0.0, 0.0, 0.0],
+            "delta_y": 0.1,
+            "sigma": 1.0,
+        }
+    )
+
+    def get_mu(alpha: float) -> np.ndarray:
+        coords = {"date": dates, "channel": ["C1"]}
+        adstock = GeometricAdstock(
+            l_max=3,
+            normalize=False,
+            priors={"alpha": Prior("DiracDelta", c=alpha)},
+        )
+        saturation = LogisticSaturation(
+            priors={
+                "lam": Prior("DiracDelta", c=1.0),
+                "beta": Prior("DiracDelta", c=1.0),
+            }
+        )
+
+        def forward_pass(x, dims):
+            return saturation.apply(
+                x=adstock.apply(x=x, core_dim="date"),
+                core_dim="date",
+            )
+
+        with pm.Model(coords=coords) as model:
+            add_temporal_lift_observations(
+                df_lift_test,
+                forward_pass=forward_pass,
+                model=model,
+            )
+        return fast_eval(model["temporal_lift_measurements_mu"])
+
+    no_carryover = get_mu(0.0)
+    carryover = get_mu(0.8)
+
+    np.testing.assert_allclose(no_carryover[1:], 0.0)
+    assert carryover[1] > no_carryover[1]
 
 
 def test_check_increasing_assumption() -> None:

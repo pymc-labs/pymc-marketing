@@ -228,6 +228,7 @@ from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.lift_test import (
     add_cost_per_target_observations,
     add_lift_measurements_to_likelihood_from_saturation,
+    add_temporal_lift_observations,
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.link import LinkFunction, LinkSpec, get_link_spec
@@ -3192,6 +3193,59 @@ class MMM(RegressionModelBuilder):
             time_varying_var_name=time_varying_var_name,
             model=self.model,
             dist=dist,
+            name=name,
+        )
+
+        return self
+
+    def add_temporal_lift_test_measurements(
+        self: Self,
+        df_lift_test: pd.DataFrame,
+        name: str = "temporal_lift_measurements",
+    ) -> Self:
+        """Add time-resolved lift test measurements to the model.
+
+        The input must be long-form with ``date``, ``channel``, ``x``,
+        ``delta_x``, ``delta_y``, ``sigma``, and one column per model
+        dimension. The baseline and intervention spend paths are replayed
+        through ``forward_pass`` and observed with a diagonal Normal likelihood.
+        """
+        if not hasattr(self, "model"):
+            raise RuntimeError(
+                "The model has not been built yet. Please, build the model first."
+            )
+        if self.time_varying_media:
+            raise ValueError(
+                "Temporal lift calibration does not support time_varying_media yet."
+            )
+
+        for column in ["date", "channel"]:
+            if column not in df_lift_test.columns:
+                raise KeyError(
+                    f"The '{column}' column is required to map the lift "
+                    "measurements to the model."
+                )
+        for dim in self.dims:
+            if dim not in df_lift_test.columns:
+                raise KeyError(
+                    f"The {dim} column is required to map the lift measurements "
+                    "to the model."
+                )
+
+        target_transform = self._make_target_transform(df_lift_test)
+        channel_transform = self._make_channel_transform(df_lift_test)
+        df_lift_test_scaled = scale_lift_measurements(
+            df_lift_test=df_lift_test,
+            channel_col="channel",
+            channel_columns=self.channel_columns,  # type: ignore
+            channel_transform=channel_transform,
+            target_transform=target_transform,
+            dim_cols=list(self.dims),
+        )
+        add_temporal_lift_observations(
+            df_lift_test=df_lift_test_scaled,
+            forward_pass=self.forward_pass,
+            model=self.model,
             name=name,
         )
 
