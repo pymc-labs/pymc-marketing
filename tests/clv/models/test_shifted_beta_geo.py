@@ -333,30 +333,16 @@ class TestShiftedBetaGeoModel:
             }
         )
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "recency", "T", "cohort"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
-        ):
-            model = ShiftedBetaGeoModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="recency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['recency'\]",
-        ):
-            model = ShiftedBetaGeoModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = ShiftedBetaGeoModel()
             model.build_model(data=data_invalid)
@@ -376,16 +362,23 @@ class TestShiftedBetaGeoModel:
             model = ShiftedBetaGeoModel()
             model.build_model(data=data)
 
-    def test_invalid_recency(self):
+    @pytest.mark.parametrize(
+        "recency, match",
+        [
+            (np.asarray([1, 3]), r"recency cannot be greater than T"),
+            (np.asarray([0, 1]), r"Column recency must be at least 1"),
+        ],
+    )
+    def test_invalid_recency(self, recency, match):
         data = pd.DataFrame(
             {
                 "customer_id": np.asarray([1, 2]),
-                "recency": np.asarray([1, 3]),
+                "recency": recency,
                 "T": np.asarray([2, 2]),
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(ValueError, match=r"recency cannot be greater than T"):
+        with pytest.raises(ValueError, match=match):
             model = ShiftedBetaGeoModel()
             model.build_model(data=data)
 

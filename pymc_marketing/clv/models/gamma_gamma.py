@@ -13,8 +13,6 @@
 #   limitations under the License.
 """Gamma-Gamma Model for expected future monetary value."""
 
-import warnings
-
 import numpy as np
 import pandas
 import pymc as pm
@@ -337,11 +335,7 @@ class GammaGammaModel(BaseGammaGammaModel):
         )
         self._validate_frequency(data)
         if (data["monetary_value"] <= 0).any():
-            warnings.warn(
-                "Non-positive monetary values are practically problematic.",
-                UserWarning,
-                stacklevel=2,
-            )
+            raise ValueError("Column monetary_value contains zeroes or negative values")
 
     def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
@@ -480,13 +474,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self._validate_cols(
             data, required_cols=["customer_id", "individual_transaction_value"]
         )
-        if (data["individual_transaction_value"] < 0).any():
-            raise ValueError("Column individual_transaction_value has negative values")
         if (data["individual_transaction_value"] <= 0).any():
-            warnings.warn(
-                "Non-positive individual transaction values are practically problematic.",
-                UserWarning,
-                stacklevel=2,
+            raise ValueError(
+                "Column individual_transaction_value contains zeroes or negative values"
             )
 
     def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]

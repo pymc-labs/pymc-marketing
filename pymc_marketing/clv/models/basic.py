@@ -105,7 +105,8 @@ class CLVModel(ModelBuilder):
 
         if (data["T"] == 0).any():
             warnings.warn(
-                "T=0 is mathematically valid but practically useless.",
+                "T=0 is uninformative for model fitting. This occurs when a customer "
+                "makes a purchase in the final observed time period.",
                 UserWarning,
                 stacklevel=2,
             )
