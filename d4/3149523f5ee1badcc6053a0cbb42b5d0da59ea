@@ -1,0 +1,21 @@
+tests/mmm/conftest.py
+  s_03fb9e2d1ad2bd::t_d8bad276e65a53 631-634
+tests/test_pytensor_utils.py
+  s_03fb9e2d1ad2bd::t_6645f198c4115f 27,38,561-602
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "d43149523f5ee1badcc6053a0cbb42b5d0da59ea",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
