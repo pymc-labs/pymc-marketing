@@ -29,11 +29,13 @@ from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
     IncrementalitySpec,
     LinearTrendEffect,
+    MuEffect,
 )
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.serialization import serialization
 from pymc_marketing.special_priors import LogNormalPrior
 
 seed: int = sum(map(ord, "pymc_marketing"))
@@ -593,6 +595,243 @@ class UnregisteredFunnelEffect(FunnelEffect):
         return None
 
 
+class UnderDeclaredFunnelEffect(FunnelEffect):
+    """A funnel effect that claims to add no carryover of its own.
+
+    Its second adstock plainly does add some, so the declaration is false and
+    the evaluation window built from it would cut the mediated tail off.  Which
+    is precisely the failure the measurement exists to catch.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Declare a reach the effect demonstrably exceeds."""
+        return IncrementalitySpec(additional_carryover_lags=0)
+
+
+class MisreportedFunnelEffect(FunnelEffect):
+    """A funnel effect pointing at a variable that is not its contribution.
+
+    ``funnel_demand`` is a real variable of the model, so nothing about the name
+    looks wrong, and it even depends on spend -- but the term the effect adds to
+    the linear predictor is ``funnel_effect_contribution``, which then goes
+    unevaluated.
+    """
+
+    @property
+    def contribution_var_name(self) -> str:
+        """Name a real, spend-dependent, but wrong variable."""
+        return f"{self.prefix}_demand"
+
+
+class GlobalNormalizationEffect(MuEffect):
+    """An effect that divides spend by its own mean over the whole date axis.
+
+    Nothing about it is causal in time, and that is the point: its value at any
+    date depends on *every* date, so evaluating it on a truncated window gives a
+    different -- wrong -- answer.  It has to force full-axis evaluation, and the
+    only way to know that without being told is to measure it.
+    """
+
+    prefix: str
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in and declare nothing: the mode is measured."""
+        return IncrementalitySpec()
+
+    def create_effect(self, mmm):
+        """Add spend normalized by its own date-mean to the linear predictor."""
+        spend = mmm.channel_data_scaled.sum(dim="channel")
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            beta * spend / spend.mean(dim="date"),
+        )
+
+
+class DuckTypedEffect:
+    """A ``mu_effect`` that is not a :class:`MuEffect` at all.
+
+    The additive-effect module documents this pattern -- anything with
+    ``create_effect`` and ``set_data`` will do -- so incrementality cannot
+    require ``contribution_var_name`` of every effect it meets.  Reading spend
+    is optional and controlled by *reads_spend*, because the two cases have to
+    end differently: a baseline effect is none of incrementality's business,
+    while one that moves with spend is an unaccounted path and must be refused.
+    """
+
+    def __init__(self, prefix: str, reads_spend: bool) -> None:
+        self.prefix = prefix
+        self.reads_spend = reads_spend
+
+    def to_dict(self) -> dict:
+        """Serialize the effect, which fitting insists on."""
+        return {"prefix": self.prefix, "reads_spend": self.reads_spend}
+
+    def create_effect(self, mmm):
+        """Add a term that reads spend, or does not."""
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        if not self.reads_spend:
+            return beta
+        return beta * mmm.channel_data_scaled.sum(dim="channel")
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+
+serialization.register(
+    f"{DuckTypedEffect.__module__}.{DuckTypedEffect.__qualname__}",
+    DuckTypedEffect,
+    deserializer=lambda data: DuckTypedEffect(**data),
+)
+
+
+class ChainedMediatorEffect(MuEffect):
+    """A funnel-shaped mediator that brings no data of its own.
+
+    Same shape of dependence as :class:`FunnelEffect` -- two adstocks in series
+    behind the model's own -- but without the ``lf_budget`` input, so a model can
+    carry two of these at once without two effects trying to register the same
+    ``pm.Data``.
+
+    Parameters
+    ----------
+    prefix : str
+        Names the effect's variables.
+    upper_transform, demand_transform : MediaTransformation
+        The two transforms spend passes through.  ``demand_transform``'s
+        ``l_max`` is the extra carryover the effect adds.
+    """
+
+    prefix: str
+    upper_transform: InstanceOf[MediaTransformation]
+    demand_transform: InstanceOf[MediaTransformation]
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {
+            "prefix": self.prefix,
+            "upper_transform": self.upper_transform.to_dict(),
+            "demand_transform": self.demand_transform.to_dict(),
+        }
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in, declaring the second adstock's reach."""
+        return IncrementalitySpec(
+            additional_carryover_lags=self.demand_transform.adstock.l_max
+        )
+
+    def create_effect(self, mmm):
+        """Chain a second transform behind the first, as a funnel does."""
+        demand = self.upper_transform(mmm.channel_data_scaled, dim="date").sum(
+            dim="channel"
+        )
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            self.demand_transform(demand, dim="date"),
+        )
+
+
+class SubsetDimsEffect(MuEffect):
+    """A spend-dependent effect whose contribution drops a model dimension.
+
+    Sums the panel dimension away, so its contribution carries ``("date",)``
+    where the model carries ``("date", "country")``.  Legitimate -- a term added
+    to ``mu`` may broadcast -- and worth pinning, because the increment sums the
+    effect's delta into a per-channel array that does carry the panel dimension.
+    """
+
+    prefix: str
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in; the effect is instantaneous, so nothing needs declaring."""
+        return IncrementalitySpec()
+
+    def create_effect(self, mmm):
+        """Add total spend, summed over every dimension but ``date``."""
+        spend = mmm.channel_data_scaled
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=1.0)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            beta * spend.sum(dim=[d for d in spend.dims if d != "date"]),
+        )
+
+
+class NegativeEffect(MuEffect):
+    """A spend-dependent effect that *subtracts* from the linear predictor.
+
+    Cannibalisation, in marketing terms: one channel's spend eats into the
+    response.  Its point here is the sign.  The claim that per-channel
+    increments sum to more than the joint one rests on every channel's
+    contribution being positive; with a negative mediated term the interaction
+    can go the other way, and an estimand docstring that asserted a direction
+    would be wrong.
+    """
+
+    prefix: str
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in; the effect is instantaneous, so nothing needs declaring."""
+        return IncrementalitySpec()
+
+    def create_effect(self, mmm):
+        """Subtract a multiple of the product of the channels' spend."""
+        spend = mmm.channel_data_scaled
+        beta = pmd.HalfNormal(f"{self.prefix}_beta", sigma=2.0)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            -beta * spend.prod(dim="channel"),
+        )
+
+
+for _effect_cls in (ChainedMediatorEffect, SubsetDimsEffect, NegativeEffect):
+    serialization.register(
+        f"{_effect_cls.__module__}.{_effect_cls.__qualname__}",
+        _effect_cls,
+        deserializer=lambda data, cls=_effect_cls: cls(**data),
+    )
+
+
 def _media_transformation(prefix, dims, l_max, beta_sigma=1.0):
     """Adstock/saturation pair with priors carrying *dims*.
 
@@ -655,35 +894,68 @@ def funnel_mmm_data():
     return {"X": X, "y": y, "X_df": X_df, "y_series": pd.Series(target, name="y")}
 
 
-def _build_funnel_mmm(data, link, effect_cls=FunnelEffect):
+def _funnel_effect(effect_cls=FunnelEffect, *, prefix="funnel", demand_l_max=None):
+    """A funnel effect whose second adstock reaches *demand_l_max* periods."""
+    return effect_cls(
+        data_vars=["lf_budget"],
+        prefix=prefix,
+        upper_transform=_media_transformation(
+            f"upper_{prefix}", ("channel",), FUNNEL_L_MAX, beta_sigma=3.0
+        ),
+        demand_transform=_media_transformation(
+            f"demand_{prefix}",
+            (),
+            FUNNEL_L_MAX if demand_l_max is None else demand_l_max,
+            beta_sigma=3.0,
+        ),
+    )
+
+
+def _build_funnel_mmm(
+    data,
+    link,
+    effect_cls=FunnelEffect,
+    *,
+    effects=None,
+    l_max=FUNNEL_L_MAX,
+    time_varying_media=False,
+):
     """Fit a funnel MMM under *link* with prior draws standing in for a posterior.
 
     Mirrors the funnel example notebook: build from the ``xr.Dataset`` so the
     effect's data variables register, then create ``fit_data`` from the frame.
     ``lf_budget`` therefore never reaches ``fit_data``, which is why the evaluator
     reads auxiliary inputs from the model's own shared variables.
+
+    Parameters
+    ----------
+    data : dict
+        The ``funnel_mmm_data`` fixture.
+    link : str
+        Link function name.
+    effect_cls : type, default=FunnelEffect
+        Which funnel effect to attach.  Ignored when *effects* is given.
+    effects : list, optional
+        Effects to attach instead of a single default funnel effect.
+    l_max : int, default=FUNNEL_L_MAX
+        The model's *own* adstock length.  Zero is worth testing: it leaves the
+        mediated path as the only source of carryover.
+    time_varying_media : bool, default=False
+        Add the HSGP media multiplier, which puts ``time_index`` in the graph and
+        so makes the window's position on the date axis matter.
     """
     mmm = MMM(
         channel_columns=["channel_1", "channel_2"],
         date_column="date",
         target_column="y",
         control_columns=None,
-        adstock=GeometricAdstock(l_max=FUNNEL_L_MAX),
+        adstock=GeometricAdstock(l_max=l_max),
         saturation=LogisticSaturation(),
+        time_varying_media=time_varying_media,
         link=link,
     )
-    mmm.add_mu_effect(
-        effect_cls(
-            data_vars=["lf_budget"],
-            prefix="funnel",
-            upper_transform=_media_transformation(
-                "upper", ("channel",), FUNNEL_L_MAX, beta_sigma=3.0
-            ),
-            demand_transform=_media_transformation(
-                "demand", (), FUNNEL_L_MAX, beta_sigma=3.0
-            ),
-        )
-    )
+    for effect in effects if effects is not None else [_funnel_effect(effect_cls)]:
+        mmm.add_mu_effect(effect)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         mmm.build_model(X=data["X"], y=data["y"])
@@ -719,6 +991,154 @@ def funnel_not_opted_in_fitted_mmm(funnel_mmm_data):
     return _build_funnel_mmm(
         funnel_mmm_data, link="log", effect_cls=UnregisteredFunnelEffect
     )
+
+
+@pytest.fixture
+def funnel_under_declared_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose effect declares less carryover than it has."""
+    return _build_funnel_mmm(
+        funnel_mmm_data, link="log", effect_cls=UnderDeclaredFunnelEffect
+    )
+
+
+@pytest.fixture
+def funnel_misreported_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose effect names the wrong contribution variable."""
+    return _build_funnel_mmm(
+        funnel_mmm_data, link="log", effect_cls=MisreportedFunnelEffect
+    )
+
+
+@pytest.fixture
+def funnel_instantaneous_adstock_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose own adstock carries nothing (``l_max=1``, lag zero only).
+
+    Without the mediated path the evaluation window would collapse to the period
+    itself, so this isolates the mediated carryover as the sole reason the window
+    is any wider.
+    """
+    return _build_funnel_mmm(funnel_mmm_data, link="log", l_max=1)
+
+
+@pytest.fixture
+def funnel_time_varying_media_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM with a time-varying media multiplier.
+
+    Mediation and ``time_index`` interact: the HSGP multiplier evaluates its
+    basis at the window's absolute positions on the date axis, and the window is
+    widened by the mediated reach, so getting either wrong moves the numbers.
+    """
+    return _build_funnel_mmm(funnel_mmm_data, link="log", time_varying_media=True)
+
+
+@pytest.fixture
+def two_mediators_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM carrying two mediated effects of different reach.
+
+    The evaluation window has to be sized for the longer of the two, and the
+    increment has to collect both contributions.  Taking the first reach, or the
+    mean of them, would pass every single-effect test here.
+    """
+    return _build_funnel_mmm(
+        funnel_mmm_data,
+        link="log",
+        effects=[
+            _funnel_effect(prefix="funnel", demand_l_max=1),
+            ChainedMediatorEffect(
+                prefix="slow",
+                upper_transform=_media_transformation(
+                    "upper_slow", ("channel",), FUNNEL_L_MAX, beta_sigma=3.0
+                ),
+                demand_transform=_media_transformation(
+                    "demand_slow", (), FUNNEL_L_MAX + 2, beta_sigma=3.0
+                ),
+            ),
+        ],
+    )
+
+
+def _build_simple_effect_mmm(data, effect, link="log"):
+    """Fit an MMM carrying one arbitrary ``mu_effect``.
+
+    Separate from :func:`_build_funnel_mmm` because the effects it serves have
+    no data variables of their own, so the model can be built from the frame the
+    other identity-link fixtures use.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=FUNNEL_L_MAX),
+        saturation=LogisticSaturation(),
+        link=link,
+    )
+    mmm.add_mu_effect(effect)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(mmm, data["X_df"], data["y_series"], random_seed=seed)
+    return mmm
+
+
+@pytest.fixture
+def global_normalization_fitted_mmm(funnel_mmm_data):
+    """MMM whose effect normalizes spend by its mean over the whole date axis."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, GlobalNormalizationEffect(prefix="global")
+    )
+
+
+@pytest.fixture
+def duck_typed_baseline_effect_fitted_mmm(funnel_mmm_data):
+    """MMM with a duck-typed effect that does not read spend."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, DuckTypedEffect(prefix="duck", reads_spend=False)
+    )
+
+
+@pytest.fixture
+def duck_typed_spend_effect_fitted_mmm(funnel_mmm_data):
+    """MMM with a duck-typed effect that *does* read spend."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, DuckTypedEffect(prefix="duck", reads_spend=True)
+    )
+
+
+@pytest.fixture
+def negative_effect_fitted_mmm(funnel_mmm_data):
+    """Additive MMM whose mediated effect subtracts from the response."""
+    return _build_simple_effect_mmm(
+        funnel_mmm_data, NegativeEffect(prefix="cannibal"), link="identity"
+    )
+
+
+@pytest.fixture
+def panel_mediated_fitted_mmm(panel_mmm_data):
+    """Panel MMM with a spend-dependent effect, so ``channel_axis`` is not zero.
+
+    ``channel_data`` is laid out ``(date, country, channel)`` here, so a
+    per-channel perturbation has to index the last axis rather than the first.
+    The two happen to coincide in every non-panel fixture, which is exactly why
+    this one exists.
+    """
+    X = panel_mmm_data["X"].copy()
+    for col in X.columns[X.columns.str.startswith("channel_")]:
+        X[col] = X[col].astype(np.float64)
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        dims=("country",),
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.add_mu_effect(SubsetDimsEffect(prefix="global"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(mmm, X, panel_mmm_data["y"], random_seed=seed)
+    return mmm
 
 
 @pytest.fixture

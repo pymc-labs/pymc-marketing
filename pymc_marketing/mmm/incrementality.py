@@ -147,24 +147,37 @@ Three things follow, and they are why mediation is not free:
   nonlinear transform, so no per-channel column survives and each channel
   needs its own perturbation.
 * **The window gets longer.**  A mediated path that chains a second adstock
-  behind the model's own outlives it, so the effect declares how much
-  further it reaches and the evaluation window is sized for the longest
-  path spend can take.
+  behind the model's own outlives it, so the evaluation window is sized for
+  the longest path spend can take -- measured on the graph, not declared.
 
 Estimands
 ---------
-:meth:`Incrementality.compute_incremental_contribution` is *leave-one-out*:
-each channel's number answers "what would we lose without this channel,
-holding the others at their actual spend".
-:meth:`Incrementality.compute_joint_incremental_contribution` perturbs every
-channel at once and answers "how much does media drive in total".
+:meth:`Incrementality.compute_incremental_contribution` is a *unilateral
+intervention*: each channel's number answers "what changes if this channel's
+spend is scaled by ``counterfactual_spend_factor``, holding the others at
+their actual spend".  At the default ``factor = 0`` that is the familiar
+leave-one-out question, "what would we lose without this channel"; at
+``0.5`` it is a halving and at ``1.01`` a one-percent increase, and neither
+is a leave-one-out.
+:meth:`Incrementality.compute_joint_incremental_contribution` applies the
+same factor to every channel at once and answers "how much does media drive
+in total".
 
-The two agree only when the response is additive in the channels, that is
-under ``link="identity"`` with no channel-dependent effect.  Otherwise
-interaction mass is counted by every channel that touches it and the
-leave-one-out numbers sum to *more* than the joint.  Summing per-channel
-increments is therefore not a way to get a total, and the gap is a property
-of the model rather than an error in either number.
+Both intervene on *spend*, which is not the same as removing a channel's
+term from the model: at ``factor = 0`` they coincide only where zero spend
+produces zero contribution, as it does for a saturation through the origin
+but not for one with an intercept.
+
+The two estimands agree only when the response is additive in the channels,
+that is under ``link="identity"`` with no channel-dependent effect.
+Otherwise they differ by the interaction between the channels, and the sign
+of the gap is not fixed: at ``factor = 0`` with strictly positive
+contributions the unilateral numbers sum to *more* than the joint, because
+interaction mass is counted by every channel that touches it, but with
+contributions of mixed sign, or with ``factor > 1``, the gap can go the
+other way.  Summing per-channel increments is not a way to get a total
+either way, and the gap is a property of the model rather than an error in
+either number.
 
 Examples
 --------
@@ -212,30 +225,47 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import pandas as pd
-import pytensor.xtensor as ptx
 import xarray as xr
 from pandas.tseries.offsets import BaseOffset
 from pydantic import ConfigDict, validate_call
-from pytensor import function
+from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
-from pytensor.xtensor.vectorization import vectorize_graph
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.data.idata.utils import subsample_draws
+from pymc_marketing.mmm.counterfactual import (
+    JOINT_CHANNEL,
+    CounterfactualEvaluator,
+    CounterfactualScenarios,
+    Estimand,
+    EvaluationWindows,
+)
 from pymc_marketing.mmm.link import LinkFunction
-from pymc_marketing.pytensor_utils import extract_response_distribution
 
 if TYPE_CHECKING:
     from numpy.random import Generator, RandomState
 
     from pymc_marketing.mmm.mmm import MMM
+
+__all__ = [
+    "JOINT_CHANNEL",
+    "CentralTendency",
+    "CounterfactualEvaluator",
+    "CounterfactualScenarios",
+    "Estimand",
+    "EvaluationWindows",
+    "IdentityLinkReducer",
+    "IncrementalReducer",
+    "Incrementality",
+    "LogLinkReducer",
+]
 
 CentralTendency = Literal["median", "mean"]
 
@@ -377,11 +407,11 @@ class LogLinkReducer(IncrementalReducer):
         return (baseline * np.expm1(delta)).sum(dim="date")
 
 
-JOINT_CHANNEL = -1
-"""Sentinel channel index for the scenario that perturbs every channel at once."""
-
 CHANNEL_CONTRIBUTION = "channel_contribution"
 """Response variable holding the per-channel linear-predictor contribution."""
+
+LINEAR_PREDICTOR = "mu"
+"""Name the MMM gives its linear predictor, registered or not."""
 
 
 @dataclass(frozen=True)
@@ -398,321 +428,74 @@ class ChannelDependentEffect:
     contribution_var : str
         Name of the deterministic holding the term this effect adds to the
         linear predictor.
-    additional_carryover_lags : int
-        Extra evaluation-window length this effect needs, from its
-        :class:`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`.
+    label : str
+        Class name of the originating effect, for error messages.
+    declared_carryover_lags : int or None
+        Extra evaluation-window length declared by the effect's
+        :class:`~pymc_marketing.mmm.additive_effect.IncrementalitySpec`, or
+        ``None`` to have it measured.
+    declared_evaluation_mode : {"auto", "window", "full"}
+        The spec's ``evaluation_mode``.
     """
 
     contribution_var: str
-    additional_carryover_lags: int
-
-
-class DateIndexedInput(NamedTuple):
-    """A date-indexed ``pm.Data`` replaced by a batched evaluator input.
-
-    Parameters
-    ----------
-    name : str
-        Name of the data variable in the model.
-    values : np.ndarray
-        Its fitted values, with ``date`` first.  Read from the model's own shared
-        variable rather than from ``fit_data``, because an effect's data need not
-        appear there -- the funnel example builds the model from an ``xr.Dataset``
-        carrying the mediator's inputs, then fits from a frame that does not.
-    dtype : str
-        Dtype the compiled evaluator expects.
-    """
-
-    name: str
-    values: np.ndarray
-    dtype: str
+    label: str
+    declared_carryover_lags: int | None
+    declared_evaluation_mode: Literal["auto", "window", "full"]
 
 
 @dataclass(frozen=True)
-class CounterfactualScenarios:
-    """Perturbed spend arrays for every scenario that has to be evaluated.
+class TemporalReach:
+    """How much of the date axis the counterfactual has to be evaluated over.
 
-    A *scenario* is a (period, perturbed channel) pair.  When no ``mu_effect``
-    stands between spend and the response, a single all-channels perturbation
-    per period suffices and every channel reads its own column out of it, so all
-    of a period's keys point at the same row -- see
-    :meth:`Incrementality._build_counterfactual_scenarios`.
-
-    Parameters
-    ----------
-    spend : np.ndarray
-        Counterfactual ``channel_data``, shape
-        ``(n_scenarios, max_window, *extra_shape)``.
-    period_index : np.ndarray
-        Period each scenario belongs to, shape ``(n_scenarios,)``.  Indexes any
-        per-period array (a windowed data variable, a ``time_index`` row) up to
-        the scenario axis.
-    channel_index : np.ndarray
-        Channel each scenario perturbs, shape ``(n_scenarios,)``, or
-        :data:`JOINT_CHANNEL` for the all-channels scenario.
-    rows : dict
-        Maps ``(period_idx, channel_idx)`` to a row of :attr:`spend`, with
-        :data:`JOINT_CHANNEL` as the channel of the all-channels scenario.
-    eval_masks : list of np.ndarray
-        Per-period boolean mask over the padded window selecting the dates that
-        enter the sum.
-    period_labels : list of pd.Timestamp
-        End date of each period.
-    """
-
-    spend: np.ndarray
-    period_index: np.ndarray
-    channel_index: np.ndarray
-    rows: dict[tuple[int, int], int]
-    eval_masks: list[np.ndarray]
-    period_labels: list[pd.Timestamp]
-
-
-class CounterfactualEvaluator:
-    """Compiled batched evaluator for the nodes a spend counterfactual reaches.
-
-    Conditions the model graph on posterior draws, swaps every date-indexed
-    ``pm.Data`` the evaluation needs for a batched input, and compiles *one*
-    function returning all requested nodes.  Extracting the nodes together
-    matters: ``channel_contribution`` and a mediated effect read the same spend
-    data through the same adstock, and a single extraction keeps that subgraph
-    shared instead of computing it once per node.
-
-    The batched inputs are what make a *window* evaluation possible.  The module
-    evaluates counterfactuals on windows of length ``max_window`` rather than on
-    the full date axis, so every date-indexed input in the graph has to be cut
-    to the same window in lockstep -- otherwise the graph is handed a
-    ``max_window``-long spend array and an ``n_dates``-long mediator array.
-    This class discovers those inputs from the graph and windows them itself.
+    Measured by :meth:`Incrementality._measure_temporal_reach` rather than taken
+    on trust, because an effect that under-declares its reach would have its
+    mediated tail cut off by the evaluation window and the increment would come
+    back quietly low.  Measured *per effect*, so that one effect's long tail
+    cannot be held against another effect's honest declaration of a short one.
 
     Parameters
     ----------
-    pymc_model : pm.Model
-        The fitted model whose graph is evaluated.
-    posterior : xr.Dataset
-        Posterior samples (already subsampled).  Draws are flattened into a
-        single ``sample`` axis in chain-major order.
-    response_vars : sequence of str
-        Nodes to evaluate, in the order the results are keyed by.
-    frozen_deterministics : list of str
-        Deterministics to hold at their posterior values instead of recomputing.
-    dates : pd.DatetimeIndex
-        Dates of the fitted data, used to validate the discovered inputs.
-
-    Attributes
-    ----------
-    non_date_dims : dict
-        Per response variable, its dimensions with ``date`` removed, in the
-        model's own order.
-    windowed_data_vars : tuple of str
-        Date-indexed ``pm.Data`` variables discovered in the graph and windowed
-        alongside spend, excluding ``channel_data`` and ``time_index``.
-
-    Raises
-    ------
-    ValueError
-        If ``channel_data`` is not of a floating dtype, or a discovered
-        date-indexed input does not span the fitted date axis.
+    additional_carryover_lags : int
+        Periods beyond the model's own ``adstock.l_max`` over which the effect
+        still moves after a change in spend at a single date.
+    requires_full_axis : bool
+        Whether the effect has to see the complete fitted date axis.  True when
+        a perturbation still moves the contribution at the far end of the axis,
+        or moves dates *before* the perturbed one -- the signature of a
+        reduction over ``date``, which takes a different value on a truncated
+        axis and so cannot be windowed at all.
     """
 
-    CHANNEL_DATA = "channel_data"
-    TIME_INDEX = "time_index"
-
-    def __init__(
-        self,
-        *,
-        pymc_model,
-        posterior: xr.Dataset,
-        response_vars: Sequence[str],
-        frozen_deterministics: list[str],
-        dates: pd.DatetimeIndex,
-    ) -> None:
-        self.response_vars = tuple(response_vars)
-        graphs: list = extract_response_distribution(
-            pymc_model=pymc_model,
-            idata=xr.DataTree.from_dict({"/posterior": posterior}),
-            response_variable=list(self.response_vars),
-            frozen_deterministics=frozen_deterministics,
-        )
-        graph_ancestors = set(ancestors(graphs))
-
-        self.non_date_dims = {
-            name: tuple(
-                d for d in pymc_model.named_vars_to_dims.get(name, ()) if d != "date"
-            )
-            for name in self.response_vars
-        }
-
-        # Spend: the input the counterfactual actually perturbs.  float64 is
-        # required so that a fractional counterfactual_spend_factor (1.01, say)
-        # is not truncated.
-        channel_data = pymc_model[self.CHANNEL_DATA]
-        if np.dtype(channel_data.dtype).kind != "f":
-            raise ValueError(
-                "Incrementality requires channel data of float type, got "
-                f"{channel_data.dtype}"
-            )
-        self.channel_dtype = channel_data.dtype
-        replace: dict = {channel_data: self._batched(channel_data, "channel_data")}
-        func_inputs: list = [replace[channel_data]]
-
-        # time_index: only replaced when the graph actually reads it (with
-        # time_varying_intercept but not time_varying_media it is unused, and
-        # passing it would raise UnusedInputError).
-        self.time_dtype: str | None = None
-        if (
-            self.TIME_INDEX in pymc_model.named_vars
-            and pymc_model[self.TIME_INDEX] in graph_ancestors
-        ):
-            time_index = pymc_model[self.TIME_INDEX]
-            self.time_dtype = time_index.dtype
-            replace[time_index] = self._batched(time_index, "time_index")
-            func_inputs.append(replace[time_index])
-
-        # Any other date-indexed pm.Data the graph reads.  For a plain MMM there
-        # are none; a mediated effect brings its own (an exogenous budget, a
-        # category-demand series).  Discovery is by graph traversal rather than
-        # by declaration so an effect cannot forget to mention one.
-        self._aux: list[DateIndexedInput] = []
-        for data in self._date_indexed_data(pymc_model, graph_ancestors):
-            values = np.asarray(data.eval())
-            if values.shape[0] != len(dates):
-                raise ValueError(
-                    f"Date-indexed data variable {data.name!r} has "
-                    f"{values.shape[0]} rows but the fitted data has "
-                    f"{len(dates)} dates.  Incrementality needs it to span the "
-                    "fitted date axis so it can be windowed alongside spend."
-                )
-            batched = self._batched(data, data.name)
-            replace[data] = batched
-            func_inputs.append(batched)
-            self._aux.append(
-                DateIndexedInput(name=data.name, values=values, dtype=data.dtype)
-            )
-
-        self._evaluator = function(
-            func_inputs, vectorize_graph(graphs, replace=replace)
-        )
-
-    @property
-    def windowed_data_vars(self) -> tuple[str, ...]:
-        """Names of the auxiliary date-indexed inputs discovered in the graph."""
-        return tuple(aux.name for aux in self._aux)
-
-    @staticmethod
-    def _batched(variable, name: str):
-        """Return a batched xtensor standing in for a date-indexed input."""
-        return ptx.xtensor(
-            name=f"{name}_batched",
-            dtype=variable.dtype,
-            shape=(None, *variable.type.shape),
-            dims=("__batch__", *variable.type.dims),
-        )
+    additional_carryover_lags: int
+    requires_full_axis: bool
 
     @classmethod
-    def _date_indexed_data(cls, pymc_model, graph_ancestors: set) -> list:
-        """Date-indexed ``pm.Data`` the graph reads, other than the two handled above.
+    def none(cls) -> TemporalReach:
+        """Return the reach of an effect a change in spend does not move."""
+        return cls(additional_carryover_lags=0, requires_full_axis=False)
+
+    @classmethod
+    def widest(cls, reaches: Iterable[TemporalReach]) -> TemporalReach:
+        """Combine per-effect reaches into the one an evaluation has to satisfy.
 
         Parameters
         ----------
-        pymc_model : pm.Model
-            The model being evaluated.
-        graph_ancestors : set
-            Ancestors of the extracted response graphs.
+        reaches : iterable of TemporalReach
+            The individual reaches.  Empty means nothing to accommodate.
 
         Returns
         -------
-        list
-            The data variables, in the model's declaration order so that the
-            compiled signature is deterministic.
+        TemporalReach
+            Long enough for the longest, and full-axis if any one of them is.
         """
-        handled = {cls.CHANNEL_DATA, cls.TIME_INDEX}
-        return [
-            data
-            for data in pymc_model.data_vars
-            if data in graph_ancestors
-            and data.name not in handled
-            and "date" in pymc_model.named_vars_to_dims.get(data.name, ())
-        ]
-
-    def evaluate_baseline(self, channel_data: np.ndarray) -> dict[str, np.ndarray]:
-        """Evaluate every node on the actual data, over the full date axis.
-
-        Parameters
-        ----------
-        channel_data : np.ndarray
-            Actual spend, shape ``(n_dates, *extra_shape)``.
-
-        Returns
-        -------
-        dict
-            Per response variable, an array of shape
-            ``(n_samples, n_dates, *non_date_dims)``.
-        """
-        args: list[np.ndarray] = [channel_data[np.newaxis].astype(self.channel_dtype)]
-        if self.time_dtype is not None:
-            args.append(
-                np.arange(len(channel_data))[np.newaxis].astype(self.time_dtype)
-            )
-        args.extend(aux.values[np.newaxis].astype(aux.dtype) for aux in self._aux)
-        return {
-            name: out[0]
-            for name, out in zip(
-                self.response_vars, self._evaluator(*args), strict=True
-            )
-        }
-
-    def evaluate_counterfactual(
-        self,
-        scenarios: CounterfactualScenarios,
-        *,
-        window_infos: list[dict],
-        max_window: int,
-        dates: pd.DatetimeIndex,
-    ) -> dict[str, np.ndarray]:
-        """Evaluate every node on all counterfactual scenarios in one call.
-
-        Auxiliary date-indexed inputs are windowed here rather than by the
-        caller, then broadcast from per-period to per-scenario via
-        :attr:`CounterfactualScenarios.period_index`.
-
-        Parameters
-        ----------
-        scenarios : CounterfactualScenarios
-            Perturbed spend and its scenario bookkeeping.
-        window_infos : list of dict
-            Per-period window metadata from
-            :meth:`Incrementality._compute_window_metadata`.
-        max_window : int
-            Padded window length.
-        dates : pd.DatetimeIndex
-            Dates of the fitted data.
-
-        Returns
-        -------
-        dict
-            Per response variable, an array of shape
-            ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
-        """
-        args: list[np.ndarray] = [scenarios.spend]
-        if self.time_dtype is not None:
-            args.append(
-                Incrementality._build_time_index_array(
-                    window_infos=window_infos,
-                    dates=dates,
-                    max_window=max_window,
-                    dtype=self.time_dtype,
-                )[scenarios.period_index]
-            )
-        for aux in self._aux:
-            windowed = Incrementality._window_date_axis(
-                values=aux.values,
-                window_infos=window_infos,
-                max_window=max_window,
-                dtype=aux.dtype,
-            )
-            args.append(windowed[scenarios.period_index])
-        return dict(zip(self.response_vars, self._evaluator(*args), strict=True))
+        reaches = list(reaches)
+        return cls(
+            additional_carryover_lags=max(
+                (reach.additional_carryover_lags for reach in reaches), default=0
+            ),
+            requires_full_axis=any(reach.requires_full_axis for reach in reaches),
+        )
 
 
 class Incrementality:
@@ -753,6 +536,26 @@ class Incrementality:
     >>> incr = mmm.incrementality
     >>> roas = incr.contribution_over_spend(frequency="quarterly")
     >>> cac = incr.spend_over_contribution(frequency="monthly")
+    """
+
+    REACH_TOLERANCE = 1e-9
+    """Relative size below which a probed move counts as no move at all.
+
+    :meth:`_measure_temporal_reach` compares each date's move against the
+    largest move the same effect makes, so the threshold is scale-free.  The
+    tails it is applied to decay geometrically and are usually cut to exactly
+    zero by an adstock's own truncation, which puts the real signal many orders
+    of magnitude above float noise.
+    """
+
+    COMPLETENESS_TOLERANCE = 1e-6
+    """Relative slack allowed between the predictor's move and the accounted one.
+
+    :meth:`_assert_increment_is_complete` compares two float sums of the same
+    terms in different orders, so they agree to rounding and not beyond.  An
+    unaccounted path, by contrast, leaves a discrepancy of the size of a real
+    contribution -- there is nothing in between for the threshold to have to
+    discriminate.
     """
 
     def __init__(
@@ -940,6 +743,17 @@ class Incrementality:
         event window, seasonality -- are part of the baseline.  They cancel in
         the difference and are skipped without consulting their spec.
 
+        An effect whose contribution cannot be located at all is *not* an error
+        here.  Duck-typed effects are a documented pattern (see the module
+        docstring of :mod:`~pymc_marketing.mmm.additive_effect`) and need not
+        carry a ``contribution_var_name``; a ``MuEffect`` built without a
+        ``prefix`` raises rather than returning one.  Neither says anything
+        about whether spend reaches the effect, so the failure is deferred: such
+        an effect is left unaccounted, and
+        :meth:`_assert_no_unaccounted_spend_paths` raises only if a spend path
+        really does escape through it.  Raising eagerly instead would break
+        every model that merely *owns* such an effect.
+
         Returns
         -------
         tuple of ChannelDependentEffect
@@ -950,10 +764,10 @@ class Incrementality:
         Raises
         ------
         NotImplementedError
-            If an effect depends on ``channel_data`` but has not opted in via
-            :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`,
-            or if its contribution cannot be located in the model at all.  Both
-            are refusals to guess: the alternative is dropping a real part of the
+            If an effect is known to depend on ``channel_data`` but has not
+            opted in via
+            :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
+            A refusal to guess: the alternative is dropping a real part of the
             increment and reporting the remainder as if it were the whole.
         ValueError
             If an included effect's contribution carries dimensions outside
@@ -968,28 +782,16 @@ class Incrementality:
             label = type(effect).__name__
             try:
                 name = effect.contribution_var_name
-            except NotImplementedError as exc:
-                raise NotImplementedError(
-                    f"Incrementality cannot analyse the mu_effect {label!r} "
-                    "because it does not expose 'contribution_var_name', so "
-                    "there is no way to tell whether a spend counterfactual "
-                    "reaches it.  Define that property (see MuEffect) to make "
-                    "the effect analysable."
-                ) from exc
+            except (AttributeError, NotImplementedError):
+                continue
             if name not in model.named_vars:
-                raise NotImplementedError(
-                    f"The mu_effect {label!r} declares its contribution as "
-                    f"{name!r}, which is not a variable of the model, so "
-                    "incrementality cannot tell whether a spend counterfactual "
-                    "reaches it.  Register the contribution as a Deterministic "
-                    "under that name."
-                )
+                continue
 
             node = model[name]
             if channel_data not in set(ancestors([node])):
                 continue
 
-            spec = effect.incrementality_spec()
+            spec = getattr(effect, "incrementality_spec", lambda: None)()
             if spec is None:
                 raise NotImplementedError(
                     f"The mu_effect {label!r} contributes {name!r}, which "
@@ -1014,34 +816,356 @@ class Incrementality:
             resolved.append(
                 ChannelDependentEffect(
                     contribution_var=name,
-                    additional_carryover_lags=spec.additional_carryover_lags,
+                    label=label,
+                    declared_carryover_lags=spec.additional_carryover_lags,
+                    declared_evaluation_mode=spec.evaluation_mode,
                 )
             )
 
         return tuple(resolved)
 
+    def _linear_predictor(self) -> Variable | None:
+        """Find the node the increment is assembled to reproduce.
+
+        Under a log link the MMM registers its linear predictor as the
+        ``Deterministic`` ``mu``.  Under an identity link the same quantity is
+        an anonymous intermediate that only carries the *name* ``mu``, so it has
+        to be recovered from the graph of the observed variable.
+
+        Returns
+        -------
+        Variable or None
+            The linear predictor, or ``None`` if this model does not expose one
+            -- in which case :meth:`_assert_increment_is_complete` has nothing
+            to check against and says so.
+        """
+        model = self.model.model
+        if LINEAR_PREDICTOR in model.named_vars:
+            if LINEAR_PREDICTOR in self.model.frozen_deterministics:
+                # Frozen at its posterior value, so it would not respond to the
+                # probe and the completeness check would compare zero to zero.
+                return None
+            return model[LINEAR_PREDICTOR]
+
+        output_var = self.model.output_var
+        if output_var not in model.named_vars:
+            return None
+        observed = model[output_var]
+        return next(
+            (
+                node
+                for node in ancestors([observed])
+                if getattr(node, "name", None) == LINEAR_PREDICTOR
+                and node is not observed
+            ),
+            None,
+        )
+
+    def _assert_increment_is_complete(
+        self,
+        *,
+        baseline: dict[str, np.ndarray],
+        probed: dict[str, np.ndarray],
+        effects: Sequence[ChannelDependentEffect],
+        non_date_dims: Mapping[str, tuple[str, ...]],
+    ) -> None:
+        r"""Check the evaluated nodes account for the whole move in the predictor.
+
+        Everything downstream rests on one identity:
+
+        .. math::
+
+            \Delta \mu_t = \sum_c \Delta v_{t,c} + \sum_j \Delta e_{t,j}
+
+        -- spend moves the linear predictor through ``channel_contribution`` and
+        the resolved effects, and through nothing else.  Up to here that is an
+        assumption, and three separate mistakes break it silently: an effect
+        that reports the wrong contribution variable, an effect that cannot be
+        attributed at all, and a model-level node that reads ``channel_data``
+        outside any effect.  Each drops a real part of the increment and reports
+        the remainder as if it were the whole.
+
+        So it is checked rather than assumed, against the probe evaluation that
+        :meth:`_measure_temporal_reach` already paid for.  A structural check --
+        does spend reach :math:`\mu` other than through the accounted nodes --
+        would miss the misreporting case, because a variable *upstream* of the
+        true contribution blocks the same paths while entering :math:`\mu`
+        through a nonlinearity that makes the sum above false.
+
+        Parameters
+        ----------
+        baseline : dict
+            Unperturbed evaluation, per node.
+        probed : dict
+            Evaluation under the single-date probe perturbation, per node.
+        effects : sequence of ChannelDependentEffect
+            The effects being evaluated alongside ``channel_contribution``.
+        non_date_dims : mapping
+            Per node, the dimensions its evaluation carries after ``sample`` and
+            ``date``.  The terms are added by name: an effect may legitimately
+            drop a dimension the predictor has, and a panel model's predictor
+            need not order the ones it keeps the way spend does.
+
+        Raises
+        ------
+        NotImplementedError
+            If the accounted nodes do not reproduce the predictor's move.
+        """
+        if LINEAR_PREDICTOR not in baseline:
+            return
+
+        def moved(name: str) -> xr.DataArray:
+            return xr.DataArray(
+                probed[name] - baseline[name],
+                dims=("sample", "date", *non_date_dims[name]),
+            )
+
+        # channel_contribution carries a channel dimension the predictor does
+        # not: it enters mu summed over channels.
+        accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
+        for effect in effects:
+            accounted = accounted + moved(effect.contribution_var)
+
+        expected = moved(LINEAR_PREDICTOR)
+        expected, accounted = xr.broadcast(expected, accounted)
+        scale = float(np.abs(expected).max())
+        if scale == 0.0 or np.allclose(
+            accounted.values,
+            expected.values,
+            rtol=0.0,
+            atol=self.COMPLETENESS_TOLERANCE * scale,
+        ):
+            return
+
+        accounted_names = ", ".join(
+            [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
+        )
+        largest = float(np.abs(accounted - expected).max()) / scale
+        raise NotImplementedError(
+            "Perturbing channel spend moved the linear predictor by more than "
+            f"the variables incrementality is evaluating ({accounted_names}) "
+            f"account for -- by {largest:.1%} of the predictor's own largest "
+            "move.  Some path from spend to the response is unattributed, so "
+            "the increment would report part of it as the whole.  Every "
+            "mu_effect that spend reaches has to register the term it adds to "
+            "the linear predictor as a Deterministic, return that name from "
+            "'contribution_var_name', and opt in through 'incrementality_spec'."
+        )
+
     @staticmethod
-    def _effective_l_max(l_max: int, effects: Sequence[ChannelDependentEffect]) -> int:
+    def _probe_spend(
+        *,
+        evaluator: CounterfactualEvaluator,
+        baseline_array: np.ndarray,
+        counterfactual_spend_factor: float,
+    ) -> tuple[dict[str, np.ndarray], int]:
+        """Evaluate every node with spend at one interior date perturbed.
+
+        A single-date perturbation on the untruncated axis is what makes the
+        two properties the module cannot afford to assume observable: how far
+        forward a change in spend still moves each effect, and whether the
+        evaluated nodes account for the whole move in the linear predictor.
+
+        Parameters
+        ----------
+        evaluator : CounterfactualEvaluator
+            Compiled evaluator over the accounted nodes.
+        baseline_array : np.ndarray
+            Actual spend, ``(n_dates, *extra_shape)``.
+        counterfactual_spend_factor : float
+            The factor the caller will apply, so the measurement is taken where
+            the analysis will be run.  A factor of exactly ``1.0`` perturbs
+            nothing, so the probe falls back to zeroing the date out.
+
+        Returns
+        -------
+        tuple of (dict, int)
+            The evaluation, per node, and the index of the perturbed date.
+        """
+        n_dates = baseline_array.shape[0]
+        # Far enough in that a forward tail has room to show, near enough the
+        # front that a backward move has room too.
+        probe_index = n_dates // 4
+        factor = (
+            counterfactual_spend_factor if counterfactual_spend_factor != 1.0 else 0.0
+        )
+
+        probe_array = baseline_array.astype(evaluator.channel_dtype, copy=True)
+        probe_array[probe_index] = probe_array[probe_index] * factor
+        return evaluator.evaluate_baseline(probe_array), probe_index
+
+    def _measure_temporal_reach(
+        self,
+        *,
+        effects: Sequence[ChannelDependentEffect],
+        baseline: dict[str, np.ndarray],
+        probed: dict[str, np.ndarray],
+        probe_index: int,
+        l_max: int,
+    ) -> dict[str, TemporalReach]:
+        r"""Measure how far in time a change in spend moves the included effects.
+
+        The evaluation window is sized by this number, so getting it from the
+        effect's own declaration alone is a hazard: declare too little and the
+        mediated tail falls outside the window, which returns a smaller
+        increment with no indication anything was cut.  So it is measured.  Each
+        effect's contribution under :meth:`_probe_spend` is compared against the
+        baseline, and the last date that moves by more than
+        :attr:`REACH_TOLERANCE` of that effect's largest move fixes its reach.
+
+        Two outcomes select full-axis evaluation instead of a window: a
+        perturbation that still moves the far end of the axis (reach longer than
+        the axis can show), and one that moves dates *before* the perturbed one.
+        The latter cannot happen through a causal filter and identifies a
+        reduction over ``date`` -- ``x / x.mean("date")`` and its relatives --
+        whose value depends on the whole series, so no window reproduces it.
+
+        Parameters
+        ----------
+        effects : sequence of ChannelDependentEffect
+            The effects to measure.  Empty means nothing to measure.
+        baseline : dict
+            Baseline evaluation, per node ``(n_samples, n_dates, *non_date_dims)``.
+        probed : dict
+            Probe evaluation, same shapes.
+        probe_index : int
+            Index of the perturbed date.
+        l_max : int
+            The model's own ``adstock.l_max``, subtracted from the measured
+            reach because the window already carries it.
+
+        Returns
+        -------
+        dict
+            One :class:`TemporalReach` per effect, keyed by contribution
+            variable.  Per effect rather than aggregated, because the
+            declaration each one is checked against is its own: a slow mediator
+            beside a fast one must not make the fast one's honest declaration
+            look like an under-declaration.
+        """
+        measured: dict[str, TemporalReach] = {}
+        for effect in effects:
+            name = effect.contribution_var
+            # Collapse samples and every non-date dim: the question is which
+            # dates moved, not which cells.
+            per_date = np.abs(probed[name] - baseline[name])
+            n_dates = per_date.shape[1]
+            per_date = per_date.reshape(per_date.shape[0], n_dates, -1).max(axis=(0, 2))
+            largest = per_date.max()
+            if largest == 0.0:
+                measured[name] = TemporalReach.none()
+                continue
+
+            moved = per_date > self.REACH_TOLERANCE * largest
+            last_moved = int(np.flatnonzero(moved)[-1])
+            if moved[:probe_index].any() or last_moved == n_dates - 1:
+                measured[name] = TemporalReach(
+                    additional_carryover_lags=0, requires_full_axis=True
+                )
+                continue
+            measured[name] = TemporalReach(
+                additional_carryover_lags=max(last_moved - probe_index - l_max, 0),
+                requires_full_axis=False,
+            )
+
+        return measured
+
+    @staticmethod
+    def _reconcile_declared_reach(
+        effects: Sequence[ChannelDependentEffect],
+        measured: Mapping[str, TemporalReach],
+    ) -> TemporalReach:
+        """Combine measured reach with what the effects declared.
+
+        A declaration wider than the measurement is honoured -- a wider window
+        only costs compute, and a caller may know of a tail the probe's single
+        perturbation left below tolerance.  A narrower one is rejected rather
+        than quietly overridden, because it is evidence that the effect's author
+        believes something false about it.  Each declaration is judged against
+        that effect's own measurement, and only then are the results combined.
+
+        Parameters
+        ----------
+        effects : sequence of ChannelDependentEffect
+            Effects whose specs are being reconciled.
+        measured : mapping
+            Per-effect result of :meth:`_measure_temporal_reach`.  An effect
+            missing from it was not measured to move at all.
+
+        Returns
+        -------
+        TemporalReach
+            The reach to size the evaluation with.
+
+        Raises
+        ------
+        ValueError
+            If an effect declares fewer carryover lags than were measured for
+            it, or declares ``evaluation_mode="window"`` while being measured to
+            need the full axis.
+        """
+        reconciled: list[TemporalReach] = []
+        for effect in effects:
+            own = measured.get(effect.contribution_var, TemporalReach.none())
+            lags = own.additional_carryover_lags
+            requires_full_axis = own.requires_full_axis
+
+            declared = effect.declared_carryover_lags
+            if declared is not None:
+                if declared < lags:
+                    raise ValueError(
+                        f"The mu_effect {effect.label!r} declares "
+                        f"additional_carryover_lags={declared}, but a change in "
+                        "spend was measured still moving "
+                        f"{effect.contribution_var!r} {lags} periods further "
+                        "than the model's own adstock.  Evaluating on the "
+                        "declared window would cut that tail off and understate "
+                        f"the increment.  Raise the declaration to at least "
+                        f"{lags}, or drop it and have it measured."
+                    )
+                lags = max(lags, declared)
+
+            if effect.declared_evaluation_mode == "full":
+                requires_full_axis = True
+            elif effect.declared_evaluation_mode == "window" and requires_full_axis:
+                raise ValueError(
+                    f"The mu_effect {effect.label!r} declares "
+                    "evaluation_mode='window', but a change in spend at one "
+                    f"date was measured moving {effect.contribution_var!r} "
+                    "either before that date or all the way to the end of the "
+                    "date axis.  Neither is reproducible on a window, so the "
+                    "declaration would produce a truncated evaluation.  Use "
+                    "'auto' or 'full'."
+                )
+
+            reconciled.append(
+                TemporalReach(
+                    additional_carryover_lags=lags,
+                    requires_full_axis=requires_full_axis,
+                )
+            )
+
+        return TemporalReach.widest(reconciled)
+
+    @staticmethod
+    def _effective_l_max(l_max: int, reach: TemporalReach) -> int:
         """Evaluation-window half-length covering every path spend can take.
 
         Parameters
         ----------
         l_max : int
             The model's own ``adstock.l_max``, which bounds the direct path.
-        effects : sequence of ChannelDependentEffect
-            Included effects, each declaring how much further it propagates a
-            change in spend.
+        reach : TemporalReach
+            Measured (and declaration-reconciled) reach of the included effects.
 
         Returns
         -------
         int
-            ``l_max`` plus the largest declared extra carryover.  A mediated
-            path that chains a second adstock outlives the direct one, and a
-            window sized for the direct path alone would cut the tail off.
+            ``l_max`` plus the effects' extra carryover.  A mediated path that
+            chains a second adstock outlives the direct one, and a window sized
+            for the direct path alone would cut the tail off.
         """
-        return l_max + max(
-            (effect.additional_carryover_lags for effect in effects), default=0
-        )
+        return l_max + reach.additional_carryover_lags
 
     # ==================== Core Computation ====================
 
@@ -1138,10 +1262,12 @@ class Incrementality:
             Both total and marginal incrementality are therefore positive for
             channels with a positive effect.
 
-            **Estimand**: each channel's number is *leave-one-out* -- what would
-            be lost without that channel, with the others at actual spend.  They
-            sum to the total only when the response is additive in the channels;
-            see :meth:`compute_joint_incremental_contribution`.
+            **Estimand**: each channel's number is a *unilateral intervention*
+            -- what changes when that channel's spend is scaled by *α*, with the
+            others at actual spend.  At *α = 0* that is the leave-one-out
+            question.  The numbers sum to the total only when the response is
+            additive in the channels; see
+            :meth:`compute_joint_incremental_contribution`.
 
         Raises
         ------
@@ -1234,13 +1360,20 @@ class Incrementality:
         This is a different estimand from summing
         :meth:`compute_incremental_contribution` over ``channel``, and the
         difference is not an error in either of them.  Per-channel increments are
-        *leave-one-out*: each answers "what would we lose without this channel,
-        holding the others at their actual spend".  Whenever the response is not
-        additive in the channels -- under ``link="log"``, or when a ``mu_effect``
-        mixes channels before they reach the response -- the two disagree,
-        because interaction mass is counted by every channel that touches it.
-        Under ``link="identity"`` with no channel-dependent effects they
-        coincide exactly.
+        *unilateral*: each answers "what changes if this channel's spend is
+        scaled by *α*, holding the others at their actual spend" -- at the
+        default *α = 0*, "what would we lose without this channel".  Whenever the
+        response is not additive in the channels -- under ``link="log"``, or when
+        a ``mu_effect`` mixes channels before they reach the response -- the two
+        disagree by the interaction between the channels.  Under
+        ``link="identity"`` with no channel-dependent effects they coincide
+        exactly.
+
+        The direction of the disagreement is not fixed.  With strictly positive
+        contributions at *α = 0* the unilateral numbers sum to more than the
+        joint, since interaction mass is counted by every channel that touches
+        it; with contributions of mixed sign, or with *α > 1*, the sum can fall
+        short instead.  Either way it is not a total.
 
         Report this number when the question is "how much of the target does
         media drive in total", and the per-channel ones when the question is
@@ -1277,25 +1410,26 @@ class Incrementality:
 
         Examples
         --------
-        Total media incrementality, and how much per-channel numbers overcount it:
+        Total media incrementality, and how far the per-channel numbers are from
+        it:
 
         .. code-block:: python
 
             joint = mmm.incrementality.compute_joint_incremental_contribution(
                 frequency="all_time"
             )
-            loo = mmm.incrementality.compute_incremental_contribution(
+            unilateral = mmm.incrementality.compute_incremental_contribution(
                 frequency="all_time"
             )
-            overlap = (
-                loo.sum("channel").mean(("chain", "draw"))
+            interaction = (
+                unilateral.sum("channel").mean(("chain", "draw"))
                 / joint.mean(("chain", "draw"))
                 - 1
             )
 
         See Also
         --------
-        compute_incremental_contribution : Per-channel, leave-one-out increments.
+        compute_incremental_contribution : Per-channel, unilateral increments.
         """
         return self._compute_increments(
             estimand="joint",
@@ -1394,9 +1528,6 @@ class Incrementality:
         dates = self.data.dates
         periods = self._create_period_groups(start_date_ts, end_date_ts, frequency)
 
-        # A mediated path outlives the direct one, so the window is sized for the
-        # longest path spend can take, not just for the model's own adstock.
-        l_max = self._effective_l_max(self.model.adstock.l_max, effects)
         inferred_freq: str | None = pd.infer_freq(dates)
         if inferred_freq is None:
             raise ValueError(
@@ -1408,13 +1539,20 @@ class Incrementality:
 
         # Compile one batched evaluator over every node the counterfactual
         # reaches: channel_contribution plus each included effect's contribution.
+        # A model carrying mu_effects also evaluates the linear predictor, whose
+        # only use is the completeness check below -- it costs a few additions
+        # on top of a subgraph already being computed, and it is the difference
+        # between assuming the increment is complete and knowing it.
         posterior_predictive_model = self.model.model
+        effect_names = tuple(effect.contribution_var for effect in effects)
+        predictor = self._linear_predictor() if self.model.mu_effects else None
         evaluator = CounterfactualEvaluator(
             pymc_model=posterior_predictive_model,
             posterior=posterior_sub,
             response_vars=[
                 CHANNEL_CONTRIBUTION,
-                *(effect.contribution_var for effect in effects),
+                *effect_names,
+                *([predictor] if predictor is not None else []),
             ],
             frozen_deterministics=self.model.frozen_deterministics,
             dates=dates,
@@ -1428,11 +1566,45 @@ class Incrementality:
         baseline = evaluator.evaluate_baseline(baseline_array)
         # Per node: (n_samples, n_dates, *non_date_dims)
 
-        # Compute, for each period, the required window metadata including
-        # the start/end indices into `dates` and any necessary left/right padding,
-        # and determine the maximum window length across all periods.
-        window_infos, max_window = self._compute_window_metadata(
-            periods, dates, l_max, freq_offset, freq
+        # A mediated path outlives the direct one, so the window is sized for
+        # the longest path spend can take, not just for the model's own adstock.
+        # How much longer is measured on the compiled graph rather than taken
+        # from the effects' declarations, which is why this comes after the
+        # baseline: an effect that under-declares its reach would otherwise have
+        # its tail cut off with nothing to show for it.
+        reach = TemporalReach.none()
+        if self.model.mu_effects:
+            probed, probe_index = self._probe_spend(
+                evaluator=evaluator,
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=counterfactual_spend_factor,
+            )
+            self._assert_increment_is_complete(
+                baseline=baseline,
+                probed=probed,
+                effects=effects,
+                non_date_dims=evaluator.non_date_dims,
+            )
+            reach = self._reconcile_declared_reach(
+                effects,
+                self._measure_temporal_reach(
+                    effects=effects,
+                    baseline=baseline,
+                    probed=probed,
+                    probe_index=probe_index,
+                    l_max=self.model.adstock.l_max,
+                ),
+            )
+        l_max = self._effective_l_max(self.model.adstock.l_max, reach)
+
+        # The stretch of dates each period is evaluated over, and the length
+        # they all stack to.
+        windows = EvaluationWindows.build(
+            periods=periods,
+            dates=dates,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            full_axis=reach.requires_full_axis,
         )
 
         # Where a channel sits among channel_data's non-date axes.  Needed only
@@ -1452,10 +1624,7 @@ class Incrementality:
                 "channel"
             )
 
-        scenarios = self._build_counterfactual_scenarios(
-            periods=periods,
-            window_infos=window_infos,
-            max_window=max_window,
+        scenarios = windows.build_scenarios(
             baseline_array=baseline_array,
             counterfactual_spend_factor=counterfactual_spend_factor,
             include_carryover=include_carryover,
@@ -1464,16 +1633,10 @@ class Incrementality:
             dtype=evaluator.channel_dtype,
             channel_axis=channel_axis,
             n_channels=len(self.model.channel_columns),
-            include_joint=estimand == "joint",
+            estimand=estimand,
         )
 
-        # Evaluate all counterfactuals at once
-        counterfactual = evaluator.evaluate_counterfactual(
-            scenarios,
-            window_infos=window_infos,
-            max_window=max_window,
-            dates=dates,
-        )
+        counterfactual = evaluator.evaluate_counterfactual(scenarios, windows=windows)
         # Per node: (n_scenarios, n_samples, max_window, *non_date_dims)
 
         # Assemble results
@@ -1483,6 +1646,7 @@ class Incrementality:
             baseline=baseline,
             counterfactual=counterfactual,
             non_date_dims=evaluator.non_date_dims,
+            effect_names=effect_names,
             dates=dates,
             include_carryover=include_carryover,
             l_max=l_max,
@@ -1549,315 +1713,6 @@ class Incrementality:
         return start_date_ts, end_date_ts
 
     @staticmethod
-    def _compute_window_metadata(
-        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
-        dates: pd.DatetimeIndex,
-        l_max: int,
-        freq_offset: BaseOffset,
-        freq: str,
-    ) -> tuple[list[dict], int]:
-        """Compute per-period window metadata for counterfactual evaluation.
-
-        For each period, determines the ideal window
-        ``[t0 - l_max, t1 + l_max]`` and finds the fitted dates inside it.  The
-        window is *clamped* to the fitted range rather than padded out to the
-        ideal bounds, which is what makes a windowed evaluation agree with a
-        full-axis one on every evaluated date.
-
-        Parameters
-        ----------
-        periods : list of (pd.Timestamp, pd.Timestamp)
-            Period ``(start, end)`` pairs.
-        dates : pd.DatetimeIndex
-            All dates from the fitted data.
-        l_max : int
-            Adstock maximum lag.
-        freq_offset : pd.DateOffset
-            Calendar-aware frequency offset.
-        freq : str
-            Pandas frequency string for ``date_range``.
-
-        Returns
-        -------
-        tuple of (list[dict], int)
-            ``(window_infos, max_window)`` where each dict has keys
-            ``n_actual``, ``in_window`` and ``actual_dates``, and ``max_window``
-            is the longest window, to which shorter ones are right-padded.
-        """
-        window_infos: list[dict] = []
-        for t0, t1 in periods:
-            # Reach back l_max for carry-in context and forward l_max so
-            # carryover is captured; the eval mask decides what is summed.
-            ideal_start = t0 - l_max * freq_offset
-            ideal_end = t1 + l_max * freq_offset
-
-            # Clamp to the fitted dates rather than padding out to the ideal
-            # window.  At the start of the data there is no history to supply,
-            # and the graph's own adstock already pads with zeros there, so a
-            # window starting at the first fitted date reproduces the full-axis
-            # evaluation exactly.  Padding it instead would inject l_max rows of
-            # synthetic history, which is inert for spend (zero in, zero out) but
-            # not for an effect whose contribution at zero spend is its own
-            # intercept.
-            in_window = (dates >= ideal_start) & (dates <= ideal_end)
-            actual_dates = dates[in_window]
-
-            window_infos.append(
-                {
-                    "n_actual": int(in_window.sum()),
-                    "in_window": in_window,
-                    "actual_dates": actual_dates,
-                }
-            )
-
-        # Uniform length so the windows can be stacked for batched evaluation.
-        # Short windows are padded on the right, where a causal filter cannot
-        # reach back from any evaluated date.
-        max_window = max(w["n_actual"] for w in window_infos)
-
-        return window_infos, max_window
-
-    @staticmethod
-    def _window_date_axis(
-        values: np.ndarray,
-        window_infos: list[dict],
-        max_window: int,
-        dtype: str,
-    ) -> np.ndarray:
-        """Cut a date-indexed array into one padded window per period.
-
-        Every date-indexed input of the graph has to be cut the same way, or the
-        window evaluation would mix a windowed spend array with a full-length
-        mediator array.  Trailing positions beyond the window's own length are
-        zero; they exist only so windows of different lengths stack, and no
-        evaluated date reaches them, since the filters involved look backwards.
-
-        Parameters
-        ----------
-        values : np.ndarray
-            Array with ``date`` as its first axis, shape ``(n_dates, *rest)``.
-        window_infos : list of dict
-            Per-period metadata from :meth:`_compute_window_metadata`.
-        max_window : int
-            Padded window length, uniform across periods so windows stack.
-        dtype : str
-            NumPy dtype of the output.
-
-        Returns
-        -------
-        np.ndarray
-            Shape ``(n_periods, max_window, *rest)``.
-        """
-        windowed = np.zeros(
-            (len(window_infos), max_window, *values.shape[1:]), dtype=dtype
-        )
-        for period_idx, info in enumerate(window_infos):
-            windowed[period_idx, : info["n_actual"]] = values[info["in_window"]].astype(
-                dtype
-            )
-        return windowed
-
-    @classmethod
-    def _build_counterfactual_scenarios(
-        cls,
-        periods: list[tuple[pd.Timestamp, pd.Timestamp]],
-        window_infos: list[dict],
-        max_window: int,
-        baseline_array: np.ndarray,
-        counterfactual_spend_factor: float,
-        include_carryover: bool,
-        l_max: int,
-        freq_offset: BaseOffset,
-        dtype: str,
-        channel_axis: int | None,
-        n_channels: int,
-        include_joint: bool,
-    ) -> CounterfactualScenarios:
-        """Build zero-padded counterfactual arrays for batched evaluation.
-
-        Each counterfactual window covers the fitted dates in
-        ``[t0 - l_max, t1 + l_max]``, giving every evaluated date its full
-        carry-in history and capturing carry-out past the period.  Windows shorter
-        than ``max_window`` are right-padded with zeros so they stack for batched
-        evaluation; a causal filter cannot reach back from an evaluated date into
-        that padding.
-
-        Two scenario layouts are produced, and which one applies is the whole
-        difference between a plain MMM and a mediated one:
-
-        * ``channel_axis is None`` -- **separable**.  One all-channels
-          perturbation per period.  Because :math:`v_{t,c}` depends on channel
-          *c*'s spend alone, column *m* of that single scenario already *is*
-          channel *m*'s counterfactual, so every channel key points at the same
-          row and the joint scenario costs nothing extra.
-        * ``channel_axis`` given -- **per channel**.  One perturbation per
-          (period, channel), because a mediated effect mixes channels before
-          reaching the response and no per-channel column survives to be read
-          off.  The joint scenario, when requested, is a further row per period.
-
-        Parameters
-        ----------
-        periods : list of (pd.Timestamp, pd.Timestamp)
-            Period ``(start, end)`` pairs.
-        window_infos : list of dict
-            Per-period metadata from :meth:`_compute_window_metadata`.
-        max_window : int
-            Maximum padded window size across all periods.
-        baseline_array : np.ndarray
-            Actual channel spend data, shape ``(n_dates, *extra_shape)``.
-        counterfactual_spend_factor : float
-            Multiplicative factor for counterfactual spend.
-        include_carryover : bool
-            Whether to include carryover effects in eval mask.
-        l_max : int
-            Evaluation-window half-length, already widened for any mediated
-            path by :meth:`_effective_l_max`.
-        freq_offset : pd.DateOffset
-            Calendar-aware frequency offset.
-        dtype : str
-            NumPy dtype for the output array.
-        channel_axis : int or None
-            Axis of ``channel`` within ``baseline_array``'s non-date axes, or
-            ``None`` to perturb all channels at once.  Panel models lay
-            ``channel_data`` out as ``(date, *custom_dims, channel)``, so this is
-            not always zero.
-        n_channels : int
-            Number of channels.
-        include_joint : bool
-            Whether to emit the all-channels scenario in per-channel mode.  It is
-            always present in separable mode, where it is the only scenario.
-
-        Returns
-        -------
-        CounterfactualScenarios
-            Perturbed spend plus the bookkeeping needed to find the row for a
-            given (period, channel) and to broadcast per-period arrays over
-            scenarios.
-        """
-        separable = channel_axis is None
-        # Index prefix selecting a single channel out of a padded window: dates
-        # come first, then any custom dims that sit ahead of channel.
-        channel_prefix: tuple = (
-            () if channel_axis is None else (slice(None),) * channel_axis
-        )
-        # Actual spend, cut into one window per period.  The counterfactual
-        # factor is applied on top, per scenario.
-        windowed = cls._window_date_axis(
-            values=baseline_array,
-            window_infos=window_infos,
-            max_window=max_window,
-            dtype=dtype,
-        )
-
-        spend: list[np.ndarray] = []
-        period_index: list[int] = []
-        channel_index: list[int] = []
-        rows: dict[tuple[int, int], int] = {}
-        eval_masks: list[np.ndarray] = []
-        period_labels: list[pd.Timestamp] = []
-
-        for period_idx, ((t0, t1), info) in enumerate(
-            zip(periods, window_infos, strict=True)
-        ):
-            period_labels.append(t1)
-
-            # Offsets of [t0, t1] within the padded window: the dates the
-            # counterfactual factor applies to.
-            if info["n_actual"] > 0:
-                in_target = (info["actual_dates"] >= t0) & (info["actual_dates"] <= t1)
-                target_offsets = np.where(in_target)[0]
-            else:
-                target_offsets = np.array([], dtype=int)
-
-            perturbed = [JOINT_CHANNEL] if separable else list(range(n_channels))
-            if not separable and include_joint:
-                perturbed.append(JOINT_CHANNEL)
-
-            for channel in perturbed:
-                padded = windowed[period_idx].copy()
-                if channel == JOINT_CHANNEL:
-                    padded[target_offsets] *= counterfactual_spend_factor
-                else:
-                    padded[(target_offsets, *channel_prefix, channel)] *= (
-                        counterfactual_spend_factor
-                    )
-                rows[(period_idx, channel)] = len(spend)
-                spend.append(padded)
-                period_index.append(period_idx)
-                channel_index.append(channel)
-
-            if separable:
-                # One row serves every channel, and it is the joint row too.
-                joint_row = rows[(period_idx, JOINT_CHANNEL)]
-                for channel in range(n_channels):
-                    rows[(period_idx, channel)] = joint_row
-
-            # Eval mask: actual-data positions in [t0, carryout_end].  Only
-            # actual positions, so it stays consistent with the baseline
-            # evaluation, which covers actual dates alone.
-            cf_mask = np.zeros(max_window, dtype=bool)
-            if info["n_actual"] > 0:
-                eval_end = t1 + l_max * freq_offset if include_carryover else t1
-                in_eval = (info["actual_dates"] >= t0) & (
-                    info["actual_dates"] <= eval_end
-                )
-                cf_mask[np.where(in_eval)[0]] = True
-            eval_masks.append(cf_mask)
-
-        return CounterfactualScenarios(
-            spend=np.stack(spend, axis=0),
-            period_index=np.asarray(period_index, dtype=int),
-            channel_index=np.asarray(channel_index, dtype=int),
-            rows=rows,
-            eval_masks=eval_masks,
-            period_labels=period_labels,
-        )
-
-    @staticmethod
-    def _build_time_index_array(
-        window_infos: list[dict],
-        dates: pd.DatetimeIndex,
-        max_window: int,
-        dtype: str,
-    ) -> np.ndarray:
-        """Build batched time_index arrays for counterfactual windows.
-
-        Each window needs a corresponding ``time_index`` array so that
-        HSGP-based latent variables (e.g. ``media_temporal_latent_multiplier``)
-        evaluate their basis functions at the correct temporal positions.
-
-        Parameters
-        ----------
-        window_infos : list of dict
-            Per-period metadata from :meth:`_compute_window_metadata`.
-        dates : pd.DatetimeIndex
-            All dates from the fitted data.
-        max_window : int
-            Maximum padded window size across all periods.
-        dtype : str
-            NumPy dtype for the output array.
-
-        Returns
-        -------
-        np.ndarray
-            Time index array of shape ``(n_periods, max_window)``, where
-            each row contains sequential integer indices corresponding to
-            the temporal positions in the window.  Indices may extend
-            beyond ``[0, n_dates)`` for boundary padding.
-        """
-        time_index_scenarios: list[np.ndarray] = []
-        for info in window_infos:
-            if info["n_actual"] > 0:
-                start_idx = int(np.searchsorted(dates, info["actual_dates"][0]))
-            else:
-                start_idx = 0
-            window_time_index = np.arange(
-                start_idx, start_idx + max_window, dtype=dtype
-            )
-            time_index_scenarios.append(window_time_index)
-        return np.stack(time_index_scenarios, axis=0)
-
-    @staticmethod
     def _delta_mu(
         row: int,
         cf_mask: np.ndarray,
@@ -1865,6 +1720,7 @@ class Incrementality:
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
         non_date_dims: dict[str, tuple[str, ...]],
+        effect_names: Sequence[str],
         channel: int | None,
     ) -> xr.DataArray:
         r"""Change in the linear predictor over one period's evaluation window.
@@ -1900,6 +1756,11 @@ class Incrementality:
             ``(n_scenarios, n_samples, max_window, *non_date_dims)``.
         non_date_dims : dict
             Per response variable, its dimensions with ``date`` removed.
+        effect_names : sequence of str
+            The included effects' contribution variables.  Passed in rather than
+            read off the other arguments' keys, which also carry nodes evaluated
+            for other reasons -- the linear predictor is evaluated to check the
+            increment is complete and must not be added into it.
         channel : int or None
             Channel to read out of ``channel_contribution``, or ``None`` to sum
             the channel dimension away for the joint estimand.
@@ -1923,11 +1784,10 @@ class Incrementality:
             if channel is None
             else channel_delta.isel(channel=channel, drop=True)
         )
-        for name in non_date_dims:
-            if name != CHANNEL_CONTRIBUTION:
-                # xarray aligns by name, so an effect carrying only a subset of
-                # the model's dimensions broadcasts without any reshaping here.
-                delta_mu = delta_mu + delta(name)
+        for name in effect_names:
+            # xarray aligns by name, so an effect carrying only a subset of
+            # the model's dimensions broadcasts without any reshaping here.
+            delta_mu = delta_mu + delta(name)
         return delta_mu
 
     def _compute_period_increments(
@@ -1937,6 +1797,7 @@ class Incrementality:
         baseline: dict[str, np.ndarray],
         counterfactual: dict[str, np.ndarray],
         non_date_dims: dict[str, tuple[str, ...]],
+        effect_names: Sequence[str],
         dates: pd.DatetimeIndex,
         include_carryover: bool,
         l_max: int,
@@ -1970,6 +1831,9 @@ class Incrementality:
             Per response variable, predictions per scenario.
         non_date_dims : dict
             Per response variable, its dimensions with ``date`` removed.
+        effect_names : sequence of str
+            Contribution variables of the included effects, which is a subset of
+            the evaluated nodes.
         dates : pd.DatetimeIndex
             All dates from the fitted data.
         include_carryover : bool
@@ -2043,6 +1907,7 @@ class Incrementality:
                     baseline=period_baseline,
                     counterfactual=counterfactual,
                     non_date_dims=non_date_dims,
+                    effect_names=effect_names,
                     channel=channel,
                 )
                 for key, channel in slices

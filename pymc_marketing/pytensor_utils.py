@@ -268,7 +268,7 @@ def validate_unique_value_vars(model: Model) -> None:
 def extract_response_distribution(
     pymc_model: Model,
     idata: xr.DataTree,
-    response_variable: str,
+    response_variable: str | Variable,
     frozen_deterministics: list[str] | None = ...,
 ) -> Variable: ...
 
@@ -277,7 +277,7 @@ def extract_response_distribution(
 def extract_response_distribution(
     pymc_model: Model,
     idata: xr.DataTree,
-    response_variable: Sequence[str],
+    response_variable: Sequence[str | Variable],
     frozen_deterministics: list[str] | None = ...,
 ) -> list[Variable]: ...
 
@@ -285,7 +285,7 @@ def extract_response_distribution(
 def extract_response_distribution(
     pymc_model: Model,
     idata: xr.DataTree,
-    response_variable: str | Sequence[str],
+    response_variable: str | Variable | Sequence[str | Variable],
     frozen_deterministics: list[str] | None = None,
 ) -> Variable | list[Variable]:
     """Extract the response distribution graph, conditioned on posterior parameters.
@@ -296,13 +296,16 @@ def extract_response_distribution(
         The PyMC model to extract the response distribution from.
     idata : xr.DataTree
         The inference data containing posterior samples.
-    response_variable : str or sequence of str
-        The name of the response variable to extract.  A sequence extracts
-        several variables in a single pass, so any subgraph they share is
-        conditioned, rewritten and vectorized once and stays shared in the
-        result -- which is what makes it cheap to evaluate, say,
-        ``channel_contribution`` alongside a mediated effect that reads the
-        same spend data.
+    response_variable : str, Variable, or sequence of either
+        The response variable to extract, by name or as the graph node itself.
+        A node is accepted because not every interesting quantity is a named
+        variable of the model: an MMM's linear predictor is only registered as a
+        ``Deterministic`` under a log link, and is an anonymous intermediate
+        otherwise.  A sequence extracts several variables in a single pass, so
+        any subgraph they share is conditioned, rewritten and vectorized once
+        and stays shared in the result -- which is what makes it cheap to
+        evaluate, say, ``channel_contribution`` alongside a mediated effect that
+        reads the same spend data.
     frozen_deterministics : list of str, optional
         Names of Deterministic variables to freeze at their posterior values instead of recomputing from the graph.
         Some models (e.g, those containing HSGP) need this to to obtain a valid conditional posterior graph.
@@ -325,13 +328,15 @@ def extract_response_distribution(
 
     # A single name keeps the historical scalar return type; a sequence opts
     # into the list form.  Everything in between is list-shaped.
-    single = isinstance(response_variable, str)
-    names = [response_variable] if single else list(response_variable)
-    if not names:
+    single = isinstance(response_variable, str | Variable)
+    requested = [response_variable] if single else list(response_variable)
+    if not requested:
         raise ValueError("'response_variable' must name at least one variable.")
 
     # The PyMC variables to extract
-    response_vars = [pymc_model[name] for name in names]
+    response_vars = [
+        pymc_model[var] if isinstance(var, str) else var for var in requested
+    ]
 
     # Identify which free RVs are needed to compute `response_var`.
     # Frozen deterministics are treated as additional blockers so their
