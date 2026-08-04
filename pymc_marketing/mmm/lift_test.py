@@ -33,6 +33,7 @@ from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
+from pymc_marketing.mmm.dims import XTensorLike
 
 Index = Sequence[int] | npt.NDArray[np.integer]
 Indices = dict[str, Index]
@@ -703,6 +704,77 @@ def add_lift_measurements_to_likelihood_from_saturation(
         model=model,
         get_indices=get_indices,
     )
+
+
+def add_temporal_lift_observations(
+    df_lift_test: pd.DataFrame,
+    *,
+    forward_pass: Callable[[XTensorLike, tuple[str, ...]], XTensorVariable],
+    model: pm.Model | None = None,
+    name: str = "temporal_lift_measurements",
+    get_indices: Callable[[pd.DataFrame, pm.Model], Indices] = exact_row_indices,
+) -> None:
+    """Add row-wise Normal observations for a temporal lift test schedule.
+
+    The long-form rows define a baseline spend path (``x``) and an intervention
+    path (``x + delta_x``). Both paths are replayed through the model's media
+    transformation, and the selected row-wise differences are observed with a
+    diagonal Normal likelihood using ``sigma``. Covariance between rows is not
+    supported yet.
+    """
+    if "covariance" in df_lift_test.columns or "cov" in df_lift_test.columns:
+        raise NotImplementedError(
+            "Temporal lift covariance is not supported yet. Pass row-wise sigma."
+        )
+
+    required_columns = ["date", "channel", "x", "delta_x", "delta_y", "sigma"]
+    assert_is_subset(set(required_columns), set(df_lift_test.columns))
+    if df_lift_test["sigma"].map(np.ndim).gt(0).any():
+        raise NotImplementedError(
+            "Temporal lift covariance-shaped sigma is not supported yet."
+        )
+
+    current_model: pm.Model = modelcontext(model)
+    required_dims = [
+        dim for dim in current_model.coords if dim in df_lift_test.columns
+    ]
+    assert_is_subset({"date", "channel"}, set(required_dims))
+
+    indices = get_indices(df_lift_test[required_dims], current_model)
+    shape = tuple(len(current_model.coords[dim]) for dim in required_dims)
+    baseline = np.zeros(shape, dtype=float)
+    intervention = np.zeros(shape, dtype=float)
+    row_indices = tuple(indices[dim] for dim in required_dims)
+    baseline[row_indices] = df_lift_test["x"].to_numpy(dtype=float)
+    intervention[row_indices] = (
+        df_lift_test["x"].to_numpy(dtype=float)
+        + df_lift_test["delta_x"].to_numpy(dtype=float)
+    )
+
+    lift_dim = f"_{name}_dim"
+    indices_xr = {k: as_xtensor(v, dims=(lift_dim,)) for k, v in indices.items()}
+    lift_paths = as_xtensor(
+        np.stack([baseline, intervention], axis=-1),
+        dims=(*required_dims, "lift_path"),
+    )
+    contributions = forward_pass(
+        lift_paths,
+        (*tuple(dim for dim in required_dims if dim != "date"), "lift_path"),
+    )
+    model_estimated_lift = (
+        contributions.isel({"lift_path": 1})
+        - contributions.isel({"lift_path": 0})
+    ).isel(indices_xr, missing_dims="ignore")
+
+    with current_model:
+        current_model.add_coord(lift_dim, length=len(df_lift_test))
+        pmd.Deterministic(f"{name}_mu", model_estimated_lift)
+        pmd.Normal(
+            name=name,
+            mu=model_estimated_lift,
+            sigma=as_xtensor(df_lift_test["sigma"].to_numpy(), dims=(lift_dim,)),
+            observed=as_xtensor(df_lift_test["delta_y"].to_numpy(), dims=(lift_dim,)),
+        )
 
 
 def add_cost_per_target_observations(

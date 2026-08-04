@@ -2919,6 +2919,92 @@ def test_add_lift_test_measurements_no_model() -> None:
         )
 
 
+def test_add_temporal_lift_test_measurements(
+    single_dim_data,
+    mock_pymc_sample,
+) -> None:
+    X, y = single_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+    )
+    mmm.build_model(X, y)
+
+    dates = X["date"].iloc[:4].to_numpy()
+    df_temporal_lift = pd.DataFrame(
+        {
+            "date": dates,
+            "channel": "channel_1",
+            "x": [100.0, 0.0, 0.0, 0.0],
+            "delta_x": [50.0, 0.0, 0.0, 0.0],
+            "delta_y": [1.0, 0.5, 0.25, 0.1],
+            "sigma": 1.0,
+        }
+    )
+    temporal_name = "temporal_lift"
+    scalar_name = "scalar_lift"
+
+    mmm.add_temporal_lift_test_measurements(df_temporal_lift, name=temporal_name)
+    mmm.add_lift_test_measurements(
+        df_temporal_lift.drop(columns=["date"]).iloc[[0]],
+        name=scalar_name,
+    )
+
+    assert temporal_name in mmm.model
+    assert f"{temporal_name}_mu" in mmm.model
+    assert scalar_name in mmm.model
+
+    try:
+        mmm.fit(X, y)
+    except Exception as e:
+        pytest.fail(f"Sampling failed with error: {e}")
+
+
+def test_add_temporal_lift_test_measurements_validates_inputs(multi_dim_data) -> None:
+    X, y = multi_dim_data
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    df_temporal_lift = pd.DataFrame(
+        {
+            "date": [X["date"].iloc[0]],
+            "country": [X["country"].iloc[0]],
+            "channel": ["channel_1"],
+            "x": [100.0],
+            "delta_x": [50.0],
+            "delta_y": [1.0],
+            "sigma": [1.0],
+        }
+    )
+
+    with pytest.raises(KeyError, match=r"The 'date' column is required"):
+        mmm.add_temporal_lift_test_measurements(
+            df_temporal_lift.drop(columns=["date"])
+        )
+    with pytest.raises(KeyError, match=r"The 'channel' column is required"):
+        mmm.add_temporal_lift_test_measurements(
+            df_temporal_lift.drop(columns=["channel"])
+        )
+    with pytest.raises(KeyError, match=r"The country column is required"):
+        mmm.add_temporal_lift_test_measurements(
+            df_temporal_lift.drop(columns=["country"])
+        )
+    with pytest.raises(NotImplementedError, match=r"covariance"):
+        mmm.add_temporal_lift_test_measurements(
+            df_temporal_lift.assign(covariance=1.0)
+        )
+
+
 def test_add_calibration_test_measurements(multi_dim_data):
     X, y = multi_dim_data
 
