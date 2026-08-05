@@ -15,69 +15,20 @@
 
 from __future__ import annotations
 
-import copy
 import importlib
 import warnings
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Iterator, Mapping, MutableMapping, Sequence
+from contextlib import contextmanager
 from typing import Any
 
-from pymc_extras.deserialize import deserialize, register_deserialization
-from pymc_extras.prior import Prior
+from pymc_extras.deserialize import DeserializableError, deserialize
 
+from pymc_marketing.model_config import ModelConfigError
 
-def is_alternative_prior(data: Any) -> bool:
-    """Check if the data is a dictionary representing a Prior (alternative check)."""
-    return isinstance(data, dict) and isinstance(data.get("distribution"), str)
-
-
-def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
-    """Alternative deserializer that recursively handles all nested parameters.
-
-    This handles the flat ``{"distribution": ...}`` prior format used by the MMM
-    YAML schema, where any parameter might itself be a nested prior, and also
-    extracts the ``centered`` and ``transform`` parameters.
-
-    Examples
-    --------
-    This handles cases like:
-
-    .. code-block:: yaml
-
-        distribution: Gamma
-        alpha: 1
-        beta:
-            distribution: HalfNormal
-            sigma: 1
-            dims: channel
-        dims: [brand, channel]
-
-    """
-    data = copy.deepcopy(data)
-
-    distribution = data.pop("distribution")
-    dims = data.pop("dims", None)
-    centered = data.pop("centered", True)
-    transform = data.pop("transform", None)
-    parameters = data
-
-    # Recursively deserialize any nested parameters
-    parameters = {
-        key: value if not isinstance(value, dict) else deserialize(value)
-        for key, value in parameters.items()
-    }
-
-    return Prior(
-        distribution,
-        transform=transform,
-        centered=centered,
-        dims=dims,
-        **parameters,
-    )
-
-
-# Register the alternative prior deserializer for the YAML ``{"distribution": ...}``
-# format, which pymc-extras' built-in deserializer does not handle.
-register_deserialization(is_alternative_prior, deserialize_alternative_prior)
+# Importing ``special_priors`` registers the deserializer for the flat YAML
+# ``{"distribution": ...}`` prior format, which pymc-extras' built-in
+# deserializer does not handle.
+import pymc_marketing.special_priors  # noqa: F401  # isort: skip
 
 # Optional short-name registry -------------------------------------------------
 REGISTRY: dict[str, Any] = {
@@ -115,6 +66,21 @@ def locate(qualname: str) -> Any:
         )
     module_obj = importlib.import_module(module)
     return getattr(module_obj, obj_name)
+
+
+@contextmanager
+def _naming(key: str) -> Iterator[None]:
+    """Name *key* on any deserialization failure raised inside the block.
+
+    YAML is the entry point most likely to be hand-edited, and a bare
+    ``DeserializableError`` only dumps the offending sub-dict, which is hard to
+    trace back to a config entry. ``ModelConfigError`` used to name every bad
+    key before dict-format priors were removed; this preserves that.
+    """
+    try:
+        yield
+    except DeserializableError as err:
+        raise ModelConfigError(f"Parameter {key}: {err}") from err
 
 
 def build(spec: Mapping[str, Any]) -> Any:
@@ -170,25 +136,34 @@ def build(spec: Mapping[str, Any]) -> Any:
                             if "class" in prior_value:
                                 priors_dict[prior_key] = build(prior_value)
                             else:
-                                priors_dict[prior_key] = deserialize(prior_value)
+                                with _naming(prior_key):
+                                    priors_dict[prior_key] = deserialize(prior_value)
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
                 elif k == "prior" and "distribution" in v:
-                    kwargs[k] = deserialize(v)
+                    with _naming(k):
+                        kwargs[k] = deserialize(v)
                 elif k == "model_config":
                     # Each entry may be a prior spec ({"distribution": ...}),
                     # an HSGP/other config dict, or a plain value. ``resolve``
                     # deserializes prior specs and leaves everything else as-is,
                     # since ``parse_model_config`` no longer converts dicts.
-                    kwargs[k] = {mk: resolve(mv) for mk, mv in v.items()}
+                    model_config = {}
+                    for mk, mv in v.items():
+                        with _naming(mk):
+                            model_config[mk] = resolve(mv)
+                    kwargs[k] = model_config
                 else:
-                    kwargs[k] = resolve(v)
+                    with _naming(k):
+                        kwargs[k] = resolve(v)
             else:
-                kwargs[k] = resolve(v)
+                with _naming(k):
+                    kwargs[k] = resolve(v)
         else:
             # --- recurse into nested objects for other items -----------------------------------------
-            kwargs[k] = resolve(v)
+            with _naming(k):
+                kwargs[k] = resolve(v)
 
     args = [resolve(v) for v in raw_args]
 
@@ -205,9 +180,9 @@ def resolve(value):
         if "class" in value:
             return build(value)
         # "dist" is the pymc-extras serialization key; "distribution" is the
-        # flat YAML form handled by ``deserialize_alternative_prior``. Require a
-        # string value so non-prior mappings that merely contain such a key are
-        # not misrouted to the prior deserializer.
+        # flat YAML form handled by ``special_priors.deserialize_alternative_prior``.
+        # Require a string value so non-prior mappings that merely contain such
+        # a key are not misrouted to the prior deserializer.
         if (
             isinstance(value.get("distribution"), str)
             or isinstance(value.get("dist"), str)

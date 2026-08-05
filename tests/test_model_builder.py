@@ -1464,3 +1464,29 @@ class TestModelConfigFormattingClassForm:
         model_config = {"settings": {"class": "premium", "tier": 2}}
         result = ModelIO._model_config_formatting(model_config)
         assert result["settings"] == {"class": "premium", "tier": 2}
+
+    def test_non_prior_mapping_with_class_and_data_keys_unchanged(self):
+        """An undeserializable ``class``/``data`` pair falls back to recursion.
+
+        Without the guard this raises ``DeserializableError`` and makes the
+        whole model unloadable, rather than leaving an unrelated config
+        mapping alone.
+        """
+        model_config = {"settings": {"class": "premium", "data": {"tier": 2}}}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result["settings"] == {"class": "premium", "data": {"tier": 2}}
+
+    def test_special_prior_rebuilt_from_dist_form(self):
+        """The ``dist`` branch picks up ``special_priors`` registrations.
+
+        ``Prior.from_dict`` raises ``KeyError`` on these; ``deserialize``
+        dispatches to the registered deserializer.
+        """
+        from pymc_marketing.special_priors import LogNormalPrior
+
+        prior = LogNormalPrior(mu=0, sigma=1)
+        model_config = json.loads(json.dumps({"x": prior.to_dict()}))
+
+        result = ModelIO._model_config_formatting(model_config)
+
+        assert isinstance(result["x"], LogNormalPrior)

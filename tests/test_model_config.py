@@ -173,3 +173,38 @@ def test_parse_model_config_ignores_non_string_legacy_key(legacy_key) -> None:
     result = parse_model_config(model_config)
 
     assert result["settings"] == {legacy_key: {"nested": "mapping"}, "other": 1}
+
+
+def test_parse_model_config_rejects_non_distributions() -> None:
+    """The removed `non_distributions` parameter gets a migration hint.
+
+    Without the `**kwargs` guard this is a bare
+    `TypeError: unexpected keyword argument`, which gives no indication that
+    the parameter was removed rather than misspelled.
+    """
+    with pytest.raises(ModelConfigError, match=r"removed in v1\.0\.0"):
+        parse_model_config({}, non_distributions=["alpha"])
+
+
+def test_parse_model_config_rejects_unknown_kwarg() -> None:
+    """An unrelated stray keyword still raises `TypeError`."""
+    with pytest.raises(TypeError, match="Unexpected keyword arguments"):
+        parse_model_config({}, bogus=1)
+
+
+def test_clv_model_rejects_non_distributions() -> None:
+    """`CLVModel.__init__` accepted `non_distributions` before v1.0.0."""
+    from pymc_marketing.clv.models.basic import CLVModel
+
+    class ConcreteCLVModel(CLVModel):
+        _model_type = "ConcreteCLVModel"
+
+        @property
+        def default_model_config(self):
+            return {"alpha": Prior("Normal", mu=0, sigma=1)}
+
+        def build_model(self) -> None:  # type: ignore[override]
+            raise NotImplementedError
+
+    with pytest.raises(ModelConfigError, match=r"removed in v1\.0\.0"):
+        ConcreteCLVModel(non_distributions=["alpha"])

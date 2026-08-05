@@ -27,9 +27,37 @@ class ModelConfigError(Exception):
 ModelConfig = dict[str, VariableFactory | HSGPKwargs | Prior | Any]
 
 
+REMOVED_PARAMETERS = {
+    "non_distributions": (
+        "The 'non_distributions' parameter was removed in v1.0.0. It is no "
+        "longer needed: entries that are not priors now pass through "
+        "parse_model_config untouched. Drop the argument."
+    ),
+}
+
+
+def _reject_removed_parameters(**kwargs: Any) -> None:
+    """Raise a migration hint for parameters removed in v1.0.0.
+
+    Without this, callers still passing ``non_distributions`` get a bare
+    ``TypeError: unexpected keyword argument``, which gives no indication that
+    the parameter was removed rather than misspelled.
+    """
+    for name in kwargs:
+        if name in REMOVED_PARAMETERS:
+            raise ModelConfigError(REMOVED_PARAMETERS[name])
+
+    if kwargs:
+        raise TypeError(
+            f"Unexpected keyword arguments: {sorted(kwargs)}. "
+            f"Removed parameters: {sorted(REMOVED_PARAMETERS)}."
+        )
+
+
 def parse_model_config(
     model_config: ModelConfig,
     hsgp_kwargs_fields: list[str] | None = None,
+    **kwargs: Any,
 ) -> ModelConfig:
     """Parse the model config dictionary.
 
@@ -39,11 +67,22 @@ def parse_model_config(
         The model configuration dictionary.
     hsgp_kwargs_fields : list[str], optional
         A list of keys to parse as HSGP kwargs.
+    **kwargs
+        Not accepted. Present only so that parameters removed in v1.0.0
+        (``non_distributions``) fail with a migration hint rather than a bare
+        ``TypeError``.
 
     Returns
     -------
     dict
         The parsed model configuration dictionary.
+
+    Raises
+    ------
+    ModelConfigError
+        If an entry looks like a legacy dict-format prior spec, if an
+        ``hsgp_kwargs_fields`` entry fails ``HSGPKwargs`` validation, or if a
+        parameter removed in v1.0.0 is passed.
 
     Examples
     --------
@@ -81,6 +120,8 @@ def parse_model_config(
         #  'other_intercept': {'key': 'Some other non-distribution configuration'}}
 
     """
+    _reject_removed_parameters(**kwargs)
+
     hsgp_kwargs_fields = hsgp_kwargs_fields or []
 
     # Convert to a set for O(1) lookup

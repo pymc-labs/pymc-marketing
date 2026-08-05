@@ -15,7 +15,7 @@
 
 import warnings
 from collections.abc import Sequence
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 import arviz as az
 import pandas as pd
@@ -28,7 +28,11 @@ from pymc.model.core import Model
 from pymc.variational.callbacks import CheckParametersConvergence
 
 from pymc_marketing.model_builder import DifferentModelError, ModelBuilder
-from pymc_marketing.model_config import ModelConfig, parse_model_config
+from pymc_marketing.model_config import (
+    ModelConfig,
+    _reject_removed_parameters,
+    parse_model_config,
+)
 
 
 class CLVModel(ModelBuilder):
@@ -42,7 +46,12 @@ class CLVModel(ModelBuilder):
         *,
         model_config: InstanceOf[ModelConfig] | None = None,
         sampler_config: dict | None = None,
+        **kwargs: Any,
     ):
+        # ``non_distributions`` used to be accepted here; ``**kwargs`` keeps it
+        # failing with a migration hint rather than a bare TypeError.
+        _reject_removed_parameters(**kwargs)
+
         model_config = model_config or {}
 
         super().__init__(model_config, sampler_config)

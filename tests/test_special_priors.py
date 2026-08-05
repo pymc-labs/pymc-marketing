@@ -933,3 +933,38 @@ def test_lognormal_prior_roundtrip_via_deserialize():
     assert isinstance(restored, LogNormalPrior)
     xr.testing.assert_equal(restored.parameters["mean"], mean)
     xr.testing.assert_equal(restored.parameters["std"], std)
+
+
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        pytest.param(
+            {
+                "distribution": "Normal",
+                "mu": 10,
+                "sigma": 1,
+            },
+            Prior("Normal", mu=10, sigma=1),
+            id="another Prior",
+        ),
+        pytest.param(
+            {
+                "distribution": "Laplace",
+                "mu": 1,
+                "b": 2,
+                "dims": ("x", "y"),
+                "transform": "sigmoid",
+            },
+            Prior("Laplace", mu=1, b=2, dims=("x", "y"), transform="sigmoid"),
+            id="Prior",
+        ),
+        pytest.param(
+            {"distribution": "Normal", "mu": {"distribution": "Normal"}},
+            Prior("Normal", mu=Prior("Normal")),
+            id="Prior with nested distribution",
+        ),
+    ],
+)
+def test_alternative_prior_deserialize(data, expected) -> None:
+    """The flat ``{"distribution": ...}`` YAML prior format round-trips."""
+    assert deserialize(data) == expected
