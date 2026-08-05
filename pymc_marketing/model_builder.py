@@ -592,6 +592,18 @@ _APPROX_SAMPLE_KEYS: tuple[str, ...] = ("draws", "return_inferencedata")
 #: has to drop them.
 _NUTS_ONLY_KEYS: tuple[str, ...] = ("target_accept", "nuts", "nuts_sampler", "init")
 
+#: Groups derived from a particular posterior. Dropped before merging a new fit into an
+#: existing ``idata`` so a refit cannot leave e.g. MCMC ``sample_stats`` attached to a
+#: MAP posterior. ``prior``/``prior_predictive`` are posterior-independent and survive.
+_POSTERIOR_DERIVED_GROUPS: tuple[str, ...] = (
+    "sample_stats",
+    "log_likelihood",
+    "posterior_predictive",
+    "predictions",
+    "warmup_posterior",
+    "warmup_sample_stats",
+)
+
 
 def _approx_fit_parameters() -> set[str]:
     """Collect the keyword arguments accepted by the variational fitting stack.
@@ -669,9 +681,16 @@ class ModelFitter:
         ----------
         data : Any, optional
             Data passed to :meth:`fit`. ``None`` means "use whatever the instance
-            already holds".
+            already holds". The base implementation cannot route data anywhere, so
+            it raises rather than silently fitting stale data; subclasses that accept
+            data through :meth:`fit` must override this hook.
 
         """
+        if data is not None:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not accept `data` through `fit()`; "
+                "override `_prepare_fit` to support it."
+            )
         if not hasattr(self, "model"):
             self.build_model()  # type: ignore[attr-defined]
 
@@ -755,7 +774,7 @@ class ModelFitter:
 
     def _fit_MAP(self, **kwargs: Any) -> xr.DataTree:
         """Find the model maximum a posteriori using a scipy optimizer."""
-        model = self.model
+        model = self._get_sampling_model()
         map_res = pm.find_MAP(model=model, **kwargs)
         # Filter non-value variables
         value_vars_names = set(v.name for v in cast(Model, model).value_vars)
@@ -836,7 +855,7 @@ class ModelFitter:
             "callbacks", [CheckParametersConvergence(diff="absolute")]
         )
 
-        with self.model:
+        with self._get_sampling_model():
             approx = pm.fit(method=method, **fit_kwargs)
             return approx, approx.sample(**_sample_kwargs)
 
@@ -857,7 +876,8 @@ class ModelFitter:
         ----------
         data : Any, optional
             Input data for model fitting. If ``None``, the data already held by the
-            instance is used.
+            instance is used. Models that do not override ``_prepare_fit`` raise a
+            ``NotImplementedError`` when data is passed here.
         method : str
             Method used to fit the model. Options are:
 
@@ -934,6 +954,12 @@ class ModelFitter:
 
         if self.idata:
             self.idata = self.idata.copy()
+            if stale := [
+                group
+                for group in _POSTERIOR_DERIVED_GROUPS
+                if group in self.idata.children
+            ]:
+                self.idata = self.idata.drop_nodes(stale)
             self.idata.update(idata)
         else:
             self.idata = idata

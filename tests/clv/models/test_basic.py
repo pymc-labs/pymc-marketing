@@ -237,6 +237,12 @@ class TestCLVModel:
                 method="wrong_method",
             )
 
+    def test_fit_without_data_raises(self):
+        model = CLVModelForLoadTest()
+
+        with pytest.raises(ValueError, match="data is required to build the model"):
+            model.fit()
+
     def test_load(self, mocker, tmp_path):
         model = CLVModelTest()
         save_path = tmp_path / "test_model"

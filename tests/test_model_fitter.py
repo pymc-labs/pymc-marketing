@@ -156,6 +156,28 @@ def test_refit_replaces_posterior_and_keeps_prior(toy_data) -> None:
     assert "/fit_data" in model.idata.groups
 
 
+def test_refit_with_different_method_drops_stale_groups(toy_data) -> None:
+    """Groups derived from the old posterior must not survive a MAP refit."""
+    model = FitterModel(data=toy_data)
+    model.fit(random_seed=42)
+    assert model.idata["/sample_stats"].to_dataset().sizes["draw"] == 20
+    model.idata["/posterior_predictive"] = model.idata["/posterior"].to_dataset()
+
+    model.fit(method="map", progressbar=False)
+
+    assert "/posterior_predictive" not in model.idata.groups
+    assert model.idata["/posterior"].to_dataset().sizes["draw"] == 1
+    assert "draw" not in model.idata["/sample_stats"].to_dataset().sizes
+
+
+def test_base_fit_rejects_unrouted_data(toy_data) -> None:
+    """The base pipeline has nowhere to send `data`, so it must refuse it loudly."""
+    model = FitterModel(data=toy_data)
+
+    with pytest.raises(NotImplementedError, match="does not accept `data`"):
+        model.fit(data=toy_data)
+
+
 def test_fit_does_not_mutate_sampler_config(toy_data) -> None:
     sampler_config = {"draws": 20, "tune": 20, "chains": 1, "progressbar": False}
     model = FitterModel(data=toy_data, sampler_config=dict(sampler_config))

@@ -86,6 +86,11 @@ class CLVModel(ModelBuilder):
         model with new data would silently sample the wrong likelihood.
         """
         if not hasattr(self, "model"):
+            if data is None and getattr(self, "data", None) is None:
+                raise ValueError(
+                    "data is required to build the model. Pass it to `fit(data)` "
+                    "or call `build_model(data)` first."
+                )
             self.build_model(data)  # type: ignore[call-arg]
         elif data is not None and not self.data.equals(data):  # type: ignore[attr-defined]
             raise ValueError(
