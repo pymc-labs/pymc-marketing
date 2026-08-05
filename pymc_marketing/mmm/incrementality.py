@@ -151,8 +151,8 @@ Three things follow, and they are why mediation is not free:
   the longest path spend can take -- measured on the graph, not declared.
 
 Both the measurement and the check that the increment is complete live in
-:mod:`~pymc_marketing.mmm.spend_reach`, which reads them off a single
-single-date spend perturbation.  This module asks it for a window length and a
+:mod:`~pymc_marketing.mmm.spend_reach`, which reads them off single-date spend
+perturbations.  This module asks it for a window length and a
 mode and otherwise knows nothing about either.
 
 Estimands

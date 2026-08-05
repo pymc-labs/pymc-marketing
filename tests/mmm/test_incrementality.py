@@ -1442,6 +1442,24 @@ def causal_filter(reach):
     return node
 
 
+def single_channel_filter(reach, channel):
+    """A mediator-shaped node reading one channel and ignoring the others.
+
+    An effect is free to select channels before transforming, so its node moves
+    only when *that* channel's spend does -- the case a probe placed by total
+    spend alone can miss entirely.
+    """
+
+    def node(spend):
+        out = np.zeros(len(spend))
+        column = spend[:, channel]
+        for lag in range(reach):
+            out[lag:] += column[: len(column) - lag] / (lag + 1)
+        return out[np.newaxis]
+
+    return node
+
+
 def date_normalized(spend):
     """A node whose value at every date depends on every date.
 
@@ -1543,7 +1561,9 @@ class TestSpendProbe:
 
         # The date a fixed positional heuristic picks is inside the dark run.
         assert not spend[len(spend) // 4].any()
-        assert spend[probe.probe_index].any()
+        # Every channel spends past the dark run, so one probe covers them all.
+        assert len(probe.probe_indices) == 1
+        assert spend[probe.probe_indices[0]].all()
         assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == (
             self.l_max + 2
         )
@@ -1589,13 +1609,88 @@ class TestSpendProbe:
             spend[0] = 2.0
         probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(2)})
 
-        assert probe.probe_index is None
+        assert probe.probe_indices == []
         with pytest.warns(UserWarning, match="could not be measured"):
             reach = probe.measure(effects=(), l_max=self.l_max)
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max
         assert reach.measured == {}
+
+    def test_a_mediator_reading_a_dark_channel_gets_its_own_probe(self):
+        """Channels with no common spend date are probed one by one.
+
+        The probe date used to be chosen by *total* spend, so a mediator reading
+        only a channel that is dark at that date came back bit-identical: reach
+        ``none()``, window sized from the model's own adstock, mediated tail cut
+        off, increment silently understated.  With disjoint spend supports there
+        is no single date that moves every channel, so every spending channel has
+        to get a probe of its own.
+        """
+        spend = np.zeros((self.n_dates, 2))
+        spend[1:3, 0] = 5.0  # channel 0: the head, where one probe would land
+        spend[12, 1] = 2.0  # channel 1: dark until far past the head
+        effect = ChannelDependentEffect(
+            contribution_var="mediator",
+            label="Mediator",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+        probe = self._probe(
+            spend,
+            **{
+                CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                "mediator": single_channel_filter(self.l_max + 3, channel=1),
+            },
+        )
+
+        # One probe per channel, each at a date its channel spends.
+        assert len(probe.probe_indices) == 2
+        assert spend[probe.probe_indices].any(axis=0).all()
+
+        reach = probe.measure(effects=(effect,), l_max=self.l_max)
+
+        assert reach.measured["mediator"] != TemporalReach.none()
+        assert not reach.requires_full_axis
+        # Reaching l_max + 3 dates is l_max + 2 lags, of which l_max is covered.
+        assert reach.effective_l_max == self.l_max + 2
+
+    def test_one_date_every_channel_spends_keeps_the_probe_single(self):
+        """A covering date is preferred: one probe moves every possible subset.
+
+        Both channels are dark over the head, so a covering probe exists only
+        further along the axis -- and one evaluation is all the measurement then
+        costs, exactly as before.
+        """
+        spend = self._spend(dark=self.dark)
+        spend[: self.dark + 2, 0] = 0.0  # channel 0 stays dark a little longer
+
+        indices = SpendProbe._select_probe_indices(spend)
+
+        assert len(indices) == 1
+        assert spend[indices[0]].all()
+
+    def test_an_all_zero_channel_does_not_force_extra_probes(self):
+        """A channel that never spends cannot be moved, so it needs no probe."""
+        spend = self._spend()
+        spend[:, 1] = 0.0
+
+        assert len(SpendProbe._select_probe_indices(spend)) == 1
+
+    def test_a_channel_spending_only_on_the_first_date_disables_the_probe(self):
+        """A channel no interior impulse can reach leaves the window untrusted.
+
+        The counterfactual will move that channel's first-date spend, but no
+        probe can, so nothing measured on the other channels vouches for it.
+        """
+        spend = self._spend()
+        spend[:, 1] = 0.0
+        spend[0, 1] = 2.0
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(2)})
+
+        assert probe.probe_indices == []
+        with pytest.warns(UserWarning, match="could not be measured"):
+            assert probe.measure(effects=(), l_max=self.l_max).requires_full_axis
 
     def test_the_widest_reach_wins_on_both_counts(self):
         """Combining per-node reaches takes the longest tail and any full axis.
@@ -2219,6 +2314,48 @@ class TestMediatedMuEffects:
         )
         expected = compute_log_link_ground_truth_by_period(
             mmm, frequency="all_time", l_max=6
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_a_mediator_reading_a_dark_channel_is_probed_on_its_own_dates(
+        self, dark_probe_funnel_fitted_mmm, partial_channel_funnel_fitted_mmm
+    ):
+        """A mediated channel dark at the probed date still gets its tail.
+
+        An A/B on one graph: the mediator reads ``channel_1`` alone and declares
+        nothing, so the window has only the measurement to go on.  In the control
+        every date carries spend on both channels; in the treatment the channels'
+        spend supports are disjoint, and a probe placed by total spend lands
+        where ``channel_1`` is dark -- the mediator then came back bit-identical,
+        its measured reach collapsed to nothing, and the window was sized from
+        the model's own adstock alone, silently understating the increment.  The
+        two arms have to agree: probing per channel when no date covers them all
+        is what makes them.
+        """
+        control = partial_channel_funnel_fitted_mmm
+        treatment = dark_probe_funnel_fitted_mmm
+
+        # Guards the premise: no date moves both channels, and the head of the
+        # axis -- where a single probe would land -- is dark on the mediated one.
+        spend = treatment.data.get_channel_data().values
+        assert not (spend[:, 0] * spend[:, 1]).any()
+        assert not spend[: len(spend) // 8, 0].any()
+
+        reach_control = measure_spend_reach(control)
+        reach_treatment = measure_spend_reach(treatment)
+        mediator = "funnel_effect_contribution"
+
+        assert reach_control.measured[mediator] != TemporalReach.none()
+        assert reach_treatment.measured[mediator] == reach_control.measured[mediator]
+        assert reach_treatment.effective_l_max == reach_control.effective_l_max
+        assert not reach_treatment.requires_full_axis
+
+        result = treatment.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            treatment, frequency="all_time", l_max=reach_treatment.effective_l_max
         )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)

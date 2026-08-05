@@ -60,10 +60,13 @@ __all__ = [
     "Estimand",
     "EvaluationWindows",
     "PeriodWindow",
-    "ScenarioKey",
 ]
 
-ScenarioKey = tuple[int, int | None]
+# Private: it is the key type of an internal mapping rather than a user-facing
+# name, and autodoc cannot format a bare generic-tuple alias.  The underscore is
+# what keeps it out of the recursive api-reference autosummary, which collects
+# public module attributes by name rather than from ``__all__``.
+_ScenarioKey = tuple[int, int | None]
 """Which scenario a row of :attr:`CounterfactualScenarios.spend` answers for.
 
 ``(period_idx, channel_idx)``, with ``channel_idx=None`` for the scenario that
@@ -406,7 +409,7 @@ class EvaluationWindows:
         -------
         CounterfactualScenarios
             Perturbed spend plus the bookkeeping needed to find the row for a
-            given :data:`ScenarioKey` and to broadcast per-period arrays over
+            given ``_ScenarioKey`` and to broadcast per-period arrays over
             scenarios.
         """
         separable = channel_axis is None
@@ -421,7 +424,7 @@ class EvaluationWindows:
 
         spend: list[np.ndarray] = []
         period_index: list[int] = []
-        rows: dict[ScenarioKey, int] = {}
+        rows: dict[_ScenarioKey, int] = {}
 
         for period_idx, window in enumerate(self.windows):
             target_offsets = window.offsets_within(window.start, window.end)
@@ -525,7 +528,7 @@ class CounterfactualScenarios:
         per-period array (a windowed data variable, a ``time_index`` row) up to
         the scenario axis.
     rows : dict
-        Maps a :data:`ScenarioKey` to a row of :attr:`spend`.
+        Maps a ``_ScenarioKey`` to a row of :attr:`spend`.
 
     See Also
     --------
@@ -534,7 +537,7 @@ class CounterfactualScenarios:
 
     spend: np.ndarray
     period_index: np.ndarray
-    rows: dict[ScenarioKey, int]
+    rows: dict[_ScenarioKey, int]
 
 
 class CounterfactualEvaluator:

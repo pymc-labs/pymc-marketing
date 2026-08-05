@@ -339,7 +339,7 @@ class SpendReach:
 
 
 class SpendProbe:
-    """One single-date spend perturbation, and the two facts read off it.
+    """Single-date spend perturbations, and the two facts read off them.
 
     A probe is an *impulse*: spend at one interior date is scaled, every other
     date left alone, and the whole graph re-evaluated on the untruncated axis.
@@ -348,11 +348,17 @@ class SpendProbe:
     node, whether any node moves *backwards* in time, and whether the nodes being
     evaluated account for the whole move in the linear predictor.
 
+    One probe suffices only if every channel spends at the probed date, because
+    an effect is free to read a subset of channels.  When no single date covers
+    every spending channel, one probe per channel is taken instead -- see
+    :meth:`_select_probe_indices` -- and each fact is read off all of them.
+
     Parameters
     ----------
     evaluator : CounterfactualEvaluator
         Compiled evaluator over the accounted nodes.  Reused rather than
-        recompiled: the probe is one more call to a function that already exists.
+        recompiled: each probe is one more call to a function that already
+        exists.
     baseline : dict
         Unperturbed evaluation on the full date axis, per node.
     baseline_array : np.ndarray
@@ -364,9 +370,11 @@ class SpendProbe:
 
     Attributes
     ----------
-    probe_index : int or None
-        Index of the perturbed date, or ``None`` if no date could be perturbed --
-        see :meth:`_select_probe_index`.
+    probe_indices : list of int
+        Indices of the perturbed dates, empty if no date could be perturbed --
+        see :meth:`_select_probe_indices`.
+    probes : dict
+        Per probed date, the evaluation of the perturbed spend.
     """
 
     REACH_TOLERANCE = 1e-9
@@ -398,33 +406,42 @@ class SpendProbe:
         counterfactual_spend_factor: float,
     ) -> None:
         self.baseline = baseline
-        self.probe_index = self._select_probe_index(baseline_array)
-        self.probed: dict[str, np.ndarray] | None = None
-        if self.probe_index is not None:
-            self.probed = evaluator.evaluate_baseline(
+        self.probe_indices = self._select_probe_indices(baseline_array)
+        self.probes: dict[int, dict[str, np.ndarray]] = {
+            probe_index: evaluator.evaluate_baseline(
                 self._perturb(
                     baseline_array=baseline_array,
-                    probe_index=self.probe_index,
+                    probe_index=probe_index,
                     counterfactual_spend_factor=counterfactual_spend_factor,
                     dtype=evaluator.channel_dtype,
                 )
             )
+            for probe_index in self.probe_indices
+        }
 
     # ==================== The perturbation ====================
 
     @staticmethod
-    def _select_probe_index(baseline_array: np.ndarray) -> int | None:
-        """Choose a date whose spend the probe can actually move.
+    def _select_probe_indices(baseline_array: np.ndarray) -> list[int]:
+        """Choose dates whose spend the probes can actually move -- per channel.
 
-        A multiplicative perturbation of an all-zero row is a no-op, and a no-op
+        A multiplicative perturbation of an all-zero cell is a no-op, and a no-op
         probe is worse than no probe: every node comes back unmoved, so the reach
         looks bounded and the completeness check compares zero against zero.
-        Both guards would pass by failing to see anything.  So the date is chosen
-        by *spend* rather than by position, and a probe that could not move
-        anything is reported as no probe at all.
+        Both guards would pass by failing to see anything.  Nor is it enough for
+        the chosen date to carry spend on *some* channel: an effect is free to
+        read a subset of channels, and one whose channels are all dark at the
+        probed date is exactly as invisible as under an all-zero probe.  So the
+        dates are chosen per channel, and a probe that could not move anything is
+        reported as no probe at all.
+
+        One date at which every spending channel is active covers every possible
+        subset, so it is preferred: a single probe, exactly as cheap as before.
+        Only when no such date exists does each channel get its own probe, at one
+        extra evaluation per further date.
 
         Among the dates that carry spend, an early one is preferred.  The two
-        things :meth:`measure` reads off the probe both need room on the axis: a
+        things :meth:`measure` reads off a probe both need room on the axis: a
         forward tail has to be able to end before the last date, or its length
         cannot be bounded, and a backward move has to have at least one earlier
         date to show up in.  Placing the probe near the front maximises the
@@ -434,28 +451,51 @@ class SpendProbe:
         Parameters
         ----------
         baseline_array : np.ndarray
-            Actual spend, ``(n_dates, *extra_shape)``.
+            Actual spend, ``(n_dates, *extra_shape)``.  The trailing axis is the
+            channel; any axes in between are summed over, so a panel channel is
+            probeable wherever any of its cells spends.
 
         Returns
         -------
-        int or None
-            Index of the date to perturb, or ``None`` when no date other than the
-            first carries any spend -- an all-zero spend array, or one with spend
-            only at the very first date, where no interior impulse exists.
+        list of int
+            Indices of the dates to perturb.  Empty when nothing can be probed:
+            an all-zero spend array, one with spend only at the very first date,
+            or one where some channel spends *only* at the first date -- no
+            interior impulse could reach that channel, so no window can be
+            trusted.
         """
         n_dates = baseline_array.shape[0]
-        per_date = np.abs(baseline_array.reshape(n_dates, -1)).sum(axis=1)
+        n_channels = baseline_array.shape[-1] if baseline_array.ndim > 1 else 1
+        per_date = np.abs(baseline_array.reshape(n_dates, -1, n_channels)).sum(axis=1)
+        if n_dates < 2:
+            return []
+
         # The first date is excluded: an impulse there has no earlier date to
         # move, so a reduction over "date" would be indistinguishable from a
         # causal filter.
-        if n_dates < 2 or not per_date[1:].any():
-            return None
+        eligible = per_date[1:]
+        probeable = eligible.any(axis=0)
+        # A channel with no spend anywhere cannot be moved by the counterfactual
+        # either, so nothing about it needs measuring.  One whose only spend
+        # sits at the excluded first date is different: the counterfactual will
+        # move it, but no probe can.
+        only_first = ~probeable & per_date[0].astype(bool)
+        if only_first.any() or not probeable.any():
+            return []
 
-        head = slice(1, max(2, n_dates // 8))
-        candidates = per_date[head]
-        if candidates.any():
-            return head.start + int(np.argmax(candidates))
-        return 1 + int(np.argmax(per_date[1:]))
+        head_stop = max(2, n_dates // 8) - 1
+
+        def pick(magnitude: np.ndarray) -> int:
+            in_head = np.flatnonzero(magnitude[:head_stop])
+            chosen = in_head if in_head.size else np.flatnonzero(magnitude)
+            return 1 + int(chosen[np.argmax(magnitude[chosen])])
+
+        covering = (eligible[:, probeable] > 0).all(axis=1)
+        if covering.any():
+            return [pick(np.where(covering, eligible.sum(axis=1), 0.0))]
+        return sorted(
+            {pick(eligible[:, channel]) for channel in np.flatnonzero(probeable)}
+        )
 
     @staticmethod
     def _perturb(
@@ -537,14 +577,14 @@ class SpendProbe:
         SpendReach
             The window length and mode the evaluation has to use.
         """
-        if self.probed is None or self.probe_index is None:
+        if not self.probes:
             # No date could be perturbed, so nothing about the window was
             # established.  Fall back to the only mode that is correct without a
             # measurement rather than trusting an unmeasured one.
             warnings.warn(
-                "Channel spend carries no non-zero date after the first, so the "
-                "reach of a spend counterfactual could not be measured.  Every "
-                "period will be evaluated on the full date axis, which is "
+                "Some channel's spend carries no non-zero date after the first, "
+                "so the reach of a spend counterfactual could not be measured.  "
+                "Every period will be evaluated on the full date axis, which is "
                 "correct but slower than a window.",
                 UserWarning,
                 stacklevel=3,
@@ -561,10 +601,15 @@ class SpendProbe:
                 requires_full_axis=True,
             )
 
-        probed, probe_index = self.probed, self.probe_index
+        # Per node, the widest reach any probe demonstrates: a probe at a date
+        # where some channel is dark understates the nodes downstream of that
+        # channel, and the probe that does cover it is the one that saw truth.
         measured = {
-            name: self._reach_of(
-                name, probed=probed, probe_index=probe_index, l_max=l_max
+            name: TemporalReach.widest(
+                self._reach_of(
+                    name, probed=probed, probe_index=probe_index, l_max=l_max
+                )
+                for probe_index, probed in self.probes.items()
             )
             for name in (
                 CHANNEL_CONTRIBUTION,
@@ -750,48 +795,52 @@ class SpendProbe:
         NotImplementedError
             If the accounted nodes do not reproduce the predictor's move.
         """
-        if self.probed is None or LINEAR_PREDICTOR not in self.baseline:
+        if LINEAR_PREDICTOR not in self.baseline:
             return
 
-        probed = self.probed
+        # Every probe has to satisfy the identity: an unattributed path from one
+        # channel is visible only under a probe at a date that channel spends.
+        for probed in self.probes.values():
 
-        def moved(name: str) -> xr.DataArray:
-            return xr.DataArray(
-                probed[name] - self.baseline[name],
-                dims=("sample", "date", *non_date_dims[name]),
+            def moved(
+                name: str, probed: dict[str, np.ndarray] = probed
+            ) -> xr.DataArray:
+                return xr.DataArray(
+                    probed[name] - self.baseline[name],
+                    dims=("sample", "date", *non_date_dims[name]),
+                )
+
+            # channel_contribution carries a channel dimension the predictor does
+            # not: it enters mu summed over channels.
+            accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
+            for effect in effects:
+                accounted = accounted + moved(effect.contribution_var)
+
+            expected = moved(LINEAR_PREDICTOR)
+            expected, accounted = xr.broadcast(expected, accounted)
+            # Scaled by whichever side moved more, so that a predictor which did
+            # not move cannot excuse accounted nodes that did.  Taking the
+            # predictor's scale alone would pass a misattribution vacuously.
+            scale = max(float(np.abs(expected).max()), float(np.abs(accounted).max()))
+            if scale == 0.0 or np.allclose(
+                accounted.values,
+                expected.values,
+                rtol=0.0,
+                atol=self.COMPLETENESS_TOLERANCE * scale,
+            ):
+                continue
+
+            accounted_names = ", ".join(
+                [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
             )
-
-        # channel_contribution carries a channel dimension the predictor does
-        # not: it enters mu summed over channels.
-        accounted = moved(CHANNEL_CONTRIBUTION).sum("channel")
-        for effect in effects:
-            accounted = accounted + moved(effect.contribution_var)
-
-        expected = moved(LINEAR_PREDICTOR)
-        expected, accounted = xr.broadcast(expected, accounted)
-        # Scaled by whichever side moved more, so that a predictor which did not
-        # move cannot excuse accounted nodes that did.  Taking the predictor's
-        # scale alone would pass a misattribution vacuously.
-        scale = max(float(np.abs(expected).max()), float(np.abs(accounted).max()))
-        if scale == 0.0 or np.allclose(
-            accounted.values,
-            expected.values,
-            rtol=0.0,
-            atol=self.COMPLETENESS_TOLERANCE * scale,
-        ):
-            return
-
-        accounted_names = ", ".join(
-            [CHANNEL_CONTRIBUTION, *(effect.contribution_var for effect in effects)]
-        )
-        largest = float(np.abs(accounted - expected).max()) / scale
-        raise NotImplementedError(
-            "Perturbing channel spend moved the linear predictor by more than "
-            f"the variables incrementality is evaluating ({accounted_names}) "
-            f"account for -- by {largest:.1%} of the largest move either side "
-            "makes.  Some path from spend to the response is unattributed, so "
-            "the increment would report part of it as the whole.  Every "
-            "mu_effect that spend reaches has to register the term it adds to "
-            "the linear predictor as a Deterministic, return that name from "
-            "'contribution_var_name', and opt in through 'incrementality_spec'."
-        )
+            largest = float(np.abs(accounted - expected).max()) / scale
+            raise NotImplementedError(
+                "Perturbing channel spend moved the linear predictor by more than "
+                f"the variables incrementality is evaluating ({accounted_names}) "
+                f"account for -- by {largest:.1%} of the largest move either side "
+                "makes.  Some path from spend to the response is unattributed, so "
+                "the increment would report part of it as the whole.  Every "
+                "mu_effect that spend reaches has to register the term it adds to "
+                "the linear predictor as a Deterministic, return that name from "
+                "'contribution_var_name', and opt in through 'incrementality_spec'."
+            )

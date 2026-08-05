@@ -664,6 +664,39 @@ class UnderDeclaredFunnelEffect(FunnelEffect):
         return IncrementalitySpec(additional_carryover_lags=0)
 
 
+class PartialChannelFunnelEffect(FunnelEffect):
+    """A funnel effect fed by the first channel alone, with nothing declared.
+
+    Reading a subset of channels is what makes probe *placement* matter: a probe
+    at a date where that channel is dark cannot move this effect, so its reach
+    would be measured as nothing at all.  Declaring nothing -- the documented
+    "measure it" default -- makes that measurement the only thing the window has
+    to go on, so a missed probe cuts the mediated tail silently.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in and declare nothing: the reach is measured."""
+        return IncrementalitySpec()
+
+    def create_effect(self, mmm):
+        """Build the mediator equation off the first channel only."""
+        model = mmm.model
+        # (date, channel) -> (date): only the first channel feeds demand.
+        upper_on_demand = self.upper_transform(
+            mmm.channel_data_scaled, dim="date"
+        ).isel(channel=0)
+        baseline = pmd.HalfNormal(f"{self.prefix}_baseline", sigma=1.0)
+        demand = pmd.Deterministic(f"{self.prefix}_demand", baseline + upper_on_demand)
+        lam = pmd.HalfNormal(f"{self.prefix}_lambda", sigma=0.5)
+        lf_spend = pmd.Deterministic(
+            f"{self.prefix}_lf_spend", demand + lam * model["lf_budget"]
+        )
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            self.demand_transform(lf_spend, dim="date"),
+        )
+
+
 class MisreportedFunnelEffect(FunnelEffect):
     """A funnel effect pointing at a variable that is not its contribution.
 
@@ -1150,6 +1183,57 @@ DARK_START = 9
 def dark_start_funnel_fitted_mmm(dark_start_funnel_mmm_data):
     """Funnel MMM fit on data whose first third carries no spend."""
     return _build_funnel_mmm(dark_start_funnel_mmm_data, link="log")
+
+
+@pytest.fixture
+def partial_channel_funnel_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose mediator reads only ``channel_1`` and declares nothing.
+
+    The control arm for :func:`dark_probe_funnel_fitted_mmm`: same graph, but
+    every date carries spend on both channels, so any probe moves the mediated
+    channel and the measured reach is whatever the graph truly does.
+    """
+    return _build_funnel_mmm(
+        funnel_mmm_data, link="log", effect_cls=PartialChannelFunnelEffect
+    )
+
+
+@pytest.fixture
+def dark_probe_funnel_mmm_data(funnel_mmm_data):
+    """Funnel data whose two channels never spend on the same date.
+
+    ``channel_1`` is dark until :data:`DARK_PROBE_SPLIT` and ``channel_2`` from
+    then on -- a launch handover, or two flighted campaigns in sequence.  The
+    point is what that does to a probe placed by *total* spend: every early date
+    carries ``channel_2`` spend, so a single probe lands where ``channel_1`` is
+    dark, and an effect reading only ``channel_1`` comes back bit-identical --
+    measured reach nothing, mediated tail silently cut.  With no date moving both
+    channels, only one probe per channel can cover them.
+
+    The spike at :data:`DARK_PROBE_SPLIT` is where ``channel_1``'s own probe will
+    land, early enough in the remaining series for the mediated tail to end
+    before the last date, so the reach comes out bounded.
+    """
+    data = {key: value.copy(deep=True) for key, value in funnel_mmm_data.items()}
+    media = data["X"]["media"].values
+    media[:DARK_PROBE_SPLIT, 0] = 0.0
+    media[DARK_PROBE_SPLIT:, 1] = 0.0
+    media[DARK_PROBE_SPLIT, 0] = 8.0
+    for i, channel in enumerate(["channel_1", "channel_2"]):
+        data["X_df"][channel] = media[:, i]
+    return data
+
+
+DARK_PROBE_SPLIT = 12
+"""First date carrying ``channel_1`` spend in :func:`dark_probe_funnel_mmm_data`."""
+
+
+@pytest.fixture
+def dark_probe_funnel_fitted_mmm(dark_probe_funnel_mmm_data):
+    """Funnel MMM whose mediated channel is dark wherever one probe would land."""
+    return _build_funnel_mmm(
+        dark_probe_funnel_mmm_data, link="log", effect_cls=PartialChannelFunnelEffect
+    )
 
 
 @pytest.fixture
