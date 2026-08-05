@@ -29,6 +29,11 @@ __all__ = [
     "to_xarray",
 ]
 
+# Average length of a calendar month: 365.25 / 12, where 365.25 accounts for
+# leap years. Using a flat 30 here understates a year by 5.25 days and inflates
+# CLV estimates for the "D" and "H" time units.
+_DAYS_PER_MONTH = 30.4375
+
 
 def to_xarray(customer_id, *arrays, dim: str = "customer_id"):
     """Convert vector arrays to xarray with a common dim (default "customer_id")."""
@@ -124,7 +129,12 @@ def customer_lifetime_value(
     else:
         steps = np.arange(1, future_t + 1)
 
-    factor = {"W": 4.345, "M": 1.0, "D": 30, "H": 30 * 24}[time_unit]
+    factor = {
+        "W": 4.345,
+        "M": 1.0,
+        "D": _DAYS_PER_MONTH,
+        "H": _DAYS_PER_MONTH * 24,
+    }[time_unit]
 
     monetary_value = to_xarray(data["customer_id"], data["future_spend"])
 
