@@ -1813,7 +1813,7 @@ wheels = [
 
 [[package]]
 name = "impulso"
-version = "0.0.10"
+version = "0.0.12"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "arviz" },
@@ -1825,10 +1825,11 @@ dependencies = [
     { name = "pymc" },
     { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
     { name = "scipy", version = "1.18.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
+    { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f0/4d/5c69d40bb71dcb2814be1a95bbeef6821261d073b165662691f0e3fbdd6a/impulso-0.0.10.tar.gz", hash = "sha256:ca45baf0c8ac6b1485982f6e47d9bbd259c1b78f9990788caa853a5b769093ad", size = 734526, upload-time = "2026-07-30T21:15:25.717Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2c/96/acb51d67e2b502b960b89b7958644203272b601095e6aafc0cae9e5e1125/impulso-0.0.12.tar.gz", hash = "sha256:7d5f4e0715c1af1b5bf8ad35f1c65657c0cdd87ec81c15ebf28f41f56d163081", size = 762219, upload-time = "2026-08-04T21:48:11.617Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/23/d3/6345e41797d80bc611e965fa41586af9f29233fe03e3e5d158a1dd7d6d95/impulso-0.0.10-py3-none-any.whl", hash = "sha256:4ffe9d7ea7295679d45b831e425d8e3040fd04d995831c4876fe780e3c52996b", size = 160420, upload-time = "2026-07-30T21:15:24.563Z" },
+    { url = "https://files.pythonhosted.org/packages/14/1c/f43425324dbd5fd6dfe6886691cac27eb96c679b769d71d4234e70cf6d56/impulso-0.0.12-py3-none-any.whl", hash = "sha256:03d34c696f5189c715ea1b36891ecba2db2d257fcbbd4e842b2588275ec22b42", size = 164909, upload-time = "2026-08-04T21:48:10.221Z" },
 ]
 
 [[package]]
@@ -4130,7 +4131,7 @@ requires-dist = [
     { name = "graphviz", marker = "extra == 'test'", specifier = ">=0.20.1" },
     { name = "h5netcdf", marker = "extra == 'test'", specifier = ">=1.8.1" },
     { name = "h5py", marker = "extra == 'test'", specifier = ">=3.16.0" },
-    { name = "impulso", marker = "extra == 'docs'", specifier = ">=0.0.10" },
+    { name = "impulso", marker = "extra == 'docs'", specifier = ">=0.0.12" },
     { name = "ipykernel", marker = "extra == 'test'" },
     { name = "ipython", marker = "extra == 'docs'", specifier = "!=8.7.0" },
     { name = "ipywidgets", marker = "extra == 'docs'" },

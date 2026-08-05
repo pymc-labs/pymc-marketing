@@ -99,25 +99,22 @@ class ParetoNBD(PositiveContinuous):
 
     .. math::
 
-        \begin{align}
-        \text{if }\alpha > \beta: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\alpha +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T})(\alpha +t_x)^{r+s+x}}
-        {(\alpha +T)^{r+s+x}}] \\
-        \\
-        \text{if }\beta >= \alpha: \\
-        \\
-        \mathbb{L}(r, \alpha, s, \beta | x, t_x, T) &=
-        \frac{\Gamma(r+x)\alpha^r\beta}{\Gamma(r)+(\beta +t_x)^{r+s+x}}
-        [(\frac{s}{r+s+x})_2F_1(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}) \\
-        &+ (\frac{r+x}{r+s+x})
-        \frac{_2F_1(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T})(\beta +t_x)^{r+s+x}}
-        {(\beta +T)^{r+s+x}}]
-        \end{align}
+        \begin{aligned}
+        \text{if } \alpha > \beta:& \\
+        \mathbb{L}(r, \alpha, s, \beta \mid x, t_x, T) &=
+        \frac{\Gamma(r+x)\alpha^r\beta^s}{\Gamma(r)(\alpha +t_x)^{r+s+x}}
+        \left[ \left(\frac{s}{r+s+x}\right) {}_2F_1\left(r+s+x,s+1;r+s+x+1;\frac{\alpha-\beta}{\alpha+t_x}\right) \right. \\
+        &\qquad \left. + \left(\frac{r+x}{r+s+x}\right)
+        \frac{{}_2F_1\left(r+s+x,s;r+s+x+1;\frac{\alpha-\beta}{\alpha+T}\right)(\alpha +t_x)^{r+s+x}}
+        {(\alpha +T)^{r+s+x}} \right] \\
+        \text{if } \beta \geq \alpha:& \\
+        \mathbb{L}(r, \alpha, s, \beta \mid x, t_x, T) &=
+        \frac{\Gamma(r+x)\alpha^r\beta^s}{\Gamma(r)(\beta +t_x)^{r+s+x}}
+        \left[ \left(\frac{s}{r+s+x}\right) {}_2F_1\left(r+s+x,r+x;r+s+x+1;\frac{\beta-\alpha}{\beta+t_x}\right) \right. \\
+        &\qquad \left. + \left(\frac{r+x}{r+s+x}\right)
+        \frac{{}_2F_1\left(r+s+x,r+x+1;r+s+x+1;\frac{\beta-\alpha}{\beta+T}\right)(\beta +t_x)^{r+s+x}}
+        {(\beta +T)^{r+s+x}} \right]
+        \end{aligned}
 
     ========  ===============================================
     Support   :math:`t_j >= 0` for :math:`j = 1, \dots, x`
@@ -433,18 +430,18 @@ class BetaGeoNBD(PositiveContinuous):
 
     .. math::
 
-        \mathbb{LL}(r, \alpha, a, b  | x, t_x, T) =
+        \begin{aligned}
+        \mathbb{LL}(r, \alpha, a, b \mid x, t_x, T) &=
         D_1 + D_2 + \ln(C_3 + \delta_{x>0} C_4) \text{, where:} \\
-        \begin{align}
         D_1 &= \ln \left[ \Gamma(r+x) \right] - \ln \left[ \Gamma(r) \right] + \ln \left[ \Gamma(a+b) \right] + \ln \left[ \Gamma(b+x) \right] \\
         D_2 &= r \ln(\alpha) - (r+x) \ln(\alpha + t_x) \\
         C_3 &= \left(\frac{\alpha + t_x}{\alpha + T} \right)^{r+x} \\
-        C_4 &= \left(\frac{a}{b+x-1} \right) \\
-        \end{align}
+        C_4 &= \left(\frac{a}{b+x-1} \right)
+        \end{aligned}
 
     ========  ===============================================
     Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
-    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {_2}{F}{_1}(r,b;a+b-1;\frac{t}{\alpha + t}) \right]`
+    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {}_2F_1\left(r,b;a+b-1;\frac{t}{\alpha + t}\right) \right]`
     ========  ===============================================
 
     References
@@ -585,18 +582,18 @@ class ModifiedBetaGeoNBD(PositiveContinuous):
 
     .. math::
 
-        \mathbb{LL}(a, b, \alpha, r | x, t_x, T) = \ln \left[
-        A_1 * A_2 * (A_3 + \delta_{x>0} A_4) \right] \text{, where:} \\
-        \begin{align}
-        A_1 &= \frac{\Gamma(r+x) \alpha^r)}{\Gamma(x)} \\
+        \begin{aligned}
+        \mathbb{LL}(a, b, \alpha, r \mid x, t_x, T) &= \ln \left[
+        A_1 \cdot A_2 \cdot (A_3 + \delta_{x>0} A_4) \right] \text{, where:} \\
+        A_1 &= \frac{\Gamma(r+x) \alpha^r}{\Gamma(r)} \\
         A_2 &= \frac{\Gamma(a+b) \Gamma(b+x+1)}{\Gamma(b) \Gamma(a+b+x+1)} \\
-        A_3 &= \left( \frac{1}{\alpha + T} \right)^(r+x) \\
-        A_4 &= \left( \frac{a}{b+x} \right) \left( \frac{1}{\alpha + t_x} \right)^(r+x) \\
-        \end{align}
+        A_3 &= \left( \frac{1}{\alpha + T} \right)^{r+x} \\
+        A_4 &= \left( \frac{a}{b+x} \right) \left( \frac{1}{\alpha + t_x} \right)^{r+x}
+        \end{aligned}
 
     ========  ===============================================
     Support   :math:`t_j >= 0` for :math:`j = 1, \dots,x`
-    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {_2}{F}{_1}(r,b;a+b-1;\frac{t}{\alpha + t}) \right]`
+    Mean      :math:`\mathbb{E}[X(n) | r, \alpha, a, b] = \frac{a+b-1}{a-1} \left[ 1 - \left(\frac{\alpha}{\alpha + T}\right)^r {}_2F_1\left(r,b;a+b-1;\frac{t}{\alpha + t}\right) \right]`
     ========  ===============================================
 
     References
@@ -700,10 +697,10 @@ class ShiftedBetaGeometric(Discrete):
     Hardie and Fader describe this distribution with the following PMF and survival functions in [1]_:
 
     .. math::
-        \mathbb{P}(T=t|\alpha,\beta) = \frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta)},t=1,2,...  \\
-        \begin{align}
-        \mathbb{S}(t|\alpha,\beta) = \frac{B(\alpha,\beta+t)}{B(\alpha,\beta)},t=1,2,... \\
-        \end{align}
+        \begin{aligned}
+        \mathbb{P}(T=t \mid \alpha,\beta) &= \frac{B(\alpha+1,\beta+t-1)}{B(\alpha,\beta)}, \quad t=1,2,\dots \\
+        \mathbb{S}(t \mid \alpha,\beta) &= \frac{B(\alpha,\beta+t)}{B(\alpha,\beta)}, \quad t=1,2,\dots
+        \end{aligned}
 
     ========  ===============================================
     Support   :math:`t \in \mathbb{N}_{>0}`

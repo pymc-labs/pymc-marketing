@@ -241,6 +241,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
 :::
 
+:::{grid-item-card} Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
+:img-top: ../gallery/images/mmm_brand_metrics_long_term.png
+:link: ../notebooks/mmm/mmm_brand_metrics_long_term.html
+:::
+
 :::{grid-item-card} Causal Reasoning and Discovery
 :img-top: ../gallery/images/mmm_causal_reasoning_and_discovery.png
 :link: ../notebooks/mmm/mmm_causal_reasoning_and_discovery.html
