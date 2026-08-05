@@ -1850,8 +1850,9 @@ class TestSpendProbe:
             self._flighted_spend(),
             **{
                 CHANNEL_CONTRIBUTION: contribution,
-                LINEAR_PREDICTOR: lambda spend: contribution(spend).sum(axis=-1)
-                + hidden(spend),
+                LINEAR_PREDICTOR: lambda spend: (
+                    contribution(spend).sum(axis=-1) + hidden(spend)
+                ),
             },
         )
 
@@ -1862,9 +1863,7 @@ class TestSpendProbe:
         )
 
         with pytest.raises(NotImplementedError, match="Some path from spend"):
-            probe.assert_increment_is_complete(
-                effects=(), non_date_dims=non_date_dims
-            )
+            probe.assert_increment_is_complete(effects=(), non_date_dims=non_date_dims)
 
     def test_nothing_moving_anywhere_is_not_an_error(self):
         """Two nodes spend does not reach agree, and there is nothing to report."""
@@ -1883,22 +1882,30 @@ class TestSpendProbe:
     [counterfactual_module, incrementality_module, spend_reach_module],
     ids=lambda module: module.__name__.rsplit(".", 1)[-1],
 )
-def test_exported_names_survive_the_api_docs_build(module):
-    """Nothing in ``__all__`` is of a shape autodoc refuses to render.
+def test_public_names_survive_the_api_docs_build(module):
+    """No public module attribute is of a shape autodoc refuses to render.
 
     ``docs/source/api/index.md`` runs ``autosummary`` recursively over
     ``pymc_marketing.mmm``, so a new module needs no manual API entry -- and
     equally gets no say in what is generated for it.  A bare parametrised
     generic (``tuple[int, int | None]``) is classified as a class, autodoc
     cannot format its signature, and the docs job builds with ``-W``, so the
-    warning fails the build.  The failure is a red tick on a docs job rather
-    than anything a test run would otherwise show, and it costs a whole CI
-    cycle to find out.
+    warning fails the build.
+
+    Every *public* attribute, not just ``__all__``: Sphinx's
+    ``autosummary_ignore_module_all`` defaults to True, so the generated stub is
+    built from the module's public namespace and ``__all__`` has no say in it
+    either.  A leading underscore is the only thing that keeps a name out, which
+    is why this asserts over the same set autosummary reads.
+
+    The failure it stands in for is a red tick on a docs job rather than
+    anything a test run would otherwise show, and it costs a whole CI cycle to
+    find out.
     """
     offenders = [
         name
-        for name in module.__all__
-        if isinstance(getattr(module, name), types.GenericAlias)
+        for name, value in vars(module).items()
+        if not name.startswith("_") and isinstance(value, types.GenericAlias)
     ]
 
     assert offenders == []

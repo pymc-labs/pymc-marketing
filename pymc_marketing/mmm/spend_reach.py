@@ -632,8 +632,7 @@ class SpendProbe:
             # that one alone.  The others see it stand still, which is not
             # evidence of a short tail.
             name: TemporalReach.widest(
-                self._reach_of(name, probe=probe, l_max=l_max)
-                for probe in self.probes
+                self._reach_of(name, probe=probe, l_max=l_max) for probe in self.probes
             )
             for name in (
                 CHANNEL_CONTRIBUTION,

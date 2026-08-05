@@ -62,15 +62,18 @@ __all__ = [
     "PeriodWindow",
 ]
 
-# Deliberately absent from __all__ above.  ``docs/source/api/index.md`` runs
-# ``autosummary`` recursively over ``pymc_marketing.mmm``, so every exported name
-# gets a generated page, and autodoc cannot render a bare parametrised-generic
-# alias: it classifies the object as a class, fails to format its signature, and
-# the docs build turns the resulting warning into an error.  ``Estimand`` below
-# is a ``Literal`` rather than a ``types.GenericAlias`` and renders fine, which
-# is why it stays exported.  Nothing outside this module refers to the name, and
-# the docstring is still here for anyone reading the source.
-ScenarioKey = tuple[int, int | None]
+# Private, and the underscore is load-bearing rather than stylistic.
+# ``docs/source/api/index.md`` runs ``autosummary`` recursively over
+# ``pymc_marketing.mmm``, so a new module is documented automatically and gets no
+# say in what is generated for it.  Autodoc cannot render a bare
+# parametrised-generic alias -- it classifies the object as a class and fails to
+# format its signature -- and the docs job builds with ``-W``, so the warning
+# fails the build.  Dropping the name from ``__all__`` does *not* help: Sphinx's
+# ``autosummary_ignore_module_all`` defaults to True, so the stub is generated
+# from the module's public attributes and ignores ``__all__`` entirely.  A
+# leading underscore is what actually keeps it out.  ``Estimand`` below is a
+# ``Literal``, not a ``types.GenericAlias``, and renders fine.
+_ScenarioKey = tuple[int, int | None]
 """Which scenario a row of :attr:`CounterfactualScenarios.spend` answers for.
 
 ``(period_idx, channel_idx)``, with ``channel_idx=None`` for the scenario that
@@ -413,7 +416,7 @@ class EvaluationWindows:
         -------
         CounterfactualScenarios
             Perturbed spend plus the bookkeeping needed to find the row for a
-            given ``ScenarioKey`` and to broadcast per-period arrays over
+            given ``_ScenarioKey`` and to broadcast per-period arrays over
             scenarios.
         """
         separable = channel_axis is None
@@ -428,7 +431,7 @@ class EvaluationWindows:
 
         spend: list[np.ndarray] = []
         period_index: list[int] = []
-        rows: dict[ScenarioKey, int] = {}
+        rows: dict[_ScenarioKey, int] = {}
 
         for period_idx, window in enumerate(self.windows):
             target_offsets = window.offsets_within(window.start, window.end)
@@ -532,7 +535,7 @@ class CounterfactualScenarios:
         per-period array (a windowed data variable, a ``time_index`` row) up to
         the scenario axis.
     rows : dict
-        Maps a ``ScenarioKey`` to a row of :attr:`spend`.
+        Maps a ``_ScenarioKey`` to a row of :attr:`spend`.
 
     See Also
     --------
@@ -541,7 +544,7 @@ class CounterfactualScenarios:
 
     spend: np.ndarray
     period_index: np.ndarray
-    rows: dict[ScenarioKey, int]
+    rows: dict[_ScenarioKey, int]
 
 
 class CounterfactualEvaluator:
