@@ -106,10 +106,12 @@ def create_mock_fit(params: dict[str, float]):
     return mock_fit
 
 
-def mock_fit_map(self, *args, **kwargs):
-    draws = 1
-    chains = 1
-    idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)
+def mock_fit_map(self, fit_kwargs=None, map_kwargs=None):
+    """Stand in for `ModelFitter._fit_map`, which takes its kwargs as dicts."""
+    merged = {**(fit_kwargs or {}), **(map_kwargs or {})}
+    # `draws`/`chains` are fixed below; anything else is harmless to `mock_sample`.
+    passthrough = {k: v for k, v in merged.items() if k not in ("draws", "chains")}
+    idata = mock_sample(**passthrough, chains=1, draws=1, model=self.model)
 
     return idata.sel(chain=[0], draw=[0])
 
