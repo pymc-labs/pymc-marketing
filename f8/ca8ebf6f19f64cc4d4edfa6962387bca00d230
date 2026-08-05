@@ -1,0 +1,19 @@
+pymc_marketing/mmm/counterfactual.py
+  s_42535b1224777d::t_fc56d87fb07f6c 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "f8ca8ebf6f19f64cc4d4edfa6962387bca00d230",
+  "prompts": {},
+  "sessions": {
+    "s_42535b1224777d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eff1967d-b108-4fd7-8e8f-a96581234f6d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
