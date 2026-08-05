@@ -175,6 +175,7 @@ max-line-length = 120
 
 [tool.ruff]
 extend-include = ["*.ipynb"]
+extend-exclude = ["docs/source/notebooks/*/dev"]
 
 [tool.pytest.ini_options]
 addopts = [

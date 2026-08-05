@@ -15,7 +15,7 @@
 
 import warnings
 from collections.abc import Sequence
-from typing import Any, Literal, cast
+from typing import Any
 
 import arviz as az
 import pandas as pd
