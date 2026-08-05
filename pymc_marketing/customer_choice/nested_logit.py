@@ -881,13 +881,13 @@ class NestedLogit(ModelBuilder):
             New choice data. If None, uses data from initialization.
         utility_equations : list[str], optional
             New utility equations. If None, uses equations from initialization.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Show progress bar during sampling
         random_seed : RandomState, optional
             Random seed for reproducibility
-        method : str
-            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
-            ``"advi"`` or ``"fullrank_advi"``.
         sample_kwargs : dict, optional
             Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs
