@@ -2593,6 +2593,8 @@ class MMM(RegressionModelBuilder):
             model = deterministics_to_flat(self.model, names=names)
         elif clone_model:
             model = self.model.copy()
+        else:
+            model = self.model
         model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
             model=model,

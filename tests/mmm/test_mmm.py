@@ -1468,6 +1468,48 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
     )
 
 
+@pytest.mark.parametrize("clone_model", [True, False])
+def test_sample_posterior_predictive_clone_model(
+    single_dim_data, mock_pymc_sample, clone_model
+):
+    """
+    Test that sampling from the posterior predictive works with both clone_model
+    values when no deterministics are frozen, and that clone_model=False sets the
+    new data on the original model in place.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    X_new = X.iloc[-5:]
+    y_train = y.iloc[:-5]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=42)
+
+    # The clone_model=False branch is only reachable without frozen deterministics.
+    assert mmm.frozen_deterministics == []
+
+    out_of_sample_idata = mmm.sample_posterior_predictive(
+        X_new, extend_idata=False, clone_model=clone_model, random_seed=42
+    )
+
+    assert out_of_sample_idata.coords["date"].values.shape == X_new.date.values.shape
+
+    # clone_model=True samples on a copy and leaves the original model untouched,
+    # while clone_model=False sets the new data on the original model.
+    expected_dates = X_train.date if clone_model else X_new.date
+    np.testing.assert_array_equal(
+        np.asarray(mmm.model.coords["date"]), expected_dates.to_numpy()
+    )
+
+
 def test_sample_posterior_predictive_same_data_with_include_last_observations(
     single_dim_data, mock_pymc_sample
 ):
