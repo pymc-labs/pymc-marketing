@@ -865,9 +865,10 @@ class NestedLogit(ModelBuilder):
         self,
         choice_df: pd.DataFrame | None = None,
         utility_equations: list[str] | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
-        method: SamplingMethod = "mcmc",
         sample_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> xr.DataTree:

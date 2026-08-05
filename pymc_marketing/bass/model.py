@@ -707,6 +707,7 @@ class BassModel(ModelBuilder):
     def fit(  # type: ignore[override]
         self,
         data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+        *,
         method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,

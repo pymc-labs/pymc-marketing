@@ -862,6 +862,7 @@ class ModelFitter:
     def fit(
         self,
         data: Any = None,
+        *,
         method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
@@ -1411,9 +1412,10 @@ class RegressionModelBuilder(ModelBuilder):
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
-        method: SamplingMethod = "mcmc",
         sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
@@ -1428,13 +1430,13 @@ class RegressionModelBuilder(ModelBuilder):
             The training input samples. If scikit-learn is available, array-like, otherwise array.
         y : array-like | array, shape (n_obs,)
             The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``. See :meth:`ModelFitter.fit`.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
         random_seed : Optional[RandomState]
             Provides sampler with initial random seed for obtaining reproducible samples.
-        method : str
-            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
-            ``"advi"`` or ``"fullrank_advi"``. See :meth:`ModelFitter.fit`.
         sample_kwargs : dict, optional
             Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs : Any

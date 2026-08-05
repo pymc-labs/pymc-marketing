@@ -1173,9 +1173,10 @@ class MaxDiffMixedLogit(ModelBuilder):
     def fit(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
-        method: SamplingMethod = "mcmc",
         sample_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> xr.DataTree:

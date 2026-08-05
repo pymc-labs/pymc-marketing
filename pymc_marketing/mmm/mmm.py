@@ -2088,9 +2088,11 @@ class MMM(RegressionModelBuilder):
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
-        method: SamplingMethod = "mcmc",
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
         """Fit the model and inject cost_per_unit metadata if provided.
@@ -2104,13 +2106,16 @@ class MMM(RegressionModelBuilder):
             Training input samples.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Whether to show the progress bar.
         random_seed : RandomState, optional
             Random seed for reproducibility.
-        method : str
-            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
-            ``"advi"`` or ``"fullrank_advi"``.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``
+            (e.g. ``{"draws": 1_000}``).
         **kwargs : Any
             Additional keyword arguments passed to the sampler.
 
@@ -2122,9 +2127,10 @@ class MMM(RegressionModelBuilder):
         idata = super().fit(
             X,
             y,
+            method=method,
             progressbar=progressbar,
             random_seed=random_seed,
-            method=method,
+            sample_kwargs=sample_kwargs,
             **kwargs,
         )
         if self._cost_per_unit_input is not None:
