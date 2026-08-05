@@ -1030,7 +1030,8 @@ class Incrementality:
         # direct one is the obvious reason a window has to be widened, but it is
         # not the only one -- a custom adstock or saturation that reduces over
         # ``date`` is not a causal filter, and a plain MMM carrying one cannot be
-        # windowed at all.  Costs one more call to an already-compiled function.
+        # windowed at all.  Costs one more call to an already-compiled function,
+        # or a few where no single date carries spend on every channel.
         probe = SpendProbe(
             evaluator=evaluator,
             baseline=baseline,

@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
+import types
 from types import SimpleNamespace
 
 import numpy as np
@@ -23,7 +24,9 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+from pymc_marketing.mmm import counterfactual as counterfactual_module
 from pymc_marketing.mmm import incrementality as incrementality_module
+from pymc_marketing.mmm import spend_reach as spend_reach_module
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import (
     CounterfactualEvaluator,
@@ -1453,6 +1456,26 @@ def date_normalized(spend):
     return (total / total.mean())[np.newaxis]
 
 
+def single_channel_filter(channel, reach):
+    """A mediator-shaped node reading one channel and carrying it *reach* dates.
+
+    Shaped like a ``mu_effect``'s contribution rather than like
+    ``channel_contribution``: the channel dimension is gone by the time the term
+    reaches the linear predictor, which is exactly why a single all-channels
+    perturbation cannot tell which channel moved it -- and why an impulse at a
+    date this channel is dark leaves it looking inert.
+    """
+
+    def node(spend):
+        column = spend.reshape(len(spend), -1)[:, channel]
+        out = np.zeros(len(spend), dtype="float64")
+        for lag in range(reach):
+            out[lag:] += column[: len(column) - lag] / (lag + 1)
+        return out[np.newaxis]
+
+    return node
+
+
 def constant_node(spend):
     """A node a change in spend does not move at all."""
     return np.ones((1, len(spend)))
@@ -1480,6 +1503,22 @@ class TestSpendProbe:
         spend[:dark] = 0.0
         if spike is not None:
             spend[spike] = 10.0
+        return spend
+
+    flighted_from = 12
+    """First date the second channel is live on in the flighted cases below."""
+
+    @classmethod
+    def _flighted_spend(cls, n_dates=24):
+        """Spend whose second channel is dark until :attr:`flighted_from`.
+
+        One channel runs continuously and the other is flighted, so every early
+        date carries spend -- a probe that asks only whether the *row* is
+        non-zero is perfectly happy -- and yet none of them moves the flighted
+        channel.
+        """
+        spend = np.full((n_dates, 2), 2.0)
+        spend[: cls.flighted_from, 1] = 0.0
         return spend
 
     def _probe(self, spend, **nodes):
@@ -1543,7 +1582,7 @@ class TestSpendProbe:
 
         # The date a fixed positional heuristic picks is inside the dark run.
         assert not spend[len(spend) // 4].any()
-        assert spend[probe.probe_index].any()
+        assert all(spend[index].any() for index in probe.probe_indices)
         assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == (
             self.l_max + 2
         )
@@ -1589,13 +1628,86 @@ class TestSpendProbe:
             spend[0] = 2.0
         probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(2)})
 
-        assert probe.probe_index is None
+        assert probe.probe_indices == ()
         with pytest.warns(UserWarning, match="could not be measured"):
             reach = probe.measure(effects=(), l_max=self.l_max)
 
         assert reach.requires_full_axis
         assert reach.effective_l_max == self.l_max
         assert reach.measured == {}
+
+    def test_one_impulse_covers_a_campaign_that_never_goes_dark(self):
+        """The ordinary case still costs exactly one extra evaluation.
+
+        Covering every cell of the spend array is what the flighted cases below
+        need, and it must not be paid for by a model that does not need it: with
+        every channel live at the chosen date, there is nothing left to cover.
+        """
+        assert len(SpendProbe._select_probe_indices(self._spend())) == 1
+
+    def test_a_channel_dark_at_the_chosen_date_gets_an_impulse_of_its_own(self):
+        """A mediator reading a flighted channel is measured, not missed.
+
+        The failure this exists to stop is silent and one-sided.  Choose the
+        probe date by *total* spend and it lands where the flighted channel is
+        dark; the mediator then comes back unmoved, which is indistinguishable
+        from a mediator with no tail, so the window is sized for the direct path
+        alone and every increment is quietly short by the tail that was cut.
+        Nothing warns, because nothing was observed to warn about.
+        """
+        spend = self._flighted_spend()
+        mediator_reach = self.l_max + 3
+        probe = self._probe(
+            spend,
+            **{
+                CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                "mediator": single_channel_filter(channel=1, reach=mediator_reach),
+            },
+        )
+        effect = ChannelDependentEffect(
+            contribution_var="mediator",
+            label="Mediator",
+            declared_carryover_lags=None,
+            declared_evaluation_mode="auto",
+        )
+
+        # Every early date carries spend, so the first impulse is placed exactly
+        # where a row-wise check would put it -- and the flighted channel is dark
+        # there, so on its own it measures the mediator as inert.
+        first, second = probe.probe_indices
+        assert spend[first].any() and not spend[first, 1]
+        assert (
+            probe._reach_of("mediator", probe=probe.probes[0], l_max=self.l_max)
+            == TemporalReach.none()
+        )
+        assert second == self.flighted_from
+
+        reach = probe.measure(effects=(effect,), l_max=self.l_max)
+
+        # Reaching mediator_reach dates from the second impulse is
+        # mediator_reach - 1 lags, of which the model's own l_max is covered.
+        assert reach.measured["mediator"].additional_carryover_lags == (
+            mediator_reach - 1 - self.l_max
+        )
+        assert reach.effective_l_max == mediator_reach - 1
+        assert not reach.requires_full_axis
+
+    def test_the_cover_is_over_cells_rather_than_channels(self):
+        """One panel cell going dark is enough to need a second impulse.
+
+        A geography that launches a channel late leaves every *channel* live
+        somewhere at the chosen date while the cell itself is dark, so covering
+        channels rather than cells would walk into the same failure one level
+        down.  Panel spend is laid out ``(date, country, channel)``.
+        """
+        spend = np.full((24, 2, 2), 2.0)
+        spend[: self.flighted_from, 1, 1] = 0.0
+
+        indices = SpendProbe._select_probe_indices(spend)
+
+        assert len(indices) == 2
+        assert not spend[indices[0], 1, 1]
+        assert spend[indices[1], 1, 1]
 
     def test_the_widest_reach_wins_on_both_counts(self):
         """Combining per-node reaches takes the longest tail and any full axis.
@@ -1722,6 +1834,38 @@ class TestSpendProbe:
                 }
             )
 
+    def test_a_path_out_of_a_dark_channel_is_still_caught(self):
+        """Completeness is checked on every impulse, not only the first.
+
+        The other half of what covering the spend array buys.  An unattributed
+        path out of one channel only shows up in an impulse that moved that
+        channel: at the first date the flighted channel is dark, so the
+        predictor and the accounted nodes agree exactly and the check passes on
+        a comparison that never saw the hidden term.
+        """
+        contribution = causal_filter(self.l_max)
+        hidden = single_channel_filter(channel=1, reach=self.l_max)
+        non_date_dims = {CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()}
+        probe = self._probe(
+            self._flighted_spend(),
+            **{
+                CHANNEL_CONTRIBUTION: contribution,
+                LINEAR_PREDICTOR: lambda spend: contribution(spend).sum(axis=-1)
+                + hidden(spend),
+            },
+        )
+
+        # The first impulse alone raises nothing: it moved no channel the hidden
+        # term reads, so both sides of the identity are equal.
+        probe._assert_impulse_is_accounted_for(
+            probe.probes[0], effects=(), non_date_dims=non_date_dims
+        )
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            probe.assert_increment_is_complete(
+                effects=(), non_date_dims=non_date_dims
+            )
+
     def test_nothing_moving_anywhere_is_not_an_error(self):
         """Two nodes spend does not reach agree, and there is nothing to report."""
         self._assert_complete(
@@ -1732,6 +1876,32 @@ class TestSpendProbe:
                 LINEAR_PREDICTOR: constant_node,
             }
         )
+
+
+@pytest.mark.parametrize(
+    "module",
+    [counterfactual_module, incrementality_module, spend_reach_module],
+    ids=lambda module: module.__name__.rsplit(".", 1)[-1],
+)
+def test_exported_names_survive_the_api_docs_build(module):
+    """Nothing in ``__all__`` is of a shape autodoc refuses to render.
+
+    ``docs/source/api/index.md`` runs ``autosummary`` recursively over
+    ``pymc_marketing.mmm``, so a new module needs no manual API entry -- and
+    equally gets no say in what is generated for it.  A bare parametrised
+    generic (``tuple[int, int | None]``) is classified as a class, autodoc
+    cannot format its signature, and the docs job builds with ``-W``, so the
+    warning fails the build.  The failure is a red tick on a docs job rather
+    than anything a test run would otherwise show, and it costs a whole CI
+    cycle to find out.
+    """
+    offenders = [
+        name
+        for name in module.__all__
+        if isinstance(getattr(module, name), types.GenericAlias)
+    ]
+
+    assert offenders == []
 
 
 def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
@@ -2694,6 +2864,42 @@ class TestMediatedEdgeCases:
 
         assert set(result.dims) == {"chain", "draw", "channel", "country"}
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_a_flighted_channel_s_mediator_is_measured_on_a_real_graph(
+        self, flighted_channel_mediated_fitted_mmm
+    ):
+        """The unit-level blocker, end to end on a fitted model.
+
+        ``TestSpendProbe`` pins the choice of dates against analytic nodes; this
+        pins that the choice buys what it is supposed to buy once a real graph,
+        a log link and the window machinery are in the way.  The mediator reads
+        the flighted channel and declares nothing, so if no impulse moves that
+        channel the window collapses to the model's own adstock and the tail is
+        cut -- silently, with a plausible number coming out.
+        """
+        mmm = flighted_channel_mediated_fitted_mmm
+        reach = measure_spend_reach(mmm)
+
+        measured = reach.measured["flighted_effect_contribution"]
+        assert measured.additional_carryover_lags > 0
+        assert not reach.requires_full_axis
+        l_max = reach.effective_l_max
+        assert l_max > mmm.adstock.l_max
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", l_max=l_max
+        )
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+        # And the window the un-measured mediator would have produced really is
+        # a different number, so the assertion above is not satisfied by both.
+        truncated = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", l_max=mmm.adstock.l_max
+        )
+        assert not np.allclose(result.values, truncated.values)
 
     def test_subsampling_the_posterior_keeps_the_mediated_path(
         self, funnel_log_link_fitted_mmm

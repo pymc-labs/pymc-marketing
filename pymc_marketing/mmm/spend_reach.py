@@ -29,12 +29,16 @@ be established, and neither can be assumed:
    route, the increment reports one part of the response as though it were all of
    it.
 
-Both are read off *one* extra evaluation: perturb spend at a single interior date
-on the untruncated axis and compare against the baseline.  That shared
-measurement is why the two questions live in the same module -- and why they live
-apart from :class:`~pymc_marketing.mmm.incrementality.Incrementality`, which owns
-periods, windows, spend and the link-specific reduction, and has nothing to say
-about either.
+Both are read off the same thing: perturb spend at one interior date on the
+untruncated axis and compare against the baseline.  One such impulse is normally
+the whole cost, and never more than a handful -- enough of them, between them, to
+move every cell of the spend array that carries any spend at all, because a
+mediator reading a channel no impulse moved comes back looking inert.  That
+shared measurement is why the two questions live in the same module -- and why
+they live apart from
+:class:`~pymc_marketing.mmm.incrementality.Incrementality`, which owns periods,
+windows, spend and the link-specific reduction, and has nothing to say about
+either.
 
 The entry point is :meth:`SpendProbe.measure`, which returns a
 :class:`SpendReach`: an evaluation-window length and whether a window is usable
@@ -338,8 +342,24 @@ class SpendReach:
     measured: Mapping[str, TemporalReach] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class _Impulse:
+    """One perturbed date and what the graph did about it.
+
+    Parameters
+    ----------
+    index : int
+        Index of the perturbed date on the full fitted axis.
+    evaluated : dict
+        The evaluation under that perturbation, per node.
+    """
+
+    index: int
+    evaluated: dict[str, np.ndarray]
+
+
 class SpendProbe:
-    """One single-date spend perturbation, and the two facts read off it.
+    """Single-date spend perturbations, and the two facts read off them.
 
     A probe is an *impulse*: spend at one interior date is scaled, every other
     date left alone, and the whole graph re-evaluated on the untruncated axis.
@@ -348,11 +368,16 @@ class SpendProbe:
     node, whether any node moves *backwards* in time, and whether the nodes being
     evaluated account for the whole move in the linear predictor.
 
+    One impulse answers both questions for most models and several answer them
+    for the rest, because a single date need not carry spend everywhere: see
+    :meth:`_select_probe_indices`.  Each is one more call to an evaluator that
+    has already been compiled.
+
     Parameters
     ----------
     evaluator : CounterfactualEvaluator
         Compiled evaluator over the accounted nodes.  Reused rather than
-        recompiled: the probe is one more call to a function that already exists.
+        recompiled: a probe is one more call to a function that already exists.
     baseline : dict
         Unperturbed evaluation on the full date axis, per node.
     baseline_array : np.ndarray
@@ -364,9 +389,9 @@ class SpendProbe:
 
     Attributes
     ----------
-    probe_index : int or None
-        Index of the perturbed date, or ``None`` if no date could be perturbed --
-        see :meth:`_select_probe_index`.
+    probe_indices : tuple of int
+        The perturbed dates, in the order they were chosen.  Empty if no date
+        could be perturbed at all.
     """
 
     REACH_TOLERANCE = 1e-9
@@ -398,38 +423,57 @@ class SpendProbe:
         counterfactual_spend_factor: float,
     ) -> None:
         self.baseline = baseline
-        self.probe_index = self._select_probe_index(baseline_array)
-        self.probed: dict[str, np.ndarray] | None = None
-        if self.probe_index is not None:
-            self.probed = evaluator.evaluate_baseline(
-                self._perturb(
-                    baseline_array=baseline_array,
-                    probe_index=self.probe_index,
-                    counterfactual_spend_factor=counterfactual_spend_factor,
-                    dtype=evaluator.channel_dtype,
-                )
+        self.probe_indices = self._select_probe_indices(baseline_array)
+        self.probes = tuple(
+            _Impulse(
+                index=index,
+                evaluated=evaluator.evaluate_baseline(
+                    self._perturb(
+                        baseline_array=baseline_array,
+                        probe_index=index,
+                        counterfactual_spend_factor=counterfactual_spend_factor,
+                        dtype=evaluator.channel_dtype,
+                    )
+                ),
             )
+            for index in self.probe_indices
+        )
 
     # ==================== The perturbation ====================
 
     @staticmethod
-    def _select_probe_index(baseline_array: np.ndarray) -> int | None:
-        """Choose a date whose spend the probe can actually move.
+    def _select_probe_indices(baseline_array: np.ndarray) -> tuple[int, ...]:
+        """Choose dates whose spend the probes can actually move, covering it all.
 
-        A multiplicative perturbation of an all-zero row is a no-op, and a no-op
-        probe is worse than no probe: every node comes back unmoved, so the reach
-        looks bounded and the completeness check compares zero against zero.
-        Both guards would pass by failing to see anything.  So the date is chosen
-        by *spend* rather than by position, and a probe that could not move
-        anything is reported as no probe at all.
+        A multiplicative perturbation of a zero is a no-op, and a no-op is worse
+        than no probe: the node that depended on it comes back unmoved, so its
+        reach looks bounded and its share of the predictor's move looks like
+        zero.  Both guards then pass by failing to see anything.  So dates are
+        chosen by *spend* rather than by position.
 
-        Among the dates that carry spend, an early one is preferred.  The two
-        things :meth:`measure` reads off the probe both need room on the axis: a
-        forward tail has to be able to end before the last date, or its length
-        cannot be bounded, and a backward move has to have at least one earlier
-        date to show up in.  Placing the probe near the front maximises the
-        former and costs nothing for the latter, since a reduction over ``date``
-        moves *every* date rather than only nearby ones.
+        One date is not enough, because spend is zero *per cell*, not only per
+        row.  A mediator reading one channel -- an upper-funnel term, a
+        cross-channel halo -- is moved only by an impulse at a date that channel
+        is live on, and choosing the date by total spend across channels can
+        easily land on a date it is dark.  The mediated tail is then measured as
+        no tail, the window is sized for the direct path alone, and the
+        increment comes back quietly short.  Nothing distinguishes that from a
+        model with no mediated tail.
+
+        So dates are chosen until every cell that carries spend anywhere has
+        been perturbed by at least one of them, taking at each step the date
+        carrying the most spend among the cells still uncovered.  That is one
+        date whenever some date is live everywhere, which is the ordinary case,
+        and never more dates than there are cells.
+
+        Among equally covering dates an early one is preferred, because both
+        things :meth:`measure` reads off a probe need room on the axis: a forward
+        tail has to be able to end before the last date, or its length cannot be
+        bounded, and a backward move needs at least one earlier date to show up
+        in.  A cell live only at the very end of the series is the one case that
+        cannot be given room, and there the reach is genuinely unbounded by the
+        evidence, so :meth:`measure` falls back to the full axis rather than
+        guessing.
 
         Parameters
         ----------
@@ -438,24 +482,42 @@ class SpendProbe:
 
         Returns
         -------
-        int or None
-            Index of the date to perturb, or ``None`` when no date other than the
-            first carries any spend -- an all-zero spend array, or one with spend
-            only at the very first date, where no interior impulse exists.
+        tuple of int
+            Dates to perturb, in the order chosen, the first being the one the
+            most spend rides on.  Empty when no date other than the first
+            carries any spend -- an all-zero spend array, or one with spend only
+            at the very first date, where no interior impulse exists.
         """
         n_dates = baseline_array.shape[0]
-        per_date = np.abs(baseline_array.reshape(n_dates, -1)).sum(axis=1)
+        if n_dates < 2:
+            return ()
+        spend = np.abs(baseline_array.reshape(n_dates, -1))
+        live = spend > 0.0
         # The first date is excluded: an impulse there has no earlier date to
         # move, so a reduction over "date" would be indistinguishable from a
-        # causal filter.
-        if n_dates < 2 or not per_date[1:].any():
-            return None
+        # causal filter.  A cell live only there is therefore unreachable, and
+        # asking for it to be covered would not terminate.
+        uncovered = live[1:].any(axis=0)
+        if not uncovered.any():
+            return ()
 
         head = slice(1, max(2, n_dates // 8))
-        candidates = per_date[head]
-        if candidates.any():
-            return head.start + int(np.argmax(candidates))
-        return 1 + int(np.argmax(per_date[1:]))
+        indices: list[int] = []
+        while uncovered.any():
+            # Ranked by the spend carried in the cells still uncovered, so a
+            # date whose cells are already accounted for cannot win twice.
+            score = spend[:, uncovered].sum(axis=1)
+            score[0] = 0.0
+            if score[head].any():
+                index = head.start + int(np.argmax(score[head]))
+            else:
+                index = int(np.argmax(score))
+            indices.append(index)
+            # Strictly shrinks: every uncovered cell is live at some date past
+            # the first, so the chosen date scores above zero and covers at
+            # least one of them.
+            uncovered &= ~live[index]
+        return tuple(indices)
 
     @staticmethod
     def _perturb(
@@ -505,9 +567,12 @@ class SpendProbe:
         effect's own declaration alone is a hazard: declare too little and the
         mediated tail falls outside the window, which returns a smaller increment
         with no indication anything was cut.  So it is measured.  Each node's
-        contribution under the probe is compared against the baseline, and the
+        contribution under each impulse is compared against the baseline, and the
         last date that moves by more than :attr:`REACH_TOLERANCE` of that node's
-        largest move fixes its reach.
+        largest move fixes its reach.  A node reached by only one of the impulses
+        takes its reach from that one: the impulses that left it alone perturbed
+        a part of the spend array it does not read, which says nothing about how
+        far it carries.
 
         ``channel_contribution`` is measured alongside the effects and not
         assumed to inherit the model's own ``adstock.l_max``.  A custom adstock or
@@ -537,7 +602,7 @@ class SpendProbe:
         SpendReach
             The window length and mode the evaluation has to use.
         """
-        if self.probed is None or self.probe_index is None:
+        if not self.probes:
             # No date could be perturbed, so nothing about the window was
             # established.  Fall back to the only mode that is correct without a
             # measurement rather than trusting an unmeasured one.
@@ -561,10 +626,14 @@ class SpendProbe:
                 requires_full_axis=True,
             )
 
-        probed, probe_index = self.probed, self.probe_index
         measured = {
-            name: self._reach_of(
-                name, probed=probed, probe_index=probe_index, l_max=l_max
+            # Widest across impulses: each one moves a different part of the
+            # spend array, and a node only one of them reaches is measured by
+            # that one alone.  The others see it stand still, which is not
+            # evidence of a short tail.
+            name: TemporalReach.widest(
+                self._reach_of(name, probe=probe, l_max=l_max)
+                for probe in self.probes
             )
             for name in (
                 CHANNEL_CONTRIBUTION,
@@ -587,31 +656,31 @@ class SpendProbe:
         self,
         name: str,
         *,
-        probed: dict[str, np.ndarray],
-        probe_index: int,
+        probe: _Impulse,
         l_max: int,
     ) -> TemporalReach:
-        """Measure one node's reach from the probe.
+        """Measure one node's reach from one impulse.
 
         Parameters
         ----------
         name : str
             Node to measure.
-        probed : dict
-            The probe evaluation, per node.
-        probe_index : int
-            Index of the perturbed date.
+        probe : _Impulse
+            The impulse to read it off.
         l_max : int
             The model's own ``adstock.l_max``.
 
         Returns
         -------
         TemporalReach
-            The node's measured reach.
+            The node's reach as this impulse shows it.  A node this particular
+            impulse does not move has no reach *here*, which is why the caller
+            combines the impulses rather than trusting one.
         """
+        probe_index = probe.index
         # Collapse samples and every non-date dim: the question is which dates
         # moved, not which cells.
-        per_date = np.abs(probed[name] - self.baseline[name])
+        per_date = np.abs(probe.evaluated[name] - self.baseline[name])
         n_dates = per_date.shape[1]
         per_date = per_date.reshape(per_date.shape[0], n_dates, -1).max(axis=(0, 2))
         largest = per_date.max()
@@ -635,8 +704,8 @@ class SpendProbe:
         """Combine each effect's measured reach with what it declared.
 
         A declaration wider than the measurement is honoured -- a wider window
-        only costs compute, and a caller may know of a tail the probe's single
-        perturbation left below tolerance.  A narrower one is rejected rather
+        only costs compute, and a caller may know of a tail the probes left
+        below tolerance.  A narrower one is rejected rather
         than quietly overridden, because it is evidence that the effect's author
         believes something false about it.  Each declaration is judged against
         that effect's own measurement.
@@ -728,12 +797,14 @@ class SpendProbe:
         outside any effect.  Each drops a real part of the increment and reports
         the remainder as if it were the whole.
 
-        So it is checked rather than assumed, against the probe evaluation
-        :meth:`measure` already paid for.  A structural check -- does spend reach
-        :math:`\mu` other than through the accounted nodes -- would miss the
-        misreporting case, because a variable *upstream* of the true contribution
-        blocks the same paths while entering :math:`\mu` through a nonlinearity
-        that makes the sum above false.
+        So it is checked rather than assumed, against the probe evaluations
+        :meth:`measure` already paid for -- every one of them, because an
+        unattributed path out of one channel only shows up in an impulse that
+        moved that channel.  A structural check -- does spend reach :math:`\mu`
+        other than through the accounted nodes -- would miss the misreporting
+        case, because a variable *upstream* of the true contribution blocks the
+        same paths while entering :math:`\mu` through a nonlinearity that makes
+        the sum above false.
 
         Parameters
         ----------
@@ -750,14 +821,41 @@ class SpendProbe:
         NotImplementedError
             If the accounted nodes do not reproduce the predictor's move.
         """
-        if self.probed is None or LINEAR_PREDICTOR not in self.baseline:
+        if LINEAR_PREDICTOR not in self.baseline:
             return
+        for probe in self.probes:
+            self._assert_impulse_is_accounted_for(
+                probe, effects=effects, non_date_dims=non_date_dims
+            )
 
-        probed = self.probed
+    def _assert_impulse_is_accounted_for(
+        self,
+        probe: _Impulse,
+        *,
+        effects: Sequence[ChannelDependentEffect],
+        non_date_dims: Mapping[str, tuple[str, ...]],
+    ) -> None:
+        """Check one impulse's move in the predictor against the accounted nodes.
+
+        Parameters
+        ----------
+        probe : _Impulse
+            The impulse to check.
+        effects : sequence of ChannelDependentEffect
+            The effects being evaluated alongside ``channel_contribution``.
+        non_date_dims : mapping
+            Per node, the dimensions its evaluation carries after ``sample`` and
+            ``date``.
+
+        Raises
+        ------
+        NotImplementedError
+            If the accounted nodes do not reproduce the predictor's move.
+        """
 
         def moved(name: str) -> xr.DataArray:
             return xr.DataArray(
-                probed[name] - self.baseline[name],
+                probe.evaluated[name] - self.baseline[name],
                 dims=("sample", "date", *non_date_dims[name]),
             )
 

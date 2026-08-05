@@ -60,9 +60,16 @@ __all__ = [
     "Estimand",
     "EvaluationWindows",
     "PeriodWindow",
-    "ScenarioKey",
 ]
 
+# Deliberately absent from __all__ above.  ``docs/source/api/index.md`` runs
+# ``autosummary`` recursively over ``pymc_marketing.mmm``, so every exported name
+# gets a generated page, and autodoc cannot render a bare parametrised-generic
+# alias: it classifies the object as a class, fails to format its signature, and
+# the docs build turns the resulting warning into an error.  ``Estimand`` below
+# is a ``Literal`` rather than a ``types.GenericAlias`` and renders fine, which
+# is why it stays exported.  Nothing outside this module refers to the name, and
+# the docstring is still here for anyone reading the source.
 ScenarioKey = tuple[int, int | None]
 """Which scenario a row of :attr:`CounterfactualScenarios.spend` answers for.
 
@@ -406,7 +413,7 @@ class EvaluationWindows:
         -------
         CounterfactualScenarios
             Perturbed spend plus the bookkeeping needed to find the row for a
-            given :data:`ScenarioKey` and to broadcast per-period arrays over
+            given ``ScenarioKey`` and to broadcast per-period arrays over
             scenarios.
         """
         separable = channel_axis is None
@@ -525,7 +532,7 @@ class CounterfactualScenarios:
         per-period array (a windowed data variable, a ``time_index`` row) up to
         the scenario axis.
     rows : dict
-        Maps a :data:`ScenarioKey` to a row of :attr:`spend`.
+        Maps a ``ScenarioKey`` to a row of :attr:`spend`.
 
     See Also
     --------

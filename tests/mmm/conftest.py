@@ -840,6 +840,61 @@ class ChainedMediatorEffect(MuEffect):
         )
 
 
+class SingleChannelMediatorEffect(MuEffect):
+    """A mediator that reads one channel and declares no reach of its own.
+
+    Both halves matter.  Reading *one* channel means an impulse at a date that
+    channel is dark leaves the effect bit-identical, so a probe that picks its
+    date by total spend across channels can measure a real mediated tail as no
+    tail at all.  Declaring nothing means the measurement is the only thing
+    standing between the model and a truncated window: every other mediated
+    fixture here declares its second adstock, which would widen the window even
+    if the probe saw nothing.
+
+    Parameters
+    ----------
+    prefix : str
+        Names the effect's variables.
+    channel : int
+        Position of the channel the mediator reads.
+    demand_transform : MediaTransformation
+        Applied to that channel's spend.  Its ``l_max`` is the extra carryover
+        the effect adds, and the number the probe has to recover.
+    """
+
+    prefix: str
+    channel: int
+    demand_transform: InstanceOf[MediaTransformation]
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {
+            "prefix": self.prefix,
+            "channel": self.channel,
+            "demand_transform": self.demand_transform.to_dict(),
+        }
+
+    def create_data(self, mmm) -> None:
+        """No data of its own to register."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own to update."""
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in and declare nothing, so the reach has to be measured."""
+        return IncrementalitySpec()
+
+    def create_effect(self, mmm):
+        """Carry one channel's spend through a second adstock."""
+        spend = mmm.channel_data_scaled.isel(channel=self.channel)
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            self.demand_transform(spend, dim="date"),
+        )
+
+
 class SubsetDimsEffect(MuEffect):
     """A spend-dependent effect whose contribution drops a model dimension.
 
@@ -1150,6 +1205,55 @@ DARK_START = 9
 def dark_start_funnel_fitted_mmm(dark_start_funnel_mmm_data):
     """Funnel MMM fit on data whose first third carries no spend."""
     return _build_funnel_mmm(dark_start_funnel_mmm_data, link="log")
+
+
+FLIGHTED_FROM = 12
+"""First date the second channel is live on in :func:`flighted_channel_mmm_data`."""
+
+FLIGHTED_DEMAND_L_MAX = FUNNEL_L_MAX + 3
+"""Reach of the mediator in :func:`flighted_channel_mediated_fitted_mmm`.
+
+Longer than the model's own adstock, so a window sized for the direct path alone
+is demonstrably too short, and short enough that the tail ends before the last
+date, so the reach comes out bounded and the assertion can be a number.
+"""
+
+
+@pytest.fixture
+def flighted_channel_mmm_data(funnel_mmm_data):
+    """Funnel data whose *second* channel is dark for the first half.
+
+    Distinct from :func:`dark_start_funnel_mmm_data`, and the difference is the
+    whole point: there, whole rows are zero, so a probe that looks at spend at
+    all steps past them.  Here every date carries spend and the row-wise check
+    is satisfied everywhere, while the early dates a probe prefers move only
+    ``channel_1``.  A flighted campaign, a channel that launches mid-series, or
+    a geography that adopts one late all produce it.
+    """
+    data = {key: value.copy(deep=True) for key, value in funnel_mmm_data.items()}
+    data["X"]["media"][:FLIGHTED_FROM, 1] = 0.0
+    media = data["X"]["media"].values
+    for i, channel in enumerate(["channel_1", "channel_2"]):
+        data["X_df"][channel] = media[:, i]
+    return data
+
+
+@pytest.fixture
+def flighted_channel_mediated_fitted_mmm(flighted_channel_mmm_data):
+    """MMM whose mediator reads the channel that is dark where a probe lands."""
+    return _build_funnel_mmm(
+        flighted_channel_mmm_data,
+        link="log",
+        effects=[
+            SingleChannelMediatorEffect(
+                prefix="flighted",
+                channel=1,
+                demand_transform=_media_transformation(
+                    "demand_flighted", (), FLIGHTED_DEMAND_L_MAX, beta_sigma=3.0
+                ),
+            )
+        ],
+    )
 
 
 @pytest.fixture
