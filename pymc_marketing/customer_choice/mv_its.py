@@ -123,7 +123,9 @@ class MVITS(RegressionModelBuilder):
 
         """
         return {
-            "model_config": json.loads(attrs["model_config"]),
+            "model_config": cls._model_config_formatting(
+                json.loads(attrs["model_config"])
+            ),
             "sampler_config": json.loads(attrs["sampler_config"]),
             "existing_sales": json.loads(attrs["existing_sales"]),
             "saturated_market": json.loads(attrs["saturated_market"]),

@@ -175,7 +175,13 @@ def test_wrong_distribution():
     """Test that a model with an invalid distribution fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_distribution.yml")
 
-    with pytest.raises(ModelConfigError):
+    # The message must name the config key *and* the real reason. A bare
+    # `DeserializableError` only advises `register_deserialization`, which is
+    # the wrong hint for a misspelled distribution name.
+    with pytest.raises(
+        ModelConfigError,
+        match=r"Parameter intercept:.*distribution of name 'InvalidDistribution'",
+    ):
         build_mmm_from_yaml(wrong_config_path)
 
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -187,7 +193,7 @@ def test_wrong_parameter_type():
     """Test that a model with a wrong parameter type fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_parameter_type.yml")
 
-    with pytest.raises(ModelConfigError):
+    with pytest.raises(ModelConfigError, match="Parameter likelihood"):
         build_mmm_from_yaml(wrong_config_path)
 
     cfg = yaml.safe_load(wrong_config_path.read_text())
