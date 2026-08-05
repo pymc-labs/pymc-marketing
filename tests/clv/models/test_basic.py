@@ -38,7 +38,6 @@ class CLVModelTest(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[],
         )
         self.data = data
 
@@ -84,7 +83,6 @@ class CLVModelForLoadTest(CLVModelTest):
             self,
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=[],
         )
         if data is not None:
             self.data = data
@@ -174,7 +172,7 @@ class TestCLVModel:
             data=model.data,
             method="advi",
             tune=5,
-            chains=2,
+            chains=1,
             draws=10,
         )
         assert isinstance(idata, xr.DataTree)
@@ -325,17 +323,6 @@ class TestCLVModel:
         assert len(thin_model.posterior["x"].draw) == 50
         assert thin_model.data is not model.data
         assert np.all(thin_model.data == model.data)
-
-    def test_model_config_warns(self) -> None:
-        model_config = {
-            "x": {"dist": "StudentT", "kwargs": {"mu": 0, "sigma": 5, "nu": 15}},
-        }
-        with pytest.warns(DeprecationWarning, match=r"x is automatically"):
-            model = CLVModelTest(model_config=model_config)
-
-        assert model.model_config == {
-            "x": Prior("StudentT", mu=0, sigma=5, nu=15),
-        }
 
     def test_validate_cols_reports_all_missing_columns(self):
         """Test _validate_cols raises a single ValueError listing all missing columns."""

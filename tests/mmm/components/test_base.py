@@ -170,9 +170,8 @@ def test_new_transformation_function_priors(new_transformation) -> None:
 
 
 def test_new_transformation_priors_at_init(new_transformation_class) -> None:
-    new_prior = {"a": {"dist": "HalfNormal", "kwargs": {"sigma": 2}}}
-    with pytest.warns(DeprecationWarning, match=r"a is automatically converted"):
-        new_transformation = new_transformation_class(priors=new_prior)
+    new_prior = {"a": Prior("HalfNormal", sigma=2)}
+    new_transformation = new_transformation_class(priors=new_prior)
     assert new_transformation.function_priors == {
         "a": Prior("HalfNormal", sigma=2),
         "b": Prior("HalfNormal", sigma=1),

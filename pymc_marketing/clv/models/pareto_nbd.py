@@ -204,7 +204,6 @@ class ParetoNBDModel(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=["purchase_covariate_cols", "dropout_covariate_cols"],
         )
 
     @property

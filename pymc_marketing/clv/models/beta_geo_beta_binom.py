@@ -155,7 +155,6 @@ class BetaGeoBetaBinomModel(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=None,
         )
 
     @property
