@@ -511,6 +511,11 @@ class BassModel(ModelBuilder):
         ``model.initial_point()``, making the likelihood ``-inf`` there; ``fit(
         method="map")`` then fails outright, while ``"mcmc"`` only survives it
         because ``jitter+adapt_diag`` moves off the starting point.
+
+        The default ``m`` prior here is a placeholder: because ``m`` is a headcount
+        whose scale is entirely dataset-dependent, :meth:`build_model` replaces it
+        with ``HalfNormal(sigma=2 * observed.sum())`` whenever the user has not
+        overridden it. Pass an explicit ``m`` prior in ``model_config`` to opt out.
         """
         return {
             "m": Prior("HalfNormal", sigma=10),
@@ -670,6 +675,18 @@ class BassModel(ModelBuilder):
 
         t = ds.coords["T"].values
         observed = ds.get("observed")
+
+        # `m` is the market potential -- the total number of eventual adopters -- so a
+        # fixed-scale default prior is wrong for almost every dataset. When the user has
+        # not overridden the default `m` prior, rescale it to the data: the observed
+        # cumulative adoptions are a lower bound on `m`, so twice that keeps the prior
+        # weakly informative at the right order of magnitude.
+        if (
+            observed is not None
+            and self.model_config["m"] == self.default_model_config["m"]
+        ):
+            total_adopters = max(float(observed.sum()), 1.0)
+            self.model_config["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
 
         coords = {name: ds.coords[name].values for name in ds.coords}
 

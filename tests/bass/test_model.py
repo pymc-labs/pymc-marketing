@@ -697,12 +697,32 @@ class TestBassModelClass:
         assert np.isfinite(list(logps.values())).all(), logps
 
     def test_fit_map(self, y: np.ndarray):
-        """MAP has no jitter to escape a degenerate initial point, unlike NUTS."""
+        """MAP has no jitter to escape a degenerate initial point, unlike NUTS.
+
+        The estimate must land at the data's scale (~2000 cumulative adopters), which
+        catches an `m` posterior pinned to a mis-scaled prior rather than the data.
+        """
         model = BassModel()
         idata = model.fit(data=y, method="map")
 
         assert "posterior" in idata
-        assert (idata.posterior["m"].to_numpy() > 0).all()
+        m_est = float(idata.posterior["m"].to_numpy().squeeze())
+        total = float(y.sum())
+        assert total / 4 < m_est < total * 4
+
+    def test_default_m_prior_is_data_scaled(self, y: np.ndarray):
+        """build_model rescales the default `m` prior to the observed adoptions."""
+        model = BassModel()
+        model.build_model(data=y)
+
+        m_prior = model.model_config["m"]
+        assert m_prior.parameters["sigma"] == pytest.approx(2 * float(y.sum()))
+
+    def test_user_m_prior_is_untouched(self, y: np.ndarray):
+        model = BassModel(model_config={"m": Prior("HalfNormal", sigma=123.0)})
+        model.build_model(data=y)
+
+        assert model.model_config["m"].parameters["sigma"] == 123.0
 
     def test_build_model_from_array(self):
         y = np.random.default_rng(42).poisson(lam=100, size=20)
