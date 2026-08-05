@@ -117,7 +117,7 @@ def monthly_mmm_data():
     return _make_mmm_data(periods=18, freq="MS", n_channels=3, seed=99)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_mmm_data():
     """Create MMM data for a multiplicative (log-link) model.
 
@@ -131,7 +131,7 @@ def log_link_mmm_data():
     return _make_mmm_data(periods=14, freq="W", n_channels=2, seed=42)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def panel_mmm_data():
     """Create panel (multidimensional) MMM data with country dimension.
 
@@ -345,7 +345,7 @@ def _mock_fit_log_link(mmm, X, y):
     return mmm
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_fitted_mmm(log_link_mmm_data):
     """Create a fitted multiplicative (log-link) MMM.
 
@@ -406,7 +406,7 @@ def _split_posterior_into_two_chains(mmm):
     return mmm
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_two_chain_fitted_mmm(log_link_mmm_data):
     """A log-link MMM whose posterior carries two chains rather than one."""
     mmm = MMM(
@@ -422,7 +422,7 @@ def log_link_two_chain_fitted_mmm(log_link_mmm_data):
     return _split_posterior_into_two_chains(mmm)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_single_channel_fitted_mmm(log_link_mmm_data):
     """Create a fitted log-link MMM with exactly one channel.
 
@@ -443,7 +443,7 @@ def log_link_single_channel_fitted_mmm(log_link_mmm_data):
     return _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_control_fitted_mmm(log_link_mmm_data):
     """Create a fitted log-link MMM with a control variable.
 
@@ -468,7 +468,7 @@ def log_link_control_fitted_mmm(log_link_mmm_data):
     return _mock_fit_log_link(mmm, X, log_link_mmm_data["y"])
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_time_varying_media_fitted_mmm(log_link_mmm_data):
     """Create a fitted log-link MMM with ``time_varying_media=True``.
 
@@ -494,7 +494,7 @@ def log_link_time_varying_media_fitted_mmm(log_link_mmm_data):
     return mmm
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def log_link_panel_fitted_mmm(panel_mmm_data):
     """Create a fitted panel (multidimensional) log-link MMM.
 
@@ -520,10 +520,34 @@ def log_link_panel_fitted_mmm(panel_mmm_data):
     return _mock_fit_log_link(mmm, X, panel_mmm_data["y"])
 
 
+@pytest.fixture(scope="module")
+def log_link_fixed_sigma_fitted_mmm(log_link_mmm_data):
+    """Log-link MMM whose LogNormal sigma is a fixed number rather than a prior.
+
+    With no ``y_sigma`` in the posterior there is nothing to build the
+    LogNormal mean correction from, so ``central_tendency="mean"`` has to fail
+    with a clear message instead of silently returning median-scale numbers.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogSaturation(),
+        link="log",
+        model_config={"likelihood": Prior("LogNormal", sigma=0.5, dims="date")},
+    )
+
+    return _mock_fit_log_link(mmm, log_link_mmm_data["X"], log_link_mmm_data["y"])
+
+
 @pytest.fixture
 def panel_fitted_mmm(panel_mmm_data):
     """Create a panel (multidimensional) fitted MMM for testing."""
-    X = panel_mmm_data["X"]
+    # Copy: ``panel_mmm_data`` is module-scoped and the dtype cast below must
+    # not leak into other consumers of the shared frame.
+    X = panel_mmm_data["X"].copy()
     y = panel_mmm_data["y"]
 
     # Convert channel columns to float so we could test on a model with float channel_data
@@ -985,7 +1009,7 @@ FUNNEL_L_MAX = 3
 """Adstock length used by both the model and the funnel's second transform."""
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_mmm_data():
     """Spend, an exogenous lower-funnel budget, and a strictly positive target.
 
@@ -1094,19 +1118,19 @@ def _build_funnel_mmm(
     return mmm
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_log_link_fitted_mmm(funnel_mmm_data):
     """Multiplicative funnel MMM: nonlinear link *and* a mediated path."""
     return _build_funnel_mmm(funnel_mmm_data, link="log")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_identity_fitted_mmm(funnel_mmm_data):
     """Additive funnel MMM: the mediated path without the link nonlinearity."""
     return _build_funnel_mmm(funnel_mmm_data, link="identity")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_not_opted_in_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose effect never opted in to incrementality."""
     return _build_funnel_mmm(
@@ -1114,7 +1138,7 @@ def funnel_not_opted_in_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_under_declared_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose effect declares less carryover than it has."""
     return _build_funnel_mmm(
@@ -1122,7 +1146,7 @@ def funnel_under_declared_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_misreported_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose effect names the wrong contribution variable."""
     return _build_funnel_mmm(
@@ -1130,7 +1154,7 @@ def funnel_misreported_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_instantaneous_adstock_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose own adstock carries nothing (``l_max=1``, lag zero only).
 
@@ -1141,7 +1165,7 @@ def funnel_instantaneous_adstock_fitted_mmm(funnel_mmm_data):
     return _build_funnel_mmm(funnel_mmm_data, link="log", l_max=1)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_full_axis_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose effect declares ``evaluation_mode="full"``."""
     return _build_funnel_mmm(
@@ -1149,7 +1173,7 @@ def funnel_full_axis_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def dark_start_funnel_mmm_data(funnel_mmm_data):
     """Funnel data whose first third carries no spend at all.
 
@@ -1179,13 +1203,13 @@ DARK_START = 9
 """First date carrying spend in :func:`dark_start_funnel_mmm_data`."""
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def dark_start_funnel_fitted_mmm(dark_start_funnel_mmm_data):
     """Funnel MMM fit on data whose first third carries no spend."""
     return _build_funnel_mmm(dark_start_funnel_mmm_data, link="log")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def partial_channel_funnel_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose mediator reads only ``channel_1`` and declares nothing.
 
@@ -1198,7 +1222,7 @@ def partial_channel_funnel_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def dark_probe_funnel_mmm_data(funnel_mmm_data):
     """Funnel data whose two channels never spend on the same date.
 
@@ -1228,7 +1252,7 @@ DARK_PROBE_SPLIT = 12
 """First date carrying ``channel_1`` spend in :func:`dark_probe_funnel_mmm_data`."""
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def dark_probe_funnel_fitted_mmm(dark_probe_funnel_mmm_data):
     """Funnel MMM whose mediated channel is dark wherever one probe would land."""
     return _build_funnel_mmm(
@@ -1236,7 +1260,7 @@ def dark_probe_funnel_fitted_mmm(dark_probe_funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def funnel_time_varying_media_fitted_mmm(funnel_mmm_data):
     """Funnel MMM with a time-varying media multiplier.
 
@@ -1247,7 +1271,7 @@ def funnel_time_varying_media_fitted_mmm(funnel_mmm_data):
     return _build_funnel_mmm(funnel_mmm_data, link="log", time_varying_media=True)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def two_mediators_fitted_mmm(funnel_mmm_data):
     """Funnel MMM carrying two mediated effects of different reach.
 
@@ -1296,7 +1320,7 @@ def _build_simple_effect_mmm(data, effect, link="log"):
     return mmm
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def global_normalization_fitted_mmm(funnel_mmm_data):
     """MMM whose effect normalizes spend by its mean over the whole date axis."""
     return _build_simple_effect_mmm(
@@ -1304,7 +1328,7 @@ def global_normalization_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def windowed_global_normalization_fitted_mmm(funnel_mmm_data):
     """MMM whose date-reducing effect declares ``evaluation_mode="window"``."""
     return _build_simple_effect_mmm(
@@ -1312,7 +1336,7 @@ def windowed_global_normalization_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def duck_typed_baseline_effect_fitted_mmm(funnel_mmm_data):
     """MMM with a duck-typed effect that does not read spend."""
     return _build_simple_effect_mmm(
@@ -1320,7 +1344,7 @@ def duck_typed_baseline_effect_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def duck_typed_spend_effect_fitted_mmm(funnel_mmm_data):
     """MMM with a duck-typed effect that *does* read spend."""
     return _build_simple_effect_mmm(
@@ -1328,7 +1352,7 @@ def duck_typed_spend_effect_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def negative_effect_fitted_mmm(funnel_mmm_data):
     """Additive MMM whose mediated effect subtracts from the response."""
     return _build_simple_effect_mmm(
@@ -1336,7 +1360,7 @@ def negative_effect_fitted_mmm(funnel_mmm_data):
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def panel_mediated_fitted_mmm(panel_mmm_data):
     """Panel MMM with a spend-dependent effect, so ``channel_axis`` is not zero.
 
@@ -1365,7 +1389,42 @@ def panel_mediated_fitted_mmm(panel_mmm_data):
     return mmm
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
+def panel_mediated_log_link_fitted_mmm(panel_mmm_data):
+    """Panel log-link MMM with a spend-dependent effect.
+
+    Combines the three things that individually bend the layout: a panel
+    ``channel_data`` laid out ``(date, country, channel)``, a mediated effect
+    whose contribution drops the panel dimension, and a log link whose reducer
+    broadcasts a ``(date, country)`` baseline response against a
+    ``(date, country, channel)`` perturbation.
+
+    ``LogisticSaturation`` rather than ``LogSaturation``, deliberately: the
+    latter turns channel scaling off, and ``SubsetDimsEffect`` would then add
+    *raw* spend to a log-scale linear predictor, overflowing ``exp(mu)``.
+    """
+    X = panel_mmm_data["X"].copy()
+    for col in X.columns[X.columns.str.startswith("channel_")]:
+        X[col] = X[col].astype(np.float64)
+
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="target",
+        dims=("country",),
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        link="log",
+    )
+    mmm.add_mu_effect(SubsetDimsEffect(prefix="global"))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(mmm, X, panel_mmm_data["y"], random_seed=seed)
+    return mmm
+
+
+@pytest.fixture(scope="module")
 def trend_effect_fitted_mmm(funnel_mmm_data):
     """MMM with a ``mu_effect`` that does not read spend.
 
