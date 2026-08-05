@@ -417,10 +417,32 @@ class Transformation:
         xr.Dataset
             The dataset with the sampled priors.
 
+        Notes
+        -----
+        Parameters supplied as constant tensors (instead of a :class:`Prior`)
+        are not random variables, so ``pm.sample_prior_predictive`` has nothing
+        to sample. They are wrapped in a ``pm.DiracDelta`` so their constant
+        value is returned for every draw (fixes #1749).
+
         """
         coords = coords or {}
         with pm.Model(coords=coords):
-            self._create_distributions()
+            variables = self._create_distributions()
+            for parameter_name, variable_name in self.variable_mapping.items():
+                # ``_create_distributions`` returns constants unchanged (no
+                # random variable was registered for them), so wrap them in a
+                # DiracDelta to give ``sample_prior_predictive`` something to
+                # sample. Distributions return a freshly created variable.
+                if variables[parameter_name] is self.function_priors[parameter_name]:
+                    constant = variables[parameter_name]
+                    if isinstance(constant, XTensorVariable):
+                        # pm.DiracDelta refuses XTensorVariable input, but the
+                        # dims it carries are the ones the draws should keep.
+                        pm.DiracDelta(
+                            variable_name, constant.values, dims=constant.type.dims
+                        )
+                    else:
+                        pm.DiracDelta(variable_name, constant)
             prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
             return prior_pred["/prior"].to_dataset()
 
