@@ -16,6 +16,7 @@
 import numpy as np
 import pytest
 
+from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
     LINEAR_PREDICTOR,
@@ -23,8 +24,8 @@ from pymc_marketing.mmm.spend_reach import (
     SpendProbe,
     TemporalReach,
     linear_predictor,
+    resolve_channel_dependent_effects,
 )
-from tests.mmm.incrementality_utils import measure_spend_reach
 
 
 class FakeEvaluator:
@@ -96,6 +97,61 @@ def date_normalized(spend):
 def constant_node(spend):
     """A node a change in spend does not move at all."""
     return np.ones((1, len(spend)))
+
+
+def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
+    """Return the :class:`SpendReach` the module's probe arrives at for *mmm*.
+
+    Reassembles the pieces :meth:`Incrementality._compute_increments` puts
+    together, so a test can ask what the probe concluded without inferring it from
+    the numbers that come out the other end.
+    """
+    incr = mmm.incrementality
+    effects = resolve_channel_dependent_effects(mmm)
+    evaluator = CounterfactualEvaluator(
+        pymc_model=mmm.model,
+        posterior=incr.idata.posterior.dataset,
+        response_vars=[
+            CHANNEL_CONTRIBUTION,
+            *(effect.contribution_var for effect in effects),
+        ],
+        frozen_deterministics=mmm.frozen_deterministics,
+        dates=incr.data.dates,
+    )
+    baseline_array = incr.data.get_channel_data().values
+    probe = SpendProbe(
+        evaluator=evaluator,
+        baseline=evaluator.evaluate_baseline(baseline_array),
+        baseline_array=baseline_array,
+        counterfactual_spend_factor=counterfactual_spend_factor,
+    )
+    return probe.measure(effects=effects, l_max=mmm.adstock.l_max)
+
+
+def measure_reach(mmm, counterfactual_spend_factor=0.0):
+    """Return the per-node :class:`TemporalReach` the probe measured for *mmm*."""
+    return measure_spend_reach(mmm, counterfactual_spend_factor).measured
+
+
+def effective_l_max(mmm):
+    """Evaluation-window half-length the module will use for *mmm*.
+
+    The oracle the incrementality tests compare against sums over the same
+    window, so it has to agree with the module about the length.  Derived rather
+    than hard-coded because the fixtures differ in both the model's own
+    ``l_max`` and the mediator's, and a literal here would be a literal repeated
+    eleven times; the two headline fixtures pin the value itself in
+    ``test_the_window_length_is_a_known_number``.
+
+    Cached on the model instance, because deriving it compiles a fresh evaluator
+    and runs a full probe -- and most tests ask twice, once for the oracle's
+    window and once inside the module call under test.
+    """
+    cached = getattr(mmm, "_tests_effective_l_max", None)
+    if cached is None:
+        cached = measure_spend_reach(mmm).effective_l_max
+        mmm._tests_effective_l_max = cached
+    return cached
 
 
 class TestSpendProbe:

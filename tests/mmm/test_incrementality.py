@@ -13,14 +13,22 @@
 #   limitations under the License.
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
+import warnings
 from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+from pymc_marketing.mmm import (
+    MMM,
+    GeometricAdstock,
+    LogisticSaturation,
+    LogSaturation,
+)
 from pymc_marketing.mmm import incrementality as incrementality_module
 from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import (
@@ -38,16 +46,387 @@ from pymc_marketing.mmm.spend_reach import (
     TemporalReach,
     resolve_channel_dependent_effects,
 )
-from tests.mmm.incrementality_utils import (
-    compute_ground_truth_incremental_by_period,
-    compute_log_link_ground_truth_by_period,
+from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
+from pymc_marketing.model_graph import deterministics_to_flat
+from tests.mmm.test_spend_reach import (
     effective_l_max,
-    evaluate_under_spend,
     measure_reach,
     measure_spend_reach,
-    mediated_identity_oracle,
-    source_spend,
 )
+
+
+def evaluate_under_spend(mmm, channel_data_values, var_name):
+    """Evaluate ``var_name`` for given channel_data using sample_posterior_predictive.
+
+    Uses the standard PyMC evaluation path (completely independent from
+    extract_response_distribution + vectorize_graph) as an oracle.
+    """
+    names = mmm.frozen_deterministics
+    if names:
+        model = deterministics_to_flat(mmm.model, names=names)
+    else:
+        model = mmm.model.copy()
+    with model:
+        pm.set_data(
+            {
+                "channel_data": channel_data_values.astype(
+                    model["channel_data"].type.dtype
+                )
+            }
+        )
+        result = pm.sample_posterior_predictive(
+            mmm.idata,
+            var_names=[var_name],
+        )
+    return result.posterior_predictive[var_name]
+
+
+def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
+    """Evaluate channel_contribution for given channel_data (identity-link oracle)."""
+    var_name = (
+        "channel_contribution_original_scale"
+        if original_scale
+        else "channel_contribution"
+    )
+    return evaluate_under_spend(mmm, channel_data_values, var_name)
+
+
+def compute_ground_truth_incremental_by_period(
+    mmm,
+    frequency="all_time",
+    counterfactual_spend_factor=0.0,
+    include_carryover=True,
+):
+    """Compute ground truth incremental contribution per period using the oracle.
+
+    For each period defined by *frequency*, creates a **separate** counterfactual
+    where only that period's spend is modified (all other periods keep actual
+    spend), evaluates using ``sample_posterior_predictive`` (the oracle), and
+    sums the difference over the appropriate evaluation window.
+
+    This mirrors the logic of ``compute_incremental_contribution()`` which
+    processes each period independently with its own counterfactual, and serves
+    as a reference implementation that is completely independent of the
+    vectorized graph path.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM model.
+    frequency : str
+        One of ``"original"``, ``"monthly"``, ``"all_time"``, etc.
+    counterfactual_spend_factor : float
+        Factor applied to the target period's spend (``0.0`` = zero-out).
+    include_carryover : bool
+        Whether to include adstock carryover effects (both carry-in and
+        carry-out).
+
+    Returns
+    -------
+    xr.DataArray
+        Ground truth incremental contribution with dimensions matching
+        ``compute_incremental_contribution`` output:
+        ``(chain, draw, date, channel, *custom_dims)`` or
+        ``(chain, draw, channel, *custom_dims)`` for ``"all_time"``.
+    """
+    actual_data = mmm.model["channel_data"].get_value()
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+
+    # pm.set_data cannot accept float when the model's channel_data is integer.
+    # Fractional factors (e.g. 1.01) produce float values that would truncate.
+    if counterfactual_spend_factor not in (0.0, 1.0) and np.issubdtype(
+        actual_data.dtype, np.integer
+    ):
+        raise ValueError(
+            f"counterfactual_spend_factor={counterfactual_spend_factor} produces "
+            "fractional values, but the model's channel_data has integer dtype. "
+            "pm.set_data rejects float for integer shared variables. Use a model "
+            "fit with float channel_data (e.g. simple_fitted_mmm) for "
+            "marginal incrementality ground truth."
+        )
+
+    incr = mmm.incrementality
+    periods = incr._create_period_groups(dates[0], dates[-1], frequency)
+    l_max = mmm.adstock.l_max
+    inferred_freq = pd.infer_freq(dates)
+
+    # Evaluate baseline once (reused for all periods), always in original scale
+    baseline_contrib = evaluate_channel_contribution(
+        mmm, actual_data, original_scale=True
+    )
+
+    period_results = []
+    for t0, t1 in periods:
+        # Create counterfactual: only modify spend in [t0, t1]
+        target_mask = (dates >= t0) & (dates <= t1)
+        cf_data = actual_data.copy()
+        cf_data[target_mask] = actual_data[target_mask] * counterfactual_spend_factor
+
+        cf_contrib = evaluate_channel_contribution(mmm, cf_data, original_scale=True)
+
+        # Sign convention
+        if counterfactual_spend_factor > 1.0:
+            diff = cf_contrib - baseline_contrib
+        else:
+            diff = baseline_contrib - cf_contrib
+
+        # Determine evaluation window for summing
+        if include_carryover:
+            carryout_end = t1 + l_max * pd.tseries.frequencies.to_offset(inferred_freq)
+            eval_mask = (dates >= t0) & (dates <= carryout_end)
+        else:
+            eval_mask = (dates >= t0) & (dates <= t1)
+
+        # Sum over evaluation window
+        period_incr = diff.sel(date=dates[eval_mask]).sum(dim="date")
+        # Shape: (chain, draw, channel, *custom_dims)
+
+        # Assign period label and expand date dim
+        period_incr = period_incr.assign_coords(date=t1).expand_dims("date")
+        period_results.append(period_incr)
+
+    return _format_ground_truth(period_results, frequency)
+
+
+def _format_ground_truth(period_results, frequency, joint=False):
+    """Concatenate per-period ground truth and match the module's dimension order."""
+    if frequency == "all_time":
+        result = period_results[0].squeeze("date", drop=True)
+    else:
+        result = xr.concat(period_results, dim="date")
+
+    # Standard dimension order: (chain, draw, [date,] [channel,] *custom_dims)
+    channel_dims = [] if joint else ["channel"]
+    core_dims = ["chain", "draw", *channel_dims]
+    extra_dims = [d for d in result.dims if d not in [*core_dims, "date"]]
+
+    date_dims = [] if frequency == "all_time" else ["date"]
+    return result.transpose("chain", "draw", *date_dims, *channel_dims, *extra_dims)
+
+
+def compute_log_link_ground_truth_by_period(
+    mmm,
+    frequency="all_time",
+    counterfactual_spend_factor=0.0,
+    include_carryover=True,
+    l_max=None,
+    joint=False,
+    start_date=None,
+    end_date=None,
+):
+    """Ground truth incremental contribution for a multiplicative (log-link) model.
+
+    Deliberately brute force, and deliberately **per channel**: under a log
+    link the response is multiplicative, so channel *m*'s increment cannot be
+    read off a single all-channels counterfactual the way it can under an
+    identity link.  Each ``(period, channel)`` pair therefore gets its own
+    counterfactual, evaluated on the model's response-scale prediction
+    ``{output_var}_original_scale`` through ``sample_posterior_predictive``.
+
+    Shares no code with the incrementality module -- in particular it never
+    forms a linear-predictor difference -- so it is an independent check of
+    both the algebra and the carryover window.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM built with ``link="log"``.
+    frequency : str
+        One of ``"original"``, ``"monthly"``, ``"all_time"``, etc.
+    counterfactual_spend_factor : float
+        Factor applied to the target period's spend (``0.0`` = zero-out).
+    include_carryover : bool
+        Whether to include adstock carryover effects.
+    l_max : int, optional
+        Carry-out length of the evaluation window.  Defaults to the model's own
+        ``adstock.l_max``; a mediated effect that chains a second adstock needs a
+        longer window, and the module's
+        :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.effective_l_max` is
+        what it has to agree with.
+    joint : bool, default False
+        Perturb every channel in one counterfactual and return a single number
+        per period, matching
+        :meth:`Incrementality.compute_joint_incremental_contribution`, instead of
+        one leave-one-out counterfactual per channel.
+    start_date, end_date : str or pd.Timestamp, optional
+        Date range the periods are built over, matching the module's
+        ``start_date``/``end_date`` parameters.  Default to the fitted range.
+
+    Returns
+    -------
+    xr.DataArray
+        Ground truth with dimensions matching
+        ``compute_incremental_contribution`` output.
+    """
+    actual_data = mmm.model["channel_data"].get_value()
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    channels = list(mmm.channel_columns)
+    response_var = f"{mmm.output_var}_original_scale"
+
+    # Do not assume channel sits on axis 1: panel models lay channel_data out as
+    # (date, *custom_dims, channel), so the axis has to be looked up.
+    channel_axis = list(mmm.data.get_channel_data().dims).index("channel")
+
+    start = dates[0] if start_date is None else pd.to_datetime(start_date)
+    end = dates[-1] if end_date is None else pd.to_datetime(end_date)
+    periods = mmm.incrementality._create_period_groups(start, end, frequency)
+    if l_max is None:
+        l_max = mmm.adstock.l_max
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+
+    baseline = evaluate_under_spend(mmm, actual_data, response_var)
+
+    period_results = []
+    for t0, t1 in periods:
+        target_mask = (dates >= t0) & (dates <= t1)
+        if include_carryover:
+            eval_mask = (dates >= t0) & (dates <= t1 + l_max * freq_offset)
+        else:
+            eval_mask = (dates >= t0) & (dates <= t1)
+
+        channel_results = []
+        for i, channel in enumerate(channels):
+            # Perturb ONE channel; every other channel keeps actual spend.  For
+            # the joint estimand, perturb them all in a single counterfactual.
+            selector: list = [slice(None)] * actual_data.ndim
+            selector[0] = target_mask
+            if not joint:
+                selector[channel_axis] = i
+
+            cf_data = actual_data.copy()
+            cf_data[tuple(selector)] = (
+                actual_data[tuple(selector)] * counterfactual_spend_factor
+            )
+            cf = evaluate_under_spend(mmm, cf_data, response_var)
+
+            # Sign convention matches compute_incremental_contribution.
+            if counterfactual_spend_factor > 1.0:
+                diff = cf - baseline
+            else:
+                diff = baseline - cf
+
+            summed = diff.sel(date=dates[eval_mask]).sum(dim="date")
+            if joint:
+                channel_results.append(summed)
+                break
+            channel_results.append(summed.assign_coords(channel=channel))
+
+        if joint:
+            period_incr = channel_results[0]
+        else:
+            period_incr = xr.concat(channel_results, dim="channel")
+        period_results.append(period_incr.assign_coords(date=t1).expand_dims("date"))
+
+    return _format_ground_truth(period_results, frequency, joint=joint)
+
+
+def source_spend(X, frequency, channels):
+    """Total spend per channel per period, computed from the source frame.
+
+    Independent of both the module and ``MMMIDataWrapper``.  A ROAS test whose
+    denominator comes from ``_aggregate_spend`` -- the very call the method under
+    test makes -- verifies a division and nothing else, and would pass with an
+    arbitrarily wrong numerator.
+
+    Parameters
+    ----------
+    X : pd.DataFrame
+        The fixture's own source frame, with a ``date`` column.
+    frequency : str
+        ``"all_time"`` or ``"monthly"``.
+    channels : sequence of str
+        Channel columns, in the model's order.
+
+    Returns
+    -------
+    xr.DataArray
+        Dimensions ``("date", "channel")``, or ``("channel",)`` for
+        ``"all_time"``.  Period labels are the period *ends*, matching
+        :meth:`Incrementality._create_period_groups`.
+    """
+    frame = X.set_index("date")[list(channels)]
+    if frequency == "all_time":
+        return xr.DataArray(
+            frame.to_numpy().sum(axis=0),
+            dims="channel",
+            coords={"channel": list(channels)},
+        )
+    totals = frame.groupby(frame.index.to_period("M")).sum()
+    return xr.DataArray(
+        totals.to_numpy(),
+        dims=("date", "channel"),
+        coords={
+            "date": [
+                period.to_timestamp(how="end").normalize() for period in totals.index
+            ],
+            "channel": list(channels),
+        },
+    )
+
+
+def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
+    """Per-channel mediated increment for an additive model, read off the graph.
+
+    Under ``link="identity"`` the increment is ``target_scale`` times the summed
+    change in the linear predictor, so the mediated part is available directly
+    from each effect's own contribution deterministic -- no response-scale
+    counterfactual needed.  Every evaluation goes through
+    ``sample_posterior_predictive``, so this shares no code with the module.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM built with ``link="identity"``.
+    *effect_vars : str
+        Contribution variables of the mediated effects to include.
+    l_max : int, optional
+        Carry-out length; defaults to the reconciled reach the module uses.
+
+    Returns
+    -------
+    xr.DataArray
+        All-time increment with dimensions ``(chain, draw, channel, *dims)``.
+    """
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    actual = mmm.model["channel_data"].get_value()
+    target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+    if l_max is None:
+        l_max = effective_l_max(mmm)
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+    eval_dates = dates[dates <= dates[-1] + l_max * freq_offset]
+    # Panel models lay channel_data out as (date, *custom_dims, channel), so the
+    # axis a per-channel counterfactual zeroes has to be looked up, not assumed.
+    channel_axis = list(mmm.data.get_channel_data().dims).index("channel")
+
+    def predictor(channel_data):
+        return (
+            evaluate_under_spend(mmm, channel_data, "channel_contribution"),
+            [evaluate_under_spend(mmm, channel_data, var) for var in effect_vars],
+        )
+
+    base_channel, base_effects = predictor(actual)
+
+    expected = []
+    for idx, channel in enumerate(mmm.channel_columns):
+        cf_data = actual.copy()
+        selector: list = [slice(None)] * actual.ndim
+        selector[channel_axis] = idx
+        cf_data[tuple(selector)] = 0.0
+        cf_channel, cf_effects = predictor(cf_data)
+
+        delta = base_channel.isel(channel=idx, drop=True) - cf_channel.isel(
+            channel=idx, drop=True
+        )
+        for base, counterfactual in zip(base_effects, cf_effects, strict=True):
+            delta = delta + (base - counterfactual)
+
+        expected.append(
+            (delta.sel(date=eval_dates).sum(dim="date") * target_scale).assign_coords(
+                channel=channel
+            )
+        )
+
+    return xr.concat(expected, dim="channel").transpose("chain", "draw", "channel", ...)
 
 
 @pytest.fixture
@@ -2121,3 +2500,253 @@ class TestIncrementalitySpecValidation:
 
         with pytest.raises(ValidationError):
             spec.additional_carryover_lags = 5
+
+
+# ============================================================================
+# End-to-end ROAS recovery (slow): the three mmm_multiplicative variants
+# ============================================================================
+#
+# Every other test in this file compares the module against an oracle evaluated
+# on the *same* posterior, so a systematic problem upstream of the module -- the
+# wrong estimand, the wrong scale, a link misread at fit time -- would cancel
+# out of all of them.  The recovery tests close that loop: data is simulated
+# from the ``mmm_example`` notebook's data-generating process (library
+# ``geometric_adstock`` and ``logistic_saturation``, additive response), the
+# **true** ROAS is computed from the DGP itself -- a counterfactual difference
+# of the noise-free response, the ``mmm_roas`` notebook's construction -- and
+# the three model variants the ``mmm_multiplicative`` notebook fits -- linear
+# (identity link), log, and log-log -- are each fit with real MCMC and asked to
+# recover it through ``mmm.incrementality.contribution_over_spend``.
+#
+# The data is additive, so the linear model is well-specified; the log and
+# log-log models are misspecified in the way real models always are, and only
+# have to land close.  Slow by construction (three NUTS fits), hence the
+# marker; run with ``pytest --run-slow``.
+
+SEED = sum(map(ord, "incrementality_recovery"))
+N_DATES = 120
+L_MAX = 8
+ADSTOCK_ALPHA = {"x1": 0.4, "x2": 0.2}
+SATURATION_LAM = {"x1": 4.0, "x2": 3.0}
+BETA = {"x1": 3.0, "x2": 2.0}
+INTERCEPT = 2.0
+NOISE_SIGMA = 0.25
+CHANNELS = ["x1", "x2"]
+
+FIT_KWARGS = {
+    "draws": 300,
+    "tune": 300,
+    "chains": 2,
+    "cores": 2,
+    "target_accept": 0.9,
+    "random_seed": SEED,
+    "progressbar": False,
+}
+
+
+@pytest.fixture(scope="module")
+def recovery_data():
+    """The ``mmm_example`` DGP, with its DGP-derived true ROAS.
+
+    Spend patterns, transformations and coefficients follow the notebook: two
+    channels (one always-on with spikes, one flighted), the library's
+    ``geometric_adstock`` and ``logistic_saturation``, and an additive target.
+    Trend, seasonality and events are omitted so the three fitted variants need
+    no control columns.
+
+    The true ROAS is the ``mmm_roas`` notebook's construction: the summed
+    difference between the noise-free response with actual spend and with
+    channel *m*'s spend zeroed over the whole range, divided by the channel's
+    spend.  The DGP is additive and both transformations map zero spend to
+    zero, so that difference is exactly channel *m*'s own media term.
+    """
+    rng = np.random.default_rng(SEED)
+    dates = pd.date_range("2022-01-03", periods=N_DATES, freq="W-MON")
+
+    x1 = rng.uniform(size=N_DATES)
+    x1 = np.where(x1 > 0.9, x1, x1 / 2)
+    x2 = rng.uniform(size=N_DATES)
+    x2 = np.where(x2 > 0.8, x2, 0.0)
+    spend = {"x1": x1, "x2": x2}
+
+    media = {}
+    for channel, values in spend.items():
+        adstocked = geometric_adstock(
+            x=xr.DataArray(values, dims=("date",)),
+            alpha=ADSTOCK_ALPHA[channel],
+            l_max=L_MAX,
+            normalize=True,
+            dim="date",
+        )
+        saturated = logistic_saturation(x=adstocked, lam=SATURATION_LAM[channel])
+        media[channel] = BETA[channel] * np.asarray(saturated.eval())
+
+    mu = INTERCEPT + media["x1"] + media["x2"]
+    y = mu + rng.normal(0.0, NOISE_SIGMA, size=N_DATES)
+
+    true_roas = {
+        channel: float(media[channel].sum() / spend[channel].sum())
+        for channel in CHANNELS
+    }
+
+    X = pd.DataFrame({"date": dates, "x1": x1, "x2": x2})
+    return {"X": X, "y": pd.Series(y, name="y"), "true_roas": true_roas}
+
+
+def _fit(recovery_data, saturation, link):
+    """Fit one ``mmm_multiplicative`` variant on the shared data."""
+    mmm = MMM(
+        date_column="date",
+        channel_columns=CHANNELS,
+        adstock=GeometricAdstock(l_max=L_MAX),
+        saturation=saturation,
+        link=link,
+    )
+    with warnings.catch_warnings():
+        # link="log" is flagged experimental and LogSaturation overrides the
+        # channel scaling; both are the point of the fixture.
+        warnings.simplefilter("ignore", UserWarning)
+        mmm.fit(recovery_data["X"], recovery_data["y"], **FIT_KWARGS)
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def linear_recovery_mmm(recovery_data):
+    """The notebook's additive variant: identity link, logistic saturation."""
+    return _fit(recovery_data, LogisticSaturation(), "identity")
+
+
+@pytest.fixture(scope="module")
+def log_recovery_mmm(recovery_data):
+    """The notebook's multiplicative variant: log link, logistic saturation."""
+    return _fit(recovery_data, LogisticSaturation(), "log")
+
+
+@pytest.fixture(scope="module")
+def loglog_recovery_mmm(recovery_data):
+    """The notebook's log-log variant: log link, ``LogSaturation`` on raw spend."""
+    return _fit(recovery_data, LogSaturation(), "log")
+
+
+def _posterior_roas(mmm):
+    """All-time ROAS samples per channel, flattened over (chain, draw)."""
+    roas = mmm.incrementality.contribution_over_spend(frequency="all_time")
+    return roas.stack(sample=("chain", "draw"))
+
+
+@pytest.mark.slow
+class TestRoasRecovery:
+    """The three notebook variants recover the DGP's ROAS, and agree."""
+
+    # The misspecified models absorb the DGP's additive structure into their
+    # own multiplicative form, so bias rather than posterior width dominates;
+    # their bound is on accuracy, not coverage.
+    MISSPECIFIED_RTOL = 0.35
+    WELL_SPECIFIED_RTOL = 0.15
+
+    @pytest.mark.parametrize(
+        "model_fixture, rtol",
+        [
+            ("linear_recovery_mmm", WELL_SPECIFIED_RTOL),
+            ("log_recovery_mmm", MISSPECIFIED_RTOL),
+            ("loglog_recovery_mmm", MISSPECIFIED_RTOL),
+        ],
+    )
+    def test_posterior_median_roas_is_close_to_the_truth(
+        self, request, recovery_data, model_fixture, rtol
+    ):
+        """Each variant's posterior-median ROAS lands within tolerance per channel."""
+        mmm = request.getfixturevalue(model_fixture)
+        roas = _posterior_roas(mmm).median("sample")
+
+        for channel, truth in recovery_data["true_roas"].items():
+            estimate = float(roas.sel(channel=channel))
+            assert abs(estimate - truth) < rtol * truth, (
+                f"{model_fixture}: channel {channel} ROAS {estimate:.4f} vs "
+                f"true {truth:.4f}"
+            )
+
+    def test_the_well_specified_model_covers_the_truth(
+        self, recovery_data, linear_recovery_mmm
+    ):
+        """The linear model has the DGP's form, so its posterior has to reach the truth.
+
+        The 99% interval rather than the conventional 94%, with a small relative
+        slack: the model is well-specified in functional form, but the default
+        priors shrink the spiky channel's coefficient slightly, and with a tight
+        posterior that bias parks the truth at the interval's edge.  What the
+        test rules out is the truth sitting *clear* of the posterior -- the
+        signature of a wrong estimand rather than of shrinkage.
+        """
+        samples = _posterior_roas(linear_recovery_mmm)
+        slack = 0.02
+
+        for channel, truth in recovery_data["true_roas"].items():
+            channel_samples = samples.sel(channel=channel)
+            low = float(channel_samples.quantile(0.005))
+            high = float(channel_samples.quantile(0.995))
+            assert low * (1 - slack) < truth < high * (1 + slack), (
+                f"channel {channel}: true ROAS {truth:.4f} outside [{low:.4f}, "
+                f"{high:.4f}]"
+            )
+
+    def test_the_three_variants_agree_with_each_other(
+        self, linear_recovery_mmm, log_recovery_mmm, loglog_recovery_mmm
+    ):
+        """The estimand is a property of the data, not of the link chosen.
+
+        All three models see the same spend and the same response, so their
+        ROAS estimates have to be close to *each other* as well as to the truth
+        -- this is the claim the ``mmm_multiplicative`` notebook makes when it
+        compares the variants' channel contributions.
+        """
+        medians = {
+            name: _posterior_roas(mmm).median("sample")
+            for name, mmm in {
+                "linear": linear_recovery_mmm,
+                "log": log_recovery_mmm,
+                "loglog": loglog_recovery_mmm,
+            }.items()
+        }
+
+        for channel in CHANNELS:
+            estimates = np.array(
+                [float(roas.sel(channel=channel)) for roas in medians.values()]
+            )
+            spread = estimates.max() / estimates.min() - 1.0
+            assert spread < 0.35, f"channel {channel}: estimates {estimates}"
+
+    def test_the_pre_fix_computation_would_not_recover_the_truth(
+        self, recovery_data, log_recovery_mmm
+    ):
+        """The linear-predictor version this PR replaced fails this suite.
+
+        Before the fix, incrementality summed ``channel_contribution``
+        differences and multiplied by ``target_scale`` -- under a log link that
+        is a log-space quantity wearing response-scale units.  The saturation
+        maps zero spend to zero contribution, so the pre-fix all-time number is
+        simply ``channel_contribution.sum("date") * target_scale``, and on this
+        data it misses the truth by 60-70% per channel while the fixed
+        estimator lands within 10%.  End-to-end negative control: an accidental
+        revert cannot pass.
+
+        Only the log variant serves as the control: for the log-log variant on
+        this DGP the pre-fix number for the spiky channel happens to land
+        within the model-misspecification range (~28%), so it could not
+        discriminate a revert from an imperfect model.
+        """
+        mmm = log_recovery_mmm
+        posterior = mmm.idata.posterior
+
+        pre_fix = (
+            posterior["channel_contribution"].sum("date") * mmm.data.get_target_scale()
+        ).median(("chain", "draw"))
+        spend = mmm.data.get_channel_spend().sum("date")
+        pre_fix_roas = pre_fix / spend
+
+        for channel, truth in recovery_data["true_roas"].items():
+            estimate = float(pre_fix_roas.sel(channel=channel))
+            assert abs(estimate - truth) > 0.5 * truth, (
+                f"channel {channel}: pre-fix ROAS {estimate:.4f} is "
+                f"unexpectedly close to the truth {truth:.4f}"
+            )
