@@ -1,0 +1,23 @@
+tests/clv/test_utils.py
+  s_7da92319a17efa::t_7f37e17ee7f0fa 146-147
+  s_7da92319a17efa::t_23ed272da09c71 138
+pymc_marketing/clv/utils.py
+  s_7da92319a17efa::t_5c10d7976d5318 133
+  s_7da92319a17efa::t_0975c0bce72c8e 34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6507b59afb54ccc84edbb657dee93d2d1aaa9414",
+  "prompts": {},
+  "sessions": {
+    "s_7da92319a17efa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b4a8b19-3530-4f20-8285-bf631972c516",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
