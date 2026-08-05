@@ -2893,18 +2893,20 @@ class TestMediatedEdgeCases:
         l_max = reach.effective_l_max
         assert l_max > mmm.adstock.l_max
 
+        # Monthly rather than all-time: an all-time period is evaluated on the
+        # whole axis whatever l_max says, so it cannot show a tail being cut.
         result = mmm.incrementality.compute_incremental_contribution(
-            frequency="all_time"
+            frequency="monthly"
         )
         expected = compute_log_link_ground_truth_by_period(
-            mmm, frequency="all_time", l_max=l_max
+            mmm, frequency="monthly", l_max=l_max
         )
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
         # And the window the un-measured mediator would have produced really is
         # a different number, so the assertion above is not satisfied by both.
         truncated = compute_log_link_ground_truth_by_period(
-            mmm, frequency="all_time", l_max=mmm.adstock.l_max
+            mmm, frequency="monthly", l_max=mmm.adstock.l_max
         )
         assert not np.allclose(result.values, truncated.values)
 
