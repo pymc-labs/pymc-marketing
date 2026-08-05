@@ -17,10 +17,8 @@ repos:
       - id: ruff-check
         types_or: [python, pyi, jupyter]
         args: ["--fix", "--output-format=full"]
-        exclude: ^docs/source/notebooks/clv/dev/
       - id: ruff-format
         types_or: [python, pyi, jupyter]
-        exclude: ^docs/source/notebooks/clv/dev/
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v2.3.0
     hooks:

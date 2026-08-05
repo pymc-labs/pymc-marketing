@@ -37,6 +37,7 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.model_builder import SamplingMethod
 from pymc_marketing.model_config import ModelConfig
 
 
@@ -338,7 +339,8 @@ class ParetoNBDModel(CLVModel):
     def fit(  # type: ignore[override]
         self,
         data: pd.DataFrame,
-        method: str = "map",
+        *,
+        method: SamplingMethod = "map",
         **kwargs,
     ):  # type: ignore
         """Infer posteriors of model parameters to run predictions.

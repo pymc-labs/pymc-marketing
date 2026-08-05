@@ -127,8 +127,9 @@ class TestShiftedBetaGeoModel:
         # Set idata and add fit data group
         model.idata = posterior
         model.set_idata_attrs(model.idata)
-        if model.data is not None:
-            model._add_fit_data_group(model.data)
+        fit_data = model.create_fit_data_group()
+        if fit_data is not None:
+            model.idata["/fit_data"] = fit_data
 
         return model
 

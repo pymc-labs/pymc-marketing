@@ -118,6 +118,59 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     return mmm
 
 
+@pytest.mark.parametrize("method", ["map", "demz"])
+def test_fit_non_nuts_methods_use_sampling_model(
+    df, mmm, target_column, method, mocker
+):
+    """Every fit path must run against the model from `_get_sampling_model`.
+
+    MMM overrides that hook with `freeze_dims_and_data`, so `map` and `demz` going
+    through `self.model` directly would silently skip the frozen graph.
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    seen: dict[str, pm.Model] = {}
+    original = mmm._get_sampling_model
+
+    def record() -> pm.Model:
+        seen["model"] = original()
+        return seen["model"]
+
+    mocker.patch.object(mmm, "_get_sampling_model", side_effect=record)
+
+    if method == "map":
+        find_map = mocker.spy(pm, "find_MAP")
+        extra: dict = {}
+    else:
+        # `pm.sample` takes its model from the context, so the assertion has to happen
+        # while that context is still open.
+        sampled: dict[str, pm.Model] = {}
+        original_sample = pm.sample
+
+        def sample(*args, **kwargs):
+            sampled["model"] = pm.modelcontext(None)
+            return original_sample(*args, **kwargs)
+
+        mocker.patch.object(pm, "sample", side_effect=sample)
+        extra = {
+            "draws": 5,
+            "tune": 5,
+            "chains": 1,
+            "compute_convergence_checks": False,
+        }
+
+    idata = mmm.fit(X, y, method=method, random_seed=42, progressbar=False, **extra)
+
+    if method == "map":
+        assert find_map.call_args.kwargs["model"] is seen["model"]
+    else:
+        assert sampled["model"] is seen["model"]
+    # The hook freezes dims and data, so the sampled graph is never `self.model`.
+    assert seen["model"] is not mmm.model
+    assert "/posterior" in idata.groups
+
+
 def test_target_column():
     mmm_default = MMM(
         date_column="date",
