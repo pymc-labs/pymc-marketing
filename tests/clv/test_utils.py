@@ -132,6 +132,42 @@ class TestCustomerLifetimeValue:
             )
 
     @pytest.mark.parametrize(
+        "time_unit, expected_periods",
+        [
+            ("M", 12.0),
+            ("W", 365.25 / 7),
+            ("D", 365.25),
+            ("H", 365.25 * 24),
+        ],
+    )
+    def test_time_unit_scaling(self, time_unit, expected_periods):
+        """`future_t` is given in months and scaled into `time_unit` periods.
+
+        A 12-month horizon must map onto a full 365.25-day year for "D", "W" and
+        "H", not the 360 days implied by a flat 30-day month. See issue #2749.
+        """
+        recorded = []
+
+        class RecordingModel:
+            def expected_purchases(self, data, future_t):
+                recorded.append(future_t)
+                return xarray.DataArray(
+                    np.zeros(len(data)),
+                    coords={"customer_id": data["customer_id"]},
+                    dims=("customer_id",),
+                )
+
+        customer_lifetime_value(
+            transaction_model=RecordingModel(),
+            data=pd.DataFrame({"customer_id": [1], "future_spend": [1.0]}),
+            future_t=12,
+            discount_rate=0.0,
+            time_unit=time_unit,
+        )
+
+        assert recorded == [pytest.approx(expected_periods)]
+
+    @pytest.mark.parametrize(
         "t, discount_rate, expected_change",
         [
             (1, 0, 1),
