@@ -218,6 +218,56 @@ def test_map_seed_accepts_numpy_generator(toy_data) -> None:
     assert idata["/posterior"].to_dataset().sizes["draw"] == 1
 
 
+def test_map_reads_cross_method_sampler_config(toy_data, mocker) -> None:
+    """`sampler_config` must reach the MAP path like it reaches every other method."""
+    spy = mocker.spy(pm, "find_MAP")
+    model = FitterModel(
+        data=toy_data,
+        sampler_config={"progressbar": False, "random_seed": 42},
+    )
+
+    model.fit(method="map")
+
+    assert spy.call_args.kwargs["seed"] == 42
+    assert spy.call_args.kwargs["progressbar"] is False
+
+
+def test_map_explicit_arguments_beat_sampler_config(toy_data, mocker) -> None:
+    spy = mocker.spy(pm, "find_MAP")
+    model = FitterModel(
+        data=toy_data,
+        sampler_config={"progressbar": True, "random_seed": 42},
+    )
+
+    model.fit(method="map", random_seed=7, progressbar=False)
+
+    assert spy.call_args.kwargs["seed"] == 7
+    assert spy.call_args.kwargs["progressbar"] is False
+
+
+def test_map_does_not_warn_about_config_only_mcmc_keys(toy_data, recwarn) -> None:
+    """MCMC keys the user never typed for this fit must be dropped quietly.
+
+    `FitterModel`'s default config carries draws/tune/chains, so warning about them
+    would nag on every default-configured MAP fit.
+    """
+    model = FitterModel(data=toy_data)
+
+    model.fit(method="map")
+
+    assert not [w for w in recwarn if "optimizing with 'map'" in str(w.message)]
+
+
+def test_map_kwargs_reach_find_map(toy_data, mocker) -> None:
+    """`map_kwargs` is the escape hatch for names `fit` shadows, e.g. the optimizer."""
+    spy = mocker.spy(pm, "find_MAP")
+    model = FitterModel(data=toy_data)
+
+    model.fit(method="map", progressbar=False, map_kwargs={"method": "Powell"})
+
+    assert spy.call_args.kwargs["method"] == "Powell"
+
+
 def test_map_seed_warns_on_unsupported_type(toy_data) -> None:
     model = FitterModel(data=toy_data)
 

@@ -18,7 +18,7 @@ import json
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable
-from functools import wraps
+from functools import cache, wraps
 from inspect import signature
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -617,6 +617,12 @@ _APPROX_SAMPLE_KEYS: tuple[str, ...] = ("draws", "return_inferencedata")
 #: has to drop them.
 _NUTS_ONLY_KEYS: tuple[str, ...] = ("target_accept", "nuts", "nuts_sampler", "init")
 
+#: ``sampler_config`` keys the MAP path picks up. These are the settings that mean the
+#: same thing to every method; the rest of a typical config (``draws``, ``tune``,
+#: ``chains``, ``target_accept``) is MCMC-only and has no ``find_MAP`` analogue, so it is
+#: dropped without a warning -- the user never typed those keys for this fit.
+_MAP_CONFIG_KEYS: tuple[str, ...] = ("progressbar", "random_seed")
+
 #: Groups derived from a particular posterior. Dropped before merging a new fit into an
 #: existing ``idata`` so a refit cannot leave e.g. MCMC ``sample_stats`` attached to a
 #: MAP posterior. ``prior``/``prior_predictive`` are posterior-independent and survive.
@@ -627,9 +633,11 @@ _POSTERIOR_DERIVED_GROUPS: tuple[str, ...] = (
     "predictions",
     "warmup_posterior",
     "warmup_sample_stats",
+    "unconstrained_posterior",
 )
 
 
+@cache
 def _approx_fit_parameters() -> set[str]:
     """Collect the keyword arguments accepted by the variational fitting stack.
 
@@ -641,7 +649,8 @@ def _approx_fit_parameters() -> set[str]:
     Returns
     -------
     set of str
-        Names accepted somewhere in the ``pymc.fit`` call chain.
+        Names accepted somewhere in the ``pymc.fit`` call chain. Cached, so callers
+        must treat it as read-only.
 
     """
     from pymc.variational.inference import Inference
@@ -658,6 +667,7 @@ def _approx_fit_parameters() -> set[str]:
     return names
 
 
+@cache
 def _map_incompatible_parameters() -> set[str]:
     """Collect ``pm.sample`` parameter names that ``pm.find_MAP`` does not accept.
 
@@ -669,7 +679,8 @@ def _map_incompatible_parameters() -> set[str]:
     Returns
     -------
     set of str
-        Names accepted by ``pm.sample`` but not by ``pm.find_MAP``.
+        Names accepted by ``pm.sample`` but not by ``pm.find_MAP``. Cached, so callers
+        must treat it as read-only.
 
     """
 
@@ -704,7 +715,7 @@ def _normalize_map_seed(random_seed: RandomState) -> int | None:
         f"random_seed of type {type(random_seed).__name__} is not supported with "
         "method='map' and was ignored; pass an int or numpy Generator instead.",
         UserWarning,
-        stacklevel=3,
+        stacklevel=4,
     )
     return None
 
@@ -848,8 +859,33 @@ class ModelFitter:
 
         return self._sample_with_deterministics(kwargs, step_factory=pm.DEMetropolisZ)
 
-    def _fit_map(self, **kwargs: Any) -> xr.DataTree:
-        """Find the model maximum a posteriori using a scipy optimizer."""
+    def _fit_map(
+        self,
+        fit_kwargs: dict[str, Any],
+        map_kwargs: dict[str, Any] | None = None,
+    ) -> xr.DataTree:
+        """Find the model maximum a posteriori using a scipy optimizer.
+
+        Parameters
+        ----------
+        fit_kwargs : dict
+            Keyword arguments collected by :meth:`fit`, in ``pm.sample`` naming.
+            ``random_seed`` is translated to ``find_MAP``'s ``seed``; anything else
+            ``find_MAP`` cannot accept is dropped with a warning.
+        map_kwargs : dict, optional
+            Passed straight through to ``pm.find_MAP``, after the filtering above. The
+            escape hatch for names :meth:`fit` would otherwise shadow, notably
+            ``method`` (the scipy optimizer).
+
+        """
+        kwargs = dict(fit_kwargs)
+
+        # `random_seed` is `pm.sample`'s name for it, so it would otherwise be reported
+        # as incompatible below. Translate first and it never reaches the filter.
+        if (random_seed := kwargs.pop("random_seed", None)) is not None:
+            if (seed := _normalize_map_seed(random_seed)) is not None:
+                kwargs.setdefault("seed", seed)
+
         if removed := sorted(set(kwargs) & _map_incompatible_parameters()):
             warnings.warn(
                 "The following keyword arguments only apply to MCMC sampling and "
@@ -859,6 +895,8 @@ class ModelFitter:
             )
             for key in removed:
                 kwargs.pop(key)
+
+        kwargs.update(map_kwargs or {})
 
         model = self._get_sampling_model()
         map_res = pm.find_MAP(model=model, **kwargs)
@@ -962,6 +1000,7 @@ class ModelFitter:
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
         sample_kwargs: dict[str, Any] | None = None,
+        map_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
         """Infer the model posterior.
@@ -983,6 +1022,8 @@ class ModelFitter:
             - ``"advi"``: Samples via `pymc.fit(method="advi")` and `Approximation.sample`
             - ``"fullrank_advi"``: As ``"advi"``, with a full-rank approximation
 
+            Note this selects the *sampler*, not ``pymc.find_MAP``'s ``method``
+            argument (the scipy optimizer). Use ``map_kwargs`` to reach the latter.
         progressbar : bool, optional
             Specifies whether the fit progress bar should be displayed. Defaults to True.
         random_seed : RandomState, optional
@@ -990,6 +1031,10 @@ class ModelFitter:
         sample_kwargs : dict, optional
             Only used by the variational methods; forwarded to ``Approximation.sample``
             (e.g. ``{"draws": 1_000}``).
+        map_kwargs : dict, optional
+            Only used by ``method="map"``; forwarded to ``pymc.find_MAP`` after the
+            other keyword arguments have been filtered. Use it for names ``fit`` would
+            otherwise shadow, e.g. ``{"method": "Powell"}`` to pick the optimizer.
         **kwargs : Any
             Custom sampler settings, passed to the underlying PyMC routine.
 
@@ -1009,28 +1054,31 @@ class ModelFitter:
         """
         self._prepare_fit(data)
 
-        def sampler_kwargs() -> dict[str, Any]:
-            return create_sample_kwargs(
-                self.sampler_config,
-                progressbar,
-                random_seed,
-                **kwargs,
-            )
-
         approx = None
         match method:
-            case "mcmc":
-                idata = self._fit_mcmc(sampler_kwargs())
-            case "demz":
-                idata = self._fit_demz(sampler_kwargs())
+            case "mcmc" | "demz":
+                sampler_kwargs = create_sample_kwargs(
+                    self.sampler_config,
+                    progressbar,
+                    random_seed,
+                    **kwargs,
+                )
+                idata = (
+                    self._fit_mcmc(sampler_kwargs)
+                    if method == "mcmc"
+                    else self._fit_demz(sampler_kwargs)
+                )
             case "map":
-                map_kwargs = dict(kwargs)
+                config = self.sampler_config or {}
+                fit_kwargs: dict[str, Any] = {
+                    key: config[key] for key in _MAP_CONFIG_KEYS if key in config
+                }
+                fit_kwargs.update(kwargs)
                 if progressbar is not None:
-                    map_kwargs.setdefault("progressbar", progressbar)
+                    fit_kwargs["progressbar"] = progressbar
                 if random_seed is not None:
-                    if (seed := _normalize_map_seed(random_seed)) is not None:
-                        map_kwargs.setdefault("seed", seed)
-                idata = self._fit_map(**map_kwargs)
+                    fit_kwargs["random_seed"] = random_seed
+                idata = self._fit_map(fit_kwargs, map_kwargs=map_kwargs)
             case method if method in _APPROX_METHODS:
                 approx, idata = self._fit_approx(
                     method=method,

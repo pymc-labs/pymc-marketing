@@ -1189,13 +1189,13 @@ class MaxDiffMixedLogit(ModelBuilder):
         ----------
         task_df : pd.DataFrame, optional
             New task data. If None, uses data from initialization.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Show progress bar during sampling.
         random_seed : RandomState, optional
             Random seed for reproducibility.
-        method : str
-            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
-            ``"advi"`` or ``"fullrank_advi"``.
         sample_kwargs : dict, optional
             Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs

@@ -710,19 +710,69 @@ class TestBassModelClass:
         total = float(y.sum())
         assert total / 4 < m_est < total * 4
 
+    @staticmethod
+    def _graph_m_sigma(model: BassModel) -> float:
+        """Read the `m` prior scale out of the built graph.
+
+        The rescale is applied per build and never written back to ``model_config``,
+        so the graph is the only place the resolved value can be observed.
+        """
+        return float(model.model["m"].owner.inputs[-1].eval())
+
     def test_default_m_prior_is_data_scaled(self, y: np.ndarray):
         """build_model rescales the default `m` prior to the observed adoptions."""
         model = BassModel()
         model.build_model(data=y)
 
-        m_prior = model.model_config["m"]
-        assert m_prior.parameters["sigma"] == pytest.approx(2 * float(y.sum()))
+        assert self._graph_m_sigma(model) == pytest.approx(2 * float(y.sum()))
+
+    def test_m_rescale_does_not_mutate_model_config(self, y: np.ndarray):
+        """The rescale must not write back into the config it reads."""
+        model = BassModel()
+        model.build_model(data=y)
+
+        assert model.model_config["m"] == model.default_model_config["m"]
+
+    def test_m_prior_rescales_on_every_build(self, y: np.ndarray):
+        """A second fit must be scaled to the data it is actually looking at.
+
+        Persisting the resolved prior into `model_config` used to disarm the
+        is-this-still-the-default check, so the second dataset silently kept the
+        first one's scale.
+        """
+        model = BassModel()
+        big = y * 10
+
+        model.fit(data=y, method="map")
+        assert self._graph_m_sigma(model) == pytest.approx(2 * float(y.sum()))
+
+        model.fit(data=big, method="map")
+        assert self._graph_m_sigma(model) == pytest.approx(2 * float(big.sum()))
 
     def test_user_m_prior_is_untouched(self, y: np.ndarray):
         model = BassModel(model_config={"m": Prior("HalfNormal", sigma=123.0)})
         model.build_model(data=y)
 
         assert model.model_config["m"].parameters["sigma"] == 123.0
+        assert self._graph_m_sigma(model) == pytest.approx(123.0)
+
+    def test_m_prior_scale_survives_save_load(
+        self, mock_pymc_sample, y: np.ndarray, tmp_path
+    ):
+        """`load` must rebuild the same graph, and `id` must match either side.
+
+        `build_from_idata` recomputes the scale from `fit_data`, so the placeholder
+        stored in `model_config` is enough to reconstruct the fitted model.
+        """
+        model = BassModel()
+        model.fit(data=y)
+        file = tmp_path / "bass.nc"
+        model.save(file)
+
+        loaded = BassModel.load(file)
+
+        assert loaded.id == model.id
+        assert self._graph_m_sigma(loaded) == pytest.approx(self._graph_m_sigma(model))
 
     def test_build_model_from_array(self):
         y = np.random.default_rng(42).poisson(lam=100, size=20)
