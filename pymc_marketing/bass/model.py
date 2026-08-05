@@ -513,9 +513,12 @@ class BassModel(ModelBuilder):
         because ``jitter+adapt_diag`` moves off the starting point.
 
         The default ``m`` prior here is a placeholder: because ``m`` is a headcount
-        whose scale is entirely dataset-dependent, :meth:`build_model` replaces it
-        with ``HalfNormal(sigma=2 * observed.sum())`` whenever the user has not
-        overridden it. Pass an explicit ``m`` prior in ``model_config`` to opt out.
+        whose scale is entirely dataset-dependent, :meth:`build_model` builds the graph
+        with ``HalfNormal(sigma=2 * observed.sum())`` instead whenever the user has not
+        overridden it. The rescale is applied per build and does not modify
+        ``model_config``, so every fit is scaled to the data it is looking at. Pass an
+        ``m`` prior that differs from the default in ``model_config`` to opt out; a
+        prior identical to the default is indistinguishable from not passing one.
         """
         return {
             "m": Prior("HalfNormal", sigma=10),
@@ -681,12 +684,17 @@ class BassModel(ModelBuilder):
         # not overridden the default `m` prior, rescale it to the data: the observed
         # cumulative adoptions are a lower bound on `m`, so twice that keeps the prior
         # weakly informative at the right order of magnitude.
-        if (
-            observed is not None
-            and self.model_config["m"] == self.default_model_config["m"]
-        ):
+        #
+        # The resolved prior is local to this build and is deliberately *not* written
+        # back into `self.model_config`: doing so would make the check below read a
+        # value it had itself produced, so a second `fit` on a different dataset would
+        # keep the first dataset's scale. Leaving the config untouched also keeps `id`
+        # identical either side of a save/load round trip, since `build_model` recomputes
+        # the same sigma from `fit_data`.
+        priors = dict(self.model_config)
+        if observed is not None and priors["m"] == self.default_model_config["m"]:
             total_adopters = max(float(observed.sum()), 1.0)
-            self.model_config["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
+            priors["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
 
         coords = {name: ds.coords[name].values for name in ds.coords}
 
@@ -702,7 +710,7 @@ class BassModel(ModelBuilder):
             create_bass_model(
                 t=t_data,
                 observed=y_obs,
-                priors=cast(BassPriors, self.model_config),
+                priors=cast(BassPriors, priors),
                 coords=coords,
                 model=self.model,
             )
