@@ -259,6 +259,7 @@ class GammaGammaModel(BaseGammaGammaModel):
 
         import pandas as pd
         import pymc as pm
+        from pymc_extras.prior import Prior
 
         data = pd.DataFrame(
                 {
@@ -270,9 +271,9 @@ class GammaGammaModel(BaseGammaGammaModel):
         model = GammaGammaModel(
             ),
             model_config={
-                "p": {"dist": "HalfNormal", kwargs: {}},
-                "q": {"dist": "HalfStudentT", kwargs: {"nu": 4, "sigma": 10}},
-                "v": {"dist": "HalfCauchy", kwargs: {"beta": 1}},
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4, sigma=10),
+                "v": Prior("HalfCauchy", beta=1),
             },
             sampler_config={
                 "draws": 1000,
@@ -403,6 +404,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     .. code-block:: python
 
         import pymc as pm
+        from pymc_extras.prior import Prior
+
         from pymc_marketing.clv import GammaGammaModelIndividual
 
         model = GammaGammaModelIndividual(
@@ -413,9 +416,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
                 }
             ),
             model_config={
-                "p": {dist: 'HalfNorm', kwargs: {}},
-                "q": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v": {dist: 'HalfCauchy', kwargs: {}},
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4, sigma=10),
+                "v": Prior("HalfCauchy", beta=1),
             },
             sampler_config={
                 "draws": 1000,

@@ -33,6 +33,7 @@ from pymc.backends.base import MultiTrace
 from pymc.model.core import Model
 from pymc.util import RandomState
 from pymc.variational.callbacks import CheckParametersConvergence
+from pymc_extras.deserialize import DeserializableError, deserialize
 from pymc_extras.printing import model_table
 from rich.table import Table
 
@@ -401,16 +402,42 @@ class ModelIO:
         """Format the model configuration.
 
         Recursively processes the config dict.  Dicts with a ``__type__`` key
-        are deserialized via the TypeRegistry.  Plain lists are converted back
-        to tuples (for ``dims``) or numpy arrays (everything else) to undo the
-        JSON round-trip.
+        are deserialized via the TypeRegistry.  Prior specs (``dist``) and
+        wrapper factories that are not registered in the TypeRegistry
+        (e.g. ``Censored``, which serializes to a ``class``/``data`` pair) are
+        rebuilt via the pymc-extras deserializer.  Plain lists are converted
+        back to tuples (for ``dims``) or numpy arrays (everything else) to undo
+        the JSON round-trip.
         """
         from pymc_marketing.serialization import serialization
+
+        def _looks_like_prior_spec(value: Any) -> bool:
+            return isinstance(value, dict) and (
+                isinstance(value.get("dist"), str)
+                or (isinstance(value.get("class"), str) and "data" in value)
+            )
 
         def _format(d: dict) -> dict:
             for key, value in d.items():
                 if isinstance(value, dict) and "__type__" in value:
                     d[key] = serialization.deserialize(value)
+                # Must precede the generic dict branch: recursing first would
+                # rebuild the nested ``dist`` and leave the wrapper unreadable.
+                elif _looks_like_prior_spec(value):
+                    try:
+                        d[key] = deserialize(value)
+                    except DeserializableError as err:
+                        # ``deserialize`` raises this for two different
+                        # situations. With ``__cause__`` unset, no registered
+                        # deserializer matched, so this is an unrelated config
+                        # mapping that merely uses these keys: recurse rather
+                        # than making the whole model unloadable. With
+                        # ``__cause__`` set, a deserializer did match and its
+                        # ``from_dict`` failed, which is a real error and must
+                        # not be silently downgraded to a raw dict.
+                        if err.__cause__ is not None:
+                            raise
+                        d[key] = _format(value)
                 elif isinstance(value, dict):
                     d[key] = _format(value)
                 elif isinstance(value, list):
@@ -534,9 +561,7 @@ class ModelIO:
         """
         init_kwargs = cls.idata_to_init_kwargs(idata)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(**init_kwargs)
+        model = cls(**init_kwargs)
 
         model.idata = idata
         if "fit_data" in idata:

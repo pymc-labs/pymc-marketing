@@ -25,7 +25,7 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import BaseModel, ConfigDict
-from pymc_extras.prior import Prior, Scaled
+from pymc_extras.prior import Censored, Prior, Scaled
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
@@ -876,6 +876,30 @@ class TestBassModelClass:
         assert isinstance(loaded.model_config["m"], Scaled)
         assert loaded.model_config["m"].factor == 50_000
         assert isinstance(loaded.model_config["m"].dist, Prior)
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_save_load_round_trip_censored_priors(
+        self, mock_pymc_sample, y: np.ndarray, tmp_path
+    ):
+        """Censored is not in the TypeRegistry, so it round-trips via class/data.
+
+        Unlike Scaled it takes the ``to_dict()`` path rather than ``__type__``,
+        so it exercises a separate branch of ``_model_config_formatting``.
+        """
+        model = BassModel(
+            model_config={
+                "m": Censored(Prior("Normal", mu=2000, sigma=200), lower=0),
+            },
+        )
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model_censored.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        assert isinstance(loaded.model_config["m"], Censored)
+        assert isinstance(loaded.model_config["m"].distribution, Prior)
+        assert loaded.model_config["m"] == model.model_config["m"]
         xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
 
     def test_multi_product_forecast_without_observed(

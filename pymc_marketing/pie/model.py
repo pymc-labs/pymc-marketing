@@ -67,6 +67,7 @@ from pymc_extras.prior import Prior
 from sklearn.preprocessing import LabelEncoder
 
 from pymc_marketing.model_builder import RegressionModelBuilder
+from pymc_marketing.model_config import parse_model_config
 
 try:
     import pymc_bart as pmb
@@ -220,6 +221,12 @@ class PIEModel(RegressionModelBuilder):
         sampler_config: dict | None = Field(None),
     ) -> None:
         super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+        # Parse after merging with defaults, matching CLVModel. This is what
+        # rejects legacy dict-format priors with a migration hint; without it
+        # they fail much later with an opaque AttributeError.
+        self.model_config = parse_model_config(self.model_config)
+
         self.pre_determined_features = list(pre_determined_features)
         self.post_determined_features = list(post_determined_features)
         self.target_column = target_column

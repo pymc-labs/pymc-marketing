@@ -290,6 +290,10 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             "\nlikelihood~Potential(f(q,p,v))"
         )
 
+    # mock_fit_MAP samples the prior predictive of the Potential-based likelihood
+    @pytest.mark.filterwarnings(
+        "ignore:The effect of Potentials on other parameters is ignored"
+    )
     def test_save_load(self, mocker, tmp_path):
         model = GammaGammaModel()
         save_path = tmp_path / "test_model"
