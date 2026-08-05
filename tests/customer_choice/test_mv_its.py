@@ -200,6 +200,9 @@ def test_save_load(fit_model, saturated_data, tmp_path) -> None:
 
     loaded = MVITS.load(test_file)
 
+    for name in ["intercept", "likelihood", "market_distribution"]:
+        assert isinstance(loaded.model_config[name], Prior)
+
     assert loaded.model_config == fit_model.model_config
     assert loaded.existing_sales == fit_model.existing_sales
     assert loaded.saturated_market == fit_model.saturated_market

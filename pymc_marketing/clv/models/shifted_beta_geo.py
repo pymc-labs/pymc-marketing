@@ -180,7 +180,6 @@ class ShiftedBetaGeoModel(CLVModel):
         super().__init__(
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=["dropout_covariate_cols"],
         )
 
     def _validate_cohorts(

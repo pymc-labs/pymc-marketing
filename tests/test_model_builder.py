@@ -25,6 +25,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc_extras.deserialize import DeserializableError
 from rich.table import Table
 
 from pymc_marketing.data.idata.utils import idata_from_zarr
@@ -1422,3 +1423,95 @@ class TestModelConfigFormattingTypeDetection:
         model_config = {"n_obs": 100, "name": "test"}
         result = ModelIO._model_config_formatting(model_config)
         assert result == {"n_obs": 100, "name": "test"}
+
+
+class TestModelConfigFormattingClassForm:
+    """Wrapper factories serialized as ``class``/``data`` must be rebuilt.
+
+    ``Censored`` is not in the TypeRegistry, so it serializes via ``to_dict()``
+    rather than the ``__type__`` path. Without a dedicated branch it comes back
+    as a plain dict and fails later on ``.create_variable``.
+    """
+
+    def test_censored_rebuilt_from_class_form(self):
+        from pymc_extras.prior import Censored, Prior
+
+        prior = Censored(Prior("Normal", mu=0, sigma=1), lower=0)
+        model_config = json.loads(json.dumps({"likelihood": prior.to_dict()}))
+
+        result = ModelIO._model_config_formatting(model_config)
+
+        assert isinstance(result["likelihood"], Censored)
+        assert result["likelihood"] == prior
+
+    def test_class_form_takes_precedence_over_recursion(self):
+        """The wrapper is rebuilt whole, not recursed into.
+
+        Recursing first would convert the nested ``dist`` to a ``Prior`` and
+        leave the wrapper as an unreadable dict.
+        """
+        from pymc_extras.prior import Censored, Prior
+
+        prior = Censored(Prior("Normal", mu=0, sigma=1), lower=0)
+        model_config = json.loads(json.dumps({"likelihood": prior.to_dict()}))
+
+        result = ModelIO._model_config_formatting(model_config)
+
+        assert not isinstance(result["likelihood"], dict)
+        assert isinstance(result["likelihood"].distribution, Prior)
+
+    def test_non_prior_mapping_with_class_key_unchanged(self):
+        """A plain config mapping is not misrouted to the deserializer."""
+        model_config = {"settings": {"class": "premium", "tier": 2}}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result["settings"] == {"class": "premium", "tier": 2}
+
+    def test_non_prior_mapping_with_class_and_data_keys_unchanged(self):
+        """An undeserializable ``class``/``data`` pair falls back to recursion.
+
+        Without the guard this raises ``DeserializableError`` and makes the
+        whole model unloadable, rather than leaving an unrelated config
+        mapping alone.
+        """
+        model_config = {"settings": {"class": "premium", "data": {"tier": 2}}}
+        result = ModelIO._model_config_formatting(model_config)
+        assert result["settings"] == {"class": "premium", "data": {"tier": 2}}
+
+    def test_matched_deserializer_failure_is_not_swallowed(self):
+        """A spec that matches a deserializer but fails to build must raise.
+
+        ``deserialize`` wraps any error from a matched deserializer in
+        ``DeserializableError``, so a blanket ``except`` would silently leave
+        the raw dict in ``model_config`` and fail later in ``build_model``
+        with an opaque ``AttributeError``.
+        """
+        model_config = {"x": {"dist": "Nrmal", "kwargs": {"mu": 0, "sigma": 1}}}
+
+        with pytest.raises(DeserializableError):
+            ModelIO._model_config_formatting(model_config)
+
+    def test_matched_class_deserializer_failure_is_not_swallowed(self):
+        """Same for the ``class``/``data`` branch: a malformed ``Censored``.
+
+        ``_is_censored_type`` matches on the exact ``class`` name, so this is
+        a real failure rather than an unrelated config mapping.
+        """
+        model_config = {"x": {"class": "Censored", "data": {"bogus": 1}}}
+
+        with pytest.raises(DeserializableError):
+            ModelIO._model_config_formatting(model_config)
+
+    def test_special_prior_rebuilt_from_dist_form(self):
+        """The ``dist`` branch picks up ``special_priors`` registrations.
+
+        ``Prior.from_dict`` raises ``KeyError`` on these; ``deserialize``
+        dispatches to the registered deserializer.
+        """
+        from pymc_marketing.special_priors import LogNormalPrior
+
+        prior = LogNormalPrior(mu=0, sigma=1)
+        model_config = json.loads(json.dumps({"x": prior.to_dict()}))
+
+        result = ModelIO._model_config_formatting(model_config)
+
+        assert isinstance(result["x"], LogNormalPrior)
