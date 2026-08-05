@@ -106,7 +106,7 @@ def create_mock_fit(params: dict[str, float]):
     return mock_fit
 
 
-def mock_fit_MAP(self, *args, **kwargs):
+def mock_fit_map(self, *args, **kwargs):
     draws = 1
     chains = 1
     idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)

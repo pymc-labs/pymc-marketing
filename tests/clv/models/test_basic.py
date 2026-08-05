@@ -20,7 +20,7 @@ from pymc_extras.prior import Prior
 
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.model_builder import DifferentModelError
-from tests.clv.conftest import mock_fit_MAP, mock_sample, set_model_fit
+from tests.clv.conftest import mock_fit_map, mock_sample, set_model_fit
 
 
 class CLVModelTest(CLVModel):
@@ -131,7 +131,7 @@ class TestCLVModel:
     def test_fit_map(self, mocker):
         model = CLVModelTest()
 
-        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_map", mock_fit_map)
         idata = model.fit(
             data=model.data,
             method="map",

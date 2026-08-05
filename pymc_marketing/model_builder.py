@@ -633,6 +633,32 @@ def _approx_fit_parameters() -> set[str]:
     return names
 
 
+def _normalize_map_seed(random_seed: RandomState) -> int | None:
+    """Convert a ``fit(random_seed=...)`` value into the int ``pm.find_MAP`` accepts.
+
+    Returns
+    -------
+    int or None
+        An integer seed, or ``None`` (with a warning) when the value cannot be
+        converted -- so unsupported seed types are surfaced instead of silently
+        leaving the MAP optimization unseeded.
+
+    """
+    if isinstance(random_seed, (int, np.integer)):
+        return int(random_seed)
+    if isinstance(random_seed, np.random.Generator):
+        return int(random_seed.integers(2**32))
+    if isinstance(random_seed, np.random.RandomState):
+        return int(random_seed.randint(2**31))
+    warnings.warn(
+        f"random_seed of type {type(random_seed).__name__} is not supported with "
+        "method='map' and was ignored; pass an int or numpy Generator instead.",
+        UserWarning,
+        stacklevel=3,
+    )
+    return None
+
+
 class ModelFitter:
     """Mixin providing a unified fitting API for all PyMC-Marketing models.
 
@@ -744,7 +770,7 @@ class ModelFitter:
             if step_factory is not None:
                 kwargs["step"] = step_factory()
 
-            if not self._recompute_deterministics:
+            if not self._recompute_deterministics or not model.deterministics:
                 return pm.sample(**kwargs)
 
             var_names = [var.name for var in model.free_RVs]
@@ -758,21 +784,21 @@ class ModelFitter:
         """Fit a model with NUTS."""
         return self._sample_with_deterministics(sampler_kwargs)
 
-    def _fit_DEMZ(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:
+    def _fit_demz(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:
         """Fit a model with the DEMetropolisZ gradient-free sampler."""
         kwargs = {k: v for k, v in sampler_kwargs.items() if k not in _NUTS_ONLY_KEYS}
 
-        if ignored := sorted(set(sampler_kwargs) - set(kwargs)):
+        if removed := sorted(set(sampler_kwargs) - set(kwargs)):
             warnings.warn(
-                "The following keyword arguments only apply to NUTS and will be "
-                f"ignored by 'demz': {ignored}.",
+                "The following keyword arguments only apply to NUTS and were "
+                f"removed before sampling with 'demz': {removed}.",
                 UserWarning,
                 stacklevel=2,
             )
 
         return self._sample_with_deterministics(kwargs, step_factory=pm.DEMetropolisZ)
 
-    def _fit_MAP(self, **kwargs: Any) -> xr.DataTree:
+    def _fit_map(self, **kwargs: Any) -> xr.DataTree:
         """Find the model maximum a posteriori using a scipy optimizer."""
         model = self._get_sampling_model()
         map_res = pm.find_MAP(model=model, **kwargs)
@@ -812,11 +838,12 @@ class ModelFitter:
 
         if merged.get("method") is not None:
             raise ValueError(
-                "The 'method' parameter is set in sampler_config. Cannot be called with 'advi'."
+                "The 'method' parameter is set in sampler_config. "
+                f"Cannot be called with '{method}'."
             )
         if merged.get("chains", 1) > 1:
             warnings.warn(
-                "The 'chains' parameter must be 1 with 'advi'. "
+                f"The 'chains' parameter must be 1 with '{method}'. "
                 "Sampling only 1 chain despite the provided parameter.",
                 UserWarning,
                 stacklevel=2,
@@ -834,8 +861,12 @@ class ModelFitter:
             if k in allowed and k not in _APPROX_SAMPLE_KEYS
         }
 
+        # "chains" already has its own dedicated warning above.
         if ignored := sorted(
-            set(merged) - set(fit_kwargs) - set(_APPROX_SAMPLE_KEYS) - {"method"}
+            set(merged)
+            - set(fit_kwargs)
+            - set(_APPROX_SAMPLE_KEYS)
+            - {"method", "chains"}
         ):
             warnings.warn(
                 f"The following keyword arguments are not accepted by '{method}' "
@@ -848,9 +879,13 @@ class ModelFitter:
             fit_kwargs["progressbar"] = progressbar
         if random_seed is not None:
             fit_kwargs["random_seed"] = random_seed
-            _sample_kwargs.setdefault("random_seed", random_seed)
+        # A seed supplied through sampler_config must make the approximation draws
+        # reproducible too, not just the optimization.
+        seed = random_seed if random_seed is not None else merged.get("random_seed")
+        if seed is not None:
+            _sample_kwargs.setdefault("random_seed", seed)
 
-        _sample_kwargs.setdefault("draws", config.get("draws", 1_000))
+        _sample_kwargs.setdefault("draws", 1_000)
         fit_kwargs.setdefault(
             "callbacks", [CheckParametersConvergence(diff="absolute")]
         )
@@ -914,26 +949,28 @@ class ModelFitter:
         """
         self._prepare_fit(data)
 
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
-            **kwargs,
-        )
+        def sampler_kwargs() -> dict[str, Any]:
+            return create_sample_kwargs(
+                self.sampler_config,
+                progressbar,
+                random_seed,
+                **kwargs,
+            )
 
         approx = None
         match method:
             case "mcmc":
-                idata = self._fit_mcmc(sampler_kwargs)
+                idata = self._fit_mcmc(sampler_kwargs())
             case "demz":
-                idata = self._fit_DEMZ(sampler_kwargs)
+                idata = self._fit_demz(sampler_kwargs())
             case "map":
                 map_kwargs = dict(kwargs)
                 if progressbar is not None:
                     map_kwargs.setdefault("progressbar", progressbar)
-                if random_seed is not None and isinstance(random_seed, int):
-                    map_kwargs.setdefault("seed", random_seed)
-                idata = self._fit_MAP(**map_kwargs)
+                if random_seed is not None:
+                    if (seed := _normalize_map_seed(random_seed)) is not None:
+                        map_kwargs.setdefault("seed", seed)
+                idata = self._fit_map(**map_kwargs)
             case method if method in _APPROX_METHODS:
                 approx, idata = self._fit_approx(
                     method=method,
@@ -972,7 +1009,13 @@ class ModelFitter:
 
         fit_data = self.create_fit_data_group()
         if fit_data is not None:
-            self.idata["/fit_data"] = fit_data
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    category=UserWarning,
+                    message="The group fit_data is not defined in the DataTree scheme",
+                )
+                self.idata["/fit_data"] = fit_data
 
         self.set_idata_attrs(self.idata)  # type: ignore[attr-defined]
         self.is_fitted_ = True

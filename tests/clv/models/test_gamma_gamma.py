@@ -23,7 +23,7 @@ from pymc_marketing.clv.models.gamma_gamma import (
     GammaGammaModel,
     GammaGammaModelIndividual,
 )
-from tests.clv.conftest import mock_fit_MAP, set_model_fit
+from tests.clv.conftest import mock_fit_map, set_model_fit
 
 
 class BaseTestGammaGammaModel:
@@ -297,7 +297,7 @@ class TestGammaGammaModel(BaseTestGammaGammaModel):
             param: Prior("HalfNormal") for param in model.model_config
         }
 
-        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_map", mock_fit_map)
         model.fit(data=self.data, method="map", maxeval=1)
         model.save(save_path)
         # Testing the valid case.
@@ -453,7 +453,7 @@ class TestGammaGammaModelIndividual(BaseTestGammaGammaModel):
         model.model_config = {
             param: Prior("HalfNormal") for param in model.model_config
         }
-        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_MAP", mock_fit_MAP)
+        mocker.patch("pymc_marketing.clv.models.basic.CLVModel._fit_map", mock_fit_map)
         model.fit(data=self.individual_data, method="map", maxeval=1)
         model.save(save_path)
         # Testing the valid case.

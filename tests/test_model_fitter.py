@@ -195,6 +195,49 @@ def test_fit_data_group_round_trips(toy_data) -> None:
     pd.testing.assert_series_equal(stored["y"], toy_data["y"], check_index=False)
 
 
+def test_map_seed_accepts_numpy_generator(toy_data) -> None:
+    """Generator seeds must be converted for `pm.find_MAP`, not silently dropped."""
+    model = FitterModel(data=toy_data)
+
+    idata = model.fit(
+        method="map", random_seed=np.random.default_rng(42), progressbar=False
+    )
+
+    assert idata["/posterior"].to_dataset().sizes["draw"] == 1
+
+
+def test_map_seed_warns_on_unsupported_type(toy_data) -> None:
+    model = FitterModel(data=toy_data)
+
+    with pytest.warns(UserWarning, match="not supported with method='map'"):
+        model.fit(method="map", random_seed=[1, 2], progressbar=False)
+
+
+def test_advi_config_seed_makes_draws_reproducible(toy_data) -> None:
+    """A seed in sampler_config must reach `Approximation.sample`, not just `pm.fit`."""
+
+    def fit_once() -> xr.Dataset:
+        model = FitterModel(
+            data=toy_data,
+            sampler_config={"chains": 1, "progressbar": False, "random_seed": 42},
+        )
+        model.fit(method="advi", n=100, sample_kwargs={"draws": 10})
+        return model.idata["/posterior"].to_dataset()
+
+    left, right = fit_once(), fit_once()
+
+    for name in left.data_vars:
+        np.testing.assert_allclose(left[name].values, right[name].values)
+
+
+def test_fit_data_group_warning_is_suppressed(toy_data, recwarn) -> None:
+    model = FitterModel(data=toy_data)
+
+    model.fit(random_seed=42)
+
+    assert not [w for w in recwarn if "fit_data is not defined" in str(w.message)]
+
+
 def test_advi_reports_unusable_kwargs(toy_data) -> None:
     """MCMC-only keys are dropped from the VI path, but never silently."""
     model = FitterModel(data=toy_data)
