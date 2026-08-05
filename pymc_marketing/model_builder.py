@@ -421,10 +421,17 @@ class ModelIO:
                 elif _looks_like_prior_spec(value):
                     try:
                         d[key] = deserialize(value)
-                    except DeserializableError:
-                        # Not actually a prior spec — an unrelated config
-                        # mapping that happens to use these keys. Recurse
-                        # rather than making the whole model unloadable.
+                    except DeserializableError as err:
+                        # ``deserialize`` raises this for two different
+                        # situations. With ``__cause__`` unset, no registered
+                        # deserializer matched, so this is an unrelated config
+                        # mapping that merely uses these keys: recurse rather
+                        # than making the whole model unloadable. With
+                        # ``__cause__`` set, a deserializer did match and its
+                        # ``from_dict`` failed, which is a real error and must
+                        # not be silently downgraded to a raw dict.
+                        if err.__cause__ is not None:
+                            raise
                         d[key] = _format(value)
                 elif isinstance(value, dict):
                     d[key] = _format(value)

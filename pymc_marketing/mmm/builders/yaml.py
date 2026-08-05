@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.mmm.builders.factories import build, resolve
+from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.mmm import MMM
 
@@ -62,11 +62,10 @@ def _apply_and_validate_calibration_steps(
                 "supported via YAML configuration yet."
             )
 
-        resolved_kwargs = (
-            {key: resolve(value) for key, value in step.params.items()}
-            if step.params is not None
-            else {}
-        )
+        resolved_kwargs = {}
+        for key, value in (step.params or {}).items():
+            with naming(f"{step.method_name}.{key}"):
+                resolved_kwargs[key] = resolve(value)
 
         try:
             method(**resolved_kwargs)

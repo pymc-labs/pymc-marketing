@@ -418,7 +418,7 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
             model_config={
                 "p": Prior("HalfNormal"),
                 "q": Prior("HalfStudentT", nu=4, sigma=10),
-                "v": Prior("HalfCauchy"),
+                "v": Prior("HalfCauchy", beta=1),
             },
             sampler_config={
                 "draws": 1000,

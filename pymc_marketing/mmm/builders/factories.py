@@ -69,18 +69,24 @@ def locate(qualname: str) -> Any:
 
 
 @contextmanager
-def _naming(key: str) -> Iterator[None]:
+def naming(key: str) -> Iterator[None]:
     """Name *key* on any deserialization failure raised inside the block.
 
     YAML is the entry point most likely to be hand-edited, and a bare
     ``DeserializableError`` only dumps the offending sub-dict, which is hard to
     trace back to a config entry. ``ModelConfigError`` used to name every bad
     key before dict-format priors were removed; this preserves that.
+
+    ``DeserializableError`` reports "use register_deserialization to add a
+    mapping", which is the wrong advice when a deserializer did match and
+    failed for some other reason. In that case ``__cause__`` holds the actual
+    reason (e.g. ``PyMC doesn't have a distribution of name 'Nrmal'``), so
+    surface that instead.
     """
     try:
         yield
     except DeserializableError as err:
-        raise ModelConfigError(f"Parameter {key}: {err}") from err
+        raise ModelConfigError(f"Parameter {key}: {err.__cause__ or err}") from err
 
 
 def build(spec: Mapping[str, Any]) -> Any:
@@ -136,13 +142,13 @@ def build(spec: Mapping[str, Any]) -> Any:
                             if "class" in prior_value:
                                 priors_dict[prior_key] = build(prior_value)
                             else:
-                                with _naming(prior_key):
+                                with naming(prior_key):
                                     priors_dict[prior_key] = deserialize(prior_value)
                         else:
                             priors_dict[prior_key] = prior_value
                     kwargs[k] = priors_dict
                 elif k == "prior" and "distribution" in v:
-                    with _naming(k):
+                    with naming(k):
                         kwargs[k] = deserialize(v)
                 elif k == "model_config":
                     # Each entry may be a prior spec ({"distribution": ...}),
@@ -151,21 +157,24 @@ def build(spec: Mapping[str, Any]) -> Any:
                     # since ``parse_model_config`` no longer converts dicts.
                     model_config = {}
                     for mk, mv in v.items():
-                        with _naming(mk):
+                        with naming(mk):
                             model_config[mk] = resolve(mv)
                     kwargs[k] = model_config
                 else:
-                    with _naming(k):
+                    with naming(k):
                         kwargs[k] = resolve(v)
             else:
-                with _naming(k):
+                with naming(k):
                     kwargs[k] = resolve(v)
         else:
             # --- recurse into nested objects for other items -----------------------------------------
-            with _naming(k):
+            with naming(k):
                 kwargs[k] = resolve(v)
 
-    args = [resolve(v) for v in raw_args]
+    args = []
+    for i, v in enumerate(raw_args):
+        with naming(f"args[{i}]"):
+            args.append(resolve(v))
 
     return cls(*args, **kwargs)
 

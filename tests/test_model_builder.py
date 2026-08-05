@@ -25,6 +25,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
+from pymc_extras.deserialize import DeserializableError
 from rich.table import Table
 
 from pymc_marketing.data.idata.utils import idata_from_zarr
@@ -1475,6 +1476,30 @@ class TestModelConfigFormattingClassForm:
         model_config = {"settings": {"class": "premium", "data": {"tier": 2}}}
         result = ModelIO._model_config_formatting(model_config)
         assert result["settings"] == {"class": "premium", "data": {"tier": 2}}
+
+    def test_matched_deserializer_failure_is_not_swallowed(self):
+        """A spec that matches a deserializer but fails to build must raise.
+
+        ``deserialize`` wraps any error from a matched deserializer in
+        ``DeserializableError``, so a blanket ``except`` would silently leave
+        the raw dict in ``model_config`` and fail later in ``build_model``
+        with an opaque ``AttributeError``.
+        """
+        model_config = {"x": {"dist": "Nrmal", "kwargs": {"mu": 0, "sigma": 1}}}
+
+        with pytest.raises(DeserializableError):
+            ModelIO._model_config_formatting(model_config)
+
+    def test_matched_class_deserializer_failure_is_not_swallowed(self):
+        """Same for the ``class``/``data`` branch: a malformed ``Censored``.
+
+        ``_is_censored_type`` matches on the exact ``class`` name, so this is
+        a real failure rather than an unrelated config mapping.
+        """
+        model_config = {"x": {"class": "Censored", "data": {"bogus": 1}}}
+
+        with pytest.raises(DeserializableError):
+            ModelIO._model_config_formatting(model_config)
 
     def test_special_prior_rebuilt_from_dist_form(self):
         """The ``dist`` branch picks up ``special_priors`` registrations.

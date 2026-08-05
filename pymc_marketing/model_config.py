@@ -48,10 +48,9 @@ def _reject_removed_parameters(**kwargs: Any) -> None:
             raise ModelConfigError(REMOVED_PARAMETERS[name])
 
     if kwargs:
-        raise TypeError(
-            f"Unexpected keyword arguments: {sorted(kwargs)}. "
-            f"Removed parameters: {sorted(REMOVED_PARAMETERS)}."
-        )
+        # Mentioning the removed parameters here would be a red herring for
+        # anyone who simply misspelled a live one.
+        raise TypeError(f"Unexpected keyword arguments: {sorted(kwargs)}.")
 
 
 def parse_model_config(

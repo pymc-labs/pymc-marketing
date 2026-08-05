@@ -192,8 +192,15 @@ def test_parse_model_config_rejects_unknown_kwarg() -> None:
         parse_model_config({}, bogus=1)
 
 
-def test_clv_model_rejects_non_distributions() -> None:
-    """`CLVModel.__init__` accepted `non_distributions` before v1.0.0."""
+def test_clv_model_base_rejects_non_distributions() -> None:
+    """`CLVModel.__init__` accepted `non_distributions` before v1.0.0.
+
+    Scope note: this covers direct `CLVModel` construction and third-party
+    subclasses that forward `**kwargs`. The shipped subclasses
+    (`BetaGeoModel`, `ParetoNBDModel`, ...) never exposed `non_distributions`
+    in their own signatures -- they passed a hardcoded list to `super()` --
+    so there is no user-facing surface to guard there.
+    """
     from pymc_marketing.clv.models.basic import CLVModel
 
     class ConcreteCLVModel(CLVModel):
