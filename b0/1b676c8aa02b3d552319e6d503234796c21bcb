@@ -1,0 +1,23 @@
+pymc_marketing/bass/model.py
+  s_7b2159edc8bd5f::t_9b8a4373b4a5a8 713
+  s_7b2159edc8bd5f::t_869e6096bd4787 516-521
+  s_7b2159edc8bd5f::t_d139a20b44d16a 687-695,697
+tests/bass/test_model.py
+  s_7b2159edc8bd5f::t_c0f2ab5919124f 713-721,727-750,757-775
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b01b676c8aa02b3d552319e6d503234796c21bcb",
+  "prompts": {},
+  "sessions": {
+    "s_7b2159edc8bd5f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d53bed9a-1e42-4baa-9d7e-a6808b3b1b8f",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
