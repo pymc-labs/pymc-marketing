@@ -298,11 +298,14 @@ class IncrementalReducer(ABC):
 
     Notes
     -----
-    Every subclass assumes the counterfactual reaches the response *only*
-    through ``channel_contribution``.  That assumption is what lets a single
-    all-channels evaluation be read per channel: :math:`v_{t,c}` depends on
-    channel *c*'s spend alone, so column *m* of an all-channels counterfactual
-    equals column *m* of a channel-*m*-only counterfactual.
+    Every subclass assumes *delta* is the **complete** change in the linear
+    predictor: ``channel_contribution`` plus every channel-dependent
+    ``mu_effect`` the counterfactual reaches.  Collecting those terms is the
+    caller's job (:meth:`Incrementality._delta_mu`), and that the collected
+    nodes account for the whole move is checked rather than assumed, by
+    :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.assert_increment_is_complete`.
+    A reducer only converts that change into a response-scale increment; it
+    does not care how many nodes the change was collected from.
 
     See Also
     --------
@@ -425,17 +428,19 @@ class Incrementality:
     Parameters
     ----------
     model : MMM
-        Fitted MMM model instance.
+        Fitted MMM model instance.  Its ``frozen_deterministics`` property
+        decides which deterministics are held at their posterior values during
+        counterfactual evaluation.
     idata : xr.DataTree, optional
-        DataTree containing posterior samples and fit data.
-        If not provided, uses the incrementality test result data. Default is None.
-    frozen_deterministics : dict[str, str], optional
-        Mapping of deterministic variable names to group names for freezing.
-        Variables in this dict will have their values frozen during
-        counterfactual simulations. Default is empty dict.
+        DataTree containing posterior samples and fit data.  Exactly one of
+        ``idata`` and ``data`` must be provided.
+    data : MMMIDataWrapper, optional
+        Existing data wrapper to reuse instead of building one from ``idata``.
 
     Attributes
     ----------
+    model : MMM
+        The fitted model whose graph the counterfactuals are evaluated on.
     idata : xr.DataTree
         Posterior samples and fit data.
     data : MMMIDataWrapper
@@ -444,7 +449,8 @@ class Incrementality:
     Raises
     ------
     ValueError
-        If both ``idata`` and ``data`` are provided, or neither is.
+        If both ``idata`` and ``data`` are provided, or neither is; or if the
+        idata coordinates do not match the fitted model's.
 
     Examples
     --------
@@ -1472,7 +1478,7 @@ class Incrementality:
 
         Reciprocal of :meth:`contribution_over_spend`.  The interpretation
         depends on the model's target variable -- e.g. **CAC** (Customer
-        Acquisition Cost) when the target is customer count
+        Acquisition Cost) when the target is customer count.
 
         Parameters
         ----------

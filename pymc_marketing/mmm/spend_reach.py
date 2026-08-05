@@ -585,7 +585,10 @@ class SpendProbe:
                 "Some channel's spend carries no non-zero date after the first, "
                 "so the reach of a spend counterfactual could not be measured.  "
                 "Every period will be evaluated on the full date axis, which is "
-                "correct but slower than a window.",
+                "correct but slower than a window.  With no probe, the "
+                "completeness of the increment -- that the evaluated nodes "
+                "account for the whole move in the linear predictor -- also "
+                "goes unverified.",
                 UserWarning,
                 stacklevel=3,
             )
