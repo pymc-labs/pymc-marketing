@@ -72,7 +72,8 @@ def fitted_gg(test_summary_data) -> GammaGammaModel:
     model = GammaGammaModel(
         model_config=model_config,
     )
-    model.build_model(data=test_summary_data)
+    # Gamma-Gamma requires positive monetary values, so zero-frequency customers are dropped
+    model.build_model(data=test_summary_data.query("frequency > 0"))
     fake_fit = pm.sample_prior_predictive(
         draws=50, model=model.model, random_seed=rng
     ).prior
