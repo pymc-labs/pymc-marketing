@@ -63,7 +63,7 @@ __all__ = [
     "ScenarioKey",
 ]
 
-ScenarioKey = tuple[int, int | None]
+type ScenarioKey = tuple[int, int | None]
 """Which scenario a row of :attr:`CounterfactualScenarios.spend` answers for.
 
 ``(period_idx, channel_idx)``, with ``channel_idx=None`` for the scenario that
