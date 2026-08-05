@@ -633,6 +633,31 @@ def _approx_fit_parameters() -> set[str]:
     return names
 
 
+def _map_incompatible_parameters() -> set[str]:
+    """Collect ``pm.sample`` parameter names that ``pm.find_MAP`` does not accept.
+
+    ``find_MAP`` forwards unknown keyword arguments to ``scipy.optimize.minimize``,
+    so an MCMC key such as ``draws`` surfaces as an opaque scipy ``TypeError``.
+    Deriving the incompatible names from the two signatures lets the MAP path strip
+    them with a clear warning instead.
+
+    Returns
+    -------
+    set of str
+        Names accepted by ``pm.sample`` but not by ``pm.find_MAP``.
+
+    """
+
+    def named(func: Callable) -> set[str]:
+        return {
+            name
+            for name, param in signature(func).parameters.items()
+            if param.kind not in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
+        }
+
+    return named(pm.sample) - named(pm.find_MAP)
+
+
 def _normalize_map_seed(random_seed: RandomState) -> int | None:
     """Convert a ``fit(random_seed=...)`` value into the int ``pm.find_MAP`` accepts.
 
@@ -800,6 +825,16 @@ class ModelFitter:
 
     def _fit_map(self, **kwargs: Any) -> xr.DataTree:
         """Find the model maximum a posteriori using a scipy optimizer."""
+        if removed := sorted(set(kwargs) & _map_incompatible_parameters()):
+            warnings.warn(
+                "The following keyword arguments only apply to MCMC sampling and "
+                f"were removed before optimizing with 'map': {removed}.",
+                UserWarning,
+                stacklevel=2,
+            )
+            for key in removed:
+                kwargs.pop(key)
+
         model = self._get_sampling_model()
         map_res = pm.find_MAP(model=model, **kwargs)
         # Filter non-value variables

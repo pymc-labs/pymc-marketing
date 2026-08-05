@@ -195,6 +195,18 @@ def test_fit_data_group_round_trips(toy_data) -> None:
     pd.testing.assert_series_equal(stored["y"], toy_data["y"], check_index=False)
 
 
+def test_map_strips_mcmc_only_kwargs(toy_data) -> None:
+    """MCMC keys reaching the MAP path must warn, not die inside scipy."""
+    model = FitterModel(data=toy_data)
+
+    with pytest.warns(
+        UserWarning, match=r"removed before optimizing with 'map'.*'draws'"
+    ):
+        idata = model.fit(method="map", draws=100, progressbar=False)
+
+    assert idata["/posterior"].to_dataset().sizes["draw"] == 1
+
+
 def test_map_seed_accepts_numpy_generator(toy_data) -> None:
     """Generator seeds must be converted for `pm.find_MAP`, not silently dropped."""
     model = FitterModel(data=toy_data)
