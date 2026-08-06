@@ -115,6 +115,57 @@ class _RegistryEntry:
     deserializer: Any = None
 
 
+class ReferenceTracker:
+    """Tracks object identity during serialization/deserialization.
+
+    Handles deduplication: if the same object appears multiple times
+    during serialization, subsequent occurrences emit ``{"$ref": N}``
+    references. During deserialization, references resolve to previously
+    deserialized objects.
+    """
+
+    def __init__(self) -> None:
+        self._seen: dict[int, int] = {}  # id(obj) -> ref_id
+        self._ref_counter: int = 0
+        self._deserialized: dict[int, Any] = {}  # ref_id -> object
+
+    def track(self, obj: Any) -> int | None:
+        """Track an object. Returns ref_id if already seen, else assigns new id."""
+        obj_id = id(obj)
+        if obj_id in self._seen:
+            return self._seen[obj_id]
+        ref_id = self._ref_counter
+        self._seen[obj_id] = ref_id
+        self._ref_counter += 1
+        return None  # not a duplicate
+
+    def is_seen(self, obj: Any) -> bool:
+        """Check if object has been serialized before."""
+        return id(obj) in self._seen
+
+    def get_ref_id(self, obj: Any) -> int:
+        """Get the reference ID for a tracked object."""
+        return self._seen[id(obj)]
+
+    def store_deserialized(self, ref_id: int, obj: Any) -> None:
+        """Store a deserialized object by reference ID."""
+        self._deserialized[ref_id] = obj
+
+    def resolve_ref(self, ref_id: int) -> Any:
+        """Resolve a reference ID to a deserialized object."""
+        return self._deserialized[ref_id]
+
+    def has_ref(self, ref_id: int) -> bool:
+        """Check if a reference ID exists."""
+        return ref_id in self._deserialized
+
+    def reset(self) -> None:
+        """Clear all tracked state."""
+        self._seen.clear()
+        self._ref_counter = 0
+        self._deserialized.clear()
+
+
 class TypeRegistry:
     """Centralized registry for serializable types.
 
@@ -134,10 +185,16 @@ class TypeRegistry:
         # With explicit type_key + custom deserializer:
         serialization.register("mod.MyClass", MyClass, deserializer=my_deser_fn)
 
+    Reference deduplication:
+        When the same object appears multiple times during serialization,
+        subsequent occurrences emit a ``{"$ref": N}`` reference instead of
+        the full object. On deserialization, references are resolved to the
+        first occurrence. This is transparent to registered classes.
     """
 
     def __init__(self) -> None:
         self._registry: dict[str, _RegistryEntry] = {}
+        self._tracker = ReferenceTracker()
 
     def register(
         self,
@@ -195,17 +252,37 @@ class TypeRegistry:
         return actual_cls
 
     def serialize(self, obj: Serializable) -> dict[str, Any]:
-        """Serialize an object to a JSON-safe dict with ``__type__`` key."""
+        """Serialize an object to a JSON-safe dict with ``__type__`` key.
+
+        Supports reference deduplication: if the same object appears multiple
+        times during serialization, subsequent occurrences emit ``{"$ref": N}``
+        references instead of duplicating the full object.
+        """
+        return self._serialize_with_refs(obj)
+
+    def _serialize_with_refs(self, obj: Any) -> dict[str, Any]:
+        """Serialize with reference tracking for deduplication."""
+        # Emit reference for previously seen objects
+        if self._tracker.is_seen(obj):
+            return {"$ref": self._tracker.get_ref_id(obj)}
+
         type_key = f"{obj.__class__.__module__}.{obj.__class__.__qualname__}"
         if type_key not in self._registry:
             raise KeyError(
                 f"Type {type_key!r} is not registered in the TypeRegistry. "
                 f"Use @serialization.register to register it."
             )
+
         entry = self._registry[type_key]
         if entry.serializer is not None:
-            return entry.serializer(obj)
-        return obj.to_dict()
+            serialized = entry.serializer(obj)
+        else:
+            serialized = obj.to_dict()
+
+        # Store reference for deduplication
+        self._tracker.track(obj)
+
+        return serialized
 
     def deserialize(
         self,
@@ -215,13 +292,26 @@ class TypeRegistry:
         """Deserialize a dict back to an object.
 
         Three-tier dispatch:
-        1. If ``__deferred__`` is True, return an unresolved ``DeferredFactory``.
-        2. If a custom deserializer was registered, call it with ``(data, context)``.
+        1. If ``$ref`` key exists, return previously deserialized object.
+        2. If ``__deferred__`` is True, return an unresolved ``DeferredFactory``.
         3. Otherwise, look up the class by ``__type__`` and call ``cls.from_dict(data)``.
         """
         if not isinstance(data, dict):
             raise SerializationError(
                 f"Expected a dict for deserialization, got {type(data).__name__}"
+            )
+
+        # Handle references to previously deserialized objects
+        if "$ref" in data:
+            ref_id = data["$ref"]
+            if self._tracker.has_ref(ref_id):
+                return self._tracker.resolve_ref(ref_id)
+            # Reference not yet deserialized - this can happen when
+            # the same object is referenced by multiple top-level serialize
+            # calls. The reference will be resolved on a subsequent call.
+            raise SerializationError(
+                f"Reference $ref={ref_id} not found. "
+                f"The referenced object may not have been deserialized yet."
             )
 
         if data.get("__deferred__"):
@@ -248,7 +338,13 @@ class TypeRegistry:
         if entry.deserializer is not None:
             return entry.deserializer(data, context)
 
-        return entry.cls.from_dict(data)  # type: ignore[attr-defined]
+        result = entry.cls.from_dict(data)  # type: ignore[attr-defined]
+
+        # Store deserialized object for reference resolution
+        result_id = len(self._tracker._deserialized)
+        self._tracker.store_deserialized(result_id, result)
+
+        return result
 
 
 serialization = TypeRegistry()

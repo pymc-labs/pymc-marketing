@@ -325,3 +325,106 @@ class TestSerializableBaseModel:
 
         concrete_key = f"{ConcreteEffect.__module__}.{ConcreteEffect.__qualname__}"
         assert concrete_key in serialization._registry
+
+
+class TestReferenceDeduplication:
+    """Tests for shared object reference deduplication during serialization.
+
+    When two objects share a reference (e.g., R2D2Split and R2D2Sigma both
+    reference the same R2D2Decomposition), serialization should emit a
+    reference for the duplicate instead of the full object. On deserialization,
+    both should resolve to the same object.
+    """
+
+    def test_shared_reference_is_deduplicated(self):
+        """Shared objects should not be serialized twice."""
+        from pymc_extras.prior import Prior
+
+        # Use the global serialization registry with existing registered types
+        # Create two R2D2 objects sharing the same decomposition
+        from pymc_marketing.r2d2 import R2D2Decomposition
+        from pymc_marketing.serialization import serialization
+
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        split = r2d2.split("control")
+        sigma = r2d2.error_sigma
+
+        # Serialize both
+        split_data = serialization.serialize(split)
+        sigma_data = serialization.serialize(sigma)
+
+        # After deserialization, both should reference the same decomposition
+        restored_split = serialization.deserialize(split_data)
+        restored_sigma = serialization.deserialize(sigma_data)
+
+        # Currently this FAILS - they're separate decompositions
+        # After our fix, they should share the same decomposition
+        assert restored_split.decomposition is restored_sigma.decomposition, (
+            "Shared decomposition should be the same object after deserialization, "
+            "but got two different objects"
+        )
+
+    def test_serialize_deduplicates_nested_objects(self):
+        """Nested shared objects should emit references, not duplicates."""
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.r2d2 import R2D2Decomposition
+        from pymc_marketing.serialization import serialization
+
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        split = r2d2.split("control")
+        sigma = r2d2.error_sigma
+
+        # Serialize both
+        split_data = serialization.serialize(split)
+        sigma_data = serialization.serialize(sigma)
+
+        # After deserialization, both should reference the same decomposition
+        restored_split = serialization.deserialize(split_data)
+        restored_sigma = serialization.deserialize(sigma_data)
+
+        assert restored_split.decomposition is restored_sigma.decomposition, (
+            "Shared decomposition should be the same instance after deserialization"
+        )
+
+    def test_independent_objects_are_not_deduplicated(self):
+        """Different objects should not be collapsed into one."""
+        from pymc_extras.prior import Prior
+
+        # Create two independent decompositions
+        from pymc_marketing.r2d2 import R2D2Decomposition
+        from pymc_marketing.serialization import serialization
+
+        r2d2_a = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+        r2d2_b = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        split_a = r2d2_a.split("control")
+        split_b = r2d2_b.split("control")
+
+        a_data = serialization.serialize(split_a)
+        b_data = serialization.serialize(split_b)
+
+        restored_a = serialization.deserialize(a_data)
+        restored_b = serialization.deserialize(b_data)
+
+        # They should be different decompositions (not shared)
+        assert restored_a.decomposition is not restored_b.decomposition
+        assert restored_a.component_name == restored_b.component_name == "control"
