@@ -172,6 +172,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html
 :::
+
+:::{grid-item-card} Calibrating an MMM with ROAS Priors
+:img-top: ../gallery/images/mmm_roas_calibration.png
+:link: ../notebooks/mmm/mmm_roas_calibration.html
+:::
 ::::
 
 ### Time-Varying Parameters
