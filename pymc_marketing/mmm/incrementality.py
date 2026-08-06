@@ -1011,6 +1011,9 @@ class Incrementality:
         posterior_predictive_model = self.model.model
         effect_names = tuple(effect.contribution_var for effect in effects)
         predictor = linear_predictor(self.model) if self.model.mu_effects else None
+        # The evaluator applies the spend intervention through pm.do, which
+        # clones the model; response variables handed over as raw nodes, like
+        # the predictor above, are re-resolved by name against that clone.
         evaluator = CounterfactualEvaluator(
             pymc_model=posterior_predictive_model,
             posterior=posterior_sub,

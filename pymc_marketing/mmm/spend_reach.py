@@ -358,7 +358,9 @@ class SpendProbe:
     evaluator : CounterfactualEvaluator
         Compiled evaluator over the accounted nodes.  Reused rather than
         recompiled: each probe is one more call to a function that already
-        exists.
+        exists.  Presumed to be a default-configuration evaluator -- spend as
+        the intervention target, in ``"replace"`` mode -- since the probe's
+        perturbations are spend arrays.
     baseline : dict
         Unperturbed evaluation on the full date axis, per node.
     baseline_array : np.ndarray
