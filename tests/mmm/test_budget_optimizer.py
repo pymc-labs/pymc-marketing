@@ -32,7 +32,10 @@ from pymc_marketing.mmm.budget_optimizer import (
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.constraints import Constraint
-from pymc_marketing.mmm.utility import _check_samples_dimensionality
+from pymc_marketing.mmm.utility import (
+    _check_samples_dimensionality,
+    diversification_ratio,
+)
 
 
 @pytest.fixture(scope="module")
@@ -316,6 +319,52 @@ def test_allocate_budget(
         expected_optimal, abs=1e-12
     )
     assert -optimization_res.fun == pytest.approx(expected_response, abs=1e-2, rel=1e-2)
+
+
+@pytest.fixture(scope="module")
+def mmm_wrapper_per_channel_response(dummy_df, dummy_idata) -> CustomModelWrapper:
+    """Like ``mmm_wrapper``, plus a per-channel response deterministic.
+
+    ``diversification_ratio`` needs the response broken down per channel, which the
+    default ``total_media_contribution_original_scale`` does not provide.
+    """
+    df_kwargs, X_dummy, y_dummy = dummy_df
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    with mmm.model:
+        pmd.Deterministic(
+            "channel_contribution_total",
+            mmm.model["channel_contribution"].sum(dim="date"),
+        )
+    return CustomModelWrapper(
+        base_model=mmm.model,
+        idata=dummy_idata,
+        channels=df_kwargs["channel_columns"],
+    )
+
+
+def test_allocate_budget_with_diversification_ratio(mmm_wrapper_per_channel_response):
+    """``diversification_ratio`` is drivable from the optimizer via a per-channel response."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper_per_channel_response,
+        num_periods=4,
+        response_variable="channel_contribution_total",
+        utility_function=diversification_ratio,
+    )
+    assert optimizer.extract_response_distribution(
+        "channel_contribution_total"
+    ).dims == ("sample", "channel")
+
+    optimal_budgets, optimization_res = optimizer.allocate_budget(total_budget=100)
+
+    assert optimization_res.success
+    assert optimal_budgets.sum().item() == pytest.approx(100)
+    # The diversification ratio is bounded below by 1 (attained by perfectly correlated assets)
+    assert -optimization_res.fun >= 1.0
 
 
 def test_budget_optimizer_clear_error_on_missing_response_variable(mmm_wrapper):

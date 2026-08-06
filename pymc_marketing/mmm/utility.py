@@ -51,14 +51,16 @@ from pytensor.xtensor.type import XTensorVariable, as_xtensor
 UtilityFunctionType = Callable[[XTensorVariable, XTensorVariable], float]
 
 
-def _check_samples_dimensionality(samples: XTensorVariable) -> XTensorVariable:
-    """Check if samples is a 1D tensor variable."""
-    ndim = samples.type.ndim
-    if ndim == 1:
+def _check_samples_dimensionality(
+    samples: XTensorVariable, ndim: int = 1
+) -> XTensorVariable:
+    """Check if samples is a tensor variable with `ndim` dimensions."""
+    samples_ndim = samples.type.ndim
+    if samples_ndim == ndim:
         return samples
     else:
         raise ValueError(
-            f"Function expected samples to be a 1D tensor variable. Got {ndim} dimensions."
+            f"Function expected samples to be a {ndim}D tensor variable. Got {samples_ndim} dimensions."
         )
 
 
@@ -574,9 +576,18 @@ def diversification_ratio(
     Parameters
     ----------
     samples : XTensorVariable
-        2D PyTensor tensor variable where each column represents the returns of an asset.
+        2D PyTensor tensor variable with a ``"sample"`` dim and an asset dim, holding the
+        per-asset returns. Unlike the other utility functions, which take samples of the
+        total response, this one needs the response broken down per asset (e.g.
+        ``"channel_contribution"`` summed over ``"date"``), since it measures how the
+        assets co-vary. To drive this from
+        :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`, register such a
+        per-channel deterministic on the model and pass its name as ``response_variable``;
+        the default ``"total_media_contribution_original_scale"`` is a scalar per sample
+        and will not work.
     budgets : XTensorVariable
         1D PyTensor tensor variable representing the investment amounts in each asset.
+        Its dim must match the asset dim of ``samples``.
 
     Returns
     -------
@@ -586,6 +597,20 @@ def diversification_ratio(
     This ratio provides insight into how individual asset volatilities and their correlations
     contribute to the overall portfolio risk.
 
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        from pytensor.xtensor import as_xtensor
+
+        from pymc_marketing.mmm.utility import diversification_ratio
+
+        rng = np.random.default_rng(0)
+        samples = as_xtensor(rng.normal(size=(100, 3)), dims=("sample", "channel"))
+        budgets = as_xtensor(np.array([100.0, 200.0, 300.0]), dims=("channel",))
+        diversification_ratio(samples, budgets).eval()
+
     References
     ----------
     - Choueifaty, Y., & Coignard, Y. (2008). Toward Maximum Diversification. *Journal of Portfolio Management*.
@@ -593,16 +618,35 @@ def diversification_ratio(
     """
     samples = as_xtensor(samples)
     budgets = as_xtensor(budgets)
-    samples = _check_samples_dimensionality(samples)
-    weights = budgets / budgets.sum()
-    individual_volatilities = samples.std(dim="sample", ddof=1)
+    samples = _check_samples_dimensionality(samples, ndim=2)
 
-    [asset_dim] = weights.dims
+    if "sample" not in samples.dims:
+        raise ValueError(
+            f'Function expected samples to have a "sample" dim. Got dims {samples.dims}.'
+        )
+
+    [asset_dim] = budgets.dims
+    if asset_dim == "sample":
+        raise ValueError(
+            'Function expected the budgets dim to be an asset dim, not "sample".'
+        )
+    if asset_dim not in samples.dims:
+        raise ValueError(
+            f'Function expected samples to have the budgets dim "{asset_dim}". '
+            f"Got dims {samples.dims}."
+        )
+
+    weights = budgets / budgets.sum()
     cov_matrix = _covariance_matrix(samples, asset_dim=asset_dim)
+    # The covariance diagonal holds the same ddof=1 variances as samples.std(dim="sample"),
+    # so reusing it avoids a second pass over the samples on every optimizer iteration.
+    individual_volatilities = ptx.math.sqrt(
+        as_xtensor(pt.diagonal(cov_matrix.values), dims=(asset_dim,))
+    )
 
     # w'Σw
     portfolio_var = ptx.dot(
-        weights.rename({asset_dim: f"{asset_dim}'"}, ptx.dot(cov_matrix, weights)),
+        weights.rename({asset_dim: f"{asset_dim}'"}), ptx.dot(cov_matrix, weights)
     )
     portfolio_volatility = ptx.math.sqrt(portfolio_var)
     weighted_avg_volatility = (weights * individual_volatilities).sum()
