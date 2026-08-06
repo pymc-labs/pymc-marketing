@@ -173,7 +173,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_roas.html
 :::
 
-:::{grid-item-card} Calibrating an MMM with ROAS Priors
+:::{grid-item-card} Calibrating an MMM with ROAS Estimates
 :img-top: ../gallery/images/mmm_roas_calibration.png
 :link: ../notebooks/mmm/mmm_roas_calibration.html
 :::

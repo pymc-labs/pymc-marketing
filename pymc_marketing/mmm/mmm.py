@@ -3233,9 +3233,10 @@ class MMM(RegressionModelBuilder):
         ``mean(contribution) / mean(spend)``, which is ROAS when the target is
         revenue (or conversions per dollar when the target is conversions).
 
-        The numerator and denominator are meaned separately rather than taking
-        ``mean(spend / contribution)``, which is numerically unstable when spend
-        is spiky or the channel has slow adstock decay.
+        The numerator and denominator are meaned separately because the ratio of
+        means is the definition of the aggregate cost-per-target (or ROAS) over
+        the period; averaging per-date ratios would estimate a different
+        quantity.
 
         Parameters
         ----------
@@ -3247,8 +3248,8 @@ class MMM(RegressionModelBuilder):
             DataFrame with rows specifying calibration targets. Must include:
 
             - ``channel``: channel name in ``self.channel_columns``
-            - ``target_column``: desired CPT (or ROAS) value; defaults to a
-              column named ``cost_per_target``
+            - the column named by the ``target_column`` argument (default
+              ``"cost_per_target"``): the CPT (or ROAS) value to calibrate to
             - ``sigma``: accepted deviation; larger => weaker penalty
 
             and one column per dimension in ``self.dims``.

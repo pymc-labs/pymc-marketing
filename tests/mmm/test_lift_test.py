@@ -585,15 +585,18 @@ def test_add_cost_per_target_observations_ratio_direction(
 
     dates = model.coords["date"]
     channels = model.coords["channel"]
-    cost_level, target_level = 30.0, 2.0
-    cost = as_xtensor(
-        np.full((len(dates), len(channels)), cost_level, dtype=float),
-        dims=("date", "channel"),
+    # Non-constant series so that the ratio of means differs from the mean of
+    # per-date ratios, pinning down which of the two the implementation uses.
+    cost_values = np.linspace(10.0, 50.0, len(dates) * len(channels)).reshape(
+        len(dates), len(channels)
     )
-    target = as_xtensor(
-        np.full((len(dates), len(channels)), target_level, dtype=float),
-        dims=("date", "channel"),
+    target_values = np.linspace(4.0, 1.0, len(dates) * len(channels)).reshape(
+        len(dates), len(channels)
     )
+    cost = as_xtensor(cost_values, dims=("date", "channel"))
+    target = as_xtensor(target_values, dims=("date", "channel"))
+    cost_mean = cost_values.mean(axis=0)
+    target_mean = target_values.mean(axis=0)
 
     target_column = "roas" if target_per_cost else "cost_per_target"
     calibration_df = pd.DataFrame(
@@ -614,8 +617,12 @@ def test_add_cost_per_target_observations_ratio_direction(
         target_per_cost=target_per_cost,
     )
 
+    # Ratio of means over dates for the two calibrated channels, not the mean
+    # of per-date ratios.
     expected_mu = (
-        target_level / cost_level if target_per_cost else cost_level / target_level
+        target_mean[:2] / cost_mean[:2]
+        if target_per_cost
+        else cost_mean[:2] / target_mean[:2]
     )
     observed = calibration_df[target_column].to_numpy()
     sigma = calibration_df["sigma"].to_numpy()

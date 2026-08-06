@@ -3025,40 +3025,56 @@ def test_add_roas_calibration_target_per_cost(multi_dim_data):
     """`target_per_cost=True` calibrates contribution/spend (ROAS) instead of CPT."""
     X, y = multi_dim_data
 
-    mmm = MMM(
-        date_column="date",
-        target_column="target",
-        channel_columns=["channel_1", "channel_2", "channel_3"],
-        dims=("country",),
-        adstock=GeometricAdstock(l_max=2),
-        saturation=LogisticSaturation(),
-    )
-    mmm.build_model(X, y)
-    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+    def build_calibrated_model(target_per_cost: bool) -> MMM:
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            dims=("country",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
 
-    countries = mmm.model.coords["country"]
-    roas_df = pd.DataFrame(
-        {
-            "country": [countries[0], countries[1]],
-            "channel": ["channel_1", "channel_2"],
-            "roas": [3.5, 2.0],
-            "sigma": [0.3, 0.2],
-        }
-    )
+        countries = mmm.model.coords["country"]
+        roas_df = pd.DataFrame(
+            {
+                "country": [countries[0], countries[1]],
+                "channel": ["channel_1", "channel_2"],
+                "roas": [3.5, 2.0],
+                "sigma": [0.3, 0.2],
+            }
+        )
 
-    mmm.add_cost_per_target_calibration(
-        data=X.copy(),
-        calibration_data=roas_df,
-        name_prefix="roas_calibration",
-        target_column="roas",
-        target_per_cost=True,
-    )
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=roas_df,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=target_per_cost,
+        )
+        return mmm
+
+    mmm = build_calibrated_model(target_per_cost=True)
 
     obs_names = [rv.name for rv in mmm.model.observed_RVs]
     assert "roas_calibration" in obs_names
 
     assert "_roas_calibration" in mmm.model.coords
-    assert mmm.model.dim_lengths["_roas_calibration"].eval() == len(roas_df)
+    assert mmm.model.dim_lengths["_roas_calibration"].eval() == 2
+
+    # The flag must reach the likelihood: the same calibration values scored as
+    # target-per-cost vs cost-per-target give different logps, so an identical
+    # model built with the flag flipped must not match.
+    mmm_cpt = build_calibrated_model(target_per_cost=False)
+
+    def calibration_logp(mmm_: MMM) -> float:
+        model = mmm_.model
+        logp_fn = model.compile_logp(vars=[model["roas_calibration"]])
+        return logp_fn(model.initial_point())
+
+    assert calibration_logp(mmm) != pytest.approx(calibration_logp(mmm_cpt))
 
 
 def test_add_cost_per_target_calibration_missing_target_column(multi_dim_data) -> None:
