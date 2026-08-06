@@ -576,6 +576,64 @@ def test_add_cost_per_target_observations(dummy_mmm_model):
     assert "cpt_calibration" in obs_names
 
 
+@pytest.mark.parametrize("target_per_cost", [False, True])
+def test_add_cost_per_target_observations_ratio_direction(
+    dummy_mmm_model, target_per_cost
+):
+    """`target_per_cost` flips mean(cost)/mean(target) to mean(target)/mean(cost)."""
+    model = dummy_mmm_model.model
+
+    dates = model.coords["date"]
+    channels = model.coords["channel"]
+    cost_level, target_level = 30.0, 2.0
+    cost = as_xtensor(
+        np.full((len(dates), len(channels)), cost_level, dtype=float),
+        dims=("date", "channel"),
+    )
+    target = as_xtensor(
+        np.full((len(dates), len(channels)), target_level, dtype=float),
+        dims=("date", "channel"),
+    )
+
+    target_column = "roas" if target_per_cost else "cost_per_target"
+    calibration_df = pd.DataFrame(
+        {
+            "channel": [channels[0], channels[1]],
+            target_column: [1.0, 2.0],
+            "sigma": [0.5, 0.5],
+        }
+    )
+
+    add_cost_per_target_observations(
+        calibration_df=calibration_df,
+        model=model,
+        cost_value=cost,
+        target_value=target,
+        target_column=target_column,
+        name_prefix="ratio_calibration",
+        target_per_cost=target_per_cost,
+    )
+
+    expected_mu = (
+        target_level / cost_level if target_per_cost else cost_level / target_level
+    )
+    observed = calibration_df[target_column].to_numpy()
+    sigma = calibration_df["sigma"].to_numpy()
+
+    logp = fast_eval(
+        pm.logp(
+            model["ratio_calibration"],
+            as_xtensor(observed, dims=("_ratio_calibration",)),
+        )
+    )
+    expected_logp = (
+        -0.5 * ((observed - expected_mu) / sigma) ** 2
+        - np.log(sigma)
+        - 0.5 * np.log(2 * np.pi)
+    )
+    np.testing.assert_allclose(logp, expected_logp, rtol=1e-6)
+
+
 def test_add_cost_per_target_observations_missing_columns(dummy_mmm_model):
     """Test that KeyError is raised when required columns are missing from calibration_df."""
     model = dummy_mmm_model.model
