@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_roas_calibration.ipynb
+  s_1489acb4805a05::t_ae5799b47ce739 63,90,108,195-221,236,246,271,281,319,329,357,367,412,422,434,471,522,532,551,561,579,589,598,603,613,681,691,737,815,825,849,859,868,878,886,896,931-942,959,969,1014,1024,1044,1054,1084,1094,1126,1136,1155-1163,1193,1203,1245,1255,1304-1396,1467,1477,2333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "e18e8cc46477369074499ca052fb6f40b4c6eaf0",
+  "prompts": {},
+  "sessions": {
+    "s_1489acb4805a05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7d090d62-48ab-4f7c-a6b7-cae39dfdf0d5",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
