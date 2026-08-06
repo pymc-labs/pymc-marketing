@@ -54,6 +54,8 @@ from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.scaling import (
     DataDerivedScaling,
     FixedScaling,
+    MaxAbsScaling,
+    MeanAbsScaling,
     Scaling,
 )
 from pymc_marketing.serialization import serialization
@@ -2283,7 +2285,10 @@ def test_different_target_scaling(method, multi_dim_data, mock_pymc_sample) -> N
         channel_columns=["channel_1", "channel_2", "channel_3"],
         dims=("country",),
     )
-    assert mmm.scaling.target == DataDerivedScaling(method=method, dims=())
+    assert mmm.scaling.target.dims == ()
+    assert isinstance(
+        mmm.scaling.target, MaxAbsScaling if method == "max" else MeanAbsScaling
+    )
     mmm.fit(X, y)
     assert mmm.xarray_dataset._target.dims == ("date", "country")
     assert mmm.scalers._target.dims == ("country",)
@@ -2397,8 +2402,8 @@ def test_scaling_dict_doesnt_mutate() -> None:
 
     assert scaling == {}
     assert mmm.scaling == Scaling(
-        target=DataDerivedScaling(method="max", dims=dims),
-        channel=DataDerivedScaling(method="max", dims=dims),
+        target=MaxAbsScaling(dims=dims),
+        channel=MaxAbsScaling(dims=dims),
     )
 
 
@@ -4066,10 +4071,8 @@ class TestPydanticValidation:
             scaling=scaling_dict,
         )
         assert isinstance(mmm.scaling, Scaling)
-        assert isinstance(mmm.scaling.channel, DataDerivedScaling)
-        assert isinstance(mmm.scaling.target, DataDerivedScaling)
-        assert mmm.scaling.channel.method == "max"
-        assert mmm.scaling.target.method == "max"
+        assert isinstance(mmm.scaling.channel, MaxAbsScaling)
+        assert isinstance(mmm.scaling.target, MaxAbsScaling)
         assert mmm.scaling.channel.dims == ()
         assert mmm.scaling.target.dims == ()
 
