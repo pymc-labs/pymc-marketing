@@ -33,10 +33,34 @@ enough to carry the perturbation's whole effect.  Three pieces make that up:
   bookkeeping that says which row answers which question.
 * :class:`CounterfactualEvaluator` compiles the model graph once, conditioned on
   the posterior, and evaluates the scenarios in bounded batches.
+
+The intervention itself is expressed through :func:`pymc.do`.  The evaluator
+grafts a symbolic input onto the intervened node, and only then conditions the
+graph on the posterior and vectorizes it over scenarios::
+
+    do(model, {target: intervention})            # the intervention
+      -> extract_response_distribution(...)      # condition on posterior draws
+      -> vectorize_graph(...)                    # batch over scenarios
+
+``do`` states *what* is intervened on; the batching states *how many* values it
+takes.  The split matters because ``do`` requires the intervention to have the
+target's own dimensions, so the scenario axis can only be introduced afterwards.
+
+Which node is intervened on decides which question the result answers.
+Intervening on ``channel_data`` -- the default -- is the **spend**
+counterfactual: the perturbation propagates through adstock, saturation and any
+mediated effect, which is the total effect of moving spend.  Scaling
+``channel_contribution`` by a zero mask instead answers **effect removal**: what
+would have happened without this channel's contribution, whatever its spend was.
+The two coincide only when the media transform maps zero spend to zero
+contribution and no time-varying multiplier scales it, and only for a factor of
+zero: for fractional factors they must differ, because saturation is nonlinear
+in spend while the mask is linear in contribution.
 """
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
@@ -46,6 +70,7 @@ import pandas as pd
 import pytensor.xtensor as ptx
 import xarray as xr
 from pandas.tseries.offsets import BaseOffset
+from pymc import do
 from pytensor import function
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
@@ -59,6 +84,7 @@ __all__ = [
     "DateIndexedInput",
     "Estimand",
     "EvaluationWindows",
+    "InterventionMode",
     "PeriodWindow",
 ]
 
@@ -82,6 +108,18 @@ Estimand = Literal["per_channel", "joint"]
 ``"per_channel"`` intervenes on one channel at a time and keeps a ``channel``
 dimension; ``"joint"`` intervenes on every channel together and returns a single
 number per period.
+"""
+
+InterventionMode = Literal["replace", "scale"]
+"""How an intervention grafts onto the target node.
+
+``"replace"`` substitutes the evaluator's input for the target outright, cutting
+the target's parents.  It is the spend path: the scenario array *is* the
+intervention.  ``"scale"`` multiplies the target's factual value by the
+evaluator's input, so a mask of ones reproduces the baseline and a mask of zeros
+removes the target's effect while everything upstream keeps its posterior value.
+Scaling has to stay symbolic because an endogenous target's factual values
+differ per posterior sample; there is no array a caller could hand over.
 """
 
 
@@ -541,14 +579,21 @@ class CounterfactualScenarios:
 
 
 class CounterfactualEvaluator:
-    """Compiled batched evaluator for the nodes a spend counterfactual reaches.
+    """Compiled batched evaluator for the nodes a counterfactual intervention reaches.
 
-    Conditions the model graph on posterior draws, swaps every date-indexed
-    ``pm.Data`` the evaluation needs for a batched input, and compiles *one*
-    function returning all requested nodes.  Extracting the nodes together
-    matters: ``channel_contribution`` and a mediated effect read the same spend
-    data through the same adstock, and a single extraction keeps that subgraph
-    shared instead of computing it once per node.
+    Applies the intervention with :func:`pymc.do`, conditions the intervened
+    model's graph on posterior draws, swaps every date-indexed ``pm.Data`` the
+    evaluation needs for a batched input, and compiles *one* function returning
+    all requested nodes.  Extracting the nodes together matters:
+    ``channel_contribution`` and a mediated effect read the same spend data
+    through the same adstock, and a single extraction keeps that subgraph shared
+    instead of computing it once per node.
+
+    The intervention is a single ``(target, mode)`` pair for now.  The
+    direct-effect estimand -- holding a mediator at its factual value while
+    spend moves -- needs *simultaneous* interventions and will generalize this
+    to a mapping; the pair is threaded through the private helpers as one unit
+    so that change stays local.
 
     The batched inputs are what make a *window* evaluation possible.  Every
     date-indexed input in the graph has to be cut to the same window in lockstep,
@@ -578,6 +623,17 @@ class CounterfactualEvaluator:
         Deterministics to hold at their posterior values instead of recomputing.
     dates : pd.DatetimeIndex
         Dates of the fitted data, used to validate the discovered inputs.
+    intervention_target : str, default ``"channel_data"``
+        Name of the model variable the counterfactual intervenes on: a data
+        variable or a deterministic carrying a leading ``date`` dimension.
+        Random variables are refused -- observed ones because intervening would
+        silently delete the likelihood, free ones because a parameter is
+        conditioned on, not intervened on.
+    intervention_mode : InterventionMode, default ``"replace"``
+        How the intervention grafts onto the target; see
+        :data:`InterventionMode`.  Under ``"scale"``, asking for the target
+        itself as a response variable returns the *intervened* value, symmetric
+        with ``"replace"`` where the evaluator's input is that value.
 
     Attributes
     ----------
@@ -586,13 +642,20 @@ class CounterfactualEvaluator:
         ``date``, which is the node's own dimension order with ``date`` removed.
     windowed_data_vars : tuple of str
         Date-indexed ``pm.Data`` variables discovered in the graph and cut
-        alongside spend, excluding ``channel_data`` and ``time_index``.
+        alongside the intervention values, excluding the intervention target and
+        ``time_index``.  Under an endogenous target this includes
+        ``channel_data`` itself, held at its factual values.
+    target_dtype : dtype
+        Dtype the intervention values are cast to; :attr:`channel_dtype` is its
+        alias for the default spend target.
 
     Raises
     ------
     ValueError
-        If ``channel_data`` is not of a floating dtype, or a discovered
-        date-indexed input does not span the fitted date axis.
+        If the intervention target does not exist, is a random variable, is
+        frozen, is not of a floating dtype, or lacks a leading ``date``
+        dimension; if no response variable depends on the target; or if a
+        discovered date-indexed input does not span the fitted date axis.
     """
 
     CHANNEL_DATA = "channel_data"
@@ -618,6 +681,8 @@ class CounterfactualEvaluator:
         response_vars: Sequence[str | Variable],
         frozen_deterministics: list[str],
         dates: pd.DatetimeIndex,
+        intervention_target: str = CHANNEL_DATA,
+        intervention_mode: InterventionMode = "replace",
     ) -> None:
         # Results are keyed by name whether the caller asked by name or handed
         # over the node: the linear predictor is only a registered variable
@@ -625,13 +690,53 @@ class CounterfactualEvaluator:
         self.response_vars = tuple(
             var if isinstance(var, str) else var.name for var in response_vars
         )
-        graphs: list = extract_response_distribution(
-            pymc_model=pymc_model,
-            idata=xr.DataTree.from_dict({"/posterior": posterior}),
-            response_variable=list(response_vars),
+        self.intervention_target = intervention_target
+        self.intervention_mode: InterventionMode = intervention_mode
+        target_var = self._validate_target(
+            pymc_model,
+            target=intervention_target,
+            mode=intervention_mode,
             frozen_deterministics=frozen_deterministics,
         )
+        # ``do`` clones the model, shared variables included, so from here on
+        # every lookup goes through ``do_model``: a variable taken from
+        # ``pymc_model`` is not part of the intervened graph.  That includes
+        # response variables handed over as raw nodes, which are re-resolved by
+        # name against the clone.
+        do_model, placeholder = self._intervened_model(
+            pymc_model, target_var=target_var, mode=intervention_mode
+        )
+        graphs: list = extract_response_distribution(
+            pymc_model=do_model,
+            idata=xr.DataTree.from_dict({"/posterior": posterior}),
+            response_variable=[
+                self._resolve_response(
+                    do_model,
+                    var,
+                    target=intervention_target,
+                    mode=intervention_mode,
+                )
+                for var in response_vars
+            ],
+            frozen_deterministics=frozen_deterministics,
+        )
+        n_samples = posterior.sizes["chain"] * posterior.sizes["draw"]
+        # A response the intervention has cut every random variable out of --
+        # the target itself under "replace", say -- comes back without a
+        # "sample" axis.  Broadcasting it keeps the promised result layout.
+        graphs = [
+            graph
+            if "sample" in graph.type.dims
+            else graph.expand_dims(sample=n_samples)
+            for graph in graphs
+        ]
         graph_ancestors = set(ancestors(graphs))
+        if placeholder not in graph_ancestors:
+            raise ValueError(
+                f"None of the response variables {list(self.response_vars)} "
+                f"depend on the intervention target {intervention_target!r}; "
+                "every counterfactual would equal the baseline."
+            )
 
         self.non_date_dims = {
             name: self._non_date_dims(graph)
@@ -639,46 +744,43 @@ class CounterfactualEvaluator:
         }
         # Output elements one scenario costs per date of its window, summed over
         # the evaluated nodes.  Sizes the evaluation batches.
-        n_samples = posterior.sizes["chain"] * posterior.sizes["draw"]
         self._elements_per_date = n_samples * sum(
-            int(np.prod([len(pymc_model.coords[dim]) for dim in dims], dtype=int))
+            int(np.prod([len(do_model.coords[dim]) for dim in dims], dtype=int))
             for dims in self.non_date_dims.values()
         )
 
-        # Spend: the input the counterfactual actually perturbs.  A float dtype
-        # is required so that a fractional counterfactual_spend_factor (1.01,
-        # say) is not truncated.
-        channel_data = pymc_model[self.CHANNEL_DATA]
-        if np.dtype(channel_data.dtype).kind != "f":
-            raise ValueError(
-                "Incrementality requires channel data of float type, got "
-                f"{channel_data.dtype}"
-            )
-        self.channel_dtype = channel_data.dtype
-        replace: dict = {channel_data: self._batched(channel_data, "channel_data")}
-        func_inputs: list = [replace[channel_data]]
+        # The intervention values are the evaluator's first input, whatever the
+        # target: perturbed spend under the default, a mask under "scale".
+        self.target_dtype = placeholder.dtype
+        replace: dict = {placeholder: self._batched(placeholder, intervention_target)}
+        func_inputs: list = [replace[placeholder]]
 
         # time_index: only replaced when the graph actually reads it (with
         # time_varying_intercept but not time_varying_media it is unused, and
         # passing it would raise UnusedInputError).
         self.time_dtype: str | None = None
         if (
-            self.TIME_INDEX in pymc_model.named_vars
-            and pymc_model[self.TIME_INDEX] in graph_ancestors
+            self.TIME_INDEX in do_model.named_vars
+            and do_model[self.TIME_INDEX] in graph_ancestors
         ):
-            time_index = pymc_model[self.TIME_INDEX]
+            time_index = do_model[self.TIME_INDEX]
             self.time_dtype = time_index.dtype
             replace[time_index] = self._batched(time_index, "time_index")
             func_inputs.append(replace[time_index])
 
         # Any other date-indexed pm.Data the graph reads.  For a plain MMM there
         # are none; a mediated effect brings its own (an exogenous budget, a
-        # category-demand series).  Discovery is by graph traversal rather than
-        # by declaration so an effect cannot forget to mention one.
+        # category-demand series), and an endogenous target turns spend itself
+        # into one, held at its factual values.  Discovery is by graph traversal
+        # rather than by declaration so an effect cannot forget to mention one.
         self._aux: list[DateIndexedInput] = []
-        for data in self._date_indexed_data(pymc_model, graph_ancestors):
+        for data in self._date_indexed_data(
+            do_model,
+            graph_ancestors,
+            handled={intervention_target, self.TIME_INDEX},
+        ):
             values = np.asarray(data.eval())
-            dims = tuple(pymc_model.named_vars_to_dims[data.name])
+            dims = tuple(do_model.named_vars_to_dims[data.name])
             date_axis = dims.index("date")
             if values.shape[date_axis] != len(dates):
                 raise ValueError(
@@ -720,6 +822,185 @@ class CounterfactualEvaluator:
         """Names of the auxiliary date-indexed inputs discovered in the graph."""
         return tuple(aux.name for aux in self._aux)
 
+    @property
+    def channel_dtype(self) -> str:
+        """Alias of :attr:`target_dtype` under the default spend target."""
+        return self.target_dtype
+
+    @staticmethod
+    def _validate_target(
+        pymc_model,
+        *,
+        target: str,
+        mode: str,
+        frozen_deterministics: list[str],
+    ) -> Variable:
+        """Refuse intervention targets the machinery cannot honestly evaluate.
+
+        Parameters
+        ----------
+        pymc_model : pm.Model
+            The model the target is looked up in.
+        target : str
+            Name of the variable to intervene on.
+        mode : str
+            The requested intervention mode, checked against
+            :data:`InterventionMode`.
+        frozen_deterministics : list of str
+            Deterministics held at their posterior values; the target must not
+            be among them.
+
+        Returns
+        -------
+        Variable
+            The target variable.
+
+        Raises
+        ------
+        ValueError
+            See the class docstring; every refusal names the target.
+        """
+        if mode not in ("replace", "scale"):
+            raise ValueError(
+                f"Unknown intervention_mode {mode!r}; expected 'replace' or 'scale'."
+            )
+        if target not in pymc_model.named_vars:
+            raise ValueError(
+                f"Intervention target {target!r} is not a variable of the "
+                f"model, which has {sorted(pymc_model.named_vars)}."
+            )
+        target_var = pymc_model[target]
+        if target_var in pymc_model.observed_RVs:
+            raise ValueError(
+                f"Intervention target {target!r} is the model's observed "
+                "variable; intervening on it would silently remove the "
+                "likelihood.  Intervene on the quantity it observes instead."
+            )
+        if target_var in pymc_model.free_RVs:
+            raise ValueError(
+                f"Intervention target {target!r} is a random variable.  "
+                "Interventions apply to data variables and deterministics; a "
+                "parameter is conditioned on its posterior, not intervened on."
+            )
+        if target in frozen_deterministics:
+            raise ValueError(
+                f"Cannot intervene on {target!r}: it is held at its posterior "
+                "values through frozen_deterministics, and a node cannot be "
+                "both frozen and intervened on."
+            )
+        if np.dtype(target_var.dtype).kind != "f":
+            raise ValueError(
+                f"A counterfactual intervention on {target!r} requires values "
+                f"of float type, got {target_var.dtype}"
+            )
+        dims = getattr(target_var.type, "dims", None)
+        if not dims or dims[0] != "date":
+            raise ValueError(
+                f"Intervention target {target!r} must carry a leading 'date' "
+                f"dimension, got dims {dims}.  Windowed evaluation cuts the "
+                "intervention values along their first axis."
+            )
+        return target_var
+
+    @staticmethod
+    def _intervened_model(pymc_model, *, target_var: Variable, mode: InterventionMode):
+        """Apply the intervention and return the intervened model with its input.
+
+        Parameters
+        ----------
+        pymc_model : pm.Model
+            The model to intervene on.  Never modified: ``do`` clones it.
+        target_var : Variable
+            The validated target variable.
+        mode : InterventionMode
+            How the placeholder grafts onto the target.
+
+        Returns
+        -------
+        tuple of (pm.Model, XTensorVariable)
+            The intervened model and the symbolic input the intervention values
+            flow through.  The placeholder carries the target's own dimensions;
+            the scenario axis is only introduced by the later batch
+            vectorization, which is why the intervention and the batching are
+            separate steps.
+        """
+        placeholder = ptx.xtensor(
+            name=f"{target_var.name}_intervention",
+            dtype=target_var.dtype,
+            shape=target_var.type.shape,
+            dims=target_var.type.dims,
+        )
+        value = placeholder if mode == "replace" else target_var * placeholder
+        with warnings.catch_warnings():
+            # The scale-mode intervention references the target on purpose:
+            # ``target * mask`` is what holds the factual value in the graph.
+            # pymc warns about the self-reference and registers the intervened
+            # node as ``do_<target>``.
+            warnings.filterwarnings(
+                "ignore",
+                message="Intervention expression references the variable "
+                "that is being intervened",
+            )
+            do_model = do(pymc_model, {target_var.name: value})
+        # ``do`` renames a replace-mode placeholder to the target's own name,
+        # in place, so nothing may key on ``placeholder.name`` afterwards.
+        return do_model, placeholder
+
+    @staticmethod
+    def _resolve_response(
+        do_model,
+        var: str | Variable,
+        *,
+        target: str,
+        mode: InterventionMode,
+    ) -> Variable:
+        """Resolve one requested response variable against the intervened model.
+
+        Parameters
+        ----------
+        do_model : pm.Model
+            The intervened model.
+        var : str or Variable
+            The requested response.  A raw Variable is a node of the *original*
+            model's graph and only its name carries over to the clone.
+        target : str
+            The intervention target's name.
+        mode : InterventionMode
+            The intervention mode; decides what the target's own name means.
+
+        Returns
+        -------
+        Variable
+            The corresponding node of the intervened model.
+        """
+        name = var if isinstance(var, str) else var.name
+        if mode == "scale" and name == target:
+            # Under "scale" the intervened model registers *both* the factual
+            # computation, still under the target's name, and the intervened
+            # node, renamed "do_<target>".  A caller asking for the target of
+            # an intervention wants the intervened value; the plain lookup
+            # below would silently return the factual one, and every increment
+            # would be zero.
+            return do_model[f"do_{target}"]
+        if name in do_model.named_vars:
+            return do_model[name]
+        # An anonymous node, such as the linear predictor under an identity
+        # link: the clone carries a node of the same name, recovered the same
+        # way spend_reach.linear_predictor found the original.
+        observed = list(do_model.observed_RVs)
+        candidates = (
+            node
+            for node in ancestors(observed + list(do_model.deterministics))
+            if getattr(node, "name", None) == name and node not in observed
+        )
+        resolved = next(candidates, None)
+        if resolved is None:
+            raise ValueError(
+                f"Response variable {name!r} was not found in the intervened "
+                "model's graph."
+            )
+        return resolved
+
     @staticmethod
     def _non_date_dims(graph) -> tuple[str, ...]:
         """Return the dimensions of one extracted response graph, less the two known ones.
@@ -752,9 +1033,11 @@ class CounterfactualEvaluator:
             dims=(CounterfactualEvaluator.BATCH_DIM, *variable.type.dims),
         )
 
-    @classmethod
-    def _date_indexed_data(cls, pymc_model, graph_ancestors: set) -> list:
-        """Find the date-indexed ``pm.Data`` the graph reads, beyond the two handled above.
+    @staticmethod
+    def _date_indexed_data(
+        pymc_model, graph_ancestors: set, *, handled: set[str]
+    ) -> list:
+        """Find the date-indexed ``pm.Data`` the graph reads, beyond those handled above.
 
         Parameters
         ----------
@@ -762,6 +1045,9 @@ class CounterfactualEvaluator:
             The model being evaluated.
         graph_ancestors : set
             Ancestors of the extracted response graphs.
+        handled : set of str
+            Names already covered by dedicated inputs: the intervention target
+            and ``time_index``.
 
         Returns
         -------
@@ -769,7 +1055,6 @@ class CounterfactualEvaluator:
             The data variables, in the model's declaration order so that the
             compiled signature is deterministic.
         """
-        handled = {cls.CHANNEL_DATA, cls.TIME_INDEX}
         return [
             data
             for data in pymc_model.data_vars
@@ -778,13 +1063,15 @@ class CounterfactualEvaluator:
             and "date" in pymc_model.named_vars_to_dims.get(data.name, ())
         ]
 
-    def evaluate_baseline(self, channel_data: np.ndarray) -> dict[str, np.ndarray]:
-        """Evaluate every node on the actual data, over the full date axis.
+    def evaluate_baseline(self, target_values: np.ndarray) -> dict[str, np.ndarray]:
+        """Evaluate every node on one set of intervention values, over the full date axis.
 
         Parameters
         ----------
-        channel_data : np.ndarray
-            Actual spend, shape ``(n_dates, *extra_shape)``.
+        target_values : np.ndarray
+            Values for the intervention target, shape ``(n_dates, *extra_shape)``.
+            Under the default spend target this is the actual spend; under
+            ``"scale"`` it is the mask, and ones reproduce the factual baseline.
 
         Returns
         -------
@@ -792,10 +1079,10 @@ class CounterfactualEvaluator:
             Per response variable, an array of shape
             ``(n_samples, n_dates, *non_date_dims)``.
         """
-        args: list[np.ndarray] = [channel_data[np.newaxis].astype(self.channel_dtype)]
+        args: list[np.ndarray] = [target_values[np.newaxis].astype(self.target_dtype)]
         if self.time_dtype is not None:
             args.append(
-                np.arange(len(channel_data))[np.newaxis].astype(self.time_dtype)
+                np.arange(len(target_values))[np.newaxis].astype(self.time_dtype)
             )
         args.extend(aux.values[np.newaxis].astype(aux.dtype) for aux in self._aux)
         return {
