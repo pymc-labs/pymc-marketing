@@ -1,0 +1,29 @@
+tests/mmm/test_lift_test.py
+  s_ea8d204cd19aeb::t_f40b5a81b28508 579-636
+pymc_marketing/mmm/mmm.py
+  s_ea8d204cd19aeb::t_0bcef3e47fdd09 3374,3376
+  s_ea8d204cd19aeb::t_f54dfb41010cc4 3220-3222,3224,3226,3232-3238
+  s_ea8d204cd19aeb::t_5f9b2c6fde1773 3250-3251,3257-3263
+  s_ea8d204cd19aeb::t_02deeefca3efa9 3290-3310
+  s_ea8d204cd19aeb::t_1c6ff29f9236d3 3328-3329
+  s_ea8d204cd19aeb::t_c78e59d0fbed1f 3239
+tests/mmm/test_mmm.py
+  s_ea8d204cd19aeb::t_c7e57fd3f2d5e4 3061
+  s_ea8d204cd19aeb::t_66dd8256bf8749 3024-3060,3062-3097
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "32b7cdd701683073b2a6e1081f204a97f9233627",
+  "prompts": {},
+  "sessions": {
+    "s_ea8d204cd19aeb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "78ed5c03-df26-4da4-a051-428bea64b6b3",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
