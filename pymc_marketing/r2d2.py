@@ -20,23 +20,54 @@ regression model, then allocating explained variance across coefficients.
 
 Reference: https://arxiv.org/abs/2208.07132
 
-Example
--------
+Examples
+--------
+Standalone PyMC:
+
 >>> from pymc_marketing.r2d2 import R2D2Decomposition
 >>> from pymc_extras.prior import Prior
+>>> import pymc as pm, pymc.dims as pmd, xarray as xr
+>>>
+>>> ds = xr.Dataset(
+...     {
+...         "controls": (("obs", "control"), np.random.randn(100, 2)),
+...         "y": ("obs", np.random.randn(100)),
+...     },
+...     coords={"obs": range(100), "control": ["a", "b"]},
+... )
+>>> r2d2 = R2D2Decomposition(
+...     r2=Prior("Beta", mu=0.8, sigma=0.4),
+...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
+...     dims={"control": "control"},
+... )
+>>> with pm.Model(coords={"obs": range(100), "control": ["a", "b"]}) as model:
+...     controls = pmd.Data("controls", ds["controls"])
+...     beta_control = r2d2.split("control").create_variable("beta_control")
+...     intercept = pmd.Normal("intercept", mu=0, sigma=1)
+...     mu = intercept + controls @ beta_control
+...     sigma = r2d2.error_sigma.create_variable("sigma")
+...     pmd.Normal("y_obs", mu=mu, sigma=sigma, observed=ds["y"])
+
+MMM integration:
+
+>>> from pymc_marketing.mmm import MMM
+>>> from pymc_marketing.mmm.components.adstock import GeometricAdstock
+>>> from pymc_marketing.mmm.components.saturation import LogisticSaturation
 >>>
 >>> r2d2 = R2D2Decomposition(
 ...     r2=Prior("Beta", mu=0.8, sigma=0.4),
 ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
-...     dims={"control": "control", "fourier": "fourier"},
+...     dims={"control": "control", "fourier": "fourier_mode"},
 ... )
->>>
->>> # Use splits as priors in model config
->>> model_config = {
-...     "gamma_control": r2d2.split("control"),
-...     "gamma_fourier": r2d2.split("fourier"),
-...     "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
-... }
+>>> mmm = MMM(
+...     adstock=GeometricAdstock(l_max=8),
+...     saturation=LogisticSaturation(),
+...     model_config={
+...         "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
+...         "gamma_control": r2d2.split("control"),
+...         "gamma_fourier": r2d2.split("fourier"),
+...     },
+... )
 """
 
 from dataclasses import dataclass, field
@@ -230,17 +261,37 @@ class R2D2Decomposition:
 
     Example
     -------
+    Standalone PyMC:
+
     >>> r2d2 = R2D2Decomposition(
     ...     r2=Prior("Beta", mu=0.8, sigma=0.4),
     ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
-    ...     dims={"control": "control", "fourier": "fourier"},
+    ...     dims={"control": "control"},
     ... )
-    >>> # Use in model config
-    >>> config = {
-    ...     "gamma_control": r2d2.split("control"),
-    ...     "gamma_fourier": r2d2.split("fourier"),
-    ...     "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
-    ... }
+    >>> with pm.Model(coords={"obs": range(100), "control": ["a", "b"]}) as model:
+    ...     controls = pmd.Data("controls", ds["controls"])
+    ...     beta_control = r2d2.split("control").create_variable("beta_control")
+    ...     intercept = pmd.Normal("intercept", mu=0, sigma=1)
+    ...     mu = intercept + controls @ beta_control
+    ...     sigma = r2d2.error_sigma.create_variable("sigma")
+    ...     pmd.Normal("y_obs", mu=mu, sigma=sigma, observed=ds["y"])
+
+    MMM integration:
+
+    >>> r2d2 = R2D2Decomposition(
+    ...     r2=Prior("Beta", mu=0.8, sigma=0.4),
+    ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
+    ...     dims={"control": "control", "fourier": "fourier_mode"},
+    ... )
+    >>> mmm = MMM(
+    ...     adstock=GeometricAdstock(l_max=8),
+    ...     saturation=LogisticSaturation(),
+    ...     model_config={
+    ...         "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
+    ...         "gamma_control": r2d2.split("control"),
+    ...         "gamma_fourier": r2d2.split("fourier"),
+    ...     },
+    ... )
     """
 
     r2: Prior
