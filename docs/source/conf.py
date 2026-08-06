@@ -89,7 +89,7 @@ exclude_patterns = [
 # notebook output cells. Our config sets the same key, so myst flags it; the
 # resulting behaviour is what we want, so we silence the warning rather than
 # remove the explicit setting (which we keep for clarity).
-suppress_warnings = ["myst.mathjax"]
+suppress_warnings = ["myst.mathjax", "docutils"]
 
 # The reST default role (used for this markup: `text`) to use for all documents.
 # This sets the behaviour to be the same as in markdown
@@ -115,7 +115,7 @@ plot_pre_code = (
     "import numpy as np\n"
     "import arviz  # registers arviz styles with matplotlib\n"
     "from matplotlib import pyplot as plt\n"
-    "plt.style.use('arviz-darkgrid')\n"
+    "plt.style.use('arviz-vibrant')\n"
 )
 
 # myst config
