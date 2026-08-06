@@ -37,6 +37,7 @@ from xarray_einstats.stats import logsumexp as xr_logsumexp
 from pymc_marketing.clv.distributions import ParetoNBD
 from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
+from pymc_marketing.model_builder import SamplingMethod
 from pymc_marketing.model_config import ModelConfig
 
 
@@ -235,9 +236,9 @@ class ParetoNBDModel(CLVModel):
         """All covariate column names."""
         return self.purchase_covariate_cols + self.dropout_covariate_cols
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pd.DataFrame) -> None:
         """Validate Pareto/NBD-specific data requirements."""
+        super()._validate_data(data)
         self._validate_cols(
             data,
             required_cols=[
@@ -338,7 +339,8 @@ class ParetoNBDModel(CLVModel):
     def fit(  # type: ignore[override]
         self,
         data: pd.DataFrame,
-        method: str = "map",
+        *,
+        method: SamplingMethod = "map",
         **kwargs,
     ):  # type: ignore
         """Infer posteriors of model parameters to run predictions.

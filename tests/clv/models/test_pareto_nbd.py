@@ -171,42 +171,37 @@ class TestParetoNBDModel:
                 "s_log__": (),
             }
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "recency", "T"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = ParetoNBDModel()
             model.build_model(data=data_invalid)
 
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['frequency'\]",
-        ):
+    @pytest.mark.parametrize(
+        "data, match",
+        [
+            (
+                {"customer_id": [1], "frequency": [-1], "recency": [1], "T": [2]},
+                "Column frequency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [3], "T": [2]},
+                "recency cannot be greater than T",
+            ),
+        ],
+    )
+    def test_invalid_rfm_values(self, data, match):
+        with pytest.raises(ValueError, match=match):
             model = ParetoNBDModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="recency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['recency'\]",
-        ):
-            model = ParetoNBDModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
-        ):
-            model = ParetoNBDModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=pd.DataFrame(data))
 
     def test_customer_id_error(self):
         with pytest.raises(

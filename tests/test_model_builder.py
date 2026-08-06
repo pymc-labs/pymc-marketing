@@ -1050,23 +1050,45 @@ def test_unmatched_index(toy_X, toy_y) -> None:
 
 
 def test_approximate_fit_variational(toy_X, toy_y) -> None:
-    """Ensure approximate_fit runs real VI and returns proper InferenceData."""
+    """Ensure the deprecated approximate_fit still runs real VI and warns."""
     model = RegressionModelBuilderTest(sampler_config={"draws": 20, "chains": 1})
 
-    idata = model.approximate_fit(
-        toy_X,
-        toy_y,
-        progressbar=False,
-        random_seed=42,
-        fit_kwargs={"n": 200, "method": "advi"},
-        sample_kwargs={"draws": 20},
-    )
+    with pytest.warns(FutureWarning, match="approximate_fit` is deprecated"):
+        idata = model.approximate_fit(
+            toy_X,
+            toy_y,
+            progressbar=False,
+            random_seed=42,
+            fit_kwargs={"n": 200, "method": "advi"},
+            sample_kwargs={"draws": 20},
+        )
 
     assert idata is not None
     assert "/posterior" in idata.groups
     assert idata.posterior.sizes["draw"] == 20
     assert idata.posterior.sizes["chain"] == 1
     assert "fit_data" in idata
+
+
+def test_fit_method_advi(toy_X, toy_y) -> None:
+    """`fit(method="advi")` is the supported replacement for approximate_fit."""
+    model = RegressionModelBuilderTest(sampler_config={"draws": 20, "chains": 1})
+
+    idata = model.fit(
+        toy_X,
+        toy_y,
+        progressbar=False,
+        random_seed=42,
+        method="advi",
+        n=200,
+        sample_kwargs={"draws": 20},
+    )
+
+    assert "/posterior" in idata.groups
+    assert idata.posterior.sizes["draw"] == 20
+    assert idata.posterior.sizes["chain"] == 1
+    assert "fit_data" in idata
+    assert model.is_fitted_
 
 
 @pytest.fixture(scope="module")
