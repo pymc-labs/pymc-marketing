@@ -4341,6 +4341,49 @@ def test_set_xarray_data_preserves_dtypes(multi_dim_data, mock_pymc_sample):
     )
 
 
+def test_set_xarray_data_prescales_with_fixed_scaling(multi_dim_data):
+    """_set_xarray_data applies FixedScaling transform before pm.set_data."""
+    X, y = multi_dim_data
+
+    channel_scale = 10.0
+    target_scale = 100.0
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+        scaling={
+            "channel": FixedScaling(dims=("country",), value=channel_scale),
+            "target": FixedScaling(dims=("country",), value=target_scale),
+        },
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+    )
+    mmm.build_model(X, y)
+
+    # Create prediction data with known values
+    dataset_xarray = mmm._posterior_predictive_data_transformation(
+        X=X, y=y, include_last_observations=False
+    )
+    # Set channel values to a known constant
+    raw_channel = np.full_like(dataset_xarray._channel.values, 50.0)
+    dataset_xarray["_channel"].values = raw_channel
+    # Set target values to a known constant
+    raw_target = np.full_like(dataset_xarray._target.values, 200.0)
+    dataset_xarray["_target"].values = raw_target
+
+    model = mmm._set_xarray_data(dataset_xarray, model=mmm.model.copy())
+
+    # channel_data should be 50.0 / 10.0 = 5.0 (FixedScaling divides by scale)
+    channel_in_model = model.named_vars["channel_data"].get_value()
+    np.testing.assert_allclose(channel_in_model, 5.0, rtol=1e-6)
+
+    # target_data should be 200.0 / 100.0 = 2.0
+    target_in_model = model.named_vars["target_data"].get_value()
+    np.testing.assert_allclose(target_in_model, 2.0, rtol=1e-6)
+
+
 def test_integer_channel_data_is_cast_to_float(multi_dim_data):
     """Integer channel data is cast to float at construction time (GH #2340)."""
     X, y = multi_dim_data

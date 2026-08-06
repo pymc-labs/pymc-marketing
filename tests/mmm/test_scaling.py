@@ -314,6 +314,22 @@ class TestDataDerivedScaling:
         restored = vs.inverse_transform(scaled, arts)
         xr.testing.assert_allclose(restored, data)
 
+    def test_emits_deprecation_warning(self):
+        with pytest.warns(DeprecationWarning, match="DataDerivedScaling is deprecated"):
+            DataDerivedScaling(method="max", dims=())
+
+
+class TestDataDerivedDeserializationNoWarning:
+    def test_legacy_deserialize_no_warning(self):
+        """deserialize_variable_scaling of a legacy payload must NOT warn."""
+        import warnings
+
+        legacy_data = serialization.serialize(DataDerivedScaling(method="max", dims=()))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            restored = deserialize_variable_scaling(legacy_data)
+        assert isinstance(restored, MaxAbsScaling)
+
 
 class TestMaxAbsScaling:
     def test_construction(self):

@@ -27,6 +27,7 @@ Each :class:`VariableScaling` subclass follows a ``fit`` / ``transform`` /
 from __future__ import annotations
 
 import math
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import date, datetime
@@ -345,6 +346,16 @@ class DataDerivedScaling(VariableScaling):
     """
 
     method: Literal["max", "mean"] = Field(...)
+
+    @model_validator(mode="after")
+    def _emit_deprecation_warning(self) -> Self:
+        warnings.warn(
+            "DataDerivedScaling is deprecated. "
+            "Use MaxAbsScaling or MeanAbsScaling instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self
 
     def scaling_description(self) -> str:
         """Human-readable summary of the scaling strategy."""
@@ -710,7 +721,9 @@ def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
                 return MaxAbsScaling(dims=dims)
             if method == "mean":
                 return MeanAbsScaling(dims=dims)
-            return DataDerivedScaling(method=method, dims=dims)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                return DataDerivedScaling(method=method, dims=dims)
 
         # Backward compatibility: old DataDerivedScaling with method string
         if type_key == _DATA_DERIVED_SCALING_TYPE:
@@ -720,7 +733,9 @@ def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
                 return MaxAbsScaling(dims=dims)
             if method == "mean":
                 return MeanAbsScaling(dims=dims)
-            return DataDerivedScaling(method=method, dims=dims)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                return DataDerivedScaling(method=method, dims=dims)
 
         return serialization.deserialize(d)
 
@@ -734,7 +749,9 @@ def deserialize_variable_scaling(d: dict[str, Any]) -> VariableScaling:
         return MaxAbsScaling(dims=dims)
     if method == "mean":
         return MeanAbsScaling(dims=dims)
-    return DataDerivedScaling(method=method, dims=dims)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        return DataDerivedScaling(method=method, dims=dims)
 
 
 class Scaling(SerializableBaseModel):
