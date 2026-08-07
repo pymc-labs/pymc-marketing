@@ -50,6 +50,10 @@ RESPONSE_SCALE_LIKELIHOODS = frozenset(
 #: of that scale.  Rejected under the identity link.
 NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 
+#: Likelihoods allowed for the non-identity links, which each need one specific
+#: distributional form for their counterfactual decomposition to be correct.
+LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
+
 
 def _distribution_name(likelihood: Prior) -> str | None:
     """Return the distribution name of *likelihood*.
@@ -212,33 +216,31 @@ class LinkSpec(ABC):
                     f"link='identity'. Its 'mu' is on the {scale} scale, not on "
                     f"the scale of the target, so every '*_original_scale' "
                     f"contribution would be a {scale}-scale delta multiplied by "
-                    f"'target_scale'. Use link='log' with LogNormal, or keep "
-                    f"link='identity' with a likelihood whose 'mu' is the "
-                    f"response scale: {sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
-                    f"To repair an already saved model without refitting:\n"
-                    f"    kwargs = MMM.idata_to_init_kwargs(idata)\n"
-                    f"    kwargs['link'] = 'log'  # or edit "
-                    f"kwargs['model_config']['likelihood']\n"
-                    f"    mmm = MMM(**kwargs)"
+                    "'target_scale'. Use link='log' with LogNormal (it needs a "
+                    "strictly positive target), or keep link='identity' with a "
+                    "likelihood whose 'mu' is the response scale: "
+                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
+                    "To repair an already saved model without refitting:\n"
+                    "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
+                    "    kwargs['link'] = 'log'  # or edit "
+                    "kwargs['model_config']['likelihood']\n"
+                    "    mmm = MMM(**kwargs)"
                 )
             if dist_name not in RESPONSE_SCALE_LIKELIHOODS:
                 warnings.warn(
-                    f"Likelihood '{dist_name or type(likelihood).__name__}' "
-                    f"is not a known response-scale "
-                    f"likelihood. With link='identity' the contribution "
-                    f"decomposition assumes 'mu' is on the scale of the target. "
-                    f"Check that it is before reading '*_original_scale' "
-                    f"variables. Known response-scale likelihoods: "
+                    f"Likelihood '{dist_name or type(likelihood).__name__}' is "
+                    "not a known response-scale likelihood. With "
+                    "link='identity' the contribution decomposition assumes "
+                    "'mu' is on the scale of the target. Check that it is "
+                    "before reading '*_original_scale' variables. Known "
+                    "response-scale likelihoods: "
                     f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}.",
                     UserWarning,
                     stacklevel=2,
                 )
             return
 
-        compatible = {
-            LinkFunction.LOG: {"LogNormal"},
-        }
-        allowed = compatible.get(link, set())
+        allowed = LINK_LIKELIHOODS.get(link, frozenset())
         if dist_name not in allowed:
             raise ValueError(
                 f"Likelihood '{dist_name}' is not compatible with link='{link.value}'. "

@@ -204,16 +204,15 @@ class TestLinkSpec:
             )
 
     def test_validate_likelihood_compat_identity_lognormal_raises(self):
-        with pytest.raises(ValueError, match="not compatible with link='identity'"):
+        with pytest.raises(ValueError) as excinfo:
             LinkSpec.validate_likelihood_compatibility(
                 LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
             )
-
-    def test_validate_likelihood_compat_identity_lognormal_error_shows_recovery(self):
-        with pytest.raises(ValueError, match="idata_to_init_kwargs"):
-            LinkSpec.validate_likelihood_compatibility(
-                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
-            )
+        message = str(excinfo.value)
+        assert "not compatible with link='identity'" in message
+        # The message has to carry the recipe for repairing a saved model,
+        # since the check also runs on the load path.
+        assert "idata_to_init_kwargs" in message
 
     def test_validate_likelihood_compat_identity_looks_through_censored(self):
         with warnings.catch_warnings():
@@ -221,6 +220,11 @@ class TestLinkSpec:
             LinkSpec.validate_likelihood_compatibility(
                 LinkFunction.IDENTITY, Censored(Prior("Normal", sigma=1), lower=0)
             )
+
+    def test_validate_likelihood_compat_log_looks_through_censored(self):
+        LinkSpec.validate_likelihood_compatibility(
+            LinkFunction.LOG, Censored(Prior("LogNormal", sigma=1), lower=0)
+        )
 
     def test_validate_likelihood_compat_identity_unknown_warns(self):
         with pytest.warns(UserWarning, match="not a known response-scale likelihood"):
