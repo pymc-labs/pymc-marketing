@@ -22,13 +22,6 @@ import pytest
 from pymc_marketing.serialization import serialization
 
 
-@pytest.fixture(autouse=True)
-def _reset_serialization_tracker():
-    """Reset serialization tracker before each test for isolation."""
-    # No singleton tracker to reset — each serialize/deserialize call uses fresh memo
-    yield
-
-
 class TestSerializationError:
     def test_is_exception(self):
         from pymc_marketing.serialization import SerializationError

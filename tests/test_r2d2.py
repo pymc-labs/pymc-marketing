@@ -27,14 +27,6 @@ from pymc_marketing.r2d2 import R2D2Decomposition, R2D2Sigma, R2D2Split
 from pymc_marketing.serialization import serialization
 
 
-@pytest.fixture(autouse=True)
-def _reset_serialization_tracker():
-    """Reset serialization tracker before each test for isolation."""
-    serialization._tracker.reset()
-    yield
-    serialization._tracker.reset()
-
-
 class TestR2D2Split:
     """Tests for R2D2Split lazy reference."""
 
