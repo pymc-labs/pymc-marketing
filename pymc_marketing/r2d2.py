@@ -12,9 +12,9 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-"""R2-D2-M2 prior for variance decomposition in regression models.
+"""R2D2M2 prior for variance decomposition in regression models.
 
-The R2-D2-M2 prior (Zhang et al., 2022) provides automatic shrinkage and
+The R2D2M2 prior (Zhang et al., 2022) provides automatic shrinkage and
 variable selection by placing a Dirichlet distribution on the R-squared of a
 regression model, then allocating explained variance across coefficients.
 
@@ -36,7 +36,7 @@ Standalone PyMC:
 ...     coords={"obs": range(100), "control": ["a", "b"]},
 ... )
 >>> r2d2 = R2D2Decomposition(
-...     r2=Prior("Beta", mu=0.8, sigma=0.4),
+...     r2=Prior("Beta", mu=0.8, sigma=0.2),
 ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
 ...     dims={"control": "control"},
 ... )
@@ -55,7 +55,7 @@ MMM integration:
 >>> from pymc_marketing.mmm.components.saturation import LogisticSaturation
 >>>
 >>> r2d2 = R2D2Decomposition(
-...     r2=Prior("Beta", mu=0.8, sigma=0.4),
+...     r2=Prior("Beta", mu=0.8, sigma=0.2),
 ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
 ...     dims={"control": "control", "fourier": "fourier_mode"},
 ... )
@@ -68,6 +68,20 @@ MMM integration:
 ...         "gamma_fourier": r2d2.split("fourier"),
 ...     },
 ... )
+
+Gotchas
+-------
+- **Beta prior sigma must be small enough**: For ``r2=Prior("Beta", mu=M, sigma=S)``,
+  the sigma must satisfy ``S < sqrt(M * (1-M))``. For mu=0.8, this means sigma < 0.4.
+  Values too large produce invalid (alpha=0, beta=0) parameters. Use sigma=0.2.
+
+- **total_sigma must be scalar**: No dims allowed. This is per the R2D2M2 paper.
+
+- **Only components in dims get variance**: Covariates not included in ``dims`` are
+  not covered by the decomposition. Ensure all relevant covariates are included.
+
+- **Shared decomposition**: All ``split()`` and ``error_sigma`` references share the
+  same underlying Dirichlet. Changing one affects all.
 """
 
 from dataclasses import dataclass, field
@@ -275,7 +289,7 @@ class R2D2Sigma:
 @serialization.register
 @dataclass
 class R2D2Decomposition:
-    """R2-D2-M2 variance decomposition.
+    """R2D2M2 variance decomposition.
 
     Splits total variance between model and error, then splits
     model variance across components via Dirichlet.
@@ -293,7 +307,7 @@ class R2D2Decomposition:
     ----------
     r2 : Prior
         R² prior (how much variance the model explains).
-        Typically Beta(mu=0.8, sigma=0.4).
+        Typically Beta(mu=0.8, sigma=0.2).
     total_sigma : Prior
         Total scale of the data.
         Typically LogNormal(mu=np.log(std(y)), sigma=0.1).
@@ -306,7 +320,7 @@ class R2D2Decomposition:
     Standalone PyMC:
 
     >>> r2d2 = R2D2Decomposition(
-    ...     r2=Prior("Beta", mu=0.8, sigma=0.4),
+    ...     r2=Prior("Beta", mu=0.8, sigma=0.2),
     ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
     ...     dims={"control": "control"},
     ... )
@@ -321,7 +335,7 @@ class R2D2Decomposition:
     MMM integration:
 
     >>> r2d2 = R2D2Decomposition(
-    ...     r2=Prior("Beta", mu=0.8, sigma=0.4),
+    ...     r2=Prior("Beta", mu=0.8, sigma=0.2),
     ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
     ...     dims={"control": "control", "fourier": "fourier_mode"},
     ... )
@@ -334,6 +348,14 @@ class R2D2Decomposition:
     ...         "gamma_fourier": r2d2.split("fourier"),
     ...     },
     ... )
+
+    Notes
+    -----
+    - The ``r2`` prior controls global shrinkage (how much variance the model explains).
+    - The ``total_sigma`` prior controls the overall scale of coefficients.
+    - The Dirichlet prior (currently uniform) splits model variance across components.
+    - Use ``split("component_name")`` to get a lazy reference to a component's variance.
+    - Use ``error_sigma`` to get the error standard deviation.
     """
 
     r2: Prior
@@ -450,6 +472,11 @@ class R2D2Decomposition:
         ------
         ValueError
             If component_name is not a key in dims.
+
+        Notes
+        -----
+        The decomposition auto-builds on first ``create_variable()`` call.
+        This must happen inside a ``pm.Model`` context.
         """
         if component_name not in self.dims:
             available = list(self.dims.keys())
