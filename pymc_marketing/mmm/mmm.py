@@ -235,10 +235,9 @@ from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.plotting.budget import BudgetPlots
 from pymc_marketing.mmm.scaling import (
-    DataDerivedScaling,
     FixedScaling,
+    MaxAbsScaling,
     Scaling,
-    VariableScaling,
     panel_channel_fixed_scaling_remaining_dims,
     validate_fixed_scaling_keys,
 )
@@ -507,15 +506,15 @@ class MMM(RegressionModelBuilder):
             scaling = deepcopy(scaling)
 
             if "channel" not in scaling:
-                scaling["channel"] = DataDerivedScaling(method="max", dims=self.dims)
+                scaling["channel"] = MaxAbsScaling(dims=self.dims)
             if "target" not in scaling:
-                scaling["target"] = DataDerivedScaling(method="max", dims=self.dims)
+                scaling["target"] = MaxAbsScaling(dims=self.dims)
 
             scaling = Scaling(**scaling)
 
         self.scaling: Scaling = scaling or Scaling(
-            target=DataDerivedScaling(method="max", dims=self.dims),
-            channel=DataDerivedScaling(method="max", dims=self.dims),
+            target=MaxAbsScaling(dims=self.dims),
+            channel=MaxAbsScaling(dims=self.dims),
         )
 
         if set(self.scaling.target.dims).difference([*self.dims, "date"]):
@@ -1815,24 +1814,21 @@ class MMM(RegressionModelBuilder):
         return second.apply(x=first.apply(x=x, core_dim="date"), core_dim="date")
 
     def _compute_scales(self) -> None:
-        """Compute and save scaling factors for channels and target."""
-        self.scalers = xr.Dataset()
+        """Compute scaling factors using the scaling config and pre-scale data.
 
-        self.scalers["_channel"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_channel"],
-            self.scaling.channel,
+        The computed scale factors are stored in :attr:`scalers` for backward
+        compatibility and the raw data is pre-scaled (added to
+        :attr:`xarray_dataset` as ``_channel_scaled`` and
+        ``_target_scaled``) so that the PyMC graph receives scaled data
+        directly, avoiding in-graph division.
+        """
+        channel_artifacts = self.scaling.channel.compute(
+            self.xarray_dataset["_channel"]
         )
-        self.scalers["_target"] = self._compute_scale_for_variable(
-            self.xarray_dataset["_target"],
-            self.scaling.target,
-        )
+        target_artifacts = self.scaling.target.compute(self.xarray_dataset["_target"])
 
         # Scale-sensitive saturations (e.g. LogSaturation) must see raw spend
-        # so their coefficients keep their intended interpretation. Forcing the
-        # channel scale to one feeds raw data to the forward pass (because
-        # ``channel_data / 1 == channel_data``) and keeps every downstream
-        # consumer of ``channel_scale`` -- including the budget optimizer --
-        # consistent without any special-casing.
+        # so their coefficients keep their intended interpretation.
         if getattr(self.saturation, "requires_unscaled_input", False):
             if self._channel_scaling_explicit:
                 warnings.warn(
@@ -1845,120 +1841,27 @@ class MMM(RegressionModelBuilder):
                     UserWarning,
                     stacklevel=2,
                 )
-            self.scalers["_channel"] = xr.ones_like(self.scalers["_channel"])
+            channel_artifacts["scale"] = xr.ones_like(channel_artifacts["scale"])
 
-    def _compute_scale_for_variable(
-        self,
-        data: xr.DataArray,
-        scaling: VariableScaling,
-    ) -> xr.DataArray:
-        """Compute or construct a scale array for a single variable.
-
-        Parameters
-        ----------
-        data : xr.DataArray
-            The raw data variable from :attr:`xarray_dataset`.
-        scaling : VariableScaling
-            The scaling configuration for this variable.
-
-        Returns
-        -------
-        xr.DataArray
-            Scale factors with the reduction dims removed.
-        """
-        reduce_dims = ("date", *scaling.dims)
-
-        if isinstance(scaling, FixedScaling):
-            scale = self._build_fixed_scale(data, scaling, reduce_dims)
-        else:
-            method_fn = getattr(data, scaling.method)
-            scale = method_fn(dim=reduce_dims)
-
-        return scale
-
-    def _build_fixed_scale(
-        self,
-        data: xr.DataArray,
-        scaling: FixedScaling,
-        reduce_dims: tuple[str, ...],
-    ) -> xr.DataArray:
-        """Build a scale DataArray from a FixedScaling configuration."""
-        if isinstance(scaling.value, dict):
-            return self._build_fixed_scale_from_dict(data, scaling, reduce_dims)
-        if isinstance(scaling.value, xr.DataArray):
-            return self._align_fixed_scale_dataarray(data, scaling.value, reduce_dims)
-        return xr.DataArray(float(scaling.value))
-
-    def _build_fixed_scale_from_dict(
-        self,
-        data: xr.DataArray,
-        scaling: FixedScaling,
-        reduce_dims: tuple[str, ...],
-    ) -> xr.DataArray:
-        value_map = cast(dict[str, float], scaling.value)
-        remaining_dims = [d for d in data.dims if d not in reduce_dims]
-        if len(remaining_dims) != 1:
-            raise ValueError(
-                f"dict-valued fixed scaling requires exactly one remaining dimension "
-                f"after reduction over {reduce_dims!r}; got {remaining_dims!r}. "
-                f"Use an xarray.DataArray with dims {tuple(remaining_dims)!r} for "
-                f"multi-dimensional fixed scales."
-            )
-
-        dim_name = remaining_dims[0]
-        coords = data.coords[dim_name].values
-        coord_labels = {str(c) for c in coords}
-        provided_keys = set(value_map.keys())
-        missing = coord_labels - provided_keys
-        extra = provided_keys - coord_labels
-        if missing or extra:
-            parts = []
-            if missing:
-                parts.append(f"missing keys: {sorted(missing)}")
-            if extra:
-                parts.append(f"unexpected keys: {sorted(extra)}")
-            raise ValueError(
-                f"Fixed scaling dict keys for dimension "
-                f"'{dim_name}' do not match coordinate labels. "
-                f"{'; '.join(parts)}. "
-                f"Expected: {sorted(coord_labels)}."
-            )
-
-        values = np.array([value_map[str(c)] for c in coords])
-        return xr.DataArray(
-            values,
-            dims=(dim_name,),
-            coords={dim_name: coords},
+        # Store scales in the backwards-compatible self.scalers Dataset
+        self.scalers = xr.Dataset(
+            {
+                "_channel": channel_artifacts["scale"],
+                "_target": target_artifacts["scale"],
+            }
         )
 
-    def _align_fixed_scale_dataarray(
-        self,
-        data: xr.DataArray,
-        user_scale: xr.DataArray,
-        reduce_dims: tuple[str, ...],
-    ) -> xr.DataArray:
-        """Broadcast a user-supplied scale grid to match reduced data coordinates."""
-        template = data.max(dim=reduce_dims, skipna=True).astype(float)
-        zeros = xr.zeros_like(template, dtype=float)
-        try:
-            aligned = user_scale.astype(float) + zeros
-        except (ValueError, TypeError) as e:
-            raise ValueError(
-                "Could not align fixed scaling DataArray with the data grid after "
-                f"reduction over {reduce_dims!r}. Check dimension names and coordinate "
-                f"labels. Underlying error: {e}"
-            ) from e
-        if np.isnan(np.asarray(aligned.values)).any():
-            raise ValueError(
-                "Fixed scaling DataArray produced NaNs after alignment — coordinates "
-                "likely do not match the data grid on a shared dimension."
-            )
-        if dict(aligned.sizes) != dict(template.sizes):
-            raise ValueError(
-                f"Fixed scaling DataArray has shape {dict(aligned.sizes)} after "
-                f"broadcast; expected {dict(template.sizes)} matching reduced data."
-            )
-        return aligned
+        # Pre-scale the data so the PyMC graph receives scaled values directly.
+        # NaN/Inf clamping (e.g. from all-zero channels) is handled by
+        # VariableScaling._safe_scale inside transform().
+        self.xarray_dataset["_channel_scaled"] = self.scaling.channel.transform(
+            self.xarray_dataset["_channel"],
+            channel_artifacts,
+        )
+        self.xarray_dataset["_target_scaled"] = self.scaling.target.transform(
+            self.xarray_dataset["_target"],
+            target_artifacts,
+        )
 
     def get_scales_as_xarray(self) -> dict[str, xr.DataArray]:
         """Return the saved scaling factors as xarray DataArrays.
@@ -2238,38 +2141,16 @@ class MMM(RegressionModelBuilder):
             _channel_scale = pmd.Data("channel_scale", self.scalers._channel)
             _target_scale = pmd.Data("target_scale", self.scalers._target)
 
-            _channel_data = pmd.Data("channel_data", self.xarray_dataset._channel)
-
-            _target = pmd.Data("target_data", self.xarray_dataset._target)
-
-            # Scale `channel_data` and `target`. The switches guard against
-            # NaN (0/0 when a channel/target is all-zero) and against +/-inf
-            # (non-zero numerator over a zero scale, which can arise under
-            # per-dim ``DataDerivedScaling`` with heterogeneous slices).
-            # Both are clamped to 0 so the likelihood receives finite inputs.
-            channel_data_ = _channel_data / _channel_scale
-            channel_data_ = pmd.math.switch(
-                pmd.math.logical_or(
-                    pmd.math.isnan(channel_data_), pmd.math.isinf(channel_data_)
-                ),
-                0.0,
-                channel_data_,
+            _channel_data = pmd.Data(
+                "channel_data", self.xarray_dataset._channel_scaled
             )
-            channel_data_.name = "channel_data_scaled"
-            ## TODO: Find a better way to save it or access it in the pytensor graph.
+
+            _target = pmd.Data("target_data", self.xarray_dataset._target_scaled)
+
+            channel_data_ = _channel_data
             self.channel_data_scaled = channel_data_
 
-            target_data_scaled = _target / _target_scale
-            target_data_scaled = pmd.math.switch(
-                pmd.math.logical_or(
-                    pmd.math.isnan(target_data_scaled),
-                    pmd.math.isinf(target_data_scaled),
-                ),
-                0.0,
-                target_data_scaled,
-            )
-            target_data_scaled.name = "target_scaled"
-            ## TODO: Find a better way to save it or access it in the pytensor graph.
+            target_data_scaled = _target
             self.target_data_scaled = target_data_scaled
 
             for mu_effect in self.mu_effects:
@@ -2512,6 +2393,12 @@ class MMM(RegressionModelBuilder):
             original_dtype = model.named_vars["channel_data"].type.dtype
             channel_values = channel_values.astype(original_dtype)
 
+        # Pre-scale channel data to match the trained model's internal scale
+        channel_values = self.scaling.channel.transform(
+            channel_values,
+            xr.Dataset({"scale": self.scalers["_channel"]}),
+        )
+
         data = {"channel_data": channel_values}
         coords = self.model.coords.copy()
         coords["date"] = dataset_xarray["date"].to_numpy()
@@ -2541,9 +2428,14 @@ class MMM(RegressionModelBuilder):
             if "target_data" in model.named_vars:
                 original_dtype = model.named_vars["target_data"].type.dtype
                 # Convert to the original dtype to avoid precision loss errors
-                data["target_data"] = target_values.astype(original_dtype)
-            else:
-                data["target_data"] = target_values
+                target_values = target_values.astype(original_dtype)
+
+            # Pre-scale target data to match the trained model's internal scale
+            target_values = self.scaling.target.transform(
+                target_values,
+                xr.Dataset({"scale": self.scalers["_target"]}),
+            )
+            data["target_data"] = target_values
 
         pm.set_data(data, coords=coords, model=model)
 
@@ -3657,8 +3549,15 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         )
         self.num_periods = len(self.zero_data.coords["date"]) - self.adstock.l_max
         self.compile_kwargs = compile_kwargs
-        # Adding missing dependencies for compatibility with BudgetOptimizer
-        self._channel_scales = 1.0
+
+    @property
+    def _channel_scales(self):
+        if (
+            hasattr(self.model_class, "scalers")
+            and "_channel" in self.model_class.scalers
+        ):
+            return self.model_class.scalers["_channel"].values
+        return 1.0
 
     @property
     def plot(self) -> BudgetPlots | MMMPlotSuite | MMMPlotSuiteFacade:
