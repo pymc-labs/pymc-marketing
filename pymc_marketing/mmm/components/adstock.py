@@ -250,24 +250,15 @@ class GeometricAdstock(AdstockTransformation):
 
         \alpha = 0.5^{1 / h}
 
-    which maps any positive half-life into :math:`(0, 1)`. Under the half-life
-    parametrisation the sampled variable is ``adstock_halflife`` and ``alpha`` is
-    computed on the fly, so there is no ``adstock_alpha`` in the trace.
+    which maps any positive half-life into :math:`(0, 1)` and holds exactly for
+    every ``l_max`` and either setting of ``normalize``. Under the half-life
+    parametrisation the trace will contain ``adstock_halflife`` instead of
+    ``adstock_alpha``.
 
-    The half-life is exact for any ``l_max`` and for both ``normalize=True`` and
-    ``normalize=False``, since normalization divides every weight by the same
-    constant and therefore leaves the ratio :math:`w_h / w_0 = 0.5` untouched.
-
-    The two default priors are matched: ``Prior("InverseGamma", alpha=2.6,
-    beta=1)`` on the half-life implies almost the same distribution on ``alpha``
-    as the default ``Prior("Beta", alpha=1, beta=3)`` does directly, with an
-    implied median ``alpha`` of 0.207 against 0.206. Because the mapping is
-    nonlinear the agreement is close but not exact. A custom half-life prior
-    should keep its mass away from zero: :math:`d\alpha / dh = \alpha \ln(2) /
-    h^{2}` underflows to exactly zero for :math:`h` below roughly
-    :math:`10^{-3}`, which leaves the likelihood numerically flat there. That
-    rules out ``HalfNormal``, ``Exponential`` and ``Gamma`` with a shape below
-    one, natural as those are for a positive parameter.
+    The two defaults are matched, implying a median ``alpha`` of 0.207 against
+    0.206. A custom half-life prior should keep its mass away from zero, where
+    the likelihood goes numerically flat. The
+    :ref:`adstock functions guide <adstock_functions_guide>` covers both points.
 
     Parameters
     ----------
@@ -296,7 +287,7 @@ class GeometricAdstock(AdstockTransformation):
 
         adstock = GeometricAdstock(
             l_max=10,
-            priors={"halflife": Prior("Gamma", mu=3, sigma=1)},
+            priors={"halflife": Prior("InverseGamma", alpha=4, beta=2)},
         )
 
     .. plot::
