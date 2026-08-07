@@ -19,6 +19,16 @@ from typing import Any, Self
 
 import pytest
 
+from pymc_marketing.serialization import serialization
+
+
+@pytest.fixture(autouse=True)
+def _reset_serialization_tracker():
+    """Reset serialization tracker before each test for isolation."""
+    serialization._tracker.reset()
+    yield
+    serialization._tracker.reset()
+
 
 class TestSerializationError:
     def test_is_exception(self):
