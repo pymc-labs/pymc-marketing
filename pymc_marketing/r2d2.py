@@ -92,7 +92,7 @@ import pymc as pm
 import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytensor.xtensor.math as ptx
-from pymc_extras.deserialize import deserialize
+from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
 
 from pymc_marketing.serialization import (
@@ -529,3 +529,20 @@ class R2D2Decomposition:
             total_sigma=_deserialize_prior(data["total_sigma"]),
             dims=data["dims"],
         )
+
+
+def _r2d2_deserializer(data: dict) -> Any:
+    memo = get_current_deserialize_memo()
+    if memo is not None:
+        return serialization._deserialize_with_refs(data, None, memo)
+    return serialization.deserialize(data)
+
+
+for _cls in (R2D2Split, R2D2Sigma, R2D2Decomposition):
+    register_deserialization(
+        is_type=lambda d, _c=_cls: (
+            isinstance(d, dict)
+            and d.get("__type__") == f"pymc_marketing.r2d2.{_c.__name__}"
+        ),
+        deserialize=_r2d2_deserializer,
+    )

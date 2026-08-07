@@ -461,6 +461,130 @@ class TestReferenceDeduplication:
         assert restored_a.component_name == restored_b.component_name == "control"
 
 
+class TestSerializeModelConfig:
+    """Tests for single-pass model_config serialization with shared memo."""
+
+    def test_shared_decomposition_is_deduplicated(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.r2d2 import R2D2Decomposition
+
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        config = {
+            "gamma_control": r2d2.split("control"),
+            "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
+        }
+
+        serialized = serialization.serialize_model_config(config)
+
+        assert "gamma_control" in serialized
+        assert "likelihood" in serialized
+
+        gamma_decomp = serialized["gamma_control"]["decomposition"]
+        likelihood_kwargs = serialized["likelihood"]["kwargs"]["sigma"]
+        likelihood_decomp = likelihood_kwargs["decomposition"]
+
+        ref_in_gamma = "$ref" in gamma_decomp
+        ref_in_likelihood = "$ref" in likelihood_decomp
+        assert ref_in_gamma or ref_in_likelihood, (
+            "Expected at least one $ref for shared decomposition"
+        )
+
+    def test_prior_with_r2d2_sigma_survives_round_trip(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.r2d2 import R2D2Decomposition, R2D2Sigma
+
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        config = {
+            "gamma_control": r2d2.split("control"),
+            "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
+        }
+
+        serialized = serialization.serialize_model_config(config)
+        restored = serialization.deserialize_model_config(serialized)
+
+        assert "gamma_control" in restored
+        assert "likelihood" in restored
+        assert isinstance(restored["gamma_control"].decomposition, R2D2Decomposition)
+        assert isinstance(restored["likelihood"].parameters["sigma"], R2D2Sigma)
+
+    def test_shared_decomposition_preserved_after_round_trip(self):
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.r2d2 import R2D2Decomposition
+
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        config = {
+            "gamma_control": r2d2.split("control"),
+            "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
+        }
+
+        serialized = serialization.serialize_model_config(config)
+        restored = serialization.deserialize_model_config(serialized)
+
+        split_decomp = restored["gamma_control"].decomposition
+        sigma_obj = restored["likelihood"].parameters["sigma"]
+        sigma_decomp = sigma_obj.decomposition
+
+        assert split_decomp is sigma_decomp, (
+            "Shared decomposition should be the same object after round-trip"
+        )
+
+    def test_plain_values_passthrough(self):
+        import numpy as np
+
+        config = {
+            "int_val": 42,
+            "str_val": "hello",
+            "float_val": 3.14,
+            "bool_val": True,
+            "none_val": None,
+            "list_val": [1, 2, 3],
+            "dict_val": {"a": 1, "b": 2},
+        }
+
+        serialized = serialization.serialize_model_config(config)
+        restored = serialization.deserialize_model_config(serialized)
+
+        assert restored["int_val"] == config["int_val"]
+        assert restored["str_val"] == config["str_val"]
+        assert restored["float_val"] == config["float_val"]
+        assert restored["bool_val"] == config["bool_val"]
+        assert restored["none_val"] == config["none_val"]
+        np.testing.assert_array_equal(restored["list_val"], config["list_val"])
+        assert restored["dict_val"] == config["dict_val"]
+
+    def test_numpy_arrays_converted(self):
+        import numpy as np
+
+        config = {
+            "arr": np.array([1.0, 2.0, 3.0]),
+            "scalar": np.float64(4.0),
+        }
+
+        serialized = serialization.serialize_model_config(config)
+        restored = serialization.deserialize_model_config(serialized)
+
+        np.testing.assert_array_equal(restored["arr"], [1.0, 2.0, 3.0])
+        assert restored["scalar"] == 4.0
+
+
 class TestPerPassIsolation:
     """Test that serialization state doesn't leak between calls."""
 

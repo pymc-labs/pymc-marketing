@@ -687,3 +687,53 @@ class TestR2D2WithMMM:
         ]
         for var in expected_vars:
             assert var in mmm.model.named_vars, f"Missing variable: {var}"
+
+    def test_r2d2_mmm_save_load_round_trip(self, mmm_data, tmp_path, mock_pymc_sample):
+        """MMM with R2D2 should survive save/load with shared decomposition preserved."""
+        from pymc_marketing.mmm import MMM
+        from pymc_marketing.mmm.components.adstock import GeometricAdstock
+        from pymc_marketing.mmm.components.saturation import LogisticSaturation
+
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={
+                "control": "control",
+            },
+        )
+
+        mmm = MMM(
+            date_column="date_week",
+            channel_columns=["x1", "x2"],
+            control_columns=["event_1", "event_2", "t"],
+            adstock=GeometricAdstock(l_max=8),
+            saturation=LogisticSaturation(),
+            yearly_seasonality=2,
+            model_config={
+                "likelihood": Prior("Normal", sigma=r2d2.error_sigma),
+                "gamma_control": r2d2.split("control"),
+            },
+        )
+
+        X = mmm_data.drop("y", axis=1)
+        y = mmm_data["y"]
+
+        mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+        original_id = mmm.id
+
+        save_path = tmp_path / "mmm_r2d2.nc"
+        mmm.save(str(save_path))
+
+        loaded = MMM.load(str(save_path), check=True)
+
+        assert loaded.id == original_id
+
+        gamma_control = loaded.model_config["gamma_control"]
+        likelihood = loaded.model_config["likelihood"]
+        sigma = likelihood.parameters["sigma"]
+        assert gamma_control.decomposition is sigma.decomposition, (
+            "Shared decomposition reference should be preserved after load"
+        )
+
+        assert "r2d2_weights" in loaded.model.named_vars

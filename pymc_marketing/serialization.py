@@ -439,6 +439,155 @@ class TypeRegistry:
                 resolved[key] = value
         return resolved
 
+    def serialize_model_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Serialize a model_config dict in a single pass with shared memo.
+
+        All values in the dict are serialized with the same ``_SerializeMemo``,
+        so shared objects (e.g., an ``R2D2Decomposition`` referenced by both
+        an ``R2D2Split`` and an ``R2D2Sigma``) are deduplicated via ``$ref``.
+
+        Parameters
+        ----------
+        config : dict
+            Raw model configuration dictionary with live objects
+            (Priors, R2D2 splits, numpy arrays, etc.).
+
+        Returns
+        -------
+        dict
+            JSON-safe dict suitable for ``json.dumps``. Shared references
+            become ``{"$ref": N, "__type__": ...}`` dicts.
+        """
+        memo = _SerializeMemo()
+        token = _current_serialize_memo.set(memo)
+        try:
+            return {k: self._serialize_config_value(v, memo) for k, v in config.items()}
+        finally:
+            _current_serialize_memo.reset(token)
+
+    def _serialize_config_value(self, value: Any, memo: _SerializeMemo) -> Any:
+        """Serialize a single config value with shared memo support."""
+        import numpy as np
+
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, (np.integer,)):
+            return int(value)
+        if isinstance(value, (np.floating,)):
+            return float(value)
+        if isinstance(value, (int, float, str, bool, type(None))):
+            return value
+        if isinstance(value, (list, tuple)):
+            return [self._serialize_config_value(v, memo) for v in value]
+        if isinstance(value, dict):
+            return {k: self._serialize_config_value(v, memo) for k, v in value.items()}
+
+        from pymc_extras.prior import Prior
+
+        if isinstance(value, Prior):
+            result: dict[str, Any] = {
+                "dist": value.distribution,
+                "kwargs": {
+                    k: self._serialize_config_value(v, memo)
+                    for k, v in value.parameters.items()
+                },
+            }
+            if value.dims is not None:
+                result["dims"] = value.dims
+            if not value.centered:
+                result["centered"] = False
+            return result
+
+        type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
+        if type_key in self._registry:
+            return self._serialize_with_refs(value, memo)
+
+        if hasattr(value, "to_dict"):
+            base = value.to_dict()
+            if isinstance(base, dict):
+                return {
+                    k: self._serialize_config_value(v, memo) for k, v in base.items()
+                }
+            return base
+
+        return value
+
+    def deserialize_model_config(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Deserialize a model_config dict in a single pass with shared memo.
+
+        All values in the dict are deserialized with the same
+        ``_DeserializeMemo``, so ``$ref`` references are resolved across keys.
+
+        Parameters
+        ----------
+        data : dict
+            JSON-parsed model configuration dict, as produced by
+            :meth:`serialize_model_config`.
+
+        Returns
+        -------
+        dict
+            Dict with live objects (Priors, R2D2 splits, etc.).
+        """
+        memo = _DeserializeMemo()
+        token = _current_deserialize_memo.set(memo)
+        try:
+            return {k: self._deserialize_config_value(v, memo) for k, v in data.items()}
+        finally:
+            _current_deserialize_memo.reset(token)
+
+    def _deserialize_config_value(self, value: Any, memo: _DeserializeMemo) -> Any:
+        """Deserialize a single config value with shared memo support."""
+        import numpy as np
+
+        if isinstance(value, dict):
+            if "$ref" in value:
+                ref_id = value["$ref"]
+                if memo.has_ref(ref_id):
+                    return memo.resolve_ref(ref_id)
+                raise SerializationError(
+                    f"Reference $ref={ref_id} not found in config. "
+                    "The referenced object may not have been deserialized yet."
+                )
+
+            if "__type__" in value:
+                return self._deserialize_with_refs(value, None, memo)
+
+            if isinstance(value.get("dist"), str):
+                prior = self._deserialize_prior_spec(value, memo)
+                if prior is not None:
+                    return prior
+
+            return {
+                k: self._deserialize_config_value(v, memo) for k, v in value.items()
+            }
+
+        if isinstance(value, list):
+            result = [self._deserialize_config_value(v, memo) for v in value]
+            if result and all(isinstance(v, (int, float)) for v in result):
+                return np.array(result)
+            return result
+
+        return value
+
+    def _deserialize_prior_spec(
+        self, data: dict[str, Any], memo: _DeserializeMemo
+    ) -> Any | None:
+        """Deserialize a Prior spec dict and recurse into kwargs."""
+        from pymc_extras.deserialize import DeserializableError, deserialize
+
+        token = _current_deserialize_memo.set(memo)
+        try:
+            prior = deserialize(data)
+        except DeserializableError as err:
+            if err.__cause__ is not None:
+                raise
+            return None
+        finally:
+            _current_deserialize_memo.reset(token)
+
+        return prior
+
 
 serialization = TypeRegistry()
 
