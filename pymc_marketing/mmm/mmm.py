@@ -3217,14 +3217,26 @@ class MMM(RegressionModelBuilder):
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
+        *,
+        target_column: str = "cost_per_target",
+        target_per_cost: bool = False,
     ) -> Self:
-        """Calibrate cost-per-target using an observed Normal likelihood.
+        """Calibrate cost-per-target (or ROAS) using an observed Normal likelihood.
 
-        This computes cost-per-target as
+        By default this computes cost-per-target as
         ``mean(spend) / mean(contribution)`` over the date dimension and adds
         an observed ``Normal`` likelihood for each calibration row:
 
         ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
+
+        Set ``target_per_cost=True`` to flip the ratio to
+        ``mean(contribution) / mean(spend)``, which is ROAS when the target is
+        revenue (or conversions per dollar when the target is conversions).
+
+        The numerator and denominator are meaned separately because the ratio of
+        means is the definition of the aggregate cost-per-target (or ROAS) over
+        the period; averaging per-date ratios would estimate a different
+        quantity.
 
         Parameters
         ----------
@@ -3236,14 +3248,20 @@ class MMM(RegressionModelBuilder):
             DataFrame with rows specifying calibration targets. Must include:
 
             - ``channel``: channel name in ``self.channel_columns``
-            - ``cost_per_target``: desired CPT value
+            - the column named by the ``target_column`` argument (default
+              ``"cost_per_target"``): the CPT (or ROAS) value to calibrate to
             - ``sigma``: accepted deviation; larger => weaker penalty
 
             and one column per dimension in ``self.dims``.
-        cpt_variable_name : str
-            Name for the cost-per-target Deterministic in the model.
         name_prefix : str
             Prefix to use for generated potential names.
+        target_column : str
+            Column in ``calibration_data`` holding the calibration values.
+            Defaults to ``"cost_per_target"``.
+        target_per_cost : bool
+            If ``False`` (default), calibrate ``mean(spend) / mean(contribution)``
+            (cost-per-target). If ``True``, calibrate
+            ``mean(contribution) / mean(spend)`` (target-per-cost, e.g. ROAS).
 
         Examples
         --------
@@ -3270,6 +3288,27 @@ class MMM(RegressionModelBuilder):
                 calibration_data=calibration_df,
                 name_prefix="cpt_calibration",
             )
+
+        Calibrate ROAS instead, using experiment-derived estimates:
+
+        .. code-block:: python
+
+            roas_df = pd.DataFrame(
+                {
+                    "channel": ["C1", "C2"],
+                    "geo": ["US", "US"],
+                    "roas": [3.5, 2.0],
+                    "sigma": [0.3, 0.2],
+                }
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=roas_df,
+                name_prefix="roas_calibration",
+                target_column="roas",
+                target_per_cost=True,
+            )
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
@@ -3287,6 +3326,8 @@ class MMM(RegressionModelBuilder):
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
             raise KeyError("'channel' column missing in calibration_data")
+        if target_column not in calibration_data.columns:
+            raise KeyError(f"{target_column!r} column missing in calibration_data")
         for dim in self.dims:
             if dim not in calibration_data.columns:
                 raise KeyError(
@@ -3331,7 +3372,9 @@ class MMM(RegressionModelBuilder):
             model=self.model,
             cost_value=as_xtensor(spend_xarray),
             target_value=self.model["channel_contribution_original_scale"],
+            target_column=target_column,
             name_prefix=name_prefix,
+            target_per_cost=target_per_cost,
         )
 
         return self
