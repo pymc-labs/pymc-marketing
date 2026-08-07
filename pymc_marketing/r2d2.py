@@ -408,10 +408,14 @@ class R2D2Decomposition:
             dim_sizes[comp] = int(model.dim_lengths[dim].eval())
         K = sum(dim_sizes.values())
 
+        # Collect actual variable names from each component's dim
+        split_dim_values = []
+        for _comp_name, dim_name in self.dims.items():
+            split_dim_values.extend(model.coords[dim_name])
+
         # Dirichlet with K elements (one per coefficient across all components)
-        # No named coord — sliced by position below
-        model.add_coord(f"{name}_split_dim", list(range(K)))
-        split = pm.Dirichlet(f"{name}_split", np.ones(K), dims=(f"{name}_split_dim",))
+        model.add_coord(f"{name}_split", split_dim_values)
+        split = pm.Dirichlet(f"{name}_weights", np.ones(K), dims=(f"{name}_split",))
 
         # Slice Dirichlet into per-component groups
         # Store as xtensor for compatibility with pmd.Data

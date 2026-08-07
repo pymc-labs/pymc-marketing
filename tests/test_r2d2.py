@@ -306,6 +306,45 @@ class TestR2D2Decomposition:
             assert splits1 == splits2
             assert splits1 is not splits2
 
+    def test_split_dim_uses_variable_names(self):
+        """split_dim coord should use actual variable names, not generic indices."""
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.2),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={
+                "control_vars": "control",
+                "media": "channel",
+            },
+        )
+
+        ds = xr.Dataset(
+            {
+                "controls": (("obs", "control"), np.random.randn(10, 3)),
+                "channels": (("obs", "channel"), np.random.randn(10, 2)),
+            },
+            coords={
+                "obs": range(10),
+                "control": ["event_1", "event_2", "t"],
+                "channel": ["x1", "x2"],
+            },
+        )
+
+        with pm.Model(
+            coords={
+                "obs": range(10),
+                "control": ["event_1", "event_2", "t"],
+                "channel": ["x1", "x2"],
+            }
+        ) as model:
+            pmd.Data("controls", ds["controls"])
+            pmd.Data("channels", ds["channels"])
+            r2d2.create_variable("r2d2")
+
+            # split_dim should use actual variable names
+            expected_names = ["event_1", "event_2", "t", "x1", "x2"]
+            actual_names = list(model.coords["r2d2_split"])
+            assert actual_names == expected_names
+
 
 class TestR2D2Serialization:
     """Tests for R2D2 serialization."""
@@ -591,7 +630,7 @@ class TestR2D2WithMMM:
         # Verify R2D2 variables exist
         assert "r2d2_r2" in mmm.model.named_vars
         assert "r2d2_total_sigma" in mmm.model.named_vars
-        assert "r2d2_split" in mmm.model.named_vars
+        assert "r2d2_weights" in mmm.model.named_vars
 
         # Verify R2D2 split was created
         assert "gamma_control" in mmm.model.named_vars
@@ -640,7 +679,7 @@ class TestR2D2WithMMM:
         expected_vars = [
             "r2d2_r2",
             "r2d2_total_sigma",
-            "r2d2_split",
+            "r2d2_weights",
             "gamma_control",
             "intercept_contribution",
             "control_contribution",
