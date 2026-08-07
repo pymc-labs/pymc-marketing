@@ -21,6 +21,7 @@ contribution graph construction).
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from enum import StrEnum
 
@@ -37,6 +38,30 @@ class LinkFunction(StrEnum):
 
     IDENTITY = "identity"
     LOG = "log"
+
+
+#: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
+#: additive decomposition under the identity link is in the units of the target.
+RESPONSE_SCALE_LIKELIHOODS = frozenset(
+    {"Normal", "StudentT", "TruncatedNormal", "Gamma"}
+)
+
+#: Likelihoods whose ``mu`` parameter is on some other scale, mapped to the name
+#: of that scale.  Rejected under the identity link.
+NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
+
+
+def _distribution_name(likelihood: Prior) -> str | None:
+    """Return the distribution name of *likelihood*.
+
+    Wrappers such as ``Censored`` hold another prior in ``distribution``
+    instead of a name, so unwrap until a name is reached.  Returns ``None``
+    when there is none.
+    """
+    dist = getattr(likelihood, "distribution", None)
+    while dist is not None and not isinstance(dist, str):
+        dist = getattr(dist, "distribution", None)
+    return dist
 
 
 class LinkSpec(ABC):
@@ -148,8 +173,14 @@ class LinkSpec(ABC):
     ) -> None:
         """Raise if *likelihood* is incompatible with *link*.
 
-        The identity link is compatible with any likelihood because the
-        additive decomposition does not depend on the distributional form.
+        The criterion is whether ``mu`` lives on the scale of the response.
+        Under the identity link every contribution Deterministic is a share of
+        ``mu``, so a likelihood that places ``mu`` on another scale (LogNormal
+        places it on the log scale) turns each ``*_original_scale`` variable
+        into a delta on that other scale multiplied by ``target_scale``, which
+        is not a contribution in any units.  Likelihoods that are not
+        recognised warn instead of raising, so custom priors keep building.
+
         The log link requires LogNormal so that the counterfactual
         decomposition (``exp(mu) - exp(mu - media)``) is correct.
 
@@ -165,11 +196,45 @@ class LinkSpec(ABC):
         ValueError
             If the combination is known to produce incorrect downstream
             decomposition or optimisation results.
+
+        Warns
+        -----
+        UserWarning
+            If the likelihood is not one whose ``mu`` scale is known.
         """
+        dist_name = _distribution_name(likelihood)
+
         if link == LinkFunction.IDENTITY:
+            if dist_name in NON_RESPONSE_SCALE_LIKELIHOODS:
+                scale = NON_RESPONSE_SCALE_LIKELIHOODS[dist_name]
+                raise ValueError(
+                    f"Likelihood '{dist_name}' is not compatible with "
+                    f"link='identity'. Its 'mu' is on the {scale} scale, not on "
+                    f"the scale of the target, so every '*_original_scale' "
+                    f"contribution would be a {scale}-scale delta multiplied by "
+                    f"'target_scale'. Use link='log' with LogNormal, or keep "
+                    f"link='identity' with a likelihood whose 'mu' is the "
+                    f"response scale: {sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
+                    f"To repair an already saved model without refitting:\n"
+                    f"    kwargs = MMM.idata_to_init_kwargs(idata)\n"
+                    f"    kwargs['link'] = 'log'  # or edit "
+                    f"kwargs['model_config']['likelihood']\n"
+                    f"    mmm = MMM(**kwargs)"
+                )
+            if dist_name not in RESPONSE_SCALE_LIKELIHOODS:
+                warnings.warn(
+                    f"Likelihood '{dist_name or type(likelihood).__name__}' "
+                    f"is not a known response-scale "
+                    f"likelihood. With link='identity' the contribution "
+                    f"decomposition assumes 'mu' is on the scale of the target. "
+                    f"Check that it is before reading '*_original_scale' "
+                    f"variables. Known response-scale likelihoods: "
+                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}.",
+                    UserWarning,
+                    stacklevel=2,
+                )
             return
 
-        dist_name = likelihood.distribution
         compatible = {
             LinkFunction.LOG: {"LogNormal"},
         }

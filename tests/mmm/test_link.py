@@ -19,7 +19,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.prior import Prior
+from pymc_extras.prior import Censored, Prior
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
 from pymc_marketing.mmm.link import (
@@ -190,12 +190,43 @@ class TestLinkSpec:
         [
             Prior("Normal", sigma=1),
             Prior("StudentT", nu=3, sigma=1),
-            Prior("LogNormal", sigma=1),
             Prior("TruncatedNormal", sigma=1, lower=0),
+            Prior("Gamma", sigma=1),
         ],
     )
-    def test_validate_likelihood_compat_identity_accepts_any(self, likelihood):
-        LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, likelihood)
+    def test_validate_likelihood_compat_identity_accepts_response_scale(
+        self, likelihood
+    ):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, likelihood
+            )
+
+    def test_validate_likelihood_compat_identity_lognormal_raises(self):
+        with pytest.raises(ValueError, match="not compatible with link='identity'"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
+            )
+
+    def test_validate_likelihood_compat_identity_lognormal_error_shows_recovery(self):
+        with pytest.raises(ValueError, match="idata_to_init_kwargs"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
+            )
+
+    def test_validate_likelihood_compat_identity_looks_through_censored(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Censored(Prior("Normal", sigma=1), lower=0)
+            )
+
+    def test_validate_likelihood_compat_identity_unknown_warns(self):
+        with pytest.warns(UserWarning, match="not a known response-scale likelihood"):
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("Laplace", b=1)
+            )
 
     def test_validate_likelihood_compat_log_lognormal(self):
         LinkSpec.validate_likelihood_compatibility(
@@ -342,6 +373,15 @@ class TestBuildModelDeterministics:
         X, y = _make_positive_panel()
         mmm.build_model(X, y)
         assert "total_media_contribution_original_scale" in mmm.model.named_vars
+
+    def test_build_model_identity_lognormal_raises(self, mock_pymc_sample):
+        mmm = _make_mmm(
+            link="identity",
+            model_config={"likelihood": Prior("LogNormal", sigma=Prior("HalfNormal"))},
+        )
+        X, y = _make_positive_panel()
+        with pytest.raises(ValueError, match="not compatible with link='identity'"):
+            mmm.build_model(X, y)
 
     def test_build_model_identity_no_y_original_scale(self, mock_pymc_sample):
         mmm = _make_mmm(link="identity")
