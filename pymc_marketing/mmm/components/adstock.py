@@ -58,6 +58,7 @@ Plot the default priors for an adstock transformation:
 from __future__ import annotations
 
 from copy import deepcopy
+from inspect import signature
 from typing import Any, Literal
 
 import numpy as np
@@ -253,6 +254,21 @@ class GeometricAdstock(AdstockTransformation):
     parametrisation the sampled variable is ``adstock_halflife`` and ``alpha`` is
     computed on the fly, so there is no ``adstock_alpha`` in the trace.
 
+    The half-life is exact for any ``l_max`` and for both ``normalize=True`` and
+    ``normalize=False``, since normalization divides every weight by the same
+    constant and therefore leaves the ratio :math:`w_h / w_0 = 0.5` untouched.
+
+    The two default priors are matched: ``Prior("InverseGamma", alpha=2.6,
+    beta=1)`` on the half-life implies almost the same distribution on ``alpha``
+    as the default ``Prior("Beta", alpha=1, beta=3)`` does directly, with an
+    implied median ``alpha`` of 0.207 against 0.206. Because the mapping is
+    nonlinear the agreement is close but not exact. A custom half-life prior
+    should keep its mass away from zero: :math:`d\alpha / dh = \alpha \ln(2) /
+    h^{2}` underflows to exactly zero for :math:`h` below roughly
+    :math:`10^{-3}`, which leaves the likelihood numerically flat there. That
+    rules out ``HalfNormal``, ``Exponential`` and ``Gamma`` with a shape below
+    one, natural as those are for a positive parameter.
+
     Parameters
     ----------
     alpha : tensor
@@ -261,11 +277,13 @@ class GeometricAdstock(AdstockTransformation):
         ``parametrization="alpha"``.
     halflife : tensor
         Number of time periods after which the ad effect has decayed by half;
-        must be positive. Default prior: ``Prior("Gamma", mu=2, sigma=1)``. Only
-        used when ``parametrization="halflife"``.
+        must be positive. Default prior:
+        ``Prior("InverseGamma", alpha=2.6, beta=1)``. Only used when
+        ``parametrization="halflife"``.
     parametrization : str
-        Either ``"alpha"`` (default) or ``"halflife"``. Passing a ``"halflife"``
-        prior implies ``parametrization="halflife"``.
+        Either ``"alpha"`` or ``"halflife"``. When left unset it is inferred
+        from the priors, defaulting to ``"alpha"``. Passing a prior for the
+        parameter of the other parametrisation raises a ``ValueError``.
 
     Examples
     --------
@@ -312,19 +330,25 @@ class GeometricAdstock(AdstockTransformation):
             default=None, description="Priors for the parameters."
         ),
         prefix: str | None = Field(None, description="Prefix for the parameters."),
-        parametrization: Literal["alpha", "halflife"] = Field(
-            "alpha", description="Whether to parametrize the decay by half-life."
+        parametrization: Literal["alpha", "halflife"] | None = Field(
+            None, description="Whether to parametrize the decay by alpha or half-life."
         ),
     ) -> None:
-        if priors is not None and "halflife" in priors:
-            parametrization = "halflife"
+        prior_names = set(priors or {})
+
+        if parametrization is None:
+            parametrization = "halflife" if "halflife" in prior_names else "alpha"
+        elif (
+            conflicting := (set(self._alternative_parameters) - {parametrization})
+            & prior_names
+        ):
+            raise ValueError(
+                f"Priors for {conflicting.pop()!r} are not used when"
+                f" parametrization={parametrization!r}."
+                f" Provide a prior for {parametrization!r} instead."
+            )
 
         if parametrization == "halflife":
-            if priors is not None and "alpha" in priors:
-                raise ValueError(
-                    "An 'alpha' prior is not used when parametrization='halflife'."
-                    " Provide a 'halflife' prior instead."
-                )
             # Shadows the class attribute so that variable_mapping, model_config
             # and the function_priors setter all key off halflife.
             self.default_priors = deepcopy(self.halflife_priors)
@@ -341,6 +365,9 @@ class GeometricAdstock(AdstockTransformation):
 
     def function(self, x, alpha=None, halflife=None, *, dim: str):
         """Geometric adstock function."""
+        if (alpha is None) == (halflife is None):
+            raise ValueError("Provide exactly one of 'alpha' and 'halflife'.")
+
         if halflife is not None:
             alpha = 0.5 ** (1.0 / halflife)
 
@@ -356,15 +383,25 @@ class GeometricAdstock(AdstockTransformation):
     def _has_defaults_for_all_arguments(self) -> None:
         """Check the priors of the active parametrization.
 
-        ``alpha`` and ``halflife`` are alternatives, so the base check of an
-        exact match between the function signature and ``default_priors`` cannot
-        apply.
+        ``alpha`` and ``halflife`` are alternatives, so only the one of the
+        active parametrization needs a prior. Every other argument of
+        ``function`` still does, which keeps the check meaningful for subclasses
+        that override it.
         """
-        expected: set[str] = {self.parametrization}
-        actual = set(self.default_priors)
+        function_signature = signature(self.function)
 
-        if actual != expected:
-            raise ParameterPriorException(expected - actual, actual - expected)
+        # Drop the first one as assumed to be the data, and the dim kwarg
+        parameters = set(list(function_signature.parameters.keys())[1:]) - {"dim"}
+        parameters_that_need_priors = (
+            parameters - set(self._alternative_parameters)
+        ) | {self.parametrization}
+        parameters_with_priors = set(self.default_priors)
+
+        missing_priors = parameters_that_need_priors - parameters_with_priors
+        missing_parameters = parameters_with_priors - parameters_that_need_priors
+
+        if missing_priors or missing_parameters:
+            raise ParameterPriorException(missing_priors, missing_parameters)
 
     def to_dict(self) -> dict:
         """Convert the adstock transformation to a dictionary."""
@@ -375,8 +412,11 @@ class GeometricAdstock(AdstockTransformation):
 
         return data
 
+    _alternative_parameters = ("alpha", "halflife")
+
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
-    halflife_priors = {"halflife": Prior("Gamma", mu=2, sigma=1)}
+    # Implies approximately the default alpha prior under alpha = 0.5 ** (1 / h)
+    halflife_priors = {"halflife": Prior("InverseGamma", alpha=2.6, beta=1)}
 
 
 @serialization.register

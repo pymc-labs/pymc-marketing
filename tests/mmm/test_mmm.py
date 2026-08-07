@@ -232,6 +232,20 @@ class TestGeometricAdstockHalfLife:
                 model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
             )
 
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
+
 
 def test_reserved_dims():
     other_kwargs = {

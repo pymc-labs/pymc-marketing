@@ -178,12 +178,70 @@ class TestGeometricAdstockHalfLife:
         assert GeometricAdstock(l_max=10).parametrization == "alpha"
 
     def test_alpha_prior_rejected(self) -> None:
-        with pytest.raises(ValueError, match="Provide a 'halflife' prior instead"):
+        with pytest.raises(ValueError, match="Provide a prior for 'halflife' instead"):
             GeometricAdstock(
                 l_max=10,
                 parametrization="halflife",
                 priors={"alpha": Prior("Beta", alpha=1, beta=3)},
             )
+
+    def test_halflife_prior_rejected(self) -> None:
+        """An explicit alpha parametrization is not silently overridden."""
+        with pytest.raises(ValueError, match="Provide a prior for 'alpha' instead"):
+            GeometricAdstock(
+                l_max=10,
+                parametrization="alpha",
+                priors={"halflife": Prior("Gamma", mu=3, sigma=1)},
+            )
+
+    def test_default_prior_matches_alpha_default(self) -> None:
+        """The default half-life prior implies the default alpha prior.
+
+        Retuning the default should be a deliberate act, so pin the implied
+        median against the median of ``Beta(1, 3)``, which is
+        ``1 - 0.5 ** (1 / 3)``.
+        """
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+
+        draws = adstock.sample_prior(draws=20_000, random_seed=0)
+        implied_alpha = 0.5 ** (1 / draws["adstock_halflife"])
+
+        beta_median = 1 - 0.5 ** (1 / 3)
+        assert float(np.median(implied_alpha)) == pytest.approx(beta_median, abs=0.01)
+
+    def test_update_priors(self) -> None:
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+        prior = Prior("InverseGamma", alpha=4, beta=2)
+
+        adstock.update_priors({"adstock_halflife": prior})
+
+        assert adstock.function_priors["halflife"] == prior
+
+    @pytest.mark.parametrize("l_max", [10, 30], ids=["l_max=10", "l_max=30"])
+    @pytest.mark.parametrize("halflife", [2.0, 5.0, 8.0])
+    @pytest.mark.parametrize("normalize", [False, True], ids=["raw", "normalized"])
+    def test_halflife_exact_under_truncation(
+        self, model, l_max: int, halflife: float, normalize: bool
+    ) -> None:
+        """Truncation and normalization leave the weight ratio at one half."""
+        spike = as_xtensor(x, dims=("time",))
+
+        with model:
+            weights = (
+                GeometricAdstock(
+                    l_max=l_max, normalize=normalize, priors={"halflife": halflife}
+                )
+                .apply(spike, core_dim="time")
+                .eval()
+            )
+
+        assert weights[int(halflife)] / weights[0] == pytest.approx(0.5)
+
+    def test_function_requires_exactly_one_parameter(self) -> None:
+        adstock = GeometricAdstock(l_max=10)
+
+        with pytest.raises(ValueError, match="exactly one"):
+            adstock.function(as_xtensor(x, dims=("time",)), dim="time")
 
     def test_matches_equivalent_alpha(self, model) -> None:
         """A half-life of one period decays to alpha = 0.5 ** (1 / 1)."""
