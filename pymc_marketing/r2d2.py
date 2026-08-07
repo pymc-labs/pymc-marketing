@@ -81,7 +81,11 @@ import pytensor.xtensor.math as ptx
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior
 
-from pymc_marketing.serialization import serialization
+from pymc_marketing.serialization import (
+    get_current_deserialize_memo,
+    get_current_serialize_memo,
+    serialization,
+)
 
 
 @serialization.register
@@ -146,8 +150,9 @@ class R2D2Split:
         pt.TensorVariable
             The created coefficient variable.
         """
-        # Lazy auto-build: create decomposition if not yet built
-        if not self.decomposition._built:
+        model = pm.modelcontext(None)
+        # Lazy auto-build: create decomposition if not yet built for THIS model
+        if self.decomposition._built_model_id != id(model):
             self.decomposition.create_variable("r2d2")
 
         # Get the variance split for this component
@@ -159,16 +164,34 @@ class R2D2Split:
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
+        memo = get_current_serialize_memo()
+        if memo is not None:
+            # Use the context memo for nested serialization (deduplication)
+            decomposed = serialization._serialize_with_refs(self.decomposition, memo)
+        else:
+            decomposed = serialization.serialize(self.decomposition)
         return {
-            "decomposition": serialization.serialize(self.decomposition),
+            "decomposition": decomposed,
             "component_name": self.component_name,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "R2D2Split":
         """Deserialize from dictionary."""
+        decomposition = data["decomposition"]
+        # If already resolved (by _resolve_nested_refs), use directly
+        if isinstance(decomposition, dict):
+            memo = get_current_deserialize_memo()
+            if memo is not None:
+                decomposed = serialization._deserialize_with_refs(
+                    decomposition, None, memo
+                )
+            else:
+                decomposed = serialization.deserialize(decomposition)
+        else:
+            decomposed = decomposition
         return cls(
-            decomposition=serialization.deserialize(data["decomposition"]),
+            decomposition=decomposed,
             component_name=data["component_name"],
         )
 
@@ -210,23 +233,42 @@ class R2D2Sigma:
         pt.TensorVariable
             The error sigma variable.
         """
-        # Lazy auto-build: create decomposition if not yet built
-        if not self.decomposition._built:
+        model = pm.modelcontext(None)
+        # Lazy auto-build: create decomposition if not yet built for THIS model
+        if self.decomposition._built_model_id != id(model):
             self.decomposition.create_variable("r2d2")
 
         return self.decomposition._error_sigma
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
+        memo = get_current_serialize_memo()
+        if memo is not None:
+            # Use the context memo for nested serialization (deduplication)
+            decomposed = serialization._serialize_with_refs(self.decomposition, memo)
+        else:
+            decomposed = serialization.serialize(self.decomposition)
         return {
-            "decomposition": serialization.serialize(self.decomposition),
+            "decomposition": decomposed,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "R2D2Sigma":
         """Deserialize from dictionary."""
+        decomposition = data["decomposition"]
+        # If already resolved (by _resolve_nested_refs), use directly
+        if isinstance(decomposition, dict):
+            memo = get_current_deserialize_memo()
+            if memo is not None:
+                decomposed = serialization._deserialize_with_refs(
+                    decomposition, None, memo
+                )
+            else:
+                decomposed = serialization.deserialize(decomposition)
+        else:
+            decomposed = decomposition
         return cls(
-            decomposition=serialization.deserialize(data["decomposition"]),
+            decomposition=decomposed,
         )
 
 
@@ -331,7 +373,7 @@ class R2D2Decomposition:
 
         self._splits: dict[str, pt.TensorVariable] = {}
         self._error_sigma: pt.TensorVariable | None = None
-        self._built: bool = False
+        self._built_model_id: int | None = None  # Track which model this was built for
 
     def create_variable(self, name: str) -> pt.TensorVariable:
         """Create all decomposition variables ONCE inside pm.Model.
@@ -346,10 +388,11 @@ class R2D2Decomposition:
         pt.TensorVariable
             The error sigma variable.
         """
-        if self._built:
-            return self._error_sigma
-
         model = pm.modelcontext(None)
+
+        # Check if already built for THIS model
+        if self._built_model_id == id(model):
+            return self._error_sigma
 
         # Create hyperpriors
         r2 = self.r2.create_variable(f"{name}_r2")
@@ -365,9 +408,10 @@ class R2D2Decomposition:
             dim_sizes[comp] = int(model.dim_lengths[dim].eval())
         K = sum(dim_sizes.values())
 
-        # Dirichlet with named dimension
-        model.add_coord(f"{name}_component", list(self.dims.keys()))
-        split = pm.Dirichlet(f"{name}_split", np.ones(K), dims=f"{name}_component")
+        # Dirichlet with K elements (one per coefficient across all components)
+        # No named coord — sliced by position below
+        model.add_coord(f"{name}_split_dim", list(range(K)))
+        split = pm.Dirichlet(f"{name}_split", np.ones(K), dims=(f"{name}_split_dim",))
 
         # Slice Dirichlet into per-component groups
         # Store as xtensor for compatibility with pmd.Data
@@ -382,7 +426,7 @@ class R2D2Decomposition:
             )
             idx += dim_size
 
-        self._built = True
+        self._built_model_id = id(model)
         return self._error_sigma
 
     def split(self, component_name: str) -> R2D2Split:
@@ -424,8 +468,13 @@ class R2D2Decomposition:
 
     @property
     def built(self) -> bool:
-        """Whether create_variable has been called."""
-        return self._built
+        """Whether create_variable has been called for the current model."""
+        try:
+            model = pm.modelcontext(None)
+            return self._built_model_id == id(model)
+        except (TypeError, AttributeError):
+            # No model on context stack — check if ever built
+            return self._built_model_id is not None
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""

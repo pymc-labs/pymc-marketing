@@ -25,9 +25,8 @@ from pymc_marketing.serialization import serialization
 @pytest.fixture(autouse=True)
 def _reset_serialization_tracker():
     """Reset serialization tracker before each test for isolation."""
-    serialization._tracker.reset()
+    # No singleton tracker to reset — each serialize/deserialize call uses fresh memo
     yield
-    serialization._tracker.reset()
 
 
 class TestSerializationError:
@@ -269,7 +268,6 @@ class TestSerializableBaseModel:
             x: int = 1
 
         type_key = f"{AutoReg.__module__}.{AutoReg.__qualname__}"
-        from pymc_marketing.serialization import serialization
 
         assert type_key in serialization._registry
 
@@ -301,7 +299,7 @@ class TestSerializableBaseModel:
         assert obj.value == 99
 
     def test_roundtrip_via_registry(self):
-        from pymc_marketing.serialization import SerializableBaseModel, serialization
+        from pymc_marketing.serialization import SerializableBaseModel
 
         class RoundTripper(SerializableBaseModel):
             a: str = "foo"
@@ -318,7 +316,7 @@ class TestSerializableBaseModel:
         """Abstract subclasses should not be registered."""
         from abc import ABC, abstractmethod
 
-        from pymc_marketing.serialization import SerializableBaseModel, serialization
+        from pymc_marketing.serialization import SerializableBaseModel
 
         class AbstractEffect(SerializableBaseModel, ABC):
             @abstractmethod
@@ -353,7 +351,6 @@ class TestReferenceDeduplication:
         # Use the global serialization registry with existing registered types
         # Create two R2D2 objects sharing the same decomposition
         from pymc_marketing.r2d2 import R2D2Decomposition
-        from pymc_marketing.serialization import serialization
 
         r2d2 = R2D2Decomposition(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
@@ -364,13 +361,13 @@ class TestReferenceDeduplication:
         split = r2d2.split("control")
         sigma = r2d2.error_sigma
 
-        # Serialize both
-        split_data = serialization.serialize(split)
-        sigma_data = serialization.serialize(sigma)
+        # Serialize both in one batch (shared reference tracking)
+        split_data, sigma_data = serialization.serialize_batch([split, sigma])
 
         # After deserialization, both should reference the same decomposition
-        restored_split = serialization.deserialize(split_data)
-        restored_sigma = serialization.deserialize(sigma_data)
+        restored_split, restored_sigma = serialization.deserialize_batch(
+            [split_data, sigma_data]
+        )
 
         # Currently this FAILS - they're separate decompositions
         # After our fix, they should share the same decomposition
@@ -384,7 +381,6 @@ class TestReferenceDeduplication:
         from pymc_extras.prior import Prior
 
         from pymc_marketing.r2d2 import R2D2Decomposition
-        from pymc_marketing.serialization import serialization
 
         r2d2 = R2D2Decomposition(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
@@ -395,13 +391,13 @@ class TestReferenceDeduplication:
         split = r2d2.split("control")
         sigma = r2d2.error_sigma
 
-        # Serialize both
-        split_data = serialization.serialize(split)
-        sigma_data = serialization.serialize(sigma)
+        # Serialize both in one batch (shared reference tracking)
+        split_data, sigma_data = serialization.serialize_batch([split, sigma])
 
         # After deserialization, both should reference the same decomposition
-        restored_split = serialization.deserialize(split_data)
-        restored_sigma = serialization.deserialize(sigma_data)
+        restored_split, restored_sigma = serialization.deserialize_batch(
+            [split_data, sigma_data]
+        )
 
         assert restored_split.decomposition is restored_sigma.decomposition, (
             "Shared decomposition should be the same instance after deserialization"
@@ -413,7 +409,6 @@ class TestReferenceDeduplication:
 
         # Create two independent decompositions
         from pymc_marketing.r2d2 import R2D2Decomposition
-        from pymc_marketing.serialization import serialization
 
         r2d2_a = R2D2Decomposition(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
@@ -438,3 +433,38 @@ class TestReferenceDeduplication:
         # They should be different decompositions (not shared)
         assert restored_a.decomposition is not restored_b.decomposition
         assert restored_a.component_name == restored_b.component_name == "control"
+
+
+class TestReferenceTrackerIsolation:
+    """Test that ReferenceTracker state doesn't leak between calls."""
+
+    def test_tracker_resets_between_serialize_calls(self):
+        """Two independent serialize calls should not share tracker state."""
+        from pymc_extras.prior import Prior
+
+        from pymc_marketing.r2d2 import R2D2Decomposition
+
+        # Create two independent decompositions
+        r2d2_a = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+        r2d2_b = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        # Serialize r2d2_a in first call
+        a_data = serialization.serialize(r2d2_a)
+
+        # Serialize r2d2_b in second call — should NOT reference r2d2_a
+        b_data = serialization.serialize(r2d2_b)
+
+        # Deserialize both
+        restored_a = serialization.deserialize(a_data)
+        restored_b = serialization.deserialize(b_data)
+
+        # They should be different (not shared)
+        assert restored_a is not restored_b
