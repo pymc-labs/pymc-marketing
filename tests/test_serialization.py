@@ -252,6 +252,39 @@ class TestTypeRegistry:
         with pytest.raises((KeyError, TypeError)):
             reg.serialize(Unknown())
 
+    def test_register_returns_decorator_when_none(self):
+        """register(None) should return a decorator lambda."""
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+
+        # register(None) returns a decorator
+        decorator = reg.register(None)
+        assert callable(decorator)
+
+        # The decorator should register the class
+        class MyClass:
+            def to_dict(self):
+                return {}
+
+            @classmethod
+            def from_dict(cls, data):
+                return cls()
+
+        registered = decorator(MyClass)
+        assert registered is MyClass
+
+        type_key = f"{MyClass.__module__}.{MyClass.__qualname__}"
+        assert type_key in reg._registry
+
+    def test_register_string_key_without_class_raises(self):
+        """register(str_key) without class should raise TypeError."""
+        from pymc_marketing.serialization import TypeRegistry
+
+        reg = TypeRegistry()
+        with pytest.raises(TypeError, match="class must be provided"):
+            reg.register("some.string.key")
+
 
 class TestSerializableBaseModel:
     def test_auto_registration(self):
@@ -428,8 +461,8 @@ class TestReferenceDeduplication:
         assert restored_a.component_name == restored_b.component_name == "control"
 
 
-class TestReferenceTrackerIsolation:
-    """Test that ReferenceTracker state doesn't leak between calls."""
+class TestPerPassIsolation:
+    """Test that serialization state doesn't leak between calls."""
 
     def test_tracker_resets_between_serialize_calls(self):
         """Two independent serialize calls should not share tracker state."""

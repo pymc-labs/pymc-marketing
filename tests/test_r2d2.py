@@ -273,6 +273,39 @@ class TestR2D2Decomposition:
 
             assert isinstance(var, XTensorVariable)
 
+    def test_dims_rejects_non_string_values(self):
+        """dims dict values must be strings."""
+        with pytest.raises(TypeError, match=r"dim value for.*must be a string"):
+            R2D2Decomposition(
+                r2=Prior("Beta", mu=0.8, sigma=0.4),
+                total_sigma=Prior("LogNormal", mu=0, sigma=1),
+                dims={"control": 123},  # int, not string
+            )
+
+    def test_splits_returns_copy(self):
+        """splits property should return a copy of the internal dict."""
+        r2d2 = R2D2Decomposition(
+            r2=Prior("Beta", mu=0.8, sigma=0.4),
+            total_sigma=Prior("LogNormal", mu=0, sigma=1),
+            dims={"control": "control"},
+        )
+
+        ds = xr.Dataset(
+            {"controls": (("obs", "control"), np.random.randn(10, 2))},
+            coords={"obs": range(10), "control": ["a", "b"]},
+        )
+
+        with pm.Model(coords={"obs": range(10), "control": ["a", "b"]}):
+            pmd.Data("controls", ds["controls"])
+            r2d2.create_variable("r2d2")
+
+            splits1 = r2d2.splits
+            splits2 = r2d2.splits
+
+            # Should be equal but not the same object
+            assert splits1 == splits2
+            assert splits1 is not splits2
+
 
 class TestR2D2Serialization:
     """Tests for R2D2 serialization."""

@@ -136,57 +136,6 @@ class _RegistryEntry:
     deserializer: Any = None
 
 
-class ReferenceTracker:
-    """Tracks object identity during serialization/deserialization.
-
-    Handles deduplication: if the same object appears multiple times
-    during serialization, subsequent occurrences emit ``{"$ref": N}``
-    references. During deserialization, references resolve to previously
-    deserialized objects.
-    """
-
-    def __init__(self) -> None:
-        self._seen: dict[int, int] = {}  # id(obj) -> ref_id
-        self._ref_counter: int = 0
-        self._deserialized: dict[int, Any] = {}  # ref_id -> object
-
-    def track(self, obj: Any) -> int | None:
-        """Track an object. Returns ref_id if already seen, else assigns new id."""
-        obj_id = id(obj)
-        if obj_id in self._seen:
-            return self._seen[obj_id]
-        ref_id = self._ref_counter
-        self._seen[obj_id] = ref_id
-        self._ref_counter += 1
-        return None  # not a duplicate
-
-    def is_seen(self, obj: Any) -> bool:
-        """Check if object has been serialized before."""
-        return id(obj) in self._seen
-
-    def get_ref_id(self, obj: Any) -> int:
-        """Get the reference ID for a tracked object."""
-        return self._seen[id(obj)]
-
-    def store_deserialized(self, ref_id: int, obj: Any) -> None:
-        """Store a deserialized object by reference ID."""
-        self._deserialized[ref_id] = obj
-
-    def resolve_ref(self, ref_id: int) -> Any:
-        """Resolve a reference ID to a deserialized object."""
-        return self._deserialized[ref_id]
-
-    def has_ref(self, ref_id: int) -> bool:
-        """Check if a reference ID exists."""
-        return ref_id in self._deserialized
-
-    def reset(self) -> None:
-        """Clear all tracked state."""
-        self._seen.clear()
-        self._ref_counter = 0
-        self._deserialized.clear()
-
-
 @dataclass
 class _SerializeMemo:
     """Per-pass memo for serialization (replaces singleton tracker for serialization)."""
@@ -259,7 +208,6 @@ class TypeRegistry:
 
     def __init__(self) -> None:
         self._registry: dict[str, _RegistryEntry] = {}
-        self._tracker = ReferenceTracker()
 
     def register(
         self,
