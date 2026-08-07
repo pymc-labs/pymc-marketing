@@ -21,6 +21,7 @@ from pydantic import ValidationError
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
+from scipy import stats
 
 import pymc_marketing.mmm.components.adstock as adstock_module
 from pymc_marketing.mmm.components.adstock import (
@@ -178,7 +179,9 @@ class TestGeometricAdstockHalfLife:
         assert GeometricAdstock(l_max=10).parametrization == "alpha"
 
     def test_alpha_prior_rejected(self) -> None:
-        with pytest.raises(ValueError, match="Provide a prior for 'halflife' instead"):
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
             GeometricAdstock(
                 l_max=10,
                 parametrization="halflife",
@@ -187,27 +190,73 @@ class TestGeometricAdstockHalfLife:
 
     def test_halflife_prior_rejected(self) -> None:
         """An explicit alpha parametrization is not silently overridden."""
-        with pytest.raises(ValueError, match="Provide a prior for 'alpha' instead"):
+        with pytest.raises(
+            ValueError, match=r"Priors for 'halflife' are not used when.*'alpha'"
+        ):
             GeometricAdstock(
                 l_max=10,
                 parametrization="alpha",
                 priors={"halflife": Prior("Gamma", mu=3, sigma=1)},
             )
 
-    def test_default_prior_matches_alpha_default(self) -> None:
-        """The default half-life prior implies the default alpha prior.
+    def test_both_priors_rejected(self) -> None:
+        """Neither prior is silently dropped when the parametrization is inferred.
 
-        Retuning the default should be a deliberate act, so pin the implied
-        median against the median of ``Beta(1, 3)``, which is
-        ``1 - 0.5 ** (1 / 3)``.
+        Accepting both would ignore one of them and then serialise both
+        alongside the inferred parametrization, so that a constructible
+        transformation fails to deserialise.
         """
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            GeometricAdstock(
+                l_max=10,
+                priors={
+                    "alpha": Prior("Beta", alpha=1, beta=3),
+                    "halflife": Prior("Gamma", mu=3, sigma=1),
+                },
+            )
+
+    def test_conflicting_prior_assignment_rejected(self) -> None:
+        """Assignment is the other route to a state that cannot be deserialised."""
         adstock = GeometricAdstock(l_max=10, parametrization="halflife")
 
-        draws = adstock.sample_prior(draws=20_000, random_seed=0)
-        implied_alpha = 0.5 ** (1 / draws["adstock_halflife"])
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            adstock.function_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
 
-        beta_median = 1 - 0.5 ** (1 / 3)
-        assert float(np.median(implied_alpha)) == pytest.approx(beta_median, abs=0.01)
+        assert adstock.function_priors == GeometricAdstock.halflife_priors
+
+    @pytest.mark.parametrize(
+        "quantile, tolerance",
+        [(0.05, 0.005), (0.25, 0.005), (0.5, 0.005), (0.75, 0.01), (0.95, 0.02)],
+    )
+    def test_default_prior_matches_alpha_default(
+        self, quantile: float, tolerance: float
+    ) -> None:
+        """The default half-life prior implies the default alpha prior.
+
+        Retuning either default should be a deliberate act, so pin the implied
+        quantiles of alpha against those of ``Beta(1, 3)``. Both are available in
+        closed form, since ``alpha = 0.5 ** (1 / h)`` is monotone in ``h``.
+        """
+        halflife_prior = GeometricAdstock.halflife_priors["halflife"]
+        assert halflife_prior.distribution == "InverseGamma"
+
+        halflife = stats.invgamma(
+            a=halflife_prior.parameters["alpha"],
+            scale=halflife_prior.parameters["beta"],
+        ).ppf(quantile)
+        implied_alpha = 0.5 ** (1 / halflife)
+
+        alpha_prior = GeometricAdstock.default_priors["alpha"]
+        assert alpha_prior.distribution == "Beta"
+
+        expected = stats.beta(
+            a=alpha_prior.parameters["alpha"], b=alpha_prior.parameters["beta"]
+        ).ppf(quantile)
+        assert implied_alpha == pytest.approx(expected, abs=tolerance)
 
     def test_update_priors(self) -> None:
         adstock = GeometricAdstock(l_max=10, parametrization="halflife")

@@ -57,7 +57,6 @@ Plot the default priors for an adstock transformation:
 
 from __future__ import annotations
 
-from copy import deepcopy
 from inspect import signature
 from typing import Any, Literal
 
@@ -256,8 +255,9 @@ class GeometricAdstock(AdstockTransformation):
     ``adstock_alpha``.
 
     The two defaults are matched, implying a median ``alpha`` of 0.207 against
-    0.206. A custom half-life prior should keep its mass away from zero, where
-    the likelihood goes numerically flat. The
+    0.206. The priors imply a median half-life of 0.44 periods. A custom
+    half-life prior should keep its mass away from zero, where the likelihood
+    goes numerically flat. The
     :ref:`adstock functions guide <adstock_functions_guide>` covers both points.
 
     Parameters
@@ -329,23 +329,16 @@ class GeometricAdstock(AdstockTransformation):
 
         if parametrization is None:
             parametrization = "halflife" if "halflife" in prior_names else "alpha"
-        elif (
-            conflicting := (set(self._alternative_parameters) - {parametrization})
-            & prior_names
-        ):
-            raise ValueError(
-                f"Priors for {conflicting.pop()!r} are not used when"
-                f" parametrization={parametrization!r}."
-                f" Provide a prior for {parametrization!r} instead."
-            )
 
         if parametrization == "halflife":
             # Shadows the class attribute so that variable_mapping, model_config
             # and the function_priors setter all key off halflife.
-            self.default_priors = deepcopy(self.halflife_priors)
+            self.default_priors = self.halflife_priors
 
         self.parametrization = parametrization
 
+        # Priors for the inactive parametrization are rejected by the
+        # function_priors setter, which this call assigns through.
         super().__init__(
             l_max=l_max,
             normalize=normalize,
@@ -370,6 +363,27 @@ class GeometricAdstock(AdstockTransformation):
             mode=self.mode,
             dim=dim,
         )
+
+    @AdstockTransformation.function_priors.setter  # type: ignore[attr-defined]
+    def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
+        """Reject priors for the inactive parametrization before storing them.
+
+        The base setter merges what it is given into ``default_priors``, so a
+        prior for the inactive parameter would be kept, ignored when building
+        the model, and then serialised alongside the parametrization into
+        something that ``from_dict`` refuses to load.
+        """
+        if conflicting := (
+            set(self._alternative_parameters) - {self.parametrization}
+        ) & set(priors or {}):
+            raise ValueError(
+                f"Priors for {conflicting.pop()!r} are not used when"
+                f" parametrization={self.parametrization!r}."
+                f" 'alpha' and 'halflife' are alternatives, so pass a prior for"
+                f" {self.parametrization!r} only."
+            )
+
+        AdstockTransformation.function_priors.fset(self, priors)  # type: ignore[attr-defined]
 
     def _has_defaults_for_all_arguments(self) -> None:
         """Check the priors of the active parametrization.
@@ -404,7 +418,6 @@ class GeometricAdstock(AdstockTransformation):
         return data
 
     _alternative_parameters = ("alpha", "halflife")
-
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
     # Implies approximately the default alpha prior under alpha = 0.5 ** (1 / h)
     halflife_priors = {"halflife": Prior("InverseGamma", alpha=2.6, beta=1)}
