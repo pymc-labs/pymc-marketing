@@ -149,6 +149,83 @@ class TestAdstockRoundtrips:
         assert restored == original
 
 
+class TestGeometricAdstockHalfLife:
+    """The half-life parametrisation replaces alpha with a prior on the half-life."""
+
+    def test_halflife_prior_implies_parametrization(self) -> None:
+        adstock = GeometricAdstock(
+            l_max=10, priors={"halflife": Prior("Gamma", mu=3, sigma=1)}
+        )
+
+        assert adstock.parametrization == "halflife"
+        assert adstock.function_priors == {"halflife": Prior("Gamma", mu=3, sigma=1)}
+        assert adstock.variable_mapping == {"halflife": "adstock_halflife"}
+        assert adstock.model_config == {
+            "adstock_halflife": Prior("Gamma", mu=3, sigma=1)
+        }
+
+    def test_parametrization_without_prior_uses_default(self) -> None:
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+
+        assert adstock.function_priors == GeometricAdstock.halflife_priors
+
+    def test_class_default_priors_unchanged(self) -> None:
+        GeometricAdstock(l_max=10, parametrization="halflife")
+
+        assert GeometricAdstock.default_priors == {
+            "alpha": Prior("Beta", alpha=1, beta=3)
+        }
+        assert GeometricAdstock(l_max=10).parametrization == "alpha"
+
+    def test_alpha_prior_rejected(self) -> None:
+        with pytest.raises(ValueError, match="Provide a 'halflife' prior instead"):
+            GeometricAdstock(
+                l_max=10,
+                parametrization="halflife",
+                priors={"alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_matches_equivalent_alpha(self, model) -> None:
+        """A half-life of one period decays to alpha = 0.5 ** (1 / 1)."""
+        spike = as_xtensor(x, dims=("time",))
+
+        with model:
+            halflife = GeometricAdstock(l_max=20, priors={"halflife": 1.0}).apply(
+                spike, core_dim="time"
+            )
+            alpha = GeometricAdstock(l_max=20, priors={"alpha": 0.5}).apply(
+                spike, core_dim="time"
+            )
+
+        np.testing.assert_allclose(halflife.eval(), alpha.eval())
+
+    def test_sample_prior_and_curve(self) -> None:
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+
+        prior = adstock.sample_prior()
+        assert "adstock_halflife" in prior
+
+        curve = adstock.sample_curve(prior)
+        assert curve.shape == (1, 500, adstock.l_max)
+
+    def test_roundtrip(self) -> None:
+        original = GeometricAdstock(
+            l_max=7, priors={"halflife": Prior("Gamma", mu=3, sigma=1)}
+        )
+
+        data = serialization.serialize(original)
+        assert data["parametrization"] == "halflife"
+
+        restored = serialization.deserialize(data)
+        assert restored.parametrization == "halflife"
+        assert restored == original
+
+    def test_alpha_parametrization_not_serialized(self) -> None:
+        assert "parametrization" not in serialization.serialize(
+            GeometricAdstock(l_max=7)
+        )
+
+
 @pytest.mark.parametrize(
     "type_key",
     [

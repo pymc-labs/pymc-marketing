@@ -57,7 +57,8 @@ Plot the default priors for an adstock transformation:
 
 from __future__ import annotations
 
-from typing import Any
+from copy import deepcopy
+from typing import Any, Literal
 
 import numpy as np
 import xarray as xr
@@ -67,6 +68,7 @@ from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm.components.base import (
+    ParameterPriorException,
     SupportedPrior,
     Transformation,
 )
@@ -234,16 +236,50 @@ class BinomialAdstock(AdstockTransformation):
 
 @serialization.register
 class GeometricAdstock(AdstockTransformation):
-    """Wrapper around geometric adstock function.
+    r"""Wrapper around geometric adstock function.
 
     Calls :func:`pymc_marketing.mmm.transformers.geometric_adstock` with the wrapper's
     ``l_max``, ``normalize`` and ``mode`` settings.
+
+    The decay can be parametrised either by the retention rate ``alpha`` (the
+    default) or by the half-life of the ad effect. Since the weight at lag
+    :math:`t` is :math:`\alpha^{t}`, a half-life :math:`h` corresponds to
+
+    .. math::
+
+        \alpha = 0.5^{1 / h}
+
+    which maps any positive half-life into :math:`(0, 1)`. Under the half-life
+    parametrisation the sampled variable is ``adstock_halflife`` and ``alpha`` is
+    computed on the fly, so there is no ``adstock_alpha`` in the trace.
 
     Parameters
     ----------
     alpha : tensor
         Retention rate of the ad effect; must be between 0 and 1. Default prior:
-        ``Prior("Beta", alpha=1, beta=3)``.
+        ``Prior("Beta", alpha=1, beta=3)``. Only used when
+        ``parametrization="alpha"``.
+    halflife : tensor
+        Number of time periods after which the ad effect has decayed by half;
+        must be positive. Default prior: ``Prior("Gamma", mu=2, sigma=1)``. Only
+        used when ``parametrization="halflife"``.
+    parametrization : str
+        Either ``"alpha"`` (default) or ``"halflife"``. Passing a ``"halflife"``
+        prior implies ``parametrization="halflife"``.
+
+    Examples
+    --------
+    Parametrise the decay by its half-life instead of the retention rate:
+
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.mmm import GeometricAdstock
+
+        adstock = GeometricAdstock(
+            l_max=10,
+            priors={"halflife": Prior("Gamma", mu=3, sigma=1)},
+        )
 
     .. plot::
         :context: close-figs
@@ -262,8 +298,52 @@ class GeometricAdstock(AdstockTransformation):
 
     """
 
-    def function(self, x, alpha, *, dim: str):
+    @validate_call
+    def __init__(
+        self,
+        l_max: int = Field(
+            ..., gt=0, description="Maximum lag for the adstock transformation."
+        ),
+        normalize: bool = Field(
+            True, description="Whether to normalize the adstock values."
+        ),
+        mode: ConvMode = Field(ConvMode.After, description="Convolution mode."),
+        priors: dict[str, SupportedPrior] | None = Field(
+            default=None, description="Priors for the parameters."
+        ),
+        prefix: str | None = Field(None, description="Prefix for the parameters."),
+        parametrization: Literal["alpha", "halflife"] = Field(
+            "alpha", description="Whether to parametrize the decay by half-life."
+        ),
+    ) -> None:
+        if priors is not None and "halflife" in priors:
+            parametrization = "halflife"
+
+        if parametrization == "halflife":
+            if priors is not None and "alpha" in priors:
+                raise ValueError(
+                    "An 'alpha' prior is not used when parametrization='halflife'."
+                    " Provide a 'halflife' prior instead."
+                )
+            # Shadows the class attribute so that variable_mapping, model_config
+            # and the function_priors setter all key off halflife.
+            self.default_priors = deepcopy(self.halflife_priors)
+
+        self.parametrization = parametrization
+
+        super().__init__(
+            l_max=l_max,
+            normalize=normalize,
+            mode=mode,
+            priors=priors,
+            prefix=prefix,
+        )
+
+    def function(self, x, alpha=None, halflife=None, *, dim: str):
         """Geometric adstock function."""
+        if halflife is not None:
+            alpha = 0.5 ** (1.0 / halflife)
+
         return geometric_adstock(
             x,
             alpha=alpha,
@@ -273,7 +353,30 @@ class GeometricAdstock(AdstockTransformation):
             dim=dim,
         )
 
+    def _has_defaults_for_all_arguments(self) -> None:
+        """Check the priors of the active parametrization.
+
+        ``alpha`` and ``halflife`` are alternatives, so the base check of an
+        exact match between the function signature and ``default_priors`` cannot
+        apply.
+        """
+        expected: set[str] = {self.parametrization}
+        actual = set(self.default_priors)
+
+        if actual != expected:
+            raise ParameterPriorException(expected - actual, actual - expected)
+
+    def to_dict(self) -> dict:
+        """Convert the adstock transformation to a dictionary."""
+        data = super().to_dict()
+
+        if self.parametrization != "alpha":
+            data["parametrization"] = self.parametrization
+
+        return data
+
     default_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
+    halflife_priors = {"halflife": Prior("Gamma", mu=2, sigma=1)}
 
 
 @serialization.register
