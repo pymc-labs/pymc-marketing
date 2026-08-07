@@ -50,6 +50,8 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: Year-over-Year Target Transform for Highly Seasonal KPIs
+            notebook: mmm/mmm_yoy_target_transform
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors

@@ -114,6 +114,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas_parametrization.png
 :link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
+
+:::{grid-item-card} Year-over-Year Target Transform for Highly Seasonal KPIs
+:img-top: ../gallery/images/mmm_yoy_target_transform.png
+:link: ../notebooks/mmm/mmm_yoy_target_transform.html
+:::
 ::::
 
 ### Data Connectors
