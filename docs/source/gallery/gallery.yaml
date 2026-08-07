@@ -72,6 +72,8 @@ sections:
             notebook: mmm/mmm_geolift_calibration
           - title: Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
             notebook: mmm/mmm_roas
+          - title: Calibrating an MMM with ROAS Estimates
+            notebook: mmm/mmm_roas_calibration
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline
