@@ -42,6 +42,9 @@ class LinkFunction(StrEnum):
 
 #: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
 #: additive decomposition under the identity link is in the units of the target.
+#: This is about units only.  ``mu`` still need not equal ``E[y]``: under
+#: ``TruncatedNormal`` it does not, so ``*_original_scale`` will not reconcile
+#: against the posterior predictive mean.  See issue #2834.
 RESPONSE_SCALE_LIKELIHOODS = frozenset(
     {"Normal", "StudentT", "TruncatedNormal", "Gamma"}
 )
@@ -188,6 +191,14 @@ class LinkSpec(ABC):
         The log link requires LogNormal so that the counterfactual
         decomposition (``exp(mu) - exp(mu - media)``) is correct.
 
+        The error message tells the reader to flip ``link`` and rebuild rather
+        than refit.  That works because the likelihood is handed the linear
+        predictor directly and ``inverse_link`` is never applied to it, so
+        ``link='identity'`` and ``link='log'`` with the same likelihood give
+        the same observed-variable graph and the same free variables.  Only
+        the ``*_original_scale`` Deterministics differ, so an existing
+        posterior is reinterpreted rather than invalidated.
+
         Parameters
         ----------
         link : LinkFunction
@@ -242,8 +253,9 @@ class LinkSpec(ABC):
 
         allowed = LINK_LIKELIHOODS.get(link, frozenset())
         if dist_name not in allowed:
+            name = dist_name or type(likelihood).__name__
             raise ValueError(
-                f"Likelihood '{dist_name}' is not compatible with link='{link.value}'. "
+                f"Likelihood '{name}' is not compatible with link='{link.value}'. "
                 f"Allowed likelihoods for link='{link.value}': {sorted(allowed)}. "
                 f"Using an incompatible likelihood will produce incorrect "
                 f"decomposition and optimisation results."
@@ -357,7 +369,14 @@ class LogLinkSpec(LinkSpec):
         target_scale: XTensorVariable,
         output_var: str = "y",
     ) -> None:
-        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``."""
+        """Register counterfactual ``total_media_contribution_original_scale`` and ``{output_var}_original_scale``.
+
+        The counterfactual ``exp(mu) - exp(mu - media)`` is a median-scale
+        delta for whatever variable the likelihood puts ``mu`` on.  Under a
+        ``Censored(LogNormal)`` likelihood that is the latent uncensored
+        variable, so the result describes unconstrained demand rather than the
+        observed clipped response.
+        """
         mu_media = channel_contribution.sum(dim="channel")
         y_hat = ptxm.exp(mu_var) * target_scale
         y_hat_no_media = ptxm.exp(mu_var - mu_media) * target_scale

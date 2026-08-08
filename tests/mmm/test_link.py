@@ -237,6 +237,13 @@ class TestLinkSpec:
             LinkFunction.LOG, Prior("LogNormal", sigma=1)
         )
 
+    def test_validate_likelihood_compat_log_unnamed_uses_class_name(self):
+        class Unnamed:
+            pass
+
+        with pytest.raises(ValueError, match="'Unnamed' is not compatible"):
+            LinkSpec.validate_likelihood_compatibility(LinkFunction.LOG, Unnamed())
+
     def test_validate_likelihood_compat_log_normal_raises(self):
         with pytest.raises(ValueError, match="not compatible"):
             LinkSpec.validate_likelihood_compatibility(
