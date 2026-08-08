@@ -375,9 +375,10 @@ class LogLinkSpec(LinkSpec):
         delta for whatever variable the likelihood puts ``mu`` on.  Under a
         ``Censored(LogNormal)`` likelihood that is the latent uncensored
         variable, so the result describes unconstrained demand rather than the
-        observed clipped response.  Censoring at zero does not reach this
-        code: :meth:`LogLinkSpec.validate_target` rejects any non-positive
-        target first, so the threshold has to be positive.
+        observed clipped response.  Note that
+        :meth:`LogLinkSpec.validate_target` rejects any non-positive target,
+        so the zero-inflated data that left-censoring at zero is meant for
+        cannot be fitted under this link at all.
         """
         mu_media = channel_contribution.sum(dim="channel")
         y_hat = ptxm.exp(mu_var) * target_scale
