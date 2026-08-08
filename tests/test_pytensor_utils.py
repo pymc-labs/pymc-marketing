@@ -22,7 +22,7 @@ import pandas as pd
 import pymc as pm
 import pytest
 import xarray as xr
-from pymc.model.fgraph import fgraph_from_model
+from pymc.model.fgraph import fgraph_from_model, model_from_fgraph
 from pytensor import function
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -548,11 +548,13 @@ def test_prefix_model_exclude_none_renames_vars_dims_and_coords():
     fg, _ = fgraph_from_model(m, inlined_views=True)
     fg2 = _prefix_model(fg, prefix="pfx", exclude_vars=None)
 
-    # Variable names should be prefixed
-    out_names = {v.name for v in fg2.outputs}
-    assert any(name.startswith("pfx_") for name in out_names)
+    # Names/dims are authoritative on the ModelVar ops (pymc >= 6.2, see
+    # pymc#8340), so assert on the rebuilt model rather than fgraph var names.
+    m2 = model_from_fgraph(fg2, mutate_fgraph=True)
+    assert "pfx_x" in m2.named_vars
+    assert "x" not in m2.named_vars
+    assert dict(m2.named_vars_to_dims)["pfx_x"] == ["pfx_d"]
 
     # Dims/coords should be prefixed too
-    coords_keys = set(fg2._coords.keys())  # type: ignore[attr-defined]
-    assert "pfx_d" in coords_keys
-    assert "d" not in coords_keys
+    assert "pfx_d" in m2.coords
+    assert "d" not in m2.coords
