@@ -43,14 +43,13 @@ import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
-from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
 from pymc_marketing.customer_choice._choice_helpers import (
     halton_draws,
     non_centered_normal,
 )
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import ModelBuilder
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
@@ -903,28 +902,19 @@ class BayesianBLP(ModelBuilder):
                 self.idata = prior_pred
         return prior_pred
 
-    def fit(
-        self,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs,
-    ) -> xr.DataTree:
-        """Fit by sampling the joint posterior with NUTS."""
-        if not hasattr(self, "model"):
-            self.build_model()
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config, progressbar, random_seed, **kwargs
-        )
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-            idata.attrs["pymc_marketing_version"] = __version__
-            self.set_idata_attrs(idata)
-        if self.idata is None:
-            self.idata = idata
-        else:
-            self.idata.update(idata)
-        self.is_fitted_ = True
-        return self.idata
+    #: The demand-side Deterministics (``s_inside``, ``delta``, ``xi``) span the full
+    #: market panel and are memory-heavy on large datasets, so keep them streaming
+    #: draw-by-draw out of the sampler rather than recomputing them vectorized.
+    _recompute_deterministics = False
+
+    def create_fit_data_group(self) -> xr.Dataset | None:
+        """Omit the ``fit_data`` group.
+
+        ``BayesianBLP`` does not support save/load round-trips (see
+        ``_SAVE_LOAD_NOT_IMPLEMENTED``), so there is no reconstruction path that
+        would consume a serialised copy of ``market_data``.
+        """
+        return None
 
     _SAVE_LOAD_NOT_IMPLEMENTED = (
         "BayesianBLP v1 does not support save/load round-trips. The model "

@@ -78,8 +78,9 @@ def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
 def set_idata(model):
     """Part of basic fit method for CLVModel."""
     model.set_idata_attrs(model.idata)
-    if model.data is not None:
-        model._add_fit_data_group(model.data)
+    fit_data = model.create_fit_data_group()
+    if fit_data is not None:
+        model.idata["/fit_data"] = fit_data
 
 
 def create_mock_fit(params: dict[str, float]):
@@ -105,10 +106,12 @@ def create_mock_fit(params: dict[str, float]):
     return mock_fit
 
 
-def mock_fit_MAP(self, *args, **kwargs):
-    draws = 1
-    chains = 1
-    idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)
+def mock_fit_map(self, fit_kwargs=None, map_kwargs=None):
+    """Stand in for `ModelFitter._fit_map`, which takes its kwargs as dicts."""
+    merged = {**(fit_kwargs or {}), **(map_kwargs or {})}
+    # `draws`/`chains` are fixed below; anything else is harmless to `mock_sample`.
+    passthrough = {k: v for k, v in merged.items() if k not in ("draws", "chains")}
+    idata = mock_sample(**passthrough, chains=1, draws=1, model=self.model)
 
     return idata.sel(chain=[0], draw=[0])
 

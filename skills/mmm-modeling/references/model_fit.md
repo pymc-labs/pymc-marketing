@@ -100,8 +100,8 @@ print(summary[["r_hat", "ess_bulk", "ess_tail"]].describe())
 Visual check for chain mixing:
 
 ```python
-az.plot_trace(
-    data=mmm.fit_result,
+az.plot_trace_dist(
+    mmm.fit_result,
     var_names=["intercept", "saturation_beta", "adstock_alpha", "saturation_lam"],
     compact=True,
 )

@@ -172,6 +172,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html
 :::
+
+:::{grid-item-card} Calibrating an MMM with ROAS Estimates
+:img-top: ../gallery/images/mmm_roas_calibration.png
+:link: ../notebooks/mmm/mmm_roas_calibration.html
+:::
 ::::
 
 ### Time-Varying Parameters
@@ -234,6 +239,16 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Funnel-Aware MMM: Upper to Lower-Funnel Mediation via a custom `MuEffect`
 :img-top: ../gallery/images/mmm_funnel_mueffect.png
 :link: ../notebooks/mmm/mmm_funnel_mueffect.html
+:::
+
+:::{grid-item-card} Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend
+:img-top: ../gallery/images/mmm_funnel_mueffect_advanced.png
+:link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
+:::
+
+:::{grid-item-card} Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
+:img-top: ../gallery/images/mmm_brand_metrics_long_term.png
+:link: ../notebooks/mmm/mmm_brand_metrics_long_term.html
 :::
 
 :::{grid-item-card} Causal Reasoning and Discovery

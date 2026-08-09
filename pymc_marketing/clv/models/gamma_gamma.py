@@ -184,7 +184,8 @@ class BaseGammaGammaModel(CLVModel):
         Parameters
         ----------
         transaction_model : ~CLVModel
-            Predictive model for future transactions. `BetaGeoModel` and `ParetoNBDModel` are currently supported.
+            Predictive model for future transactions. `BetaGeoModel`,
+            `ModifiedBetaGeoModel`, and `ParetoNBDModel` are currently supported.
         data : ~pandas.DataFrame
             DataFrame containing the following columns:
 
@@ -259,6 +260,7 @@ class GammaGammaModel(BaseGammaGammaModel):
 
         import pandas as pd
         import pymc as pm
+        from pymc_extras.prior import Prior
 
         data = pd.DataFrame(
                 {
@@ -270,9 +272,9 @@ class GammaGammaModel(BaseGammaGammaModel):
         model = GammaGammaModel(
             ),
             model_config={
-                "p": {"dist": "HalfNormal", kwargs: {}},
-                "q": {"dist": "HalfStudentT", kwargs: {"nu": 4, "sigma": 10}},
-                "v": {"dist": "HalfCauchy", kwargs: {"beta": 1}},
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4, sigma=10),
+                "v": Prior("HalfCauchy", beta=1),
             },
             sampler_config={
                 "draws": 1000,
@@ -325,7 +327,6 @@ class GammaGammaModel(BaseGammaGammaModel):
     ):
         super().__init__(model_config=model_config, sampler_config=sampler_config)
 
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
     def _validate_data(self, data: pandas.DataFrame) -> None:
         """Validate Gamma-Gamma-specific data requirements."""
         self._validate_cols(
@@ -333,6 +334,9 @@ class GammaGammaModel(BaseGammaGammaModel):
             required_cols=["customer_id", "monetary_value", "frequency"],
             must_be_unique=["customer_id"],
         )
+        self._validate_frequency(data)
+        if (data["monetary_value"] <= 0).any():
+            raise ValueError("Column monetary_value contains zeroes or negative values")
 
     def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
@@ -403,6 +407,8 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
     .. code-block:: python
 
         import pymc as pm
+        from pymc_extras.prior import Prior
+
         from pymc_marketing.clv import GammaGammaModelIndividual
 
         model = GammaGammaModelIndividual(
@@ -413,9 +419,9 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
                 }
             ),
             model_config={
-                "p": {dist: 'HalfNorm', kwargs: {}},
-                "q": {dist: 'HalfStudentT', kwargs: {"nu": 4, "sigma": 10}},
-                "v": {dist: 'HalfCauchy', kwargs: {}},
+                "p": Prior("HalfNormal"),
+                "q": Prior("HalfStudentT", nu=4, sigma=10),
+                "v": Prior("HalfCauchy", beta=1),
             },
             sampler_config={
                 "draws": 1000,
@@ -471,6 +477,10 @@ class GammaGammaModelIndividual(BaseGammaGammaModel):
         self._validate_cols(
             data, required_cols=["customer_id", "individual_transaction_value"]
         )
+        if (data["individual_transaction_value"] <= 0).any():
+            raise ValueError(
+                "Column individual_transaction_value contains zeroes or negative values"
+            )
 
     def build_model(self, data: pandas.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
