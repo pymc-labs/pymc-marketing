@@ -286,9 +286,7 @@ def _create_dim_variable(
     Whatever cannot take that route -- a distribution ``pymc.dims`` does not
     implement (``DiracDelta`` before pymc 6.2, ``Wald``, ...) or a custom
     factory written against the ``create_variable(name)`` signature -- gets a
-    regular variable wrapped with ``pmd.as_xtensor``. The wrap is applied to
-    the finished variable, not to a supported prior, so it does not
-    reintroduce the two-step conversion pattern for the general case.
+    regular variable wrapped with ``pmd.as_xtensor``.
     """
     if not _supports_xdist(prior):
         return pmd.as_xtensor(prior.create_variable(name), dims=prior.dims or ())
