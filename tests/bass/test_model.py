@@ -20,12 +20,13 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor
 import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import BaseModel, ConfigDict
-from pymc_extras.prior import Censored, Prior, Scaled
+from pymc_extras.prior import Censored, MuAlreadyExistsError, Prior, Scaled
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
@@ -622,6 +623,167 @@ class TestBassModel:
             assert "innovators" in prior_samples["prior"]
             assert "imitators" in prior_samples["prior"]
             assert "peak" in prior_samples["prior"]
+
+
+class TestBassModelXdistFallbacks:
+    """The pymc.dims migration must not narrow what create_bass_model accepts."""
+
+    @pytest.fixture
+    def coords(self) -> dict[str, Any]:
+        return {"T": np.arange(5), "product": ["A", "B"]}
+
+    def test_censored_likelihood_without_observed(self, coords: dict[str, Any]) -> None:
+        """A Censored likelihood must still build for prior predictive only."""
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Censored(Prior("Normal", sigma=1), lower=0),
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert "y" in model.named_vars
+        assert model.named_vars_to_dims["y"] == ("T",)
+
+    def test_mu_on_likelihood_without_observed_raises(
+        self, coords: dict[str, Any]
+    ) -> None:
+        """Setting mu on the likelihood is a misconfiguration, with or without data."""
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Normal", mu=5, sigma=1),
+        }
+
+        with pytest.raises(MuAlreadyExistsError):
+            create_bass_model(
+                t=coords["T"], observed=None, priors=priors, coords=coords
+            )
+
+    def test_prior_missing_from_pymc_dims(self, coords: dict[str, Any]) -> None:
+        """A distribution pymc.dims does not implement falls back to as_xtensor."""
+        assert not hasattr(pmd, "Wald"), "pick another unsupported distribution"
+
+        priors = {
+            "m": Prior("Wald", mu=1000.0, lam=1.0),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson"),
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert "m" in model.named_vars
+
+    def test_variable_factory_without_xdist_kwarg(self, coords: dict[str, Any]) -> None:
+        """A VariableFactory written against create_variable(name) still works."""
+
+        class ConstantFactory:
+            dims = ()
+
+            def create_variable(self, name: str):
+                return pm.Deterministic(name, pt.as_tensor(1000.0))
+
+        priors = {
+            "m": ConstantFactory(),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson"),
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert "m" in model.named_vars
+
+
+class TestBassModelDims:
+    """Dim names and ordering of the deterministics and the likelihood."""
+
+    def test_deterministics_keep_likelihood_only_dims(self) -> None:
+        """Pooled p, q, m with a dimmed likelihood: the curves stay per-product."""
+        coords = {"T": np.arange(5), "product": ["A", "B"]}
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson", dims=("product",)),
+        }
+        observed = np.ones((5, 2))
+
+        model = create_bass_model(
+            t=coords["T"], observed=observed, priors=priors, coords=coords
+        )
+
+        for name in ["adopters", "innovators", "imitators"]:
+            assert model.named_vars_to_dims[name] == ("T", "product")
+
+    def test_combined_dims_follow_declaration_order(self) -> None:
+        """Dim order comes from the priors, not from set iteration order."""
+        coords = {
+            "T": np.arange(4),
+            "country": ["a", "b"],
+            "product": ["x", "y", "z"],
+        }
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200, dims=("country", "product")),
+            "p": Prior("Beta", alpha=1.5, beta=20, dims=("country", "product")),
+            "q": Prior("Beta", alpha=2, beta=5, dims=("country", "product")),
+            "likelihood": Prior("Poisson"),
+        }
+        observed = np.ones((4, 2, 3))
+
+        model = create_bass_model(
+            t=coords["T"], observed=observed, priors=priors, coords=coords
+        )
+
+        assert model.named_vars_to_dims["adopters"] == ("T", "country", "product")
+        assert model.named_vars_to_dims["y"] == ("T", "country", "product")
+
+    def test_observed_is_labelled_with_its_own_dims(self) -> None:
+        """The same data in two layouts must give the same logp.
+
+        ``combined_dims`` need not match the layout of ``observed``, so labelling
+        the axes with it transposes the data without saying so.
+        """
+        coords = {
+            "T": np.arange(4),
+            "country": ["a", "b"],
+            "product": ["x", "y", "z"],
+        }
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200, dims=("product", "country")),
+            "p": Prior("Beta", alpha=1.5, beta=20, dims=("product", "country")),
+            "q": Prior("Beta", alpha=2, beta=5, dims=("product", "country")),
+            "likelihood": Prior("Poisson"),
+        }
+        counts = xr.DataArray(
+            np.arange(24, dtype=float).reshape(4, 2, 3),
+            dims=("T", "country", "product"),
+            coords=coords,
+        )
+
+        logps = []
+        for dims in [("T", "country", "product"), ("T", "product", "country")]:
+            with pm.Model(coords=coords) as model:
+                y_obs = pm.Data("y_obs", counts.transpose(*dims).values, dims=dims)
+                create_bass_model(
+                    t=coords["T"],
+                    observed=y_obs,
+                    priors=priors,
+                    coords=coords,
+                    model=model,
+                )
+            logps.append(model.point_logps()["y"])
+
+        assert logps[0] == logps[1]
 
 
 def test_derivative() -> None:
