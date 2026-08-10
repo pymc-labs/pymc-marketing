@@ -599,3 +599,33 @@ def test_fit_recovers_known_effects():
     assert 0.05 < mean_abs_pred < 10.0, (
         f"Predictions off the expected scale: mean|pred|={mean_abs_pred:.4f}"
     )
+
+
+@pytest.mark.parametrize("legacy_key", ["dist", "distribution"])
+def test_pie_model_rejects_legacy_dict_prior(legacy_key) -> None:
+    """A legacy dict-format prior gets the migration hint at construction.
+
+    `PIEModel.__init__` passes `model_config` straight to `super().__init__`,
+    which never calls `parse_model_config`. Without an explicit call the dict
+    survives init and fails much later with an opaque error.
+    """
+    from pymc_marketing.model_config import ModelConfigError
+
+    with pytest.raises(ModelConfigError, match=r"use pymc_extras\.prior\.Prior"):
+        PIEModel(
+            pre_determined_features=PRE,
+            post_determined_features=POST,
+            model_config={"sigma": {legacy_key: "HalfNormal", "kwargs": {"sigma": 1}}},
+        )
+
+
+def test_pie_model_default_config_parses() -> None:
+    """The defaults survive `parse_model_config` untouched."""
+    model = PIEModel(
+        pre_determined_features=PRE,
+        post_determined_features=POST,
+    )
+
+    assert isinstance(model.model_config["sigma"], Prior)
+    assert model.model_config["bart"]["m"] == 200
+    assert model.model_config["categorical_split"] == "onehot"

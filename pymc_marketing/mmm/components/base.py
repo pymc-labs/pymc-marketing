@@ -201,15 +201,7 @@ class Transformation:
 
     @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
-        priors = priors or {}
-
-        non_distributions = [
-            key
-            for key, value in priors.items()
-            if not isinstance(value, Prior) and not isinstance(value, dict)
-        ]
-
-        priors = parse_model_config(priors, non_distributions=non_distributions)
+        priors = parse_model_config(priors or {})
         self._function_priors = {**deepcopy(self.default_priors), **priors}
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
