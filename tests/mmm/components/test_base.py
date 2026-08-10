@@ -304,6 +304,23 @@ def test_sample_prior_mixed_constant_and_prior(new_transformation_class) -> None
     np.testing.assert_allclose(prior["new_b"].values, 3.0)
 
 
+def test_sample_prior_constant_with_unknown_dims(new_transformation_class) -> None:
+    """A dims-carrying constant needs its coords, and says so.
+
+    Without the check, PyMC raises a bare ``KeyError``; the ``Prior`` path
+    raises an actionable ``ValueError`` for the same mistake.
+    """
+    transformation = new_transformation_class(
+        priors={
+            "a": as_xtensor(np.array([1.0, 2.0, 3.0]), dims=("channel",)),
+            "b": pt.as_tensor_variable(0.5),
+        }
+    )
+
+    with pytest.raises(ValueError, match=r"Missing: \['channel'\]"):
+        transformation.sample_prior()
+
+
 def create_curve(coords) -> xr.DataArray:
     size = [len(values) for values in coords.values()]
     dims = list(coords.keys())

@@ -15,6 +15,7 @@ import inspect
 
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -124,8 +125,6 @@ def test_geometric_adstock_sample_prior_constant_alpha() -> None:
     ``GeometricAdstock.sample_prior`` must not raise when ``alpha`` is provided
     as a constant tensor rather than a Prior distribution.
     """
-    import pytensor.tensor as pt
-
     alpha = pt.as_tensor_variable([0.5, 0.3, 0.2])
     adstock = GeometricAdstock(l_max=4, priors={"alpha": alpha})
     coords = {"channel": ["A", "B", "C"]}
