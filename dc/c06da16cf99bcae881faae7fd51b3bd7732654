@@ -1,0 +1,24 @@
+docs/source/notebooks/mmm/dev/data/audience_overlap_matrix.csv
+  h_d36ca8649a0e95 1-8
+docs/source/notebooks/mmm/dev/data/campaign_cumulative_reach.csv
+  h_d36ca8649a0e95 1-121
+docs/source/notebooks/mmm/dev/data/campaign_daily_metrics.csv
+  h_d36ca8649a0e95 1-841
+docs/source/notebooks/mmm/dev/data/ground_truth_campaign_contributions.csv
+  h_d36ca8649a0e95 1-121
+docs/source/notebooks/mmm/dev/data/mmm_input_data.csv
+  h_d36ca8649a0e95 1-121
+docs/source/notebooks/mmm/dev/mmm_credibility_disaggregation.ipynb
+  h_d36ca8649a0e95 1-1820
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "dcc06da16cf99bcae881faae7fd51b3bd7732654",
+  "prompts": {},
+  "humans": {
+    "h_d36ca8649a0e95": {
+      "author": "Carlos Trujillo <carlangastr@gmail.com>"
+    }
+  }
+}
