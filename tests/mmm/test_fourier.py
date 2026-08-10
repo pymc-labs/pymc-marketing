@@ -660,8 +660,8 @@ def test_fourier_to_dict(name, cls, days_in_period) -> None:
             "days_in_period": days_in_period,
             "prefix": "fourier",
             "prior": {
-                "dist": "Laplace",
-                "kwargs": {"b": 1, "mu": 0},
+                "dist": "Normal",
+                "kwargs": {"mu": 0, "sigma": 1},
                 "dims": ["fourier"],
             },
             "variable_name": "fourier_beta",

@@ -1632,7 +1632,7 @@ class MMM(RegressionModelBuilder):
                 "Normal", mu=0, sigma=2, dims=(*self.dims, "control")
             ),
             "gamma_fourier": Prior(
-                "Laplace", mu=0, b=1, dims=(*self.dims, "fourier_mode")
+                "Normal", mu=0, sigma=1, dims=(*self.dims, "fourier_mode")
             ),
         }
 
@@ -2190,7 +2190,7 @@ class MMM(RegressionModelBuilder):
                 "adstock_alpha": Prior("Beta", alpha=1, beta=3),
                 "likelihood": Prior("Normal", sigma=Prior("HalfNormal", sigma=2)),
                 "gamma_control": Prior("Normal", mu=0, sigma=2, dims="control"),
-                "gamma_fourier": Prior("Laplace", mu=0, b=1, dims="fourier_mode"),
+                "gamma_fourier": Prior("Normal", mu=0, sigma=1, dims="fourier_mode"),
             }
 
             model = MMM(
