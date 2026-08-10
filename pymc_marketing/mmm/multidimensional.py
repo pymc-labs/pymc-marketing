@@ -27,8 +27,8 @@ import warnings
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
-    create_sample_kwargs,
 )
+from pymc_marketing.model_builder import create_sample_kwargs
 
 MultiDimensionalBudgetOptimizerWrapper = BudgetOptimizerWrapper
 

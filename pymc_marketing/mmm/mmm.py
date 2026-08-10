@@ -249,7 +249,7 @@ from pymc_marketing.mmm.utils import (
     add_noise_to_channel_allocation,
     create_zero_dataset,
 )
-from pymc_marketing.model_builder import RegressionModelBuilder
+from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
@@ -2091,8 +2091,11 @@ class MMM(RegressionModelBuilder):
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | pd.DataFrame | xr.DataArray | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> xr.DataTree:
         """Fit the model and inject cost_per_unit metadata if provided.
@@ -2106,10 +2109,16 @@ class MMM(RegressionModelBuilder):
             Training input samples.
         y : pd.Series or xr.DataArray or np.ndarray or None
             Target values.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Whether to show the progress bar.
         random_seed : RandomState, optional
             Random seed for reproducibility.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``
+            (e.g. ``{"draws": 1_000}``).
         **kwargs : Any
             Additional keyword arguments passed to the sampler.
 
@@ -2119,7 +2128,13 @@ class MMM(RegressionModelBuilder):
             Inference data of the fitted model.
         """
         idata = super().fit(
-            X, y, progressbar=progressbar, random_seed=random_seed, **kwargs
+            X,
+            y,
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
+            **kwargs,
         )
         if self._cost_per_unit_input is not None:
             self.set_cost_per_unit(self._cost_per_unit_input)
@@ -3329,14 +3344,26 @@ class MMM(RegressionModelBuilder):
         data: pd.DataFrame,
         calibration_data: pd.DataFrame,
         name_prefix: str = "cpt_calibration",
+        *,
+        target_column: str = "cost_per_target",
+        target_per_cost: bool = False,
     ) -> Self:
-        """Calibrate cost-per-target using an observed Normal likelihood.
+        """Calibrate cost-per-target (or ROAS) using an observed Normal likelihood.
 
-        This computes cost-per-target as
+        By default this computes cost-per-target as
         ``mean(spend) / mean(contribution)`` over the date dimension and adds
         an observed ``Normal`` likelihood for each calibration row:
 
         ``Normal(mu=cpt_mean, sigma=sigma, observed=target)``
+
+        Set ``target_per_cost=True`` to flip the ratio to
+        ``mean(contribution) / mean(spend)``, which is ROAS when the target is
+        revenue (or conversions per dollar when the target is conversions).
+
+        The numerator and denominator are meaned separately because the ratio of
+        means is the definition of the aggregate cost-per-target (or ROAS) over
+        the period; averaging per-date ratios would estimate a different
+        quantity.
 
         Parameters
         ----------
@@ -3348,14 +3375,20 @@ class MMM(RegressionModelBuilder):
             DataFrame with rows specifying calibration targets. Must include:
 
             - ``channel``: channel name in ``self.channel_columns``
-            - ``cost_per_target``: desired CPT value
+            - the column named by the ``target_column`` argument (default
+              ``"cost_per_target"``): the CPT (or ROAS) value to calibrate to
             - ``sigma``: accepted deviation; larger => weaker penalty
 
             and one column per dimension in ``self.dims``.
-        cpt_variable_name : str
-            Name for the cost-per-target Deterministic in the model.
         name_prefix : str
             Prefix to use for generated potential names.
+        target_column : str
+            Column in ``calibration_data`` holding the calibration values.
+            Defaults to ``"cost_per_target"``.
+        target_per_cost : bool
+            If ``False`` (default), calibrate ``mean(spend) / mean(contribution)``
+            (cost-per-target). If ``True``, calibrate
+            ``mean(contribution) / mean(spend)`` (target-per-cost, e.g. ROAS).
 
         Examples
         --------
@@ -3382,6 +3415,27 @@ class MMM(RegressionModelBuilder):
                 calibration_data=calibration_df,
                 name_prefix="cpt_calibration",
             )
+
+        Calibrate ROAS instead, using experiment-derived estimates:
+
+        .. code-block:: python
+
+            roas_df = pd.DataFrame(
+                {
+                    "channel": ["C1", "C2"],
+                    "geo": ["US", "US"],
+                    "roas": [3.5, 2.0],
+                    "sigma": [0.3, 0.2],
+                }
+            )
+
+            mmm.add_cost_per_target_calibration(
+                data=spend_df,
+                calibration_data=roas_df,
+                name_prefix="roas_calibration",
+                target_column="roas",
+                target_per_cost=True,
+            )
         """
         if not hasattr(self, "model"):
             raise RuntimeError("Model must be built before adding calibration.")
@@ -3399,6 +3453,8 @@ class MMM(RegressionModelBuilder):
         # Validate required columns in calibration_data
         if "channel" not in calibration_data.columns:
             raise KeyError("'channel' column missing in calibration_data")
+        if target_column not in calibration_data.columns:
+            raise KeyError(f"{target_column!r} column missing in calibration_data")
         for dim in self.dims:
             if dim not in calibration_data.columns:
                 raise KeyError(
@@ -3443,7 +3499,9 @@ class MMM(RegressionModelBuilder):
             model=self.model,
             cost_value=as_xtensor(spend_xarray),
             target_value=self.model["channel_contribution_original_scale"],
+            target_column=target_column,
             name_prefix=name_prefix,
+            target_per_cost=target_per_cost,
         )
 
         return self
@@ -3702,49 +3760,6 @@ class MMM(RegressionModelBuilder):
         self.idata.attrs["cost_per_unit"] = cost_per_unit.to_json(
             orient="split", date_format="iso"
         )
-
-
-def create_sample_kwargs(
-    sampler_config: dict[str, Any] | None,
-    progressbar: bool | None,
-    random_seed: RandomState | None,
-    **kwargs,
-) -> dict[str, Any]:
-    """Create the dictionary of keyword arguments for `pm.sample`.
-
-    Parameters
-    ----------
-    sampler_config : dict | None
-        The configuration dictionary for the sampler. If None, defaults to an empty dict.
-    progressbar : bool, optional
-        Whether to show the progress bar during sampling. Defaults to True.
-    random_seed : RandomState, optional
-        The random seed for the sampler.
-    **kwargs : Any
-        Additional keyword arguments to pass to the sampler.
-
-    Returns
-    -------
-    dict
-        The dictionary of keyword arguments for `pm.sample`.
-    """
-    # Ensure sampler_config is a dictionary
-    sampler_config = sampler_config.copy() if sampler_config is not None else {}
-
-    # Handle progress bar configuration
-    sampler_config["progressbar"] = (
-        progressbar
-        if progressbar is not None
-        else sampler_config.get("progressbar", True)
-    )
-
-    # Add random seed if provided
-    if random_seed is not None:
-        sampler_config["random_seed"] = random_seed
-
-    # Update with additional keyword arguments
-    sampler_config.update(kwargs)
-    return sampler_config
 
 
 class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):

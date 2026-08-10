@@ -16,13 +16,12 @@
 from __future__ import annotations
 
 import os
-import warnings
 from pathlib import Path
 
 import pandas as pd
 import xarray as xr
 
-from pymc_marketing.mmm.builders.factories import build, resolve
+from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
 from pymc_marketing.mmm.mmm import MMM
 
@@ -63,11 +62,10 @@ def _apply_and_validate_calibration_steps(
                 "supported via YAML configuration yet."
             )
 
-        resolved_kwargs = (
-            {key: resolve(value) for key, value in step.params.items()}
-            if step.params is not None
-            else {}
-        )
+        resolved_kwargs = {}
+        for key, value in (step.params or {}).items():
+            with naming(f"{step.method_name}.{key}"):
+                resolved_kwargs[key] = resolve(value)
 
         try:
             method(**resolved_kwargs)
@@ -121,9 +119,7 @@ def build_mmm_from_yaml(
     model_spec = cfg.model.model_dump(by_alias=True)
     model_spec["kwargs"] = {**model_spec.get("kwargs", {}), **(model_kwargs or {})}
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=DeprecationWarning)
-        model = build(model_spec)
+    model = build(model_spec)
 
     # 2 -- resolve covariates / target
     data_cfg = cfg.data
