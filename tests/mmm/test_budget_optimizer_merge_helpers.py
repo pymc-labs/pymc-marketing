@@ -96,7 +96,8 @@ def build_pymc_model(n_periods: int = 2) -> pm.Model:
             "channel_contribution", channel_data * beta, dims=("date", "channel")
         )
         sigma = pmd.HalfNormal("sigma", 0.2)
-        pmd.Normal("y", mu=mu, sigma=sigma, observed=np.zeros(n_periods), dims="date")
+        observed = xr.DataArray(np.zeros(n_periods), dims=("date",))
+        pmd.Normal("y", mu=mu, sigma=sigma, observed=observed, dims="date")
     return model
 
 
