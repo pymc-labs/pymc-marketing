@@ -20,7 +20,6 @@ from pymc_marketing.mmm.additive_effect import (
     MediaMuEffect,
 )
 from pymc_marketing.mmm.budget_optimizer import (
-    BudgetOptimizationResult,
     BudgetOptimizer,
     merge_inference_data,
     merge_models_and_idata,
@@ -95,7 +94,6 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BinomialAdstock",
-    "BudgetOptimizationResult",
     "BudgetOptimizer",
     "BudgetOptimizerWrapper",
     "ControlMuEffect",

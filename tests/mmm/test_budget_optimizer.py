@@ -24,7 +24,6 @@ from xarray import DataArray
 
 from pymc_marketing.mmm import MMM
 from pymc_marketing.mmm.budget_optimizer import (
-    BudgetOptimizationResult,
     BudgetOptimizer,
     CustomModelWrapper,
     MinimizeException,
@@ -605,11 +604,11 @@ def test_allocate_budget_custom_response_constraint(
 
 
 @pytest.mark.parametrize(
-    "callback, total_budget",
+    "callback, total_budget, expected_return_length",
     [
         # Basic cases
-        (False, 100),  # Default behavior - no callback
-        (True, 100),  # With callback
+        (False, 100, 2),  # Default behavior - no callback
+        (True, 100, 3),  # With callback
     ],
     ids=[
         "default_no_callback",
@@ -620,6 +619,7 @@ def test_callback_functionality_parametrized(
     mmm_wrapper,
     callback,
     total_budget,
+    expected_return_length,
 ):
     """Test callback functionality with various parameter combinations."""
     optimizer = BudgetOptimizer(
@@ -633,13 +633,12 @@ def test_callback_functionality_parametrized(
         callback=callback,
     )
 
-    # The result always unpacks to two elements regardless of callback
-    assert isinstance(result, BudgetOptimizationResult)
-    assert len(list(result)) == 2
+    # Check return length
+    assert len(result) == expected_return_length
 
     if callback:
-        optimal_budgets, opt_result = result
-        callback_info = result.callback_info
+        # Unpack with callback
+        optimal_budgets, opt_result, callback_info = result
 
         # Verify callback info structure
         assert isinstance(callback_info, list)
@@ -669,7 +668,6 @@ def test_callback_functionality_parametrized(
     else:
         # Unpack without callback
         optimal_budgets, opt_result = result
-        assert result.callback_info is None
 
     # Common checks
     assert isinstance(optimal_budgets, xr.DataArray)
@@ -678,40 +676,6 @@ def test_callback_functionality_parametrized(
 
     # Check budget allocation sums to total
     assert np.abs(optimal_budgets.sum().item() - total_budget) < 1e-3
-
-
-def test_allocate_budget_result_object(mmm_wrapper):
-    """allocate_budget returns a BudgetOptimizationResult with stable attributes."""
-    optimizer = BudgetOptimizer(
-        model=mmm_wrapper,
-        num_periods=30,
-        response_variable="total_media_contribution_original_scale",
-    )
-
-    result = optimizer.allocate_budget(total_budget=100)
-
-    assert isinstance(result, BudgetOptimizationResult)
-    assert isinstance(result.budgets, xr.DataArray)
-    assert hasattr(result.scipy_result, "x")
-    assert result.optimized_vars == {}
-    assert result.callback_info is None
-
-    # Iteration contract: exactly (budgets, scipy_result)
-    unpacked = list(result)
-    assert len(unpacked) == 2
-    assert unpacked[0] is result.budgets
-    assert unpacked[1] is result.scipy_result
-
-
-def test_budget_optimizer_mu_effects_deprecated(mmm_wrapper):
-    """Passing mu_effects warns and is ignored."""
-    with pytest.warns(DeprecationWarning, match="no longer accepts mu_effects"):
-        BudgetOptimizer(
-            model=mmm_wrapper,
-            num_periods=30,
-            response_variable="total_media_contribution_original_scale",
-            mu_effects=[],
-        )
 
 
 @pytest.mark.parametrize(
