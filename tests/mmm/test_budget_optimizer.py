@@ -703,14 +703,14 @@ def test_callback_functionality_parametrized(
             {"channel_1": [0.3, 0.3, 0.3, 0.3], "channel_2": [0.25, 0.25, 0.25, 0.25]},
             4,
             True,
-            "budget_distribution_over_period must sum to 1 along the date dimension",
+            "budget_distribution_over_period must sum to 1 along the .date. dimension",
         ),
         # Invalid case: wrong number of periods
         (
             {"channel_1": [0.5, 0.5], "channel_2": [0.5, 0.5]},
             4,
             True,
-            "budget_distribution_over_period date dimension must have length 4",
+            "budget_distribution_over_period .date. dimension must have length 4",
         ),
     ],
     ids=[
