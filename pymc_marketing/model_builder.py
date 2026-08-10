@@ -17,17 +17,23 @@ import hashlib
 import json
 import warnings
 from abc import ABC, abstractmethod
-from functools import wraps
+from collections.abc import Callable
+from functools import cache, wraps
 from inspect import signature
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import xarray as xr
+from pymc.backends import NDArray
+from pymc.backends.base import MultiTrace
+from pymc.model.core import Model
 from pymc.util import RandomState
+from pymc.variational.callbacks import CheckParametersConvergence
+from pymc_extras.deserialize import DeserializableError, deserialize
 from pymc_extras.printing import model_table
 from rich.table import Table
 
@@ -50,33 +56,33 @@ except ImportError:
 
 
 def create_idata_accessor(value: str, message: str):
-    """Create a property accessor for an InferenceData object.
+    """Create a property accessor for a group of the model's DataTree.
 
-    Underlying object must have an InferenceData object attribute named 'idata'.
+    Underlying object must have a ``xr.DataTree`` attribute named 'idata'.
 
     Parameters
     ----------
     value : str
-        The value to access in the InferenceData object.
+        The group to access in the DataTree.
     message : str
-        The error message to raise if the value is not found in the InferenceData object.
+        The error message to raise if the group is not found in the DataTree.
 
     Returns
     -------
     property
-        The property accessor for the InferenceData object.
+        The property accessor for the DataTree group.
 
     """
 
     def accessor(self) -> xr.Dataset:
-        if self.idata is None or value not in self.idata:
+        if self.idata is None or value not in self.idata.children:
             raise RuntimeError(message)
 
-        return self.idata[value]
+        return self.idata[f"/{value}"].to_dataset()
 
     return property(
         accessor,
-        doc=f"Access the '{value}' attribute of the InferenceData object.",
+        doc=f"Access the '{value}' group of the DataTree.",
     )
 
 
@@ -143,7 +149,7 @@ class ModelIO:
 
     _model_type: str
     version: str
-    idata: az.InferenceData | None
+    idata: xr.DataTree | None
     sampler_config: dict
     model_config: dict
 
@@ -255,35 +261,33 @@ class ModelIO:
 
         return attrs
 
-    def set_idata_attrs(
-        self, idata: az.InferenceData | None = None
-    ) -> az.InferenceData:
-        """Set attributes on an InferenceData object.
+    def set_idata_attrs(self, idata: xr.DataTree | None = None) -> xr.DataTree:
+        """Set attributes on a DataTree object.
 
         Parameters
         ----------
-        idata : arviz.InferenceData, optional
-            The InferenceData object to set attributes on.
+        idata : xr.DataTree, optional
+            The DataTree object to set attributes on.
 
         Raises
         ------
         ValueError
             If the attrs are missing for a property initialization of the class
         RuntimeError
-            If no InferenceData object is provided.
+            If no DataTree object is provided.
 
         Returns
         -------
-        InferenceData
-            The InferenceData instance with the attrs set
+        DataTree
+            The DataTree instance with the attrs set
 
         Examples
         --------
-        Set the attrs for an InferenceData object manually.
+        Set the attrs for a DataTree object manually.
 
         .. code-block:: python
 
-            idata: az.InferenceData = ...
+            idata: xr.DataTree = ...
             model.set_idata_attrs(idata=idata)
 
         """
@@ -309,7 +313,7 @@ class ModelIO:
             raise ValueError(msg)
 
         init_parameters: set[str] = set(signature(self.__init__).parameters.keys())  # type: ignore
-        # Remove data attr since it will be stored in the fit_data group of InferenceData
+        # Remove data attr since it will be stored in the fit_data group of DataTree
         init_parameters -= {"data"}
 
         if missing_keys := init_parameters - attrs_keys:
@@ -330,7 +334,7 @@ class ModelIO:
         fname : str
             The name and path of the file to save the inference data with model parameters.
         **kwargs
-            Additional keyword arguments to pass to arviz.InferenceData.to_netcdf().
+            Additional keyword arguments to pass to xr.DataTree.to_netcdf().
             Common options include:
 
             - ``engine`` : str, optional (default ``"netcdf4"``)
@@ -374,10 +378,22 @@ class ModelIO:
         """
         if self.idata is not None and "posterior" in self.idata:
             file = Path(str(fname))
+            groups = kwargs.pop("groups", None)
+            idata_to_save = self.idata
+            if groups is not None:
+                groups_with_slash = {
+                    g if g.startswith("/") else f"/{g}" for g in groups
+                }
+                nodes_to_drop = [
+                    node[1:]
+                    for node in self.idata.groups
+                    if node != "/" and node not in groups_with_slash
+                ]
+                idata_to_save = self.idata.drop_nodes(nodes_to_drop)
             if file.suffix == ".zarr" or file.is_dir():
-                idata_to_zarr(self.idata, file, **kwargs)
+                idata_to_zarr(idata_to_save, file, **kwargs)
             else:
-                self.idata.to_netcdf(str(file), **kwargs)
+                idata_to_save.to_netcdf(str(file), **kwargs)
         else:
             raise RuntimeError("The model hasn't been fit yet, call .fit() first")
 
@@ -386,16 +402,42 @@ class ModelIO:
         """Format the model configuration.
 
         Recursively processes the config dict.  Dicts with a ``__type__`` key
-        are deserialized via the TypeRegistry.  Plain lists are converted back
-        to tuples (for ``dims``) or numpy arrays (everything else) to undo the
-        JSON round-trip.
+        are deserialized via the TypeRegistry.  Prior specs (``dist``) and
+        wrapper factories that are not registered in the TypeRegistry
+        (e.g. ``Censored``, which serializes to a ``class``/``data`` pair) are
+        rebuilt via the pymc-extras deserializer.  Plain lists are converted
+        back to tuples (for ``dims``) or numpy arrays (everything else) to undo
+        the JSON round-trip.
         """
         from pymc_marketing.serialization import serialization
+
+        def _looks_like_prior_spec(value: Any) -> bool:
+            return isinstance(value, dict) and (
+                isinstance(value.get("dist"), str)
+                or (isinstance(value.get("class"), str) and "data" in value)
+            )
 
         def _format(d: dict) -> dict:
             for key, value in d.items():
                 if isinstance(value, dict) and "__type__" in value:
                     d[key] = serialization.deserialize(value)
+                # Must precede the generic dict branch: recursing first would
+                # rebuild the nested ``dist`` and leave the wrapper unreadable.
+                elif _looks_like_prior_spec(value):
+                    try:
+                        d[key] = deserialize(value)
+                    except DeserializableError as err:
+                        # ``deserialize`` raises this for two different
+                        # situations. With ``__cause__`` unset, no registered
+                        # deserializer matched, so this is an unrelated config
+                        # mapping that merely uses these keys: recurse rather
+                        # than making the whole model unloadable. With
+                        # ``__cause__`` set, a deserializer did match and its
+                        # ``from_dict`` failed, which is a real error and must
+                        # not be silently downgraded to a raw dict.
+                        if err.__cause__ is not None:
+                            raise
+                        d[key] = _format(value)
                 elif isinstance(value, dict):
                     d[key] = _format(value)
                 elif isinstance(value, list):
@@ -421,16 +463,16 @@ class ModelIO:
         }
 
     @classmethod
-    def idata_to_init_kwargs(cls, idata: az.InferenceData) -> dict[str, Any]:
-        """Create  the model configuration and sampler configuration from the InferenceData to keyword arguments.
+    def idata_to_init_kwargs(cls, idata: xr.DataTree) -> dict[str, Any]:
+        """Create  the model configuration and sampler configuration from the DataTree to keyword arguments.
 
         This method must be overridden in child classes to add additional keyword arguments.
         """
         return cls.attrs_to_init_kwargs(idata.attrs)
 
     @abstractmethod
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Build the model from the InferenceData object."""
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build the model from the DataTree object."""
 
     @classmethod
     def load(cls, fname: str, check: bool = True):
@@ -440,17 +482,17 @@ class ModelIO:
 
         This class method has a few steps:
 
-        - Load the InferenceData from the file.
-        - Construct a new instance of the model using the InferenceData attrs
-        - Build the model from the InferenceData
-        - Check if the model id matches the id in the InferenceData loaded.
+        - Load the DataTree from the file.
+        - Construct a new instance of the model using the DataTree attrs
+        - Build the model from the DataTree
+        - Check if the model id matches the id in the DataTree loaded.
 
         Parameters
         ----------
         fname : string
             This denotes the name with path from where idata should be loaded from.
         check : bool, optional
-            Whether to check if the model id matches the id in the InferenceData loaded.
+            Whether to check if the model id matches the id in the DataTree loaded.
             Defaults to True.
 
         Returns
@@ -476,34 +518,34 @@ class ModelIO:
         if filepath.suffix == ".zarr" or filepath.is_dir():
             idata = idata_from_zarr(filepath)
         else:
-            idata = az.from_netcdf(str(filepath))
+            idata = xr.open_datatree(str(filepath))
 
         try:
             return cls.load_from_idata(idata, check=check)
         except DifferentModelError as e:
             error_msg = (
                 f"The file '{fname}' does not contain "
-                "an InferenceData of the same model "
+                "a DataTree of the same model "
                 f"or configuration as '{cls._model_type}'"
             )
             raise DifferentModelError(error_msg) from e
 
     @classmethod
-    def load_from_idata(cls, idata: az.InferenceData, check: bool = True) -> "ModelIO":
-        """Create a ModelBuilder instance from an InferenceData object.
+    def load_from_idata(cls, idata: xr.DataTree, check: bool = True) -> "ModelIO":
+        """Create a ModelBuilder instance from a DataTree object.
 
         This class method has a few steps:
 
-        - Construct a new instance of the model using the InferenceData attrs
-        - Build the model from the InferenceData
-        - Check if the model id matches the id in the InferenceData loaded.
+        - Construct a new instance of the model using the DataTree attrs
+        - Build the model from the DataTree
+        - Check if the model id matches the id in the DataTree loaded.
 
         Parameters
         ----------
-        idata : az.InferenceData
-            The InferenceData object to load the model from.
+        idata : xr.DataTree
+            The DataTree object to load the model from.
         check : bool, optional
-            Whether to check if the model id matches the id in the InferenceData loaded.
+            Whether to check if the model id matches the id in the DataTree loaded.
             Defaults to True.
 
         Returns
@@ -514,14 +556,12 @@ class ModelIO:
         Raises
         ------
         DifferentModelError
-            If the model id in the InferenceData does not match the model id built.
+            If the model id in the DataTree does not match the model id built.
 
         """
         init_kwargs = cls.idata_to_init_kwargs(idata)
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            model = cls(**init_kwargs)
+        model = cls(**init_kwargs)
 
         model.idata = idata
         if "fit_data" in idata:
@@ -545,7 +585,7 @@ class ModelIO:
             loaded_version := idata.attrs["version"]
         ):
             msg = (
-                f"The model version ({loaded_version}) in the InferenceData does not "
+                f"The model version ({loaded_version}) in the DataTree does not "
                 f"match the model version ({model_version}). "
                 "There was no error loading the inference data, but the model structure "
                 "is different. "
@@ -554,7 +594,7 @@ class ModelIO:
 
         if model.id != idata.attrs["id"]:
             msg = (
-                "The model id in the InferenceData does not match the model id. "
+                "The model id in the DataTree does not match the model id. "
                 "There was no error loading the inference data, but the model may "
                 "be different. "
                 "Investigate if the model structure or configuration has changed."
@@ -564,14 +604,540 @@ class ModelIO:
         return model
 
 
-class ModelBuilder(ABC, ModelIO):
+#: Sampling methods supported by :meth:`ModelFitter.fit`.
+SamplingMethod = Literal["mcmc", "map", "demz", "advi", "fullrank_advi"]
+
+_APPROX_METHODS: tuple[str, ...] = ("advi", "fullrank_advi")
+
+#: ``fit`` keyword arguments that belong to ``Approximation.sample`` rather than ``pymc.fit``.
+_APPROX_SAMPLE_KEYS: tuple[str, ...] = ("draws", "return_inferencedata")
+
+#: Keys that only apply when ``pm.sample`` picks its own NUTS stepper. Passing them
+#: alongside an explicit ``step`` makes ``pm.sample`` raise, so the gradient-free path
+#: has to drop them.
+_NUTS_ONLY_KEYS: tuple[str, ...] = ("target_accept", "nuts", "nuts_sampler", "init")
+
+#: ``sampler_config`` keys the MAP path picks up. These are the settings that mean the
+#: same thing to every method; the rest of a typical config (``draws``, ``tune``,
+#: ``chains``, ``target_accept``) is MCMC-only and has no ``find_MAP`` analogue, so it is
+#: dropped without a warning -- the user never typed those keys for this fit.
+_MAP_CONFIG_KEYS: tuple[str, ...] = ("progressbar", "random_seed")
+
+#: Groups derived from a particular posterior. Dropped before merging a new fit into an
+#: existing ``idata`` so a refit cannot leave e.g. MCMC ``sample_stats`` attached to a
+#: MAP posterior. ``prior``/``prior_predictive`` are posterior-independent and survive.
+_POSTERIOR_DERIVED_GROUPS: tuple[str, ...] = (
+    "sample_stats",
+    "log_likelihood",
+    "posterior_predictive",
+    "predictions",
+    "warmup_posterior",
+    "warmup_sample_stats",
+    "unconstrained_posterior",
+)
+
+
+@cache
+def _approx_fit_parameters() -> set[str]:
+    """Collect the keyword arguments accepted by the variational fitting stack.
+
+    ``pymc.fit`` forwards ``**kwargs`` down to ``Inference.fit`` and from there to
+    ``ObjectiveFunction.step_function``, so the accepted names are spread across three
+    signatures. Deriving them keeps the filter correct as PyMC evolves, instead of
+    hard-coding a list that silently goes stale.
+
+    Returns
+    -------
+    set of str
+        Names accepted somewhere in the ``pymc.fit`` call chain. Cached, so callers
+        must treat it as read-only.
+
+    """
+    from pymc.variational.inference import Inference
+    from pymc.variational.opvi import ObjectiveFunction
+
+    names: set[str] = set()
+    for func in (pm.fit, Inference.fit, ObjectiveFunction.step_function):
+        names.update(
+            name
+            for name, param in signature(func).parameters.items()
+            if param.kind not in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
+            and name != "self"
+        )
+    return names
+
+
+@cache
+def _map_incompatible_parameters() -> set[str]:
+    """Collect ``pm.sample`` parameter names that ``pm.find_MAP`` does not accept.
+
+    ``find_MAP`` forwards unknown keyword arguments to ``scipy.optimize.minimize``,
+    so an MCMC key such as ``draws`` surfaces as an opaque scipy ``TypeError``.
+    Deriving the incompatible names from the two signatures lets the MAP path strip
+    them with a clear warning instead.
+
+    Returns
+    -------
+    set of str
+        Names accepted by ``pm.sample`` but not by ``pm.find_MAP``. Cached, so callers
+        must treat it as read-only.
+
+    """
+
+    def named(func: Callable) -> set[str]:
+        return {
+            name
+            for name, param in signature(func).parameters.items()
+            if param.kind not in (param.VAR_POSITIONAL, param.VAR_KEYWORD)
+        }
+
+    return named(pm.sample) - named(pm.find_MAP)
+
+
+def _normalize_map_seed(random_seed: RandomState) -> int | None:
+    """Convert a ``fit(random_seed=...)`` value into the int ``pm.find_MAP`` accepts.
+
+    Returns
+    -------
+    int or None
+        An integer seed, or ``None`` (with a warning) when the value cannot be
+        converted -- so unsupported seed types are surfaced instead of silently
+        leaving the MAP optimization unseeded.
+
+    """
+    if isinstance(random_seed, (int, np.integer)):
+        return int(random_seed)
+    if isinstance(random_seed, np.random.Generator):
+        return int(random_seed.integers(2**32))
+    if isinstance(random_seed, np.random.RandomState):
+        return int(random_seed.randint(2**31))
+    warnings.warn(
+        f"random_seed of type {type(random_seed).__name__} is not supported with "
+        "method='map' and was ignored; pass an int or numpy Generator instead.",
+        UserWarning,
+        stacklevel=4,
+    )
+    return None
+
+
+class ModelFitter:
+    """Mixin providing a unified fitting API for all PyMC-Marketing models.
+
+    Owns the whole fit pipeline: model preparation, sampler dispatch, deterministic
+    recomputation, ``idata`` merging, and the ``fit_data`` group. Subclasses customize
+    behaviour through the hooks below rather than by reimplementing :meth:`fit`.
+
+    Hooks
+    -----
+    _prepare_fit
+        Resolve input data and ensure ``self.model`` exists.
+    create_fit_data_group
+        Build the ``fit_data`` group, or return ``None`` to omit it.
+    _get_sampling_model
+        Return the model actually handed to the sampler (e.g. with frozen dims).
+    post_sample_model_transformation
+        Run after sampling, before the ``idata`` is assembled.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        class MyModel(ModelBuilder): ...
+
+
+        model = MyModel()
+        idata = model.fit(data, method="mcmc")
+
+    """
+
+    # Attributes supplied by the host class.
+    model: pm.Model
+    idata: xr.DataTree | None
+    sampler_config: dict
+    is_fitted_: bool
+
+    #: When True, sample the free RVs only and recompute deterministics vectorized
+    #: afterwards. Set to False on models whose deterministics are large enough that the
+    #: vectorized recompute would spike transient memory.
+    _recompute_deterministics: bool = True
+
+    def _prepare_fit(self, data: Any = None) -> None:
+        """Resolve the input data and make sure a model is built.
+
+        Parameters
+        ----------
+        data : Any, optional
+            Data passed to :meth:`fit`. ``None`` means "use whatever the instance
+            already holds". The base implementation cannot route data anywhere, so
+            it raises rather than silently fitting stale data; subclasses that accept
+            data through :meth:`fit` must override this hook.
+
+        """
+        if data is not None:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not accept `data` through `fit()`; "
+                "override `_prepare_fit` to support it."
+            )
+        if not hasattr(self, "model"):
+            self.build_model()  # type: ignore[attr-defined]
+
+    def create_fit_data_group(self) -> xr.Dataset | None:
+        """Build the ``fit_data`` group stored alongside the posterior.
+
+        Returns
+        -------
+        xr.Dataset or None
+            The training data as a Dataset, or ``None`` to omit the group entirely.
+
+        """
+        data = getattr(self, "data", None)
+        if data is None:
+            return None
+        if isinstance(data, pd.DataFrame):
+            return data.to_xarray()
+        return data
+
+    def _get_sampling_model(self) -> pm.Model:
+        """Return the model handed to the sampler."""
+        return self.model
+
+    def post_sample_model_transformation(self) -> None:
+        """Perform transformation on the model after sampling."""
+
+    def _sample_with_deterministics(
+        self,
+        sampler_kwargs: dict[str, Any],
+        step_factory: Callable[[], Any] | None = None,
+    ) -> xr.DataTree:
+        """Sample, optionally deferring deterministics to a vectorized recompute.
+
+        Computing deterministics inside the sampling loop is wasteful for models with
+        large deterministic nodes, and is redundant work for the JAX/nutpie backends.
+        Sampling the free RVs alone and recomputing afterwards yields identical values.
+
+        Parameters
+        ----------
+        sampler_kwargs : dict
+            Keyword arguments for ``pm.sample``.
+        step_factory : callable, optional
+            Builds the step method. Called inside the sampling model's context so the
+            step is bound to the same model instance that is sampled -- overrides of
+            ``_get_sampling_model`` may return a fresh object on every call.
+
+        """
+        model = self._get_sampling_model()
+        with model:
+            kwargs = dict(sampler_kwargs)
+            if step_factory is not None:
+                kwargs["step"] = step_factory()
+
+            if not self._recompute_deterministics or not model.deterministics:
+                return pm.sample(**kwargs)
+
+            var_names = [var.name for var in model.free_RVs]
+            idata = pm.sample(var_names=var_names, **kwargs)
+            idata["/posterior"] = pm.compute_deterministics(
+                idata["/posterior"], merge_dataset=True
+            )
+        return idata
+
+    def _fit_mcmc(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:
+        """Fit a model with NUTS."""
+        return self._sample_with_deterministics(sampler_kwargs)
+
+    def _fit_demz(self, sampler_kwargs: dict[str, Any]) -> xr.DataTree:
+        """Fit a model with the DEMetropolisZ gradient-free sampler."""
+        kwargs = {k: v for k, v in sampler_kwargs.items() if k not in _NUTS_ONLY_KEYS}
+
+        if removed := sorted(set(sampler_kwargs) - set(kwargs)):
+            warnings.warn(
+                "The following keyword arguments only apply to NUTS and were "
+                f"removed before sampling with 'demz': {removed}.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        return self._sample_with_deterministics(kwargs, step_factory=pm.DEMetropolisZ)
+
+    def _fit_map(
+        self,
+        fit_kwargs: dict[str, Any],
+        map_kwargs: dict[str, Any] | None = None,
+    ) -> xr.DataTree:
+        """Find the model maximum a posteriori using a scipy optimizer.
+
+        Parameters
+        ----------
+        fit_kwargs : dict
+            Keyword arguments collected by :meth:`fit`, in ``pm.sample`` naming.
+            ``random_seed`` is translated to ``find_MAP``'s ``seed``; anything else
+            ``find_MAP`` cannot accept is dropped with a warning.
+        map_kwargs : dict, optional
+            Passed straight through to ``pm.find_MAP``, after the filtering above. The
+            escape hatch for names :meth:`fit` would otherwise shadow, notably
+            ``method`` (the scipy optimizer).
+
+        """
+        kwargs = dict(fit_kwargs)
+
+        # `random_seed` is `pm.sample`'s name for it, so it would otherwise be reported
+        # as incompatible below. Translate first and it never reaches the filter.
+        if (random_seed := kwargs.pop("random_seed", None)) is not None:
+            if (seed := _normalize_map_seed(random_seed)) is not None:
+                kwargs.setdefault("seed", seed)
+
+        if removed := sorted(set(kwargs) & _map_incompatible_parameters()):
+            warnings.warn(
+                "The following keyword arguments only apply to MCMC sampling and "
+                f"were removed before optimizing with 'map': {removed}.",
+                UserWarning,
+                stacklevel=2,
+            )
+            for key in removed:
+                kwargs.pop(key)
+
+        kwargs.update(map_kwargs or {})
+
+        model = self._get_sampling_model()
+        map_res = pm.find_MAP(model=model, **kwargs)
+        # Filter non-value variables
+        value_vars_names = set(v.name for v in cast(Model, model).value_vars)
+        map_res = {k: v for k, v in map_res.items() if k in value_vars_names}
+        # Convert map result to DataTree
+        map_strace = NDArray(model=model)
+        map_strace.setup(draws=1, chain=0)
+        try:
+            map_strace.record(map_res, in_warmup=False)
+        except TypeError:
+            map_strace.record(map_res)
+        map_strace.close()
+        trace = MultiTrace([map_strace])
+        return pm.to_inference_data(trace, model=model)
+
+    def _fit_approx(
+        self,
+        method: str = "advi",
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> tuple[Any, xr.DataTree]:
+        """Fit a model with variational inference and draw from the approximation.
+
+        Keyword arguments are split between ``pymc.fit`` and ``Approximation.sample``.
+        The accepted names are derived from the ``pymc.fit`` call chain rather than
+        hard-coded, and anything the variational stack cannot accept is reported in a
+        ``UserWarning`` instead of being dropped silently. This matters because
+        ``sampler_config`` is shared with the MCMC path and legitimately carries
+        MCMC-only keys such as ``tune`` and ``chains``.
+        """
+        config = self.sampler_config.copy() if self.sampler_config else {}
+        merged = {**config, **kwargs}
+
+        if merged.get("method") is not None:
+            raise ValueError(
+                "The 'method' parameter is set in sampler_config. "
+                f"Cannot be called with '{method}'."
+            )
+        if merged.get("chains", 1) > 1:
+            warnings.warn(
+                f"The 'chains' parameter must be 1 with '{method}'. "
+                "Sampling only 1 chain despite the provided parameter.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        _sample_kwargs: dict[str, Any] = {
+            k: merged[k] for k in _APPROX_SAMPLE_KEYS if k in merged
+        }
+        _sample_kwargs.update(sample_kwargs or {})
+
+        allowed = _approx_fit_parameters()
+        fit_kwargs = {
+            k: v
+            for k, v in merged.items()
+            if k in allowed and k not in _APPROX_SAMPLE_KEYS
+        }
+
+        # "chains" already has its own dedicated warning above.
+        if ignored := sorted(
+            set(merged)
+            - set(fit_kwargs)
+            - set(_APPROX_SAMPLE_KEYS)
+            - {"method", "chains"}
+        ):
+            warnings.warn(
+                f"The following keyword arguments are not accepted by '{method}' "
+                f"and will be ignored: {ignored}.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        if progressbar is not None:
+            fit_kwargs["progressbar"] = progressbar
+        if random_seed is not None:
+            fit_kwargs["random_seed"] = random_seed
+        # A seed supplied through sampler_config must make the approximation draws
+        # reproducible too, not just the optimization.
+        seed = random_seed if random_seed is not None else merged.get("random_seed")
+        if seed is not None:
+            _sample_kwargs.setdefault("random_seed", seed)
+
+        _sample_kwargs.setdefault("draws", 1_000)
+        fit_kwargs.setdefault(
+            "callbacks", [CheckParametersConvergence(diff="absolute")]
+        )
+
+        with self._get_sampling_model():
+            approx = pm.fit(method=method, **fit_kwargs)
+            return approx, approx.sample(**_sample_kwargs)
+
+    def fit(
+        self,
+        data: Any = None,
+        *,
+        method: SamplingMethod = "mcmc",
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
+        map_kwargs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> xr.DataTree:
+        """Infer the model posterior.
+
+        Sets attrs on the inference data of the model.
+
+        Parameters
+        ----------
+        data : Any, optional
+            Input data for model fitting. If ``None``, the data already held by the
+            instance is used. Models that do not override ``_prepare_fit`` raise a
+            ``NotImplementedError`` when data is passed here.
+        method : str
+            Method used to fit the model. Options are:
+
+            - ``"mcmc"``: Samples from the posterior via `pymc.sample` (default)
+            - ``"map"``: Finds maximum a posteriori via `pymc.find_MAP`
+            - ``"demz"``: Samples from the posterior via `pymc.sample` using DEMetropolisZ
+            - ``"advi"``: Samples via `pymc.fit(method="advi")` and `Approximation.sample`
+            - ``"fullrank_advi"``: As ``"advi"``, with a full-rank approximation
+
+            Note this selects the *sampler*, not ``pymc.find_MAP``'s ``method``
+            argument (the scipy optimizer). Use ``map_kwargs`` to reach the latter.
+        progressbar : bool, optional
+            Specifies whether the fit progress bar should be displayed. Defaults to True.
+        random_seed : RandomState, optional
+            Provides the sampler with an initial random seed for reproducible samples.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``
+            (e.g. ``{"draws": 1_000}``).
+        map_kwargs : dict, optional
+            Only used by ``method="map"``; forwarded to ``pymc.find_MAP`` after the
+            other keyword arguments have been filtered. Use it for names ``fit`` would
+            otherwise shadow, e.g. ``{"method": "Powell"}`` to pick the optimizer.
+        **kwargs : Any
+            Custom sampler settings, passed to the underlying PyMC routine.
+
+        Returns
+        -------
+        xr.DataTree
+            Inference data of the fitted model.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(data)
+            idata = model.fit(data, method="map")
+
+        """
+        self._prepare_fit(data)
+
+        approx = None
+        match method:
+            case "mcmc" | "demz":
+                sampler_kwargs = create_sample_kwargs(
+                    self.sampler_config,
+                    progressbar,
+                    random_seed,
+                    **kwargs,
+                )
+                idata = (
+                    self._fit_mcmc(sampler_kwargs)
+                    if method == "mcmc"
+                    else self._fit_demz(sampler_kwargs)
+                )
+            case "map":
+                config = self.sampler_config or {}
+                fit_kwargs: dict[str, Any] = {
+                    key: config[key] for key in _MAP_CONFIG_KEYS if key in config
+                }
+                fit_kwargs.update(kwargs)
+                if progressbar is not None:
+                    fit_kwargs["progressbar"] = progressbar
+                if random_seed is not None:
+                    fit_kwargs["random_seed"] = random_seed
+                idata = self._fit_map(fit_kwargs, map_kwargs=map_kwargs)
+            case method if method in _APPROX_METHODS:
+                approx, idata = self._fit_approx(
+                    method=method,
+                    progressbar=progressbar,
+                    random_seed=random_seed,
+                    sample_kwargs=sample_kwargs,
+                    **kwargs,
+                )
+            case _:
+                raise ValueError(
+                    "Fit method options are ['mcmc', 'map', 'demz', 'advi', "
+                    f"'fullrank_advi'], got: {method}"
+                )
+
+        if approx is not None:
+            self.approx = approx
+
+        self.post_sample_model_transformation()
+
+        if self.idata:
+            self.idata = self.idata.copy()
+            if stale := [
+                group
+                for group in _POSTERIOR_DERIVED_GROUPS
+                if group in self.idata.children
+            ]:
+                self.idata = self.idata.drop_nodes(stale)
+            self.idata.update(idata)
+        else:
+            self.idata = idata
+
+        self.idata["/posterior"].attrs["pymc_marketing_version"] = __version__
+
+        if "fit_data" in self.idata.children:
+            self.idata = self.idata.drop_nodes("fit_data")
+
+        fit_data = self.create_fit_data_group()
+        if fit_data is not None:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    category=UserWarning,
+                    message="The group fit_data is not defined in the DataTree scheme",
+                )
+                self.idata["/fit_data"] = fit_data
+
+        self.set_idata_attrs(self.idata)  # type: ignore[attr-defined]
+        self.is_fitted_ = True
+        return self.idata
+
+
+class ModelBuilder(ABC, ModelIO, ModelFitter):
     """Base class for building PyMC-Marketing models.
 
     Child classes must implement the following methods:
     - default_model_config: Returns a dictionary for default model configuration.
     - default_sampler_config: Returns a dictionary for default sampler configuration.
     - build_model: Builds the model based on the provided data and model configuration.
-    - build_from_idata: Builds the model from an InferenceData object. Needed for loading models.
+    - build_from_idata: Builds the model from a DataTree object. Needed for loading models.
     - fit: Fits the model based on the provided data and sampler configurations.
     - attrs_to_init_kwargs: Override to add additional init keyword arguments.
     - _serializable_model_config: Needed for saving and loading the model.
@@ -580,6 +1146,7 @@ class ModelBuilder(ABC, ModelIO):
 
     _model_type = "BaseClass"
     version = "None"
+    _skipped_config_keys: set[str] = set()
 
     def __init__(
         self,
@@ -593,6 +1160,8 @@ class ModelBuilder(ABC, ModelIO):
         model_config : Dictionary, optional
             dictionary of parameters that initialise model configuration.
             Class-default defined by the user default_model_config method.
+            A ``UserWarning`` is raised for any key not present in
+            ``default_model_config``, since such keys are ignored by the model.
         sampler_config : Dictionary, optional
             dictionary of parameters that initialise sampler configuration.
             Class-default defined by the user default_sampler_config method.
@@ -615,12 +1184,27 @@ class ModelBuilder(ABC, ModelIO):
         self.sampler_config = (
             self.default_sampler_config | sampler_config
         )  # Parameters for fit sampling
+        default_model_config = self.default_model_config
         self.model_config = (
-            self.default_model_config | model_config
+            default_model_config | model_config
         )  # parameters for priors etc.
 
+        # Warn about model_config keys that the model does not use, so that
+        # typos (e.g. "alphaa" instead of "alpha") don't silently get ignored.
+        unused_model_config_keys = (
+            set(model_config) - set(default_model_config) - self._skipped_config_keys
+        )
+        if unused_model_config_keys:
+            warnings.warn(
+                "The following model_config keys are not used by the model "
+                f"and will be ignored: {sorted(unused_model_config_keys)}. "
+                f"Valid keys are: {sorted(default_model_config)}.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         self.model: pm.Model
-        self.idata: az.InferenceData | None = None  # idata is generated during fitting
+        self.idata: xr.DataTree | None = None  # idata is generated during fitting
         self.is_fitted_ = False
 
     @property
@@ -708,23 +1292,6 @@ class ModelBuilder(ABC, ModelIO):
 
         """
 
-    # TODO: Convert from abstract method into a base fitter for all models.
-    @abstractmethod
-    def fit(
-        self,
-        **kwargs,
-    ) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
-
-        Sets attrs to inference data of the model.
-
-        Returns
-        -------
-        self : az.InferenceData
-            Returns inference data of the fitted model.
-
-        """
-
     @requires_model
     def graphviz(self, **kwargs):
         """Get the graphviz representation of the model.
@@ -764,7 +1331,7 @@ class ModelBuilder(ABC, ModelIO):
 
         Returns
         -------
-        InferenceData object.
+        DataTree object.
 
         """
         return create_idata_accessor(
@@ -772,27 +1339,36 @@ class ModelBuilder(ABC, ModelIO):
         ).__get__(self)
 
     @fit_result.setter
-    def fit_result(self, res: az.InferenceData) -> None:
+    def fit_result(self, res: xr.DataTree) -> None:
         """Create a setter method to overwrite the pre-existing fit_result.
 
         Parameters
         ----------
-        res : az.InferenceData
-            The inferencedata object to be set
-
-        Returns
-        -------
-        property
-            The property setter for the InferenceData object.
+        res : xr.DataTree
+            The DataTree object to be set
 
         """
         if self.idata is None:
             self.idata = res
-        elif "posterior" in self.idata:
-            warnings.warn("Overriding pre-existing fit_result", stacklevel=1)
-            self.idata.posterior = res
+        elif "posterior" in self.idata.children:
+            warnings.warn("Overriding pre-existing fit_result", stacklevel=2)
+            self.idata["/posterior"] = res["/posterior"].to_dataset()
         else:
-            self.idata.posterior = res
+            if "posterior" in res.children:
+                self.idata["/posterior"] = res["/posterior"].to_dataset()
+            else:
+                # ``res`` has no explicit posterior group (e.g. a flat DataTree
+                # built from a bare Dataset): flatten every group's variables
+                # into a single posterior Dataset, keeping the first occurrence
+                # of each variable name.
+                posterior_flat = xr.Dataset()
+                for g in res.groups:
+                    if g == "/":
+                        continue
+                    for var_name, var in res[g].dataset.variables.items():
+                        if var_name not in posterior_flat:
+                            posterior_flat[var_name] = var
+                self.idata["/posterior"] = posterior_flat
 
     prior = create_idata_accessor(
         "prior",
@@ -913,8 +1489,8 @@ class RegressionModelBuilder(ModelBuilder):
 
         """
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Build model from the InferenceData object.
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Build model from the DataTree object.
 
         This is part of the :func:`load` method. See :func:`load` for more larger context.
 
@@ -923,11 +1499,12 @@ class RegressionModelBuilder(ModelBuilder):
 
         Parameters
         ----------
-        idata : az.InferenceData
-            The InferenceData object to build the model from.
+        idata : xr.DataTree
+            The DataTree object to build the model from.
 
         """
-        dataset = idata.fit_data.to_dataframe()  # type: ignore
+        self.idata = idata
+        dataset = idata.fit_data.dataset.to_dataframe()  # type: ignore
         X = dataset.drop(columns=[self.output_var])
         y = dataset[self.output_var]
 
@@ -952,53 +1529,12 @@ class RegressionModelBuilder(ModelBuilder):
 
         return xr.merge([X, y])
 
-    def post_sample_model_transformation(self) -> None:
-        """Perform transformation on the model after sampling."""
-        pass
-
-    def _get_sampling_model(self) -> pm.Model:
-        return self.model
-
-    def fit(  # type: ignore[override]
+    def _validate_fit_inputs(
         self,
         X: pd.DataFrame | xr.Dataset | xr.DataArray,
         y: pd.Series | xr.DataArray | np.ndarray | None = None,
-        progressbar: bool | None = None,
-        random_seed: RandomState | None = None,
-        **kwargs: Any,
-    ) -> az.InferenceData:
-        """Fit a model using the data passed as a parameter.
-
-        Sets attrs to inference data of the model.
-
-        Parameters
-        ----------
-        X : array-like | array, shape (n_obs, n_features)
-            The training input samples. If scikit-learn is available, array-like, otherwise array.
-        y : array-like | array, shape (n_obs,)
-            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
-        progressbar : bool, optional
-            Specifies whether the fit progress bar should be displayed. Defaults to True.
-        random_seed : Optional[RandomState]
-            Provides sampler with initial random seed for obtaining reproducible samples.
-        **kwargs : Any
-            Custom sampler settings can be provided in form of keyword arguments.
-
-        Returns
-        -------
-        self : az.InferenceData
-            Returns inference data of the fitted model.
-
-        Examples
-        --------
-        .. code-block:: python
-
-            model = MyModel()
-            idata = model.fit(X, y)
-            Auto-assigning NUTS sampler...
-            Initializing NUTS using jitter+adapt_diag...
-
-        """
+    ) -> tuple[Any, Any]:
+        """Check the X/y pair and fill in a placeholder target when none is given."""
         if (
             isinstance(y, pd.Series)
             and isinstance(X, pd.DataFrame)
@@ -1014,51 +1550,78 @@ class RegressionModelBuilder(ModelBuilder):
                 f"X includes a column named '{self.output_var}', which conflicts with the target variable."
             )
 
+        return X, y
+
+    def _prepare_fit(self, data: Any = None) -> None:
+        """No-op: :meth:`fit` builds the model from the X/y pair before delegating."""
+
+    def create_fit_data_group(self) -> xr.Dataset | None:
+        """Return the ``fit_data`` group built by :meth:`fit` from the X/y pair."""
+        return getattr(self, "_fit_data_group", None)
+
+    def fit(  # type: ignore[override]
+        self,
+        X: pd.DataFrame | xr.Dataset | xr.DataArray,
+        y: pd.Series | xr.DataArray | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
+        progressbar: bool | None = None,
+        random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> xr.DataTree:
+        """Fit a model using the data passed as a parameter.
+
+        Thin wrapper around :meth:`ModelFitter.fit` supporting the X/y data convention.
+        Sets attrs to inference data of the model.
+
+        Parameters
+        ----------
+        X : array-like | array, shape (n_obs, n_features)
+            The training input samples. If scikit-learn is available, array-like, otherwise array.
+        y : array-like | array, shape (n_obs,)
+            The target values (real numbers). If scikit-learn is available, array-like, otherwise array.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``. See :meth:`ModelFitter.fit`.
+        progressbar : bool, optional
+            Specifies whether the fit progress bar should be displayed. Defaults to True.
+        random_seed : Optional[RandomState]
+            Provides sampler with initial random seed for obtaining reproducible samples.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
+        **kwargs : Any
+            Custom sampler settings can be provided in form of keyword arguments.
+
+        Returns
+        -------
+        self : xr.DataTree
+            Returns inference data of the fitted model.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            model = MyModel()
+            idata = model.fit(X, y)
+            Auto-assigning NUTS sampler...
+            Initializing NUTS using jitter+adapt_diag...
+
+        """
+        X, y = self._validate_fit_inputs(X, y)
+
         if not hasattr(self, "model"):
             self.build_model(X, y)
 
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
+        self._fit_data_group = self.create_fit_data(X, y)
+
+        return super().fit(
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
             **kwargs,
         )
-
-        sampling_model = self._get_sampling_model()
-
-        # Sample without deterministics first
-        var_names = [var.name for var in sampling_model.free_RVs]
-        with sampling_model:
-            idata = pm.sample(var_names=var_names, **sampler_kwargs)
-
-        # Compute deterministics after sampling
-        with sampling_model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
-
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
-        else:
-            self.idata = idata
-
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
-
-        fit_data = self.create_fit_data(X, y)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
 
     def predict(
         self,
@@ -1121,12 +1684,12 @@ class RegressionModelBuilder(ModelBuilder):
         *,
         fit_kwargs: dict[str, Any] | None = None,
         sample_kwargs: dict[str, Any] | None = None,
-    ) -> az.InferenceData:
-        """Fit a model using Variational Inference and return InferenceData.
+    ) -> xr.DataTree:
+        """Fit a model using Variational Inference and return a DataTree.
 
         This performs variational inference via `pymc.fit`, then draws posterior samples
         from the fitted approximation via `Approximation.sample`, returning an
-        `arviz.InferenceData` compatible with the rest of the API (same structure as `.fit`).
+        `xr.DataTree` compatible with the rest of the API (same structure as `.fit`).
 
         Parameters
         ----------
@@ -1145,84 +1708,30 @@ class RegressionModelBuilder(ModelBuilder):
 
         Returns
         -------
-        az.InferenceData
-            Inference data of the variationally fitted model.
+        xr.DataTree
+            DataTree of the variationally fitted model.
+
+        .. deprecated:: 1.0.0
+            Use ``fit(X, y, method="advi")`` instead.
         """
-        if (
-            isinstance(y, pd.Series)
-            and isinstance(X, pd.DataFrame)
-            and not X.index.equals(y.index)
-        ):
-            raise ValueError("Index of X and y must match.")
+        warnings.warn(
+            "`approximate_fit` is deprecated and will be removed in a future release. "
+            'Use `fit(X, y, method="advi")` instead.',
+            FutureWarning,
+            stacklevel=2,
+        )
+        _fit_kwargs = dict(fit_kwargs or {})
+        method = _fit_kwargs.pop("method", "advi")
 
-        if y is None:
-            y = np.zeros(X.shape[0])
-
-        if self.output_var in X:
-            raise ValueError(
-                f"X includes a column named '{self.output_var}', which conflicts with the target variable."
-            )
-
-        if not hasattr(self, "model"):
-            self.build_model(X, y)
-
-        # Prepare kwargs for pymc.fit
-        _fit_kwargs: dict[str, Any] = {}
-        if fit_kwargs is not None:
-            _fit_kwargs.update(fit_kwargs)
-        if progressbar is not None:
-            _fit_kwargs["progressbar"] = progressbar
-        if random_seed is not None:
-            _fit_kwargs["random_seed"] = random_seed
-
-        # Run variational inference and then sample from the approximation
-        with self.model:
-            approximation = pm.fit(**_fit_kwargs)
-
-            _sample_kwargs: dict[str, Any] = {}
-            if sample_kwargs is not None:
-                _sample_kwargs.update(sample_kwargs)
-            # Use sampler_config draws if not explicitly provided
-            _sample_kwargs.setdefault("draws", self.sampler_config.get("draws", 1_000))
-            if random_seed is not None:
-                _sample_kwargs.setdefault("random_seed", random_seed)
-            _sample_kwargs.setdefault("return_inferencedata", True)
-
-            idata: az.InferenceData = approximation.sample(**_sample_kwargs)  # type: ignore[assignment]
-
-        # Compute deterministics after sampling for parity with MCMC `.fit`
-        with self.model:
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
-
-        self.post_sample_model_transformation()
-
-        # Extend or set self.idata
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
-        else:
-            self.idata = idata
-
-        # Annotate, attach fit_data, and set attrs
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
-
-        fit_data = self.create_fit_data(X, y)
-
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
-
-        self.set_idata_attrs(self.idata)
-        return self.idata  # type: ignore
+        return self.fit(
+            X,
+            y,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            method=method,
+            sample_kwargs=sample_kwargs,
+            **_fit_kwargs,
+        )
 
     def sample_prior_predictive(
         self,
@@ -1268,22 +1777,25 @@ class RegressionModelBuilder(ModelBuilder):
             self.build_model(X, y)
 
         with self.model:  # sample with new input data
-            prior_pred: az.InferenceData = pm.sample_prior_predictive(samples, **kwargs)
-            prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
-            prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
+            prior_pred: xr.DataTree = pm.sample_prior_predictive(
+                draws=samples, **kwargs
+            )
+            prior_pred["/prior"].attrs["pymc_marketing_version"] = __version__
+            prior_pred["/prior_predictive"].attrs["pymc_marketing_version"] = (
+                __version__
+            )
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
-        prior_predictive_samples = az.extract(
-            prior_pred, "prior_predictive", combined=combined
+        result = az.extract(
+            prior_pred, "prior_predictive", combined=combined, keep_dataset=True
         )
-
-        return prior_predictive_samples
+        return result
 
     def sample_posterior_predictive(
         self,
@@ -1320,7 +1832,7 @@ class RegressionModelBuilder(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")  # type: ignore
+            self.idata.update(post_pred)  # type: ignore
 
         variable_name = (
             "predictions"
@@ -1328,7 +1840,10 @@ class RegressionModelBuilder(ModelBuilder):
             else "posterior_predictive"
         )
 
-        return az.extract(post_pred, variable_name, combined=combined)
+        result = az.extract(
+            post_pred, variable_name, combined=combined, keep_dataset=True
+        )
+        return result
 
     def predict_proba(
         self,

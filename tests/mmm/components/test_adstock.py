@@ -12,29 +12,23 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import inspect
-import warnings
 
 import numpy as np
 import pymc as pm
 import pytest
 import xarray as xr
 from pydantic import ValidationError
-from pymc_extras.deserialize import (
-    DESERIALIZERS,
-    register_deserialization,
-)
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
+from scipy import stats
 
 import pymc_marketing.mmm.components.adstock as adstock_module
 from pymc_marketing.mmm.components.adstock import (
-    ADSTOCK_TRANSFORMATIONS,
     AdstockTransformation,
     DelayedAdstock,
     GeometricAdstock,
     NoAdstock,
-    adstock_from_dict,
 )
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.serialization import serialization
@@ -47,12 +41,10 @@ ALL_ADSTOCK_CLASSES: list[type[AdstockTransformation]] = [
 
 
 def adstocks() -> list:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return [
-            pytest.param(adstock(l_max=10), id=name)
-            for name, adstock in ADSTOCK_TRANSFORMATIONS.items()
-        ]
+    return [
+        pytest.param(adstock_cls(l_max=10), id=adstock_cls.__name__)
+        for adstock_cls in ALL_ADSTOCK_CLASSES
+    ]
 
 
 @pytest.fixture
@@ -116,57 +108,6 @@ def test_adstock_sample_curve(adstock: AdstockTransformation) -> None:
     assert curve.shape == (1, 500, adstock.l_max)
 
 
-def test_adstock_from_dict() -> None:
-    data = {
-        "lookup_name": "geometric",
-        "l_max": 10,
-        "prefix": "test",
-        "mode": "Before",
-        "priors": {
-            "alpha": {
-                "dist": "Beta",
-                "kwargs": {
-                    "alpha": 1,
-                    "beta": 2,
-                },
-            },
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
-        adstock = adstock_from_dict(data)
-    assert adstock == GeometricAdstock(
-        l_max=10,
-        prefix="test",
-        priors={
-            "alpha": Prior("Beta", alpha=1, beta=2),
-        },
-        mode=ConvMode.Before,
-    )
-
-
-@pytest.mark.parametrize(
-    "lookup_name, adstock_cls",
-    list(ADSTOCK_TRANSFORMATIONS.items()),
-)
-def test_adstock_from_dict_without_priors(
-    lookup_name: str,
-    adstock_cls: type[AdstockTransformation],
-) -> None:
-    data = {
-        "lookup_name": lookup_name,
-        "l_max": 10,
-        "prefix": "test",
-        "mode": "Before",
-    }
-
-    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
-        adstock = adstock_from_dict(data)
-    assert adstock.default_priors == {
-        k: Prior.from_dict(v) for k, v in adstock.to_dict()["priors"].items()
-    }
-
-
 def test_repr() -> None:
     assert repr(GeometricAdstock(l_max=10)) == (
         "GeometricAdstock(prefix='adstock', l_max=10, "
@@ -175,52 +116,6 @@ def test_repr() -> None:
         "priors={'alpha': Prior(\"Beta\", alpha=1, beta=3)}"
         ")"
     )
-
-
-class ArbitraryObject:
-    def __init__(self, msg: str, value: int) -> None:
-        self.msg = msg
-        self.value = value
-        self.dims = ()
-
-    def create_variable(self, name: str):
-        return pm.Normal(name, mu=0, sigma=1)
-
-
-@pytest.fixture
-def register_arbitrary_deserialization():
-    register_deserialization(
-        lambda data: isinstance(data, dict) and data.keys() == {"msg", "value"},
-        lambda data: ArbitraryObject(**data),
-    )
-
-    yield
-
-    DESERIALIZERS.pop()
-
-
-def test_deserialization(
-    register_arbitrary_deserialization,
-) -> None:
-    data = {
-        "lookup_name": "geometric",
-        "prefix": "new",
-        "l_max": 10,
-        "priors": {
-            "alpha": {"msg": "hello", "value": 1},
-        },
-    }
-
-    with pytest.warns(FutureWarning, match="adstock_from_dict is deprecated"):
-        instance = adstock_from_dict(data)
-    assert isinstance(instance, GeometricAdstock)
-    assert instance.prefix == "new"
-    assert instance.l_max == 10
-
-    alpha = instance.function_priors["alpha"]
-    assert isinstance(alpha, ArbitraryObject)
-    assert alpha.msg == "hello"
-    assert alpha.value == 1
 
 
 class TestAdstockRoundtrips:
@@ -253,6 +148,189 @@ class TestAdstockRoundtrips:
         for prior_name, prior in custom_priors.items():
             assert restored.function_priors[prior_name] == prior
         assert restored == original
+
+
+class TestGeometricAdstockHalfLife:
+    """The half-life parametrisation replaces alpha with a prior on the half-life."""
+
+    def test_halflife_prior_implies_parametrization(self) -> None:
+        adstock = GeometricAdstock(
+            l_max=10, priors={"halflife": Prior("Gamma", mu=3, sigma=1)}
+        )
+
+        assert adstock.parametrization == "halflife"
+        assert adstock.function_priors == {"halflife": Prior("Gamma", mu=3, sigma=1)}
+        assert adstock.variable_mapping == {"halflife": "adstock_halflife"}
+        assert adstock.model_config == {
+            "adstock_halflife": Prior("Gamma", mu=3, sigma=1)
+        }
+
+    def test_parametrization_without_prior_uses_default(self) -> None:
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+
+        assert adstock.function_priors == GeometricAdstock.halflife_priors
+
+    def test_class_default_priors_unchanged(self) -> None:
+        GeometricAdstock(l_max=10, parametrization="halflife")
+
+        assert GeometricAdstock.default_priors == {
+            "alpha": Prior("Beta", alpha=1, beta=3)
+        }
+        assert GeometricAdstock(l_max=10).parametrization == "alpha"
+
+    def test_alpha_prior_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            GeometricAdstock(
+                l_max=10,
+                parametrization="halflife",
+                priors={"alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_halflife_prior_rejected(self) -> None:
+        """An explicit alpha parametrization is not silently overridden."""
+        with pytest.raises(
+            ValueError, match=r"Priors for 'halflife' are not used when.*'alpha'"
+        ):
+            GeometricAdstock(
+                l_max=10,
+                parametrization="alpha",
+                priors={"halflife": Prior("Gamma", mu=3, sigma=1)},
+            )
+
+    def test_both_priors_rejected(self) -> None:
+        """Neither prior is silently dropped when the parametrization is inferred.
+
+        Accepting both would ignore one of them and then serialise both
+        alongside the inferred parametrization, so that a constructible
+        transformation fails to deserialise.
+        """
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            GeometricAdstock(
+                l_max=10,
+                priors={
+                    "alpha": Prior("Beta", alpha=1, beta=3),
+                    "halflife": Prior("Gamma", mu=3, sigma=1),
+                },
+            )
+
+    def test_conflicting_prior_assignment_rejected(self) -> None:
+        """Assignment is the other route to a state that cannot be deserialised."""
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            adstock.function_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
+
+        assert adstock.function_priors == GeometricAdstock.halflife_priors
+
+    @pytest.mark.parametrize(
+        "quantile, tolerance",
+        [(0.05, 0.005), (0.25, 0.005), (0.5, 0.005), (0.75, 0.01), (0.95, 0.02)],
+    )
+    def test_default_prior_matches_alpha_default(
+        self, quantile: float, tolerance: float
+    ) -> None:
+        """The default half-life prior implies the default alpha prior.
+
+        Retuning either default should be a deliberate act, so pin the implied
+        quantiles of alpha against those of ``Beta(1, 3)``. Both are available in
+        closed form, since ``alpha = 0.5 ** (1 / h)`` is monotone in ``h``.
+        """
+        halflife_prior = GeometricAdstock.halflife_priors["halflife"]
+        assert halflife_prior.distribution == "InverseGamma"
+
+        halflife = stats.invgamma(
+            a=halflife_prior.parameters["alpha"],
+            scale=halflife_prior.parameters["beta"],
+        ).ppf(quantile)
+        implied_alpha = 0.5 ** (1 / halflife)
+
+        alpha_prior = GeometricAdstock.default_priors["alpha"]
+        assert alpha_prior.distribution == "Beta"
+
+        expected = stats.beta(
+            a=alpha_prior.parameters["alpha"], b=alpha_prior.parameters["beta"]
+        ).ppf(quantile)
+        assert implied_alpha == pytest.approx(expected, abs=tolerance)
+
+    def test_update_priors(self) -> None:
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+        prior = Prior("InverseGamma", alpha=4, beta=2)
+
+        adstock.update_priors({"adstock_halflife": prior})
+
+        assert adstock.function_priors["halflife"] == prior
+
+    @pytest.mark.parametrize("l_max", [10, 30], ids=["l_max=10", "l_max=30"])
+    @pytest.mark.parametrize("halflife", [2.0, 5.0, 8.0])
+    @pytest.mark.parametrize("normalize", [False, True], ids=["raw", "normalized"])
+    def test_halflife_exact_under_truncation(
+        self, model, l_max: int, halflife: float, normalize: bool
+    ) -> None:
+        """Truncation and normalization leave the weight ratio at one half."""
+        spike = as_xtensor(x, dims=("time",))
+
+        with model:
+            weights = (
+                GeometricAdstock(
+                    l_max=l_max, normalize=normalize, priors={"halflife": halflife}
+                )
+                .apply(spike, core_dim="time")
+                .eval()
+            )
+
+        assert weights[int(halflife)] / weights[0] == pytest.approx(0.5)
+
+    def test_function_requires_exactly_one_parameter(self) -> None:
+        adstock = GeometricAdstock(l_max=10)
+
+        with pytest.raises(ValueError, match="exactly one"):
+            adstock.function(as_xtensor(x, dims=("time",)), dim="time")
+
+    def test_matches_equivalent_alpha(self, model) -> None:
+        """A half-life of one period decays to alpha = 0.5 ** (1 / 1)."""
+        spike = as_xtensor(x, dims=("time",))
+
+        with model:
+            halflife = GeometricAdstock(l_max=20, priors={"halflife": 1.0}).apply(
+                spike, core_dim="time"
+            )
+            alpha = GeometricAdstock(l_max=20, priors={"alpha": 0.5}).apply(
+                spike, core_dim="time"
+            )
+
+        np.testing.assert_allclose(halflife.eval(), alpha.eval())
+
+    def test_sample_prior_and_curve(self) -> None:
+        adstock = GeometricAdstock(l_max=10, parametrization="halflife")
+
+        prior = adstock.sample_prior()
+        assert "adstock_halflife" in prior
+
+        curve = adstock.sample_curve(prior)
+        assert curve.shape == (1, 500, adstock.l_max)
+
+    def test_roundtrip(self) -> None:
+        original = GeometricAdstock(
+            l_max=7, priors={"halflife": Prior("Gamma", mu=3, sigma=1)}
+        )
+
+        data = serialization.serialize(original)
+        assert data["parametrization"] == "halflife"
+
+        restored = serialization.deserialize(data)
+        assert restored.parametrization == "halflife"
+        assert restored == original
+
+    def test_alpha_parametrization_not_serialized(self) -> None:
+        assert "parametrization" not in serialization.serialize(
+            GeometricAdstock(l_max=7)
+        )
 
 
 @pytest.mark.parametrize(

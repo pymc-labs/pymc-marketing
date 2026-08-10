@@ -27,8 +27,8 @@ msgstr "MVITS.create\\_idata\\_attrs"
 
 #: 4afae4b4dd71417bb43653a6b43a205c of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs:2
-msgid "Create the attributes for the InferenceData object."
-msgstr "Cree los atributos para el objeto InferenceData."
+msgid "Create the attributes for the DataTree object."
+msgstr "Cree los atributos para el objeto DataTree."
 
 #: d75cf2b71f5846db8a2bdf57c851abdc of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs
@@ -42,5 +42,5 @@ msgstr ":class:`python:dict`\\[:class:`python:str`, :class:`python:str`]"
 
 #: 77f9e0899e684debb9c3539167e55fdb of
 #: pymc_marketing.customer_choice.mv_its.MVITS.create_idata_attrs:11
-msgid "The attributes for the InferenceData object."
-msgstr "Los atributos del objeto InferenceData."
+msgid "The attributes for the DataTree object."
+msgstr "Los atributos del objeto DataTree."

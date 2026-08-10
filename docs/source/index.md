@@ -24,7 +24,8 @@ PyMC-Marketing is an open-source Python library for Bayesian marketing analytics
 :::{div} sd-text-center
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing)](https://pepy.tech/project/pymc-marketing)
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/month)](https://pepy.tech/project/pymc-marketing)
-[![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
+[![GitHub stars](https://img.shields.io/github/stars/pymc-labs/pymc-marketing?style=flat&logo=github&label=Stars)](https://github.com/pymc-labs/pymc-marketing)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/pymc-labs/pymc-marketing/blob/main/LICENSE)
 :::
 
 :::{div} sd-text-center sd-text-muted
@@ -47,7 +48,17 @@ Powered by
 :class: only-light
 :::
 
+## Trusted in production
+
+PyMC-Marketing is built and maintained by the **core developers of [PyMC](https://www.pymc.io)** — the Bayesian modeling library at the heart of the scientific Python stack. Data science teams use it to plan and defend real marketing budgets, with results validated against experiments and lift tests.
+
+:::{div} sd-text-center
+**750,000+ downloads** · **1,100+ GitHub stars** · **Apache-2.0 licensed** — free, open, and auditable
+:::
+
 ## Get started
+
+PyMC-Marketing is built on top of **PyMC >= 6.0** and **ArviZ >= 1.2**. Since PyMC >= 6, installing with pip is fully supported — no conda environment required (Python >= 3.12).
 
 ```bash
 pip install pymc-marketing
@@ -164,6 +175,10 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
 | Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                             |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
+| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
+| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
+
+Beyond short-term sales response, you can also measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
 
 ## Unlock Customer Lifetime Value (CLV) with PyMC
 
@@ -198,11 +213,26 @@ Analyze the impact of new product launches and understand customer choice behavi
 
 See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
 
+The customer choice module also includes a full family of **discrete choice and preference models**:
+
+- [Multinomial Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mnl_logit.html)
+- [Nested Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/nested_logit.html)
+- [Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mixed_logit.html)
+- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/consideration_set_logit.html)
+- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/maxdiff.html)
+- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp_nevo.html)
+
 ## Bass Diffusion Model
 
 Forecast the adoption of new products with the **Bass Diffusion Model**. The model captures how innovators and imitators drive cumulative adoption over time, which is useful for product launch forecasts, demand planning, and growth analysis.
 
 See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html) for a worked example.
+
+## Predicted Incrementality by Experimentation (PIE)
+
+Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomised experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did.
+
+The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. See the [PIE example notebook](https://www.pymc-marketing.io/en/stable/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
 ---
 

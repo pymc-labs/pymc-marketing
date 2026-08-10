@@ -67,6 +67,7 @@ from pymc_extras.prior import Prior
 from sklearn.preprocessing import LabelEncoder
 
 from pymc_marketing.model_builder import RegressionModelBuilder
+from pymc_marketing.model_config import parse_model_config
 
 try:
     import pymc_bart as pmb
@@ -220,6 +221,12 @@ class PIEModel(RegressionModelBuilder):
         sampler_config: dict | None = Field(None),
     ) -> None:
         super().__init__(model_config=model_config, sampler_config=sampler_config)
+
+        # Parse after merging with defaults, matching CLVModel. This is what
+        # rejects legacy dict-format priors with a migration hint; without it
+        # they fail much later with an opaque AttributeError.
+        self.model_config = parse_model_config(self.model_config)
+
         self.pre_determined_features = list(pre_determined_features)
         self.post_determined_features = list(post_determined_features)
         self.target_column = target_column
@@ -434,7 +441,7 @@ class PIEModel(RegressionModelBuilder):
         extend_idata: bool = True,
         combined: bool = True,
         **kwargs: Any,
-    ):
+    ) -> xr.Dataset:
         """Sample posterior predictive draws and return in the original target scale.
 
         Parameters
@@ -458,7 +465,11 @@ class PIEModel(RegressionModelBuilder):
         self._data_setter(X)
 
         with self.model:
-            post_pred = pm.sample_posterior_predictive(self.idata, **kwargs)
+            post_pred = pm.sample_posterior_predictive(
+                self.idata,
+                sample_vars=["bart", self.output_var],
+                **kwargs,
+            )
 
         variable_name = (
             "predictions" if kwargs.get("predictions") else "posterior_predictive"
@@ -468,9 +479,14 @@ class PIEModel(RegressionModelBuilder):
             group[self.output_var] = group[self.output_var] * self._target_scale
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")  # type: ignore[union-attr]
+            self.idata.update(post_pred)  # type: ignore[union-attr]
 
-        return az.extract(post_pred, variable_name, combined=combined)
+        return az.extract(
+            post_pred,
+            variable_name,
+            combined=combined,
+            keep_dataset=True,
+        )
 
     def predict_posterior(  # type: ignore[override]
         self,
@@ -513,7 +529,7 @@ class PIEModel(RegressionModelBuilder):
             )
         return posterior_predictive_samples[self.output_var]
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
+    def build_from_idata(self, idata: xr.DataTree) -> None:
         """Rebuild the model from saved inference data.
 
         Calls the inherited :meth:`RegressionModelBuilder.build_from_idata`

@@ -25,7 +25,7 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import BaseModel, ConfigDict
-from pymc_extras.prior import Prior, Scaled
+from pymc_extras.prior import Censored, Prior, Scaled
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
@@ -648,21 +648,16 @@ class TestBassModelClass:
         return np.random.default_rng(42).poisson(lam=100, size=20)
 
     @pytest.fixture
-    def fitted_model(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
-        model = BassModel()
-        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
-        return model
+    def multi_product_ds(self) -> xr.Dataset:
+        counts = np.random.default_rng(42).poisson(lam=100, size=(20, 3))
+        return xr.Dataset(
+            {"observed": (("T", "product"), counts)},
+            coords={"T": np.arange(20), "product": ["A", "B", "C"]},
+        )
 
     @pytest.fixture
-    def fitted_model_positive_m(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
-        model = BassModel(
-            model_config={
-                "m": Prior("Normal", mu=100, sigma=10),
-                "p": Prior("Beta", alpha=1.5, beta=20),
-                "q": Prior("Beta", alpha=2, beta=5),
-                "likelihood": Prior("Poisson"),
-            },
-        )
+    def fitted_model(self, mock_pymc_sample, y: np.ndarray) -> BassModel:
+        model = BassModel()
         model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
         return model
 
@@ -680,6 +675,104 @@ class TestBassModelClass:
         assert "draws" in config
         assert "tune" in config
         assert "chains" in config
+
+    def test_default_m_prior_has_positive_support(self):
+        """Market potential is a headcount, so ``m`` must never go negative."""
+        with pm.Model():
+            m = BassModel().default_model_config["m"].create_variable("m")
+            draws = pm.draw(m, draws=500, random_seed=42)
+
+        assert (draws > 0).all()
+
+    def test_initial_point_logp_is_finite(self, y: np.ndarray):
+        """Guard against a degenerate starting point.
+
+        An ``m`` prior whose support point is zero drives the Poisson mean to
+        zero, making the likelihood evaluate to ``-inf`` before sampling starts.
+        """
+        model = BassModel()
+        model.build_model(data=y)
+
+        logps = model.model.point_logps(model.model.initial_point())
+        assert np.isfinite(list(logps.values())).all(), logps
+
+    def test_fit_map(self, y: np.ndarray):
+        """MAP has no jitter to escape a degenerate initial point, unlike NUTS.
+
+        The estimate must land at the data's scale (~2000 cumulative adopters), which
+        catches an `m` posterior pinned to a mis-scaled prior rather than the data.
+        """
+        model = BassModel()
+        idata = model.fit(data=y, method="map")
+
+        assert "posterior" in idata
+        m_est = float(idata.posterior["m"].to_numpy().squeeze())
+        total = float(y.sum())
+        assert total / 4 < m_est < total * 4
+
+    @staticmethod
+    def _graph_m_sigma(model: BassModel) -> float:
+        """Read the `m` prior scale out of the built graph.
+
+        The rescale is applied per build and never written back to ``model_config``,
+        so the graph is the only place the resolved value can be observed.
+        """
+        return float(model.model["m"].owner.inputs[-1].eval())
+
+    def test_default_m_prior_is_data_scaled(self, y: np.ndarray):
+        """build_model rescales the default `m` prior to the observed adoptions."""
+        model = BassModel()
+        model.build_model(data=y)
+
+        assert self._graph_m_sigma(model) == pytest.approx(2 * float(y.sum()))
+
+    def test_m_rescale_does_not_mutate_model_config(self, y: np.ndarray):
+        """The rescale must not write back into the config it reads."""
+        model = BassModel()
+        model.build_model(data=y)
+
+        assert model.model_config["m"] == model.default_model_config["m"]
+
+    def test_m_prior_rescales_on_every_build(self, y: np.ndarray):
+        """A second fit must be scaled to the data it is actually looking at.
+
+        Persisting the resolved prior into `model_config` used to disarm the
+        is-this-still-the-default check, so the second dataset silently kept the
+        first one's scale.
+        """
+        model = BassModel()
+        big = y * 10
+
+        model.fit(data=y, method="map")
+        assert self._graph_m_sigma(model) == pytest.approx(2 * float(y.sum()))
+
+        model.fit(data=big, method="map")
+        assert self._graph_m_sigma(model) == pytest.approx(2 * float(big.sum()))
+
+    def test_user_m_prior_is_untouched(self, y: np.ndarray):
+        model = BassModel(model_config={"m": Prior("HalfNormal", sigma=123.0)})
+        model.build_model(data=y)
+
+        assert model.model_config["m"].parameters["sigma"] == 123.0
+        assert self._graph_m_sigma(model) == pytest.approx(123.0)
+
+    def test_m_prior_scale_survives_save_load(
+        self, mock_pymc_sample, y: np.ndarray, tmp_path
+    ):
+        """`load` must rebuild the same graph, and `id` must match either side.
+
+        `build_from_idata` recomputes the scale from `fit_data`, so the placeholder
+        stored in `model_config` is enough to reconstruct the fitted model.
+        """
+        model = BassModel()
+        model.fit(data=y)
+        file = tmp_path / "bass.nc"
+        model.save(file)
+
+        loaded = BassModel.load(file)
+
+        assert loaded.id == model.id
+        assert self._graph_m_sigma(loaded) == pytest.approx(self._graph_m_sigma(model))
 
     def test_build_model_from_array(self):
         y = np.random.default_rng(42).poisson(lam=100, size=20)
@@ -752,11 +845,16 @@ class TestBassModelClass:
     def test_fit_basic(self, fitted_model: BassModel):
         idata = fitted_model.idata
         assert "posterior" in idata
-        assert "fit_data" in idata.groups()
+        assert "/fit_data" in idata.groups
 
     def test_fit_deterministics(self, fitted_model: BassModel):
+        # Read through the public ``posterior`` accessor (the DataTree node),
+        # which is what the plotting methods use. Asserting against
+        # ``idata.posterior`` would pass even with the deterministics missing
+        # from the node, since under arviz>=1.2 a stray ``idata.posterior =``
+        # assignment leaves a shadowing attribute behind.
         for var in ["adopters", "innovators", "imitators", "peak"]:
-            assert var in fitted_model.idata.posterior, f"Missing deterministic: {var}"
+            assert var in fitted_model.posterior, f"Missing deterministic: {var}"
 
     def test_fit_with_dataframe(self, mock_pymc_sample):
         df = pd.DataFrame(
@@ -790,10 +888,116 @@ class TestBassModelClass:
     def test_output_var(self):
         assert BassModel().output_var == "y"
 
-    def test_posterior_predictive_in_sample(self, fitted_model_positive_m: BassModel):
-        with fitted_model_positive_m.model:
+    def test_save_load_round_trip(self, mock_pymc_sample, y: np.ndarray, tmp_path):
+        model = BassModel(model_config={"m": Prior("Normal", mu=2000, sigma=200)})
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        for key in ["m", "p", "q", "likelihood"]:
+            assert isinstance(loaded.model_config[key], Prior)
+        # Stronger than isinstance: catches parameters dropped in the round-trip.
+        assert loaded.model_config == model.model_config
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_save_load_round_trip_scaled_priors(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset, tmp_path
+    ):
+        model = BassModel(
+            model_config={
+                "m": Scaled(
+                    Prior("Gamma", mu=1, sigma=0.1, dims="product"), factor=50_000
+                ),
+                "p": Prior("Beta", mu=0.02, dims="product").constrain(
+                    lower=0.01, upper=0.03
+                ),
+                "q": Prior("Beta", dims="product").constrain(lower=0.3, upper=0.5),
+                "likelihood": Prior("NegativeBinomial", n=1.5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model_scaled.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        assert isinstance(loaded.model_config["m"], Scaled)
+        assert loaded.model_config["m"].factor == 50_000
+        assert isinstance(loaded.model_config["m"].dist, Prior)
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_save_load_round_trip_censored_priors(
+        self, mock_pymc_sample, y: np.ndarray, tmp_path
+    ):
+        """Censored is not in the TypeRegistry, so it round-trips via class/data.
+
+        Unlike Scaled it takes the ``to_dict()`` path rather than ``__type__``,
+        so it exercises a separate branch of ``_model_config_formatting``.
+        """
+        model = BassModel(
+            model_config={
+                "m": Censored(Prior("Normal", mu=2000, sigma=200), lower=0),
+            },
+        )
+        model.fit(data=y, draws=5, tune=5, chains=1, random_seed=42)
+
+        file = str(tmp_path / "bass_model_censored.nc")
+        model.save(file)
+        loaded = BassModel.load(file)
+
+        assert isinstance(loaded.model_config["m"], Censored)
+        assert isinstance(loaded.model_config["m"].distribution, Prior)
+        assert loaded.model_config["m"] == model.model_config["m"]
+        xr.testing.assert_allclose(model.idata.posterior, loaded.idata.posterior)
+
+    def test_multi_product_forecast_without_observed(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=multi_product_ds, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+
+        # sample_posterior_predictive returns the extracted "y" DataArray
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
+
+    def test_transposed_dataset_dims(
+        self, mock_pymc_sample, multi_product_ds: xr.Dataset
+    ):
+        # A user Dataset with (product, T) order must still fit and forecast:
+        # _from_xarray moves T to the front so y_obs matches the model layout,
+        # and the forecast placeholder shape is derived from the declared dims.
+        transposed = multi_product_ds.transpose("product", "T")
+        assert transposed["observed"].dims == ("product", "T")
+
+        model = BassModel(
+            model_config={
+                "m": Prior("Normal", mu=2000, sigma=200, dims="product"),
+                "p": Prior("Beta", alpha=1.5, beta=20, dims="product"),
+                "q": Prior("Beta", alpha=2, beta=5, dims="product"),
+            },
+        )
+        model.fit(data=transposed, draws=5, tune=5, chains=1, random_seed=42)
+
+        future = xr.Dataset(coords={"T": np.arange(20, 30)})
+        pp = model.sample_posterior_predictive(X=future, random_seed=42)
+        assert pp.sizes["T"] == 10
+        assert pp.sizes["product"] == 3
+
+    def test_posterior_predictive_in_sample(self, fitted_model: BassModel):
+        with fitted_model.model:
             pp = pm.sample_posterior_predictive(
-                fitted_model_positive_m.idata,
+                fitted_model.idata,
                 extend_inferencedata=True,
                 random_seed=42,
             )
@@ -830,23 +1034,21 @@ class TestBassModelClass:
         ],
     )
     def test_sample_posterior_predictive(
-        self, fitted_model_positive_m: BassModel, X: xr.Dataset, expected_T: int
+        self, fitted_model: BassModel, X: xr.Dataset, expected_T: int
     ):
-        pp = fitted_model_positive_m.sample_posterior_predictive(
+        pp = fitted_model.sample_posterior_predictive(
             X=X, extend_idata=True, random_seed=42
         )
-        assert "posterior_predictive" in fitted_model_positive_m.idata
-        assert isinstance(pp, xr.Dataset)
-        assert "y" in pp.data_vars
+        assert "posterior_predictive" in fitted_model.idata
+        assert isinstance(pp, xr.DataArray)
+        assert pp.name == "y"
         assert pp.sizes["T"] == expected_T
 
-    def test_sample_posterior_predictive_extend_false(
-        self, fitted_model_positive_m: BassModel
-    ):
-        pp = fitted_model_positive_m.sample_posterior_predictive(
+    def test_sample_posterior_predictive_extend_false(self, fitted_model: BassModel):
+        pp = fitted_model.sample_posterior_predictive(
             X=xr.Dataset({"T": np.arange(20)}),
             extend_idata=False,
             random_seed=42,
         )
-        assert isinstance(pp, xr.Dataset)
-        assert "posterior_predictive" not in fitted_model_positive_m.idata
+        assert isinstance(pp, xr.DataArray)
+        assert "posterior_predictive" not in fitted_model.idata

@@ -27,5 +27,5 @@ msgstr "ModelBuilder.build\\_from\\_idata"
 
 #: a3c3b107c4b448ce899a27092cf4c56f of
 #: pymc_marketing.model_builder.ModelIO.build_from_idata:2
-msgid "Build the model from the InferenceData object."
-msgstr "Construya el modelo a partir del objeto InferenceData."
+msgid "Build the model from the DataTree object."
+msgstr "Construya el modelo a partir del objeto DataTree."

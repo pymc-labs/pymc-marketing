@@ -13,12 +13,11 @@
 #   limitations under the License.
 import warnings
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
-from arviz import InferenceData
+import xarray as xr
 from pymc.testing import mock_sample
 from pymc_extras.prior import Prior
 from xarray import Dataset
@@ -48,11 +47,20 @@ def test_summary_data() -> pd.DataFrame:
     return df
 
 
-def set_model_fit(model: CLVModel, fit: InferenceData | Dataset):
-    if isinstance(fit, InferenceData):
-        assert "posterior" in fit.groups()
+def set_model_fit(model: CLVModel, fit: xr.DataTree | Dataset):
+    if isinstance(fit, xr.DataTree):
+        if "/posterior" in fit.groups:
+            pass
+        elif "/prior" in fit.groups:
+            ds = fit["/prior"].to_dataset()
+            fit = xr.DataTree.from_dict({"/posterior": ds})
+        else:
+            raise ValueError(
+                f"Cannot fit model. Expected /posterior or /prior group, "
+                f"got {fit.groups}"
+            )
     else:
-        fit = InferenceData(posterior=fit)
+        fit = xr.DataTree.from_dict({"/posterior": fit})
     if not hasattr(model, "model"):
         model.build_model()
     model.idata = fit
@@ -61,17 +69,18 @@ def set_model_fit(model: CLVModel, fit: InferenceData | Dataset):
         warnings.filterwarnings(
             "ignore",
             category=UserWarning,
-            message="The group fit_data is not defined in the InferenceData scheme",
+            message="The group fit_data is not defined in the DataTree scheme",
         )
-        model.idata.add_groups(fit_data=model.data.to_xarray())
+        model.idata["/fit_data"] = model.data.to_xarray()
     model.set_idata_attrs(fit)
 
 
 def set_idata(model):
     """Part of basic fit method for CLVModel."""
     model.set_idata_attrs(model.idata)
-    if model.data is not None:
-        model._add_fit_data_group(model.data)
+    fit_data = model.create_fit_data_group()
+    if fit_data is not None:
+        model.idata["/fit_data"] = fit_data
 
 
 def create_mock_fit(params: dict[str, float]):
@@ -82,21 +91,27 @@ def create_mock_fit(params: dict[str, float]):
     """
 
     def mock_fit(model, chains, draws, rng):
-        model.idata = az.from_dict(
+        posterior_ds = xr.Dataset(
             {
-                param: rng.normal(value, 1e-3, size=(chains, draws))
+                param: (
+                    ["chain", "draw"],
+                    rng.normal(value, 1e-3, size=(chains, draws)),
+                )
                 for param, value in params.items()
             }
         )
+        model.idata = xr.DataTree.from_dict({"/posterior": posterior_ds})
         set_idata(model)
 
     return mock_fit
 
 
-def mock_fit_MAP(self, *args, **kwargs):
-    draws = 1
-    chains = 1
-    idata = mock_sample(*args, **kwargs, chains=chains, draws=draws, model=self.model)
+def mock_fit_map(self, fit_kwargs=None, map_kwargs=None):
+    """Stand in for `ModelFitter._fit_map`, which takes its kwargs as dicts."""
+    merged = {**(fit_kwargs or {}), **(map_kwargs or {})}
+    # `draws`/`chains` are fixed below; anything else is harmless to `mock_sample`.
+    passthrough = {k: v for k, v in merged.items() if k not in ("draws", "chains")}
+    idata = mock_sample(**passthrough, chains=1, draws=1, model=self.model)
 
     return idata.sel(chain=[0], draw=[0])
 
@@ -115,13 +130,12 @@ def fitted_bg(test_summary_data) -> BetaGeoModel:
         "r": Prior("DiracDelta", c=0.16385072),
     }
     model = BetaGeoModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    model.build_model()
+    model.build_model(data=test_summary_data)
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
     # posterior group required to pass L80 assert check
-    fake_fit.add_groups(posterior=fake_fit.prior)
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     set_model_fit(model, fake_fit)
 
     return model
@@ -141,13 +155,12 @@ def fitted_mbg(test_summary_data) -> ModifiedBetaGeoModel:
         "r": Prior("DiracDelta", c=0.16385072),
     }
     model = ModifiedBetaGeoModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    model.build_model()
+    model.build_model(data=test_summary_data)
     fake_fit = pm.sample_prior_predictive(draws=50, model=model.model, random_seed=rng)
     # posterior group required to pass L80 assert check
-    fake_fit.add_groups(posterior=fake_fit.prior)
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     set_model_fit(model, fake_fit)
 
     return model
@@ -167,10 +180,9 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
         "beta": Prior("DiracDelta", c=9.756),
     }
     pnbd_model = ParetoNBDModel(
-        data=test_summary_data,
         model_config=model_config,
     )
-    pnbd_model.build_model()
+    pnbd_model.build_model(data=test_summary_data)
 
     # Mock an idata object for tests requiring a fitted model
     # TODO: This is quite slow. Check similar fixtures in the model tests to speed this up.
@@ -180,7 +192,7 @@ def fitted_pnbd(test_summary_data) -> ParetoNBDModel:
         random_seed=rng,
     )
     # posterior group required to pass L80 assert check
-    fake_fit.add_groups(posterior=fake_fit.prior)
+    fake_fit["/posterior"] = fake_fit["/prior"].to_dataset()
     set_model_fit(pnbd_model, fake_fit)
 
     return pnbd_model

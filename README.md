@@ -20,13 +20,13 @@
 [![Downloads](https://static.pepy.tech/badge/pymc-marketing/week)](https://pepy.tech/project/pymc-marketing)
 
 # PyMC-Marketing
-## Bayesian Tools for Marketing Analytics: Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV) & Customer Choice Analysis (CSA) and more
+## Bayesian Tools for Marketing Analytics: Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV), Customer Choice, Incrementality and more
 
 ---
 
 ## Marketing Analytics Tools from [PyMC Labs](https://www.pymc-labs.com)
 
-Unlock the power of **Marketing Mix Modeling (MMM)**, **Customer Lifetime Value (CLV)** and **Customer Choice Analysis (CSA)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
+Unlock the power of **Marketing Mix Modeling (MMM)**, **Customer Lifetime Value (CLV)**, **Customer Choice** (discrete choice, MaxDiff, Bayesian BLP), **Bass Diffusion**, and **Predicted Incrementality by Experimentation (PIE)** analytics with PyMC-Marketing. This open-source marketing analytics tool empowers businesses to make smarter, data-driven decisions for maximizing ROI in marketing campaigns.
 
 This repository is supported by [PyMC Labs](https://www.pymc-labs.com).
 
@@ -47,14 +47,22 @@ Explore these topics further by watching our video on [Bayesian Marketing Mix Mo
 
 ## Quick Installation Guide
 
-To dive into PyMC-Marketing, set up a specialized Python environment, `marketing_env`, via conda-forge:
+PyMC-Marketing is built on top of **PyMC >= 6.0** and **ArviZ >= 1.2** (with [arviz-plots](https://arviz-plots.readthedocs.io/) for visualization), bringing the latest Bayesian sampling and plotting stack to marketing analytics. PyMC-Marketing requires Python >= 3.12.
+
+Install PyMC-Marketing with pip:
 
 ```bash
-conda create -c conda-forge -n marketing_env pymc-marketing
-conda activate marketing_env
+pip install pymc-marketing
 ```
 
-For a comprehensive installation guide, refer to the [official PyMC installation documentation](https://www.pymc.io/projects/docs/en/latest/installation.html).
+Some features are available as optional extras:
+
+```bash
+pip install pymc-marketing[dag]  # causal identification tooling
+pip install pymc-marketing[pie]  # Predicted Incrementality by Experimentation (PIE), requires pymc-bart
+```
+
+For a comprehensive installation guide, refer to the [installation documentation](https://www.pymc-marketing.io/en/latest/getting_started/installation/index.html).
 
 ### Docker
 
@@ -79,6 +87,8 @@ Leverage our Bayesian MMM API to tailor your marketing strategies effectively. L
 | Out-of-sample Predictions                  | Forecast future marketing performance with credible intervals. Use this for simulations and scenario planning.                                                                                                                                                                                                                                                                          |
 | Budget Optimization                        | Allocate your marketing spend efficiently across various channels for maximum ROI. See the [budget optimization example notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html)                                                                                                                                                             |
 | Experiment Calibration                     | Fine-tune your model based on empirical experiments for a more unified view of marketing. See the [lift test integration explanation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html) for more details. [Here](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_roas.html) you can find a *Case Study: Unobserved Confounders, ROAS and Lift Tests*. |
+| ROAS / CAC Calibration                     | Calibrate your model with ROAS or cost-per-acquisition estimates via `add_cost_per_target_calibration`. See the [ROAS calibration notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_roas_calibration.html) for a worked example.                                                                                                                                       |
+| Funnel Models                              | Model upper-funnel to lower-funnel mediation (e.g., awareness driving search and conversions) via custom `MuEffect`s. See the [introductory funnel-aware MMM notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect.html) and the [advanced geo-level example](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_funnel_mueffect_advanced.html).     |
 
 ### MMM Quickstart
 
@@ -86,12 +96,11 @@ The following snippet of code shows how to initiate and fit a `MMM` model.
 
 ```python
 import pandas as pd
-
 from pymc_marketing.mmm import (
+    MMM,
     GeometricAdstock,
     LogisticSaturation,
 )
-from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.paths import data_dir
 
 file_path = data_dir / "mmm_example.csv"
@@ -115,11 +124,11 @@ y = data["y"]
 mmm.fit(X, y)
 ```
 
-After the model is fitted, we can explore the reults and insights. For example, we can plot the components contributions:
+After the model is fitted, we can explore the results and insights. For example, we can plot the components contributions:
 
 ![](docs/source/_static/mmm_plot_components_contributions.png)
 
-You can compute channels efficienty and compare them with the estimated return on ad spend (ROAS).
+You can compute channels efficiency and compare them with the estimated return on ad spend (ROAS).
 
 <center>
     <img src="docs/source/_static/roas_efficiency.png" width="70%" />
@@ -131,8 +140,12 @@ Once the model is fitted, we can further optimize our budget allocation as we ar
     <img src="docs/source/_static/mmm_plot_plot_channel_contributions_grid.png" width="80%" />
 </center>
 
-- Explore a hands-on our [quickstart guide](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_quickstart.html) and more complete [simulated example](https://pymc-marketing.readthedocs.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
+- Explore our hands-on [quickstart guide](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_quickstart.html) and more complete [simulated example](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_example.html) for more insights into MMM with PyMC-Marketing.
 - Get started with a complete end-to-end analysis: from model specification to budget allocation. See the [guide notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_case_study.html).
+
+### Long-Term Effects & Brand Metrics
+
+Media investments do not only drive short-term sales; they also build brand equity that pays off over longer horizons. PyMC-Marketing lets you measure long-term brand effects in MMMs by coupling brand-tracking metrics (e.g., awareness, consideration) with a Bayesian VARX model. See the [long-term brand effects notebook](https://www.pymc-marketing.io/en/latest/notebooks/mmm/mmm_brand_metrics_long_term.html) for a complete tutorial.
 
 ### Essential Reading for Marketing Mix Modeling (MMM)
 
@@ -171,17 +184,16 @@ Understand and optimize your customer's value with our **CLV models**. Our API s
 ```python
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 from pymc_marketing import clv
 from pymc_marketing.paths import data_dir
 
 file_path = data_dir / "clv_quickstart.csv"
-data = pd.read_csv(data_path)
+data = pd.read_csv(file_path)
 data["customer_id"] = data.index
 
-beta_geo_model = clv.BetaGeoModel(data=data)
+beta_geo_model = clv.BetaGeoModel()
 
-beta_geo_model.fit()
+beta_geo_model.fit(data=data)
 ```
 
 Once fitted, we can use the model to predict the number of future purchases for known customers, the probability that they are still alive, and get various visualizations plotted.
@@ -192,7 +204,11 @@ See the Examples section for more on this.
 
 ## Customer Choice Analysis with PyMC-Marketing
 
-Analyze the impact of new product launches and understand customer choice behavior with our **Multivariate Interrupted Time Series (MVITS)** models. Our API supports analysis in both saturated and unsaturated markets to help you:
+Understand customer choice behavior with a full suite of models: **Multivariate Interrupted Time Series (MVITS)** for product launch impact, **discrete choice models** (multinomial, nested, and mixed logit), **MaxDiff (best-worst scaling)**, and **Bayesian BLP** for structural demand estimation on aggregate market shares.
+
+### Product Launch Impact with MVITS
+
+Analyze the impact of new product launches with our **MVITS** models. Our API supports analysis in both saturated and unsaturated markets to help you:
 
 | Feature                     | Benefit                                                           |
 | --------------------------- | ----------------------------------------------------------------- |
@@ -234,6 +250,23 @@ mvits.plot_counterfactual()
 
 See our example notebooks for [saturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_saturated.html) and [unsaturated markets](https://www.pymc-marketing.io/en/stable/notebooks/customer_choice/mv_its_unsaturated.html) to learn more about customer choice modeling with PyMC-Marketing.
 
+### Discrete Choice Models
+
+Discrete choice models come in various forms, but each aims to show how choosing between a set of alternatives can be understood as a function of the observable attributes of the alternatives at hand. This type of modelling drives insight into the "must-have" features of a product, and can be used to assess the success or failure of product launches or re-launches. The PyMC-Marketing implementation offers a formula based model specification, for estimating the relative utility of each good in a market and identifying their most important features.
+
+<center>
+    <img src="docs/source/_static/discrete_choice_before_after.png" width="100%" />
+</center>
+
+Explore the full family of choice and preference models:
+
+- [Multinomial Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mnl_logit.html)
+- [Nested Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/nested_logit.html)
+- [Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/mixed_logit.html)
+- [Consideration Set Mixed Logit](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/consideration_set_logit.html)
+- [MaxDiff (Best-Worst Scaling)](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/maxdiff.html)
+- [Bayesian BLP: Structural Demand on Aggregate Shares](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp.html) and its application to the [Nevo cereal panel](https://www.pymc-marketing.io/en/latest/notebooks/customer_choice/bayesian_blp_nevo.html)
+
 ## Bass Diffusion Model
 
 The Bass Diffusion Model is a popular model for predicting the adoption of new products. It is a type of product life cycle model that describes the market penetration of a new product as a function of time. PyMC-Marketing provides a flexible implementation of the Bass Diffusion Model, allowing you to customize the model parameters and fit the model to your specific data (many products).
@@ -242,14 +275,13 @@ The Bass Diffusion Model is a popular model for predicting the adoption of new p
     <img src="docs/source/_static/bass.png" width="100%" />
 </center>
 
-## Discrete Choice Models
+See the [Bass Diffusion Model example notebook](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html) for a worked example.
 
-Discrete choice models come in various forms, but each aims to show how choosing between a set of alternatives can be understood as a function of the observable attributes of the alternatives at hand. This type of modelling drives insight into the "must-have" features of a product, and can be used to assess the success or failure of product launches or re-launches. The PyMC-marketing implementation offers a formula based model specification, for estimating the relative utility of each good in a market and identifying their most important features.
+## Predicted Incrementality by Experimentation (PIE)
 
-<center>
-    <img src="docs/source/_static/discrete_choice_before_after.png" width="100%" />
-</center>
+Predict the *incremental* effect of ad campaigns that never ran an experiment with **PIE** (alpha). Randomized experiments — geo tests and ghost-ad holdouts — are the gold standard for measuring campaign incrementality, but they are costly and slow. PIE fits a Bayesian BART model on the corpus of campaigns that *did* run an experiment, learning the map from campaign features to measured incrementality, then predicts a full posterior of incrementality for the campaigns that never did. The approach follows [Gordon, Moakler & Zettelmeyer (2026)](https://www.nber.org/papers/w35044).
 
+The `pymc_marketing.pie` module is in **alpha**: the API and defaults may change between releases. It requires the `pie` extra (`pip install pymc-marketing[pie]`). See the [PIE example notebook](https://www.pymc-marketing.io/en/latest/notebooks/pie/pie_example.html) for a worked example, including where predictions beat last-click attribution.
 
 ## Why PyMC-Marketing vs other solutions?
 

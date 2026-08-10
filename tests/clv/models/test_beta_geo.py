@@ -11,8 +11,6 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
 import arviz as az
 import numpy as np
 import pandas as pd
@@ -50,8 +48,8 @@ class TestBetaGeoModel:
         cls.T = test_data["T"]
 
         # Instantiate model with CDNOW data for testing
-        cls.model = BetaGeoModel(cls.data)
-        cls.model.build_model()
+        cls.model = BetaGeoModel()
+        cls.model.build_model(data=cls.data)
 
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.customer_id)
@@ -121,11 +119,8 @@ class TestBetaGeoModel:
 
     def test_model(self, model_config, default_model_config):
         for config in (model_config, default_model_config):
-            model = BetaGeoModel(
-                data=self.data,
-                model_config=config,
-            )
-            model.build_model()
+            model = BetaGeoModel(model_config=config)
+            model.build_model(data=self.data)
             assert isinstance(
                 model.model["a"].owner.op,
                 pm.HalfFlat
@@ -161,42 +156,62 @@ class TestBetaGeoModel:
                 "r_log__": (),
             }
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "frequency", "recency", "T"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
             model = BetaGeoModel()
             model.build_model(data=data_invalid)
 
-        data_invalid = self.data.drop(columns="frequency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['frequency'\]",
-        ):
+    @pytest.mark.parametrize(
+        "data, match",
+        [
+            (
+                {"customer_id": [1], "frequency": [-1], "recency": [1], "T": [2]},
+                "Column frequency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1.5], "recency": [1], "T": [2]},
+                "frequency column must contain only integer values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [-1], "T": [2]},
+                "Column recency has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [1], "T": [-1]},
+                "Column T has negative values",
+            ),
+            (
+                {"customer_id": [1], "frequency": [0], "recency": [1], "T": [2]},
+                "recency cannot be greater than 0 if frequency is 0",
+            ),
+            (
+                {"customer_id": [1], "frequency": [1], "recency": [3], "T": [2]},
+                "recency cannot be greater than T",
+            ),
+        ],
+    )
+    def test_invalid_rfm_values(self, data, match):
+        with pytest.raises(ValueError, match=match):
             model = BetaGeoModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=pd.DataFrame(data))
 
-        data_invalid = self.data.drop(columns="recency")
+    def test_zero_T_warns(self):
+        data = pd.DataFrame(
+            {"customer_id": [1], "frequency": [0], "recency": [0], "T": [0]}
+        )
 
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['recency'\]",
-        ):
+        with pytest.warns(UserWarning, match="T=0 is uninformative for model fitting"):
             model = BetaGeoModel()
-            model.build_model(data=data_invalid)
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
-        ):
-            model = BetaGeoModel()
-            model.build_model(data=data_invalid)
+            model.build_model(data=data)
 
     def test_customer_id_duplicate(self):
         data = pd.DataFrame(
@@ -240,12 +255,8 @@ class TestBetaGeoModel:
             }
         )
 
-        model = BetaGeoModel(
-            data=data,
-            model_config=model_config,
-        )
-
-        model.build_model()
+        model = BetaGeoModel(model_config=model_config)
+        model.build_model(data=data)
         pymc_model = model.model
 
         logp = pymc_model.compile_logp()
@@ -263,9 +274,9 @@ class TestBetaGeoModel:
 
         if fit_type == "map":
             map_idata = self.model.idata.copy()
-            map_idata.posterior = map_idata.posterior.isel(
-                chain=slice(None, 1), draw=slice(None, 1)
-            )
+            ds = map_idata["/posterior"].to_dataset()
+            reduced = ds.isel(chain=slice(None, 1), draw=slice(None, 1))
+            map_idata["/posterior"] = reduced
             model = self.model.build_from_idata(map_idata)
             # We expect 1000 draws to be sampled with MAP
             expected_shape = (1, 1000)
@@ -351,7 +362,7 @@ class TestBetaGeoModel:
         elif method == "map":
             sample_kwargs = dict(seed=self.seed)
 
-        model.fit(method=method, progressbar=False, **sample_kwargs)
+        model.fit(data=self.data, method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         np.testing.assert_allclose(
@@ -369,12 +380,13 @@ class TestBetaGeoModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=self.data,
             tune=5,
             chains=2,
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
@@ -399,10 +411,12 @@ class TestBetaGeoModel:
         bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "posterior": {
+                    "a": np.full((2, 5), self.a_true),
+                    "b": np.full((2, 5), self.b_true),
+                    "alpha": np.full((2, 5), self.alpha_true),
+                    "r": np.full((2, 5), self.r_true),
+                }
             }
         )
 
@@ -431,10 +445,12 @@ class TestBetaGeoModel:
         bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "posterior": {
+                    "a": np.full((2, 5), self.a_true),
+                    "b": np.full((2, 5), self.b_true),
+                    "alpha": np.full((2, 5), self.alpha_true),
+                    "r": np.full((2, 5), self.r_true),
+                }
             }
         )
 
@@ -462,10 +478,12 @@ class TestBetaGeoModel:
         bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "posterior": {
+                    "a": np.full((2, 5), self.a_true),
+                    "b": np.full((2, 5), self.b_true),
+                    "alpha": np.full((2, 5), self.alpha_true),
+                    "r": np.full((2, 5), self.r_true),
+                }
             }
         )
 
@@ -493,10 +511,12 @@ class TestBetaGeoModel:
         bg_model.build_model(data=data)
         bg_model.idata = az.from_dict(
             {
-                "a": np.full((2, 5), self.a_true),
-                "b": np.full((2, 5), self.b_true),
-                "alpha": np.full((2, 5), self.alpha_true),
-                "r": np.full((2, 5), self.r_true),
+                "posterior": {
+                    "a": np.full((2, 5), self.a_true),
+                    "b": np.full((2, 5), self.b_true),
+                    "alpha": np.full((2, 5), self.alpha_true),
+                    "r": np.full((2, 5), self.r_true),
+                }
             }
         )
 
@@ -605,10 +625,9 @@ class TestBetaGeoModel:
             "b": Prior("HalfNormal", sigma=10),
         }
         model = BetaGeoModel(
-            data=self.data,
             model_config=model_config,
         )
-        model.build_model()
+        model.build_model(data=self.data)
         assert model.__repr__().replace(" ", "") == (
             "BG/NBD"
             "\nalpha~HalfFlat()"
@@ -619,16 +638,16 @@ class TestBetaGeoModel:
         )
 
     def test_distribution_new_customer(self) -> None:
-        mock_model = BetaGeoModel(
-            data=self.data,
-        )
-        mock_model.build_model()
+        mock_model = BetaGeoModel()
+        mock_model.build_model(data=self.data)
         mock_model.idata = az.from_dict(
             {
-                "a": [self.a_true],
-                "b": [self.b_true],
-                "alpha": [self.alpha_true],
-                "r": [self.r_true],
+                "posterior": {
+                    "a": np.array([[self.a_true]]),
+                    "b": np.array([[self.b_true]]),
+                    "alpha": np.array([[self.alpha_true]]),
+                    "r": np.array([[self.r_true]]),
+                }
             }
         )
 
@@ -665,11 +684,12 @@ class TestBetaGeoModel:
             rtol=rtol,
         )
 
-    def test_save_load(self):
-        self.model.save("test_model")
+    def test_save_load(self, tmp_path):
+        save_path = tmp_path / "test_model"
+        self.model.save(save_path)
         # Testing the valid case.
 
-        model2 = BetaGeoModel.load("test_model")
+        model2 = BetaGeoModel.load(save_path)
 
         # Check if the loaded model is indeed an instance of the class
         assert isinstance(self.model, BetaGeoModel)
@@ -678,7 +698,6 @@ class TestBetaGeoModel:
         assert self.model.model_config == model2.model_config
         assert self.model.sampler_config == model2.sampler_config
         assert self.model.idata == model2.idata
-        os.remove("test_model")
 
 
 class TestBetaGeoModelWithCovariates:
@@ -712,17 +731,17 @@ class TestBetaGeoModelWithCovariates:
         purchase_covariate_cols = ["purchase_cov1", "purchase_cov2"]
         dropout_covariate_cols = ["dropout_cov"]
         non_nested_priors = dict(
-            a_prior=Prior("Beta", alpha=20, beta=20),
-            b_prior=Prior("Beta", alpha=20, beta=20),
+            a=Prior("Beta", alpha=20, beta=20),
+            b=Prior("Beta", alpha=20, beta=20),
         )
         covariate_config = dict(
             purchase_covariate_cols=purchase_covariate_cols,
             dropout_covariate_cols=dropout_covariate_cols,
         )
         cls.model_with_covariates = BetaGeoModel(
-            cls.data,
             model_config={**non_nested_priors, **covariate_config},
         )
+        cls.model_with_covariates.build_model(data=cls.data)
 
         # Mock an idata object for tests requiring a fitted model
         chains = 2
@@ -757,7 +776,7 @@ class TestBetaGeoModelWithCovariates:
             ),
         }
         mock_fit_with_covariates = az.from_dict(
-            mock_fit_dict,
+            {"posterior": mock_fit_dict},
             dims={
                 "purchase_coefficient_alpha": ["purchase_covariate"],
                 "dropout_coefficient_a": ["dropout_covariate"],
@@ -771,21 +790,24 @@ class TestBetaGeoModelWithCovariates:
         set_model_fit(cls.model_with_covariates, mock_fit_with_covariates)
 
         cls.model_with_covariates_phi_kappa = BetaGeoModel(
-            cls.data,
             model_config=covariate_config,
         )
+        cls.model_with_covariates_phi_kappa.build_model(data=cls.data)
         # set_model_fit(cls.model_with_covariates_phi_kappa, mock_fit_with_covariates)
 
         # Create a reference model without covariates
         cls.model_without_covariates = BetaGeoModel(
-            data, model_config=non_nested_priors
+            model_config=non_nested_priors,
         )
+        cls.model_without_covariates.build_model(data=data)
         mock_fit_without_covariates = az.from_dict(
             {
-                "r": mock_fit_dict["r"],
-                "alpha": mock_fit_dict["alpha_scale"],
-                "a": mock_fit_dict["a_scale"],
-                "b": mock_fit_dict["b_scale"],
+                "posterior": {
+                    "r": mock_fit_dict["r"],
+                    "alpha": mock_fit_dict["alpha_scale"],
+                    "a": mock_fit_dict["a_scale"],
+                    "b": mock_fit_dict["b_scale"],
+                }
             }
         )
         set_model_fit(cls.model_without_covariates, mock_fit_without_covariates)
@@ -1004,18 +1026,17 @@ class TestBetaGeoModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something broader here
         custom_priors = {
-            "r_prior": Prior("Exponential", scale=10),
-            "alpha_prior": Prior("Exponential", scale=10),
-            "a_prior": Prior("Exponential", scale=10),
-            "b_prior": Prior("Exponential", scale=10),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=4),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=4),
+            "r": Prior("Exponential", scale=10),
+            "alpha": Prior("Exponential", scale=10),
+            "a": Prior("Exponential", scale=10),
+            "b": Prior("Exponential", scale=10),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=4),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=4),
         }
         new_model = BetaGeoModel(
-            synthetic_data,
             model_config=self.model_with_covariates.model_config | custom_priors,
         )
-        new_model.fit(fit_method="map")
+        new_model.fit(data=synthetic_data, method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:
@@ -1032,7 +1053,7 @@ class TestBetaGeoModelWithCovariates:
         rng = np.random.default_rng(627)
 
         # Create synthetic data from "true" params
-        self.model_with_covariates_phi_kappa.build_model()
+        self.model_with_covariates_phi_kappa.build_model(self.data)
         default_model = self.model_with_covariates_phi_kappa.model
         with pm.do(default_model, self.true_params):
             prior_pred = pm.sample_prior_predictive(
@@ -1046,19 +1067,18 @@ class TestBetaGeoModelWithCovariates:
         )
         # The default parameter priors are very informative. We use something broader here
         custom_priors = {
-            "r_prior": Prior("Exponential", scale=10),
-            "alpha_prior": Prior("Exponential", scale=10),
-            "phi_dropout_prior": Prior("Uniform", lower=0, upper=1),
-            "kappa_dropout_prior": Prior("Pareto", alpha=1, m=1),
-            "purchase_coefficient_prior": Prior("Normal", mu=0, sigma=5),
-            "dropout_coefficient_prior": Prior("Normal", mu=0, sigma=5),
+            "r": Prior("Exponential", scale=10),
+            "alpha": Prior("Exponential", scale=10),
+            "phi_dropout": Prior("Uniform", lower=0, upper=1),
+            "kappa_dropout": Prior("Pareto", alpha=1, m=1),
+            "purchase_coefficient": Prior("Normal", mu=0, sigma=5),
+            "dropout_coefficient": Prior("Normal", mu=0, sigma=5),
         }
         new_model = BetaGeoModel(
-            synthetic_data,
             model_config=self.model_with_covariates_phi_kappa.model_config
             | custom_priors,
         )
-        new_model.fit(method="map")
+        new_model.fit(data=synthetic_data, method="map")
 
         result = new_model.fit_result
         for var in default_model.free_RVs:
@@ -1072,50 +1092,3 @@ class TestBetaGeoModelWithCovariates:
                     err_msg=f"Tolerance exceeded for variable {var_name}",
                     rtol=0.2,
                 )
-
-
-class TestBetaGeoModelNewAPI:
-    """Tests for the new API where data is passed to fit() or build_model()."""
-
-    @classmethod
-    def setup_class(cls):
-        # Use the same test data as TestBetaGeoModel
-        test_data = pd.read_csv("data/clv_quickstart.csv")
-        test_data["customer_id"] = test_data.index
-        cls.data = test_data
-
-    def test_new_api_build_then_fit(self):
-        """Test new API: model.build_model(data=...) then model.fit()"""
-        model = BetaGeoModel()
-        model.build_model(data=self.data)
-        assert hasattr(model, "model")
-        model.fit(method="map", progressbar=False)
-        assert model.idata is not None
-        assert "posterior" in model.idata
-
-    def test_old_api_deprecation_warning(self):
-        """Test that old API raises deprecation warning."""
-        with pytest.warns(DeprecationWarning, match="will be removed in version 1.0"):
-            model = BetaGeoModel(data=self.data)
-        model.build_model()
-        assert hasattr(model, "model")
-
-    def test_old_api_still_works(self):
-        """Test that old API still works with deprecation warning."""
-        with pytest.warns(DeprecationWarning, match="will be removed in version 1.0"):
-            model = BetaGeoModel(data=self.data)
-        model.fit(method="map", progressbar=False)
-        assert model.idata is not None
-        assert "posterior" in model.idata
-
-    def test_build_model_without_data_raises_error(self):
-        """Test that build_model() without data raises appropriate error."""
-        model = BetaGeoModel()
-        with pytest.raises(ValueError, match="requires data parameter"):
-            model.build_model()
-
-    def test_fit_without_data_raises_error(self):
-        """Test that fit() without data raises appropriate error."""
-        model = BetaGeoModel()
-        with pytest.raises(ValueError, match="Data must be provided"):
-            model.fit(method="map", progressbar=False)

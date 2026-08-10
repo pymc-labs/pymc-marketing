@@ -175,7 +175,13 @@ def test_wrong_distribution():
     """Test that a model with an invalid distribution fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_distribution.yml")
 
-    with pytest.raises(ModelConfigError):
+    # The message must name the config key *and* the real reason. A bare
+    # `DeserializableError` only advises `register_deserialization`, which is
+    # the wrong hint for a misspelled distribution name.
+    with pytest.raises(
+        ModelConfigError,
+        match=r"Parameter intercept:.*distribution of name 'InvalidDistribution'",
+    ):
         build_mmm_from_yaml(wrong_config_path)
 
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -187,7 +193,7 @@ def test_wrong_parameter_type():
     """Test that a model with a wrong parameter type fails appropriately."""
     wrong_config_path = Path("tests/mmm/builders/config_files/wrong_parameter_type.yml")
 
-    with pytest.raises(ModelConfigError):
+    with pytest.raises(ModelConfigError, match="Parameter likelihood"):
         build_mmm_from_yaml(wrong_config_path)
 
     cfg = yaml.safe_load(wrong_config_path.read_text())
@@ -492,10 +498,14 @@ def test_build_mmm_raises_when_y_missing_and_no_data_path(
 def test_build_mmm_loads_idata_from_path(tmp_path, _minimal_model_config, _sample_data):
     """idata_path in YAML causes InferenceData to be loaded into model."""
     import arviz as az
+    import numpy as np
 
     X, y = _sample_data
 
-    idata = az.from_dict(posterior={"intercept": [1.0, 2.0, 3.0]})
+    idata = az.from_dict(
+        {"posterior": {"intercept": np.array([1.0, 2.0, 3.0])}},
+        sample_dims=["draw"],
+    )
     idata_file = tmp_path / "idata.nc"
     idata.to_netcdf(str(idata_file))
 

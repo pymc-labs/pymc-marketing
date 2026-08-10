@@ -137,11 +137,14 @@ Create a basic Bass model for multiple products:
 from typing import Any, TypedDict, cast
 
 import arviz as az
+import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
 import xarray as xr
+from matplotlib.axes import Axes
 from numpy.typing import (
     ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
@@ -149,8 +152,10 @@ from pymc.model import Model
 from pymc.util import RandomState
 from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
 
+from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
+from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
@@ -480,17 +485,43 @@ class BassModel(ModelBuilder):
 
     .. code-block:: python
 
-        az.plot_forest(idata.posterior["peak"], combined=True)
+        azp.plot_forest(idata.posterior["peak"], combined=True)
     """
 
     _model_type = "BassModel"
     version = __version__
 
+    def __init__(
+        self,
+        model_config: dict | None = None,
+        sampler_config: dict | None = None,
+    ):
+        super().__init__(model_config=model_config, sampler_config=sampler_config)
+        # Restore Prior objects from the dicts produced by the JSON
+        # round-trip in save/load
+        self.model_config = parse_model_config(self.model_config)
+        self.data: xr.Dataset | None = None
+
     @property
     def default_model_config(self) -> dict:
-        """Default model configuration with weakly informative priors."""
+        """Default model configuration with weakly informative priors.
+
+        ``m`` is the market potential, a headcount, so its prior is restricted to
+        positive values. A prior straddling zero puts the Poisson mean at zero at
+        ``model.initial_point()``, making the likelihood ``-inf`` there; ``fit(
+        method="map")`` then fails outright, while ``"mcmc"`` only survives it
+        because ``jitter+adapt_diag`` moves off the starting point.
+
+        The default ``m`` prior here is a placeholder: because ``m`` is a headcount
+        whose scale is entirely dataset-dependent, :meth:`build_model` builds the graph
+        with ``HalfNormal(sigma=2 * observed.sum())`` instead whenever the user has not
+        overridden it. The rescale is applied per build and does not modify
+        ``model_config``, so every fit is scaled to the data it is looking at. Pass an
+        ``m`` prior that differs from the default in ``model_config`` to opt out; a
+        prior identical to the default is indistinguishable from not passing one.
+        """
         return {
-            "m": Prior("Normal", mu=0, sigma=10),
+            "m": Prior("HalfNormal", sigma=10),
             "p": Prior("Beta", alpha=1.5, beta=20),
             "q": Prior("Beta", alpha=2, beta=5),
             "likelihood": Prior("Poisson"),
@@ -537,8 +568,13 @@ class BassModel(ModelBuilder):
         if "observed" in ds:
             set_data["y_obs"] = ds["observed"].values
         elif "y_obs" in self.model:
-            dtype = self.model["y_obs"].get_value().dtype
-            set_data["y_obs"] = np.zeros(len(new_t), dtype=dtype)
+            old_value = self.model["y_obs"].get_value()
+            dims = self.model.named_vars_to_dims["y_obs"]
+            new_shape = tuple(
+                len(new_t) if d == "T" else size
+                for d, size in zip(dims, old_value.shape, strict=True)
+            )
+            set_data["y_obs"] = np.zeros(new_shape, dtype=old_value.dtype)
         with self.model:
             pm.set_data(set_data, coords={"T": new_t})
 
@@ -602,7 +638,7 @@ class BassModel(ModelBuilder):
             )
 
         if extend_idata and self.idata is not None:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         variable_name = (
             "predictions"
@@ -643,6 +679,23 @@ class BassModel(ModelBuilder):
         t = ds.coords["T"].values
         observed = ds.get("observed")
 
+        # `m` is the market potential -- the total number of eventual adopters -- so a
+        # fixed-scale default prior is wrong for almost every dataset. When the user has
+        # not overridden the default `m` prior, rescale it to the data: the observed
+        # cumulative adoptions are a lower bound on `m`, so twice that keeps the prior
+        # weakly informative at the right order of magnitude.
+        #
+        # The resolved prior is local to this build and is deliberately *not* written
+        # back into `self.model_config`: doing so would make the check below read a
+        # value it had itself produced, so a second `fit` on a different dataset would
+        # keep the first dataset's scale. Leaving the config untouched also keeps `id`
+        # identical either side of a save/load round trip, since `build_model` recomputes
+        # the same sigma from `fit_data`.
+        priors = dict(self.model_config)
+        if observed is not None and priors["m"] == self.default_model_config["m"]:
+            total_adopters = max(float(observed.sum()), 1.0)
+            priors["m"] = Prior("HalfNormal", sigma=2 * total_adopters)
+
         coords = {name: ds.coords[name].values for name in ds.coords}
 
         self.model = pm.Model(coords=coords)
@@ -657,34 +710,59 @@ class BassModel(ModelBuilder):
             create_bass_model(
                 t=t_data,
                 observed=y_obs,
-                priors=cast(BassPriors, self.model_config),
+                priors=cast(BassPriors, priors),
                 coords=coords,
                 model=self.model,
             )
 
+    def _prepare_fit(
+        self,
+        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+    ) -> None:
+        """Normalize the input data and rebuild the model against it.
+
+        The Bass model bakes the time grid into the graph, so the model is rebuilt on
+        every fit rather than reused.
+        """
+        self.data = to_bass_dataset(data) if data is not None else self.data
+        if self.data is None:
+            raise ValueError("Data must be provided to fit the Bass model.")
+        self.build_model(self.data)
+
     def fit(  # type: ignore[override]
         self,
-        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray,
+        data: xr.Dataset | pd.DataFrame | pd.Series | np.ndarray | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> az.InferenceData:
-        """Fit the Bass diffusion model via MCMC.
+    ) -> xr.DataTree:
+        """Fit the Bass diffusion model.
+
+        Thin wrapper around :meth:`ModelFitter.fit`; see there for the full parameter
+        reference.
 
         Parameters
         ----------
         data : xr.Dataset, pd.DataFrame, pd.Series, np.ndarray
             Adoption counts over time. See :func:`to_bass_dataset` for formats.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
         progressbar : bool, optional
             Whether to show the progress bar. Defaults to ``True``.
         random_seed : optional
             Random seed for reproducibility.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
         **kwargs
-            Additional arguments forwarded to :func:`pymc.sample`.
+            Additional arguments forwarded to the underlying PyMC routine.
 
         Returns
         -------
-        arviz.InferenceData
+        xarray.DataTree
             Posterior with parameters and deterministics (adopters,
             innovators, imitators, peak) plus a ``fit_data`` group.
 
@@ -701,10 +779,10 @@ class BassModel(ModelBuilder):
             az.summary(idata, var_names=["m", "p", "q"])
 
             # Trace plots
-            az.plot_trace(idata, var_names=["m", "p", "q"])
+            azp.plot_trace(idata, var_names=["m", "p", "q"])
 
             # Forest plots of peak adoption time
-            az.plot_forest(idata.posterior["peak"], combined=True)
+            azp.plot_forest(idata.posterior["peak"], combined=True)
 
         For posterior predictive sampling with new time points:
 
@@ -712,37 +790,74 @@ class BassModel(ModelBuilder):
 
             pp = model.sample_posterior_predictive(X=new_data)
         """
-        ds = to_bass_dataset(data)
-        self.build_model(ds)
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config, progressbar, random_seed, **kwargs
+        return super().fit(
+            data=data,
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
+            **kwargs,
         )
-        var_names = [v.name for v in self.model.free_RVs]
 
-        with self.model:
-            idata = pm.sample(var_names=var_names, **sampler_kwargs)
-            idata.posterior = pm.compute_deterministics(
-                idata.posterior, merge_dataset=True
-            )
+    def plot_adoption_curve(
+        self, **kwargs: Any
+    ) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior adoption curve with the observed data.
 
-        if self.idata is not None:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
-        else:
-            self.idata = idata
+        See :func:`pymc_marketing.bass.plotting.plot_adoption_curve` for
+        the parameters.
 
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_adoption_curve(self, **kwargs)
 
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
+    def plot_cumulative(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the cumulative adoption S-curve with the observed data.
 
-        self.idata.add_groups(fit_data=ds)
-        self.set_idata_attrs(self.idata)
-        return self.idata
+        See :func:`pymc_marketing.bass.plotting.plot_cumulative` for
+        the parameters.
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Rebuild the model from an ``InferenceData`` object.
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_cumulative(self, **kwargs)
+
+    def plot_decomposition(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the adoption decomposition into innovators and imitators.
+
+        Per-period innovators and imitators go on the left y-axis and
+        cumulative adoption on a twin right y-axis.
+
+        See :func:`pymc_marketing.bass.plotting.plot_decomposition` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the primary (left) axes.
+        """
+        return plotting.plot_decomposition(self, **kwargs)
+
+    def plot_peak(self, **kwargs: Any) -> tuple[plt.Figure, npt.NDArray[Axes]]:
+        """Plot the posterior distribution of the peak adoption time.
+
+        See :func:`pymc_marketing.bass.plotting.plot_peak` for
+        the parameters.
+
+        Returns
+        -------
+        tuple[Figure, ndarray of Axes]
+            Figure and the axes.
+        """
+        return plotting.plot_peak(self, **kwargs)
+
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Rebuild the model from a ``DataTree`` object.
 
         Used internally by :meth:`ModelBuilder.load`.
         """

@@ -370,9 +370,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: 22fe95bf12454f5d8babe8a5cfaeceb6
-msgid "Fit a model using Variational Inference and return InferenceData."
+msgid "Fit a model using Variational Inference and return DataTree."
 msgstr ""
-"Ajuste un modelo utilizando Inferencia Variacional y devuelva InferenceData."
+"Ajuste un modelo utilizando Inferencia Variacional y devuelva DataTree."
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: 43c2533cdb2241758ab4cef0a93c1bb6
@@ -402,8 +402,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: c5e57f7ff1bc468dbf11ca1ca73f06c9
-msgid "Rebuild the model from an ``InferenceData`` object."
-msgstr "Reconstruya el modelo a partir de un objeto ``InferenceData``."
+msgid "Rebuild the model from an ``DataTree`` object."
+msgstr "Reconstruya el modelo a partir de un objeto ``DataTree``."
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: 09f30a2177d748658ad76c6e8ab30e64
@@ -527,10 +527,10 @@ msgstr ""
 #: 1858fc44b21d43469c49bd0a226a2f2e
 msgid ""
 "Create  the model configuration and sampler configuration from the "
-"InferenceData to keyword arguments."
+"DataTree to keyword arguments."
 msgstr ""
 "Cree la configuración del modelo y la configuración del muestreador a partir"
-" de InferenceData a argumentos de palabra clave."
+" de DataTree a argumentos de palabra clave."
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: 4845f260ea7346e6801932f8c0dcb5bd
@@ -559,9 +559,9 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: d029eb0fb097425e919e56403c921f38
-msgid "Create a ModelBuilder instance from an InferenceData object."
+msgid "Create a ModelBuilder instance from a DataTree object."
 msgstr ""
-"Cree una instancia de ModelBuilder a partir de un objeto InferenceData."
+"Cree una instancia de ModelBuilder a partir de un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: 6e5e855241b54f4da29bdb1327e6fb91
@@ -695,8 +695,8 @@ msgstr ""
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: 5cf1938865b84d66a0b2c2d8f69e0aa5
-msgid "Set attributes on an InferenceData object."
-msgstr "Establecer atributos en un objeto InferenceData."
+msgid "Set attributes on a DataTree object."
+msgstr "Establecer atributos en un objeto DataTree."
 
 #: ../source/api/generated/pymc_marketing.mmm.mmm.MMM.rst:48:<autosummary>:1
 #: d834827e111f427b80041b1576648e9c

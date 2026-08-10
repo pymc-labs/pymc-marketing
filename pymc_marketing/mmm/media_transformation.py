@@ -101,14 +101,8 @@ import pytensor.xtensor as ptx
 from pymc.distributions.shape_utils import Dims
 from pytensor.xtensor.type import XTensorVariable
 
-from pymc_marketing.mmm.components.adstock import (
-    AdstockTransformation,
-    adstock_from_dict,
-)
-from pymc_marketing.mmm.components.saturation import (
-    SaturationTransformation,
-    saturation_from_dict,
-)
+from pymc_marketing.mmm.components.adstock import AdstockTransformation
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.serialization import serialization
 
 
@@ -246,22 +240,9 @@ class MediaTransformation:
             The media transformation created from the dictionary.
 
         """
-        adstock_data = data["adstock"]
-        saturation_data = data["saturation"]
-
-        if "__type__" in adstock_data:
-            adstock = serialization.deserialize(adstock_data)
-        else:
-            adstock = adstock_from_dict(adstock_data)
-
-        if "__type__" in saturation_data:
-            saturation = serialization.deserialize(saturation_data)
-        else:
-            saturation = saturation_from_dict(saturation_data)
-
         return cls(
-            adstock=adstock,
-            saturation=saturation,
+            adstock=serialization.deserialize(data["adstock"]),
+            saturation=serialization.deserialize(data["saturation"]),
             adstock_first=data["adstock_first"],
             dims=data.get("dims"),
         )

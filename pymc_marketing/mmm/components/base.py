@@ -36,7 +36,7 @@ from matplotlib.figure import Figure
 from pydantic import InstanceOf
 from pymc.distributions.shape_utils import Dims
 from pymc_extras.prior import Prior, VariableFactory
-from pytensor import Variable
+from pytensor.graph.basic import Variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -201,15 +201,7 @@ class Transformation:
 
     @function_priors.setter  # type: ignore
     def function_priors(self, priors: dict[str, Any | Prior] | None) -> None:
-        priors = priors or {}
-
-        non_distributions = [
-            key
-            for key, value in priors.items()
-            if not isinstance(value, Prior) and not isinstance(value, dict)
-        ]
-
-        priors = parse_model_config(priors, non_distributions=non_distributions)
+        priors = parse_model_config(priors or {})
         self._function_priors = {**deepcopy(self.default_priors), **priors}
 
     def update_priors(self, priors: dict[str, Prior]) -> None:
@@ -429,7 +421,8 @@ class Transformation:
         coords = coords or {}
         with pm.Model(coords=coords):
             self._create_distributions()
-            return pm.sample_prior_predictive(**sample_prior_predictive_kwargs).prior
+            prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
+            return prior_pred["/prior"].to_dataset()
 
     def plot_curve(
         self,
@@ -524,8 +517,14 @@ class Transformation:
                 self.apply(x, core_dim=x_dim),
             )
 
+            dt_cls = getattr(xr, "DataTree", None)
+            if isinstance(parameters, xr.Dataset) and dt_cls is not None:
+                idata = dt_cls.from_dict({"/posterior": parameters})
+            else:
+                idata = parameters
+
             return pm.sample_posterior_predictive(
-                parameters,
+                idata,
                 var_names=[var_name],
                 **sample_prior_predictive_kwargs,
             ).posterior_predictive[var_name]

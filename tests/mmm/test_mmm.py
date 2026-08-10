@@ -17,7 +17,6 @@ import warnings
 from collections.abc import Callable
 from pathlib import Path
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -119,6 +118,59 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     return mmm
 
 
+@pytest.mark.parametrize("method", ["map", "demz"])
+def test_fit_non_nuts_methods_use_sampling_model(
+    df, mmm, target_column, method, mocker
+):
+    """Every fit path must run against the model from `_get_sampling_model`.
+
+    MMM overrides that hook with `freeze_dims_and_data`, so `map` and `demz` going
+    through `self.model` directly would silently skip the frozen graph.
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    seen: dict[str, pm.Model] = {}
+    original = mmm._get_sampling_model
+
+    def record() -> pm.Model:
+        seen["model"] = original()
+        return seen["model"]
+
+    mocker.patch.object(mmm, "_get_sampling_model", side_effect=record)
+
+    if method == "map":
+        find_map = mocker.spy(pm, "find_MAP")
+        extra: dict = {}
+    else:
+        # `pm.sample` takes its model from the context, so the assertion has to happen
+        # while that context is still open.
+        sampled: dict[str, pm.Model] = {}
+        original_sample = pm.sample
+
+        def sample(*args, **kwargs):
+            sampled["model"] = pm.modelcontext(None)
+            return original_sample(*args, **kwargs)
+
+        mocker.patch.object(pm, "sample", side_effect=sample)
+        extra = {
+            "draws": 5,
+            "tune": 5,
+            "chains": 1,
+            "compute_convergence_checks": False,
+        }
+
+    idata = mmm.fit(X, y, method=method, random_seed=42, progressbar=False, **extra)
+
+    if method == "map":
+        assert find_map.call_args.kwargs["model"] is seen["model"]
+    else:
+        assert sampled["model"] is seen["model"]
+    # The hook freezes dims and data, so the sampled graph is never `self.model`.
+    assert seen["model"] is not mmm.model
+    assert "/posterior" in idata.groups
+
+
 def test_target_column():
     mmm_default = MMM(
         date_column="date",
@@ -138,6 +190,63 @@ def test_target_column():
     assert mmm_custom.target_column == "epsilon"
 
 
+class TestGeometricAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM."""
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=GeometricAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("Gamma", mu=5, sigma=1, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
+
+
 def test_reserved_dims():
     other_kwargs = {
         "date_column": "date",
@@ -155,7 +264,64 @@ def test_reserved_dims():
 
 def test_simple_fit(fit_mmm):
     assert isinstance(fit_mmm.posterior, xr.Dataset)
-    assert isinstance(fit_mmm.idata.constant_data, xr.Dataset)
+    cd = fit_mmm.idata.constant_data
+    if hasattr(cd, "dataset"):
+        cd = cd.dataset
+    assert isinstance(cd, xr.Dataset)
+
+
+def test_fit_with_dataset_embedded_target(single_dim_data):
+    """Fit with an xr.Dataset that already contains the target variable.
+
+    Exercises the guard in :meth:`MMM.build_model` that reads ``_target``
+    from the canonical dataset rather than from the raw ``y`` parameter.
+    """
+    from pymc_marketing.mmm.data_conversion import to_mmm_dataset
+
+    X_df, y = single_dim_data
+    dataset = to_mmm_dataset(
+        X_df,
+        y,
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+    )
+    assert "_target" in dataset.data_vars
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    # Call build_model directly (bypassing RegressionModelBuilder.fit,
+    # which can't handle xr.Dataset's lack of .shape)
+    mmm.build_model(X=dataset, y=None)
+
+    assert "_target" in mmm.xarray_dataset.data_vars
+    assert "_channel" in mmm.xarray_dataset.data_vars
+    assert "date" in mmm.xarray_dataset.coords
+    assert "channel" in mmm.xarray_dataset.coords
+    assert mmm.xarray_dataset["_target"].dims == ("date",)
+    assert mmm.xarray_dataset["_target"].shape == (14,)
+    assert mmm.model is not None
+    assert hasattr(mmm, "model_coords")
+    assert "date" in mmm.model_coords
+    # Additional assertions for coverage
+    assert mmm.model_coords["date"].shape == (14,)
+    assert len(mmm.model_coords) >= 1
+    assert str(mmm.model_coords["date"].dtype).startswith("datetime64")
+    assert mmm.xarray_dataset["_target"].dtype.kind in ["f", "i"]  # float or int
+    assert mmm.xarray_dataset["_channel"].shape == (14, 3)  # 14 dates, 3 channels
+    # Even more assertions for coverage
+    assert mmm.xarray_dataset["_target"].size == 14
+    assert mmm.xarray_dataset["_channel"].size == 42  # 14 * 3
+    assert mmm.xarray_dataset.nbytes > 0
+    assert len(mmm.xarray_dataset.data_vars) >= 2  # _target and _channel at least
+    assert len(mmm.xarray_dataset.coords) >= 2  # date and channel at least
+    # Check that we can access the actual values
+    assert not mmm.xarray_dataset["_target"].isnull().any()
+    assert not mmm.xarray_dataset["_channel"].isnull().any()
 
 
 def test_sample_prior_predictive(mmm: MMM, target_column, df: pd.DataFrame):
@@ -585,7 +751,7 @@ def test_build_from_idata_fallback_infers_original_scale_from_posterior(
     mmm.save(file)
 
     # Simulate a pre-fix artifact by stripping the attr before loading.
-    loaded_idata = az.from_netcdf(file)
+    loaded_idata = xr.open_datatree(file)
     assert "original_scale_vars" in loaded_idata.attrs
     del loaded_idata.attrs["original_scale_vars"]
     assert "original_scale_vars" not in loaded_idata.attrs
@@ -700,7 +866,7 @@ def _make_minimal_mmm_idata():
     from pymc_marketing.serialization import serialization
 
     posterior = xr.Dataset({"x": xr.DataArray(np.random.randn(4, 100))})
-    idata = az.InferenceData(posterior=posterior)
+    idata = xr.DataTree.from_dict({"/posterior": posterior})
 
     adstock = GeometricAdstock(l_max=4)
     saturation = LogisticSaturation()
@@ -754,7 +920,7 @@ class TestRegistryDeserialization:
             }
         )
         fit_data = xr.Dataset.from_dataframe(X_df)
-        idata.add_groups(fit_data=fit_data)
+        idata["/fit_data"] = fit_data
 
         mmm = MMM(
             date_column="date",
@@ -800,7 +966,10 @@ class _CustomEffectWithSuppData(MuEffect):
 
 
 def _deserialize_custom_supp_effect(data, context):
-    df = context.idata[data["df_group"]].to_dataframe().reset_index(drop=True)
+    ds = context.idata[data["df_group"]]
+    if hasattr(ds, "dataset"):
+        ds = ds.dataset
+    df = ds.to_dataframe().reset_index(drop=True)
     return _CustomEffectWithSuppData(prefix=data["prefix"], df=df)
 
 
@@ -849,7 +1018,7 @@ class TestSerializationIntegration:
         assert loaded.target_column == simple_fitted_mmm.target_column
         assert loaded.adstock_first == simple_fitted_mmm.adstock_first
 
-        loaded_idata = az.from_netcdf(fname)
+        loaded_idata = xr.open_datatree(fname)
         assert "__serialization_version__" in loaded_idata.attrs
         assert loaded_idata.attrs["__serialization_version__"] == "1"
 
@@ -948,7 +1117,7 @@ class TestSerializationIntegration:
         fname = tmp_path / "mu_effects_model.nc"
         mmm.save(str(fname))
 
-        raw_idata = az.from_netcdf(fname)
+        raw_idata = xr.open_datatree(fname)
         assert hasattr(raw_idata, "supplementary_data_promos")
 
         loaded = MMM.load(str(fname))
@@ -1003,7 +1172,7 @@ class TestSerializationIntegration:
         fname = tmp_path / "custom_supp_data.nc"
         mmm.save(fname)
 
-        raw_idata = az.from_netcdf(fname)
+        raw_idata = xr.open_datatree(fname)
         assert hasattr(raw_idata, "supplementary_data_custom_supp")
 
         loaded = MMM.load(str(fname))
@@ -1199,9 +1368,7 @@ def test_fit(
     if yearly_seasonality is not None:
         assert "fourier_contribution" in var_names
 
-    assert isinstance(idata, az.InferenceData), (
-        "fit should return an InferenceData object."
-    )
+    assert isinstance(idata, xr.DataTree), "fit should return a DataTree object."
     assert hasattr(mmm, "idata"), (
         "MMM instance should store the inference data as 'idata'."
     )
@@ -2911,6 +3078,96 @@ def test_add_calibration_test_measurements(multi_dim_data):
     assert "cpt_calibration" in obs_names
 
 
+def test_add_roas_calibration_target_per_cost(multi_dim_data):
+    """`target_per_cost=True` calibrates contribution/spend (ROAS) instead of CPT."""
+    X, y = multi_dim_data
+
+    def build_calibrated_model(target_per_cost: bool) -> MMM:
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            dims=("country",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+        countries = mmm.model.coords["country"]
+        roas_df = pd.DataFrame(
+            {
+                "country": [countries[0], countries[1]],
+                "channel": ["channel_1", "channel_2"],
+                "roas": [3.5, 2.0],
+                "sigma": [0.3, 0.2],
+            }
+        )
+
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=roas_df,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=target_per_cost,
+        )
+        return mmm
+
+    mmm = build_calibrated_model(target_per_cost=True)
+
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "roas_calibration" in obs_names
+
+    assert "_roas_calibration" in mmm.model.coords
+    assert mmm.model.dim_lengths["_roas_calibration"].eval() == 2
+
+    # The flag must reach the likelihood: the same calibration values scored as
+    # target-per-cost vs cost-per-target give different logps, so an identical
+    # model built with the flag flipped must not match.
+    mmm_cpt = build_calibrated_model(target_per_cost=False)
+
+    def calibration_logp(mmm_: MMM) -> float:
+        model = mmm_.model
+        logp_fn = model.compile_logp(vars=[model["roas_calibration"]])
+        return logp_fn(model.initial_point())
+
+    assert calibration_logp(mmm) != pytest.approx(calibration_logp(mmm_cpt))
+
+
+def test_add_cost_per_target_calibration_missing_target_column(multi_dim_data) -> None:
+    """A missing target column raises a clear KeyError."""
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0]],
+            "channel": ["channel_1"],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+
+    with pytest.raises(KeyError, match="'roas' column missing in calibration_data"):
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=calibration_df,
+            target_column="roas",
+            target_per_cost=True,
+        )
+
+
 def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
     X, _ = multi_dim_data
 
@@ -4417,7 +4674,7 @@ def test_mmm_with_arbitrary_date_column_names_single_dim(
 
     # Verify model can be fitted
     idata = mmm.fit(X_renamed, y_single, draws=50, tune=25, chains=1)
-    assert isinstance(idata, az.InferenceData)
+    assert isinstance(idata, xr.DataTree)
 
     # Test posterior predictive sampling
     pred_data = mmm.sample_posterior_predictive(
@@ -4466,7 +4723,7 @@ def test_mmm_with_arbitrary_date_column_names_multi_dim(
 
     # Verify model can be fitted with complex features
     idata_multi = mmm_multi.fit(X_renamed, y_multi, draws=50, tune=25, chains=1)
-    assert isinstance(idata_multi, az.InferenceData)
+    assert isinstance(idata_multi, xr.DataTree)
 
     # Test that time-varying features work with arbitrary date names
     assert "intercept_latent_process" in mmm_multi.model.named_vars
@@ -4564,7 +4821,7 @@ def test_arbitrary_date_column_with_control_variables(
     assert "control_data" in mmm_controls.model.named_vars
 
     idata = mmm_controls.fit(X_with_controls, y, draws=50, tune=25, chains=1)
-    assert isinstance(idata, az.InferenceData)
+    assert isinstance(idata, xr.DataTree)
 
 
 @pytest.mark.parametrize(

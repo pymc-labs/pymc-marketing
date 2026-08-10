@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import xarray
-from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from scipy.special import gammaln, hyp2f1
 
@@ -28,7 +27,7 @@ from pymc_marketing.clv.models import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
-__all__ = ["ShiftedBetaGeoModel", "ShiftedBetaGeoModelIndividual"]
+__all__ = ["ShiftedBetaGeoModel"]
 
 
 class ShiftedBetaGeoModel(CLVModel):
@@ -170,19 +169,17 @@ class ShiftedBetaGeoModel(CLVModel):
     """
 
     _model_type = "Shifted Beta-Geometric"
+    _skipped_config_keys = {"alpha", "beta"}
 
     def __init__(
         self,
-        data: pd.DataFrame | None = None,
         *,
         model_config: ModelConfig | None = None,
         sampler_config: dict | None = None,
     ):
         super().__init__(
-            data=data,
             model_config=model_config,
             sampler_config=sampler_config,
-            non_distributions=["dropout_covariate_cols"],
         )
 
     def _validate_cohorts(
@@ -279,34 +276,25 @@ class ShiftedBetaGeoModel(CLVModel):
             must_be_unique=["customer_id"],
         )
 
-        if np.any(
-            (data["recency"] < 1) | (data["recency"] > data["T"]) | (data["T"] < 2)
-        ):
-            raise ValueError("Model fitting requires 1 <= recency <= T, and T >= 2.")
+        if (data["recency"] < 1).any():
+            raise ValueError("Column recency must be at least 1")
+        if (data["recency"] > data["T"]).any():
+            raise ValueError("recency cannot be greater than T")
+        if (data["T"] < 2).any():
+            raise ValueError("Column T must be at least 2")
 
         self._validate_cohorts(data, check_param_dims=("alpha", "beta"))
 
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
+    def build_model(self, data: pd.DataFrame) -> None:  # type: ignore[override]
         """Build the model.
 
         Parameters
         ----------
-        data : pd.DataFrame, optional
+        data : pd.DataFrame
             Input data with customer_id, recency, T, and cohort columns.
-            If not provided, uses data from model initialization (deprecated).
         """
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
+        self._validate_data(data)
+        self.data = data
 
         coords = {
             "customer_id": self.data["customer_id"],
@@ -538,7 +526,8 @@ class ShiftedBetaGeoModel(CLVModel):
                 alpha_pred,
                 beta_pred,
                 *customer_vars,
-            )
+            ),
+            compat="override",
         ).swap_dims(
             {"customer_id": "cohort"}
         )  # swap dims to enable cohort selection for predictions
@@ -756,237 +745,3 @@ class ShiftedBetaGeoModel(CLVModel):
         return retention_elasticity.transpose(
             "chain", "draw", "customer_id", "cohort", missing_dims="ignore"
         )
-
-
-class ShiftedBetaGeoModelIndividual(CLVModel):
-    """Shifted Beta Geometric model for individual customers.
-
-    Model for customer behavior in a discrete contractual setting. It assumes that:
-
-    * At the end of each period, a customer has a probability ``theta`` of renewing the contract
-      and ``1 - theta`` of cancelling
-    * The probability ``theta`` does not change over time for a given customer
-    * The probability ``theta`` varies across customers according to a Beta prior distribution
-      with hyperparameters ``alpha`` and ``beta``.
-
-    Based on [1]_.
-
-    Parameters
-    ----------
-    data: pd.DataFrame
-        DataFrame containing the following columns:
-
-        * ``customer_id``: Customer labels. There should be one unique label for each customer.
-        * ``t_churn``: Time at which the customer cancelled the contract (starting at 0).
-          It should equal ``T`` for users that have not cancelled by the end of the
-          observation period.
-        * ``T``: Maximum observed time period (starting at 0).
-    model_config: dict, optional
-        Dictionary of model prior parameters. If not provided, the model will use default priors specified in the
-        `default_model_config` class attribute.
-    sampler_config: dict, optional
-        Dictionary of sampler parameters. Defaults to None.
-
-
-    Examples
-    --------
-        .. code-block:: python
-
-            import pandas as pd
-            import pymc as pm
-
-            from pymc_extras.prior import Prior
-            from pymc_marketing.clv import ShiftedBetaGeoModelIndividual
-
-
-            data = pd.DataFrame({
-                    customer_id=[0, 1, 2, 3, ...],
-                    t_churn=[1, 2, 8, 4, 8 ...],
-                    T=[8 for x in range(len(customer_id))],
-                })
-
-            model = ShiftedBetaGeoModelIndividual(
-                model_config={
-                    "alpha": Prior("HalfNormal", sigma=10),
-                    "beta": Prior("HalfStudentT", nu=4, sigma=10),
-                },
-                sampler_config={
-                    "draws": 1000,
-                    "tune": 1000,
-                    "chains": 2,
-                    "cores": 2,
-                    "nuts_kwargs": {"target_accept": 0.95},
-                },
-            )
-
-            model.fit(data=data)
-            print(model.fit_summary())
-
-            # Predict how many periods in the future are existing customers
-            likely to cancel (ignoring that some may already have cancelled)
-            expected_churn_time = model.distribution_customer_churn_time(
-                customer_id=[0, 1, 2, 3, ...],
-            )
-            print(expected_churn_time.mean("customer_id"))
-
-            # Predict churn time for 10 new customers, conditioned on data
-            new_customers_churn_time = model.distribution_new_customer_churn_time(n=10)
-            print(new_customers_churn_time.mean("new_customer_id"))
-
-
-    References
-    ----------
-    .. [1] Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
-           Journal of Interactive Marketing, 21(1), 76-90.
-           https://journals.sagepub.com/doi/pdf/10.1002/dir.20074
-
-    """
-
-    _model_type = "Shifted-Beta-Geometric Model (Individual Customers)"
-
-    def __init__(
-        self,
-        data: pd.DataFrame | None = None,
-        *,
-        model_config: ModelConfig | None = None,
-        sampler_config: dict | None = None,
-    ):
-        super().__init__(
-            data=data, model_config=model_config, sampler_config=sampler_config
-        )
-
-    @property
-    def default_model_config(self) -> dict:
-        """Default model configuration."""
-        return {
-            "alpha": Prior("HalfFlat"),
-            "beta": Prior("HalfFlat"),
-        }
-
-    # TODO: This placeholder will be superceded by https://github.com/pymc-labs/pymc-marketing/pull/2305
-    def _validate_data(self, data: pd.DataFrame) -> None:
-        """Validate Shifted Beta-Geometric Individual-specific data requirements."""
-        self._validate_cols(
-            data,
-            required_cols=["customer_id", "t_churn", "T"],
-            must_be_unique=["customer_id"],
-        )
-
-        if np.any(
-            (data["t_churn"] < 0)
-            | (data["t_churn"] > data["T"])
-            | np.isnan(data["t_churn"])
-        ):
-            raise ValueError(
-                "t_churn must respect 0 < t_churn <= T.\n"
-                "Customers that are still alive should have t_churn = T"
-            )
-
-    def build_model(self, data: pd.DataFrame | None = None) -> None:  # type: ignore[override]
-        """Build the model.
-
-        Parameters
-        ----------
-        data : pd.DataFrame, optional
-            Input data with customer_id, t_churn, and T columns.
-            If not provided, uses data from model initialization (deprecated).
-        """
-        # TODO: Revise this logic when old API is removed in 1.0.
-        # Handle data parameter
-        if data is not None:
-            self._validate_data(data)
-            self.data = data
-        elif not hasattr(self, "data") or self.data is None:
-            raise ValueError(
-                f"{self._model_type}.build_model() requires data parameter. "
-                "Either pass data to build_model(data=...) or fit(data=...)"
-            )
-        else:
-            # Validate existing data from old API
-            self._validate_data(self.data)
-
-        coords = {"customer_id": self.data["customer_id"]}
-        with pm.Model(coords=coords) as self.model:
-            alpha = self.model_config["alpha"].create_variable("alpha")
-            beta = self.model_config["beta"].create_variable("beta")
-
-            theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
-
-            churn_raw = pm.Geometric.dist(theta)
-            pm.Censored(
-                "churn_censored",
-                churn_raw,
-                lower=None,
-                upper=self.data["T"],
-                observed=self.data["t_churn"],
-                dims=("customer_id",),
-            )
-
-    def distribution_customer_churn_time(
-        self, customer_id: np.ndarray | pd.Series, random_seed: RandomState = None
-    ) -> xarray.DataArray:
-        """Sample distribution of churn time for existing customers.
-
-        The draws represent the number of periods into the future after which
-        a customer cancels their contract.
-
-        It ignores that some customers may have already cancelled.
-        """
-        coords = {"customer_id": customer_id}
-        with pm.Model(coords=coords):
-            alpha = pm.HalfFlat("alpha")
-            beta = pm.HalfFlat("beta")
-
-            theta = pm.Beta("theta", alpha, beta, dims=("customer_id",))
-            pm.Geometric("churn", theta, dims=("customer_id",))
-
-            return pm.sample_posterior_predictive(
-                self.idata,
-                var_names=["churn"],
-                random_seed=random_seed,
-            ).posterior_predictive["churn"]
-
-    def _distribution_new_customer(
-        self,
-        n: int = 1,
-        random_seed: RandomState = None,
-        var_names: Sequence[str] = ("theta", "churn"),
-    ) -> xarray.Dataset:
-        coords = {"new_customer_id": np.arange(n)}
-        with pm.Model(coords=coords):
-            alpha = pm.HalfFlat("alpha")
-            beta = pm.HalfFlat("beta")
-
-            theta = pm.Beta("theta", alpha, beta, dims=("new_customer_id",))
-            pm.Geometric("churn", theta, dims=("new_customer_id",))
-
-            return pm.sample_posterior_predictive(
-                self.idata,
-                var_names=var_names,
-                random_seed=random_seed,
-            ).posterior_predictive
-
-    def distribution_new_customer_churn_time(
-        self, n: int = 1, random_seed: RandomState = None
-    ) -> xarray.DataArray:
-        """Sample distribution of churn time for new customers.
-
-        The draws represent the number of periods into the future after which
-        a customer cancels their contract.
-
-        Use `n > 1` to simulate multiple identically distributed users.
-        """
-        return self._distribution_new_customer(
-            n=n, random_seed=random_seed, var_names=["churn"]
-        )["churn"]
-
-    def distribution_new_customer_theta(
-        self, n: int = 1, random_seed: RandomState = None
-    ) -> xarray.DataArray:
-        """Sample distribution of theta parameter for new customers.
-
-        Use `n > 1` to simulate multiple identically distributed users.
-        """
-        return self._distribution_new_customer(
-            n=n, random_seed=random_seed, var_names=["theta"]
-        )["theta"]

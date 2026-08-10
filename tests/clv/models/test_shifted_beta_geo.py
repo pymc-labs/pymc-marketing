@@ -11,21 +11,15 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import os
-
-import arviz as az
 import numpy as np
 import pandas as pd
-import pymc as pm
 import pytest
 import xarray as xr
-from pymc.distributions.censored import CensoredRV
 from pymc_extras.prior import Prior
 from pytensor.compile import ViewOp
 from pytensor.tensor.elemwise import Elemwise
-from scipy import stats
 
-from pymc_marketing.clv import ShiftedBetaGeoModel, ShiftedBetaGeoModelIndividual
+from pymc_marketing.clv import ShiftedBetaGeoModel
 from tests.clv.conftest import mock_sample
 
 
@@ -50,7 +44,6 @@ class TestShiftedBetaGeoModel:
         cls.data = pd.read_csv("data/sbg_cohorts.csv").query("T <= 8")
         cls.model = ShiftedBetaGeoModel()
         cls.model.build_model(data=cls.data)
-        cls.model.build_model()
 
         # Mock an idata object for tests requiring a fitted model
         cls.N = len(cls.data)
@@ -90,8 +83,8 @@ class TestShiftedBetaGeoModel:
                 ),
             }
         )
-        cls.erl_model = ShiftedBetaGeoModel(cls.erl_data)
-        cls.erl_model.build_model()
+        cls.erl_model = ShiftedBetaGeoModel()
+        cls.erl_model.build_model(data=cls.erl_data)
         cls.erl_cohorts = ["case1", "case2"]
         # Mock a fitted model with [case1, case2] cohort parameters
         # for testing expected_residual_lifetime, expected_retention_elasticity
@@ -130,12 +123,13 @@ class TestShiftedBetaGeoModel:
             )
             for param in zip(alpha_beta_sim, ["alpha", "beta"], strict=False)
         ]
-        posterior = az.convert_to_inference_data(xr.merge(param_arrays))
+        posterior = xr.DataTree.from_dict({"/posterior": xr.merge(param_arrays)})
         # Set idata and add fit data group
         model.idata = posterior
         model.set_idata_attrs(model.idata)
-        if model.data is not None:
-            model._add_fit_data_group(model.data)
+        fit_data = model.create_fit_data_group()
+        if fit_data is not None:
+            model.idata["/fit_data"] = fit_data
 
         return model
 
@@ -205,16 +199,13 @@ class TestShiftedBetaGeoModel:
         }
 
     def test_model(self, custom_model_config):
-        default_model = ShiftedBetaGeoModel(
-            data=self.data,
-        )
+        default_model = ShiftedBetaGeoModel()
         custom_model = ShiftedBetaGeoModel(
-            data=self.data,
             model_config=custom_model_config,
         )
 
         for model in (default_model, custom_model):
-            model.build_model()
+            model.build_model(data=self.data)
             assert isinstance(
                 model.model["alpha"].owner.op,
                 ViewOp | Elemwise
@@ -343,42 +334,19 @@ class TestShiftedBetaGeoModel:
             }
         )
 
-    def test_missing_cols(self):
-        data_invalid = self.data.drop(columns="customer_id")
+    @pytest.mark.parametrize(
+        "missing_column",
+        ["customer_id", "recency", "T", "cohort"],
+    )
+    def test_missing_cols(self, missing_column):
+        data_invalid = self.data.drop(columns=missing_column)
 
         with pytest.raises(
             ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
+            match=rf"The following required columns are missing from the input data: \['{missing_column}'\]",
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data_invalid)
-            model.build_model()
-
-        data_invalid = self.data.drop(columns="recency")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['recency'\]",
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data_invalid)
-            model.build_model()
-
-        data_invalid = self.data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data_invalid)
-            model.build_model()
+            model = ShiftedBetaGeoModel()
+            model.build_model(data=data_invalid)
 
     def test_customer_id_duplicate(self):
         with pytest.raises(
@@ -392,29 +360,28 @@ class TestShiftedBetaGeoModel:
                     "cohort": np.asarray(["A", "A"]),
                 }
             )
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data)
-            model.build_model()
+            model = ShiftedBetaGeoModel()
+            model.build_model(data=data)
 
-    def test_invalid_recency(self):
+    @pytest.mark.parametrize(
+        "recency, match",
+        [
+            (np.asarray([1, 3]), r"recency cannot be greater than T"),
+            (np.asarray([0, 1]), r"Column recency must be at least 1"),
+        ],
+    )
+    def test_invalid_recency(self, recency, match):
         data = pd.DataFrame(
             {
                 "customer_id": np.asarray([1, 2]),
-                "recency": np.asarray([1, 3]),
+                "recency": recency,
                 "T": np.asarray([2, 2]),
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(
-            ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data)
-            model.build_model()
+        with pytest.raises(ValueError, match=match):
+            model = ShiftedBetaGeoModel()
+            model.build_model(data=data)
 
     def test_invalid_T(self):
         data = pd.DataFrame(
@@ -425,14 +392,9 @@ class TestShiftedBetaGeoModel:
                 "cohort": np.asarray(["A", "A"]),
             }
         )
-        with pytest.raises(
-            ValueError, match=r"Model fitting requires 1 <= recency <= T, and T >= 2."
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data)
-            model.build_model()
+        with pytest.raises(ValueError, match=r"Column T must be at least 2"):
+            model = ShiftedBetaGeoModel()
+            model.build_model(data=data)
 
     def test_cohort_T_homogeneity(self):
         data = pd.DataFrame(
@@ -446,11 +408,8 @@ class TestShiftedBetaGeoModel:
         with pytest.raises(
             ValueError, match=r"T must be homogeneous within each cohort."
         ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(data=data)
-            model.build_model()
+            model = ShiftedBetaGeoModel()
+            model.build_model(data=data)
 
     def test_cohorts_raises_attribute_error_when_data_unspecified(self):
         """Test that accessing cohorts raises AttributeError when data is unspecified."""
@@ -473,8 +432,8 @@ class TestShiftedBetaGeoModel:
             "ShiftedBeta-Geometric"
             "\nphi~Uniform(0,1)"
             "\nkappa~Pareto(1,1)"
-            "\nalpha~Deterministic(f(kappa,phi))"
-            "\nbeta~Deterministic(f(kappa,phi))"
+            "\nalpha=Deterministic(f(kappa,phi))"
+            "\nbeta=Deterministic(f(kappa,phi))"
             "\ndropout~Censored(ShiftedBetaGeometric(f(kappa,phi),f(kappa,phi)),-inf,<constant>)"
         )
 
@@ -489,10 +448,9 @@ class TestShiftedBetaGeoModel:
             [custom_model_config, None], [custom_repr, default_repr], strict=False
         ):
             model = ShiftedBetaGeoModel(
-                data=self.data,
                 model_config=repr[0],
             )
-            model.build_model()
+            model.build_model(data=self.data)
             assert model.__repr__().replace(" ", "") == repr[1]
 
     @pytest.mark.slow
@@ -509,7 +467,7 @@ class TestShiftedBetaGeoModel:
         model.build_model(data=self.data)
 
         sample_kwargs = dict(random_seed=self.seed) if method == "mcmc" else {}
-        model.fit(method=method, progressbar=False, **sample_kwargs)
+        model.fit(data=self.data, method=method, progressbar=False, **sample_kwargs)
 
         fit = model.idata.posterior
         # Compare mean of each cohort parameter (averaging over chains and draws)
@@ -536,26 +494,27 @@ class TestShiftedBetaGeoModel:
         mocker.patch("pymc.sample", mock_sample)
 
         idata = model.fit(
+            data=self.data,
             tune=5,
             chains=2,
             draws=10,
             compute_convergence_checks=False,
         )
-        assert isinstance(idata, az.InferenceData)
+        assert isinstance(idata, xr.DataTree)
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
 
-    def test_save_load(self):
+    def test_save_load(self, tmp_path):
         model = ShiftedBetaGeoModel()
+        save_path = tmp_path / "test_model"
         model.build_model(data=self.data)
-        model.fit(method="map")
-        model.save("test_model")
-        model2 = ShiftedBetaGeoModel.load("test_model")
+        model.fit(data=self.data, method="map")
+        model.save(save_path)
+        model2 = ShiftedBetaGeoModel.load(save_path)
         assert model.model_config == model2.model_config
         assert model.sampler_config == model2.sampler_config
         assert model.idata == model2.idata
-        os.remove("test_model")
 
     def test_requires_cohort_dims_on_alpha_beta_missing_raises(self):
         config_missing_dims = {
@@ -563,14 +522,10 @@ class TestShiftedBetaGeoModel:
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
         with pytest.raises(ValueError, match=r'dims="cohort"'):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(
-                    data=self.data,
-                    model_config=config_missing_dims,
-                )
-            model.build_model()
+            model = ShiftedBetaGeoModel(
+                model_config=config_missing_dims,
+            )
+            model.build_model(data=self.data)
 
     def test_requires_cohort_dims_on_alpha_beta_incorrect_raises(self):
         config_incorrect_dims = {
@@ -578,14 +533,10 @@ class TestShiftedBetaGeoModel:
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="cohort"),
         }
         with pytest.raises(ValueError, match=r'dims="cohort"'):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(
-                    data=self.data,
-                    model_config=config_incorrect_dims,
-                )
-            model.build_model()
+            model = ShiftedBetaGeoModel(
+                model_config=config_incorrect_dims,
+            )
+            model.build_model(data=self.data)
 
     def test_accepts_alpha_beta_with_cohort_dims(self):
         config_ok = {
@@ -593,14 +544,10 @@ class TestShiftedBetaGeoModel:
             "beta": Prior("HalfStudentT", nu=4, sigma=10, dims="dim"),
         }
         with pytest.raises(ValueError, match=r'dims="cohort"'):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(
-                    data=self.data,
-                    model_config=config_ok,
-                )
-            model.build_model()
+            model = ShiftedBetaGeoModel(
+                model_config=config_ok,
+            )
+            model.build_model(data=self.data)
 
     def test_extract_predictive_variables_invalid(self):
         invalid_cohort_data = pd.DataFrame(
@@ -877,7 +824,7 @@ class TestShiftedBetaGeoModel:
         )  # 2 covariates
 
         # Fit with MAP to verify it runs without errors
-        model.fit(method="map", maxeval=10)
+        model.fit(data=covariate_test_data, method="map", maxeval=10)
         assert model.idata is not None
 
     def test_model_with_covariates_direct(self, covariate_test_data):
@@ -911,7 +858,7 @@ class TestShiftedBetaGeoModel:
         assert model.model["beta"].eval().shape == (20,)  # 20 customers
 
         # Fit with MAP to verify it runs without errors
-        model.fit(method="map", maxeval=10)
+        model.fit(data=covariate_test_data, method="map", maxeval=10)
         assert model.idata is not None
 
     def test_predictions_with_covariates(
@@ -927,7 +874,7 @@ class TestShiftedBetaGeoModel:
 
         model = ShiftedBetaGeoModel(model_config=model_config)
         model.build_model(data=covariate_test_data)
-        model.fit(method="map", maxeval=10)
+        model.fit(data=covariate_test_data, method="map", maxeval=10)
 
         # Use only the channel covariate column from pred_data
         pred_data = covariate_pred_data[
@@ -970,13 +917,8 @@ class TestShiftedBetaGeoModel:
         }
 
         with pytest.raises(ValueError, match="missing from the input data"):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModel(
-                    data=data_missing_covariates, model_config=model_config
-                )
-            model.build_model()
+            model = ShiftedBetaGeoModel(model_config=model_config)
+            model.build_model(data=data_missing_covariates)
 
     def test_covariate_cols_only_in_config(self, covariate_test_data):
         """Test that passing only dropout_covariate_cols into model_config (without priors) works."""
@@ -1004,9 +946,9 @@ class TestShiftedBetaGeoModel:
         )
 
         model = ShiftedBetaGeoModel(
-            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+            model_config={"dropout_covariate_cols": ["channel"]}
         )
-        model.fit(method="map", maxeval=10)
+        model.fit(data=train_data, method="map", maxeval=10)
 
         # Prediction data with subset of cohorts (NOT starting at index 0)
         pred_data = pd.DataFrame(
@@ -1039,9 +981,9 @@ class TestShiftedBetaGeoModel:
         )
 
         model = ShiftedBetaGeoModel(
-            data=train_data, model_config={"dropout_covariate_cols": ["channel"]}
+            model_config={"dropout_covariate_cols": ["channel"]}
         )
-        model.fit(method="map", maxeval=50)
+        model.fit(data=train_data, method="map", maxeval=50)
 
         # Get active customers for predictions
         active_all = train_data.query("recency == T").copy()
@@ -1074,9 +1016,9 @@ class TestShiftedBetaGeoModel:
         )
 
         model = ShiftedBetaGeoModel(
-            data=train_data, model_config={"dropout_covariate_cols": ["feature"]}
+            model_config={"dropout_covariate_cols": ["feature"]}
         )
-        model.fit(method="map", maxeval=50)
+        model.fit(data=train_data, method="map", maxeval=50)
 
         active = train_data.query("recency == T").copy()
         active_X = active[active["cohort"] == "X"].copy()
@@ -1109,10 +1051,8 @@ class TestShiftedBetaGeoModel:
             }
         )
 
-        model = ShiftedBetaGeoModel(
-            data=train_data, model_config={"dropout_covariate_cols": ["cov"]}
-        )
-        model.fit(method="map", maxeval=10)
+        model = ShiftedBetaGeoModel(model_config={"dropout_covariate_cols": ["cov"]})
+        model.fit(data=train_data, method="map", maxeval=10)
 
         pred_data = train_data.query("recency == T").assign(future_t=1)
         dataset = model._extract_predictive_variables(
@@ -1126,282 +1066,3 @@ class TestShiftedBetaGeoModel:
         # Verify alpha has proper dimensions
         assert "alpha" in dataset
         assert dataset["alpha"].dims[-1] == "cohort"  # After swap_dims
-
-
-class TestShiftedBetaGeoModelIndividual:
-    @classmethod
-    def setup_class(cls):
-        def churned_data_from_percentage_alive(percentage_alive, initial_customers):
-            n_alive = (np.asarray(percentage_alive) / 100 * initial_customers).astype(
-                int
-            )
-
-            churned_at = np.zeros((initial_customers,), dtype=int)
-            counter = 0
-            for t, diff in enumerate((n_alive[:-1] - n_alive[1:]), start=1):
-                churned_at[counter : counter + diff] = t
-                counter += diff
-
-            censoring_t = t + 1
-            churned_at[counter:] = censoring_t
-
-            return churned_at
-
-        # Regular dataset from Fader, P. S., & Hardie, B. G. (2007). How to project customer retention.
-        # Journal of Interactive Marketing, 21(1), 76-90. https://journals.sagepub.com/doi/pdf/10.1002/dir.20074
-        cls.N = 1000
-        cls.T = 8
-        cls.customer_id = np.arange(cls.N)
-        cls.churn_time = churned_data_from_percentage_alive(
-            percentage_alive=[100.0, 63.1, 46.8, 38.2, 32.6, 28.9, 26.2, 24.1],
-            initial_customers=cls.N,
-        )
-        cls.ref_MLE_estimates = {"alpha": 0.688, "beta": 1.182}
-
-    @pytest.fixture(scope="class")
-    def model_config(self):
-        return {
-            "alpha": Prior("HalfNormal", sigma=10),
-            "beta": Prior("HalfStudentT", nu=4, sigma=10),
-        }
-
-    @pytest.fixture(scope="class")
-    def default_model_config(self):
-        return {
-            "alpha": Prior("HalfFlat"),
-            "beta": Prior("HalfFlat"),
-        }
-
-    @pytest.fixture(scope="class")
-    def data(self):
-        return pd.DataFrame(
-            {
-                "customer_id": self.customer_id,
-                "t_churn": self.churn_time,
-                "T": self.T,
-            }
-        )
-
-    def test_missing_cols(self, data):
-        # Create a version of the data that's missing the 'customer_id' column
-        data_invalid = data.drop(columns="customer_id")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['customer_id'\]",
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModelIndividual(data=data_invalid)
-            model.build_model()
-
-        data_invalid = data.drop(columns="t_churn")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['t_churn'\]",
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModelIndividual(data=data_invalid)
-            model.build_model()
-
-        data_invalid = data.drop(columns="T")
-
-        with pytest.raises(
-            ValueError,
-            match=r"The following required columns are missing from the input data: \['T'\]",
-        ):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModelIndividual(data=data_invalid)
-            model.build_model()
-
-    def test_model_repr(self, default_model_config):
-        custom_model_config = default_model_config.copy()
-        custom_model_config["alpha"] = Prior("HalfNormal", sigma=10)
-        dataset = pd.DataFrame(
-            {"customer_id": self.customer_id, "t_churn": self.churn_time, "T": self.T}
-        )
-        model = ShiftedBetaGeoModelIndividual(
-            data=dataset,
-            model_config=custom_model_config,
-        )
-        model.build_model()
-        assert model.__repr__().replace(" ", "") == (
-            "Shifted-Beta-GeometricModel(IndividualCustomers)"
-            "\nalpha~HalfNormal(0,10)"
-            "\nbeta~HalfFlat()"
-            "\ntheta~Beta(alpha,beta)"
-            "\nchurn_censored~Censored(Geometric(theta),-inf,<constant>)"
-        )
-
-    def test_model(self, model_config, default_model_config, data):
-        for config in (model_config, default_model_config):
-            model = ShiftedBetaGeoModelIndividual(
-                data=data,
-                model_config=config,
-            )
-            model.build_model()
-            assert isinstance(
-                model.model["alpha"].owner.op,
-                pm.HalfFlat
-                if config["alpha"].distribution == "HalfFlat"
-                else config["alpha"].pymc_distribution,
-            )
-            assert isinstance(
-                model.model["beta"].owner.op,
-                pm.HalfFlat
-                if config["beta"].distribution == "HalfFlat"
-                else config["beta"].pymc_distribution,
-            )
-            assert isinstance(model.model["theta"].owner.op, pm.Beta)
-            assert isinstance(model.model["churn_censored"].owner.op, CensoredRV)
-            assert isinstance(
-                model.model["churn_censored"].owner.inputs[0].owner.op, pm.Geometric
-            )
-            assert model.model.eval_rv_shapes() == {
-                "alpha": (),
-                "alpha_log__": (),
-                "beta": (),
-                "beta_log__": (),
-                "theta": (self.N,),
-                "theta_logodds__": (self.N,),
-            }
-            assert model.model.coords == {
-                "customer_id": tuple(range(self.N)),
-            }
-
-    def test_invalid_t_churn(self, default_model_config):
-        match_msg = "t_churn must respect 0 < t_churn <= T"
-        dataset = {
-            "customer_id": range(3),
-            "t_churn": [10, 10, np.nan],
-            "T": 10,
-        }
-
-        dataset["t_churn"] = [10, 10, np.nan]
-        with pytest.raises(ValueError, match=match_msg):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModelIndividual(
-                    data=pd.DataFrame(dataset), model_config=default_model_config
-                )
-            model.build_model()
-        dataset["t_churn"] = [10, 10, 11]
-        with pytest.raises(ValueError, match=match_msg):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModelIndividual(
-                    data=pd.DataFrame(dataset), model_config=default_model_config
-                )
-            model.build_model()
-        dataset["t_churn"] = [-1, 8, 9]
-        dataset["T"] = [8, 9, 10]
-        with pytest.raises(ValueError, match=match_msg):
-            with pytest.warns(
-                DeprecationWarning, match="will be removed in version 1.0"
-            ):
-                model = ShiftedBetaGeoModelIndividual(
-                    data=pd.DataFrame(dataset),
-                )
-            model.build_model()
-
-    @pytest.mark.slow
-    def test_model_convergence(self, data, model_config):
-        model = ShiftedBetaGeoModelIndividual(model_config=model_config)
-        model.build_model(data=data)
-        model.fit(chains=2, progressbar=False, random_seed=100)
-        fit = model.idata.posterior
-        np.testing.assert_allclose(
-            [fit["alpha"].mean(), fit["beta"].mean()],
-            [self.ref_MLE_estimates["alpha"], self.ref_MLE_estimates["beta"]],
-            rtol=0.1,
-        )
-
-    def test_distribution_customer_churn_time(self):
-        dataset = pd.DataFrame(
-            {
-                "customer_id": [0, 1, 2],
-                "t_churn": [10, 10, 10],
-                "T": 10,
-            }
-        )
-        model = ShiftedBetaGeoModelIndividual(
-            data=dataset,
-        )
-        model.build_model()
-        model.fit(method="map")
-        customer_thetas = np.array([0.1, 0.5, 0.9])
-        model.idata = az.from_dict(
-            posterior={
-                "alpha": np.ones((2, 500)),  # Two chains, 500 draws each
-                "beta": np.ones((2, 500)),
-                "theta": np.full((2, 500, 3), customer_thetas),
-            },
-            coords={"customer_id": [0, 1, 2]},
-            dims={"theta": ["customer_id"]},
-        )
-
-        res = model.distribution_customer_churn_time(
-            customer_id=[0, 1, 2], random_seed=116
-        )
-        np.testing.assert_allclose(
-            res.mean(("chain", "draw")),
-            stats.geom(customer_thetas).mean(),
-            rtol=0.05,
-        )
-
-    def test_distribution_new_customer(self):
-        dataset = pd.DataFrame(
-            {
-                "customer_id": [1],
-                "t_churn": [10],
-                "T": [10],
-            }
-        )
-        model = ShiftedBetaGeoModelIndividual(
-            data=dataset,
-        )
-        model.build_model()
-        model.fit(method="map")
-        # theta ~ beta(7000, 3000) ~ 0.7
-        model.idata = az.from_dict(
-            {
-                "alpha": np.full((2, 500), 7000),  # Two chains, 500 draws each
-                "beta": np.full((2, 500), 3000),
-            }
-        )
-
-        res = model.distribution_new_customer_theta(random_seed=141)
-        np.testing.assert_allclose(res.mean(("chain", "draw")), 0.7, rtol=0.001)
-
-        res = model.distribution_new_customer_churn_time(n=2, random_seed=146)
-        np.testing.assert_allclose(
-            res.mean(("chain", "draw", "new_customer_id")),
-            stats.geom(0.7).mean(),
-            rtol=0.05,
-        )
-
-    def test_save_load(self, data):
-        model = ShiftedBetaGeoModelIndividual(
-            data=data,
-        )
-        model.build_model()
-        model.fit(method="map", maxeval=1)
-        model.save("test_model")
-        # Testing the valid case.
-        model2 = ShiftedBetaGeoModelIndividual.load("test_model")
-        # Check if the loaded model is indeed an instance of the class
-        assert isinstance(model, ShiftedBetaGeoModelIndividual)
-        # Check if the loaded data matches with the model data
-        pd.testing.assert_frame_equal(model.data, model2.data, check_names=False)
-        assert model.model_config == model2.model_config
-        assert model.sampler_config == model2.sampler_config
-        assert model.idata == model2.idata
-        os.remove("test_model")

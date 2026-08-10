@@ -26,7 +26,6 @@ import json
 import warnings
 from typing import Any, Literal, Self, TypedDict
 
-import arviz as az
 import numpy as np
 import pandas as pd
 import patsy
@@ -36,7 +35,7 @@ import xarray as xr
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
 
-from pymc_marketing.model_builder import ModelBuilder, create_sample_kwargs
+from pymc_marketing.model_builder import ModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
@@ -395,6 +394,11 @@ class MaxDiffMixedLogit(ModelBuilder):
     conditioned on the *sampled* best — producing a coherent joint draw.
     """
 
+    #: ``U``, ``chol_L``, ``corr_matrix`` and the per-respondent utilities are large
+    #: enough that a vectorized recompute would spike transient memory. Keep them
+    #: streaming draw-by-draw out of the sampler instead.
+    _recompute_deterministics = False
+
     _model_type = "MaxDiff Mixed Logit"
     version = "0.3.0"
 
@@ -675,7 +679,9 @@ class MaxDiffMixedLogit(ModelBuilder):
             new_respondents=new_respondents,
             draw_batch_size=draw_batch_size,
         )
-        self.intervention_idata = az.InferenceData(posterior_predictive=result)
+        self.intervention_idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": result}
+        )
         return result
 
     def score_new_items(
@@ -741,7 +747,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         posterior = self.idata["posterior"]
         beta_feat_vals = posterior["beta_feat"].values  # (C, D, P)
         # (C, D, I+N) — softmax is location-invariant so centering is unnecessary.
-        U_all = np.einsum("cdp,ip->cdi", beta_feat_vals, X_all)
+        U_all = np.einsum("cdp,ip->cdi", np.asarray(beta_feat_vals), X_all)
         U_shift = U_all - U_all.max(axis=-1, keepdims=True)
         exp_u = np.exp(U_shift)
         shares = exp_u / exp_u.sum(axis=-1, keepdims=True)
@@ -757,7 +763,9 @@ class MaxDiffMixedLogit(ModelBuilder):
                 "items": all_items,
             },
         )
-        self.intervention_idata = az.InferenceData(posterior_predictive=result)
+        self.intervention_idata = xr.DataTree.from_dict(
+            {"/posterior_predictive": result}
+        )
         return result
 
     @property
@@ -1033,12 +1041,19 @@ class MaxDiffMixedLogit(ModelBuilder):
         sigma_feat = self.model_config["sigma_feat"].create_variable("sigma_feat")
         z_feat = self.model_config["z_feat"].create_variable("z_feat")
 
-        # Per-respondent deviation on the random-feature subset only.
-        # dev has shape (respondents, features) with zeros outside rc columns,
-        # so beta_full_r = beta_feat + dev is (respondents, features).
-        dev = pt.zeros((n_respondents, len(self.feature_names)))
-        dev = pt.set_subtensor(dev[:, rc_idx], z_feat * sigma_feat[None, :])
-        beta_full_r = beta_feat[None, :] + dev  # (R, P)
+        # Per-respondent utilities: broadcast the population part-worths to
+        # (respondents, features), then add the non-centered deviation on the
+        # random-feature columns only. We increment those columns in place rather
+        # than building ``beta_feat[None, :] + zeros[:, rc].set(dev)``: the latter
+        # trips a PyTensor rewrite (``local_add_of_sparse_write``) that fails to
+        # broadcast the operand it fuses, spamming a benign but noisy traceback.
+        beta_full_r = pt.broadcast_to(
+            beta_feat[None, :], (n_respondents, len(self.feature_names))
+        )
+        beta_full_r = pt.set_subtensor(
+            beta_full_r[:, rc_idx],
+            beta_full_r[:, rc_idx] + z_feat * sigma_feat[None, :],
+        )  # (R, P)
         # Apply the same population shift so U_item_r[r] and U_item_pop live on
         # the same scale: U_item_r[r, i] = U_item_pop[i] + X[i,rc]@z_feat[r]*sigma.
         U_item_r = pm.Deterministic(
@@ -1115,25 +1130,25 @@ class MaxDiffMixedLogit(ModelBuilder):
             "sampler_config": json.loads(attrs["sampler_config"]),
         }
 
-    def _create_fit_data(self) -> xr.Dataset:
+    def create_fit_data_group(self) -> xr.Dataset:
         """Serialise ``task_df`` so :meth:`load` can reconstruct the model."""
         df_xr = self.task_df.reset_index(drop=True).to_xarray()
         df_xr = df_xr.rename({"index": "row"})
         return df_xr
 
-    def build_from_idata(self, idata: az.InferenceData) -> None:
-        """Rebuild the PyMC model from a loaded InferenceData."""
-        self.task_df = idata["fit_data"].to_dataframe().reset_index(drop=True)
+    def build_from_idata(self, idata: xr.DataTree) -> None:
+        """Rebuild the PyMC model from a loaded DataTree."""
+        self.task_df = idata["fit_data"].dataset.to_dataframe().reset_index(drop=True)
         if not hasattr(self, "model"):
             self.build_model()
 
-    def sample_prior_predictive(
+    def sample_prior_predictive(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         samples: int = 500,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from the prior predictive distribution."""
         if task_df is not None:
             self.task_df = task_df
@@ -1142,72 +1157,72 @@ class MaxDiffMixedLogit(ModelBuilder):
             self.build_model()
 
         with self.model:
-            prior_pred = pm.sample_prior_predictive(samples, **kwargs)
+            prior_pred = pm.sample_prior_predictive(draws=samples, **kwargs)
             prior_pred["prior"].attrs["pymc_marketing_version"] = __version__
             prior_pred["prior_predictive"].attrs["pymc_marketing_version"] = __version__
             self.set_idata_attrs(prior_pred)
 
         if extend_idata:
             if self.idata is not None:
-                self.idata.extend(prior_pred, join="right")
+                self.idata.update(prior_pred)
             else:
                 self.idata = prior_pred
 
         return prior_pred
 
-    def fit(
+    def fit(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
+        *,
+        method: SamplingMethod = "mcmc",
         progressbar: bool | None = None,
         random_seed: RandomState | None = None,
+        sample_kwargs: dict[str, Any] | None = None,
         **kwargs,
-    ) -> az.InferenceData:
-        """Fit the model via NUTS and attach the result to ``self.idata``."""
+    ) -> xr.DataTree:
+        """Fit the model and attach the result to ``self.idata``.
+
+        Thin wrapper around :meth:`ModelFitter.fit`; see there for the full parameter
+        reference.
+
+        Parameters
+        ----------
+        task_df : pd.DataFrame, optional
+            New task data. If None, uses data from initialization.
+        method : str
+            Method used to fit the model. One of ``"mcmc"``, ``"map"``, ``"demz"``,
+            ``"advi"`` or ``"fullrank_advi"``.
+        progressbar : bool, optional
+            Show progress bar during sampling.
+        random_seed : RandomState, optional
+            Random seed for reproducibility.
+        sample_kwargs : dict, optional
+            Only used by the variational methods; forwarded to ``Approximation.sample``.
+        **kwargs
+            Additional arguments passed to the underlying PyMC routine.
+
+        Returns
+        -------
+        xr.DataTree
+            Fitted model with posterior samples.
+        """
         if task_df is not None:
             self.task_df = task_df
 
-        if not hasattr(self, "model"):
-            self.build_model()
-
-        sampler_kwargs = create_sample_kwargs(
-            self.sampler_config,
-            progressbar,
-            random_seed,
+        return super().fit(
+            method=method,
+            progressbar=progressbar,
+            random_seed=random_seed,
+            sample_kwargs=sample_kwargs,
             **kwargs,
         )
 
-        with self.model:
-            idata = pm.sample(**sampler_kwargs)
-
-        if self.idata:
-            self.idata = self.idata.copy()
-            self.idata.extend(idata, join="right")
-        else:
-            self.idata = idata
-
-        self.idata["posterior"].attrs["pymc_marketing_version"] = __version__
-
-        if "fit_data" in self.idata:
-            del self.idata.fit_data
-
-        fit_data = self._create_fit_data()
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                category=UserWarning,
-                message="The group fit_data is not defined in the InferenceData scheme",
-            )
-            self.idata.add_groups(fit_data=fit_data)
-
-        self.set_idata_attrs(self.idata)
-        return self.idata
-
-    def sample_posterior_predictive(
+    def sample_posterior_predictive(  # type: ignore[override]
         self,
         task_df: pd.DataFrame | None = None,
         extend_idata: bool = True,
         **kwargs,
-    ) -> az.InferenceData:
+    ) -> xr.DataTree:
         """Sample from the posterior predictive distribution.
 
         Appropriate for **in-sample posterior predictive checks** on training
@@ -1263,7 +1278,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             )
 
         if extend_idata:
-            self.idata.extend(post_pred, join="right")
+            self.idata.update(post_pred)
 
         return post_pred
 
@@ -1349,7 +1364,7 @@ class MaxDiffMixedLogit(ModelBuilder):
             reference_item=self.reference_item,
         )
 
-        posterior = self.idata["posterior"]
+        posterior = self.idata["/posterior"].dataset
         rng = (
             random_seed
             if isinstance(random_seed, np.random.Generator)
@@ -1626,7 +1641,7 @@ class MaxDiffMixedLogit(ModelBuilder):
         self.sample_prior_predictive(
             extend_idata=True, **sample_prior_predictive_kwargs
         )
-        self.fit(extend_idata=True, **fit_kwargs)
+        self.fit(**fit_kwargs)
         self.sample_posterior_predictive(
             extend_idata=True, **sample_posterior_predictive_kwargs
         )
