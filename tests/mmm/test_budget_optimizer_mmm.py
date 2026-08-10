@@ -1134,7 +1134,7 @@ def test_time_distribution_validation_multidim(dummy_df, fitted_mmm, compile_kwa
 
     with pytest.raises(
         ValueError,
-        match="budget_distribution_over_period date dimension must have length 4",
+        match=r"budget_distribution_over_period .date. dimension must have length 4",
     ):
         BudgetOptimizer(
             model=optimizable_model,
@@ -1734,3 +1734,24 @@ def test_budget_optimizer_plot_new_returns_budget_plots(fitted_mmm, dummy_df):
     optimizable_model.model_class.plot_suite = "new"
     result = optimizable_model.plot
     assert isinstance(result, BudgetPlots)
+
+
+def test_create_optimization_model_returns_valid_model(fitted_mmm, dummy_df):
+    """New API: create_optimization_model returns a usable PyMC model."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=4)
+    pymc_model = fitted_mmm.create_optimization_model(start, end)
+    assert isinstance(pymc_model, pm.Model)
+    assert "channel_data" in pymc_model.named_vars_to_dims
+
+
+def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
+    """New API: mmm.budget_optimizer() returns a working BudgetOptimizer."""
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+    start = X_dummy["date_week"].max() + pd.Timedelta(weeks=1)
+    end = start + pd.Timedelta(weeks=4)
+    optimizer = fitted_mmm.budget_optimizer(start_date=start, end_date=end)
+    assert isinstance(optimizer, BudgetOptimizer)
+    _, result = optimizer.allocate_budget(total_budget=100)
+    assert result.success
