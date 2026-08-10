@@ -16,6 +16,7 @@
 
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 
@@ -73,18 +74,29 @@ def build_idata(
     return xr.DataTree.from_dict(groups)
 
 
-def build_pymc_model(n_periods: int = 6) -> pm.Model:
-    """Build a tiny PyMC model carrying a shared ``channel_data`` variable."""
+def build_pymc_model(n_periods: int = 2) -> pm.Model:
+    """Build a tiny PyMC model carrying a shared ``channel_data`` variable.
+
+    Uses the dims API so ``channel_data`` is an xtensor, which is what
+    :class:`BudgetOptimizer` substitutes into.
+    """
     coords = {"date": np.arange(n_periods), "channel": CHANNELS}
     with pm.Model(coords=coords) as model:
-        channel_data = pm.Data(
+        channel_data = pmd.Data(
             "channel_data",
             np.zeros((n_periods, len(CHANNELS))),
             dims=("date", "channel"),
         )
-        beta = pm.Normal("beta", mu=0, sigma=1, dims="channel")
-        mu = (channel_data * beta).sum(axis=-1)
-        pm.Normal("y", mu=mu, sigma=1, observed=np.zeros(n_periods))
+        beta = pmd.Normal("beta", 0.0, 1.0, dims="channel")
+        mu = (channel_data * beta).sum(dim="channel")
+        pmd.Deterministic(
+            "total_media_contribution_original_scale", mu.sum(), dims=()
+        )
+        pmd.Deterministic(
+            "channel_contribution", channel_data * beta, dims=("date", "channel")
+        )
+        sigma = pmd.HalfNormal("sigma", 0.2)
+        pmd.Normal("y", mu=mu, sigma=sigma, observed=np.zeros(n_periods), dims="date")
     return model
 
 
@@ -264,11 +276,15 @@ class TestDeprecationWarnings:
             )
 
     def test_build_merged_model_warns(self):
+        wrapper = self._build_wrapper()
+
         with pytest.warns(DeprecationWarning, match="BuildMergedModel is deprecated"):
-            self._build_merged_model()
+            BuildMergedModel(models=[wrapper], prefixes=["solo"])
 
     def test_set_predictors_for_optimization_warns(self):
-        merged = self._build_merged_model()
+        wrapper = self._build_wrapper()
+        with pytest.warns(DeprecationWarning, match="BuildMergedModel is deprecated"):
+            merged = BuildMergedModel(models=[wrapper], prefixes=["solo"])
 
         with pytest.warns(
             DeprecationWarning, match="_set_predictors_for_optimization is deprecated"
@@ -276,15 +292,13 @@ class TestDeprecationWarnings:
             merged._set_predictors_for_optimization(num_periods=2)
 
     @staticmethod
-    def _build_merged_model() -> BuildMergedModel:
+    def _build_wrapper() -> CustomModelWrapper:
         with pytest.warns(DeprecationWarning):
-            wrapper = CustomModelWrapper(
+            return CustomModelWrapper(
                 base_model=build_pymc_model(),
                 idata=build_idata(),
                 channels=CHANNELS,
             )
-        with pytest.warns(DeprecationWarning):
-            return BuildMergedModel(models=[wrapper], prefixes=["solo"])
 
 
 class TestLegacyWrapperDispatch:
