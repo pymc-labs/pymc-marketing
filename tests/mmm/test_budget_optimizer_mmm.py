@@ -1505,10 +1505,11 @@ def test_multidimensional_optimize_budget_callback_parametrized(
         callback=callback,
     )
 
-    # Check return value count
+    # The result always unpacks to two elements; callback_info holds the iterations
+    optimal_budgets, opt_result = result
+
     if callback:
-        assert len(result) == 3
-        optimal_budgets, opt_result, callback_info = result
+        callback_info = result.callback_info
 
         # Validate callback info
         assert isinstance(callback_info, list)
@@ -1525,8 +1526,7 @@ def test_multidimensional_optimize_budget_callback_parametrized(
         assert all(np.isfinite(obj) for obj in objectives)
 
     else:
-        assert len(result) == 2
-        optimal_budgets, opt_result = result
+        assert result.callback_info is None
 
     # Common validations
     assert isinstance(optimal_budgets, xr.DataArray)
