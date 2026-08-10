@@ -231,6 +231,7 @@ from typing import (
     cast,
     runtime_checkable,
 )
+from typing import Any, ClassVar, Protocol, cast, runtime_checkable
 
 import numpy as np
 import pymc as pm
@@ -516,10 +517,31 @@ def merge_inference_data(
             shared_vars.add(merge_on)
 
         shared_dims: set[str] = set(shared_vars)
-        if merge_on and "constant_data" in idata and merge_on in idata["constant_data"]:
-            merge_ds = _extract_dataset(idata, "constant_data")
-            merge_dims = list(merge_ds[merge_on].dims)
-            shared_dims.update(merge_dims)
+        if merge_on:
+            # The shared variable does not have to live in constant_data, so look
+            # through every group we prefix. Resolving its dims only from
+            # constant_data would leave them prefixed while the variable name
+            # stayed shared, silently changing the merge result.
+            for group in ("constant_data", "posterior", "observed_data"):
+                if group not in idata:
+                    continue
+                merge_ds = _extract_dataset(idata, group)
+                if merge_on in merge_ds:
+                    shared_dims.update(str(dim) for dim in merge_ds[merge_on].dims)
+                    break
+            else:
+                # merge_on is absent everywhere, so its dims cannot be identified
+                # and will all be prefixed. Make that visible rather than silent.
+                warnings.warn(
+                    f"merge_on={merge_on!r} was not found in the 'constant_data', "
+                    f"'posterior' or 'observed_data' groups of the idata being "
+                    f"prefixed with {prefix!r}. Its dimensions cannot be identified, "
+                    "so they will be prefixed even though the variable name is kept "
+                    "shared. Pass merge_on=None to prefix everything, or include the "
+                    "shared variable in the idata.",
+                    UserWarning,
+                    stacklevel=3,
+                )
 
         # Build a new DataTree with renamed groups
         new_groups: dict[str, xr.Dataset] = {}
@@ -542,7 +564,7 @@ def merge_inference_data(
 
     # Thin and optionally prefix each idata
     thinned: list[DataTree] = []
-    for idata_i, prefix in zip(idatas, prefixes, strict=False):
+    for idata_i, prefix in zip(idatas, prefixes, strict=True):
         # Thin draws from the posterior group
         posterior_ds = _extract_dataset(idata_i, "posterior")
         thinned_posterior = posterior_ds.isel(draw=slice(None, None, use_every_n_draw))
@@ -717,6 +739,36 @@ class OptimizerCompatibleModel(Protocol):
 OptimizerCompatibleModelWrapper = OptimizerCompatibleModel
 
 
+def _concrete_method(model: Any, name: str) -> Callable[..., Model] | None:
+    """Return ``model``'s real implementation of *name*, if it has one.
+
+    ``OptimizerCompatibleModel`` is a Protocol whose method bodies are just ``...``,
+    so a wrapper inheriting from it always *has* the attribute even when it never
+    implemented one.  Checking ``type(model).__dict__`` would exclude
+    inherited-but-concrete implementations, which is exactly the case for
+    third-party subclasses of a wrapper.  Compare against the protocol stub
+    instead: any implementation that is not the stub is a real one, wherever it
+    lives in the MRO.
+
+    Parameters
+    ----------
+    model : Any
+        Candidate optimizer-compatible wrapper.
+    name : str
+        Method name to resolve, e.g. ``"optimization_model"``.
+
+    Returns
+    -------
+    Callable or None
+        The bound method, or ``None`` when the object only carries the inert
+        protocol stub (or nothing at all).
+    """
+    impl = getattr(type(model), name, None)
+    if impl is None or impl is getattr(OptimizerCompatibleModel, name, None):
+        return None
+    return getattr(model, name)
+
+
 class BuildMergedModel(OptimizerCompatibleModel):
     """Merge multiple optimizer-compatible models into a single model.
 
@@ -866,9 +918,6 @@ class BuildMergedModel(OptimizerCompatibleModel):
         else:
             self.adstock_periods = 0
 
-        # Signal to BudgetOptimizer to enforce mask validation
-        self.enforce_budget_mask_validation = False
-
         # Persistent merged model used for optimization
         self._persistent_merged_model: Model | None = None
         self._persistent_num_periods: int | None = None
@@ -966,12 +1015,11 @@ class BuildMergedModel(OptimizerCompatibleModel):
         # _set_predictors_for_optimization if only the protocol stub exists.
         pymc_models = []
         for m in self.models:
-            if "optimization_model" in type(m).__dict__:
-                pymc_models.append(m.optimization_model(num_periods=num_periods))
-            elif hasattr(m, "_set_predictors_for_optimization"):
-                pymc_models.append(
-                    m._set_predictors_for_optimization(num_periods=num_periods)
-                )
+            build = _concrete_method(m, "optimization_model") or _concrete_method(
+                m, "_set_predictors_for_optimization"
+            )
+            if build is not None:
+                pymc_models.append(build(num_periods=num_periods))
             else:
                 raise ValueError(
                     f"Model wrapper {type(m).__name__!r} has no "
@@ -1059,6 +1107,14 @@ class BudgetOptimizer(BaseModel):
     channel_scales : float or array-like, optional
         Per-channel scale factors used to convert monetary budgets into the
         model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
+    mu_effects : Sequence, optional
+        Additional ``mu`` effects carried over from the fitted model. Effects
+        exposing ``replace_for_optimization`` are not supported yet and raise
+        ``NotImplementedError``. Defaults to an empty list.
+    frozen_deterministics : list of str, optional
+        Names of ``Deterministic`` variables to freeze at their posterior values
+        instead of recomputing them from the graph. Required for models with HSGP
+        or time-varying components. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
         ``"total_media_contribution_original_scale"``.
@@ -1303,10 +1359,19 @@ class BudgetOptimizer(BaseModel):
         # Prefer a concrete optimization_model implementation over the
         # protocol stub.  A real implementation lives on the class itself,
         # not inherited from the Protocol.
-        if "optimization_model" in type(model).__dict__:
-            data["model"] = model.optimization_model(int(num_periods))
-        elif hasattr(model, "_set_predictors_for_optimization"):
-            data["model"] = model._set_predictors_for_optimization(int(num_periods))
+        build = _concrete_method(model, "optimization_model") or _concrete_method(
+            model, "_set_predictors_for_optimization"
+        )
+        if build is not None:
+            data["model"] = build(int(num_periods))
+        else:
+            raise ValueError(
+                f"Model wrapper {type(model).__name__!r} implements neither "
+                "optimization_model() nor _set_predictors_for_optimization(); "
+                "it only carries the inert OptimizerCompatibleModel protocol stub. "
+                "Implement optimization_model(num_periods) to return the pm.Model "
+                "for the optimization horizon, or pass a pm.Model directly."
+            )
         data["idata"] = _to_datatree(model.idata)
         # Infer adstock_periods from wrapper if not already set
         if "adstock_periods" not in data:
@@ -1360,9 +1425,15 @@ class BudgetOptimizer(BaseModel):
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
 
-        # 4. Default to optimizing all budget cells when no mask is provided.
-        #    The adaptor layer (e.g. MMM.budget_optimizer) is responsible for
-        #    narrowing this down to non-zero channels if desired.
+        # 3b. Validate channel_scales here rather than letting a wrong length surface
+        #     as a broadcasting error deep inside graph construction.
+        self._validate_channel_scales()
+
+        # 4. Resolve the budget mask. This is the single owner of the auto-detect
+        #    rule: when no mask is given, optimize the cells the posterior says the
+        #    model has information about (non-zero mean channel contribution), and
+        #    fall back to all cells when that variable is absent. Adaptor layers such
+        #    as MMM.budget_optimizer deliberately do not narrow the mask themselves.
         if self.budgets_to_optimize is None:
             try:
                 posterior_ds = _extract_dataset(self.idata, "posterior")
@@ -1423,7 +1494,7 @@ class BudgetOptimizer(BaseModel):
         budgets_zeros.name = "budgets_zeros"
         bool_mask = np.asarray(self.budgets_to_optimize).astype(bool)
         self._budgets = as_xtensor(
-            budgets_zeros[bool_mask].set(self._budgets_flat.values[:size_budgets]),
+            budgets_zeros[bool_mask].set(self._budgets_flat.values),
             dims=self._budget_dims,
         )
 
@@ -1492,6 +1563,30 @@ class BudgetOptimizer(BaseModel):
         self._compiled_constraints = compile_constraints_for_scipy(
             constraints=self._constraints, optimizer=self
         )
+
+    def _validate_channel_scales(self) -> None:
+        """Check that ``channel_scales`` is a scalar or a 1-D array over channels.
+
+        Raises
+        ------
+        ValueError
+            If ``channel_scales`` has more than one dimension, or is 1-D with a
+            length that does not match the model's ``channel`` coordinate.
+        """
+        scales = np.asarray(self.channel_scales)
+        if scales.ndim == 0:
+            return
+        if scales.ndim > 1:
+            raise ValueError(
+                "channel_scales must be a scalar or a 1-D array over channels, got "
+                f"an array with shape {scales.shape}."
+            )
+        n_channels = len(self.model.coords.get("channel", ()))
+        if n_channels and scales.shape[0] != n_channels:
+            raise ValueError(
+                f"channel_scales has length {scales.shape[0]} but the model has "
+                f"{n_channels} channels."
+            )
 
     def _validate_and_process_budget_distribution(
         self,

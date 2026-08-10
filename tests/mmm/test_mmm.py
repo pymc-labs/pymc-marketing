@@ -118,6 +118,59 @@ def fit_mmm(df, mmm, target_column, mock_pymc_sample):
     return mmm
 
 
+@pytest.mark.parametrize("method", ["map", "demz"])
+def test_fit_non_nuts_methods_use_sampling_model(
+    df, mmm, target_column, method, mocker
+):
+    """Every fit path must run against the model from `_get_sampling_model`.
+
+    MMM overrides that hook with `freeze_dims_and_data`, so `map` and `demz` going
+    through `self.model` directly would silently skip the frozen graph.
+    """
+    X = df.drop(columns=[target_column])
+    y = df[target_column]
+
+    seen: dict[str, pm.Model] = {}
+    original = mmm._get_sampling_model
+
+    def record() -> pm.Model:
+        seen["model"] = original()
+        return seen["model"]
+
+    mocker.patch.object(mmm, "_get_sampling_model", side_effect=record)
+
+    if method == "map":
+        find_map = mocker.spy(pm, "find_MAP")
+        extra: dict = {}
+    else:
+        # `pm.sample` takes its model from the context, so the assertion has to happen
+        # while that context is still open.
+        sampled: dict[str, pm.Model] = {}
+        original_sample = pm.sample
+
+        def sample(*args, **kwargs):
+            sampled["model"] = pm.modelcontext(None)
+            return original_sample(*args, **kwargs)
+
+        mocker.patch.object(pm, "sample", side_effect=sample)
+        extra = {
+            "draws": 5,
+            "tune": 5,
+            "chains": 1,
+            "compute_convergence_checks": False,
+        }
+
+    idata = mmm.fit(X, y, method=method, random_seed=42, progressbar=False, **extra)
+
+    if method == "map":
+        assert find_map.call_args.kwargs["model"] is seen["model"]
+    else:
+        assert sampled["model"] is seen["model"]
+    # The hook freezes dims and data, so the sampled graph is never `self.model`.
+    assert seen["model"] is not mmm.model
+    assert "/posterior" in idata.groups
+
+
 def test_target_column():
     mmm_default = MMM(
         date_column="date",
@@ -135,6 +188,63 @@ def test_target_column():
         target_column="epsilon",
     )
     assert mmm_custom.target_column == "epsilon"
+
+
+class TestGeometricAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM."""
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=GeometricAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("Gamma", mu=5, sigma=1, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
 
 
 def test_reserved_dims():
@@ -2966,6 +3076,96 @@ def test_add_calibration_test_measurements(multi_dim_data):
 
     obs_names = [rv.name for rv in mmm.model.observed_RVs]
     assert "cpt_calibration" in obs_names
+
+
+def test_add_roas_calibration_target_per_cost(multi_dim_data):
+    """`target_per_cost=True` calibrates contribution/spend (ROAS) instead of CPT."""
+    X, y = multi_dim_data
+
+    def build_calibrated_model(target_per_cost: bool) -> MMM:
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            dims=("country",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+        countries = mmm.model.coords["country"]
+        roas_df = pd.DataFrame(
+            {
+                "country": [countries[0], countries[1]],
+                "channel": ["channel_1", "channel_2"],
+                "roas": [3.5, 2.0],
+                "sigma": [0.3, 0.2],
+            }
+        )
+
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=roas_df,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=target_per_cost,
+        )
+        return mmm
+
+    mmm = build_calibrated_model(target_per_cost=True)
+
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "roas_calibration" in obs_names
+
+    assert "_roas_calibration" in mmm.model.coords
+    assert mmm.model.dim_lengths["_roas_calibration"].eval() == 2
+
+    # The flag must reach the likelihood: the same calibration values scored as
+    # target-per-cost vs cost-per-target give different logps, so an identical
+    # model built with the flag flipped must not match.
+    mmm_cpt = build_calibrated_model(target_per_cost=False)
+
+    def calibration_logp(mmm_: MMM) -> float:
+        model = mmm_.model
+        logp_fn = model.compile_logp(vars=[model["roas_calibration"]])
+        return logp_fn(model.initial_point())
+
+    assert calibration_logp(mmm) != pytest.approx(calibration_logp(mmm_cpt))
+
+
+def test_add_cost_per_target_calibration_missing_target_column(multi_dim_data) -> None:
+    """A missing target column raises a clear KeyError."""
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0]],
+            "channel": ["channel_1"],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+
+    with pytest.raises(KeyError, match="'roas' column missing in calibration_data"):
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=calibration_df,
+            target_column="roas",
+            target_per_cost=True,
+        )
 
 
 def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:
