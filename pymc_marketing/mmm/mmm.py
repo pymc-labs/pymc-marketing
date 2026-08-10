@@ -2613,9 +2613,10 @@ class MMM(RegressionModelBuilder):
 
         This is the recommended entry point for budget optimization with the
         multidimensional MMM.  It handles building the optimization model,
-        computing ``num_periods``, pulling ``adstock_periods`` from the fitted
-        adstock, and auto-detecting non-zero channels when
-        ``budgets_to_optimize`` is not supplied.
+        computing ``num_periods`` and pulling ``adstock_periods`` from the fitted
+        adstock.  When ``budgets_to_optimize`` is not supplied,
+        :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` auto-detects
+        the optimizable cells from the posterior.
 
         Parameters
         ----------
@@ -2624,8 +2625,10 @@ class MMM(RegressionModelBuilder):
         end_date : str or pd.Timestamp
             Last date of the optimization window (inclusive).
         budgets_to_optimize : xr.DataArray or None, optional
-            Boolean mask defining which budget cells to optimize.  When
-            ``None``, all non-zero channels in the model are optimized.
+            Boolean mask defining which budget cells to optimize.  Passed straight
+            through to :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`;
+            when ``None`` the optimizer optimizes every cell with a non-zero mean
+            ``channel_contribution`` in the posterior.
         cost_per_unit : pd.DataFrame or xr.DataArray or None, optional
             Cost-per-unit conversion factors for non-monetary channels.
         compile_kwargs : dict or None, optional
@@ -2644,24 +2647,25 @@ class MMM(RegressionModelBuilder):
         pymc_model = self.create_optimization_model(start_date, end_date)
 
         adstock_lag = getattr(self.adstock, "l_max", 0)
-        n_dates = len(pymc_model.coords.get("date", [0]))
-        num_periods = n_dates - adstock_lag if n_dates > adstock_lag else n_dates
+        if "date" not in pymc_model.coords:
+            raise ValueError(
+                "The optimization model has no 'date' coordinate, so num_periods "
+                "cannot be inferred. Build the BudgetOptimizer directly and pass "
+                "num_periods explicitly."
+            )
+        n_dates = len(pymc_model.coords["date"])
+        if n_dates <= adstock_lag:
+            raise ValueError(
+                f"The optimization window covers {n_dates} periods, which does not "
+                f"exceed the adstock warm-up of {adstock_lag} periods. Widen the "
+                "window between start_date and end_date."
+            )
+        num_periods = n_dates - adstock_lag
 
-        if (
-            budgets_to_optimize is None
-            and self.idata is not None
-            and "posterior" in self.idata
-        ):
-            posterior_ds = self.idata["posterior"]
-            if hasattr(posterior_ds, "dataset"):
-                posterior_ds = posterior_ds.dataset
-            if "channel_contribution" in posterior_ds.data_vars:
-                budgets_to_optimize = (
-                    posterior_ds["channel_contribution"]
-                    .mean(("chain", "draw", "date"))
-                    .astype(bool)
-                )
-
+        # budgets_to_optimize is intentionally passed through untouched. When it is
+        # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
+        # duplicating that rule here would only re-derive the same mask and then send
+        # it back through the optimizer's validation branch.
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
