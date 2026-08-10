@@ -156,7 +156,7 @@ class TestMergeInferenceData:
 
         assert "solo_beta" in merged["posterior"].dataset.data_vars
 
-    def test_warns_when_merge_on_absent_from_constant_data(self):
+    def test_warns_when_merge_on_absent_everywhere(self):
         """The dims of ``merge_on`` cannot be identified, so say so out loud."""
         with pytest.warns(UserWarning, match="was not found in the 'constant_data'"):
             merge_inference_data(
@@ -166,6 +166,36 @@ class TestMergeInferenceData:
                 ],
                 prefixes=["a", "b"],
             )
+
+    def test_merge_on_dims_resolved_outside_constant_data(self):
+        """``merge_on`` dims stay shared even when only the posterior carries it.
+
+        Regression test: resolving the dims from ``constant_data`` alone left them
+        prefixed while the variable name stayed shared, silently producing a
+        different merge result.
+        """
+        idatas = [
+            build_idata(with_constant_data=False),
+            build_idata(with_constant_data=False),
+        ]
+
+        merged = merge_inference_data(
+            idatas,
+            prefixes=["a", "b"],
+            merge_on="channel_contribution",
+        )
+
+        posterior = merged["posterior"].dataset
+        assert "channel_contribution" in posterior.data_vars
+        assert set(posterior["channel_contribution"].dims) == {
+            "chain",
+            "draw",
+            "channel",
+            "date",
+        }
+        # The shared dims must not have been prefixed per model.
+        assert "a_channel" not in posterior.dims
+        assert "b_date" not in posterior.dims
 
 
 class TestMergeModelsAndIdata:

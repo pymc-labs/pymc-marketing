@@ -2647,13 +2647,17 @@ class MMM(RegressionModelBuilder):
         pymc_model = self.create_optimization_model(start_date, end_date)
 
         adstock_lag = getattr(self.adstock, "l_max", 0)
-        if "date" not in pymc_model.coords:
+        # Honour a caller-supplied date_dim rather than assuming "date": this is
+        # the method that feeds BudgetOptimizer's configurable date_dim field.
+        date_dim = kwargs.get("date_dim", "date")
+        if date_dim not in pymc_model.coords:
             raise ValueError(
-                "The optimization model has no 'date' coordinate, so num_periods "
-                "cannot be inferred. Build the BudgetOptimizer directly and pass "
-                "num_periods explicitly."
+                f"The optimization model has no {date_dim!r} coordinate, so "
+                "num_periods cannot be inferred. Pass date_dim= naming the model's "
+                "date dimension, or build the BudgetOptimizer directly with an "
+                "explicit num_periods."
             )
-        n_dates = len(pymc_model.coords["date"])
+        n_dates = len(pymc_model.coords[date_dim])
         if n_dates <= adstock_lag:
             raise ValueError(
                 f"The optimization window covers {n_dates} periods, which does not "

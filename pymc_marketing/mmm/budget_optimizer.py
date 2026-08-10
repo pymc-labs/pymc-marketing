@@ -450,19 +450,27 @@ def merge_inference_data(
 
         shared_dims: set[str] = set(shared_vars)
         if merge_on:
-            if "constant_data" in idata and merge_on in idata["constant_data"]:
-                merge_ds = _extract_dataset(idata, "constant_data")
-                shared_dims.update(str(dim) for dim in merge_ds[merge_on].dims)
+            # The shared variable does not have to live in constant_data, so look
+            # through every group we prefix. Resolving its dims only from
+            # constant_data would leave them prefixed while the variable name
+            # stayed shared, silently changing the merge result.
+            for group in ("constant_data", "posterior", "observed_data"):
+                if group not in idata:
+                    continue
+                merge_ds = _extract_dataset(idata, group)
+                if merge_on in merge_ds:
+                    shared_dims.update(str(dim) for dim in merge_ds[merge_on].dims)
+                    break
             else:
-                # Without a constant_data entry for merge_on we cannot know which dims
-                # it spans, so those dims get prefixed while the variable name does not.
-                # That asymmetry silently changes the merge result, so make it visible.
+                # merge_on is absent everywhere, so its dims cannot be identified
+                # and will all be prefixed. Make that visible rather than silent.
                 warnings.warn(
-                    f"merge_on={merge_on!r} was not found in the 'constant_data' group "
-                    f"of the idata being prefixed with {prefix!r}. Its dimensions "
-                    "cannot be identified, so they will be prefixed even though the "
-                    "variable name is kept shared. Pass merge_on=None to prefix "
-                    "everything, or include constant_data in the idata.",
+                    f"merge_on={merge_on!r} was not found in the 'constant_data', "
+                    f"'posterior' or 'observed_data' groups of the idata being "
+                    f"prefixed with {prefix!r}. Its dimensions cannot be identified, "
+                    "so they will be prefixed even though the variable name is kept "
+                    "shared. Pass merge_on=None to prefix everything, or include the "
+                    "shared variable in the idata.",
                     UserWarning,
                     stacklevel=3,
                 )
