@@ -1,0 +1,40 @@
+tests/mmm/test_budget_optimizer_merge_helpers.py
+  s_8700a744a30662::t_842549c075acb6 1-336
+pymc_marketing/mmm/budget_optimizer.py
+  s_8700a744a30662::t_7e6a0a4f8c95bc 1429
+  s_8700a744a30662::t_3f017fc68b994c 1034-1041
+  s_8700a744a30662::t_7cf23b8576dd5c 1295-1304
+  s_8700a744a30662::t_4f4b46a5185eee 668,676-680,683-686,689,692,694-695
+  s_8700a744a30662::t_cfeeed43baf9d1 1292-1294
+  s_8700a744a30662::t_c53415e7e88e56 491
+  s_8700a744a30662::t_e14ab4a65966e5 1350-1353
+  s_8700a744a30662::t_efc9e18eb24fad 452-468
+  s_8700a744a30662::t_a92d0f4b4e679a 942-944
+  s_8700a744a30662::t_7d175aa5203b06 1354-1358
+  s_8700a744a30662::t_864859681c7192 221
+  s_8700a744a30662::t_c844cfaea078e6 666-667,669-675,681-682,687-688,690-691,693
+  s_8700a744a30662::t_1890eae7682df0 1500-1523
+  s_8700a744a30662::t_902695de012158 945-946
+pymc_marketing/mmm/mmm.py
+  s_8700a744a30662::t_83aab382c5559c 2650-2663,2665-2668
+  s_8700a744a30662::t_7284bdbe9703ef 2628-2631
+  s_8700a744a30662::t_9929a0e54a2fa8 2616-2619
+docs/source/conf.py
+  s_8700a744a30662::t_37eabde70c4ce1 92,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0046d3c9df9b3ad68d4826b3456a5d7ce26a47b7",
+  "prompts": {},
+  "sessions": {
+    "s_8700a744a30662": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49baf030-8239-4ab6-8794-1e0e19f641ff",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
