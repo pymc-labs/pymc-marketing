@@ -231,7 +231,6 @@ from typing import (
     cast,
     runtime_checkable,
 )
-from typing import Any, ClassVar, Protocol, cast, runtime_checkable
 
 import numpy as np
 import pymc as pm
