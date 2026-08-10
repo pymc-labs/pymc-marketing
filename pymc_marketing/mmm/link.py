@@ -45,13 +45,22 @@ class LinkFunction(StrEnum):
 #: This is about units only.  ``mu`` still need not equal ``E[y]``: under
 #: ``TruncatedNormal`` it does not, so ``*_original_scale`` will not reconcile
 #: against the posterior predictive mean.  See issue #2834.
-#: Not extended to the other ``pymc.dims`` likelihoods that take ``mu`` on this
-#: scale (``Laplace``, ``Beta``, ``InverseGamma``, ``Poisson``,
-#: ``NegativeBinomial``): the last three constrain the target and nothing checks
-#: the target against the likelihood support, so they warn instead.  See issue
-#: #2835.
+#: Three ``pymc.dims`` likelihoods take ``mu`` on the response scale and are
+#: still left out.  ``Poisson`` and ``NegativeBinomial`` are discrete while the
+#: likelihood is observed on the target divided by ``target_scale``, which is
+#: not integer-valued, so they cannot be used under this model at all.
+#: ``Beta`` needs the target inside ``(0, 1)``, which the scaling does not
+#: guarantee, and nothing checks the target against the likelihood support yet.
+#: See issue #2835.
 RESPONSE_SCALE_LIKELIHOODS = frozenset(
-    {"Normal", "StudentT", "TruncatedNormal", "Gamma"}
+    {
+        "Normal",
+        "StudentT",
+        "TruncatedNormal",
+        "Gamma",
+        "Laplace",
+        "InverseGamma",
+    }
 )
 
 #: Likelihoods whose ``mu`` parameter is on some other scale, mapped to the name

@@ -192,6 +192,8 @@ class TestLinkSpec:
             Prior("StudentT", nu=3, sigma=1),
             Prior("TruncatedNormal", sigma=1, lower=0),
             Prior("Gamma", sigma=1),
+            Prior("Laplace", b=1),
+            Prior("InverseGamma", sigma=1),
         ],
     )
     def test_validate_likelihood_compat_identity_accepts_response_scale(
@@ -229,8 +231,15 @@ class TestLinkSpec:
     def test_validate_likelihood_compat_identity_unknown_warns(self):
         with pytest.warns(UserWarning, match="not a known response-scale likelihood"):
             LinkSpec.validate_likelihood_compatibility(
-                LinkFunction.IDENTITY, Prior("Laplace", b=1)
+                LinkFunction.IDENTITY, Prior("Weibull", alpha=1, beta=1)
             )
+
+    def test_validate_likelihood_compat_identity_unnamed_uses_class_name(self):
+        class Unnamed:
+            pass
+
+        with pytest.warns(UserWarning, match="'Unnamed' is not a known"):
+            LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, Unnamed())
 
     def test_validate_likelihood_compat_log_lognormal(self):
         LinkSpec.validate_likelihood_compatibility(
