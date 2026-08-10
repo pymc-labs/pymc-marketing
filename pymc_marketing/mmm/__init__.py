@@ -19,6 +19,11 @@ from pymc_marketing.mmm.additive_effect import (
     DataVarMuEffect,
     MediaMuEffect,
 )
+from pymc_marketing.mmm.budget_optimizer import (
+    BudgetOptimizer,
+    merge_inference_data,
+    merge_models_and_idata,
+)
 from pymc_marketing.mmm.components.adstock import (
     AdstockTransformation,
     BinomialAdstock,
@@ -89,6 +94,7 @@ __all__ = [
     "MMM",
     "AdstockTransformation",
     "BinomialAdstock",
+    "BudgetOptimizer",
     "BudgetOptimizerWrapper",
     "ControlMuEffect",
     "CovFunc",
@@ -135,6 +141,8 @@ __all__ = [
     "create_constrained_inverse_gamma_prior",
     "create_eta_prior",
     "create_m_and_L_recommendations",
+    "merge_inference_data",
+    "merge_models_and_idata",
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
