@@ -89,9 +89,7 @@ def build_pymc_model(n_periods: int = 2) -> pm.Model:
         )
         beta = pmd.Normal("beta", 0.0, 1.0, dims="channel")
         mu = (channel_data * beta).sum(dim="channel")
-        pmd.Deterministic(
-            "total_media_contribution_original_scale", mu.sum(), dims=()
-        )
+        pmd.Deterministic("total_media_contribution_original_scale", mu.sum(), dims=())
         pmd.Deterministic(
             "channel_contribution", channel_data * beta, dims=("date", "channel")
         )
