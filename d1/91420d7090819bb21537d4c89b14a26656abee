@@ -1,0 +1,14 @@
+docs/source/notebooks/mmm/dev/mmm_credibility_disaggregation.ipynb
+  h_d36ca8649a0e95 187,206,227,708,711-712
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d191420d7090819bb21537d4c89b14a26656abee",
+  "prompts": {},
+  "humans": {
+    "h_d36ca8649a0e95": {
+      "author": "Carlos Trujillo <carlangastr@gmail.com>"
+    }
+  }
+}
