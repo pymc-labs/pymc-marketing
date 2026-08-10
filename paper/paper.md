@@ -94,7 +94,11 @@ Novel methodological contributions include: (1) time-varying coefficients using 
 
 # AI Usage Disclosure
 
-Generative AI tools were used during paper preparation. OpenCode (v1.0.220) with Claude Opus 4.5 and OpenCode (v1.14.48) with Claude Sonnet 4.6 via GitHub Copilot assisted with gathering information from existing documentation and codebase, drafting text, and incorporating peer reviewer feedback. The PyMC-Marketing software itself was developed by human contributors. All paper content was reviewed, edited, and validated by the human authors.
+Generative AI tools were used both in developing the software and in preparing this paper.
+
+*Software.* PyMC-Marketing predates modern AI coding assistants, and its core model implementations were written by human contributors. More recently, contributors have used AI coding assistants, including Claude Code, Cursor, and GitHub Copilot, for implementation-level work such as drafting code and tests, writing docstrings and documentation, refactoring, and repository maintenance. Architectural design, API decisions, and statistical and methodological choices are made by the human maintainers. Every contribution, AI-assisted or not, enters the codebase through a pull request that requires approval by at least one human maintainer and must pass the automated test suite in continuous integration.
+
+*Paper.* OpenCode (v1.0.220) with Claude Opus 4.5 and OpenCode (v1.14.48) with Claude Sonnet 4.6 via GitHub Copilot assisted with gathering information from existing documentation and codebase, drafting text, and incorporating peer reviewer feedback. All paper content was reviewed, edited, and validated by the human authors.
 
 # Acknowledgments
 
