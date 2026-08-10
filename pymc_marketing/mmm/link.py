@@ -72,17 +72,19 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
 
 
-def _distribution_name(likelihood: Prior) -> str | None:
+def _distribution_name(likelihood: Prior) -> str:
     """Return the distribution name of *likelihood*.
 
     Wrappers such as ``Censored`` hold another prior in ``distribution``
-    instead of a name, so unwrap until a name is reached.  Returns ``None``
-    when there is none.
+    instead of a name, so unwrap until a name is reached.  Objects without a
+    ``distribution`` at all, such as the ``SpecialPrior`` subclasses, fall
+    back to their class name, so the checks below compare a real name rather
+    than ``None``.
     """
     dist = getattr(likelihood, "distribution", None)
     while dist is not None and not isinstance(dist, str):
         dist = getattr(dist, "distribution", None)
-    return dist
+    return dist if dist is not None else type(likelihood).__name__
 
 
 class LinkSpec(ABC):
@@ -253,7 +255,7 @@ class LinkSpec(ABC):
                 )
             if dist_name not in RESPONSE_SCALE_LIKELIHOODS:
                 warnings.warn(
-                    f"Likelihood '{dist_name or type(likelihood).__name__}' is "
+                    f"Likelihood '{dist_name}' is "
                     "not a known response-scale likelihood. With "
                     "link='identity' the contribution decomposition assumes "
                     "'mu' is on the scale of the target. Check that it is "
@@ -267,9 +269,8 @@ class LinkSpec(ABC):
 
         allowed = LINK_LIKELIHOODS.get(link, frozenset())
         if dist_name not in allowed:
-            name = dist_name or type(likelihood).__name__
             raise ValueError(
-                f"Likelihood '{name}' is not compatible with link='{link.value}'. "
+                f"Likelihood '{dist_name}' is not compatible with link='{link.value}'. "
                 f"Allowed likelihoods for link='{link.value}': {sorted(allowed)}. "
                 f"Using an incompatible likelihood will produce incorrect "
                 f"decomposition and optimisation results."

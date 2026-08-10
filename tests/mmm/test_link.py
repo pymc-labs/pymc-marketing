@@ -27,6 +27,7 @@ from pymc_marketing.mmm.link import (
     LinkFunction,
     LinkSpec,
     LogLinkSpec,
+    _distribution_name,
     get_link_spec,
 )
 from pymc_marketing.mmm.mmm import MMM, BudgetOptimizerWrapper
@@ -240,6 +241,18 @@ class TestLinkSpec:
 
         with pytest.warns(UserWarning, match="'Unnamed' is not a known"):
             LinkSpec.validate_likelihood_compatibility(LinkFunction.IDENTITY, Unnamed())
+
+    def test_distribution_name_falls_back_to_class_name(self):
+        # The name drives the set lookups, so an object without a
+        # ``distribution`` has to resolve to something other than None.
+        class Unnamed:
+            pass
+
+        assert _distribution_name(Prior("Normal", sigma=1)) == "Normal"
+        assert (
+            _distribution_name(Censored(Prior("Normal", sigma=1), lower=0)) == "Normal"
+        )
+        assert _distribution_name(Unnamed()) == "Unnamed"
 
     def test_validate_likelihood_compat_log_lognormal(self):
         LinkSpec.validate_likelihood_compatibility(
