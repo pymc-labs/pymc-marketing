@@ -26,31 +26,10 @@ from __future__ import annotations
 
 import importlib
 import inspect
-from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol, Self, runtime_checkable
 
 from pydantic import BaseModel, Field
-
-# Context variable to thread serialization memo through nested to_dict() calls
-_current_serialize_memo: ContextVar[_SerializeMemo | None] = ContextVar(
-    "current_serialize_memo", default=None
-)
-
-# Context variable to thread deserialization memo through nested from_dict() calls
-_current_deserialize_memo: ContextVar[_DeserializeMemo | None] = ContextVar(
-    "current_deserialize_memo", default=None
-)
-
-
-def get_current_serialize_memo() -> _SerializeMemo | None:
-    """Get the current serialization memo, or None if not in a serialization pass."""
-    return _current_serialize_memo.get()
-
-
-def get_current_deserialize_memo() -> _DeserializeMemo | None:
-    """Get the current deserialization memo, or None if not in a deserialization pass."""
-    return _current_deserialize_memo.get()
 
 
 class SerializationError(Exception):
@@ -136,50 +115,6 @@ class _RegistryEntry:
     deserializer: Any = None
 
 
-@dataclass
-class _SerializeMemo:
-    """Per-pass memo for serialization (replaces singleton tracker for serialization)."""
-
-    _seen: dict[int, int] = field(default_factory=dict)
-    _ref_counter: int = 0
-
-    def track(self, obj: Any) -> None:
-        """Track an object for deduplication."""
-        self._seen[id(obj)] = self._ref_counter
-        self._ref_counter += 1
-
-    def is_seen(self, obj: Any) -> bool:
-        """Check if object has been serialized before."""
-        return id(obj) in self._seen
-
-    def get_ref_id(self, obj: Any) -> int:
-        """Get the reference ID for a tracked object."""
-        return self._seen[id(obj)]
-
-
-@dataclass
-class _DeserializeMemo:
-    """Per-pass memo for deserialization (replaces singleton tracker for deserialization)."""
-
-    _deserialized: dict[int, Any] = field(default_factory=dict)
-    _ref_counter: int = 0
-
-    def store(self, obj: Any) -> int:
-        """Store deserialized object and return its reference ID."""
-        ref_id = self._ref_counter
-        self._deserialized[ref_id] = obj
-        self._ref_counter += 1
-        return ref_id
-
-    def resolve_ref(self, ref_id: int) -> Any:
-        """Resolve a reference ID to a deserialized object."""
-        return self._deserialized[ref_id]
-
-    def has_ref(self, ref_id: int) -> bool:
-        """Check if a reference ID exists."""
-        return ref_id in self._deserialized
-
-
 class TypeRegistry:
     """Centralized registry for serializable types.
 
@@ -198,12 +133,6 @@ class TypeRegistry:
 
         # With explicit type_key + custom deserializer:
         serialization.register("mod.MyClass", MyClass, deserializer=my_deser_fn)
-
-    Reference deduplication:
-        When the same object appears multiple times during serialization,
-        subsequent occurrences emit a ``{"$ref": N}`` reference instead of
-        the full object. On deserialization, references are resolved to the
-        first occurrence. This is transparent to registered classes.
     """
 
     def __init__(self) -> None:
@@ -265,41 +194,7 @@ class TypeRegistry:
         return actual_cls
 
     def serialize(self, obj: Serializable) -> dict[str, Any]:
-        """Serialize an object to a JSON-safe dict with ``__type__`` key.
-
-        Supports reference deduplication: if the same object appears multiple
-        times during serialization, subsequent occurrences emit ``{"$ref": N}``
-        references instead of duplicating the full object.
-        """
-        # Use fresh tracker per serialize pass (no cross-call leaking)
-        memo = _SerializeMemo()
-        token = _current_serialize_memo.set(memo)
-        try:
-            return self._serialize_with_refs(obj, memo)
-        finally:
-            _current_serialize_memo.reset(token)
-
-    def serialize_batch(self, objs: list[Serializable]) -> list[dict[str, Any]]:
-        """Serialize multiple objects in one pass, sharing reference tracking.
-
-        Objects that appear multiple times across the batch are deduplicated:
-        the first occurrence is emitted in full, subsequent occurrences emit
-        ``{"$ref": N}`` references.
-        """
-        memo = _SerializeMemo()
-        token = _current_serialize_memo.set(memo)
-        try:
-            return [self._serialize_with_refs(obj, memo) for obj in objs]
-        finally:
-            _current_serialize_memo.reset(token)
-
-    def _serialize_with_refs(self, obj: Any, memo: _SerializeMemo) -> dict[str, Any]:
-        """Serialize with reference tracking for deduplication."""
-        # Emit reference for previously seen objects (include __type__ for parent dispatch)
-        if memo.is_seen(obj):
-            type_key = f"{obj.__class__.__module__}.{obj.__class__.__qualname__}"
-            return {"$ref": memo.get_ref_id(obj), "__type__": type_key}
-
+        """Serialize an object to a JSON-safe dict with ``__type__`` key."""
         type_key = f"{obj.__class__.__module__}.{obj.__class__.__qualname__}"
         if type_key not in self._registry:
             raise KeyError(
@@ -309,14 +204,8 @@ class TypeRegistry:
 
         entry = self._registry[type_key]
         if entry.serializer is not None:
-            serialized = entry.serializer(obj)
-        else:
-            serialized = obj.to_dict()
-
-        # Store reference for deduplication
-        memo.track(obj)
-
-        return serialized
+            return entry.serializer(obj)
+        return obj.to_dict()
 
     def deserialize(
         self,
@@ -326,55 +215,12 @@ class TypeRegistry:
         """Deserialize a dict back to an object.
 
         Three-tier dispatch:
-        1. If ``$ref`` key exists, return previously deserialized object.
-        2. If ``__deferred__`` is True, return an unresolved ``DeferredFactory``.
-        3. Otherwise, look up the class by ``__type__`` and call ``cls.from_dict(data)``.
+        1. If ``__deferred__`` is True, return an unresolved ``DeferredFactory``.
+        2. Otherwise, look up the class by ``__type__`` and call ``cls.from_dict(data)``.
         """
         if not isinstance(data, dict):
             raise SerializationError(
                 f"Expected a dict for deserialization, got {type(data).__name__}"
-            )
-
-        # Use fresh tracker per deserialize pass (no cross-call leaking)
-        memo = _DeserializeMemo()
-        token = _current_deserialize_memo.set(memo)
-        try:
-            return self._deserialize_with_refs(data, context, memo)
-        finally:
-            _current_deserialize_memo.reset(token)
-
-    def deserialize_batch(
-        self,
-        items: list[dict[str, Any]],
-        context: DeserializationContext | None = None,
-    ) -> list[Any]:
-        """Deserialize multiple objects in one pass, sharing reference tracking.
-
-        Objects that were serialized with ``serialize_batch`` will have their
-        shared references correctly resolved.
-        """
-        memo = _DeserializeMemo()
-        token = _current_deserialize_memo.set(memo)
-        try:
-            return [self._deserialize_with_refs(item, context, memo) for item in items]
-        finally:
-            _current_deserialize_memo.reset(token)
-
-    def _deserialize_with_refs(
-        self,
-        data: dict[str, Any],
-        context: DeserializationContext | None,
-        memo: _DeserializeMemo,
-    ) -> Any:
-        """Deserialize with reference tracking for deduplication."""
-        # Handle references to previously deserialized objects
-        if "$ref" in data:
-            ref_id = data["$ref"]
-            if memo.has_ref(ref_id):
-                return memo.resolve_ref(ref_id)
-            raise SerializationError(
-                f"Reference $ref={ref_id} not found. "
-                f"The referenced object may not have been deserialized yet."
             )
 
         if data.get("__deferred__"):
@@ -401,50 +247,10 @@ class TypeRegistry:
         if entry.deserializer is not None:
             return entry.deserializer(data, context)
 
-        # Resolve any nested $ref dicts before passing to from_dict()
-        resolved_data = self._resolve_nested_refs(data, memo)
-
-        result = entry.cls.from_dict(resolved_data)  # type: ignore[attr-defined]
-
-        # Store deserialized object for reference resolution
-        memo.store(result)
-
-        return result
-
-    def _resolve_nested_refs(
-        self, data: dict[str, Any], memo: _DeserializeMemo
-    ) -> dict[str, Any]:
-        """Recursively resolve $ref dicts in nested data structures."""
-        resolved = {}
-        for key, value in data.items():
-            if isinstance(value, dict) and "$ref" in value:
-                ref_id = value["$ref"]
-                if memo.has_ref(ref_id):
-                    resolved[key] = memo.resolve_ref(ref_id)
-                else:
-                    raise SerializationError(
-                        f"Reference $ref={ref_id} not found in nested data. "
-                        f"The referenced object may not have been deserialized yet."
-                    )
-            elif isinstance(value, dict):
-                resolved[key] = self._resolve_nested_refs(value, memo)
-            elif isinstance(value, list):
-                resolved[key] = [
-                    self._resolve_nested_refs(item, memo)
-                    if isinstance(item, dict)
-                    else item
-                    for item in value
-                ]
-            else:
-                resolved[key] = value
-        return resolved
+        return entry.cls.from_dict(data)  # type: ignore[attr-defined]
 
     def serialize_model_config(self, config: dict[str, Any]) -> dict[str, Any]:
-        """Serialize a model_config dict in a single pass with shared memo.
-
-        All values in the dict are serialized with the same ``_SerializeMemo``,
-        so shared objects (e.g., an ``R2D2Decomposition`` referenced by both
-        an ``R2D2Split`` and an ``R2D2Sigma``) are deduplicated via ``$ref``.
+        """Serialize a model_config dict to JSON-safe values.
 
         Parameters
         ----------
@@ -455,18 +261,12 @@ class TypeRegistry:
         Returns
         -------
         dict
-            JSON-safe dict suitable for ``json.dumps``. Shared references
-            become ``{"$ref": N, "__type__": ...}`` dicts.
+            JSON-safe dict suitable for ``json.dumps``.
         """
-        memo = _SerializeMemo()
-        token = _current_serialize_memo.set(memo)
-        try:
-            return {k: self._serialize_config_value(v, memo) for k, v in config.items()}
-        finally:
-            _current_serialize_memo.reset(token)
+        return {k: self._serialize_config_value(v) for k, v in config.items()}
 
-    def _serialize_config_value(self, value: Any, memo: _SerializeMemo) -> Any:
-        """Serialize a single config value with shared memo support."""
+    def _serialize_config_value(self, value: Any) -> Any:
+        """Serialize a single config value."""
         import numpy as np
 
         if isinstance(value, np.ndarray):
@@ -478,9 +278,9 @@ class TypeRegistry:
         if isinstance(value, (int, float, str, bool, type(None))):
             return value
         if isinstance(value, (list, tuple)):
-            return [self._serialize_config_value(v, memo) for v in value]
+            return [self._serialize_config_value(v) for v in value]
         if isinstance(value, dict):
-            return {k: self._serialize_config_value(v, memo) for k, v in value.items()}
+            return {k: self._serialize_config_value(v) for k, v in value.items()}
 
         from pymc_extras.prior import Prior
 
@@ -488,7 +288,7 @@ class TypeRegistry:
             result: dict[str, Any] = {
                 "dist": value.distribution,
                 "kwargs": {
-                    k: self._serialize_config_value(v, memo)
+                    k: self._serialize_config_value(v)
                     for k, v in value.parameters.items()
                 },
             }
@@ -500,23 +300,18 @@ class TypeRegistry:
 
         type_key = f"{value.__class__.__module__}.{value.__class__.__qualname__}"
         if type_key in self._registry:
-            return self._serialize_with_refs(value, memo)
+            return self.serialize(value)
 
         if hasattr(value, "to_dict"):
             base = value.to_dict()
             if isinstance(base, dict):
-                return {
-                    k: self._serialize_config_value(v, memo) for k, v in base.items()
-                }
+                return {k: self._serialize_config_value(v) for k, v in base.items()}
             return base
 
         return value
 
     def deserialize_model_config(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Deserialize a model_config dict in a single pass with shared memo.
-
-        All values in the dict are deserialized with the same
-        ``_DeserializeMemo``, so ``$ref`` references are resolved across keys.
+        """Deserialize a model_config dict back to live objects.
 
         Parameters
         ----------
@@ -529,64 +324,81 @@ class TypeRegistry:
         dict
             Dict with live objects (Priors, R2D2 splits, etc.).
         """
-        memo = _DeserializeMemo()
-        token = _current_deserialize_memo.set(memo)
-        try:
-            return {k: self._deserialize_config_value(v, memo) for k, v in data.items()}
-        finally:
-            _current_deserialize_memo.reset(token)
+        config = {k: self._deserialize_config_value(v) for k, v in data.items()}
+        return _merge_shared_decompositions(config)
 
-    def _deserialize_config_value(self, value: Any, memo: _DeserializeMemo) -> Any:
-        """Deserialize a single config value with shared memo support."""
+    def _deserialize_config_value(self, value: Any) -> Any:
+        """Deserialize a single config value."""
         import numpy as np
 
         if isinstance(value, dict):
-            if "$ref" in value:
-                ref_id = value["$ref"]
-                if memo.has_ref(ref_id):
-                    return memo.resolve_ref(ref_id)
-                raise SerializationError(
-                    f"Reference $ref={ref_id} not found in config. "
-                    "The referenced object may not have been deserialized yet."
-                )
-
             if "__type__" in value:
-                return self._deserialize_with_refs(value, None, memo)
+                return self.deserialize(value)
 
             if isinstance(value.get("dist"), str):
-                prior = self._deserialize_prior_spec(value, memo)
+                prior = self._deserialize_prior_spec(value)
                 if prior is not None:
                     return prior
 
-            return {
-                k: self._deserialize_config_value(v, memo) for k, v in value.items()
-            }
+            return {k: self._deserialize_config_value(v) for k, v in value.items()}
 
         if isinstance(value, list):
-            result = [self._deserialize_config_value(v, memo) for v in value]
+            result = [self._deserialize_config_value(v) for v in value]
             if result and all(isinstance(v, (int, float)) for v in result):
                 return np.array(result)
             return result
 
         return value
 
-    def _deserialize_prior_spec(
-        self, data: dict[str, Any], memo: _DeserializeMemo
-    ) -> Any | None:
-        """Deserialize a Prior spec dict and recurse into kwargs."""
+    def _deserialize_prior_spec(self, data: dict[str, Any]) -> Any | None:
+        """Deserialize a Prior spec dict."""
         from pymc_extras.deserialize import DeserializableError, deserialize
 
-        token = _current_deserialize_memo.set(memo)
         try:
-            prior = deserialize(data)
+            return deserialize(data)
         except DeserializableError as err:
             if err.__cause__ is not None:
                 raise
             return None
-        finally:
-            _current_deserialize_memo.reset(token)
 
-        return prior
+
+def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
+    """Merge identical R2D2Decomposition instances after deserialization.
+
+    When model_config contains both R2D2Split and R2D2Sigma entries,
+    each deserializes its own copy of the decomposition. This walks
+    the config tree and merges identical decompositions so that all
+    splits and sigmas share the same decomposition object.
+    """
+    import json
+
+    from pymc_marketing.r2d2 import R2D2Decomposition, R2D2Sigma, R2D2Split
+
+    decomps: dict[str, R2D2Decomposition] = {}
+
+    def walk(obj: Any) -> Any:
+        if isinstance(obj, R2D2Decomposition):
+            key = json.dumps(serialization.serialize(obj), sort_keys=True)
+            if key not in decomps:
+                decomps[key] = obj
+            return decomps[key]
+        if isinstance(obj, R2D2Split):
+            obj.decomposition = walk(obj.decomposition)
+            return obj
+        if isinstance(obj, R2D2Sigma):
+            obj.decomposition = walk(obj.decomposition)
+            return obj
+        if isinstance(obj, dict):
+            return {k: walk(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [walk(v) for v in obj]
+        if hasattr(obj, "parameters"):
+            for k, v in obj.parameters.items():
+                obj.parameters[k] = walk(v)
+            return obj
+        return obj
+
+    return walk(config)
 
 
 serialization = TypeRegistry()

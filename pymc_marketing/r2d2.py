@@ -95,11 +95,7 @@ import pytensor.xtensor.math as ptx
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import Prior
 
-from pymc_marketing.serialization import (
-    get_current_deserialize_memo,
-    get_current_serialize_memo,
-    serialization,
-)
+from pymc_marketing.serialization import serialization
 
 
 @serialization.register
@@ -178,14 +174,8 @@ class R2D2Split:
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
-        memo = get_current_serialize_memo()
-        if memo is not None:
-            # Use the context memo for nested serialization (deduplication)
-            decomposed = serialization._serialize_with_refs(self.decomposition, memo)
-        else:
-            decomposed = serialization.serialize(self.decomposition)
         return {
-            "decomposition": decomposed,
+            "decomposition": serialization.serialize(self.decomposition),
             "component_name": self.component_name,
         }
 
@@ -193,19 +183,10 @@ class R2D2Split:
     def from_dict(cls, data: dict) -> "R2D2Split":
         """Deserialize from dictionary."""
         decomposition = data["decomposition"]
-        # If already resolved (by _resolve_nested_refs), use directly
         if isinstance(decomposition, dict):
-            memo = get_current_deserialize_memo()
-            if memo is not None:
-                decomposed = serialization._deserialize_with_refs(
-                    decomposition, None, memo
-                )
-            else:
-                decomposed = serialization.deserialize(decomposition)
-        else:
-            decomposed = decomposition
+            decomposition = serialization.deserialize(decomposition)
         return cls(
-            decomposition=decomposed,
+            decomposition=decomposition,
             component_name=data["component_name"],
         )
 
@@ -256,33 +237,18 @@ class R2D2Sigma:
 
     def to_dict(self) -> dict:
         """Serialize to dictionary."""
-        memo = get_current_serialize_memo()
-        if memo is not None:
-            # Use the context memo for nested serialization (deduplication)
-            decomposed = serialization._serialize_with_refs(self.decomposition, memo)
-        else:
-            decomposed = serialization.serialize(self.decomposition)
         return {
-            "decomposition": decomposed,
+            "decomposition": serialization.serialize(self.decomposition),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "R2D2Sigma":
         """Deserialize from dictionary."""
         decomposition = data["decomposition"]
-        # If already resolved (by _resolve_nested_refs), use directly
         if isinstance(decomposition, dict):
-            memo = get_current_deserialize_memo()
-            if memo is not None:
-                decomposed = serialization._deserialize_with_refs(
-                    decomposition, None, memo
-                )
-            else:
-                decomposed = serialization.deserialize(decomposition)
-        else:
-            decomposed = decomposition
+            decomposition = serialization.deserialize(decomposition)
         return cls(
-            decomposition=decomposed,
+            decomposition=decomposition,
         )
 
 
@@ -532,9 +498,6 @@ class R2D2Decomposition:
 
 
 def _r2d2_deserializer(data: dict) -> Any:
-    memo = get_current_deserialize_memo()
-    if memo is not None:
-        return serialization._deserialize_with_refs(data, None, memo)
     return serialization.deserialize(data)
 
 
