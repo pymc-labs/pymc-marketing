@@ -110,7 +110,7 @@ mmm.idata["sample_stats"]["diverging"].sum().item()
 az.summary(data=mmm.idata, var_names=[...])["r_hat"].describe()
 
 # Trace plots
-az.plot_trace(data=mmm.fit_result, var_names=[...], compact=True)
+az.plot_trace_dist(mmm.fit_result, var_names=[...], compact=True)
 ```
 
 Use `TimeSliceCrossValidator` to assess model stability **before** the final fit:

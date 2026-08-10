@@ -22,7 +22,6 @@
   paths
   pie
   plot
-  prior
   pytensor_utils
   serialization
   serialization_migration

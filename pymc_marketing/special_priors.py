@@ -20,6 +20,7 @@ priors that do not inherit from the Prior class but have many
 of the same methods.
 """
 
+import copy
 import warnings
 from abc import ABC, abstractmethod
 from typing import Any
@@ -940,3 +941,56 @@ def _deserialize_special_prior(data: dict) -> SpecialPrior:
 register_deserialization(
     is_type=_is_special_prior_type, deserialize=_deserialize_special_prior
 )
+
+
+def is_alternative_prior(data: Any) -> bool:
+    """Check if the data is a dictionary representing a Prior (alternative check)."""
+    return isinstance(data, dict) and isinstance(data.get("distribution"), str)
+
+
+def deserialize_alternative_prior(data: dict[str, Any]) -> Prior:
+    """Alternative deserializer that recursively handles all nested parameters.
+
+    This handles the flat ``{"distribution": ...}`` prior format used by the MMM
+    YAML schema, where any parameter might itself be a nested prior, and also
+    extracts the ``centered`` and ``transform`` parameters.
+
+    Examples
+    --------
+    This handles cases like:
+
+    .. code-block:: yaml
+
+        distribution: Gamma
+        alpha: 1
+        beta:
+            distribution: HalfNormal
+            sigma: 1
+            dims: channel
+        dims: [brand, channel]
+
+    """
+    data = copy.deepcopy(data)
+
+    distribution = data.pop("distribution")
+    dims = data.pop("dims", None)
+    centered = data.pop("centered", True)
+    transform = data.pop("transform", None)
+    parameters = data
+
+    # Recursively deserialize any nested parameters
+    parameters = {
+        key: value if not isinstance(value, dict) else deserialize(value)
+        for key, value in parameters.items()
+    }
+
+    return Prior(
+        distribution,
+        transform=transform,
+        centered=centered,
+        dims=dims,
+        **parameters,
+    )
+
+
+register_deserialization(is_alternative_prior, deserialize_alternative_prior)
