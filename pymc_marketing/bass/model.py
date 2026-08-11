@@ -309,9 +309,10 @@ def _create_likelihood_variable(
     ``observed=None``: it hands the ``None`` to a helper that reads ``.ndim``
     off it (pymc-devs/pymc-extras#731). Build the unobserved variable
     directly in that case, keeping the same ``mu`` guard the pymc_extras
-    method applies, and drop this branch once that issue is fixed.
-    ``Censored`` passes ``observed`` straight to ``pmd.Censored``, so it
-    needs no special case.
+    method applies. Dropping this branch needs a pymc-extras release
+    carrying that fix and a pin that allows it, so it goes with #2648, not
+    with the upstream merge. ``Censored`` passes ``observed`` straight to
+    ``pmd.Censored``, so it needs no special case.
     """
     if not _supports_xdist(prior):
         return prior.create_likelihood_variable(
