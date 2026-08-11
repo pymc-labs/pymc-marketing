@@ -99,41 +99,14 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import (
-    get_posterior_predictive,
-    get_prior,
-    get_prior_predictive,
-)
+from pymc_marketing.data.idata.utils import get_posterior_predictive
 from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
 )
-
-
-def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
-    """Return the correct idata group for prior predictive plotting.
-
-    PyMC stores observed variables in ``idata.prior_predictive`` and
-    Deterministics (such as ``y_original_scale``) in ``idata.prior``.
-    This helper selects the right group based on *original_scale*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the model's DataTree.
-    original_scale : bool
-        If True, return ``idata.prior`` (contains ``y_original_scale``).
-        If False, return ``idata.prior_predictive`` (contains ``y``).
-
-    Returns
-    -------
-    xr.Dataset
-    """
-    if original_scale:
-        return get_prior(data.idata)
-    return get_prior_predictive(data.idata)
+from pymc_marketing.mmm.summary_helpers import compute_residuals, get_prior_for_plot
 
 
 class DiagnosticsPlots:
@@ -253,41 +226,6 @@ class DiagnosticsPlots:
         pc.map(azp.visuals.labelled_title, subset_info=True, ignore_aes={"color"})
 
         return pc
-
-    def _compute_residuals(
-        self,
-        data: MMMIDataWrapper,
-    ) -> xr.DataArray:
-        """Compute residuals as target_data - posterior predictions.
-
-        Parameters
-        ----------
-        data : MMMIDataWrapper
-            Wrapper holding idata with posterior_predictive and constant_data.
-
-        Returns
-        -------
-        xr.DataArray
-            Residuals named "residuals" with same dims as ``y_original_scale``
-            (typically ``(chain, draw, date[, extra_dims])``).
-
-        Raises
-        ------
-        ValueError
-            If ``y_original_scale`` not in posterior_predictive, or target_data not in constant_data.
-        """
-        pp_var = "y_original_scale"
-        pp_ds = get_posterior_predictive(data.idata)
-        if pp_var not in pp_ds:
-            raise ValueError(
-                f"Variable '{pp_var}' not found in posterior_predictive. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
-        predictions = pp_ds[pp_var]
-        target = data.get_target(original_scale=True)
-        residuals = target - predictions
-        residuals.name = "residuals"
-        return residuals
 
     def posterior_predictive(
         self,
@@ -458,7 +396,7 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = _get_prior_for_plot(data, original_scale)
+        pp_ds = get_prior_for_plot(data, original_scale)
 
         var_name = "y_original_scale" if original_scale else "y"
         group_name = "prior" if original_scale else "prior_predictive"
@@ -544,9 +482,7 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        residuals_da = self._compute_residuals(
-            data
-        )  # (chain, draw, date[, extra_dims])
+        residuals_da = compute_residuals(data)
         residuals_da = _select_dims(residuals_da, dims)
 
         extra_dims = list(data.custom_dims)
@@ -672,7 +608,7 @@ class DiagnosticsPlots:
             if not 0.0 <= q <= 1.0:
                 raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
 
-        residuals_da = self._compute_residuals(data)
+        residuals_da = compute_residuals(data)
         residuals_da = _select_dims(residuals_da, dims)
 
         if isinstance(aggregation, str):

@@ -28,6 +28,7 @@ from pymc_marketing.data.idata.utils import (
     get_prior_predictive,
 )
 from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
+from pymc_marketing.mmm.summary_helpers import compute_residuals
 
 matplotlib.use("Agg")
 
@@ -285,23 +286,23 @@ class TestGetPrior:
 
 
 class TestComputeResiduals:
-    def test_returns_dataarray_named_residuals(self, simple_plots, simple_data):
-        result = simple_plots._compute_residuals(simple_data)
+    def test_returns_dataarray_named_residuals(self, simple_data):
+        result = compute_residuals(simple_data)
         assert isinstance(result, xr.DataArray)
         assert result.name == "residuals"
 
-    def test_has_chain_draw_date_dims(self, simple_plots, simple_data):
-        result = simple_plots._compute_residuals(simple_data)
+    def test_has_chain_draw_date_dims(self, simple_data):
+        result = compute_residuals(simple_data)
         assert {"chain", "draw", "date"}.issubset(result.dims)
 
-    def test_raises_on_missing_pp_var(self, simple_plots, simple_idata):
+    def test_raises_on_missing_pp_var(self, simple_idata):
         idata = simple_idata.copy()
         pp_ds = idata["posterior_predictive"].dataset
         pp_ds = pp_ds.drop_vars("y_original_scale")
         idata["posterior_predictive"] = pp_ds
         data = MMMIDataWrapper(idata, validate_on_init=False)
         with pytest.raises(ValueError, match="y_original_scale"):
-            simple_plots._compute_residuals(data)
+            compute_residuals(data)
 
 
 class TestDiagnosticsPlotsConstructor:
@@ -777,14 +778,10 @@ class TestResidualsBasic:
 
 class TestResidualsElements:
     def test_mean_residuals_line_present(self, simple_plots, simple_data):
-        """Mean residuals line y-data must match _compute_residuals().mean(chain/draw)."""
+        """Mean residuals line y-data must match compute_residuals().mean(chain/draw)."""
         _, axes = simple_plots.residuals_over_time()
         ax = axes.flat[0]
-        expected = (
-            simple_plots._compute_residuals(simple_data)
-            .mean(dim=("chain", "draw"))
-            .values
-        )
+        expected = compute_residuals(simple_data).mean(dim=("chain", "draw")).values
         line_y_arrays = [line.get_ydata() for line in ax.lines]
         assert any(np.allclose(y, expected, equal_nan=True) for y in line_y_arrays), (
             "No line matches the mean residuals"
@@ -951,7 +948,7 @@ class TestResidualsDistributionElements:
         """The x-positions of quantile lines must match the computed quantile values."""
         _, axes = simple_plots.residuals_distribution()
         ax = axes.flat[0]
-        residuals = simple_plots._compute_residuals(simple_data)
+        residuals = compute_residuals(simple_data)
         expected_quantiles = np.quantile(residuals.values.ravel(), [0.025, 0.5, 0.975])
         vertical_x = sorted(
             [

@@ -25,11 +25,13 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.mmm.plotting._helpers import (
-    _ensure_chain_draw_dims,
     _extract_matplotlib_result,
     _plot_timeseries_channel,
     _process_plot_params,
-    _select_dims,
+)
+from pymc_marketing.mmm.summary_budget import (
+    prepare_allocation_roas,
+    prepare_contribution_over_time,
 )
 
 
@@ -86,22 +88,6 @@ class BudgetPlots:
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
         """
-        if "channel_contribution_original_scale" not in samples:
-            raise ValueError(
-                "Expected 'channel_contribution_original_scale' variable in samples, "
-                "but none found."
-            )
-        if "allocation" not in samples:
-            raise ValueError(
-                "Expected 'allocation' variable in samples, but none found."
-            )
-        if "channel" not in samples.dims:
-            raise ValueError("Expected 'channel' dimension in samples, but none found.")
-        if "total_allocation" not in samples:
-            raise ValueError(
-                "Expected 'total_allocation' variable in samples, but none found."
-            )
-
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,
@@ -109,14 +95,7 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        roas_da = (
-            samples["channel_contribution_original_scale"].sum("date")
-            / samples["total_allocation"]
-        )
-        roas_da.name = "roas"
-
-        roas_da = _select_dims(roas_da, dims)
-        roas_da = _ensure_chain_draw_dims(roas_da)
+        roas_da = prepare_allocation_roas(samples, dims=dims)
 
         pc = azp.plot_forest(
             roas_da.to_dataset(),
@@ -195,14 +174,13 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        da = _select_dims(samples["channel_contribution_original_scale"], dims)
+        da = prepare_contribution_over_time(samples, dims=dims)
 
         extra_dims = [
             d
             for d in da.dims
             if d not in {"channel", "date", "sample", "chain", "draw"}
         ]
-        da = _ensure_chain_draw_dims(da)
         ds = da.to_dataset(name="contribution")
 
         pc = _plot_timeseries_channel(
