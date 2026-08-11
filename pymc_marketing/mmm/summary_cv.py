@@ -26,7 +26,6 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.metrics import crps as _crps_score
-from pymc_marketing.mmm.plotting._helpers import _select_dims
 from pymc_marketing.mmm.summary_helpers import (
     DataFrameType,
     OutputFormat,
@@ -34,16 +33,10 @@ from pymc_marketing.mmm.summary_helpers import (
     compute_summary_stats_with_hdi,
     convert_output,
 )
+from pymc_marketing.mmm.xarray_utils import _select_dims
 
 __all__ = [
     "MMMCVSummaryFactory",
-    "_build_predictions_arrays",
-    "_crps_for_split",
-    "_extract_cv_labels",
-    "_filter_rows_and_y",
-    "_pred_matrix_for_rows",
-    "_read_fold_meta",
-    "_validate_cv_results",
 ]
 
 _stats = StatsHelper()

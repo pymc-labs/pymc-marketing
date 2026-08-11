@@ -22,6 +22,7 @@ redundant tests while maintaining full coverage.
 """
 
 import importlib.util
+import json
 from unittest.mock import Mock
 
 import numpy as np
@@ -34,6 +35,7 @@ from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
 from pymc_marketing.mmm.summary import MMMSummaryFactory
+from pymc_marketing.mmm.summary_helpers import dataframe_to_json_records
 
 # Seed for reproducibility
 SEED = sum(map(ord, "summary_tests"))
@@ -438,6 +440,57 @@ def mock_mmm_idata_with_prior(simple_dates, simple_channels):
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
 
+@pytest.fixture
+def mock_mmm_idata_with_sensitivity(mock_mmm_idata_wrapper):
+    """Mock wrapper with sensitivity_analysis group attached."""
+    wrapper = mock_mmm_idata_wrapper
+    idata = wrapper.idata.copy()
+    n_sample, n_sweep = 20, 5
+    sweep = np.linspace(0.5, 1.5, n_sweep)
+    regions = ["A", "B"]
+    local_rng = np.random.default_rng(seed=46)
+
+    samples = xr.DataArray(
+        local_rng.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="x",
+    )
+    uplift_curve = xr.DataArray(
+        local_rng.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="uplift_curve",
+    )
+    marginal_effects = xr.DataArray(
+        local_rng.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="marginal_effects",
+    )
+    idata.sensitivity_analysis = xr.Dataset(
+        {
+            "x": samples,
+            "uplift_curve": uplift_curve,
+            "marginal_effects": marginal_effects,
+        },
+        coords={"sweep": sweep, "region": regions},
+    )
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
 # =============================================================================
 # DataFrame Schema Tests
 # =============================================================================
@@ -566,11 +619,21 @@ class TestNewSummarySchemas:
         """Test waterfall returns DataFrame with correct schema."""
         df = MMMSummaryFactory(mock_mmm_idata_wrapper).waterfall(hdi_probs=[0.94])
 
-        required_columns = {"component", "mean", "median", "pct_of_total"}
+        required_columns = {
+            "component",
+            "mean",
+            "median",
+            "pct_of_total",
+            "share_mean",
+            "share_median",
+        }
         assert required_columns.issubset(set(df.columns))
         assert "abs_error_94_lower" in df.columns
         assert "abs_error_94_upper" in df.columns
+        assert "share_abs_error_94_lower" in df.columns
+        assert "share_abs_error_94_upper" in df.columns
         assert len(df) > 0
+        assert df["pct_of_total"].equals(df["share_mean"])
 
     def test_channel_share_hdi_schema(self, mock_mmm_idata_wrapper):
         """Test channel_share_hdi returns DataFrame with correct schema."""
@@ -643,6 +706,32 @@ class TestNewSummarySchemas:
         assert required_columns.issubset(set(df.columns))
         assert pd.api.types.is_datetime64_any_dtype(df["date"])
         assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["sensitivity_analysis", "sensitivity_uplift", "sensitivity_marginal"],
+    )
+    def test_sensitivity_summary_schemas(
+        self, mock_mmm_idata_with_sensitivity, method_name
+    ):
+        """Test sensitivity summary methods return expected schema."""
+        factory = MMMSummaryFactory(mock_mmm_idata_with_sensitivity)
+        df = getattr(factory, method_name)(hdi_probs=[0.94])
+
+        required_columns = {"sweep", "mean", "median", "sweep_x", "region"}
+        assert required_columns.issubset(set(df.columns))
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+        assert len(df) > 0
+
+    def test_summary_json_serializable(self, mock_mmm_idata_wrapper):
+        """Test frontend export helper produces JSON-serializable records."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+        df = factory.contributions(hdi_probs=[0.94], component="channel")
+        records = dataframe_to_json_records(df)
+        json.dumps(records)
+        assert len(records) > 0
+        assert isinstance(records[0]["date"], str)
 
 
 # =============================================================================

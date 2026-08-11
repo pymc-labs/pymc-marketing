@@ -1696,7 +1696,7 @@ class MMMPlotlyFactory:
 
         return self._plot_bar(
             nw_df=nw_df,
-            x="component",
+            x=plotly_kwargs.pop("x", "component"),
             y="mean",
             hdi_prob=hdi_prob,
             yaxis_title="Contribution",
@@ -1725,6 +1725,7 @@ class MMMPlotlyFactory:
 
         return self._plot_bar(
             nw_df=nw_df,
+            x=plotly_kwargs.pop("x", "channel"),
             y="mean",
             hdi_prob=hdi_prob,
             yaxis_title="Share",

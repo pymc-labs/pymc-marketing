@@ -34,7 +34,6 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
-from pymc_marketing.mmm.summary import MMMSummaryFactory
 from pymc_marketing.mmm.summary_helpers import (
     compute_channel_shares,
     compute_waterfall_components,
@@ -175,8 +174,6 @@ class DecompositionPlots:
             if idata is not None
             else self._data
         )
-        summary = MMMSummaryFactory(data, validate_data=False)
-
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,
@@ -192,7 +189,7 @@ class DecompositionPlots:
                 f"Unknown contribution type(s): {invalid}. Valid options: {all_keys}"
             )
 
-        contributions_ds = summary.data.get_contributions(
+        contributions_ds = data.get_contributions(
             original_scale=original_scale,
             include_baseline="baseline" in include_set,
             include_controls="controls" in include_set,
@@ -201,7 +198,7 @@ class DecompositionPlots:
         if "channels" not in include_set:
             contributions_ds = contributions_ds.drop_vars("channels", errors="ignore")
 
-        extra_dims = list(summary.data.custom_dims)
+        extra_dims = list(data.custom_dims)
 
         # Find date coordinate from any contribution that has a date dim.
         # Fall back to the raw posterior coordinate so baseline-only plots work.
@@ -214,7 +211,7 @@ class DecompositionPlots:
             None,
         )
         if dates_coord is None:
-            posterior = summary.data.idata.posterior
+            posterior = data.idata.posterior
             if "date" in posterior.coords:
                 dates_coord = posterior.coords["date"]
 
@@ -313,11 +310,10 @@ class DecompositionPlots:
             if idata is not None
             else self._data
         )
-        summary = MMMSummaryFactory(data, validate_data=False)
-        extra_dims = list(summary.data.custom_dims)
+        extra_dims = list(data.custom_dims)
 
         components = compute_waterfall_components(
-            summary.data, dims=dims, original_scale=original_scale
+            data, dims=dims, original_scale=original_scale
         )
         mean_components = components.mean(dim=["chain", "draw"])
 
@@ -325,7 +321,7 @@ class DecompositionPlots:
         if extra_dims:
             ref_da = mean_components
             if not all(d in ref_da.coords for d in extra_dims):
-                ref_da = summary.data.idata.constant_data
+                ref_da = data.idata.constant_data
 
             coord_values = [ref_da.coords[d].values for d in extra_dims]
             combos = list(itertools.product(*coord_values))
@@ -415,8 +411,6 @@ class DecompositionPlots:
             if idata is not None
             else self._data
         )
-        summary = MMMSummaryFactory(data, validate_data=False)
-
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,
@@ -425,7 +419,7 @@ class DecompositionPlots:
         )
 
         channel_contributions = _select_dims(
-            summary.data.get_channel_contributions(original_scale=True), dims
+            data.get_channel_contributions(original_scale=True), dims
         )
         shares = compute_channel_shares(channel_contributions)
         share_ds = shares.to_dataset(name="channel_share")

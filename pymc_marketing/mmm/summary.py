@@ -32,6 +32,7 @@ Key Features:
 from __future__ import annotations
 
 import itertools
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -40,6 +41,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import xarray as xr
+from numpy.linalg import LinAlgError
 from pydantic import validate_call
 from pymc.util import RandomState
 from scipy.stats import gaussian_kde
@@ -47,7 +49,6 @@ from scipy.stats import gaussian_kde
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.incrementality import Incrementality
-from pymc_marketing.mmm.plotting._helpers import _select_dims
 from pymc_marketing.mmm.summary_helpers import (
     DataFrameType,
     OutputFormat,
@@ -66,6 +67,7 @@ from pymc_marketing.mmm.summary_sensitivity import (
 from pymc_marketing.mmm.summary_sensitivity import (
     sensitivity_uplift as _sensitivity_uplift,
 )
+from pymc_marketing.mmm.xarray_utils import _select_dims
 
 # Public API
 __all__ = [
@@ -1096,10 +1098,18 @@ class MMMSummaryFactory:
             Summary DataFrame with columns:
 
             - component: Contribution component name
-            - mean, median: Point estimates
-            - abs_error_{prob}_lower/upper: HDI bounds for each prob
-            - pct_of_total: Percentage of total mean contribution
+            - mean, median: Point estimates of component totals (summed over date)
+            - abs_error_{prob}_lower/upper: HDI bounds on component totals
+            - pct_of_total: Mean share of total (from per-draw ratios; see share_*)
+            - share_mean, share_median: Share point estimates with uncertainty
+            - share_abs_error_{prob}_lower/upper: HDI bounds on share of total
             - <custom_dims>: One column per custom dimension when present
+
+        Notes
+        -----
+        ``mean``/``abs_error_*`` describe component totals. ``share_*`` and
+        ``pct_of_total`` describe each component's share of the total per
+        posterior draw (ratio HDIs, not derived from component-total HDIs).
         """
         effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
         effective_output_format = (
@@ -1112,14 +1122,24 @@ class MMMSummaryFactory:
         )
         df = self._compute_summary_stats_with_hdi(components, effective_hdi_probs)
 
-        group_cols = [
-            c for c in df.columns if c in self.data.custom_dims or c == "component"
+        total_per_draw = components.sum(dim="component")
+        share_components = (components / total_per_draw) * 100
+        share_df = self._compute_summary_stats_with_hdi(
+            share_components, effective_hdi_probs
+        )
+        share_df = share_df.rename(
+            columns={
+                c: f"share_{c}"
+                for c in share_df.columns
+                if c in ("mean", "median") or c.startswith("abs_error_")
+            }
+        )
+        merge_keys = ["component", *self.data.custom_dims]
+        merge_keys = [
+            k for k in merge_keys if k in df.columns and k in share_df.columns
         ]
-        if group_cols:
-            totals = df.groupby(group_cols, dropna=False)["mean"].transform("sum")
-        else:
-            totals = df["mean"].sum()
-        df["pct_of_total"] = df["mean"] / totals * 100
+        df = df.merge(share_df, on=merge_keys, how="left")
+        df["pct_of_total"] = df["share_mean"]
 
         return self._convert_output(df, effective_output_format)
 
@@ -1127,6 +1147,7 @@ class MMMSummaryFactory:
         self,
         hdi_probs: Sequence[float] | None = None,
         dims: dict[str, Any] | None = None,
+        original_scale: bool = True,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
         """Create channel share of total contribution summary DataFrame.
@@ -1137,6 +1158,8 @@ class MMMSummaryFactory:
             HDI probability levels (default: uses factory default)
         dims : dict, optional
             Dimension filters, e.g. ``{"geo": ["CA"]}``.
+        original_scale : bool, default True
+            Whether to use original-scale channel contributions.
         output_format : {"pandas", "polars"}, optional
             Output DataFrame format (default: uses factory default)
 
@@ -1156,7 +1179,9 @@ class MMMSummaryFactory:
         )
         self._validate_hdi_probs(effective_hdi_probs)
 
-        channel_contributions = self.data.get_channel_contributions(original_scale=True)
+        channel_contributions = self.data.get_channel_contributions(
+            original_scale=original_scale
+        )
         channel_contributions = _select_dims(channel_contributions, dims)
         shares = compute_channel_shares(channel_contributions)
         df = self._compute_summary_stats_with_hdi(shares, effective_hdi_probs)
@@ -1373,7 +1398,16 @@ class MMMSummaryFactory:
         else:
             var_names_list = list(var_names)
 
+        if var_names is None and len(var_names_list) > 20:
+            warnings.warn(
+                f"Summarizing {len(var_names_list)} variables with {num_points} grid "
+                "points each may produce a large payload. Pass var_names to limit scope.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         rows: list[dict[str, Any]] = []
+        skipped_facets = 0
         for var in var_names_list:
             if var not in idata.prior.data_vars:
                 raise ValueError(
@@ -1399,18 +1433,42 @@ class MMMSummaryFactory:
 
             for combo in combos:
                 sel = dict(zip(facet_dims, combo, strict=True))
-                prior_samples = prior_da.sel(sel).values.flatten()
-                posterior_samples = posterior_da.sel(sel).values.flatten()
+                prior_samples = np.asarray(
+                    prior_da.sel(sel).values.flatten(), dtype=float
+                )
+                posterior_samples = np.asarray(
+                    posterior_da.sel(sel).values.flatten(), dtype=float
+                )
+                prior_samples = prior_samples[np.isfinite(prior_samples)]
+                posterior_samples = posterior_samples[np.isfinite(posterior_samples)]
 
                 if prior_samples.size < 2 or posterior_samples.size < 2:
+                    skipped_facets += 1
+                    warnings.warn(
+                        f"Skipping prior_vs_posterior for '{var}' "
+                        f"{sel or ''}: fewer than 2 finite samples.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
                     continue
 
                 all_samples = np.concatenate([prior_samples, posterior_samples])
                 x_grid = np.linspace(
                     float(all_samples.min()), float(all_samples.max()), num_points
                 )
-                prior_density = gaussian_kde(prior_samples)(x_grid)
-                posterior_density = gaussian_kde(posterior_samples)(x_grid)
+
+                try:
+                    prior_density = gaussian_kde(prior_samples)(x_grid)
+                    posterior_density = gaussian_kde(posterior_samples)(x_grid)
+                except LinAlgError:
+                    skipped_facets += 1
+                    warnings.warn(
+                        f"Skipping prior_vs_posterior KDE for '{var}' {sel or ''}: "
+                        "degenerate samples (e.g. fixed prior or near-constant posterior).",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    continue
 
                 for x_val, dp, dpost in zip(
                     x_grid, prior_density, posterior_density, strict=True
@@ -1423,6 +1481,12 @@ class MMMSummaryFactory:
                     }
                     row.update(sel)
                     rows.append(row)
+
+        if not rows:
+            raise ValueError(
+                "No prior vs posterior density rows produced. "
+                f"Skipped {skipped_facets} facet(s) with insufficient or degenerate samples."
+            )
 
         df = pd.DataFrame(rows)
         return self._convert_output(df, effective_output_format)
@@ -1484,7 +1548,30 @@ class MMMSummaryFactory:
         apply_cost_per_unit: bool = True,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Create sensitivity sweep summary DataFrame."""
+        """Summarize raw sensitivity sweep results (``sensitivity_analysis['x']``).
+
+        Requires ``SensitivityAnalysis.run_sweep(..., extend_idata=True)``.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default).
+        dims : dict, optional
+            Dimension filters.
+        aggregation : dict, optional
+            Aggregation spec before summarization.
+        x_sweep_axis : {"relative", "absolute"}, default "relative"
+            Sweep axis interpretation for ``sweep_x`` column.
+        apply_cost_per_unit : bool, default True
+            Use spend for absolute x-axis when applicable.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default).
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary with sweep, mean, median, HDI, and ``sweep_x`` columns.
+        """
         return _sensitivity_analysis(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
@@ -1506,7 +1593,30 @@ class MMMSummaryFactory:
         apply_cost_per_unit: bool = True,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Create sensitivity uplift curve summary DataFrame."""
+        """Summarize uplift curves (``sensitivity_analysis['uplift_curve']``).
+
+        Requires ``SensitivityAnalysis.compute_uplift_curve_respect_to_base()``.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default).
+        dims : dict, optional
+            Dimension filters.
+        aggregation : dict, optional
+            Aggregation spec before summarization.
+        x_sweep_axis : {"relative", "absolute"}, default "relative"
+            Sweep axis interpretation for ``sweep_x`` column.
+        apply_cost_per_unit : bool, default True
+            Use spend for absolute x-axis when applicable.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default).
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary with sweep, mean, median, HDI, and ``sweep_x`` columns.
+        """
         return _sensitivity_uplift(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,
@@ -1528,7 +1638,30 @@ class MMMSummaryFactory:
         apply_cost_per_unit: bool = True,
         output_format: OutputFormat | None = None,
     ) -> DataFrameType:
-        """Create sensitivity marginal effects summary DataFrame."""
+        """Summarize marginal effects (``sensitivity_analysis['marginal_effects']``).
+
+        Requires ``SensitivityAnalysis.compute_marginal_effects()``.
+
+        Parameters
+        ----------
+        hdi_probs : sequence of float, optional
+            HDI probability levels (default: uses factory default).
+        dims : dict, optional
+            Dimension filters.
+        aggregation : dict, optional
+            Aggregation spec before summarization.
+        x_sweep_axis : {"relative", "absolute"}, default "relative"
+            Sweep axis interpretation for ``sweep_x`` column.
+        apply_cost_per_unit : bool, default True
+            Use spend for absolute x-axis when applicable.
+        output_format : {"pandas", "polars"}, optional
+            Output DataFrame format (default: uses factory default).
+
+        Returns
+        -------
+        pd.DataFrame or pl.DataFrame
+            Summary with sweep, mean, median, HDI, and ``sweep_x`` columns.
+        """
         return _sensitivity_marginal(
             self.data,
             hdi_probs=hdi_probs if hdi_probs is not None else self.hdi_probs,

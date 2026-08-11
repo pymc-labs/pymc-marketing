@@ -20,16 +20,16 @@ from typing import Any
 
 import xarray as xr
 
-from pymc_marketing.mmm.plotting._helpers import (
-    _ensure_chain_draw_dims,
-    _select_dims,
-)
 from pymc_marketing.mmm.summary_helpers import (
     DataFrameType,
     OutputFormat,
     StatsHelper,
     compute_summary_stats_with_hdi,
     convert_output,
+)
+from pymc_marketing.mmm.xarray_utils import (
+    _ensure_chain_draw_dims,
+    _select_dims,
 )
 
 __all__ = [

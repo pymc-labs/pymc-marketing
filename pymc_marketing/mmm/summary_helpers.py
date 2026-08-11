@@ -15,6 +15,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from typing import Any, Literal
 
@@ -28,7 +29,7 @@ from pymc_marketing.data.idata.utils import (
     get_prior,
     get_prior_predictive,
 )
-from pymc_marketing.mmm.plotting._helpers import (
+from pymc_marketing.mmm.xarray_utils import (
     _apply_aggregation,
     _ensure_chain_draw_dims,
     _select_dims,
@@ -46,6 +47,7 @@ __all__ = [
     "compute_summary_stats_with_hdi",
     "compute_waterfall_components",
     "convert_output",
+    "dataframe_to_json_records",
     "get_channel_x_data",
     "get_prior_for_plot",
     "prepare_sensitivity_data",
@@ -344,3 +346,12 @@ def convert_output(
 ) -> DataFrameType:
     """Module-level wrapper around :meth:`StatsHelper.convert_output`."""
     return _stats_helper.convert_output(df, output_format)
+
+
+def dataframe_to_json_records(df: pd.DataFrame) -> list[dict[str, Any]]:
+    """Convert a summary DataFrame to JSON-serializable records.
+
+    Normalizes datetime columns to ISO strings and numpy scalars to native
+    Python types so the result can be passed directly to ``json.dumps``.
+    """
+    return json.loads(df.to_json(orient="records", date_format="iso"))
