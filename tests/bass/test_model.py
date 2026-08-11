@@ -664,9 +664,13 @@ class TestBassModelXdistFallbacks:
                 t=coords["T"], observed=None, priors=priors, coords=coords
             )
 
-    def test_prior_missing_from_pymc_dims(self, coords: dict[str, Any]) -> None:
+    def test_prior_missing_from_pymc_dims(
+        self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """A distribution pymc.dims does not implement falls back to as_xtensor."""
-        assert not hasattr(pmd, "Wald"), "pick another unsupported distribution"
+        # Wald is missing today. Hide it so the test keeps asserting the
+        # fallback rather than turning red when pymc.dims grows the class.
+        monkeypatch.delattr(pmd, "Wald", raising=False)
 
         priors = {
             "m": Prior("Wald", mu=1000.0, lam=1.0),
@@ -680,6 +684,48 @@ class TestBassModelXdistFallbacks:
         )
 
         assert "m" in model.named_vars
+
+    def test_likelihood_missing_from_pymc_dims(
+        self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The likelihood gets the same fallback as m, p and q."""
+        monkeypatch.delattr(pmd, "Wald", raising=False)
+
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Wald", lam=1.0),
+        }
+
+        model = create_bass_model(
+            t=coords["T"],
+            observed=np.ones(len(coords["T"])),
+            priors=priors,
+            coords=coords,
+        )
+
+        assert model.named_vars_to_dims["y"] == ("T",)
+        assert np.isfinite(model.point_logps()["y"])
+
+    def test_likelihood_missing_from_pymc_dims_without_observed(
+        self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The fallback path also covers prior-predictive-only models."""
+        monkeypatch.delattr(pmd, "Wald", raising=False)
+
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Wald", lam=1.0),
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert model.named_vars_to_dims["y"] == ("T",)
 
     def test_variable_factory_without_xdist_kwarg(self, coords: dict[str, Any]) -> None:
         """A VariableFactory written against create_variable(name) still works."""
@@ -784,6 +830,80 @@ class TestBassModelDims:
             logps.append(model.point_logps()["y"])
 
         assert logps[0] == logps[1]
+
+    def test_observed_dataarray_keeps_its_layout(self) -> None:
+        """An xr.DataArray carries its own dims; both layouts must agree."""
+        coords = {
+            "T": np.arange(4),
+            "country": ["a", "b"],
+            "product": ["x", "y", "z"],
+        }
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200, dims=("country", "product")),
+            "p": Prior("Beta", alpha=1.5, beta=20, dims=("country", "product")),
+            "q": Prior("Beta", alpha=2, beta=5, dims=("country", "product")),
+            "likelihood": Prior("Poisson"),
+        }
+        counts = xr.DataArray(
+            np.arange(24, dtype=float).reshape(4, 2, 3),
+            dims=("T", "country", "product"),
+            coords=coords,
+        )
+
+        logps = []
+        for dims in [("T", "country", "product"), ("product", "T", "country")]:
+            model = create_bass_model(
+                t=coords["T"],
+                observed=counts.transpose(*dims),
+                priors=priors,
+                coords=coords,
+            )
+            logps.append(model.point_logps()["y"])
+
+        assert logps[0] == logps[1]
+
+    def test_peak_dims_follow_combined_dims_order(self) -> None:
+        """peak keeps only the parameter dims, ordered like the other curves."""
+        coords = {
+            "T": np.arange(4),
+            "product": ["x", "y", "z"],
+            "country": ["a", "b"],
+        }
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200, dims=("product", "country")),
+            "p": Prior("Beta", alpha=1.5, beta=20, dims=("product",)),
+            "q": Prior("Beta", alpha=2, beta=5, dims=("country",)),
+            "likelihood": Prior("Poisson"),
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert model.named_vars_to_dims["adopters"] == ("T", "product", "country")
+        assert model.named_vars_to_dims["peak"] == ("product", "country")
+
+    def test_dim_known_to_the_model_but_absent_from_coords(self) -> None:
+        """Sizes come from the model, so a partial coords dict still builds."""
+        coords = {"T": np.arange(5), "product": ["A", "B"]}
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson", dims=("product",)),
+        }
+
+        with pm.Model(coords=coords) as model:
+            create_bass_model(
+                t=coords["T"],
+                observed=np.ones((5, 2)),
+                priors=priors,
+                # only T, the model already carries product
+                coords={"T": coords["T"]},
+                model=model,
+            )
+
+        assert model.named_vars_to_dims["adopters"] == ("T", "product")
 
 
 def test_derivative() -> None:

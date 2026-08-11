@@ -298,15 +298,26 @@ def _create_likelihood_variable(
     name: str,
     mu: XTensorVariable,
     observed: XTensorVariable | None,
-) -> XTensorVariable:
+    dims: tuple[str, ...],
+) -> pt.TensorVariable | XTensorVariable:
     """Create the likelihood variable, observed or not.
 
-    ``Prior.create_likelihood_variable`` cannot take ``observed=None`` on the
-    ``xdist`` path: it hands the ``None`` to a helper that reads ``.ndim`` off
-    it. Build the unobserved variable directly in that case, keeping the same
-    ``mu`` guard the pymc_extras method applies. ``Censored`` passes
+    A distribution ``pymc.dims`` does not implement gets the regular pymc
+    path, on the underlying tensors in ``dims`` order.
+
+    On the ``xdist`` path, ``Prior.create_likelihood_variable`` cannot take
+    ``observed=None``: it hands the ``None`` to a helper that reads ``.ndim``
+    off it. Build the unobserved variable directly in that case, keeping the
+    same ``mu`` guard the pymc_extras method applies. ``Censored`` passes
     ``observed`` straight to ``pmd.Censored``, so it needs no special case.
     """
+    if not _supports_xdist(prior):
+        return prior.create_likelihood_variable(
+            name,
+            mu=mu.transpose(*dims).values,
+            observed=None if observed is None else observed.transpose(*dims).values,
+        )
+
     if observed is not None or isinstance(prior, Censored):
         return prior.create_likelihood_variable(
             name, mu=mu, observed=observed, xdist=True
@@ -321,15 +332,16 @@ def _create_likelihood_variable(
 
 
 def _align_to_dims(
-    var: XTensorVariable, dims: tuple[str, ...], coords: dict[str, Any]
+    var: XTensorVariable, dims: tuple[str, ...], model: Model
 ) -> XTensorVariable:
     """Broadcast ``var`` up to ``dims``, in that order.
 
     ``pmd.Deterministic`` takes the dims off the graph and only transposes
     them, so a quantity built from parameters that do not carry every model
-    dim would be stored without those dims.
+    dim would be stored without those dims. Sizes come from the model, which
+    knows every dim it has registered, coords argument or not.
     """
-    missing = {dim: len(coords[dim]) for dim in dims if dim not in var.dims}
+    missing = {dim: model.dim_lengths[dim] for dim in dims if dim not in var.dims}
     if missing:
         var = var.expand_dims(missing)
     return var.transpose(*dims)
@@ -432,26 +444,39 @@ def create_bass_model(
         q = _create_dim_variable(priors["q"], "q")
 
         def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
-            return pmd.Deterministic(name, _align_to_dims(value, combined_dims, coords))
+            return pmd.Deterministic(name, _align_to_dims(value, combined_dims, model))
 
         adopters = deterministic("adopters", m * f(p, q, time))
         deterministic("innovators", m * p * (1 - F(p, q, time)))
         deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
-        pmd.Deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
+
+        # `peak` carries only the parameter dims, but in `combined_dims` order
+        # so it agrees with the deterministics above.
+        peak = (pmd.math.log(q) - pmd.math.log(p)) / (p + q)
+        pmd.Deterministic(
+            "peak", peak.transpose(*(dim for dim in combined_dims if dim in peak.dims))
+        )
 
         priors["likelihood"].dims = combined_dims
         if observed is None:
             observed_xt = None
         else:
-            # A registered `pm.Data` knows its own dims; those are the axis
-            # labels of the array, which `combined_dims` need not match.
-            observed_dims = model.named_vars_to_dims.get(
-                getattr(observed, "name", None), combined_dims
+            # The data knows its own axis labels, which `combined_dims` need
+            # not match: an `xr.DataArray` carries them, a registered
+            # `pm.Data` has them on the model.
+            observed_dims = getattr(observed, "dims", None) or (
+                model.named_vars_to_dims.get(
+                    getattr(observed, "name", None), combined_dims
+                )
             )
             observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
 
         _create_likelihood_variable(
-            priors["likelihood"], "y", mu=adopters, observed=observed_xt
+            priors["likelihood"],
+            "y",
+            mu=adopters,
+            observed=observed_xt,
+            dims=combined_dims,
         )
 
     return model
