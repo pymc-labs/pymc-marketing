@@ -165,6 +165,10 @@ class DecompositionPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.contributions : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -301,6 +305,10 @@ class DecompositionPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]]
+
+        See Also
+        --------
+        MMMSummaryFactory.waterfall : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -429,6 +437,10 @@ class DecompositionPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMSummaryFactory.channel_share_hdi : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)

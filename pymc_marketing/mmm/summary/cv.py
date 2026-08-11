@@ -11,7 +11,17 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Summary DataFrame generation for time-slice cross-validation results."""
+"""Summary DataFrame generation for time-slice cross-validation results.
+
+Access after ``TimeSliceCrossValidator.run()``::
+
+    cv_idata = cv.run(X, y, mmm=mmm)
+    df = cv.summary.predictions()
+    records = df.to_dict(orient="records")
+
+Or via :class:`~pymc_marketing.mmm.plotting.cv.MMMCVPlotSuite.summary` when
+holding the plot suite directly.
+"""
 
 from __future__ import annotations
 
@@ -198,10 +208,19 @@ def _crps_for_split(
 class MMMCVSummaryFactory:
     """Factory for creating summary DataFrames from CV DataTree results.
 
+    Obtain via ``cv.summary`` on :class:`~pymc_marketing.mmm.time_slice_cross_validation.TimeSliceCrossValidator`
+    or ``cv.plot.summary`` on :class:`~pymc_marketing.mmm.plotting.cv.MMMCVPlotSuite`.
+
     Parameters
     ----------
     cv_data : xr.DataTree
         Combined DataTree produced by ``TimeSliceCrossValidator.run()``.
+
+    Examples
+    --------
+    >>> cv_idata = cv.run(X, y, mmm=mmm)
+    >>> df = cv.summary.predictions()
+    >>> records = df.to_dict(orient="records")
     """
 
     def __init__(self, cv_data: xr.DataTree) -> None:

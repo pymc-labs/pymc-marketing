@@ -181,6 +181,10 @@ class MMMPlotlyFactory:
         Line plots showing diminishing returns per channel
     adstock_curves(hdi_prob, amount, ...)
         Line plots showing carryover effects over time
+    waterfall(hdi_prob, ...)
+        Waterfall decomposition bar chart
+    channel_share(hdi_prob, ...)
+        Channel share of total contribution with HDI
 
     Examples
     --------
@@ -233,6 +237,7 @@ class MMMPlotlyFactory:
     --------
     MMMSummaryFactory : Data factory providing summary statistics
     MMMPlotSuite : Static matplotlib plotting functionality
+    MMM.summary : Tabular export for custom frontends
     """
 
     def __init__(

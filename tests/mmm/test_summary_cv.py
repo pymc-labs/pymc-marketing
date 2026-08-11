@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
 from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 
 SEED = 42
@@ -133,3 +134,14 @@ class TestMMMCVSummarySchemas:
         required_columns = {"split", "cv", "mean_crps"}
         assert required_columns.issubset(set(df.columns))
         assert len(df) > 0
+
+
+class TestMMMCVPlotSuiteSummary:
+    """Test MMMCVPlotSuite.summary property."""
+
+    def test_plot_suite_summary_returns_factory(self, cv_results_idata):
+        """MMMCVPlotSuite.summary returns MMMCVSummaryFactory bound to cv_data."""
+        plot_suite = MMMCVPlotSuite(cv_results_idata)
+        summary = plot_suite.summary
+        assert isinstance(summary, MMMCVSummaryFactory)
+        assert summary.cv_data is cv_results_idata

@@ -33,6 +33,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _select_dims,
 )
 from pymc_marketing.mmm.summary.cv import (
+    MMMCVSummaryFactory,
     _build_predictions_arrays,
     _crps_for_split,
     _extract_cv_labels,
@@ -54,6 +55,11 @@ class MMMCVPlotSuite:
     def __init__(self, cv_data: xr.DataTree) -> None:
         _validate_cv_results(cv_data)
         self.cv_data = cv_data
+
+    @property
+    def summary(self) -> MMMCVSummaryFactory:
+        """Summary factory for CV results (parallel to plot methods)."""
+        return MMMCVSummaryFactory(self.cv_data)
 
     def predictions(
         self,
@@ -97,6 +103,10 @@ class MMMCVPlotSuite:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMCVSummaryFactory.predictions : Tabular export for custom frontends
         """
         data = cv_data if cv_data is not None else self.cv_data
         if cv_data is not None:
@@ -215,6 +225,10 @@ class MMMCVPlotSuite:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMCVSummaryFactory.param_stability : Tabular export for custom frontends
         """
         data = cv_data if cv_data is not None else self.cv_data
         if cv_data is not None:
@@ -299,6 +313,10 @@ class MMMCVPlotSuite:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMCVSummaryFactory.crps : Tabular export for custom frontends
         """
         data = cv_data if cv_data is not None else self.cv_data
         if cv_data is not None:

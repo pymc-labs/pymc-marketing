@@ -98,11 +98,27 @@ class MMMSummaryFactory:
     output_format : {"pandas", "polars"}, default "pandas"
         Default output DataFrame format
 
+    Methods overview
+    ----------------
+    Core summaries: ``contributions``, ``waterfall``, ``channel_share_hdi``,
+    ``posterior_predictive``, ``prior_predictive``, ``residuals_over_time``,
+    ``residuals_distribution``, ``prior_vs_posterior``, ``roas``,
+    ``channel_spend``, ``saturation_curves``, ``adstock_curves``,
+    ``saturation_scatterplot``, ``total_contribution``, ``change_over_time``,
+    ``sensitivity_analysis``, ``sensitivity_uplift``, ``sensitivity_marginal``.
+
+    For frontend export, see the
+    :doc:`Exporting MMM data for frontends guide </guide/mmm/data_export>`.
+
     Examples
     --------
     >>> # With data only (for most summaries)
     >>> factory = MMMSummaryFactory(mmm.data)
     >>> contributions_df = factory.contributions()
+    >>>
+    >>> # Frontend-ready JSON records
+    >>> from pymc_marketing.mmm.summary import dataframe_to_json_records
+    >>> records = dataframe_to_json_records(mmm.summary.contributions())
     >>>
     >>> # With model (for transformation curves)
     >>> factory = MMMSummaryFactory(mmm.data, model=mmm)

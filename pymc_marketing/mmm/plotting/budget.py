@@ -30,6 +30,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
 )
 from pymc_marketing.mmm.summary.budget import (
+    BudgetSummaryFactory,
     prepare_allocation_roas,
     prepare_contribution_over_time,
 )
@@ -39,12 +40,22 @@ class BudgetPlots:
     """Budget allocation plots.
 
     Stateless namespace — all data is supplied via the ``samples`` argument
-    on each method call.  Obtain an instance via ``mmm.plot.budget``.
+    on each method call. Obtain an instance via ``optimizer.plot`` on
+    :class:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper` (when
+    ``plot_suite='new'``).
 
     Provides ``allocation_roas`` (forest plot of per-channel ROAS
     distributions) and ``contribution_over_time`` (time-series of channel
     contributions from an optimised budget allocation).
+
+    Tabular export for frontends uses ``optimizer.summary`` (same samples
+    argument), which returns :class:`~pymc_marketing.mmm.summary.budget.BudgetSummaryFactory`.
     """
+
+    @property
+    def summary(self) -> type[BudgetSummaryFactory]:
+        """Access budget summary DataFrame generation (parallel to plot methods)."""
+        return BudgetSummaryFactory
 
     def allocation_roas(
         self,
@@ -87,6 +98,10 @@ class BudgetPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        BudgetSummaryFactory.allocation_roas : Tabular export for custom frontends
         """
         pc_kwargs = _process_plot_params(
             figsize=figsize,
@@ -155,6 +170,10 @@ class BudgetPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        BudgetSummaryFactory.contribution_over_time : Tabular export for custom frontends
         """
         for dim in ("channel", "date", "sample"):
             if dim not in samples.dims:

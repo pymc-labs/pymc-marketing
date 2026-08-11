@@ -221,7 +221,32 @@ class TimeSliceCrossValidator:
 
     @property
     def summary(self) -> MMMCVSummaryFactory:
-        """Summary factory for cross-validation results."""
+        """Summary factory for cross-validation results.
+
+        Returns a factory for tabular CV summaries (predictions, parameter
+        stability, CRPS) suitable for JSON export to frontends.
+
+        Returns
+        -------
+        MMMCVSummaryFactory
+            Factory bound to the CV DataTree from ``run()``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            cv_idata = cv.run(X, y, mmm=mmm)
+
+            df_pred = cv.summary.predictions()
+            df_stab = cv.summary.param_stability(var_names=["alpha"])
+            df_crps = cv.summary.crps()
+
+            records = df_pred.to_dict(orient="records")
+
+        See Also
+        --------
+        MMMCVPlotSuite.summary : Same factory when accessed via ``cv.plot``
+        """
         self._validate_model_was_built()
         if not hasattr(self, "cv_idata"):
             raise ValueError(
