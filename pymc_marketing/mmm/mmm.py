@@ -1617,6 +1617,15 @@ class MMM(RegressionModelBuilder):
             # Get change over time
             df = mmm.summary.change_over_time()
 
+            # Frontend-ready export (library-agnostic JSON)
+            records = mmm.summary.contributions().to_dict(orient="records")
+
+            # Decomposition and diagnostics summaries
+            df = mmm.summary.waterfall()
+            df = mmm.summary.channel_share_hdi()
+            df = mmm.summary.prior_predictive()
+            df = mmm.summary.residuals_over_time()
+
         See Also
         --------
         MMMSummaryFactory : Factory class documentation
