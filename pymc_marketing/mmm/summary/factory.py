@@ -49,7 +49,7 @@ from scipy.stats import gaussian_kde
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.schema import Frequency
 from pymc_marketing.mmm.incrementality import Incrementality
-from pymc_marketing.mmm.summary_helpers import (
+from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
     compute_channel_shares,
@@ -58,23 +58,19 @@ from pymc_marketing.mmm.summary_helpers import (
     get_channel_x_data,
     get_prior_for_plot,
 )
-from pymc_marketing.mmm.summary_sensitivity import (
+from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_analysis as _sensitivity_analysis,
 )
-from pymc_marketing.mmm.summary_sensitivity import (
+from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_marginal as _sensitivity_marginal,
 )
-from pymc_marketing.mmm.summary_sensitivity import (
+from pymc_marketing.mmm.summary.sensitivity import (
     sensitivity_uplift as _sensitivity_uplift,
 )
 from pymc_marketing.mmm.xarray_utils import _select_dims
 
-# Public API
 __all__ = [
-    "DataFrameType",
-    "Frequency",
     "MMMSummaryFactory",
-    "OutputFormat",
 ]
 
 

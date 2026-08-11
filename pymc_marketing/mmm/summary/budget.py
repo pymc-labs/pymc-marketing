@@ -20,7 +20,7 @@ from typing import Any
 
 import xarray as xr
 
-from pymc_marketing.mmm.summary_helpers import (
+from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
     StatsHelper,

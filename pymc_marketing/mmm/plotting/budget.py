@@ -29,7 +29,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _plot_timeseries_channel,
     _process_plot_params,
 )
-from pymc_marketing.mmm.summary_budget import (
+from pymc_marketing.mmm.summary.budget import (
     prepare_allocation_roas,
     prepare_contribution_over_time,
 )

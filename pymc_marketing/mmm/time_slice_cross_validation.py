@@ -33,7 +33,7 @@ from tqdm.auto import tqdm
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
-from pymc_marketing.mmm.summary_cv import MMMCVSummaryFactory
+from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
 
 

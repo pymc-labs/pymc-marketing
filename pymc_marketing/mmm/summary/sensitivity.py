@@ -22,7 +22,7 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.mmm.summary_helpers import (
+from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
     StatsHelper,

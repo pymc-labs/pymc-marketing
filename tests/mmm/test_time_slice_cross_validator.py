@@ -1302,7 +1302,7 @@ def test_plot_legacy_future_warning_emitted_only_once():
 
 def test_summary_property_returns_factory():
     """TimeSliceCrossValidator.summary returns MMMCVSummaryFactory."""
-    from pymc_marketing.mmm.summary_cv import MMMCVSummaryFactory
+    from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 
     cv = _make_legacy_cv_with_idata()
     assert isinstance(cv.summary, MMMCVSummaryFactory)

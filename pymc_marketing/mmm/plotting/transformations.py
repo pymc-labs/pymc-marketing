@@ -105,7 +105,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
-from pymc_marketing.mmm.summary_helpers import get_channel_x_data
+from pymc_marketing.mmm.summary.helpers import get_channel_x_data
 
 _SCALED_SPACE_MAX_THRESHOLD = 10.0
 

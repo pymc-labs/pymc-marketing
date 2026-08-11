@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.summary_budget import BudgetSummaryFactory
+from pymc_marketing.mmm.summary.budget import BudgetSummaryFactory
 
 SEED = sum(map(ord, "budget_summary_tests"))
 rng = np.random.default_rng(seed=SEED)

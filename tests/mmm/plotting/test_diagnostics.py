@@ -28,7 +28,7 @@ from pymc_marketing.data.idata.utils import (
     get_prior_predictive,
 )
 from pymc_marketing.mmm.plotting.diagnostics import DiagnosticsPlots
-from pymc_marketing.mmm.summary_helpers import compute_residuals
+from pymc_marketing.mmm.summary.helpers import compute_residuals
 
 matplotlib.use("Agg")
 

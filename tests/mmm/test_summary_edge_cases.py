@@ -28,19 +28,19 @@ import xarray as xr  # noqa: E402
 
 from pymc_marketing.data.idata import MMMIDataWrapper  # noqa: E402
 from pymc_marketing.mmm.summary import MMMSummaryFactory  # noqa: E402
-from pymc_marketing.mmm.summary_budget import BudgetSummaryFactory  # noqa: E402
-from pymc_marketing.mmm.summary_cv import (  # noqa: E402
+from pymc_marketing.mmm.summary.budget import BudgetSummaryFactory  # noqa: E402
+from pymc_marketing.mmm.summary.cv import (  # noqa: E402
     MMMCVSummaryFactory,
     _crps_for_split,
     _pred_matrix_for_rows,
 )
-from pymc_marketing.mmm.summary_helpers import (  # noqa: E402
+from pymc_marketing.mmm.summary.helpers import (  # noqa: E402
     StatsHelper,
     compute_summary_stats_with_hdi,
     compute_waterfall_components,
     prepare_sensitivity_data,
 )
-from pymc_marketing.mmm.summary_sensitivity import sensitivity_analysis  # noqa: E402
+from pymc_marketing.mmm.summary.sensitivity import sensitivity_analysis  # noqa: E402
 from pymc_marketing.mmm.time_slice_cross_validation import (  # noqa: E402
     TimeSliceCrossValidator,
 )
@@ -211,7 +211,7 @@ class TestMMMSummaryEdgeCases:
     def test_prior_predictive_missing_variable(self, mock_mmm_idata_with_prior):
         factory = MMMSummaryFactory(mock_mmm_idata_with_prior)
         with patch(
-            "pymc_marketing.mmm.summary.get_prior_for_plot",
+            "pymc_marketing.mmm.summary.factory.get_prior_for_plot",
             return_value=xr.Dataset({"y": xr.DataArray([1.0])}),
         ):
             with pytest.raises(AttributeError, match="y_original_scale"):

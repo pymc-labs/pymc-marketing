@@ -18,7 +18,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from pymc_marketing.mmm.summary_cv import MMMCVSummaryFactory
+from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 
 SEED = 42
 

@@ -34,8 +34,7 @@ import xarray as xr
 from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
-from pymc_marketing.mmm.summary import MMMSummaryFactory
-from pymc_marketing.mmm.summary_helpers import dataframe_to_json_records
+from pymc_marketing.mmm.summary import MMMSummaryFactory, dataframe_to_json_records
 
 # Seed for reproducibility
 SEED = sum(map(ord, "summary_tests"))

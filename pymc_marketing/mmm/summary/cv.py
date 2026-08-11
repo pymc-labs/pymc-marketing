@@ -26,7 +26,7 @@ import pandas as pd
 import xarray as xr
 
 from pymc_marketing.metrics import crps as _crps_score
-from pymc_marketing.mmm.summary_helpers import (
+from pymc_marketing.mmm.summary.helpers import (
     DataFrameType,
     OutputFormat,
     StatsHelper,

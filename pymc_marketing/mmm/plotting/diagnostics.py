@@ -106,7 +106,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
-from pymc_marketing.mmm.summary_helpers import compute_residuals, get_prior_for_plot
+from pymc_marketing.mmm.summary.helpers import compute_residuals, get_prior_for_plot
 
 
 class DiagnosticsPlots:
