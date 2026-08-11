@@ -65,10 +65,6 @@ from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
 )
-from pymc_marketing.mmm.placebo import (
-    add_placebo_channel,
-    summarize_placebo_contribution,
-)
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.preprocessing import (
     preprocessing_method_X,
@@ -134,7 +130,6 @@ __all__ = [
     "WeibullCDFAdstock",
     "WeibullPDFAdstock",
     "YearlyFourier",
-    "add_placebo_channel",
     "approx_hsgp_hyperparams",
     "create_complexity_penalizing_prior",
     "create_constrained_inverse_gamma_prior",
@@ -143,7 +138,6 @@ __all__ = [
     "preprocessing",
     "preprocessing_method_X",
     "preprocessing_method_y",
-    "summarize_placebo_contribution",
     "validating",
     "validation_method_X",
     "validation_method_y",

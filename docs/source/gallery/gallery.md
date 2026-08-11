@@ -209,6 +209,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_evaluation.png
 :link: ../notebooks/mmm/mmm_evaluation.html
 :::
+
+:::{grid-item-card} Placebo Channels: How Much Credit Does the Model Give to Nothing?
+:img-top: ../gallery/images/mmm_placebo_check.png
+:link: ../notebooks/mmm/mmm_placebo_check.html
+:::
 ::::
 
 ### Causal Inference
