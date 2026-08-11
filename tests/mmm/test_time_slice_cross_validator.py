@@ -1298,3 +1298,11 @@ def test_plot_legacy_future_warning_emitted_only_once():
     with warnings.catch_warnings():
         warnings.simplefilter("error", FutureWarning)
         cv.plot  # would raise if a second warning were emitted
+
+
+def test_summary_property_returns_factory():
+    """TimeSliceCrossValidator.summary returns MMMCVSummaryFactory."""
+    from pymc_marketing.mmm.summary_cv import MMMCVSummaryFactory
+
+    cv = _make_legacy_cv_with_idata()
+    assert isinstance(cv.summary, MMMCVSummaryFactory)
