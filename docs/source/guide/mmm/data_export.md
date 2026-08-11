@@ -42,7 +42,7 @@ Common parameters across methods:
 - **`frequency`** — time aggregation (`"weekly"`, `"monthly"`, `"yearly"`, etc.)
 - **`dims`** — dimension filters, e.g. `{"geo": ["CA"]}`
 
-See the full API: [`MMMSummaryFactory`](../../api/generated/pymc_marketing.mmm.summary.MMMSummaryFactory.html).
+See the full API: [`MMMSummaryFactory`](https://www.pymc-marketing.io/en/stable/api/generated/pymc_marketing.mmm.summary.MMMSummaryFactory.html).
 
 ### Methods overview
 
@@ -97,15 +97,21 @@ If you know the matplotlib plot API, use the matching summary method for tabular
 Budget plots are stateless: pass allocation samples to both plot and summary namespaces.
 
 ```python
-optimizer = BudgetOptimizerWrapper(model=mmm, start_date="2024-01-01", end_date="2024-12-31")
-samples = optimizer.allocate_budget(...)
+mmm.plot_suite = "new"
+optimizer = BudgetOptimizerWrapper(
+    model=mmm, start_date="2024-01-01", end_date="2024-12-31"
+)
+result = optimizer.optimize_budget(budget=100_000)
+samples = optimizer.sample_response_distribution(
+    allocation_strategy=result.budgets
+)
 
 df_roas = optimizer.summary.allocation_roas(samples=samples)
 df_ts = optimizer.summary.contribution_over_time(samples=samples)
 records = df_roas.to_dict(orient="records")
 ```
 
-Samples come from `allocate_budget()` or `mmm.sample_response_distribution(...)`.
+`samples` is an `xr.Dataset` from `sample_response_distribution()` (after `optimize_budget()`), not the optimization result object itself.
 
 ## Cross-validation results
 
@@ -125,7 +131,7 @@ When you already hold an `MMMCVPlotSuite`, `cv.plot.summary` exposes the same fa
 
 `mmm.plot_interactive` reads from the same summary DataFrames. Use it for quick Plotly exploration, or call `mmm.summary` directly when you need raw tables for a custom frontend.
 
-See the [Interactive MMM Visualizations notebook](../../notebooks/mmm/plot_interactive.html).
+See the [Interactive MMM Visualizations notebook](https://www.pymc-marketing.io/en/stable/notebooks/mmm/plot_interactive.html).
 
 ## Release notes (copy-paste)
 
@@ -133,4 +139,4 @@ Use these bullets in GitHub release notes under **New Features**:
 
 - Expanded `mmm.summary` with decomposition, diagnostics, sensitivity, and transformation summaries as JSON-serializable DataFrames for custom frontends
 - Added `optimizer.summary` and `cv.plot.summary` parity with budget and CV plot APIs
-- New guide: [Exporting MMM data for frontends](data_export.html)
+- New guide: [Exporting MMM data for frontends](data_export)
