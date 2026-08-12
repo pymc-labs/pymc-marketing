@@ -15,11 +15,15 @@
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
+from pymc.exceptions import SamplingError
+from pymc.logprob.utils import ParameterValueError
 from pymc_extras.deserialize import deserialize
-from pymc_extras.prior import Prior
+from pymc_extras.prior import MuAlreadyExistsError, Prior
 from pytensor import function
+from pytensor.xtensor.type import as_xtensor
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
@@ -933,6 +937,171 @@ def test_lognormal_prior_roundtrip_via_deserialize():
     assert isinstance(restored, LogNormalPrior)
     xr.testing.assert_equal(restored.parameters["mean"], mean)
     xr.testing.assert_equal(restored.parameters["std"], std)
+
+
+def test_lognormal_prior_std_only_construction():
+    prior = LogNormalPrior(std=1.0)
+    assert prior.parameters == {"std": 1.0}
+    # The sigma alias normalizes to std, like mu normalizes to mean.
+    assert LogNormalPrior(sigma=1.0).parameters == {"std": 1.0}
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"alpha": 1.0, "beta": 1.0},
+        {"mean": 1.0},
+        {"mean": 1.0, "std": 1.0, "extra": 1.0},
+    ],
+)
+def test_lognormal_prior_still_rejects_bad_parameter_sets(parameters):
+    with pytest.raises(ValueError, match="Parameters must be mean and std"):
+        LogNormalPrior(**parameters)
+
+
+def test_lognormal_prior_std_only_create_variable_raises():
+    prior = LogNormalPrior(std=1.0)
+    with pm.Model():
+        with pytest.raises(ValueError, match="Provide 'mean'"):
+            prior.create_variable("x", xdist=True)
+
+
+def _likelihood_model(mu_offset: float = 1.0):
+    """Model with a free ``beta`` shifting the response-scale mu of ``y``."""
+    coords = {"date": np.arange(5)}
+    observed = np.array([1.0, 2.0, 1.5, 0.8, 1.2])
+    likelihood = LogNormalPrior(std=Prior("HalfNormal", sigma=0.5), dims=("date",))
+    with pm.Model(coords=coords) as model:
+        beta = pmd.Normal("beta")
+        mu = beta + as_xtensor(np.full(5, mu_offset), dims=("date",))
+        likelihood.create_likelihood_variable(
+            "y", mu=mu, observed=as_xtensor(observed, dims=("date",)), xdist=True
+        )
+    return model, observed
+
+
+def test_lognormal_prior_create_likelihood_variable():
+    model, _ = _likelihood_model()
+    assert "y" in model.named_vars
+    assert "y_std" in model.named_vars
+    assert model["y"] in model.observed_RVs
+    assert model["y_std"] in model.free_RVs
+    assert all(np.isfinite(v) for v in model.point_logps().values())
+
+
+def test_lognormal_prior_create_likelihood_matches_conversion():
+    m, s = 1.5, 0.5
+    coords = {"date": np.arange(4)}
+    observed = np.array([1.0, 2.0, 1.5, 0.8])
+    likelihood = LogNormalPrior(std=s, dims=("date",))
+    with pm.Model(coords=coords) as model:
+        mu = as_xtensor(np.full(4, m), dims=("date",))
+        likelihood.create_likelihood_variable(
+            "y", mu=mu, observed=as_xtensor(observed, dims=("date",)), xdist=True
+        )
+
+    # The docstring conversion, written with the squared form.
+    mu_log = np.log(m**2 / np.sqrt(m**2 + s**2))
+    sigma_log = np.sqrt(np.log1p(s**2 / m**2))
+    with pm.Model(coords=coords) as reference:
+        pmd.LogNormal(
+            "y",
+            mu=as_xtensor(np.full(4, mu_log), dims=("date",)),
+            sigma=sigma_log,
+            observed=as_xtensor(observed, dims=("date",)),
+            dims=("date",),
+        )
+
+    np.testing.assert_allclose(model.compile_logp()({}), reference.compile_logp()({}))
+
+
+def test_lognormal_prior_create_likelihood_negative_mu():
+    model, _ = _likelihood_model()
+    bad_point = model.initial_point()
+    bad_point["beta"] = np.array(-2.0)
+
+    # pymc-compiled functions rewrite the check to -inf: clean rejection.
+    assert np.isneginf(model.point_logps(point=bad_point)["y"])
+    with pytest.raises(SamplingError, match="Initial evaluation"):
+        model.check_start_vals([bad_point])
+
+    # A raw evaluation raises the informative error instead.
+    with pytest.raises(ParameterValueError, match="requires mu > 0"):
+        model.logp().eval(bad_point)
+
+
+def test_lognormal_prior_create_likelihood_mean_already_set_raises():
+    prior = LogNormalPrior(mean=1.0, std=1.0)
+    with pytest.raises(MuAlreadyExistsError):
+        prior.create_likelihood_variable(
+            "y", mu=as_xtensor(np.ones(2), dims=("date",)), observed=None, xdist=True
+        )
+
+
+def test_lognormal_prior_create_likelihood_does_not_mutate():
+    likelihood = LogNormalPrior(std=Prior("HalfNormal", sigma=0.5), dims=("date",))
+    with pm.Model(coords={"date": np.arange(3)}):
+        likelihood.create_likelihood_variable(
+            "y",
+            mu=as_xtensor(np.ones(3), dims=("date",)),
+            observed=as_xtensor(np.ones(3), dims=("date",)),
+            xdist=True,
+        )
+    assert "mean" not in likelihood.parameters
+
+
+def test_lognormal_prior_create_likelihood_xdist_false_raises():
+    prior = LogNormalPrior(std=1.0)
+    with pytest.raises(NotImplementedError, match="only supports xdist=True"):
+        prior.create_likelihood_variable("y", mu=None, observed=None)
+
+
+def test_lognormal_prior_std_only_round_trip():
+    prior = LogNormalPrior(std=Prior("HalfNormal", sigma=0.5), dims=("date",))
+    restored = deserialize(prior.to_dict())
+    assert isinstance(restored, LogNormalPrior)
+    assert restored == prior
+
+
+def test_mmm_lognormal_prior_likelihood_save_load_round_trip(
+    tmp_path, mock_pymc_sample
+):
+    """The std-only likelihood survives the attrs-serialization load path."""
+    rng = np.random.default_rng(42)
+    n = 20
+    dates = pd.date_range("2024-01-01", periods=n, freq="W-MON")
+
+    X = pd.DataFrame(
+        {
+            "date": dates,
+            "channel_1": rng.integers(10, 100, n),
+            "channel_2": rng.integers(10, 100, n),
+        }
+    )
+    y = pd.Series(rng.uniform(50, 500, n), name="y")
+
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            ),
+        },
+    )
+
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    save_path = tmp_path / "mmm_lognormal_prior_likelihood.nc"
+    mmm.save(str(save_path))
+    mmm_loaded = MMM.load(str(save_path), check=True)
+
+    assert mmm == mmm_loaded
+    assert isinstance(mmm_loaded.model_config["likelihood"], LogNormalPrior)
+    assert mmm_loaded.model_config["likelihood"] == mmm.model_config["likelihood"]
 
 
 @pytest.mark.parametrize(
