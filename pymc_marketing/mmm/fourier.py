@@ -537,8 +537,9 @@ class FourierBase(BaseModel):
         coords[self.prefix] = self.nodes
         if "samples" in kwargs:
             kwargs["draws"] = kwargs.pop("samples")
+        kwargs.setdefault("xdist", True)
         return sample_prior_variable(
-            self.prior, coords=coords, name=self.variable_name, xdist=True, **kwargs
+            self.prior, coords=coords, name=self.variable_name, **kwargs
         )
 
     def sample_curve(
