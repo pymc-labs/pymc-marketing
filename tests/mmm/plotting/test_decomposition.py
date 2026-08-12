@@ -25,6 +25,7 @@ from matplotlib.figure import Figure
 
 from pymc_marketing.data.idata import MMMIDataWrapper
 from pymc_marketing.mmm.plotting.decomposition import DecompositionPlots
+from pymc_marketing.mmm.summary import MMMSummaryFactory
 
 matplotlib.use("Agg")
 
@@ -386,6 +387,21 @@ class TestWaterfall:
         for ctrl in controls:
             assert ctrl in ytick_labels, (
                 f"Expected control '{ctrl}' in ytick labels, got: {ytick_labels}"
+            )
+
+    def test_waterfall_bar_values_match_summary_mean(self, simple_plots, simple_data):
+        """Waterfall bar heights must match mmm.summary.waterfall() mean column."""
+        summary_df = MMMSummaryFactory(simple_data).waterfall(hdi_probs=[0.94])
+        _fig, axes = simple_plots.waterfall()
+        ax = axes[0]
+        ytick_labels = [t.get_text() for t in ax.get_yticklabels()]
+
+        for label, patch in zip(ytick_labels, ax.patches, strict=True):
+            if label == "total":
+                continue
+            expected = summary_df.loc[summary_df["component"] == label, "mean"].iloc[0]
+            assert patch.get_width() == pytest.approx(expected), (
+                f"Bar for '{label}' width {patch.get_width()} != summary mean {expected}"
             )
 
     def test_shared_intercept_across_geos(self):
