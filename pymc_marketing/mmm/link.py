@@ -40,24 +40,16 @@ class LinkFunction(StrEnum):
     LOG = "log"
 
 
-#: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
-#: additive decomposition under the identity link is in the units of the target.
-#: Entries are ``pymc`` distribution names or, for ``SpecialPrior`` likelihoods
-#: (which have no ``distribution`` attribute), the class name that
-#: ``_distribution_name`` falls back to.  ``"LogNormalPrior"`` is the class
-#: name of :class:`pymc_marketing.special_priors.LogNormalPrior`, whose
-#: ``mean`` parameter is the response-scale expectation, unlike ``LogNormal``,
-#: whose ``mu`` is log-scale.
-#: This is about units only.  ``mu`` still need not equal ``E[y]``: under
-#: ``TruncatedNormal`` it does not, so ``*_original_scale`` will not reconcile
-#: against the posterior predictive mean.  See issue #2834.
-#: Three ``pymc.dims`` likelihoods take ``mu`` on the response scale and are
-#: still left out.  ``Poisson`` and ``NegativeBinomial`` are discrete while the
-#: likelihood is observed on the target divided by ``target_scale``, which is
-#: not integer-valued, so they cannot be used under this model at all.
-#: ``Beta`` needs the target inside ``(0, 1)``, which the scaling does not
-#: guarantee, and nothing checks the target against the likelihood support yet.
-#: See issue #2835.
+#: Likelihoods whose ``mu`` is on the scale of the response, so the additive
+#: decomposition under the identity link is in the units of the target.
+#: Entries are ``pymc`` distribution names, except ``"LogNormalPrior"``: a
+#: ``SpecialPrior`` has no ``distribution`` attribute, so ``_distribution_name``
+#: resolves it to its class name.  Unlike ``LogNormal``, its ``mean`` is the
+#: response-scale expectation.
+#: Membership is about units only, not ``mu == E[y]`` (see #2834).  Some
+#: response-scale ``pymc.dims`` likelihoods (``Poisson``, ``NegativeBinomial``,
+#: ``Beta``) stay excluded because the scaled target violates their support
+#: (see #2835).
 RESPONSE_SCALE_LIKELIHOODS = frozenset(
     {
         "Normal",
