@@ -264,6 +264,7 @@ from pydantic import (
 )
 from pymc_extras.deserialize import deserialize
 from pymc_extras.prior import Prior, VariableFactory
+from pymc_extras.prior import sample_prior as sample_prior_variable
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -536,7 +537,9 @@ class FourierBase(BaseModel):
         coords[self.prefix] = self.nodes
         if "samples" in kwargs:
             kwargs["draws"] = kwargs.pop("samples")
-        return self.prior.sample_prior(coords=coords, name=self.variable_name, **kwargs)
+        return sample_prior_variable(
+            self.prior, coords=coords, name=self.variable_name, xdist=True, **kwargs
+        )
 
     def sample_curve(
         self,
