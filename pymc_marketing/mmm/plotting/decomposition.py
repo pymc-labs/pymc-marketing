@@ -34,10 +34,7 @@ from pymc_marketing.mmm.plotting._helpers import (
     _process_plot_params,
     _select_dims,
 )
-from pymc_marketing.mmm.summary.helpers import (
-    compute_channel_shares,
-    compute_waterfall_components,
-)
+from pymc_marketing.mmm.summary.helpers import compute_channel_shares
 
 
 class DecompositionPlots:
@@ -310,17 +307,43 @@ class DecompositionPlots:
             if idata is not None
             else self._data
         )
+
+        contributions_ds = data.get_contributions(original_scale=original_scale)
         extra_dims = list(data.custom_dims)
 
-        components = compute_waterfall_components(
-            data, dims=dims, original_scale=original_scale
-        )
-        mean_components = components.mean(dim=["chain", "draw"])
+        # Build entries: (label, xr.DataArray) where DataArray has dims (extra_dims,) or scalar
+        entries: list[tuple[str, xr.DataArray]] = []
+
+        for ds_key, coord_dim in [
+            ("baseline", None),
+            ("channels", "channel"),
+            ("controls", "control"),
+            ("seasonality", None),
+        ]:
+            if ds_key not in contributions_ds:
+                continue
+            da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
+            # mean over whichever of chain/draw/date are present (baseline has no date dim)
+            mean_dims = [d for d in ("chain", "draw", "date") if d in da.dims]
+            if coord_dim is not None:
+                for val in da.coords[coord_dim].values:
+                    entries.append(
+                        (str(val), da.sel({coord_dim: val}).mean(dim=mean_dims))
+                    )
+            else:
+                entries.append((ds_key, da.mean(dim=mean_dims)))
 
         # Determine panel combos from extra dims
         if extra_dims:
-            ref_da = mean_components
-            if not all(d in ref_da.coords for d in extra_dims):
+            # Find an entry that has all extra dimensions
+            ref_da = None
+            for _, da in entries:
+                if all(d in da.coords for d in extra_dims):
+                    ref_da = da
+                    break
+
+            if ref_da is None:
+                # Fallback: use constant_data coordinates
                 ref_da = data.idata.constant_data
 
             coord_values = [ref_da.coords[d].values for d in extra_dims]
@@ -348,14 +371,15 @@ class DecompositionPlots:
             ax = axes_flat[panel_idx]
             sel_kwargs = dict(zip(extra_dims, combo, strict=True))
 
+            # Extract scalar (label, float) for this panel
             panel_entries: list[tuple[str, float]] = []
-            for comp in mean_components.coords["component"].values:
-                da = mean_components.sel(component=comp)
+            for label, da in entries:
                 if sel_kwargs:
+                    # Only select dimensions that exist in this DataArray
                     sel_dims = {k: [v] for k, v in sel_kwargs.items() if k in da.dims}
                     if sel_dims:
                         da = da.sel(**sel_dims).squeeze()
-                panel_entries.append((str(comp), float(da.values)))
+                panel_entries.append((label, float(da.values)))
 
             title = (
                 " | ".join(f"{k}={v}" for k, v in sel_kwargs.items())

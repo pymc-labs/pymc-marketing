@@ -1074,8 +1074,8 @@ class MMMSummaryFactory:
     ) -> DataFrameType:
         """Create waterfall decomposition summary DataFrame.
 
-        Summarizes per-component totals (summed over date) with mean, median,
-        HDI bounds, and percentage of total contribution.
+        Summarizes per-component mean contributions (averaged over date) with
+        mean, median, HDI bounds, and percentage of total contribution.
 
         Parameters
         ----------
@@ -1094,8 +1094,8 @@ class MMMSummaryFactory:
             Summary DataFrame with columns:
 
             - component: Contribution component name
-            - mean, median: Point estimates of component totals (summed over date)
-            - abs_error_{prob}_lower/upper: HDI bounds on component totals
+            - mean, median: Point estimates of mean per-period contributions
+            - abs_error_{prob}_lower/upper: HDI bounds on mean contributions
             - pct_of_total: Mean share of total (from per-draw ratios; see share_*)
             - share_mean, share_median: Share point estimates with uncertainty
             - share_abs_error_{prob}_lower/upper: HDI bounds on share of total
@@ -1103,9 +1103,11 @@ class MMMSummaryFactory:
 
         Notes
         -----
-        ``mean``/``abs_error_*`` describe component totals. ``share_*`` and
-        ``pct_of_total`` describe each component's share of the total per
-        posterior draw (ratio HDIs, not derived from component-total HDIs).
+        ``mean``/``abs_error_*`` describe mean per-period contributions (matching
+        :meth:`~pymc_marketing.mmm.plotting.decomposition.DecompositionPlots.waterfall`
+        bar heights). ``share_*`` and ``pct_of_total`` describe each component's
+        share of the total per posterior draw (ratio HDIs, not derived from
+        component-total HDIs).
         """
         effective_hdi_probs = hdi_probs if hdi_probs is not None else self.hdi_probs
         effective_output_format = (

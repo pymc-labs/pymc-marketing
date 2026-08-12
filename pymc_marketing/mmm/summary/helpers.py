@@ -111,10 +111,10 @@ def compute_waterfall_components(
     dims: dict[str, Any] | None = None,
     original_scale: bool = True,
 ) -> xr.DataArray:
-    """Sum contributions over date per component for waterfall summaries.
+    """Mean contributions over date per component for waterfall summaries.
 
-    Mirrors :meth:`~pymc_marketing.mmm.plotting.decomposition.DecompositionPlots.waterfall`
-    but preserves ``chain`` and ``draw`` dimensions.
+    Matches :meth:`~pymc_marketing.mmm.plotting.decomposition.DecompositionPlots.waterfall`
+    bar heights while preserving ``chain`` and ``draw`` for HDI summaries.
 
     Parameters
     ----------
@@ -142,15 +142,15 @@ def compute_waterfall_components(
         if ds_key not in contributions_ds:
             continue
         da = _select_dims(contributions_ds[ds_key], dims, allow_missing=True)
-        sum_dims = [d for d in ("date",) if d in da.dims]
+        mean_dims = [d for d in ("date",) if d in da.dims]
         if coord_dim is not None:
             for val in da.coords[coord_dim].values:
                 component_da = da.sel({coord_dim: val}, drop=True)
-                if sum_dims:
-                    component_da = component_da.sum(dim=sum_dims)
+                if mean_dims:
+                    component_da = component_da.mean(dim=mean_dims)
                 component_arrays.append(component_da.expand_dims(component=[str(val)]))
         else:
-            component_da = da.sum(dim=sum_dims) if sum_dims else da
+            component_da = da.mean(dim=mean_dims) if mean_dims else da
             component_arrays.append(component_da.expand_dims(component=[ds_key]))
 
     if not component_arrays:
