@@ -220,6 +220,29 @@ class TestsAdstockTransformers:
         np.testing.assert_array_equal(actual=x, desired=y.eval())
 
     @pytest.mark.parametrize(
+        "theta",
+        [-5, -1, 10, 22],
+        ids=[
+            "less_than_zero_0",
+            "less_than_zero_1",
+            "greater_than_l_max_minus_one_0",
+            "greater_than_l_max_minus_one_1",
+        ],
+    )
+    def test_delayed_adstock_bad_theta(self, theta):
+        l_max = 10
+        x = np.ones(shape=100)
+        y = delayed_adstock(
+            x=as_xtensor(x, dims=("time",)),
+            alpha=0.5,
+            theta=theta,
+            l_max=l_max,
+            dim="time",
+        )
+        with pytest.raises(ParameterValueError):
+            y.eval()
+
+    @pytest.mark.parametrize(
         argnames="mode",
         argvalues=[ConvMode.After, ConvMode.Before, ConvMode.Overlap],
         ids=["After", "Before", "Overlap"],
