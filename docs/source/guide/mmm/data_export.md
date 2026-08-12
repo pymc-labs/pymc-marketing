@@ -49,7 +49,7 @@ See the full API: [`MMMSummaryFactory`](https://www.pymc-marketing.io/en/stable/
 | Method | What it summarizes |
 |--------|-------------------|
 | `contributions()` | Per-channel / control / seasonality contributions over time |
-| `waterfall()` | Component totals and shares (waterfall decomposition) |
+| `waterfall()` | Mean per-period contributions and shares (waterfall decomposition) |
 | `channel_share_hdi()` | Channel share of total contribution |
 | `posterior_predictive()` | Posterior predictive vs observed |
 | `prior_predictive()` | Prior predictive vs observed |
