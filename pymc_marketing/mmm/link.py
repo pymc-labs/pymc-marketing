@@ -40,16 +40,12 @@ class LinkFunction(StrEnum):
     LOG = "log"
 
 
-#: Likelihoods whose ``mu`` is on the scale of the response, so the additive
-#: decomposition under the identity link is in the units of the target.
-#: Entries are ``pymc`` distribution names, except ``"LogNormalPrior"``: a
-#: ``SpecialPrior`` has no ``distribution`` attribute, so ``_distribution_name``
-#: resolves it to its class name.  Unlike ``LogNormal``, its ``mean`` is the
-#: response-scale expectation.
-#: Membership is about units only, not ``mu == E[y]`` (see #2834).  Some
-#: response-scale ``pymc.dims`` likelihoods (``Poisson``, ``NegativeBinomial``,
-#: ``Beta``) stay excluded because the scaled target violates their support
-#: (see #2835).
+#: Likelihoods whose ``mu`` is on the response scale, so the identity-link
+#: decomposition is in the units of the target.  Entries are ``pymc``
+#: distribution names; ``"LogNormalPrior"`` is a class name because
+#: ``SpecialPrior`` objects have no ``distribution`` attribute.
+#: See #2834 (``mu`` need not equal ``E[y]``) and #2835 (likelihoods excluded
+#: because the scaled target violates their support).
 RESPONSE_SCALE_LIKELIHOODS = frozenset(
     {
         "Normal",
