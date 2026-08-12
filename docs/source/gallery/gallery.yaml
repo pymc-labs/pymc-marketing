@@ -50,6 +50,8 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
+            notebook: mmm/mmm_halo
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors

@@ -199,7 +199,6 @@ from pymc.util import RandomState
 from pymc_extras.prior import Prior
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
-from scipy.optimize import OptimizeResult
 
 from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.data.idata.utils import subsample_draws
@@ -256,7 +255,10 @@ from pymc_marketing.serialization import DeserializationContext, serialization
 from pymc_marketing.version import __version__
 
 if TYPE_CHECKING:
-    from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+    from pymc_marketing.mmm.budget_optimizer import (
+        BudgetOptimizationResult,
+        BudgetOptimizer,
+    )
 
 
 def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
@@ -1226,10 +1228,16 @@ class MMM(RegressionModelBuilder):
             fig = mmm.plot_interactive.adstock_curves()
             fig.show()
 
+            # Waterfall and channel share (from summary data)
+            fig = mmm.plot_interactive.waterfall()
+            fig = mmm.plot_interactive.channel_share()
+            fig.show()
+
         See Also
         --------
         MMMPlotSuite : Static matplotlib plotting functionality
         MMMPlotlyFactory : Interactive plotting class documentation
+        MMM.summary : Tabular export for custom frontends
         """
         try:
             from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
@@ -1615,10 +1623,29 @@ class MMM(RegressionModelBuilder):
             # Get change over time
             df = mmm.summary.change_over_time()
 
+            # Frontend-ready export (library-agnostic JSON)
+            records = mmm.summary.contributions().to_dict(orient="records")
+
+            # Decomposition and diagnostics summaries
+            df = mmm.summary.waterfall()
+            df = mmm.summary.channel_share_hdi()
+            df = mmm.summary.prior_predictive()
+            df = mmm.summary.residuals_over_time()
+            df = mmm.summary.residuals_distribution()
+            df = mmm.summary.prior_vs_posterior()
+            df = mmm.summary.saturation_scatterplot()
+            df = mmm.summary.sensitivity_analysis()
+
+            # JSON-safe export (ISO dates, native Python types)
+            from pymc_marketing.mmm.summary import dataframe_to_json_records
+
+            records = dataframe_to_json_records(mmm.summary.contributions())
+
         See Also
         --------
         MMMSummaryFactory : Factory class documentation
         pymc_marketing.mmm.summary : Module with all factory functions
+        dataframe_to_json_records : JSON-serializable record export helper
         """
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
@@ -2679,7 +2706,6 @@ class MMM(RegressionModelBuilder):
             budgets_to_optimize=budgets_to_optimize,
             cost_per_unit=cost_per_unit,
             compile_kwargs=compile_kwargs,
-            mu_effects=list(self.mu_effects),
             frozen_deterministics=self.frozen_deterministics,
             **kwargs,
         )
@@ -3808,6 +3834,38 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             return BudgetPlots()
         return self.model_class.plot
 
+    @property
+    def summary(self) -> Any:
+        """Access budget summary DataFrame generation functionality.
+
+        Stateless namespace mirroring :attr:`plot` but returning tabular
+        summaries with HDI statistics for frontend export.
+
+        Returns
+        -------
+        BudgetSummaryFactory
+            Factory with ``allocation_roas`` and ``contribution_over_time``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            samples = optimizer.allocate_budget(...)
+            df = optimizer.summary.allocation_roas(samples=samples)
+            records = df.to_dict(orient="records")
+
+        See Also
+        --------
+        BudgetPlots.summary : Same factory via ``optimizer.plot.summary``
+        """
+        from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+        if self.model_class.plot_suite == "new":
+            return BudgetSummaryFactory
+        raise AttributeError(
+            "Budget summary export requires plot_suite='new' on the wrapped MMM."
+        )
+
     def __getattr__(self, name):
         """Delegate attribute access to the wrapped MMM model."""
         try:
@@ -3915,10 +3973,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         callback: bool = False,
         **allocate_budget_kwargs,
-    ) -> (
-        tuple[xr.DataArray, OptimizeResult]
-        | tuple[xr.DataArray, OptimizeResult, list[dict[str, Any]]]
-    ):
+    ) -> BudgetOptimizationResult:
         """Optimize the budget allocation for the model.
 
         Parameters
@@ -3967,15 +4022,17 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
 
             **This is independent of the historical cost_per_unit.**
         callback : bool
-            Whether to return callback information tracking optimization progress.
+            Whether to track optimization progress; when True the returned
+            result's ``callback_info`` attribute holds per-iteration information.
         **allocate_budget_kwargs
             Additional arguments for :meth:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer.allocate_budget`.
 
         Returns
         -------
-        tuple
-            Optimal budgets and optimization result. If callback=True, also returns
-            a list of dictionaries with optimization information at each iteration.
+        BudgetOptimizationResult
+            Result object with ``budgets``, ``scipy_result``, ``optimized_vars``
+            and ``callback_info`` attributes. Iterating it yields
+            ``(budgets, scipy_result)``, so two-element unpacking keeps working.
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 

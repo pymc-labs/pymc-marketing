@@ -25,11 +25,14 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.mmm.plotting._helpers import (
-    _ensure_chain_draw_dims,
     _extract_matplotlib_result,
     _plot_timeseries_channel,
     _process_plot_params,
-    _select_dims,
+)
+from pymc_marketing.mmm.summary.budget import (
+    BudgetSummaryFactory,
+    prepare_allocation_roas,
+    prepare_contribution_over_time,
 )
 
 
@@ -37,12 +40,22 @@ class BudgetPlots:
     """Budget allocation plots.
 
     Stateless namespace — all data is supplied via the ``samples`` argument
-    on each method call.  Obtain an instance via ``mmm.plot.budget``.
+    on each method call. Obtain an instance via ``optimizer.plot`` on
+    :class:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper` (when
+    ``plot_suite='new'``).
 
     Provides ``allocation_roas`` (forest plot of per-channel ROAS
     distributions) and ``contribution_over_time`` (time-series of channel
     contributions from an optimised budget allocation).
+
+    Tabular export for frontends uses ``optimizer.summary`` (same samples
+    argument), which returns :class:`~pymc_marketing.mmm.summary.budget.BudgetSummaryFactory`.
     """
+
+    @property
+    def summary(self) -> type[BudgetSummaryFactory]:
+        """Access budget summary DataFrame generation (parallel to plot methods)."""
+        return BudgetSummaryFactory
 
     def allocation_roas(
         self,
@@ -85,23 +98,11 @@ class BudgetPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
-        """
-        if "channel_contribution_original_scale" not in samples:
-            raise ValueError(
-                "Expected 'channel_contribution_original_scale' variable in samples, "
-                "but none found."
-            )
-        if "allocation" not in samples:
-            raise ValueError(
-                "Expected 'allocation' variable in samples, but none found."
-            )
-        if "channel" not in samples.dims:
-            raise ValueError("Expected 'channel' dimension in samples, but none found.")
-        if "total_allocation" not in samples:
-            raise ValueError(
-                "Expected 'total_allocation' variable in samples, but none found."
-            )
 
+        See Also
+        --------
+        BudgetSummaryFactory.allocation_roas : Tabular export for custom frontends
+        """
         pc_kwargs = _process_plot_params(
             figsize=figsize,
             backend=backend,
@@ -109,14 +110,7 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        roas_da = (
-            samples["channel_contribution_original_scale"].sum("date")
-            / samples["total_allocation"]
-        )
-        roas_da.name = "roas"
-
-        roas_da = _select_dims(roas_da, dims)
-        roas_da = _ensure_chain_draw_dims(roas_da)
+        roas_da = prepare_allocation_roas(samples, dims=dims)
 
         pc = azp.plot_forest(
             roas_da.to_dataset(),
@@ -176,6 +170,10 @@ class BudgetPlots:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        BudgetSummaryFactory.contribution_over_time : Tabular export for custom frontends
         """
         for dim in ("channel", "date", "sample"):
             if dim not in samples.dims:
@@ -195,14 +193,13 @@ class BudgetPlots:
             **pc_kwargs,
         )
 
-        da = _select_dims(samples["channel_contribution_original_scale"], dims)
+        da = prepare_contribution_over_time(samples, dims=dims)
 
         extra_dims = [
             d
             for d in da.dims
             if d not in {"channel", "date", "sample", "chain", "draw"}
         ]
-        da = _ensure_chain_draw_dims(da)
         ds = da.to_dataset(name="contribution")
 
         pc = _plot_timeseries_channel(

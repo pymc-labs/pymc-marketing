@@ -22,6 +22,7 @@ redundant tests while maintaining full coverage.
 """
 
 import importlib.util
+import json
 from unittest.mock import Mock
 
 import numpy as np
@@ -33,7 +34,7 @@ import xarray as xr
 from pymc_marketing.data.idata import MMMIdataSchema, MMMIDataWrapper
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.mmm import MMM
-from pymc_marketing.mmm.summary import MMMSummaryFactory
+from pymc_marketing.mmm.summary import MMMSummaryFactory, dataframe_to_json_records
 
 # Seed for reproducibility
 SEED = sum(map(ord, "summary_tests"))
@@ -336,6 +337,159 @@ def mock_mmm_idata_wrapper_with_controls(simple_dates, simple_channels):
     return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
 
 
+@pytest.fixture
+def mock_mmm_idata_with_prior(simple_dates, simple_channels):
+    """Mock MMMIDataWrapper with prior groups and y_original_scale for new summaries."""
+    local_rng = np.random.default_rng(seed=45)
+    n_dates = len(simple_dates)
+    n_channels = len(simple_channels)
+
+    idata = xr.DataTree.from_dict(
+        {
+            "/posterior": xr.Dataset(
+                {
+                    "channel_contribution": xr.DataArray(
+                        local_rng.normal(
+                            loc=1000, scale=100, size=(2, 10, n_dates, n_channels)
+                        ),
+                        dims=("chain", "draw", "date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "adstock_alpha": xr.DataArray(
+                        local_rng.uniform(0.1, 0.9, size=(2, 10, n_channels)),
+                        dims=("chain", "draw", "channel"),
+                        coords={"channel": simple_channels},
+                    ),
+                    "mu": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, n_dates)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/posterior_predictive": xr.Dataset(
+                {
+                    "y": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, n_dates)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                    "y_original_scale": xr.DataArray(
+                        local_rng.normal(loc=5000, scale=200, size=(2, 10, n_dates)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/prior": xr.Dataset(
+                {
+                    "y_original_scale": xr.DataArray(
+                        local_rng.normal(loc=4500, scale=300, size=(2, 10, n_dates)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                    "adstock_alpha": xr.DataArray(
+                        local_rng.uniform(0.05, 0.95, size=(2, 10, n_channels)),
+                        dims=("chain", "draw", "channel"),
+                        coords={"channel": simple_channels},
+                    ),
+                }
+            ),
+            "/prior_predictive": xr.Dataset(
+                {
+                    "y": xr.DataArray(
+                        local_rng.normal(loc=4500, scale=300, size=(2, 10, n_dates)),
+                        dims=("chain", "draw", "date"),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/fit_data": xr.Dataset(
+                {
+                    "target": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=n_dates),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+            "/constant_data": xr.Dataset(
+                {
+                    "channel_data": xr.DataArray(
+                        local_rng.uniform(0, 100, size=(n_dates, n_channels)),
+                        dims=("date", "channel"),
+                        coords={"date": simple_dates, "channel": simple_channels},
+                    ),
+                    "channel_scale": xr.DataArray(
+                        [100.0, 50.0, 75.0],
+                        dims=("channel",),
+                        coords={"channel": simple_channels},
+                    ),
+                    "target_scale": xr.DataArray(500.0),
+                    "target_data": xr.DataArray(
+                        local_rng.uniform(4000, 6000, size=n_dates),
+                        dims=("date",),
+                        coords={"date": simple_dates},
+                    ),
+                }
+            ),
+        }
+    )
+
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
+@pytest.fixture
+def mock_mmm_idata_with_sensitivity(mock_mmm_idata_wrapper):
+    """Mock wrapper with sensitivity_analysis group attached."""
+    wrapper = mock_mmm_idata_wrapper
+    idata = wrapper.idata.copy()
+    n_sample, n_sweep = 20, 5
+    sweep = np.linspace(0.5, 1.5, n_sweep)
+    regions = ["A", "B"]
+    local_rng = np.random.default_rng(seed=46)
+
+    samples = xr.DataArray(
+        local_rng.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="x",
+    )
+    uplift_curve = xr.DataArray(
+        local_rng.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="uplift_curve",
+    )
+    marginal_effects = xr.DataArray(
+        local_rng.normal(0, 1, size=(n_sample, n_sweep, len(regions))),
+        dims=("sample", "sweep", "region"),
+        coords={
+            "sample": np.arange(n_sample),
+            "sweep": sweep,
+            "region": regions,
+        },
+        name="marginal_effects",
+    )
+    idata.sensitivity_analysis = xr.Dataset(
+        {
+            "x": samples,
+            "uplift_curve": uplift_curve,
+            "marginal_effects": marginal_effects,
+        },
+        coords={"sweep": sweep, "region": regions},
+    )
+    return MMMIDataWrapper(idata, schema=None, validate_on_init=False)
+
+
 # =============================================================================
 # DataFrame Schema Tests
 # =============================================================================
@@ -455,6 +609,128 @@ class TestDataFrameSchemas:
         # Output should have one fewer date than input (first date excluded)
         all_dates = mock_mmm_idata_wrapper.idata.posterior["date"].values
         assert df["date"].nunique() == len(all_dates) - 1
+
+
+class TestNewSummarySchemas:
+    """Test schema for new MMM summary API methods."""
+
+    def test_waterfall_schema(self, mock_mmm_idata_wrapper):
+        """Test waterfall returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).waterfall(hdi_probs=[0.94])
+
+        required_columns = {
+            "component",
+            "mean",
+            "median",
+            "pct_of_total",
+            "share_mean",
+            "share_median",
+        }
+        assert required_columns.issubset(set(df.columns))
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+        assert "share_abs_error_94_lower" in df.columns
+        assert "share_abs_error_94_upper" in df.columns
+        assert len(df) > 0
+        assert df["pct_of_total"].equals(df["share_mean"])
+
+    def test_channel_share_hdi_schema(self, mock_mmm_idata_wrapper):
+        """Test channel_share_hdi returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).channel_share_hdi(
+            hdi_probs=[0.94],
+        )
+
+        required_columns = {"channel", "mean", "median"}
+        assert required_columns.issubset(set(df.columns))
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+        assert len(df["channel"].unique()) > 0
+
+    def test_prior_predictive_schema(self, mock_mmm_idata_with_prior):
+        """Test prior_predictive returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_with_prior).prior_predictive(
+            hdi_probs=[0.94],
+        )
+
+        required_columns = {"date", "mean", "median", "observed"}
+        assert required_columns.issubset(set(df.columns))
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+        assert pd.api.types.is_datetime64_any_dtype(df["date"])
+
+    def test_residuals_over_time_schema(self, mock_mmm_idata_with_prior):
+        """Test residuals_over_time returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_with_prior).residuals_over_time(
+            hdi_probs=[0.94],
+        )
+
+        required_columns = {"date", "mean", "median"}
+        assert required_columns.issubset(set(df.columns))
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+        assert pd.api.types.is_datetime64_any_dtype(df["date"])
+
+    def test_residuals_distribution_schema(self, mock_mmm_idata_with_prior):
+        """Test residuals_distribution returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_with_prior).residuals_distribution()
+
+        required_columns = {"quantile", "value"}
+        assert required_columns.issubset(set(df.columns))
+        assert len(df) > 0
+        assert pd.api.types.is_numeric_dtype(df["quantile"])
+        assert pd.api.types.is_numeric_dtype(df["value"])
+
+    def test_prior_vs_posterior_schema(self, mock_mmm_idata_with_prior):
+        """Test prior_vs_posterior returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_with_prior).prior_vs_posterior(
+            var_names=["adstock_alpha"],
+            num_points=20,
+        )
+
+        required_columns = {
+            "variable",
+            "x",
+            "density_prior",
+            "density_posterior",
+        }
+        assert required_columns.issubset(set(df.columns))
+        assert len(df) > 0
+        assert set(df["variable"].unique()) == {"adstock_alpha"}
+
+    def test_saturation_scatterplot_schema(self, mock_mmm_idata_wrapper):
+        """Test saturation_scatterplot returns DataFrame with correct schema."""
+        df = MMMSummaryFactory(mock_mmm_idata_wrapper).saturation_scatterplot()
+
+        required_columns = {"date", "channel", "x", "y"}
+        assert required_columns.issubset(set(df.columns))
+        assert pd.api.types.is_datetime64_any_dtype(df["date"])
+        assert len(df) > 0
+
+    @pytest.mark.parametrize(
+        "method_name",
+        ["sensitivity_analysis", "sensitivity_uplift", "sensitivity_marginal"],
+    )
+    def test_sensitivity_summary_schemas(
+        self, mock_mmm_idata_with_sensitivity, method_name
+    ):
+        """Test sensitivity summary methods return expected schema."""
+        factory = MMMSummaryFactory(mock_mmm_idata_with_sensitivity)
+        df = getattr(factory, method_name)(hdi_probs=[0.94])
+
+        required_columns = {"sweep", "mean", "median", "sweep_x", "region"}
+        assert required_columns.issubset(set(df.columns))
+        assert "abs_error_94_lower" in df.columns
+        assert "abs_error_94_upper" in df.columns
+        assert len(df) > 0
+
+    def test_summary_json_serializable(self, mock_mmm_idata_wrapper):
+        """Test frontend export helper produces JSON-serializable records."""
+        factory = MMMSummaryFactory(mock_mmm_idata_wrapper)
+        df = factory.contributions(hdi_probs=[0.94], component="channel")
+        records = dataframe_to_json_records(df)
+        json.dumps(records)
+        assert len(records) > 0
+        assert isinstance(records[0]["date"], str)
 
 
 # =============================================================================
