@@ -11,7 +11,17 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Summary DataFrame generation for budget allocation results."""
+"""Summary DataFrame generation for budget allocation results.
+
+Access via budget optimizer wrapper::
+
+    samples = optimizer.allocate_budget(...)
+    df = optimizer.summary.allocation_roas(samples=samples)
+
+Or via :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`::
+
+    df = optimizer.plot.summary.allocation_roas(samples=samples)
+"""
 
 from __future__ import annotations
 
@@ -83,6 +93,15 @@ class BudgetSummaryFactory:
 
     Stateless namespace mirroring :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`
     but returning tabular summaries with HDI statistics.
+
+    Obtain via ``optimizer.summary`` on :class:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper`
+    or ``optimizer.plot.summary`` on :class:`~pymc_marketing.mmm.plotting.budget.BudgetPlots`.
+
+    Examples
+    --------
+    >>> samples = optimizer.allocate_budget(...)
+    >>> df = optimizer.summary.allocation_roas(samples=samples)
+    >>> records = df.to_dict(orient="records")
     """
 
     @staticmethod

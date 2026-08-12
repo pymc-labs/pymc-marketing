@@ -289,6 +289,10 @@ class DiagnosticsPlots:
             fig, axes = mmm.plot.diagnostics.posterior_predictive(
                 original_scale=False, hdi_prob=0.50, dims={"geo": ["CA"]}
             )
+
+        See Also
+        --------
+        MMMSummaryFactory.posterior_predictive : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -382,6 +386,10 @@ class DiagnosticsPlots:
 
             fig, axes = mmm.plot.diagnostics.prior_predictive()
             fig, axes = mmm.plot.diagnostics.prior_predictive(original_scale=False)
+
+        See Also
+        --------
+        MMMSummaryFactory.prior_predictive : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -468,6 +476,10 @@ class DiagnosticsPlots:
 
             fig, axes = mmm.plot.diagnostics.residuals_over_time()
             fig, axes = mmm.plot.diagnostics.residuals_over_time(hdi_prob=0.50)
+
+        See Also
+        --------
+        MMMSummaryFactory.residuals_over_time : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -595,6 +607,10 @@ class DiagnosticsPlots:
             fig, axes = mmm.plot.diagnostics.residuals_distribution(
                 quantiles=[0.05, 0.5, 0.95], aggregation=["geo"]
             )
+
+        See Also
+        --------
+        MMMSummaryFactory.residuals_distribution : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -796,6 +812,10 @@ class DiagnosticsPlots:
             fig, axes = mmm.plot.diagnostics.prior_vs_posterior(
                 var_names=["alpha"], dims={"channel": ["tv"]}
             )
+
+        See Also
+        --------
+        MMMSummaryFactory.prior_vs_posterior : Tabular export for custom frontends
         """
         idata_to_use = idata if idata is not None else self._data.idata
 

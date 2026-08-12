@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from pymc_marketing.mmm.plotting.budget import BudgetPlots
 from pymc_marketing.mmm.summary.budget import BudgetSummaryFactory
 
 SEED = sum(map(ord, "budget_summary_tests"))
@@ -123,3 +124,17 @@ class TestBudgetSummarySchemas:
             * budget_contribution_samples.sizes["channel"]
         )
         assert len(df) == expected_rows
+
+
+class TestBudgetSummaryProperties:
+    """Test summary namespace entry points for budget plots."""
+
+    def test_budget_plots_summary_returns_factory(self):
+        """BudgetPlots.summary exposes BudgetSummaryFactory."""
+        assert BudgetPlots().summary is BudgetSummaryFactory
+
+    def test_budget_plots_summary_matches_direct_call(self, budget_allocation_samples):
+        """optimizer.plot.summary matches BudgetSummaryFactory static methods."""
+        df_direct = BudgetSummaryFactory.allocation_roas(budget_allocation_samples)
+        df_via_plots = BudgetPlots().summary.allocation_roas(budget_allocation_samples)
+        pd.testing.assert_frame_equal(df_direct, df_via_plots)
