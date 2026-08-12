@@ -167,6 +167,8 @@ PyMC-Marketing can be seamlessly integrated into production environments using m
 
 By leveraging these tools, you can create a robust, automated MMM pipeline that continuously provides insights for your marketing strategies.
 
+To serve pre-aggregated model outputs to a JavaScript dashboard or API, use [`mmm.summary`](data_export) to export tabular summaries (contributions, ROAS, HDI bands) as JSON-serializable records instead of rendering matplotlib figures server-side.
+
 For more information on these tools, visit:
 - Docker: [https://www.docker.com/](https://www.docker.com/)
 - MLflow: [https://mlflow.org/](https://mlflow.org/)
