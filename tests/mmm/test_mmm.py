@@ -1028,7 +1028,7 @@ class TestSerializationIntegration:
             date_column="date",
             channel_columns=["ch1"],
             target_column="target",
-            adstock=DelayedAdstock(l_max=3),
+            adstock=DelayedAdstock(l_max=10),
             saturation=TanhSaturation(),
         )
         mmm2.fit(X, y)
@@ -1036,7 +1036,7 @@ class TestSerializationIntegration:
         mmm2.save(str(fname2))
         loaded2 = MMM.load(str(fname2))
         assert isinstance(loaded2.adstock, DelayedAdstock)
-        assert loaded2.adstock.l_max == 3
+        assert loaded2.adstock.l_max == 10
         assert isinstance(loaded2.saturation, TanhSaturation)
 
     def test_roundtrip_with_tvp(self, minimal_fit_data, tmp_path, mock_pymc_sample):

@@ -15,6 +15,7 @@ from contextlib import nullcontext as does_not_raise
 
 import numpy as np
 import pytensor
+import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
 import scipy as sp
@@ -219,6 +220,20 @@ class TestsAdstockTransformers:
         )
         np.testing.assert_array_equal(actual=x, desired=y.eval())
 
+    @pytest.fixture(scope="class")
+    def delayed_adstock_theta_fn(self):
+        l_max = 10
+        x = np.ones(shape=100)
+        theta = pt.scalar("theta", dtype="int64")
+        y = delayed_adstock(
+            x=as_xtensor(x, dims=("time",)),
+            alpha=0.5,
+            theta=theta,
+            l_max=l_max,
+            dim="time",
+        )
+        return pytensor.function([theta], y.values)
+
     @pytest.mark.parametrize(
         "theta",
         [-5, -1, 10, 22],
@@ -229,18 +244,9 @@ class TestsAdstockTransformers:
             "greater_than_l_max_minus_one_1",
         ],
     )
-    def test_delayed_adstock_bad_theta(self, theta):
-        l_max = 10
-        x = np.ones(shape=100)
-        y = delayed_adstock(
-            x=as_xtensor(x, dims=("time",)),
-            alpha=0.5,
-            theta=theta,
-            l_max=l_max,
-            dim="time",
-        )
+    def test_delayed_adstock_bad_theta(self, delayed_adstock_theta_fn, theta):
         with pytest.raises(ParameterValueError):
-            y.eval()
+            delayed_adstock_theta_fn(theta)
 
     @pytest.mark.parametrize(
         argnames="mode",
