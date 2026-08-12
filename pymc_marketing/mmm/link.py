@@ -42,6 +42,12 @@ class LinkFunction(StrEnum):
 
 #: Likelihoods whose ``mu`` parameter is on the scale of the response, so the
 #: additive decomposition under the identity link is in the units of the target.
+#: Entries are ``pymc`` distribution names or, for ``SpecialPrior`` likelihoods
+#: (which have no ``distribution`` attribute), the class name that
+#: ``_distribution_name`` falls back to.  ``"LogNormalPrior"`` is the class
+#: name of :class:`pymc_marketing.special_priors.LogNormalPrior`, whose
+#: ``mean`` parameter is the response-scale expectation, unlike ``LogNormal``,
+#: whose ``mu`` is log-scale.
 #: This is about units only.  ``mu`` still need not equal ``E[y]``: under
 #: ``TruncatedNormal`` it does not, so ``*_original_scale`` will not reconcile
 #: against the posterior predictive mean.  See issue #2834.
@@ -60,6 +66,7 @@ RESPONSE_SCALE_LIKELIHOODS = frozenset(
         "Gamma",
         "Laplace",
         "InverseGamma",
+        "LogNormalPrior",
     }
 )
 
