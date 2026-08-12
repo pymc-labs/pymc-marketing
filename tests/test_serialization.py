@@ -367,9 +367,9 @@ class TestSerializeModelConfig:
     def test_shared_decomposition_is_embedded_inline(self):
         from pymc_extras.prior import Prior
 
-        from pymc_marketing.r2d2 import R2D2Decomposition
+        from pymc_marketing.r2d2 import R2D2
 
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.2),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -388,16 +388,16 @@ class TestSerializeModelConfig:
         gamma_decomp = serialized["gamma_control"]["decomposition"]
         likelihood_sigma = serialized["likelihood"]["kwargs"]["sigma"]
         likelihood_decomp = likelihood_sigma["decomposition"]
-        assert gamma_decomp["__type__"].endswith("R2D2Decomposition")
-        assert likelihood_decomp["__type__"].endswith("R2D2Decomposition")
+        assert gamma_decomp["__type__"].endswith("R2D2")
+        assert likelihood_decomp["__type__"].endswith("R2D2")
         assert gamma_decomp == likelihood_decomp
 
     def test_prior_with_r2d2_sigma_survives_round_trip(self):
         from pymc_extras.prior import Prior
 
-        from pymc_marketing.r2d2 import R2D2Decomposition, R2D2Sigma
+        from pymc_marketing.r2d2 import R2D2, R2D2Sigma
 
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.2),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -413,15 +413,15 @@ class TestSerializeModelConfig:
 
         assert "gamma_control" in restored
         assert "likelihood" in restored
-        assert isinstance(restored["gamma_control"].decomposition, R2D2Decomposition)
+        assert isinstance(restored["gamma_control"].decomposition, R2D2)
         assert isinstance(restored["likelihood"].parameters["sigma"], R2D2Sigma)
 
     def test_shared_decomposition_preserved_after_round_trip(self):
         from pymc_extras.prior import Prior
 
-        from pymc_marketing.r2d2 import R2D2Decomposition
+        from pymc_marketing.r2d2 import R2D2
 
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.2),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},

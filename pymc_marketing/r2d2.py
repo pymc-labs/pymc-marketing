@@ -12,19 +12,24 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-"""R2D2M2 prior for variance decomposition in regression models.
+"""R2D2 prior for variance decomposition in regression models.
 
-The R2D2M2 prior (Zhang et al., 2022) provides automatic shrinkage and
-variable selection by placing a Dirichlet distribution on the R-squared of a
-regression model, then allocating explained variance across coefficients.
+The R2D2 prior (Zhang et al., 2020) provides automatic shrinkage and
+variable selection by placing a prior on the R-squared of a regression
+model, then allocating explained variance across coefficients via a
+Dirichlet decomposition. Uses a Normal base distribution following
+Aguilar & Bürkner (2022).
 
-Reference: https://arxiv.org/abs/2208.07132
+References
+----------
+- Original R2D2: https://doi.org/10.1080/01621459.2020.1825449
+- R2D2M2 (normal base, multilevel): https://arxiv.org/abs/2208.07132
 
 Examples
 --------
 Standalone PyMC:
 
->>> from pymc_marketing.r2d2 import R2D2Decomposition
+>>> from pymc_marketing.r2d2 import R2D2
 >>> from pymc_extras.prior import Prior
 >>> import pymc as pm, pymc.dims as pmd, xarray as xr
 >>>
@@ -35,7 +40,7 @@ Standalone PyMC:
 ...     },
 ...     coords={"obs": range(100), "control": ["a", "b"]},
 ... )
->>> r2d2 = R2D2Decomposition(
+>>> r2d2 = R2D2(
 ...     r2=Prior("Beta", mu=0.8, sigma=0.2),
 ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
 ...     dims={"control": "control"},
@@ -54,7 +59,7 @@ MMM integration:
 >>> from pymc_marketing.mmm.components.adstock import GeometricAdstock
 >>> from pymc_marketing.mmm.components.saturation import LogisticSaturation
 >>>
->>> r2d2 = R2D2Decomposition(
+>>> r2d2 = R2D2(
 ...     r2=Prior("Beta", mu=0.8, sigma=0.2),
 ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
 ...     dims={"control": "control", "fourier": "fourier_mode"},
@@ -71,11 +76,15 @@ MMM integration:
 
 Gotchas
 -------
+- **r2 must be scalar**: ``r2`` Prior must not have dims. The R2D2 prior uses
+  a single global R² decomposition. For per-group R², see the follow-up issue.
+
+- **total_sigma must be scalar**: No dims allowed. This is per the R2D2 paper.
+  ``total_sigma`` represents the global scale of the response variable.
+
 - **Beta prior sigma must be small enough**: For ``r2=Prior("Beta", mu=M, sigma=S)``,
   the sigma must satisfy ``S < sqrt(M * (1-M))``. For mu=0.8, this means sigma < 0.4.
   Values too large produce invalid (alpha=0, beta=0) parameters. Use sigma=0.2.
-
-- **total_sigma must be scalar**: No dims allowed. This is per the R2D2M2 paper.
 
 - **Only components in dims get variance**: Covariates not included in ``dims`` are
   not covered by the decomposition. Ensure all relevant covariates are included.
@@ -112,13 +121,13 @@ class R2D2Split:
 
     Parameters
     ----------
-    decomposition : R2D2Decomposition
+    decomposition : R2D2
         The parent decomposition.
     component_name : str
         Name of the component.
     """
 
-    decomposition: "R2D2Decomposition"
+    decomposition: "R2D2"
     component_name: str
     _dims: tuple[str, ...] | None = field(default=None, repr=False)
 
@@ -194,15 +203,16 @@ class R2D2Split:
 @serialization.register
 @dataclass
 class R2D2Sigma:
-    """Lazy reference to the error sigma variable.
+    """Lazy reference to the residual standard deviation variable.
 
     Implements VariableFactory protocol so it can be used
     wherever a Prior is accepted (e.g., in likelihood sigma).
 
-    Returns the scalar error_sigma variable directly (no coefficient creation).
+    Returns the scalar residual standard deviation directly (no coefficient
+    creation). This is σ in the R2D2 decomposition: R² = var(μ) / (var(μ) + σ²).
     """
 
-    decomposition: "R2D2Decomposition"
+    decomposition: "R2D2"
 
     def __deepcopy__(self, memo):
         """Preserve decomposition reference across copies."""
@@ -254,14 +264,18 @@ class R2D2Sigma:
 
 @serialization.register
 @dataclass
-class R2D2Decomposition:
-    """R2D2M2 variance decomposition.
+class R2D2:
+    """R2D2 variance decomposition.
 
-    Splits total variance between model and error, then splits
+    Splits total variance between model and residual, then splits
     model variance across components via Dirichlet.
 
     Variables are created once via create_variable(), then
     referenced by split() and error_sigma.
+
+    Uses a Normal base distribution for coefficients (per Aguilar &
+    Bürkner, 2022) for compatibility with HMC sampling. For the M2
+    multilevel extension with varying effects, see the follow-up issue.
 
     .. note::
         The decomposition allocates variance ONLY across the components
@@ -272,10 +286,10 @@ class R2D2Decomposition:
     Parameters
     ----------
     r2 : Prior
-        R² prior (how much variance the model explains).
+        R² prior (how much variance the model explains). Must be scalar.
         Typically Beta(mu=0.8, sigma=0.2).
     total_sigma : Prior
-        Total scale of the data.
+        Total scale of the data. Must be scalar.
         Typically LogNormal(mu=np.log(std(y)), sigma=0.1).
     dims : dict[str, str]
         Maps component name to dim name.
@@ -285,7 +299,7 @@ class R2D2Decomposition:
     -------
     Standalone PyMC:
 
-    >>> r2d2 = R2D2Decomposition(
+    >>> r2d2 = R2D2(
     ...     r2=Prior("Beta", mu=0.8, sigma=0.2),
     ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
     ...     dims={"control": "control"},
@@ -300,7 +314,7 @@ class R2D2Decomposition:
 
     MMM integration:
 
-    >>> r2d2 = R2D2Decomposition(
+    >>> r2d2 = R2D2(
     ...     r2=Prior("Beta", mu=0.8, sigma=0.2),
     ...     total_sigma=Prior("LogNormal", mu=0, sigma=1),
     ...     dims={"control": "control", "fourier": "fourier_mode"},
@@ -319,9 +333,11 @@ class R2D2Decomposition:
     -----
     - The ``r2`` prior controls global shrinkage (how much variance the model explains).
     - The ``total_sigma`` prior controls the overall scale of coefficients.
-    - The Dirichlet prior (currently uniform) splits model variance across components.
+    - The Dirichlet prior (currently flat, a_π=1) splits model variance across components.
     - Use ``split("component_name")`` to get a lazy reference to a component's variance.
-    - Use ``error_sigma`` to get the error standard deviation.
+    - Use ``error_sigma`` to get the residual standard deviation.
+    - This is single-level R2D2 (no varying effects). For the M2 multilevel extension
+      with pooled variance across groups, see the follow-up issue.
     """
 
     r2: Prior
@@ -343,11 +359,19 @@ class R2D2Decomposition:
                 f"Example: Prior('LogNormal', mu=0, sigma=1)"
             )
 
-        # total_sigma must be scalar (no dims) per the R2D2M2 paper
-        if self.total_sigma.dims is not None:
+        # r2 must be scalar (no dims) — R2D2 uses a single global R²
+        if self.r2.dims:
+            raise ValueError(
+                f"r2 must be a scalar Prior (no dims), got dims={self.r2.dims}. "
+                f"The R2D2 prior uses a single global R² decomposition. "
+                f"For per-group R², see the follow-up issue."
+            )
+
+        # total_sigma must be scalar (no dims) per R2D2 paper
+        if self.total_sigma.dims:
             raise ValueError(
                 f"total_sigma must be a scalar Prior (no dims), got dims={self.total_sigma.dims}. "
-                f"The R2D2M2 paper defines total_sigma as a scalar hyperparameter. "
+                f"The R2D2 paper defines total_sigma as a scalar hyperparameter. "
                 f"If you need hierarchical total_sigma, please open an issue."
             )
 
@@ -455,7 +479,7 @@ class R2D2Decomposition:
 
     @property
     def error_sigma(self) -> R2D2Sigma:
-        """Get lazy reference to error sigma."""
+        """Get lazy reference to the residual standard deviation σ."""
         return R2D2Sigma(self)
 
     @property
@@ -482,7 +506,7 @@ class R2D2Decomposition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "R2D2Decomposition":
+    def from_dict(cls, data: dict) -> "R2D2":
         """Deserialize from dictionary."""
 
         def _deserialize_prior(val: Any) -> Prior:
@@ -501,7 +525,7 @@ def _r2d2_deserializer(data: dict) -> Any:
     return serialization.deserialize(data)
 
 
-for _cls in (R2D2Split, R2D2Sigma, R2D2Decomposition):
+for _cls in (R2D2Split, R2D2Sigma, R2D2):
     register_deserialization(
         is_type=lambda d, _c=_cls: (
             isinstance(d, dict)

@@ -23,7 +23,7 @@ import pytest
 import xarray as xr
 from pymc_extras.prior import Prior
 
-from pymc_marketing.r2d2 import R2D2Decomposition, R2D2Sigma, R2D2Split
+from pymc_marketing.r2d2 import R2D2, R2D2Sigma, R2D2Split
 from pymc_marketing.serialization import serialization
 
 
@@ -36,7 +36,7 @@ class TestR2D2Split:
         The key is the component name (lookup key), the value is the
         actual dimension name in the model coords.
         """
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"my_control": "control_dim"},  # key ≠ value
@@ -47,7 +47,7 @@ class TestR2D2Split:
 
     def test_create_variable_auto_builds(self):
         """create_variable should auto-build decomposition if needed."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -71,7 +71,7 @@ class TestR2D2Split:
 
     def test_deepcopy_preserves_reference(self):
         """Deepcopy should preserve decomposition reference."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -85,7 +85,7 @@ class TestR2D2Split:
 
     def test_split_raises_on_unknown_component(self):
         """split() should raise informative error for unknown component."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control", "fourier": "fourier_mode"},
@@ -105,7 +105,7 @@ class TestR2D2Sigma:
 
     def test_dims_is_empty_tuple(self):
         """Sigma dims should be empty tuple (scalar)."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -115,7 +115,7 @@ class TestR2D2Sigma:
 
     def test_create_variable_auto_builds(self):
         """create_variable should auto-build decomposition if needed."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -138,7 +138,7 @@ class TestR2D2Sigma:
 
     def test_deepcopy_preserves_reference(self):
         """Deepcopy should preserve decomposition reference."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -152,7 +152,7 @@ class TestR2D2Sigma:
 
     def test_error_sigma_is_scalar(self):
         """Error sigma should be a scalar variable."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -170,13 +170,13 @@ class TestR2D2Sigma:
             assert error_sigma.type.ndim == 0  # scalar
 
 
-class TestR2D2Decomposition:
-    """Tests for R2D2Decomposition."""
+class TestR2D2:
+    """Tests for R2D2."""
 
     def test_r2_must_be_prior(self):
         """r2 parameter must be a Prior instance."""
         with pytest.raises(TypeError, match="r2 must be a Prior"):
-            R2D2Decomposition(
+            R2D2(
                 r2="Beta",  # string, not Prior
                 total_sigma=Prior("LogNormal", mu=0, sigma=1),
                 dims={"control": "control"},
@@ -185,24 +185,33 @@ class TestR2D2Decomposition:
     def test_total_sigma_must_be_prior(self):
         """total_sigma parameter must be a Prior instance."""
         with pytest.raises(TypeError, match="total_sigma must be a Prior"):
-            R2D2Decomposition(
+            R2D2(
                 r2=Prior("Beta", mu=0.8, sigma=0.4),
                 total_sigma="LogNormal",  # string, not Prior
                 dims={"control": "control"},
             )
 
     def test_total_sigma_must_be_scalar(self):
-        """total_sigma must be scalar (no dims) per R2D2M2 paper."""
+        """total_sigma must be scalar (no dims) per R2D2 paper."""
         with pytest.raises(ValueError, match="total_sigma must be a scalar"):
-            R2D2Decomposition(
+            R2D2(
                 r2=Prior("Beta", mu=0.8, sigma=0.4),
                 total_sigma=Prior("LogNormal", mu=0, sigma=1, dims="geo"),
                 dims={"control": "control"},
             )
 
+    def test_r2_must_be_scalar(self):
+        """r2 must be scalar (no dims) per R2D2 paper."""
+        with pytest.raises(ValueError, match="r2 must be a scalar"):
+            R2D2(
+                r2=Prior("Beta", mu=0.8, sigma=0.4, dims="geo"),
+                total_sigma=Prior("LogNormal", mu=0, sigma=1),
+                dims={"control": "control"},
+            )
+
     def test_create_variable_once(self):
         """create_variable should only create variables once (cached)."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -226,7 +235,7 @@ class TestR2D2Decomposition:
 
     def test_create_variable_returns_tensor(self):
         """create_variable should return a tensor variable."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -250,7 +259,7 @@ class TestR2D2Decomposition:
 
     def test_split_returns_pmd_normal(self):
         """Split create_variable should return pmd.Normal (xtensor-based)."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -276,7 +285,7 @@ class TestR2D2Decomposition:
     def test_dims_rejects_non_string_values(self):
         """dims dict values must be strings."""
         with pytest.raises(TypeError, match=r"dim value for.*must be a string"):
-            R2D2Decomposition(
+            R2D2(
                 r2=Prior("Beta", mu=0.8, sigma=0.4),
                 total_sigma=Prior("LogNormal", mu=0, sigma=1),
                 dims={"control": 123},  # int, not string
@@ -284,7 +293,7 @@ class TestR2D2Decomposition:
 
     def test_splits_returns_copy(self):
         """splits property should return a copy of the internal dict."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -308,7 +317,7 @@ class TestR2D2Decomposition:
 
     def test_split_dim_uses_variable_names(self):
         """split_dim coord should use actual variable names, not generic indices."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.2),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={
@@ -351,7 +360,7 @@ class TestR2D2Serialization:
 
     def test_round_trip(self):
         """Serialization round-trip should preserve configuration."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control", "fourier": "fourier"},
@@ -364,7 +373,7 @@ class TestR2D2Serialization:
         restored = serialization.deserialize(config)
 
         # Check restoration
-        assert isinstance(restored, R2D2Decomposition)
+        assert isinstance(restored, R2D2)
         assert restored.r2 == r2d2.r2
         assert restored.total_sigma == r2d2.total_sigma
         assert restored.dims == r2d2.dims
@@ -372,7 +381,7 @@ class TestR2D2Serialization:
 
     def test_split_round_trip(self):
         """R2D2Split serialization round-trip."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -388,7 +397,7 @@ class TestR2D2Serialization:
 
     def test_sigma_round_trip(self):
         """R2D2Sigma serialization round-trip."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -408,7 +417,7 @@ class TestR2D2Integration:
     def test_r2d2_mmm_style_regression(self):
         """R2D2 should work for MMM-style regression with media, controls."""
         # Create R2D2 decomposition - same as MMM usage
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={
@@ -467,7 +476,7 @@ class TestR2D2Integration:
 
     def test_r2d2_with_prior_likelihood(self):
         """R2D2 error_sigma should work inside Prior for likelihood."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={"control": "control"},
@@ -503,7 +512,7 @@ class TestR2D2Integration:
 
     def test_r2d2_multiple_splits_same_decomposition(self):
         """All splits should share the same decomposition."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={
@@ -545,7 +554,7 @@ class TestR2D2Integration:
 
     def test_r2d2_model_config_pattern(self):
         """Test the pattern that would be used in MMM model_config."""
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={
@@ -600,7 +609,7 @@ class TestR2D2WithMMM:
         from pymc_marketing.mmm.components.saturation import LogisticSaturation
 
         # Use R2D2 only for control components (not fourier)
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={
@@ -644,7 +653,7 @@ class TestR2D2WithMMM:
         from pymc_marketing.mmm.components.adstock import GeometricAdstock
         from pymc_marketing.mmm.components.saturation import LogisticSaturation
 
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.4),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={
@@ -694,7 +703,7 @@ class TestR2D2WithMMM:
         from pymc_marketing.mmm.components.adstock import GeometricAdstock
         from pymc_marketing.mmm.components.saturation import LogisticSaturation
 
-        r2d2 = R2D2Decomposition(
+        r2d2 = R2D2(
             r2=Prior("Beta", mu=0.8, sigma=0.2),
             total_sigma=Prior("LogNormal", mu=0, sigma=1),
             dims={

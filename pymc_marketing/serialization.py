@@ -214,7 +214,7 @@ class TypeRegistry:
     ) -> Any:
         """Deserialize a dict back to an object.
 
-        Three-tier dispatch:
+        Two-tier dispatch:
         1. If ``__deferred__`` is True, return an unresolved ``DeferredFactory``.
         2. Otherwise, look up the class by ``__type__`` and call ``cls.from_dict(data)``.
         """
@@ -363,7 +363,7 @@ class TypeRegistry:
 
 
 def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
-    """Merge identical R2D2Decomposition instances after deserialization.
+    """Merge identical R2D2 instances after deserialization.
 
     When model_config contains both R2D2Split and R2D2Sigma entries,
     each deserializes its own copy of the decomposition. This walks
@@ -372,12 +372,12 @@ def _merge_shared_decompositions(config: dict[str, Any]) -> dict[str, Any]:
     """
     import json
 
-    from pymc_marketing.r2d2 import R2D2Decomposition, R2D2Sigma, R2D2Split
+    from pymc_marketing.r2d2 import R2D2, R2D2Sigma, R2D2Split
 
-    decomps: dict[str, R2D2Decomposition] = {}
+    decomps: dict[str, R2D2] = {}
 
     def walk(obj: Any) -> Any:
-        if isinstance(obj, R2D2Decomposition):
+        if isinstance(obj, R2D2):
             key = json.dumps(serialization.serialize(obj), sort_keys=True)
             if key not in decomps:
                 decomps[key] = obj
