@@ -6630,6 +6630,25 @@ def test_sample_prior_predictive_lognormal_likelihood_warns_on_zero_draws(
     assert any("prior-predictive" in str(r.message) for r in records)
 
 
+def test_sample_prior_predictive_lognormal_likelihood_without_target(
+    lognormal_likelihood_mmm, lognormal_likelihood_data
+):
+    # Regression: the base class defaults a missing y to zeros, which
+    # validate_observed rejects, breaking the standard pre-fit
+    # prior-predictive call for this likelihood.
+    X, _ = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+
+    with warnings.catch_warnings(record=True):
+        # The default zero-mean intercept prior legitimately triggers the
+        # zero-draw warning; this test only guards against the ValueError.
+        warnings.simplefilter("always")
+        result = mmm.sample_prior_predictive(X, samples=50, random_seed=42)
+
+    assert mmm.output_var in result
+    assert result[mmm.output_var].sizes["sample"] == 50
+
+
 def test_sample_prior_predictive_lognormal_likelihood_healthy_no_warning(
     lognormal_likelihood_data,
 ):

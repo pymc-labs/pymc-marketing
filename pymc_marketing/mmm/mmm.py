@@ -2733,7 +2733,16 @@ class MMM(RegressionModelBuilder):
         produces exactly-zero draws, the symptom of a non-positive
         response-scale mean under the prior. See
         :meth:`_warn_on_zero_lognormal_draws`.
+
+        With a LogNormalPrior likelihood and no ``y``, a strictly positive
+        placeholder target of ones is used instead of the base class's
+        zeros default, which the likelihood's ``validate_observed`` would
+        reject before any draws are produced.
         """
+        if y is None and isinstance(self.model_config["likelihood"], LogNormalPrior):
+            # Observed values only enter prior sampling through the max-abs
+            # target scale, so ones (scale = 1) is an inert placeholder.
+            y = np.ones(len(X))
         prior_predictive_samples = super().sample_prior_predictive(
             X,
             y=y,
