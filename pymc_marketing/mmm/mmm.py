@@ -2734,15 +2734,31 @@ class MMM(RegressionModelBuilder):
         response-scale mean under the prior. See
         :meth:`_warn_on_zero_lognormal_draws`.
 
-        With a LogNormalPrior likelihood and no ``y``, a strictly positive
-        placeholder target of ones is used instead of the base class's
-        zeros default, which the likelihood's ``validate_observed`` would
-        reject before any draws are produced.
+        When ``y`` is omitted and ``X`` is an :class:`xarray.Dataset` that
+        embeds a ``target`` / ``_target`` variable, that embedded target is
+        passed through explicitly so the base class's zeros default does
+        not overwrite it. With a LogNormalPrior likelihood and no target
+        anywhere, a strictly positive placeholder target of ones is used
+        instead of the base class's zeros default, which the likelihood's
+        ``validate_observed`` would reject before any draws are produced.
         """
+        if y is None and isinstance(X, xr.Dataset):
+            for target_var in ("_target", "target"):
+                if target_var in X.data_vars:
+                    y = X[target_var]
+                    break
         if y is None and isinstance(self.model_config["likelihood"], LogNormalPrior):
             # Observed values only enter prior sampling through the max-abs
             # target scale, so ones (scale = 1) is an inert placeholder.
-            y = np.ones(len(X))
+            if isinstance(X, xr.Dataset | xr.DataArray):
+                target_dims = ("date", *self.dims)
+                y = xr.DataArray(
+                    np.ones([X.sizes[d] for d in target_dims]),
+                    dims=target_dims,
+                    coords={d: X.coords[d] for d in target_dims},
+                )
+            else:
+                y = np.ones(len(X))
         prior_predictive_samples = super().sample_prior_predictive(
             X,
             y=y,
