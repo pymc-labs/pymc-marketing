@@ -664,6 +664,45 @@ class TestBassModelXdistFallbacks:
                 t=coords["T"], observed=None, priors=priors, coords=coords
             )
 
+    @pytest.mark.parametrize(
+        "likelihood",
+        [
+            Prior("Normal", sigma=1),
+            Censored(Prior("Normal", sigma=1), lower=0),
+        ],
+        ids=["prior", "censored"],
+    )
+    def test_unobserved_skips_create_likelihood_variable(
+        self,
+        coords: dict[str, Any],
+        likelihood: Prior | Censored,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Without data the outcome node comes from create_variable.
+
+        pymc-devs/pymc-extras#731 makes create_likelihood_variable refuse
+        observed=None, so nothing here may route through it.
+        """
+
+        def refuse(self, *args: Any, **kwargs: Any) -> None:
+            raise ValueError("observed cannot be None")
+
+        monkeypatch.setattr(Prior, "create_likelihood_variable", refuse)
+        monkeypatch.setattr(Censored, "create_likelihood_variable", refuse)
+
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": likelihood,
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert "y" in model.named_vars
+
     def test_prior_missing_from_pymc_dims(
         self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
     ) -> None:

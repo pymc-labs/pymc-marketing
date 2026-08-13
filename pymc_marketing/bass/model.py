@@ -300,38 +300,43 @@ def _create_likelihood_variable(
     observed: XTensorVariable | None,
     dims: tuple[str, ...],
 ) -> pt.TensorVariable | XTensorVariable:
-    """Create the likelihood variable, observed or not.
+    """Create the outcome variable, observed or not.
 
     A distribution ``pymc.dims`` does not implement gets the regular pymc
     path, on the underlying tensors in ``dims`` order.
 
-    On the ``xdist`` path, ``Prior.create_likelihood_variable`` cannot take
-    ``observed=None``: it hands the ``None`` to a helper that reads ``.ndim``
-    off it (pymc-devs/pymc-extras#731). Build the unobserved variable
-    directly in that case, keeping the same ``mu`` guard the pymc_extras
-    method applies. Dropping this branch needs a pymc-extras release
-    carrying that fix and a pin that allows it, so it goes with #2648, not
-    with the upstream merge. ``Censored`` passes ``observed`` straight to
-    ``pmd.Censored``, so it needs no special case.
+    ``create_likelihood_variable`` is for the observed case only: a
+    likelihood needs data, so pymc_extras refuses ``observed=None`` there
+    (pymc-devs/pymc-extras#731). Prior predictive still needs the outcome
+    node, so build it with ``create_variable`` and ``mu`` attached, keeping
+    the same ``mu`` guard the pymc_extras method applies.
     """
-    if not _supports_xdist(prior):
+    xdist = _supports_xdist(prior)
+
+    if observed is not None:
+        if xdist:
+            return prior.create_likelihood_variable(
+                name, mu=mu, observed=observed, xdist=True
+            )
         return prior.create_likelihood_variable(
             name,
             mu=mu.transpose(*dims).values,
-            observed=None if observed is None else observed.transpose(*dims).values,
+            observed=observed.transpose(*dims).values,
         )
 
-    if observed is not None or isinstance(prior, Censored):
-        return prior.create_likelihood_variable(
-            name, mu=mu, observed=observed, xdist=True
-        )
+    # Censored keeps its parameters on the wrapped distribution.
+    inner = prior.distribution if isinstance(prior, Censored) else prior
+    if "mu" in inner.parameters:
+        raise MuAlreadyExistsError(inner)
 
-    if "mu" in prior.parameters:
-        raise MuAlreadyExistsError(prior)
-
-    unobserved = prior.deepcopy()
-    unobserved.parameters["mu"] = mu
-    return unobserved.create_variable(name, xdist=True)
+    unobserved = inner.deepcopy()
+    unobserved.parameters["mu"] = mu if xdist else mu.transpose(*dims).values
+    outcome: Prior | Censored = (
+        Censored(unobserved, lower=prior.lower, upper=prior.upper)
+        if isinstance(prior, Censored)
+        else unobserved
+    )
+    return outcome.create_variable(name, xdist=xdist)
 
 
 def _align_to_dims(
