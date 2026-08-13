@@ -67,6 +67,22 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
 
 
+def _response_scale_likelihoods_display() -> str:
+    """Render ``RESPONSE_SCALE_LIKELIHOODS`` for user-facing messages.
+
+    ``LogNormalPrior`` is a ``pymc_marketing.special_priors`` class admitted
+    by its class name, not a distribution accepted by ``Prior(...)``, so it
+    is listed separately to stop readers from trying
+    ``Prior("LogNormalPrior", ...)``.
+    """
+    names = sorted(RESPONSE_SCALE_LIKELIHOODS - {"LogNormalPrior"})
+    return (
+        f"{names} (Prior distribution names) or a "
+        "pymc_marketing.special_priors.LogNormalPrior instance passed "
+        "directly as the likelihood"
+    )
+
+
 def _distribution_name(likelihood: Prior) -> str:
     """Return the distribution name of *likelihood*.
 
@@ -241,7 +257,7 @@ class LinkSpec(ABC):
                     "'target_scale'. Use link='log' with LogNormal (it needs a "
                     "strictly positive target), or keep link='identity' with a "
                     "likelihood whose 'mu' is the response scale: "
-                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}. "
+                    f"{_response_scale_likelihoods_display()}. "
                     "To repair an already saved model without refitting:\n"
                     "    kwargs = MMM.idata_to_init_kwargs(idata)\n"
                     "    kwargs['link'] = 'log'  # or edit "
@@ -256,7 +272,7 @@ class LinkSpec(ABC):
                     "'mu' is on the scale of the target. Check that it is "
                     "before reading '*_original_scale' variables. Known "
                     "response-scale likelihoods: "
-                    f"{sorted(RESPONSE_SCALE_LIKELIHOODS)}.",
+                    f"{_response_scale_likelihoods_display()}.",
                     UserWarning,
                     stacklevel=2,
                 )

@@ -57,6 +57,7 @@ from pymc_marketing.mmm.scaling import (
     Scaling,
 )
 from pymc_marketing.serialization import serialization
+from pymc_marketing.special_priors import LogNormalPrior
 
 
 @pytest.fixture
@@ -6522,3 +6523,78 @@ def test_mmm_plot_new_returns_facade(fit_mmm):
     assert isinstance(result, MMMPlotSuiteFacade)
     future_warnings = [x for x in w if issubclass(x.category, FutureWarning)]
     assert len(future_warnings) == 0
+
+
+@pytest.fixture
+def lognormal_likelihood_mmm() -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            ),
+        },
+    )
+
+
+@pytest.fixture
+def lognormal_likelihood_data() -> tuple[pd.DataFrame, pd.Series]:
+    rng = np.random.default_rng(42)
+    n = 20
+    dates = pd.date_range("2024-01-01", periods=n, freq="W-MON")
+    X = pd.DataFrame(
+        {
+            "date": dates,
+            "channel_1": rng.integers(10, 100, n),
+            "channel_2": rng.integers(10, 100, n),
+        }
+    )
+    y = pd.Series(rng.uniform(50, 500, n), name="y")
+    return X, y
+
+
+@pytest.mark.parametrize("bad_value", [0.0, -1.0], ids=["zero", "negative"])
+def test_build_model_lognormal_likelihood_nonpositive_target_raises(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, bad_value
+):
+    X, y = lognormal_likelihood_data
+    y.iloc[3] = bad_value
+    with pytest.raises(ValueError, match="strictly positive"):
+        lognormal_likelihood_mmm.build_model(X, y)
+
+
+def test_sample_posterior_predictive_lognormal_likelihood_warns_on_zero_draws(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    # Force a non-positive response-scale mean out of sample. The logp guard
+    # cannot fire on the forward path, so draws collapse to exp(-inf) = 0.
+    mmm.idata.posterior["intercept_contribution"].values[...] = -10.0
+
+    with pytest.warns(UserWarning, match="exactly zero"):
+        mmm.sample_posterior_predictive(X, extend_idata=False, random_seed=42)
+
+
+def test_sample_posterior_predictive_lognormal_likelihood_healthy_no_warning(
+    lognormal_likelihood_mmm, lognormal_likelihood_data, mock_pymc_sample
+):
+    X, y = lognormal_likelihood_data
+    mmm = lognormal_likelihood_mmm
+    mmm.fit(X, y, chains=1, draws=10, tune=10, random_seed=42)
+
+    # Guarantee a positive mu regardless of what the mocked sampler drew.
+    mmm.idata.posterior["intercept_contribution"].values[...] = 10.0
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_posterior_predictive(X, extend_idata=False, random_seed=42)
+
+    assert not any("exactly zero" in str(r.message) for r in records)
+    assert (result[mmm.output_var].values > 0).all()

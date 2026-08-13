@@ -1020,7 +1020,9 @@ def test_lognormal_prior_create_likelihood_negative_mu():
     bad_point = model.initial_point()
     bad_point["beta"] = np.array(-2.0)
 
-    # pymc-compiled functions rewrite the check to -inf: clean rejection.
+    # pymc-compiled functions rewrite the check to -inf. The rejection is
+    # safe but not clean: dlogp is NaN there, which NUTS treats as a
+    # divergence.
     assert np.isneginf(model.point_logps(point=bad_point)["y"])
     with pytest.raises(SamplingError, match="Initial evaluation"):
         model.check_start_vals([bad_point])
@@ -1030,9 +1032,20 @@ def test_lognormal_prior_create_likelihood_negative_mu():
         model.logp().eval(bad_point)
 
 
+def test_lognormal_prior_create_likelihood_forward_draws_zero_for_negative_mu():
+    """Forward sampling is unprotected: pymc rewrites the mu > 0 check in any
+    compiled function, so a non-positive mu becomes a -inf log-mean and the
+    draw is exactly exp(-inf) = 0 rather than an error."""
+    model, _ = _likelihood_model(mu_offset=-5.0)
+    draws = pm.draw(model["y"], draws=10, random_seed=42)
+    assert np.all(draws == 0)
+
+
 def test_lognormal_prior_create_likelihood_mean_already_set_raises():
     prior = LogNormalPrior(mean=1.0, std=1.0)
-    with pytest.raises(MuAlreadyExistsError):
+    # The subclass keeps ``except MuAlreadyExistsError`` working while naming
+    # the key that actually collides, which is ``mean``.
+    with pytest.raises(MuAlreadyExistsError, match="The mean parameter"):
         prior.create_likelihood_variable(
             "y", mu=as_xtensor(np.ones(2), dims=("date",)), observed=None, xdist=True
         )
@@ -1054,6 +1067,25 @@ def test_lognormal_prior_create_likelihood_xdist_false_raises():
     prior = LogNormalPrior(std=1.0)
     with pytest.raises(NotImplementedError, match="only supports xdist=True"):
         prior.create_likelihood_variable("y", mu=None, observed=None)
+
+
+@pytest.mark.parametrize(
+    "y",
+    [
+        pytest.param(np.array([1.0, 0.0, 2.0]), id="zero"),
+        pytest.param(np.array([1.0, -1.0, 2.0]), id="negative"),
+        pytest.param(np.array([1.0, np.nan, 2.0]), id="nan"),
+        pytest.param(np.array([1.0, np.inf, 2.0]), id="inf"),
+    ],
+)
+def test_lognormal_prior_validate_observed_raises(y):
+    likelihood = LogNormalPrior(std=1.0)
+    with pytest.raises(ValueError, match="strictly positive"):
+        likelihood.validate_observed(y)
+
+
+def test_lognormal_prior_validate_observed_passes():
+    LogNormalPrior(std=1.0).validate_observed(np.array([[0.5, 1.0], [2.0, 3.0]]))
 
 
 def test_lognormal_prior_std_only_round_trip():

@@ -218,6 +218,27 @@ class TestLinkSpec:
         # since the check also runs on the load path.
         assert "idata_to_init_kwargs" in message
 
+    def test_identity_error_names_lognormal_prior_as_class_not_distribution(self):
+        # 'LogNormalPrior' is a special_priors class admitted by class name,
+        # not a distribution accepted by Prior(...); the message must not
+        # present it inside the distribution-name list.
+        with pytest.raises(ValueError) as excinfo:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("LogNormal", sigma=1)
+            )
+        message = str(excinfo.value)
+        assert "pymc_marketing.special_priors.LogNormalPrior" in message
+        assert "'LogNormalPrior'" not in message
+
+    def test_identity_warning_names_lognormal_prior_as_class_not_distribution(self):
+        with pytest.warns(UserWarning) as records:
+            LinkSpec.validate_likelihood_compatibility(
+                LinkFunction.IDENTITY, Prior("Weibull", alpha=1, beta=1)
+            )
+        message = str(records[0].message)
+        assert "pymc_marketing.special_priors.LogNormalPrior" in message
+        assert "'LogNormalPrior'" not in message
+
     def test_validate_likelihood_compat_identity_looks_through_censored(self):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
