@@ -1228,10 +1228,16 @@ class MMM(RegressionModelBuilder):
             fig = mmm.plot_interactive.adstock_curves()
             fig.show()
 
+            # Waterfall and channel share (from summary data)
+            fig = mmm.plot_interactive.waterfall()
+            fig = mmm.plot_interactive.channel_share()
+            fig.show()
+
         See Also
         --------
         MMMPlotSuite : Static matplotlib plotting functionality
         MMMPlotlyFactory : Interactive plotting class documentation
+        MMM.summary : Tabular export for custom frontends
         """
         try:
             from pymc_marketing.mmm.plot_interactive import MMMPlotlyFactory
@@ -1617,10 +1623,29 @@ class MMM(RegressionModelBuilder):
             # Get change over time
             df = mmm.summary.change_over_time()
 
+            # Frontend-ready export (library-agnostic JSON)
+            records = mmm.summary.contributions().to_dict(orient="records")
+
+            # Decomposition and diagnostics summaries
+            df = mmm.summary.waterfall()
+            df = mmm.summary.channel_share_hdi()
+            df = mmm.summary.prior_predictive()
+            df = mmm.summary.residuals_over_time()
+            df = mmm.summary.residuals_distribution()
+            df = mmm.summary.prior_vs_posterior()
+            df = mmm.summary.saturation_scatterplot()
+            df = mmm.summary.sensitivity_analysis()
+
+            # JSON-safe export (ISO dates, native Python types)
+            from pymc_marketing.mmm.summary import dataframe_to_json_records
+
+            records = dataframe_to_json_records(mmm.summary.contributions())
+
         See Also
         --------
         MMMSummaryFactory : Factory class documentation
         pymc_marketing.mmm.summary : Module with all factory functions
+        dataframe_to_json_records : JSON-serializable record export helper
         """
         from pymc_marketing.mmm.summary import MMMSummaryFactory
 
@@ -3808,6 +3833,38 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         if self.model_class.plot_suite == "new":
             return BudgetPlots()
         return self.model_class.plot
+
+    @property
+    def summary(self) -> Any:
+        """Access budget summary DataFrame generation functionality.
+
+        Stateless namespace mirroring :attr:`plot` but returning tabular
+        summaries with HDI statistics for frontend export.
+
+        Returns
+        -------
+        BudgetSummaryFactory
+            Factory with ``allocation_roas`` and ``contribution_over_time``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            samples = optimizer.allocate_budget(...)
+            df = optimizer.summary.allocation_roas(samples=samples)
+            records = df.to_dict(orient="records")
+
+        See Also
+        --------
+        BudgetPlots.summary : Same factory via ``optimizer.plot.summary``
+        """
+        from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+        if self.model_class.plot_suite == "new":
+            return BudgetSummaryFactory
+        raise AttributeError(
+            "Budget summary export requires plot_suite='new' on the wrapped MMM."
+        )
 
     def __getattr__(self, name):
         """Delegate attribute access to the wrapped MMM model."""

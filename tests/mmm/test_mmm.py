@@ -2910,6 +2910,11 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     assert optimizer.channel_columns == fit_mmm.channel_columns
     assert optimizer.dims == fit_mmm.dims
 
+    fit_mmm.plot_suite = "new"
+    from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+    assert optimizer.summary is BudgetSummaryFactory
+
     # Create a budget bounds DataArray
     budget = 1000
     countries = fit_mmm.xarray_dataset.country.values
