@@ -494,11 +494,15 @@ class LogNormalPrior(SpecialPrior):
         pymc rewrites the guard in every compiled function, so a
         forward-sampling graph turns a non-positive ``mu`` into a ``-inf``
         log-mean and the draw becomes exactly ``exp(-inf) = 0``, with no
-        error or warning at this level. Out-of-sample predictions or
-        counterfactuals that push ``mu`` below zero therefore return zeros
-        that look like real predictions;
-        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive`
-        detects and warns about such draws. The sign is never silently
+        error or warning at this level. A genuine LogNormal draw is never
+        exactly zero except through float underflow of an extremely negative
+        log-scale draw, so exact zeros almost always indicate a non-positive
+        ``mu``. Prior draws, out-of-sample predictions, or counterfactuals
+        that push ``mu`` below zero therefore return zeros that look like
+        real predictions;
+        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive` and
+        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_prior_predictive`
+        detect and warn about such draws. The sign is never silently
         folded to ``|mu|``.
 
         The ``centered`` flag is ignored: an observed variable has no

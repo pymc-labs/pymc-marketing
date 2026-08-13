@@ -2715,6 +2715,38 @@ class MMM(RegressionModelBuilder):
             **kwargs,
         )
 
+    def sample_prior_predictive(
+        self,
+        X,
+        y=None,
+        samples: int | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ):
+        """Sample from the model's prior predictive distribution.
+
+        Delegates to
+        :meth:`RegressionModelBuilder.sample_prior_predictive` and
+        additionally warns when a
+        :class:`~pymc_marketing.special_priors.LogNormalPrior` likelihood
+        produces exactly-zero draws, the symptom of a non-positive
+        response-scale mean under the prior. See
+        :meth:`_warn_on_zero_lognormal_draws`.
+        """
+        prior_predictive_samples = super().sample_prior_predictive(
+            X,
+            y=y,
+            samples=samples,
+            extend_idata=extend_idata,
+            combined=combined,
+            **kwargs,
+        )
+        self._warn_on_zero_lognormal_draws(
+            prior_predictive_samples, group_label="prior-predictive"
+        )
+        return prior_predictive_samples
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -2793,38 +2825,56 @@ class MMM(RegressionModelBuilder):
                 date=slice(self.adstock.l_max, None)
             )
 
-        self._warn_on_zero_lognormal_draws(posterior_predictive_samples)
+        self._warn_on_zero_lognormal_draws(
+            posterior_predictive_samples, group_label="posterior-predictive"
+        )
 
         return posterior_predictive_samples
 
-    def _warn_on_zero_lognormal_draws(self, posterior_predictive: xr.Dataset) -> None:
+    def _warn_on_zero_lognormal_draws(
+        self, predictive_samples: xr.Dataset, group_label: str
+    ) -> None:
         """Warn when LogNormalPrior forward draws collapse to exactly zero.
 
         The ``mu > 0`` check in the LogNormalPrior likelihood only protects
         log-probability evaluation. In compiled forward-sampling graphs pymc
         rewrites the check to a ``-inf`` log-mean, so a non-positive
-        response-scale mean (for example a negative intercept, or
-        counterfactual ``X`` that pushes the linear predictor below zero)
-        silently yields ``exp(-inf) = 0`` draws. A genuine LogNormal draw is
-        never exactly zero, so exact zeros are an unambiguous symptom.
+        response-scale mean (for example a negative intercept, a prior that
+        puts mass below zero, or counterfactual ``X`` that pushes the linear
+        predictor below zero) silently yields ``exp(-inf) = 0`` draws. A
+        genuine LogNormal draw is never exactly zero except through float
+        underflow of an extremely negative log-scale draw, so exact zeros
+        almost always indicate this failure mode. Called from both
+        :meth:`sample_posterior_predictive` and :meth:`sample_prior_predictive`
+        (``stacklevel=3`` assumes exactly that one intermediate frame).
+
+        Parameters
+        ----------
+        predictive_samples : xr.Dataset
+            Extracted forward draws containing ``self.output_var``.
+        group_label : str
+            Label naming the sampling path in the warning message, e.g.
+            ``"posterior-predictive"`` or ``"prior-predictive"``.
         """
         if not isinstance(self.model_config["likelihood"], LogNormalPrior):
             return
-        if self.output_var not in posterior_predictive:
+        if self.output_var not in predictive_samples:
             return
-        y_draws = posterior_predictive[self.output_var].values
+        y_draws = predictive_samples[self.output_var].values
         n_zero = int(np.count_nonzero(y_draws == 0))
         if n_zero:
             warnings.warn(
-                f"{n_zero} of {y_draws.size} posterior-predictive draws "
+                f"{n_zero} of {y_draws.size} {group_label} draws "
                 f"({n_zero / y_draws.size:.1%}) of '{self.output_var}' are "
-                "exactly zero. With a LogNormalPrior likelihood this means the "
-                "model produced a non-positive response-scale mean 'mu' for "
-                "those draws: forward sampling rewrites the mu > 0 check to a "
-                "-inf log-mean, so the draw becomes exp(-inf) = 0 instead of "
-                "raising an error. Check for a negative intercept or input "
-                "data that pushes the linear predictor below zero before "
-                "using these predictions.",
+                "exactly zero. With a LogNormalPrior likelihood this almost "
+                "always means the model produced a non-positive response-scale "
+                "mean 'mu' for those draws: forward sampling rewrites the "
+                "mu > 0 check to a -inf log-mean, so the draw becomes "
+                "exp(-inf) = 0 instead of raising an error. (Rarely, a finite "
+                "but extremely negative log-scale draw can also underflow to "
+                "exactly zero.) Check for a negative intercept or input data "
+                "that pushes the linear predictor below zero before using "
+                "these predictions.",
                 UserWarning,
                 stacklevel=3,
             )

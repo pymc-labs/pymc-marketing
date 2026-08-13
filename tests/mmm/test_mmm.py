@@ -6598,3 +6598,47 @@ def test_sample_posterior_predictive_lognormal_likelihood_healthy_no_warning(
 
     assert not any("exactly zero" in str(r.message) for r in records)
     assert (result[mmm.output_var].values > 0).all()
+
+
+def _lognormal_likelihood_mmm_with_intercept(intercept_mu: float) -> MMM:
+    return MMM(
+        date_column="date",
+        channel_columns=["channel_1", "channel_2"],
+        target_column="y",
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        model_config={
+            "likelihood": LogNormalPrior(
+                std=Prior("HalfNormal", sigma=0.5), dims=("date",)
+            ),
+            "intercept": Prior("Normal", mu=intercept_mu, sigma=0.1),
+        },
+    )
+
+
+def test_sample_prior_predictive_lognormal_likelihood_warns_on_zero_draws(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
+    # A strongly negative intercept prior drives the response-scale mean below
+    # zero for essentially every prior draw, collapsing draws to exp(-inf) = 0.
+    mmm = _lognormal_likelihood_mmm_with_intercept(intercept_mu=-10.0)
+
+    with pytest.warns(UserWarning, match="exactly zero") as records:
+        mmm.sample_prior_predictive(X, y, samples=50, random_seed=42)
+
+    assert any("prior-predictive" in str(r.message) for r in records)
+
+
+def test_sample_prior_predictive_lognormal_likelihood_healthy_no_warning(
+    lognormal_likelihood_data,
+):
+    X, y = lognormal_likelihood_data
+    mmm = _lognormal_likelihood_mmm_with_intercept(intercept_mu=10.0)
+
+    with warnings.catch_warnings(record=True) as records:
+        warnings.simplefilter("always")
+        result = mmm.sample_prior_predictive(X, y, samples=50, random_seed=42)
+
+    assert not any("exactly zero" in str(r.message) for r in records)
+    assert (result[mmm.output_var].values > 0).all()
