@@ -11,6 +11,24 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-"""Version of the package."""
+"""Summary DataFrame generation for MMM models."""
 
-__version__ = "1.0.0"
+from pymc_marketing.data.idata.schema import Frequency
+from pymc_marketing.mmm.summary.budget import BudgetSummaryFactory
+from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
+from pymc_marketing.mmm.summary.factory import MMMSummaryFactory
+from pymc_marketing.mmm.summary.helpers import (
+    DataFrameType,
+    OutputFormat,
+    dataframe_to_json_records,
+)
+
+__all__ = [
+    "BudgetSummaryFactory",
+    "DataFrameType",
+    "Frequency",
+    "MMMCVSummaryFactory",
+    "MMMSummaryFactory",
+    "OutputFormat",
+    "dataframe_to_json_records",
+]

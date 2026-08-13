@@ -190,6 +190,63 @@ def test_target_column():
     assert mmm_custom.target_column == "epsilon"
 
 
+class TestGeometricAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM."""
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=GeometricAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("Gamma", mu=5, sigma=1, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
+
+
 def test_reserved_dims():
     other_kwargs = {
         "date_column": "date",
@@ -2852,6 +2909,11 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     assert optimizer.date_column == fit_mmm.date_column
     assert optimizer.channel_columns == fit_mmm.channel_columns
     assert optimizer.dims == fit_mmm.dims
+
+    fit_mmm.plot_suite = "new"
+    from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+    assert optimizer.summary is BudgetSummaryFactory
 
     # Create a budget bounds DataArray
     budget = 1000

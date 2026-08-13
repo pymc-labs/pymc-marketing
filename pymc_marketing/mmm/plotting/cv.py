@@ -16,13 +16,10 @@
 from __future__ import annotations
 
 import itertools
-import warnings
 from typing import Any
 
 import arviz_plots as azp
-import matplotlib.dates as mdates
 import numpy as np
-import pandas as pd
 import xarray as xr
 from arviz_base.labels import DimCoordLabeller, NoVarLabeller, mix_labellers
 from arviz_plots import PlotCollection
@@ -30,225 +27,19 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
-from pymc_marketing.metrics import crps as _crps_score
 from pymc_marketing.mmm.plotting._helpers import (
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
 )
-
-
-def _validate_cv_results(cv_data: xr.DataTree) -> None:
-    """Raise if cv_data is not a valid CV DataTree.
-
-    Minimum required: correct type + cv_metadata group present.
-    Method-specific checks (e.g. posterior_predictive contents) are
-    performed inside each method.
-    """
-    if not isinstance(cv_data, xr.DataTree):
-        raise TypeError(f"cv_data must be xr.DataTree, got {type(cv_data).__name__}.")
-    if not hasattr(cv_data, "cv_metadata"):
-        raise ValueError(
-            "cv_data must have a 'cv_metadata' group. "
-            "Ensure TimeSliceCrossValidator.run() has been called and the "
-            "resulting DataTree is passed here."
-        )
-
-
-def _extract_cv_labels(cv_data: xr.DataTree) -> list[str]:
-    """Return the list of CV fold labels from cv_metadata coords."""
-    return list(cv_data.cv_metadata.coords["cv"].values)
-
-
-def _read_fold_meta(
-    cv_data: xr.DataTree, cv_label: str
-) -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
-    """Return (X_train, y_train, X_test, y_test) for a given fold label."""
-    meta = cv_data.cv_metadata["metadata"].sel(cv=cv_label).values.item()
-    return meta["X_train"], meta["y_train"], meta["X_test"], meta["y_test"]
-
-
-def _build_predictions_arrays(
-    cv_data: xr.DataTree,
-    pp: xr.DataArray,
-) -> tuple[xr.DataArray, xr.DataArray, xr.DataArray, xr.DataArray]:
-    """Build stacked train/test/observed/train-end arrays across all CV folds.
-
-    Parameters
-    ----------
-    cv_data : xr.DataTree
-        Full CV DataTree (already validated by the caller).
-    pp : xr.DataArray
-        ``posterior_predictive["y_original_scale"]`` with dims
-        ``(cv, chain, draw, date, ...)``.
-
-    Returns
-    -------
-    y_train_da : xr.DataArray  — (cv, chain, draw, date, ...) NaN outside train window
-    y_test_da  : xr.DataArray  — (cv, chain, draw, date, ...) NaN outside test window
-    y_obs_da   : xr.DataArray  — (cv, date) observed actuals aligned to full date coord
-    train_end_da : xr.DataArray — (cv,) last training date per fold
-    """
-    cv_labels = _extract_cv_labels(cv_data)
-    full_dates = pp.coords["date"].values
-
-    y_train_list: list[xr.DataArray] = []
-    y_test_list: list[xr.DataArray] = []
-    y_obs_list: list[xr.DataArray] = []
-    train_end_list: list[float] = []
-
-    for lbl in cv_labels:
-        X_train, y_train, X_test, y_test = _read_fold_meta(cv_data, lbl)
-
-        train_dates = pd.DatetimeIndex(X_train["date"].values)
-        test_dates = (
-            pd.DatetimeIndex(X_test["date"].values)
-            if len(X_test) > 0
-            else pd.DatetimeIndex([])
-        )
-
-        train_mask = xr.DataArray(
-            np.isin(full_dates, train_dates.values),
-            dims=["date"],
-            coords={"date": full_dates},
-        )
-        test_mask = xr.DataArray(
-            np.isin(full_dates, test_dates.values),
-            dims=["date"],
-            coords={"date": full_dates},
-        )
-
-        pp_fold = pp.sel(cv=lbl)
-        y_train_list.append(pp_fold.where(train_mask))
-        y_test_list.append(pp_fold.where(test_mask))
-
-        date_to_y: dict[Any, float] = {}
-        for d, y in zip(X_train["date"].values, np.asarray(y_train), strict=True):
-            date_to_y[d] = float(y)
-        if len(X_test) > 0:
-            for d, y in zip(X_test["date"].values, np.asarray(y_test), strict=True):
-                date_to_y[d] = float(y)
-        y_obs_arr = np.array([date_to_y.get(d, np.nan) for d in full_dates])
-        y_obs_list.append(
-            xr.DataArray(y_obs_arr, dims=["date"], coords={"date": full_dates})
-        )
-        train_end_list.append(mdates.date2num(train_dates.max()))
-
-    cv_coord = xr.DataArray(cv_labels, dims=["cv"], name="cv")
-    y_train_da = xr.concat(y_train_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    y_test_da = xr.concat(y_test_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    y_obs_da = xr.concat(y_obs_list, dim=cv_coord).assign_coords(cv=cv_labels)
-    train_end_da = xr.DataArray(train_end_list, dims=["cv"], coords={"cv": cv_labels})
-    return y_train_da, y_test_da, y_obs_da, train_end_da
-
-
-def _pred_matrix_for_rows(
-    cv_data: xr.DataTree,
-    cv_label: str,
-    rows_df: pd.DataFrame,
-) -> np.ndarray:
-    """Build (n_samples, n_rows) prediction matrix for CRPS computation.
-
-    Selects posterior_predictive['y_original_scale'] for the given CV fold,
-    stacks (chain, draw) → sample, then iterates over rows in rows_df
-    matching each row's coordinates to the array dimensions.  Extra dimensions
-    beyond (chain, draw, date) — e.g. 'geo' in multidimensional models — are
-    selected via the matching column in rows_df so the result is always 1-D
-    (n_samples,) per observation.
-
-    Parameters
-    ----------
-    cv_data : xr.DataTree
-        Full CV DataTree (already validated by the caller).
-    cv_label : str
-        Label identifying the CV fold to select.
-    rows_df : pd.DataFrame
-        DataFrame with a ``"date"`` column and one column per extra dimension;
-        each row corresponds to one observation.
-
-    Returns
-    -------
-    np.ndarray, shape (n_samples, n_rows)
-    """
-    da = cv_data["/posterior_predictive"].dataset["y_original_scale"].sel(cv=cv_label)
-
-    # Identify dimensions beyond the sample and date dims; these must be
-    # matched against columns in rows_df for correct scalar selection.
-    base_dims = {"chain", "draw", "date"}
-    extra_dims = [d for d in da.dims if d not in base_dims]
-
-    da_s = da.stack(sample=("chain", "draw"))
-    if da_s.dims[0] != "sample":
-        da_s = da_s.transpose("sample", ...)
-
-    n_samples = int(da_s.sizes["sample"])
-    n_rows = len(rows_df)
-    mat = np.empty((n_samples, n_rows))
-
-    for j, (_, row) in enumerate(rows_df.iterrows()):
-        sel_kwargs: dict[str, Any] = {"date": row["date"]}
-        for dim in extra_dims:
-            if dim in row.index:
-                sel_kwargs[dim] = row[dim]
-        arr = np.squeeze(da_s.sel(**sel_kwargs).values)
-        if arr.ndim == 0:
-            arr = arr.reshape(n_samples)
-        mat[:, j] = arr[:n_samples]
-
-    return mat
-
-
-def _filter_rows_and_y(
-    df: pd.DataFrame | None,
-    y: pd.Series | None,
-    indexers: dict[str, Any],
-) -> tuple[pd.DataFrame, np.ndarray]:
-    """Filter DataFrame rows by column equality, return aligned y array.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Feature DataFrame (X_train or X_test).
-    y : pd.Series
-        Target Series aligned to df by position.
-    indexers : dict
-        Column-name → value filters to apply.
-
-    Returns
-    -------
-    tuple[pd.DataFrame, np.ndarray]
-        Filtered DataFrame and corresponding y values.
-    """
-    if df is None or len(df) == 0:
-        return pd.DataFrame(), np.array([])
-    mask = np.ones(len(df), dtype=bool)
-    for col, val in indexers.items():
-        if col in df.columns:
-            mask &= df[col] == val
-    return df[mask].reset_index(drop=True), np.asarray(y)[mask]
-
-
-def _crps_for_split(
-    cv_data: xr.DataTree,
-    cv_label: str,
-    X: pd.DataFrame,
-    y: pd.Series,
-    dim_indexers: dict[str, Any],
-) -> float:
-    """Compute mean CRPS for one fold/split. Returns np.nan on failure or empty set."""
-    try:
-        X_filtered, y_arr = _filter_rows_and_y(X, y, dim_indexers)
-        if len(X_filtered) == 0:
-            return float(np.nan)
-        pred_mat = _pred_matrix_for_rows(cv_data, cv_label, X_filtered)
-        return float(_crps_score(y_true=y_arr, y_pred=pred_mat))
-    except Exception as exc:
-        warnings.warn(
-            f"CRPS computation failed for fold '{cv_label}': {exc}",
-            UserWarning,
-            stacklevel=3,
-        )
-        return float(np.nan)
+from pymc_marketing.mmm.summary.cv import (
+    MMMCVSummaryFactory,
+    _build_predictions_arrays,
+    _crps_for_split,
+    _extract_cv_labels,
+    _read_fold_meta,
+    _validate_cv_results,
+)
 
 
 class MMMCVPlotSuite:
@@ -264,6 +55,11 @@ class MMMCVPlotSuite:
     def __init__(self, cv_data: xr.DataTree) -> None:
         _validate_cv_results(cv_data)
         self.cv_data = cv_data
+
+    @property
+    def summary(self) -> MMMCVSummaryFactory:
+        """Summary factory for CV results (parallel to plot methods)."""
+        return MMMCVSummaryFactory(self.cv_data)
 
     def predictions(
         self,
@@ -307,6 +103,10 @@ class MMMCVPlotSuite:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMCVSummaryFactory.predictions : Tabular export for custom frontends
         """
         data = cv_data if cv_data is not None else self.cv_data
         if cv_data is not None:
@@ -425,6 +225,10 @@ class MMMCVPlotSuite:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMCVSummaryFactory.param_stability : Tabular export for custom frontends
         """
         data = cv_data if cv_data is not None else self.cv_data
         if cv_data is not None:
@@ -509,6 +313,10 @@ class MMMCVPlotSuite:
         Returns
         -------
         tuple[Figure, NDArray[Axes]] or PlotCollection
+
+        See Also
+        --------
+        MMMCVSummaryFactory.crps : Tabular export for custom frontends
         """
         data = cv_data if cv_data is not None else self.cv_data
         if cv_data is not None:
