@@ -1,0 +1,19 @@
+docs/source/notebooks/mmm/mmm_funnel_mueffect.ipynb
+  s_5af6b8f25487d3::t_adf15c4d7e22e6 356-361
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6ad3ccb3243f0c438bf3cfa41f39b9dbdbd19a37",
+  "prompts": {},
+  "sessions": {
+    "s_5af6b8f25487d3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "571bbf55-c685-4f7a-8e06-fa7fbe603b6d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}
