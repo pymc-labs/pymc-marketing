@@ -720,7 +720,10 @@ class SpendProbe:
         perturbation left below tolerance.  A narrower one is rejected rather
         than quietly overridden, because it is evidence that the effect's author
         believes something false about it.  Each declaration is judged against
-        that effect's own measurement.
+        that effect's own measurement, including a full-axis one, where the
+        measured lags are a lower bound: nothing would be truncated there, since
+        the sum runs to the axis end either way, but a declaration the probe has
+        already contradicted is no more believable for that.
 
         Parameters
         ----------
@@ -751,15 +754,37 @@ class SpendProbe:
             declared = effect.declared_carryover_lags
             if declared is not None:
                 if declared < lags:
+                    # Under full-axis evaluation the measurement is a lower
+                    # bound and the sum runs to the axis end, so no window
+                    # exists to cut the tail off.  The declaration is refused
+                    # for the other reason the check has: it is false, and an
+                    # author who believes it may have built the effect around
+                    # it.  Saying "the increment would be understated" there
+                    # would send the reader looking for a truncation that is
+                    # not happening.
+                    if requires_full_axis:
+                        measured_as = f"at least {lags} periods further"
+                        consequence = (
+                            "The date axis could not bound that tail, so the "
+                            "evaluation runs to the axis end and nothing is "
+                            "cut; the declaration is refused because it is "
+                            "false, not because the increment would come back "
+                            "short."
+                        )
+                    else:
+                        measured_as = f"{lags} periods further"
+                        consequence = (
+                            "Evaluating on the declared window would cut that "
+                            "tail off and understate the increment."
+                        )
                     raise ValueError(
                         f"The mu_effect {effect.label!r} declares "
                         f"additional_carryover_lags={declared}, but a change in "
                         "spend was measured still moving "
-                        f"{effect.contribution_var!r} {lags} periods further "
-                        "than the model's own adstock.  Evaluating on the "
-                        "declared window would cut that tail off and understate "
-                        f"the increment.  Raise the declaration to at least "
-                        f"{lags}, or drop it and have it measured."
+                        f"{effect.contribution_var!r} {measured_as} "
+                        f"than the model's own adstock.  {consequence}  "
+                        f"Raise the declaration to at least {lags}, or drop it "
+                        "and have it measured."
                     )
                 lags = max(lags, declared)
 

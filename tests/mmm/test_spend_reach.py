@@ -226,6 +226,70 @@ class TestSpendProbe:
         assert reach.measured[CHANNEL_CONTRIBUTION].requires_full_axis
         assert reach.requires_full_axis
 
+    def test_a_full_axis_reach_still_carries_the_lags_it_demonstrated(self):
+        """A tail that runs off the axis is unbounded, not unmeasured.
+
+        The probe cannot say how long such a tail is, but it can say it had not
+        ended by the last fitted date, which is a lower bound on the lags: from
+        an impulse at ``probe_index`` the node was still moving at
+        ``n_dates - 1``.  Reporting zero there would throw that away, and with it
+        the only thing that lets a false declaration be caught for a full-axis
+        node.
+        """
+        # A filter spanning the whole axis: from a probe near the front it
+        # reaches past the last date, so the reach cannot be bounded.
+        probe = self._probe(
+            self._spend(n_dates=self.n_dates),
+            **{CHANNEL_CONTRIBUTION: causal_filter(self.n_dates)},
+        )
+        assert probe.probe_indices == [1]
+
+        reach = probe.measure(effects=(), l_max=self.l_max)
+        measured = reach.measured[CHANNEL_CONTRIBUTION]
+
+        assert measured.requires_full_axis
+        # Moving from date 1 to date 23 is 22 lags, of which l_max is covered.
+        assert measured.additional_carryover_lags == (
+            self.n_dates - 1 - probe.probe_indices[0] - self.l_max
+        )
+        assert measured.additional_carryover_lags == 19
+
+    @pytest.mark.parametrize("mode", ["auto", "full"])
+    def test_a_declaration_under_a_full_axis_measurement_is_refused(self, mode):
+        """A declaration the probe contradicted is refused on the full axis too.
+
+        The reach here is unbounded, so the evaluation will run to the axis end
+        and no window will cut anything.  The declaration is still false, and an
+        author who believes the effect settles after two periods may well have
+        built it around that, so it is refused rather than silently widened.
+
+        The message has to say *that*, though.  Repeating the windowed case's
+        "the increment would be understated" would send the reader looking for a
+        truncation that is not happening.  Neither evaluation mode changes the
+        answer: the measurement is what the declaration is judged against.
+        """
+        effect = ChannelDependentEffect(
+            contribution_var="mediator",
+            label="Mediator",
+            declared_carryover_lags=2,
+            declared_evaluation_mode=mode,
+        )
+        probe = self._probe(
+            self._spend(n_dates=self.n_dates),
+            **{
+                CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                "mediator": single_channel_filter(self.n_dates, channel=0),
+            },
+        )
+        assert probe.measure(effects=(), l_max=self.l_max).effective_l_max == self.l_max
+
+        with pytest.raises(ValueError, match="at least 19 periods further") as excinfo:
+            probe.measure(effects=(effect,), l_max=self.l_max)
+
+        message = str(excinfo.value)
+        assert "nothing is cut" in message
+        assert "declared window" not in message
+
     def test_the_probe_avoids_a_date_that_carries_no_spend(self):
         """With a dark run at the front, the probe lands past it and still measures.
 
