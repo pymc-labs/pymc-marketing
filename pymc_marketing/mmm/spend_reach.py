@@ -397,6 +397,16 @@ class SpendProbe:
         see :meth:`_select_probe_indices`.
     probes : dict
         Per probed date, the evaluation of the perturbed spend.
+
+    Raises
+    ------
+    ValueError
+        If *baseline* or any probe evaluation contains a non-finite value
+        (NaN or infinity) in any node.  Checked eagerly, in ``__init__``,
+        because a non-finite cell otherwise reaches :meth:`measure` or
+        :meth:`assert_increment_is_complete` and misfires their guards with an
+        unrelated ``IndexError`` or a misleading ``NotImplementedError`` that
+        blames unattributed spend for what is really a non-finite prediction.
     """
 
     REACH_TOLERANCE = 1e-9
@@ -428,6 +438,8 @@ class SpendProbe:
         counterfactual_spend_factor: float,
     ) -> None:
         self.baseline = baseline
+        for name, array in baseline.items():
+            self._assert_finite(name, array)
         self.probe_indices = self._select_probe_indices(baseline_array)
         self.probes: dict[int, dict[str, np.ndarray]] = {
             probe_index: evaluator.evaluate_baseline(
@@ -440,6 +452,68 @@ class SpendProbe:
             )
             for probe_index in self.probe_indices
         }
+        for probed in self.probes.values():
+            for name, array in probed.items():
+                self._assert_finite(name, array)
+
+    @staticmethod
+    def _assert_finite(name: str, array: np.ndarray) -> None:
+        """Raise loudly if *array* holds a non-finite prediction.
+
+        Checked here, in ``__init__``, rather than in :meth:`measure` or only
+        on probe evaluations: the completeness check
+        (:meth:`assert_increment_is_complete`) runs before :meth:`measure` at
+        the call site in
+        :mod:`~pymc_marketing.mmm.incrementality`, so a check placed at the
+        top of :meth:`measure` would leave that misleading path in place; and
+        the baseline dict (including the linear-predictor entry) and the
+        no-probe path currently let a non-finite value flow silently into a
+        non-finite increment without ever being evaluated as a probe.  A
+        single non-finite cell is enough to misfire two different guards
+        downstream: ``_reach_of`` reads a NaN ``largest`` as "every date
+        compares as unmoved" and raises a bare ``IndexError``, and
+        :meth:`assert_increment_is_complete` reads the mismatch as an
+        unattributed spend path and raises ``NotImplementedError``.  Neither
+        error names the real problem, which is why it is caught here first.
+
+        Parameters
+        ----------
+        name : str
+            Node the array belongs to, named in the error so the offending
+            part of the graph is identifiable.
+        array : np.ndarray
+            Evaluation to check, ``(n_samples, n_dates, ...)``.
+
+        Raises
+        ------
+        ValueError
+            If any cell of *array* is not finite (NaN or infinite).
+        """
+        # Fast path: the overwhelming majority of calls are all-finite, and
+        # `.all()` short-circuits on the first non-finite cell it finds.
+        finite = np.isfinite(array)
+        if finite.all():
+            return
+
+        non_finite = ~finite
+        count = int(non_finite.sum())
+        date_axis = 1
+        reduce_axes = tuple(
+            axis for axis in range(non_finite.ndim) if axis != date_axis
+        )
+        moved_on_date = non_finite.any(axis=reduce_axes) if reduce_axes else non_finite
+        first_date_index = int(np.flatnonzero(moved_on_date)[0])
+        raise ValueError(
+            f"The model's evaluation of {name!r} produced {count} non-finite "
+            "value" + ("s" if count != 1 else "") + " (NaN or infinity), the "
+            f"first at date index {first_date_index}.  This means the model "
+            "itself produced non-finite predictions -- not that spend is "
+            "unattributed -- so SpendProbe cannot compare it against anything. "
+            "A common cause is a custom transform (e.g. a link function or "
+            "saturation) dividing zero by zero at that date for some "
+            "posterior draw.  Check the model's transforms for "
+            f"{name!r} before re-running incrementality."
+        )
 
     # ==================== The perturbation ====================
 

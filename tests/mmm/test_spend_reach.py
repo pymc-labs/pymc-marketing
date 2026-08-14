@@ -588,6 +588,65 @@ class TestSpendProbe:
         assert not reach.requires_full_axis
         assert reach.effective_l_max == simple_fitted_mmm.adstock.l_max
 
+    # ---------- non-finite predictions ----------
+
+    def test_a_non_finite_probed_node_fails_construction_loudly(self):
+        """A NaN produced only under the perturbation is caught at construction.
+
+        ``spend / spend`` is finite everywhere on the baseline, which spends a
+        flat amount at every date, but the probe zeroes one date's spend to
+        perturb it -- so that date's evaluation divides zero by zero, the
+        shape of a real custom-transform bug.  Before this check, that NaN
+        reached :meth:`SpendProbe.measure`, where it poisoned ``largest`` in
+        ``_reach_of`` and made every date compare as unmoved, so
+        ``np.flatnonzero(moved)[-1]`` raised a bare ``IndexError`` instead of
+        naming the actual problem.
+        """
+        spend = self._spend()
+
+        def divide_by_self(spend: np.ndarray) -> np.ndarray:
+            column = spend[:, 0]
+            return (column / column)[np.newaxis]
+
+        with pytest.raises(ValueError, match=CHANNEL_CONTRIBUTION) as excinfo:
+            self._probe(spend, **{CHANNEL_CONTRIBUTION: divide_by_self})
+
+        assert "non-finite" in str(excinfo.value)
+
+    def test_a_non_finite_baseline_only_fails_construction_loudly(self):
+        """A NaN present only in the baseline's linear-predictor entry is also caught.
+
+        The baseline dict, including the linear predictor entry, is never run
+        back through the reach measurement, so a NaN sitting there is only
+        ever read by :meth:`SpendProbe.assert_increment_is_complete`.  Before
+        this check, that method would compare a finite probed predictor
+        against a NaN baseline, find the accounted and expected moves do not
+        match within tolerance, and raise the misleading unattributed-spend
+        ``NotImplementedError`` -- blaming attribution for what is a
+        numerical problem in the model's own prediction.
+        """
+        spend = self._spend()
+        evaluator = FakeEvaluator(
+            **{
+                CHANNEL_CONTRIBUTION: causal_filter(self.l_max),
+                LINEAR_PREDICTOR: lambda spend: causal_filter(self.l_max)(spend).sum(
+                    axis=-1
+                ),
+            }
+        )
+        baseline = evaluator.evaluate_baseline(spend)
+        baseline[LINEAR_PREDICTOR][0, 5] = np.nan
+
+        with pytest.raises(ValueError, match=LINEAR_PREDICTOR) as excinfo:
+            SpendProbe(
+                evaluator=evaluator,
+                baseline=baseline,
+                baseline_array=spend,
+                counterfactual_spend_factor=0.0,
+            )
+
+        assert "non-finite" in str(excinfo.value)
+
     # ---------- completeness ----------
 
     def _assert_complete(self, **nodes):
