@@ -461,28 +461,32 @@ class SpendProbe:
         -------
         list of int
             Indices of the dates to perturb.  Empty when nothing can be probed:
-            an all-zero spend array, one with spend only at the very first date,
-            or one where some channel spends *only* at the first date -- no
-            interior impulse could reach that channel, so no window can be
-            trusted.
+            an all-zero spend array, one with spend only at the very first or
+            very last date, or one where some channel spends *only* at the
+            first or last date -- no interior impulse could reach that
+            channel, so no window can be trusted.
         """
         n_dates = baseline_array.shape[0]
         n_channels = baseline_array.shape[-1] if baseline_array.ndim > 1 else 1
         per_date = np.abs(baseline_array.reshape(n_dates, -1, n_channels)).sum(axis=1)
-        if n_dates < 2:
+        if n_dates < 3:
             return []
 
-        # The first date is excluded: an impulse there has no earlier date to
-        # move, so a reduction over "date" would be indistinguishable from a
-        # causal filter.
-        eligible = per_date[1:]
+        # The first and last dates are both excluded.  An impulse at the first
+        # date has no earlier date to move, so a reduction over "date" would be
+        # indistinguishable from a causal filter.  An impulse at the last date
+        # has no later date to move either: its own reach would read as bounded
+        # at zero, and the "moved past the axis end" check in _reach_of would
+        # fire on every node regardless of its true reach.
+        eligible = per_date[1:-1]
         probeable = eligible.any(axis=0)
         # A channel with no spend anywhere cannot be moved by the counterfactual
         # either, so nothing about it needs measuring.  One whose only spend
-        # sits at the excluded first date is different: the counterfactual will
+        # sits at an excluded edge date is different: the counterfactual will
         # move it, but no probe can.
         only_first = ~probeable & per_date[0].astype(bool)
-        if only_first.any() or not probeable.any():
+        only_last = ~probeable & per_date[-1].astype(bool)
+        if only_first.any() or only_last.any() or not probeable.any():
             return []
 
         head_stop = max(2, n_dates // 8) - 1
@@ -584,8 +588,9 @@ class SpendProbe:
             # established.  Fall back to the only mode that is correct without a
             # measurement rather than trusting an unmeasured one.
             warnings.warn(
-                "Some channel's spend carries no non-zero date after the first, "
-                "so the reach of a spend counterfactual could not be measured.  "
+                "Some channel's spend carries no non-zero date after the first or "
+                "before the last, so the reach of a spend counterfactual could "
+                "not be measured.  "
                 "Every period will be evaluated on the full date axis, which is "
                 "correct but slower than a window.  With no probe, the "
                 "completeness of the increment -- that the evaluated nodes "

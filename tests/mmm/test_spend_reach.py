@@ -246,6 +246,27 @@ class TestSpendProbe:
             self.l_max + 2
         )
 
+    def test_the_probe_avoids_the_last_date_too(self):
+        """Flighted spend peaking on the final date must not park the probe there.
+
+        An impulse at the last date has nowhere later to move, so
+        :meth:`_reach_of` reads ``last_moved == n_dates - 1`` and reports every
+        node full-axis regardless of its true reach.  A dark head followed by
+        spend that only grows produces exactly this: the argmax fallback used
+        to land on the last date because nothing excluded it, the same way the
+        unexcluded first date used to swallow a reduction over ``date``.
+        """
+        spend = np.zeros((self.n_dates, 1))
+        spend[self.dark :, 0] = np.arange(1, self.n_dates - self.dark + 1, dtype=float)
+        assert spend[-1, 0] == spend.max()  # spend peaks on the final date
+
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: causal_filter(1)})
+
+        assert probe.probe_indices != []
+        assert probe.probe_indices[0] != self.n_dates - 1
+        reach = probe.measure(effects=(), l_max=0)
+        assert not reach.requires_full_axis
+
     def test_perturbing_a_dark_date_moves_nothing_at_all(self):
         """The failure mode the choice of date exists to avoid, stated directly.
 
@@ -398,6 +419,35 @@ class TestSpendProbe:
         assert probe.probe_indices == []
         with pytest.warns(UserWarning, match="could not be measured"):
             assert probe.measure(effects=(), l_max=self.l_max).requires_full_axis
+
+    def test_a_channel_spending_only_on_the_last_date_disables_the_probe(self):
+        """The last-date counterpart of the first-date-only case.
+
+        Spend sitting only at the very last date is exactly as unreachable by an
+        interior impulse as spend sitting only at the very first, so it has to
+        trip the same guard.
+        """
+        spend = self._spend()
+        spend[:, 1] = 0.0
+        spend[-1, 1] = 2.0
+
+        assert SpendProbe._select_probe_indices(spend) == []
+
+    def test_a_channel_spending_only_at_the_first_and_last_dates_disables_the_probe(
+        self,
+    ):
+        """A channel reachable only at the axis ends is unprobeable either way.
+
+        No interior impulse can move spend that sits only at the first or last
+        date, so nothing measured on the other channels can vouch for this one
+        either; the honest fallback has to fire.
+        """
+        spend = self._spend()
+        spend[:, 1] = 0.0
+        spend[0, 1] = 2.0
+        spend[-1, 1] = 2.0
+
+        assert SpendProbe._select_probe_indices(spend) == []
 
     def test_the_widest_reach_wins_on_both_counts(self):
         """Combining per-node reaches takes the longest tail and any full axis.
