@@ -75,6 +75,18 @@ CHANNEL_CONTRIBUTION = "channel_contribution"
 LINEAR_PREDICTOR = "mu"
 """Name the MMM gives its linear predictor, registered or not."""
 
+COMPLETENESS_ACCUMULATION_SAFETY_FACTOR = 100
+"""Safety factor for the float rounding accumulated across a compiled graph.
+
+:meth:`SpendProbe.assert_increment_is_complete` compares two sums of the same
+terms assembled through different chains of operations (adstock, saturation,
+one reduction per ``mu_effect``), each of which rounds.  A single operation
+rounds to within about one unit in the last place, but the accumulation across
+many chained operations can be several orders of magnitude larger than that
+one step; 100 is a generous margin for that accumulation without being so
+large that it could hide a real, small unattributed contribution.
+"""
+
 
 @dataclass(frozen=True)
 class ChannelDependentEffect:
@@ -957,11 +969,54 @@ class SpendProbe:
             # not move cannot excuse accounted nodes that did.  Taking the
             # predictor's scale alone would pass a misattribution vacuously.
             scale = max(float(np.abs(expected).max()), float(np.abs(accounted).max()))
+
+            # `expected` and `accounted` are each a difference of two
+            # full-magnitude evaluations, so their rounding floor is
+            # eps * |node|, not eps * |move|: two sums of the same terms
+            # assembled through different chains of operations (adstock,
+            # saturation, one reduction per mu_effect) round independently, and
+            # nothing keeps their errors from surviving the subtraction.  A
+            # tolerance proportional only to `scale` -- the size of the move --
+            # cannot absorb that, and under float32 (eps around 1.2e-7, a
+            # supported pytensor config) it does not have to be small before
+            # the accumulated rounding exceeds it.  So the floor also accounts
+            # for the magnitude of the nodes themselves: the largest baseline
+            # or probed value among every node the identity compares, which is
+            # where cancellation inside the accounted sum sets the true floor
+            # when large terms offset -- the predictor alone would understate
+            # it.
+            compared_names = (
+                LINEAR_PREDICTOR,
+                CHANNEL_CONTRIBUTION,
+                *(effect.contribution_var for effect in effects),
+            )
+            compared_arrays = [
+                array
+                for name in compared_names
+                for array in (self.baseline[name], probed[name])
+            ]
+            node_magnitude = max(
+                float(np.abs(array).max()) for array in compared_arrays
+            )
+            # The dtype actually produced by the compared arrays, not an
+            # assumption: nothing here gates on the model's floatX, and a
+            # float64 model must not be loosened by a float32-sized floor.
+            eps = np.finfo(np.result_type(*compared_arrays)).eps
+            # Unavoidable tradeoff: under float32 a real unattributed path
+            # smaller than roughly
+            # COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * |node| / |move|
+            # of the move now passes undetected.  Under float64 the floor is
+            # on the order of 1e-11 relative and never binds in practice, so
+            # float64 behaviour is unchanged.
+            atol = max(
+                self.COMPLETENESS_TOLERANCE * scale,
+                COMPLETENESS_ACCUMULATION_SAFETY_FACTOR * eps * node_magnitude,
+            )
             if scale == 0.0 or np.allclose(
                 accounted.values,
                 expected.values,
                 rtol=0.0,
-                atol=self.COMPLETENESS_TOLERANCE * scale,
+                atol=atol,
             ):
                 continue
 

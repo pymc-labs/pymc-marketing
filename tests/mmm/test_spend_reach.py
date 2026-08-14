@@ -99,6 +99,136 @@ def constant_node(spend):
     return np.ones((1, len(spend)))
 
 
+def float32_cancellation_values(
+    n_dates,
+    *,
+    n_channels=6,
+    node_magnitude=12_000.0,
+    delta=2e-3,
+    changed=2,
+    seed=27,
+):
+    """Build float32 ``channel_contribution``/predictor arrays with rounding noise.
+
+    ``channel_totals`` and ``probed_totals`` agree exactly in float64: only
+    ``changed`` moves, by exactly *delta*.  Rounding each side to float32
+    independently -- the per-channel totals on one side, their sum on the other
+    -- does not preserve that identity, because the sum's float32 grid (spacing
+    ``eps32 * node_magnitude``) is coarser than the grid a single small channel
+    rounds on.  The resulting mismatch is on the order of ``eps32 *
+    node_magnitude``, not of *delta*, which is what makes it noise rather than a
+    real unaccounted contribution: it does not shrink as more decimal digits of
+    *delta* are supplied, and it does not grow if the channels are re-scaled
+    without changing ``node_magnitude``.
+
+    Parameters
+    ----------
+    n_dates : int
+        Number of dates to broadcast the (date-independent) values over.
+    n_channels : int, default=6
+        Number of synthetic ``channel_contribution`` components.
+    node_magnitude : float, default=12_000.0
+        Target magnitude of the predictor and of the channel totals combined --
+        the scale the float32 rounding step is taken relative to.
+    delta : float, default=2e-3
+        Size of the move applied to channel *changed*, small relative to
+        *node_magnitude*.
+    changed : int, default=2
+        Index of the channel that moves.
+    seed : int, default=27
+        Seed for the channel split.  Fixed rather than randomized per test run:
+        the magnitude of the float32 cancellation this produces depends on
+        exactly where the rounding boundaries fall, and a seed found to produce
+        a representative amount of it is kept rather than re-drawn.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        ``(channel_base, channel_probed, predictor_base, predictor_probed)``,
+        each float32, shaped ``(n_dates, n_channels)`` for the channel pair and
+        ``(n_dates,)`` for the predictor pair.
+    """
+    rng = np.random.default_rng(seed)
+    channel_totals = rng.uniform(10.0, 3000.0, n_channels)
+    channel_totals *= node_magnitude / channel_totals.sum()
+    probed_totals = channel_totals.copy()
+    probed_totals[changed] += delta
+
+    channel_base32 = channel_totals.astype("float32")
+    channel_probed32 = probed_totals.astype("float32")
+    # The predictor is rounded from the float64 *sum*, not from the already
+    # float32-rounded channel totals: that is what a real graph does, since the
+    # predictor and channel_contribution are separate evaluations rather than
+    # one derived from the other's rounded output.
+    predictor_base32 = np.float32(channel_base32.sum(dtype=np.float32))
+    predictor_probed32 = np.float32(channel_probed32.sum(dtype=np.float32))
+
+    channel_base = np.broadcast_to(channel_base32, (n_dates, n_channels)).astype(
+        "float32"
+    )
+    channel_probed = np.broadcast_to(channel_probed32, (n_dates, n_channels)).astype(
+        "float32"
+    )
+    predictor_base = np.full(n_dates, predictor_base32, dtype="float32")
+    predictor_probed = np.full(n_dates, predictor_probed32, dtype="float32")
+    return channel_base, channel_probed, predictor_base, predictor_probed
+
+
+def dtype_probe(*, spend, channel_dtype, **paired_arrays):
+    """Build a :class:`SpendProbe` whose nodes return arrays chosen by hand.
+
+    :class:`FakeEvaluator` normally derives a node's output from the spend array
+    it is handed; here the desired -- already dtype-rounded -- baseline and
+    probed values are supplied directly, because the cancellation this module
+    tests for is the product of a real graph's many chained float32 operations,
+    which a two-line node function cannot reproduce from arithmetic on *spend*
+    alone.
+
+    Each entry of *paired_arrays* maps a node name to a ``(baseline, probed)``
+    pair.  :class:`SpendProbe` evaluates a node exactly twice: once outside
+    construction, building the baseline dict from the untouched *spend* array,
+    and once inside ``__init__``, evaluating the perturbed array.  The node
+    function returns the baseline member of the pair when handed an array equal
+    to *spend*, and the probed member otherwise.
+
+    Parameters
+    ----------
+    spend : np.ndarray
+        Actual spend, ``(n_dates, n_channels)``.  Only its shape and the dates
+        it makes probeable matter; the constructed nodes ignore its values.
+    channel_dtype : str
+        Dtype the evaluator reports, and so the dtype the perturbed spend array
+        is cast to before a node ever sees it.
+    **paired_arrays
+        Node name to ``(baseline, probed)`` array pair.
+
+    Returns
+    -------
+    SpendProbe
+        A probe built from the paired arrays.
+    """
+
+    def make_node(baseline_value, probed_value):
+        def node(candidate):
+            return baseline_value if np.array_equal(candidate, spend) else probed_value
+
+        return node
+
+    nodes = {
+        name: make_node(baseline_value, probed_value)
+        for name, (baseline_value, probed_value) in paired_arrays.items()
+    }
+    evaluator = FakeEvaluator(**nodes)
+    evaluator.channel_dtype = channel_dtype
+    baseline = evaluator.evaluate_baseline(spend)
+    return SpendProbe(
+        evaluator=evaluator,
+        baseline=baseline,
+        baseline_array=spend,
+        counterfactual_spend_factor=0.0,
+    )
+
+
 def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
     """Return the :class:`SpendReach` the module's probe arrives at for *mmm*.
 
@@ -707,3 +837,90 @@ class TestSpendProbe:
                 LINEAR_PREDICTOR: constant_node,
             }
         )
+
+    # ---------- dtype cancellation noise ----------
+
+    def test_float32_cancellation_noise_does_not_trip_the_completeness_check(self):
+        """A float32 model's own rounding must not read as unattributed spend.
+
+        ``channel_base``/``channel_probed`` and ``predictor_base``/
+        ``predictor_probed`` are built so the accounted identity -- the
+        predictor's move equals the sum of the channel moves -- holds exactly
+        in float64; only independently rounding each side to float32 disturbs
+        it (see :func:`float32_cancellation_values`).  The resulting move is
+        small (a few thousandths) while the nodes themselves are not (order
+        ``1e4``), which is exactly the shape a real float32 model produces: the
+        old ``atol = COMPLETENESS_TOLERANCE * scale`` floor is proportional to
+        the *move*, so it cannot absorb rounding proportional to the *node*.
+        Before the fix this raises the misleading unattributed-spend
+        ``NotImplementedError``; after it, the check passes.
+        """
+        spend = self._spend()
+        channel_base, channel_probed, predictor_base, predictor_probed = (
+            float32_cancellation_values(len(spend))
+        )
+        probe = dtype_probe(
+            spend=spend,
+            channel_dtype="float32",
+            **{
+                CHANNEL_CONTRIBUTION: (
+                    channel_base[np.newaxis],
+                    channel_probed[np.newaxis],
+                ),
+                LINEAR_PREDICTOR: (
+                    predictor_base[np.newaxis],
+                    predictor_probed[np.newaxis],
+                ),
+            },
+        )
+
+        probe.assert_increment_is_complete(
+            effects=(),
+            non_date_dims={CHANNEL_CONTRIBUTION: ("channel",), LINEAR_PREDICTOR: ()},
+        )
+
+    def test_a_genuinely_broken_float32_attribution_is_still_refused(self):
+        """The loosened tolerance does not stop catching a real unaccounted path.
+
+        Mirrors the case above at the same node magnitude (``1e4``) and dtype,
+        but here the channels genuinely account for only 95% of the predictor's
+        100-unit move -- a real missing contribution, not rounding noise. Its
+        size (5 units) is far above both the old tolerance and the new
+        ``K * eps * node_magnitude`` floor, so this must keep raising after the
+        fix exactly as it does before it.
+        """
+        spend = self._spend()
+        n_dates = len(spend)
+        predictor_base = np.full(n_dates, 12_000.0, dtype="float32")
+        predictor_probed = np.full(n_dates, 12_100.0, dtype="float32")
+        channel_base = np.broadcast_to(
+            np.array([6_000.0, 6_000.0], dtype="float32"), (n_dates, 2)
+        ).astype("float32")
+        # Only 95 of the predictor's 100-unit move is attributed.
+        channel_probed = np.broadcast_to(
+            np.array([6_047.5, 6_047.5], dtype="float32"), (n_dates, 2)
+        ).astype("float32")
+
+        probe = dtype_probe(
+            spend=spend,
+            channel_dtype="float32",
+            **{
+                CHANNEL_CONTRIBUTION: (
+                    channel_base[np.newaxis],
+                    channel_probed[np.newaxis],
+                ),
+                LINEAR_PREDICTOR: (
+                    predictor_base[np.newaxis],
+                    predictor_probed[np.newaxis],
+                ),
+            },
+        )
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            probe.assert_increment_is_complete(
+                effects=(),
+                non_date_dims={
+                    CHANNEL_CONTRIBUTION: ("channel",),
+                    LINEAR_PREDICTOR: (),
+                },
+            )
