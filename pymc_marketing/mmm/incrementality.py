@@ -736,11 +736,36 @@ class Incrementality:
         ValueError
             If frequency is invalid, period dates are outside fitted data
             range, ``counterfactual_spend_factor`` is negative, or
-            ``central_tendency`` is not one of ``{"median", "mean"}``.
+            ``central_tendency`` is not one of ``{"median", "mean"}``.  Also
+            raised if a ``mu_effect`` declares fewer carryover lags, or a
+            narrower ``evaluation_mode``, than a spend counterfactual was
+            measured to need (a declaration narrower than what was measured is
+            refused rather than silently overridden); if the model produces
+            non-finite predictions (NaN or infinity) for some posterior draw,
+            which usually means a transform is dividing zero by zero; or if a
+            post-fit mutation of an auxiliary date-indexed input is detected
+            (``MMM.sample_posterior_predictive(..., clone_model=False)`` or a
+            direct ``pm.set_data(...)`` call after fitting).  See
+            :mod:`~pymc_marketing.mmm.spend_reach` for the full story on each.
         NotImplementedError
             If the model's link function has no :class:`IncrementalReducer`, or a
             ``mu_effect`` that depends on channel spend has not opted in via
             :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`.
+            Also raised if the accounted nodes (``channel_contribution`` plus
+            the resolved effects) do not reproduce the full move in the linear
+            predictor, which means some path from spend to the response is
+            unattributed; see
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.assert_increment_is_complete`.
+
+        Warns
+        -----
+        UserWarning
+            If a spend counterfactual's reach could not be measured because no
+            interior date could be probed, the evaluation falls back to
+            evaluating every period on the full date axis instead of a window,
+            which is correct but slower, and the completeness check above is
+            skipped for lack of anything to compare it against.  See
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure`.
 
         See Also
         --------
@@ -1503,6 +1528,34 @@ class Incrementality:
             ``(chain, draw, date, channel, *custom_dims)``.
             Zero spend results in NaN for that channel/period.
 
+        Raises
+        ------
+        ValueError
+            If ``frequency`` is invalid, the requested dates fall outside the
+            fitted data range, or ``central_tendency`` is not ``"median"`` or
+            ``"mean"``; or, at compute time, if a ``mu_effect``'s declared
+            reach is narrower than what was measured, or a post-fit mutation
+            of an auxiliary input (e.g.
+            ``MMM.sample_posterior_predictive(..., clone_model=False)``) is
+            detected; or if the model produces non-finite predictions.  See
+            :mod:`~pymc_marketing.mmm.spend_reach` for the full story on each.
+        NotImplementedError
+            If the model's link function has no :class:`IncrementalReducer`,
+            if a channel-dependent ``mu_effect`` has not opted in via
+            :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.incrementality_spec`,
+            or if the accounted nodes do not reproduce the full move in the
+            linear predictor.
+
+        Warns
+        -----
+        UserWarning
+            If a spend counterfactual's reach could not be measured (no
+            interior date could be probed), the evaluation falls back to the
+            full date axis, which is correct but slower than a window, and
+            the completeness check above is skipped for lack of anything to
+            compare.  See
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure`.
+
         Examples
         --------
         >>> roas = mmm.incrementality.contribution_over_spend(
@@ -1566,6 +1619,18 @@ class Incrementality:
             Spend per unit contribution with dimensions
             ``(chain, draw, date, channel, *custom_dims)``.
             Zero contribution results in Inf; zero spend results in NaN.
+
+        Raises
+        ------
+        ValueError, NotImplementedError
+            Delegates to :meth:`contribution_over_spend`; see there for the
+            full list.
+
+        Warns
+        -----
+        UserWarning
+            Delegates to :meth:`contribution_over_spend`; see there for the
+            full-axis fallback warning.
 
         Examples
         --------
@@ -1638,7 +1703,22 @@ class Incrementality:
         Raises
         ------
         ValueError
-            If ``spend_increase_pct <= 0``.
+            If ``spend_increase_pct <= 0``; or, at compute time, the same
+            declaration-reconciliation and mutation-guard ``ValueError``
+            cases documented on :meth:`compute_incremental_contribution`.
+        NotImplementedError
+            If the model's link function has no :class:`IncrementalReducer`,
+            a channel-dependent ``mu_effect`` has not opted in, or the
+            accounted nodes do not reproduce the full move in the linear
+            predictor; see :meth:`compute_incremental_contribution`.
+
+        Warns
+        -----
+        UserWarning
+            If a spend counterfactual's reach could not be measured, the
+            evaluation falls back to the full date axis and the completeness
+            check is skipped; see
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure`.
 
         Examples
         --------

@@ -54,6 +54,7 @@ import inspect
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -65,6 +66,19 @@ from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_name
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
+
+_PKG_PREFIX = str(Path(__file__).resolve().parent.parent)
+"""The ``pymc_marketing`` package directory, computed once.
+
+Passed to ``warnings.warn(..., skip_file_prefixes=(_PKG_PREFIX,))`` so a
+warning raised deep in the incrementality machinery is attributed to the
+first frame outside the package rather than to a fixed number of frames up
+the stack.  Call depth from here to user code differs by entry point --
+``Incrementality.contribution_over_spend`` is a few frames shallower than
+``mmm.summary.roas(method="incremental")`` -- so no static ``stacklevel``
+integer is right for all of them at once; Python >= 3.12 is required by
+``pyproject.toml``, so ``skip_file_prefixes`` is always available.
+"""
 
 __all__ = [
     "CHANNEL_CONTRIBUTION",
@@ -833,7 +847,7 @@ class SpendProbe:
                 "account for the whole move in the linear predictor -- also "
                 "goes unverified.",
                 UserWarning,
-                stacklevel=3,
+                skip_file_prefixes=(_PKG_PREFIX,),
             )
             # The declarations are all there is to go on, and they are still
             # reported: full-axis evaluation sums to the axis end and so covers

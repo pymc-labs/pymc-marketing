@@ -14,6 +14,7 @@
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
 import warnings
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -23,6 +24,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
+import pymc_marketing
 from pymc_marketing.mmm import (
     MMM,
     GeometricAdstock,
@@ -3076,3 +3078,67 @@ class TestRoasRecovery:
                 f"channel {channel}: pre-fix ROAS {estimate:.4f} is "
                 f"unexpectedly close to the truth {truth:.4f}"
             )
+
+
+class TestWarningFrameAttribution:
+    """The full-axis fallback warning has to blame the caller, not spend_reach.
+
+    A static ``stacklevel`` cannot be right from every public entry point at
+    once: the call depth from ``SpendProbe.measure`` back to user code differs
+    per entry point (``Incrementality.contribution_over_spend`` is one frame
+    shallower than ``mmm.summary.roas(method="incremental")``, for instance).
+    ``skip_file_prefixes`` fixes this by walking up until the first frame
+    outside the package, regardless of depth.
+    """
+
+    @pytest.fixture
+    def unmeasurable_spend_fitted_mmm(self, simple_mmm_data):
+        """A model whose channels spend only on the first date.
+
+        No interior date can be probed (see
+        ``SpendProbe._select_probe_indices``), so ``measure`` cannot establish
+        a window and falls back to full-axis evaluation, warning as it does.
+        """
+        from tests.mmm.conftest import mock_fit
+
+        X = simple_mmm_data["X"].copy()
+        channel_cols = ["channel_1", "channel_2", "channel_3"]
+        X.loc[X.index[1:], channel_cols] = 0.0
+        y = simple_mmm_data["y"]
+
+        mmm = MMM(
+            channel_columns=channel_cols,
+            date_column="date",
+            target_column="target",
+            control_columns=None,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mock_fit(mmm, X, y, random_seed=42)
+        return mmm
+
+    def test_fallback_warning_filename_is_outside_the_package(
+        self, unmeasurable_spend_fitted_mmm
+    ):
+        """The reported filename is this test file's, not spend_reach.py's.
+
+        Regression for the stacklevel=3 bug: at this call depth (test ->
+        ``contribution_over_spend`` -> ``compute_incremental_contribution`` ->
+        ``_compute_increments`` -> ``SpendProbe.measure`` ->
+        ``warnings.warn``) a static ``stacklevel=3`` lands inside
+        incrementality.py, still inside the package, rather than at this test.
+        """
+        package_dir = str(Path(pymc_marketing.__file__).resolve().parent)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            unmeasurable_spend_fitted_mmm.incrementality.contribution_over_spend(
+                frequency="all_time"
+            )
+
+        fallback = [w for w in caught if "could not be measured" in str(w.message)]
+        assert len(fallback) == 1
+        assert not fallback[0].filename.startswith(package_dir), (
+            f"warning attributed to {fallback[0].filename!r}, inside the "
+            f"package directory {package_dir!r}"
+        )
