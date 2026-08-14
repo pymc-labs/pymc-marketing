@@ -1,0 +1,22 @@
+pymc_marketing/mmm/incrementality.py
+  s_378aabd60c5f3c::t_2fa7fbe4b9921e 1083-1093,1097-1104
+  s_378aabd60c5f3c::t_eac573cedbf46a 1150-1151
+  s_378aabd60c5f3c::t_21fc8454691e04 1055
+  s_378aabd60c5f3c::t_e77614dffa259d 253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5ed70022c6a3041bbfef3fd152cb8a2605651140",
+  "prompts": {},
+  "sessions": {
+    "s_378aabd60c5f3c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f8eb21be-8b9a-4584-a0ca-c801242c870a",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
