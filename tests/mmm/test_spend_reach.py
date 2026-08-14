@@ -84,6 +84,40 @@ def single_channel_filter(reach, channel):
     return node
 
 
+def separable_columns(spend):
+    """A ``channel_contribution`` whose column *c* reads channel *c* alone.
+
+    What every stock adstock/saturation pair produces, and the assumption the
+    separable readout rests on: perturbing one channel leaves every other column
+    bit-identical.
+    """
+    return (spend / (1.0 + spend))[np.newaxis]
+
+
+def shared_denominator_columns(spend):
+    """A ``channel_contribution`` whose columns compete for one pool.
+
+    ``x_c / (1 + sum_c x_c)``: expressible as a custom saturation, since
+    ``forward_pass`` hands the whole ``(date, channel)`` tensor over, and enough
+    to make column *m* of an all-channels counterfactual something other than
+    channel *m*'s unilateral counterfactual.
+    """
+    return (spend / (1.0 + spend.sum(axis=-1, keepdims=True)))[np.newaxis]
+
+
+def leaks_into_the_next_channel(spend):
+    """A ``channel_contribution`` mixing in one direction only.
+
+    Channel 0's spend enters channel 1's column, and nothing enters channel 0's.
+    A single probe placed on channel 1 therefore sees a perfectly separable
+    graph, which is why the mixing probes are taken per channel.
+    """
+    out = spend / (1.0 + spend)
+    if spend.shape[-1] > 1:
+        out[..., 1] = out[..., 1] + 0.5 * spend[..., 0]
+    return out[np.newaxis]
+
+
 def date_normalized(spend):
     """A node whose value at every date depends on every date.
 
@@ -230,8 +264,8 @@ def dtype_probe(*, spend, channel_dtype, **paired_arrays):
     )
 
 
-def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
-    """Return the :class:`SpendReach` the module's probe arrives at for *mmm*.
+def build_spend_probe(mmm, counterfactual_spend_factor=0.0):
+    """Return ``(probe, evaluator, effects)`` for *mmm*, as the module builds them.
 
     Reassembles the pieces :meth:`Incrementality._compute_increments` puts
     together, so a test can ask what the probe concluded without inferring it from
@@ -256,7 +290,19 @@ def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
         baseline_array=baseline_array,
         counterfactual_spend_factor=counterfactual_spend_factor,
     )
+    return probe, evaluator, effects
+
+
+def measure_spend_reach(mmm, counterfactual_spend_factor=0.0):
+    """Return the :class:`SpendReach` the module's probe arrives at for *mmm*."""
+    probe, _, effects = build_spend_probe(mmm, counterfactual_spend_factor)
     return probe.measure(effects=effects, l_max=mmm.adstock.l_max)
+
+
+def measures_channel_mixing(mmm, counterfactual_spend_factor=0.0):
+    """Whether the probe finds one channel's spend moving another's contribution."""
+    probe, evaluator, _ = build_spend_probe(mmm, counterfactual_spend_factor)
+    return probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
 
 
 def measure_reach(mmm, counterfactual_spend_factor=0.0):
@@ -711,6 +757,72 @@ class TestSpendProbe:
         spend[-1, 1] = 2.0
 
         assert SpendProbe._select_probe_indices(spend) == []
+
+    # ---------- channel mixing ----------
+
+    channel_dims = {CHANNEL_CONTRIBUTION: ("channel",)}
+    """Dimensions a ``channel_contribution``-shaped analytic node carries."""
+
+    def test_a_separable_transform_reports_no_mixing(self):
+        """Columns that depend on their own channel alone cost nothing extra.
+
+        The overwhelmingly common case, and the one the whole separable readout
+        is built on.  A false positive here would multiply every plain MMM's
+        counterfactual bill by the number of channels.
+        """
+        probe = self._probe(self._spend(), **{CHANNEL_CONTRIBUTION: separable_columns})
+
+        assert not probe.mixes_channels(non_date_dims=self.channel_dims)
+
+    def test_a_shared_denominator_is_detected_as_mixing(self):
+        """One channel's spend moving another channel's column is measured.
+
+        Nothing else in the module can see this: the reach probe collapses the
+        channel dimension before comparing, and the completeness identity sums
+        over channels, so the cross-column movement cancels inside it.
+        """
+        probe = self._probe(
+            self._spend(), **{CHANNEL_CONTRIBUTION: shared_denominator_columns}
+        )
+
+        assert probe.mixes_channels(non_date_dims=self.channel_dims)
+
+    def test_asymmetric_mixing_is_detected_from_the_channel_that_shows_it(self):
+        """One probe per channel, because mixing need not run both ways.
+
+        Channel 0 leaks into channel 1's column and not the other way round, so a
+        single probe on channel 1 would come back clean and the model would be
+        declared separable on the strength of the one direction that is.
+        """
+        probe = self._probe(
+            self._spend(), **{CHANNEL_CONTRIBUTION: leaks_into_the_next_channel}
+        )
+
+        assert probe.mixes_channels(non_date_dims=self.channel_dims)
+
+    def test_an_unprobeable_channel_is_treated_as_mixing(self):
+        """No measurement means the conservative answer, not the cheap one.
+
+        A channel whose only spend sits at an axis end cannot be given an
+        interior impulse, so nothing establishes that it leaves the other
+        columns alone.  Per-channel scenarios are then correct at worst wasteful;
+        assuming separability is wrong at worst silent.
+        """
+        spend = self._spend()
+        spend[:, 1] = 0.0
+        spend[0, 1] = 2.0
+        probe = self._probe(spend, **{CHANNEL_CONTRIBUTION: separable_columns})
+
+        assert probe.mixes_channels(non_date_dims=self.channel_dims)
+
+    def test_a_single_channel_model_cannot_mix(self):
+        """With one channel there is no other column for spend to reach into."""
+        probe = self._probe(
+            self._spend(n_channels=1),
+            **{CHANNEL_CONTRIBUTION: shared_denominator_columns},
+        )
+
+        assert not probe.mixes_channels(non_date_dims=self.channel_dims)
 
     def test_the_widest_reach_wins_on_both_counts(self):
         """Combining per-node reaches takes the longest tail and any full axis.

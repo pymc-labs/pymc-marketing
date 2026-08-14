@@ -1099,11 +1099,21 @@ class Incrementality:
                 CounterfactualEvaluator.CHANNEL_DATA, ()
             )
         )
+        # Two ways a per-channel column can stop being channel m's unilateral
+        # counterfactual.  An effect can mix channels before reaching the
+        # response, so no per-channel column survives at all.  Failing that, the
+        # media transform itself can mix them -- ``forward_pass`` hands the
+        # saturation the whole (date, channel) tensor, so a shared denominator is
+        # expressible -- which is measured rather than assumed away, and only
+        # where a per-channel column is going to be read: the joint estimand sums
+        # over channels either way, and with effects the per-channel scenarios
+        # are already being built.
+        needs_dedicated_rows = bool(effects) or (
+            estimand == "per_channel"
+            and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
+        )
         channel_axis = None
-        if effects:
-            # An effect can mix channels before reaching the response, so no
-            # per-channel column survives to be read off a single all-channels
-            # perturbation.  One counterfactual per channel is then unavoidable.
+        if needs_dedicated_rows:
             channel_axis = [d for d in channel_data_dims if d != "date"].index(
                 "channel"
             )
@@ -1134,6 +1144,7 @@ class Incrementality:
             n_draws=n_draws,
             reducer=reducer,
             estimand=estimand,
+            dedicated_channel_rows=channel_axis is not None,
         )
 
     def _validate_input(
@@ -1243,8 +1254,16 @@ class Incrementality:
             for other reasons -- the linear predictor is evaluated to check the
             increment is complete and must not be added into it.
         channel : int or None
-            Channel to read out of ``channel_contribution``, or ``None`` to sum
-            the channel dimension away for the joint estimand.
+            Column of ``channel_contribution`` to read, or ``None`` to sum the
+            channel dimension away.  A column is read only when *row* is a
+            **shared** all-channels perturbation whose other columns answer for
+            other channels; that is the separable case, where the untouched
+            columns of a channel's own counterfactual are exactly unmoved and
+            summing would return the joint delta instead.  When *row* is a
+            perturbation of one channel alone -- the mediated case, and the
+            measured-mixing one -- the whole delta belongs to that channel,
+            including the movement it caused in the other columns, so the sum is
+            what the unilateral estimand asks for.
 
         Returns
         -------
@@ -1285,6 +1304,7 @@ class Incrementality:
         n_draws: int,
         reducer: IncrementalReducer,
         estimand: Literal["per_channel", "joint"],
+        dedicated_channel_rows: bool,
     ) -> xr.DataArray:
         """Assemble per-period incremental results into a single DataArray.
 
@@ -1329,6 +1349,13 @@ class Incrementality:
             ``"per_channel"`` perturbs one channel at a time and keeps a
             ``channel`` dimension; ``"joint"`` perturbs all channels together and
             returns a single number per period.
+        dedicated_channel_rows : bool
+            Whether *scenarios* holds a row per (period, channel), each
+            perturbing that channel alone.  This is what decides how a
+            per-channel row is read: a dedicated row's whole
+            ``channel_contribution`` delta belongs to the perturbed channel,
+            while a shared all-channels row has to be read column by column,
+            since summing it would hand every channel the joint delta.
 
         Returns
         -------
@@ -1356,11 +1383,16 @@ class Incrementality:
                 name: values[:, window.in_eval] for name, values in baseline.items()
             }
 
-            # (scenario key, channel to read) per output slice.  The joint
+            # (scenario key, channel column to read) per output slice.  The joint
             # estimand reads a single scenario and sums the channel dimension
-            # away; the per-channel one reads its own scenario per channel.
+            # away; the per-channel one reads its own scenario per channel, and
+            # sums that too whenever the scenario perturbed that channel alone --
+            # see ``_delta_mu``'s ``channel`` for why the two cases differ.
             slices: list[tuple[int | None, int | None]] = (
-                [(idx, idx) for idx in range(len(channels))]
+                [
+                    (idx, None if dedicated_channel_rows else idx)
+                    for idx in range(len(channels))
+                ]
                 if estimand == "per_channel"
                 else [(None, None)]
             )

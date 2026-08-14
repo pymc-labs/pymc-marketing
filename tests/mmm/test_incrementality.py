@@ -53,6 +53,7 @@ from tests.mmm.test_spend_reach import (
     effective_l_max,
     measure_reach,
     measure_spend_reach,
+    measures_channel_mixing,
 )
 
 
@@ -375,7 +376,7 @@ def source_spend(X, frequency, channels):
     )
 
 
-def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
+def mediated_identity_oracle(mmm, *effect_vars, l_max=None, sum_channels=False):
     """Per-channel mediated increment for an additive model, read off the graph.
 
     Under ``link="identity"`` the increment is ``target_scale`` times the summed
@@ -392,6 +393,14 @@ def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
         Contribution variables of the mediated effects to include.
     l_max : int, optional
         Carry-out length; defaults to the reconciled reach the module uses.
+    sum_channels : bool, default=False
+        How to read ``channel_contribution`` out of a counterfactual that zeroed
+        one channel.  ``False`` reads that channel's own column, which is the
+        whole of its unilateral effect only while the media transform is
+        separable across channels.  ``True`` sums the whole contribution delta,
+        which is the unilateral estimand under any transform and is bit-identical
+        to the column readout for a separable one, since the untouched columns
+        do not move at all.
 
     Returns
     -------
@@ -425,8 +434,11 @@ def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
         cf_data[tuple(selector)] = 0.0
         cf_channel, cf_effects = predictor(cf_data)
 
-        delta = base_channel.isel(channel=idx, drop=True) - cf_channel.isel(
-            channel=idx, drop=True
+        delta = (
+            (base_channel - cf_channel).sum("channel")
+            if sum_channels
+            else base_channel.isel(channel=idx, drop=True)
+            - cf_channel.isel(channel=idx, drop=True)
         )
         for base, counterfactual in zip(base_effects, cf_effects, strict=True):
             delta = delta + (base - counterfactual)
@@ -438,6 +450,55 @@ def mediated_identity_oracle(mmm, *effect_vars, l_max=None):
         )
 
     return xr.concat(expected, dim="channel").transpose("chain", "draw", "channel", ...)
+
+
+def identity_joint_oracle(mmm, *effect_vars, l_max=None):
+    """All-channels increment for an additive model, read off the graph.
+
+    The joint counterpart of :func:`mediated_identity_oracle`: a single
+    counterfactual zeroing every channel at once, whose whole change in the
+    linear predictor is the joint increment.  No per-channel column is read, so
+    this is the one estimand a media transform that mixes channels cannot
+    disturb.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted model built with ``link="identity"``.
+    *effect_vars : str
+        Contribution variables of the mediated effects to include.
+    l_max : int, optional
+        Carry-out length; defaults to the reconciled reach the module uses.
+
+    Returns
+    -------
+    xr.DataArray
+        All-time increment with dimensions ``(chain, draw, *dims)``.
+    """
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    actual = mmm.model["channel_data"].get_value()
+    target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+    if l_max is None:
+        l_max = effective_l_max(mmm)
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+    eval_dates = dates[dates <= dates[-1] + l_max * freq_offset]
+
+    def predictor(channel_data):
+        return (
+            evaluate_under_spend(mmm, channel_data, "channel_contribution"),
+            [evaluate_under_spend(mmm, channel_data, var) for var in effect_vars],
+        )
+
+    base_channel, base_effects = predictor(actual)
+    cf_channel, cf_effects = predictor(np.zeros_like(actual))
+
+    delta = (base_channel - cf_channel).sum("channel")
+    for base, counterfactual in zip(base_effects, cf_effects, strict=True):
+        delta = delta + (base - counterfactual)
+
+    return (delta.sel(date=eval_dates).sum(dim="date") * target_scale).transpose(
+        "chain", "draw", ...
+    )
 
 
 @pytest.fixture
@@ -2281,6 +2342,121 @@ class TestMediatedMuEffects:
         )
 
         assert (scenarios.spend[scenarios.rows[(0, None)]] == 0).all()
+
+
+class TestChannelMixingMediaTransforms:
+    r"""Increments when the media transform itself is not separable across channels.
+
+    Both readout sites in the module rest on the same unverified assumption: that
+    :math:`v_{t,c}` depends on channel *c*'s spend alone.  A saturation of the
+    shape :math:`x_c / (1 + \sum_{c'} x_{c'})` is expressible -- ``forward_pass``
+    hands the saturation the whole ``(date, channel)`` tensor -- and breaks it in
+    both places at once.  Without an effect, the module perturbs every channel
+    together and reads column *m* as channel *m*'s unilateral counterfactual; with
+    one, it perturbs channel *m* alone but then discards the movement its
+    perturbation caused in every other column.  Neither failure is visible to the
+    existing guards: the reach probe collapses the channel dimension, and the
+    completeness identity sums over channels, so it still closes.
+    """
+
+    def test_a_mixing_transform_matches_the_unilateral_oracle(
+        self, mixing_identity_fitted_mmm
+    ):
+        """The separable branch: per-channel increments are truly unilateral.
+
+        The oracle zeroes one channel at a time and sums the *whole* change in
+        ``channel_contribution``, which is what the increment for channel *m*
+        means.  On a single all-channels perturbation, column *m* answers a
+        different question -- what channel *m* contributed when every channel was
+        dark -- and the two numbers are not close.
+        """
+        mmm = mixing_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm, l_max=effective_l_max(mmm), sum_channels=True
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_the_mixing_is_material(self, mixing_identity_fitted_mmm):
+        """The two readouts differ by far more than rounding.
+
+        Without this, a regression that quietly went back to reading the joint
+        row's column *m* could still satisfy a loose tolerance somewhere.  The
+        column readout attributes the whole shared denominator to every channel,
+        so it overstates each one.
+        """
+        mmm = mixing_identity_fitted_mmm
+
+        unilateral = mediated_identity_oracle(
+            mmm, l_max=effective_l_max(mmm), sum_channels=True
+        )
+        joint_column = mediated_identity_oracle(mmm, l_max=effective_l_max(mmm))
+
+        assert float(unilateral.mean(("chain", "draw")).sum()) > 0
+        assert float(joint_column.mean(("chain", "draw")).sum()) > 1.2 * float(
+            unilateral.mean(("chain", "draw")).sum()
+        )
+
+    def test_a_mediated_mixing_transform_matches_the_unilateral_oracle(
+        self, mixing_funnel_identity_fitted_mmm
+    ):
+        """The mediated branch: the dedicated per-channel row is read whole.
+
+        The funnel effect already forces one counterfactual per channel, so the
+        perturbation is right; what the pre-fix readout does is take channel
+        *m*'s column out of it and drop the movement the same perturbation caused
+        in the other columns.  That movement is exactly zero for a separable
+        transform, which is why this needs a mixing one to have anything to fail
+        on.
+        """
+        mmm = mixing_funnel_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm,
+            "funnel_effect_contribution",
+            l_max=effective_l_max(mmm),
+            sum_channels=True,
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_mixing_is_detected_and_separability_is_not_assumed(
+        self, mixing_identity_fitted_mmm, simple_fitted_mmm
+    ):
+        """The probe measures the assumption rather than the module taking it.
+
+        The detection is what routes a mixing model onto per-channel scenarios in
+        the first place, and it has to stay quiet for a separable model or every
+        plain MMM pays a factor of ``n_channels`` for nothing.
+        """
+        assert measures_channel_mixing(mixing_identity_fitted_mmm)
+        assert not measures_channel_mixing(simple_fitted_mmm)
+
+    def test_the_joint_estimand_is_unaffected_by_mixing(
+        self, mixing_identity_fitted_mmm
+    ):
+        """Perturbing every channel at once needs no per-channel column at all.
+
+        The joint number sums the contribution delta over channels either way, so
+        mixing changes nothing about how it is read -- and it must not start
+        paying for per-channel scenarios it would never look at.
+        """
+        mmm = mixing_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_joint_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = identity_joint_oracle(mmm, l_max=effective_l_max(mmm))
+
+        assert "channel" not in result.dims
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
 
 class TestMediatedEdgeCases:

@@ -14,8 +14,8 @@
 r"""How far a change in spend reaches, and whether the accounting closes.
 
 :mod:`~pymc_marketing.mmm.incrementality` computes a difference of predictions
-and divides it by spend.  Before it can, two facts about the fitted graph have to
-be established, and neither can be assumed:
+and divides it by spend.  Before it can, three facts about the fitted graph have
+to be established, and none of them can be assumed:
 
 1. **How far in time a change in spend moves the evaluated nodes.**  The
    counterfactual is evaluated on a *window* around each period rather than on
@@ -28,17 +28,24 @@ be established, and neither can be assumed:
    the resolved ``mu_effects``.  If spend reaches :math:`\mu` by some other
    route, the increment reports one part of the response as though it were all of
    it.
+3. **Whether one channel's spend moves another channel's contribution.**  A
+   per-channel increment read off a single all-channels perturbation takes column
+   *c* of ``channel_contribution`` to be a function of channel *c*'s spend alone.
+   A media transform with a shared denominator makes that false for every channel
+   at once, and neither of the other two measurements can see it.
 
-Both are read off *one* extra evaluation: perturb spend at a single interior date
-on the untruncated axis and compare against the baseline.  That shared
-measurement is why the two questions live in the same module -- and why they live
-apart from :class:`~pymc_marketing.mmm.incrementality.Incrementality`, which owns
-periods, windows, spend and the link-specific reduction, and has nothing to say
-about either.
+The first two are read off *one* extra evaluation: perturb spend at a single
+interior date on the untruncated axis and compare against the baseline.  The
+third is the same perturbation restricted to one channel, taken per channel and
+only when a per-channel column is going to be read.  That shared measurement is
+why the questions live in the same module -- and why they live apart from
+:class:`~pymc_marketing.mmm.incrementality.Incrementality`, which owns periods,
+windows, spend and the link-specific reduction, and has nothing to say about any
+of them.
 
-The entry point is :meth:`SpendProbe.measure`, which returns a
+The entry points are :meth:`SpendProbe.measure`, which returns a
 :class:`SpendReach`: an evaluation-window length and whether a window is usable
-at all.
+at all, and :meth:`SpendProbe.mixes_channels`, which answers the third question.
 """
 
 from __future__ import annotations
@@ -409,8 +416,10 @@ class SpendProbe:
     date left alone, and the whole graph re-evaluated on the untruncated axis.
     Comparing that against the baseline makes observable what the evaluation
     otherwise has to assume -- how far forward a change in spend still moves each
-    node, whether any node moves *backwards* in time, and whether the nodes being
-    evaluated account for the whole move in the linear predictor.
+    node, whether any node moves *backwards* in time, whether the nodes being
+    evaluated account for the whole move in the linear predictor, and (on
+    request, see :meth:`mixes_channels`) whether one channel's spend moves
+    another channel's contribution.
 
     One probe suffices only if every channel spends at the probed date, because
     an effect is free to read a subset of channels.  When no single date covers
@@ -484,6 +493,14 @@ class SpendProbe:
         self.baseline = baseline
         for name, array in baseline.items():
             self._assert_finite(name, array)
+        # Kept so the mixing probes (:meth:`mixes_channels`) can be taken later
+        # and only if some caller needs them: they cost one more call to this
+        # same compiled function per spending channel, which is worth paying
+        # only where a per-channel column is actually going to be read.
+        self._evaluator = evaluator
+        self._baseline_array = baseline_array
+        self._counterfactual_spend_factor = counterfactual_spend_factor
+        self._mixes_channels: bool | None = None
         self.probe_indices = self._select_probe_indices(baseline_array)
         self.probes: dict[int, dict[str, np.ndarray]] = {
             probe_index: evaluator.evaluate_baseline(
@@ -561,8 +578,8 @@ class SpendProbe:
 
     # ==================== The perturbation ====================
 
-    @staticmethod
-    def _select_probe_indices(baseline_array: np.ndarray) -> list[int]:
+    @classmethod
+    def _select_probe_indices(cls, baseline_array: np.ndarray) -> list[int]:
         """Choose dates whose spend the probes can actually move -- per channel.
 
         A multiplicative perturbation of an all-zero cell is a no-op, and a no-op
@@ -627,19 +644,89 @@ class SpendProbe:
         if only_first.any() or only_last.any() or not probeable.any():
             return []
 
-        head_stop = max(2, n_dates // 8) - 1
-
-        def pick(magnitude: np.ndarray) -> int:
-            in_head = np.flatnonzero(magnitude[:head_stop])
-            chosen = in_head if in_head.size else np.flatnonzero(magnitude)
-            return 1 + int(chosen[np.argmax(magnitude[chosen])])
-
         covering = (eligible[:, probeable] > 0).all(axis=1)
         if covering.any():
-            return [pick(np.where(covering, eligible.sum(axis=1), 0.0))]
+            return [
+                cls._pick_probe_date(
+                    np.where(covering, eligible.sum(axis=1), 0.0), n_dates
+                )
+            ]
         return sorted(
-            {pick(eligible[:, channel]) for channel in np.flatnonzero(probeable)}
+            {
+                cls._pick_probe_date(eligible[:, channel], n_dates)
+                for channel in np.flatnonzero(probeable)
+            }
         )
+
+    @staticmethod
+    def _pick_probe_date(magnitude: np.ndarray, n_dates: int) -> int:
+        """Choose which interior date to probe, given a per-date magnitude.
+
+        Prefers an early date, for the reasons :meth:`_select_probe_indices`
+        gives: a forward tail needs room on the axis to end in, and a backward
+        move shows up from anywhere.  Among the head dates, the largest magnitude
+        wins, so the perturbation is as far above float noise as the data allows.
+
+        Parameters
+        ----------
+        magnitude : np.ndarray
+            Per *interior* date magnitude, shape ``(n_dates - 2,)``, whose index
+            zero is date index one.  At least one entry must be non-zero.
+        n_dates : int
+            Length of the full date axis, which fixes how much of it counts as
+            the head.
+
+        Returns
+        -------
+        int
+            Index into the full date axis.
+        """
+        head_stop = max(2, n_dates // 8) - 1
+        in_head = np.flatnonzero(magnitude[:head_stop])
+        chosen = in_head if in_head.size else np.flatnonzero(magnitude)
+        return 1 + int(chosen[np.argmax(magnitude[chosen])])
+
+    @classmethod
+    def _select_channel_probe_indices(
+        cls, baseline_array: np.ndarray
+    ) -> dict[int, int] | None:
+        """Choose one probe date per channel, for the mixing measurement.
+
+        Distinct from :meth:`_select_probe_indices`, which is free to answer with
+        a single date that covers every channel: a mixing probe has to perturb
+        *one* channel and watch the others, so each channel needs a date of its
+        own at which it spends.
+
+        Parameters
+        ----------
+        baseline_array : np.ndarray
+            Actual spend, ``(n_dates, *extra_shape)``, channel last.
+
+        Returns
+        -------
+        dict or None
+            Channel index to date index, over the channels that spend at some
+            interior date.  ``None`` when some channel spends but cannot be
+            probed, which leaves its separability unmeasurable rather than
+            measured to hold.
+        """
+        n_dates = baseline_array.shape[0]
+        n_channels = baseline_array.shape[-1] if baseline_array.ndim > 1 else 1
+        per_date = np.abs(baseline_array.reshape(n_dates, -1, n_channels)).sum(axis=1)
+        if n_dates < 3:
+            return None
+
+        eligible = per_date[1:-1]
+        probeable = eligible.any(axis=0)
+        # A channel that never spends cannot be moved by the counterfactual
+        # either, so it has no separability to establish.  One that spends only
+        # at an excluded edge date does, and no probe can establish it.
+        if (per_date.any(axis=0) & ~probeable).any():
+            return None
+        return {
+            int(channel): cls._pick_probe_date(eligible[:, channel], n_dates)
+            for channel in np.flatnonzero(probeable)
+        }
 
     @staticmethod
     def _perturb(
@@ -648,6 +735,7 @@ class SpendProbe:
         probe_index: int,
         counterfactual_spend_factor: float,
         dtype: str,
+        channel: int | None = None,
     ) -> np.ndarray:
         """Return spend with one date scaled and every other date untouched.
 
@@ -662,17 +750,27 @@ class SpendProbe:
             back to zeroing the date out.
         dtype : str
             Dtype the compiled evaluator expects.
+        channel : int, optional
+            Perturb this channel alone rather than the whole date, which is what
+            makes the other channels' response to it observable.  Indexes the
+            trailing axis, as ``channel_data`` lays it out.
 
         Returns
         -------
         np.ndarray
-            A copy of *baseline_array*, one row scaled.
+            A copy of *baseline_array*, one row -- or one cell of one row --
+            scaled.
         """
         factor = (
             counterfactual_spend_factor if counterfactual_spend_factor != 1.0 else 0.0
         )
         probe_array = baseline_array.astype(dtype, copy=True)
-        probe_array[probe_index] = probe_array[probe_index] * factor
+        if channel is None:
+            probe_array[probe_index] = probe_array[probe_index] * factor
+        else:
+            probe_array[probe_index, ..., channel] = (
+                probe_array[probe_index, ..., channel] * factor
+            )
         return probe_array
 
     # ==================== Reach ====================
@@ -927,6 +1025,112 @@ class SpendProbe:
             )
 
         return reconciled
+
+    # ==================== Channel separability ====================
+
+    def mixes_channels(self, *, non_date_dims: Mapping[str, tuple[str, ...]]) -> bool:
+        r"""Measure whether one channel's spend moves another channel's column.
+
+        The separable readout takes column *m* of a single all-channels
+        counterfactual to be channel *m*'s unilateral counterfactual.  That holds
+        only while :math:`v_{t,c}` is a function of channel *c*'s spend alone,
+        and nothing in the MMM enforces it: ``forward_pass`` hands the saturation
+        the whole ``(date, channel)`` tensor, so a transform with a shared
+        denominator -- :math:`x_c / (1 + \sum_{c'} x_{c'})`, channels competing
+        for one pool of attention -- is expressible and makes that readout wrong
+        for every channel at once.
+
+        Neither of the other guards can see it.  :meth:`measure` collapses every
+        non-date dimension before comparing, so a move that stays within a date
+        is invisible to it, and
+        :meth:`assert_increment_is_complete` sums over channels, which is exactly
+        the operation the cross-column movement is conserved under.  So it is
+        measured here, and separately: one probe per spending channel, perturbing
+        that channel alone at a date it spends, checking that no other channel's
+        column moves.  Per channel rather than once, because mixing need not be
+        symmetric -- a single probe on the channel nothing leaks into would come
+        back clean.
+
+        The cost is one call to the already-compiled evaluator per spending
+        channel, so callers should ask only when a per-channel column is going to
+        be read.
+
+        Parameters
+        ----------
+        non_date_dims : mapping
+            Per node, the dimensions its evaluation carries after ``sample`` and
+            ``date``.  Only ``channel_contribution``'s entry is read, to find
+            which axis the channels lie along: it is not always the last one, and
+            an assumption there would silently compare the wrong slices.
+
+        Returns
+        -------
+        bool
+            Whether the channels have to be perturbed one at a time.  ``True``
+            also when some spending channel could not be probed: correctness
+            beats speed, and per-channel scenarios are right either way while
+            assuming separability is silently wrong.
+        """
+        if self._mixes_channels is None:
+            self._mixes_channels = self._measure_channel_mixing(non_date_dims)
+        return self._mixes_channels
+
+    def _measure_channel_mixing(
+        self, non_date_dims: Mapping[str, tuple[str, ...]]
+    ) -> bool:
+        """Take the per-channel probes and read the answer off them.
+
+        Parameters
+        ----------
+        non_date_dims : mapping
+            Per node, the dimensions after ``sample`` and ``date``.
+
+        Returns
+        -------
+        bool
+            Whether any channel's perturbation moved another channel's column.
+        """
+        baseline_array = self._baseline_array
+        n_channels = baseline_array.shape[-1] if baseline_array.ndim > 1 else 1
+        if n_channels < 2:
+            # One column cannot be moved by another channel's spend, and the
+            # per-channel and joint perturbations coincide anyway.
+            return False
+
+        placements = self._select_channel_probe_indices(baseline_array)
+        if placements is None:
+            # Some channel spends only where no interior impulse can reach it,
+            # so its separability is unmeasurable.  Answer conservatively: the
+            # per-channel scenarios this selects are correct under mixing and
+            # merely more expensive without it.
+            return True
+
+        # `+ 2` for the sample and date axes the evaluations carry in front.
+        channel_axis = non_date_dims[CHANNEL_CONTRIBUTION].index("channel") + 2
+        baseline = self.baseline[CHANNEL_CONTRIBUTION]
+        for channel, probe_index in placements.items():
+            probed = self._evaluator.evaluate_baseline(
+                self._perturb(
+                    baseline_array=baseline_array,
+                    probe_index=probe_index,
+                    counterfactual_spend_factor=self._counterfactual_spend_factor,
+                    dtype=self._evaluator.channel_dtype,
+                    channel=channel,
+                )
+            )[CHANNEL_CONTRIBUTION]
+            self._assert_finite(CHANNEL_CONTRIBUTION, probed)
+
+            moved = np.abs(probed - baseline)
+            # Scaled by the largest move this probe made anywhere, mirroring
+            # _reach_of: the threshold is then free of the units the
+            # contribution happens to be in.
+            largest = float(moved.max())
+            if largest == 0.0:
+                continue
+            others = float(np.delete(moved, channel, axis=channel_axis).max())
+            if others > self.REACH_TOLERANCE * largest:
+                return True
+        return False
 
     # ==================== Completeness ====================
 

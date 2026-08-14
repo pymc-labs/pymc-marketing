@@ -34,6 +34,7 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
 )
 from pymc_marketing.mmm.components.adstock import WeibullCDFAdstock
+from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
@@ -1085,6 +1086,7 @@ def _build_funnel_mmm(
     effects=None,
     l_max=FUNNEL_L_MAX,
     time_varying_media=False,
+    saturation=None,
 ):
     """Fit a funnel MMM under *link* with prior draws standing in for a posterior.
 
@@ -1109,6 +1111,10 @@ def _build_funnel_mmm(
     time_varying_media : bool, default=False
         Add the HSGP media multiplier, which puts ``time_index`` in the graph and
         so makes the window's position on the date axis matter.
+    saturation : SaturationTransformation, optional
+        The model's own saturation, defaulting to a per-channel logistic one.
+        Overridden by the mixing fixtures, whose whole point is a media transform
+        that is *not* separable across channels.
     """
     mmm = MMM(
         channel_columns=["channel_1", "channel_2"],
@@ -1116,7 +1122,7 @@ def _build_funnel_mmm(
         target_column="y",
         control_columns=None,
         adstock=GeometricAdstock(l_max=l_max),
-        saturation=LogisticSaturation(),
+        saturation=LogisticSaturation() if saturation is None else saturation,
         time_varying_media=time_varying_media,
         link=link,
     )
@@ -1137,6 +1143,74 @@ def _build_funnel_mmm(
     mmm.idata = idata
     mmm.set_idata_attrs(idata=idata)
     return mmm
+
+
+@serialization.register
+class SharedDenominatorSaturation(SaturationTransformation):
+    r"""A media transform that is *not* separable across channels.
+
+    Channels compete for one pool of attention, so every channel's contribution
+    carries every other channel's spend in its denominator:
+
+    .. math::
+
+        v_c = \beta \frac{x_c}{1 + \sum_{c'} x_{c'}}
+
+    Nothing in the MMM forbids this -- ``forward_pass`` hands the saturation the
+    whole ``(date, channel)`` tensor -- and it breaks the assumption the separable
+    readout rests on: column *m* of an all-channels counterfactual is no longer
+    channel *m*'s unilateral counterfactual, because zeroing channel *m* alone
+    also *raises* every other column.
+    """
+
+    def function(self, x, beta, *, dim: str | None = None):
+        """Saturate each channel against the total spend of all of them."""
+        return beta * x / (1.0 + x.sum("channel"))
+
+    default_priors = {"beta": Prior("HalfNormal", sigma=1.0)}
+
+
+@pytest.fixture(scope="module")
+def mixing_identity_fitted_mmm(funnel_mmm_data):
+    """Additive MMM whose media transform mixes channels, with no ``mu_effects``.
+
+    The separable branch of the increment readout: with no channel-dependent
+    effect there is nothing to force per-channel scenarios, so the mixing has to
+    be *measured* or the per-channel numbers come off a joint perturbation.
+    """
+    mmm = MMM(
+        channel_columns=["channel_1", "channel_2"],
+        date_column="date",
+        target_column="y",
+        control_columns=None,
+        adstock=GeometricAdstock(l_max=FUNNEL_L_MAX),
+        saturation=SharedDenominatorSaturation(),
+        link="identity",
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        mock_fit(
+            mmm,
+            funnel_mmm_data["X_df"],
+            funnel_mmm_data["y_series"],
+            random_seed=seed,
+            draws=50,
+        )
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def mixing_funnel_identity_fitted_mmm(funnel_mmm_data):
+    """Additive funnel MMM whose media transform also mixes channels.
+
+    The mediated branch: the funnel effect already forces one counterfactual per
+    channel, and the mixing is what makes the *readout* of those counterfactuals
+    matter -- the other channels' contribution columns move too, and dropping
+    them understates the unilateral increment.
+    """
+    return _build_funnel_mmm(
+        funnel_mmm_data, link="identity", saturation=SharedDenominatorSaturation()
+    )
 
 
 @pytest.fixture(scope="module")
