@@ -450,6 +450,48 @@ class TestInterventionValidation:
             self._construct(model, posterior, intervention_target="unrelated")
 
 
+class TestResponseNameValidation:
+    """Response variable names are validated at construction, before any graph work.
+
+    An unnamed node's fallback resolution matches ``getattr(node, "name", None)
+    == None`` against the first anonymous node the traversal happens to reach,
+    so it silently returns numbers for an arbitrary unrelated intermediate keyed
+    ``None``.  Two responses sharing a name collapse last-wins in the name-keyed
+    result dicts, silently dropping one computed output.  Both are refused here
+    instead.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    def _construct(self, model, posterior, response_vars):
+        return CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=response_vars,
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+
+    def test_an_unnamed_response_variable_is_refused(self):
+        """A sum of two model variables carries no name unless one is set."""
+        model, posterior = build_observed_model(n_dates=len(self.dates))
+        anonymous = model["channel_contribution"] + model["beta"]
+        assert anonymous.name is None
+
+        with pytest.raises(ValueError, match="has no name"):
+            self._construct(model, posterior, ["channel_contribution", anonymous])
+
+    def test_duplicate_response_names_are_refused(self):
+        model, posterior = build_observed_model(n_dates=len(self.dates))
+
+        with pytest.raises(ValueError, match=r"'channel_contribution'.*more than once"):
+            self._construct(
+                model,
+                posterior,
+                ["channel_contribution", "channel_contribution"],
+            )
+
+
 class TestEndogenousIntervention:
     """Interventions on a node the model computes, on the toy model.
 

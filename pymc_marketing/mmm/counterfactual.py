@@ -754,8 +754,11 @@ class CounterfactualEvaluator:
     ValueError
         If the intervention target does not exist, is a random variable, is
         frozen, is not of a floating dtype, or lacks a leading ``date``
-        dimension; if no response variable depends on the target; or if a
-        discovered date-indexed input does not span the fitted date axis.
+        dimension; if no response variable depends on the target; if a
+        discovered date-indexed input does not span the fitted date axis; if
+        a response variable has no name (an anonymous node such as a raw
+        arithmetic expression, unless ``.name`` was set on it); or if two
+        response variables share a name.
     """
 
     CHANNEL_DATA = "channel_data"
@@ -790,6 +793,7 @@ class CounterfactualEvaluator:
         self.response_vars = tuple(
             var if isinstance(var, str) else var.name for var in response_vars
         )
+        self._validate_response_names(self.response_vars)
         self.intervention_target = intervention_target
         self.intervention_mode: InterventionMode = intervention_mode
         target_var = self._validate_target(
@@ -926,6 +930,45 @@ class CounterfactualEvaluator:
     def channel_dtype(self) -> str:
         """Alias of :attr:`target_dtype` under the default spend target."""
         return self.target_dtype
+
+    @staticmethod
+    def _validate_response_names(response_names: tuple[str | None, ...]) -> None:
+        """Refuse response names that would resolve or key results wrongly.
+
+        Runs on the materialized names, before any graph work: an unnamed node
+        would otherwise fall through to the graph scan in
+        :meth:`_resolve_response` and match whichever anonymous intermediate
+        the traversal happens to reach first, and two responses sharing a name
+        would collapse last-wins in the name-keyed result dicts, silently
+        dropping one computed output.
+
+        Parameters
+        ----------
+        response_names : tuple of str or None
+            The materialized response names, one per requested response
+            variable, in the order they were requested.
+
+        Raises
+        ------
+        ValueError
+            If any name is ``None``, or if two response variables share a
+            name.
+        """
+        first_seen: dict[str, int] = {}
+        for position, name in enumerate(response_names):
+            if name is None:
+                raise ValueError(
+                    f"Response variable at position {position} has no name; "
+                    "set '.name' on the variable or pass a registered "
+                    "variable name instead."
+                )
+            if name in first_seen:
+                raise ValueError(
+                    f"Response variable name {name!r} is used more than "
+                    f"once, at positions {first_seen[name]} and {position}; "
+                    "give each response variable a distinct name."
+                )
+            first_seen[name] = position
 
     @staticmethod
     def _validate_target(
@@ -1081,6 +1124,16 @@ class CounterfactualEvaluator:
             more than one node of that graph.
         """
         name = var if isinstance(var, str) else var.name
+        if name is None:
+            # Defense in depth: __init__ already refuses an unnamed response
+            # before any graph work happens, but were this guard skipped, the
+            # scan below would match ``getattr(node, "name", None) == None``
+            # against the first anonymous node the traversal happens to reach,
+            # not against the requested variable at all.
+            raise ValueError(
+                "Response variable has no name; set '.name' on the variable "
+                "or pass a registered variable name instead."
+            )
         if mode == "scale" and name == target:
             # Under "scale" the intervened model registers *both* the factual
             # computation, still under the target's name, and the intervened
