@@ -393,15 +393,14 @@ class OptimizationVariables:
             flat_name, shape=(self.size,), dims=(flat_dim,)
         )
 
-    def __getitem__(self, name: str) -> OptimizationVariable:
-        """Return the variable registered under ``name``."""
-        for variable in self.variables:
-            if variable.name == name:
-                return variable
-        raise KeyError(name)
-
     def variable_slice(self, name: str) -> XTensorVariable:
-        """Return the symbolic slice of the flat vector for variable ``name``."""
+        """Return the symbolic slice of the flat vector for variable ``name``.
+
+        This is a node in the PyTensor graph, not a buffer: it carries no
+        values and nothing is copied or mutated. A variable spanning the whole
+        vector gets the flat input itself; otherwise an ``isel`` node over its
+        contiguous segment.
+        """
         flat_slice = self.slices[name]
         if flat_slice == slice(0, self.size):
             return self.flat
@@ -436,9 +435,16 @@ class OptimizationVariables:
                 )
             values = {self.variables[0].name: values}
 
-        missing = {variable.name for variable in self.variables} - set(values)
+        known = {variable.name for variable in self.variables}
+        missing = known - set(values)
         if missing:
             raise ValueError(f"pack() missing values for variables: {sorted(missing)}")
+        unknown = set(values) - known
+        if unknown:
+            raise ValueError(
+                f"pack() got values for unknown variables: {sorted(unknown)}; "
+                f"expected {sorted(known)}"
+            )
 
         x = np.empty(self.size, dtype=float)
         for variable in self.variables:

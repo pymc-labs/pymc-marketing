@@ -72,7 +72,6 @@ from pymc_marketing.mmm.mmm import (
     BudgetOptimizerWrapper,
 )
 from pymc_marketing.mmm.optimization_variables import (
-    MediaVariable,
     OptimizationVariable,
     OptimizationVariables,
 )
@@ -124,7 +123,6 @@ __all__ = [
     "MediaConfigList",
     "MediaMuEffect",
     "MediaTransformation",
-    "MediaVariable",
     "MichaelisMentenSaturation",
     "MonthlyFourier",
     "NoAdstock",

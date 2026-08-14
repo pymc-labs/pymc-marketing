@@ -205,3 +205,19 @@ def test_pack_extra_dim_raises():
     da = opt_vars.unpack(np.arange(3.0))["channel_data"].expand_dims(geo=["G1"])
     with pytest.raises(ValueError, match="unexpected dims"):
         opt_vars.pack({"channel_data": da})
+
+
+def test_pack_unknown_variable_name_raises():
+    """A typo'd key is rejected rather than silently ignored.
+
+    ``pack`` already rejects missing variables and unexpected dims; an extra
+    key used to pass silently, so a warm start written against a mistyped name
+    would have been dropped without a word.
+    """
+    rng = np.random.default_rng(14)
+    variable = make_media_variable(rng, sizes=(3,))
+    opt_vars = OptimizationVariables([variable])
+    da = opt_vars.unpack(np.arange(3.0))["channel_data"]
+
+    with pytest.raises(ValueError, match="unknown variables"):
+        opt_vars.pack({"channel_data": da, "chanel_data": da})
