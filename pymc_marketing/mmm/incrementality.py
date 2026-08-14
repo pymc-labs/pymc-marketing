@@ -250,6 +250,7 @@ from pymc_marketing.mmm.counterfactual import (
 )
 from pymc_marketing.mmm.link import LinkFunction
 from pymc_marketing.mmm.spend_reach import (
+    _PKG_PREFIX,
     CHANNEL_CONTRIBUTION,
     SpendProbe,
     linear_predictor,
@@ -1051,7 +1052,7 @@ class Incrementality:
                 "evaluated nodes account for the whole move in the linear "
                 "predictor -- goes unverified.",
                 UserWarning,
-                stacklevel=3,
+                skip_file_prefixes=(_PKG_PREFIX,),
             )
         # The evaluator applies the spend intervention through pm.do, which
         # clones the model; response variables handed over as raw nodes, like
@@ -1079,11 +1080,28 @@ class Incrementality:
             ),
         )
 
+        # channel_data's declared axis order, which the baseline array below and
+        # the per-channel scenarios further down are both read against.  Taken
+        # from the model rather than assumed: it is not always (date, channel),
+        # since panel models lay channel_data out as (date, *custom_dims,
+        # channel).
+        channel_data_dims = list(
+            posterior_predictive_model.named_vars_to_dims.get(
+                CounterfactualEvaluator.CHANNEL_DATA, ()
+            )
+        )
+
         # Evaluate baseline on full dataset (once).  Comparable to the windowed
         # counterfactuals because a window is clamped to the fitted dates and
         # carries l_max of history, so every evaluated date sees the same inputs
-        # it would on the full axis.
-        baseline_array = self.data.get_channel_data().values
+        # it would on the full axis.  Transposed into the declared order rather
+        # than trusting constant_data to already hold it, so date-first and the
+        # position of ``channel`` are both facts about the model here, not
+        # assumptions about the idata group.
+        channel_data = self.data.get_channel_data()
+        if channel_data_dims:
+            channel_data = channel_data.transpose(*channel_data_dims)
+        baseline_array = channel_data.values
         baseline = evaluator.evaluate_baseline(baseline_array)
         # Per node: (n_samples, n_dates, *non_date_dims)
 
@@ -1116,14 +1134,6 @@ class Incrementality:
             include_carryover=include_carryover,
         )
 
-        # Where a channel sits among channel_data's non-date axes.  Needed only
-        # in per-channel mode, and it is not always axis 0: panel models lay
-        # channel_data out as (date, *custom_dims, channel).
-        channel_data_dims = list(
-            posterior_predictive_model.named_vars_to_dims.get(
-                CounterfactualEvaluator.CHANNEL_DATA, ()
-            )
-        )
         # Two ways a per-channel column can stop being channel m's unilateral
         # counterfactual.  An effect can mix channels before reaching the
         # response, so no per-channel column survives at all.  Failing that, the
@@ -1137,6 +1147,8 @@ class Incrementality:
             estimand == "per_channel"
             and probe.mixes_channels(non_date_dims=evaluator.non_date_dims)
         )
+        # Where a channel sits among channel_data's non-date axes.  Needed only
+        # in per-channel mode, and it is not always axis 0.
         channel_axis = None
         if needs_dedicated_rows:
             channel_axis = [d for d in channel_data_dims if d != "date"].index(
