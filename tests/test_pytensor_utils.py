@@ -20,10 +20,12 @@ import sys
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pymc.model.fgraph import fgraph_from_model
 from pytensor import function
+from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
@@ -34,6 +36,7 @@ from pymc_marketing.mmm.mmm import (
 from pymc_marketing.pytensor_utils import (
     ModelSamplerEstimator,
     _prefix_model,
+    extract_response_distribution,
     merge_models,
     validate_unique_value_vars,
 )
@@ -556,3 +559,59 @@ def test_prefix_model_exclude_none_renames_vars_dims_and_coords():
     coords_keys = set(fg2._coords.keys())  # type: ignore[attr-defined]
     assert "pfx_d" in coords_keys
     assert "d" not in coords_keys
+
+
+def test_extract_response_distribution_accepts_several_variables():
+    """Several variables extract in one pass, sharing the subgraph they have in common.
+
+    Callers that need more than one node -- incrementality evaluating
+    ``channel_contribution`` alongside a mediated effect, both reading the same
+    spend through the same adstock -- would otherwise pay for that subgraph once
+    per node.  Sharing it is the point of the sequence form, so the test checks
+    the shared node is literally the same object, not just that the values agree.
+    """
+    # xtensor variables throughout: the conditioning step substitutes posterior
+    # draws as xtensor constants and vectorizes over them.
+    data_values = np.array([1.0, 2.0, 3.0])
+    with pm.Model(coords={"d": [0, 1, 2]}) as model:
+        data = pmd.Data("data", data_values, dims="d")
+        slope = pmd.Normal("slope", mu=0.0, sigma=1.0)
+        doubled = pmd.Deterministic("doubled", 2.0 * data * slope)
+        pmd.Deterministic("tripled", 3.0 * doubled)
+
+    with model:
+        prior = pm.sample_prior_predictive(draws=4, random_seed=42)
+    idata = xr.DataTree.from_dict({"/posterior": prior["/prior"].to_dataset()})
+
+    single = extract_response_distribution(model, idata, "doubled")
+    both = extract_response_distribution(model, idata, ["doubled", "tripled"])
+
+    # A single name keeps the historical scalar return type.
+    assert not isinstance(single, list)
+    assert isinstance(both, list) and len(both) == 2
+
+    doubled_graph, tripled_graph = both
+
+    # The shared subgraph is shared, not duplicated: one conditioning pass, so
+    # the posterior draws of ``slope`` are the same node in both graphs.  Not the
+    # returned outputs themselves -- the final rewrite can wrap one of them.
+    def conditioned_slope(graph):
+        return {
+            node
+            for node in ancestors([graph])
+            if getattr(node, "name", None) == "slope"
+        }
+
+    assert conditioned_slope(doubled_graph) & conditioned_slope(tripled_graph)
+    # And the assertion has teeth: a separate call conditions its own copy.
+    assert not conditioned_slope(doubled_graph) & conditioned_slope(single)
+
+    doubled_values, tripled_values = function([], both)()
+    np.testing.assert_allclose(tripled_values, 3.0 * doubled_values)
+    drawn = prior["/prior"].to_dataset()["slope"].values.reshape(-1)
+    np.testing.assert_allclose(doubled_values, np.outer(drawn, 2.0 * data_values))
+    # Same graph, same numbers, whichever form was asked for.
+    np.testing.assert_allclose(function([], [single])()[0], doubled_values)
+
+    with pytest.raises(ValueError, match="at least one variable"):
+        extract_response_distribution(model, idata, [])
