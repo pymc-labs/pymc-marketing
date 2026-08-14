@@ -16,6 +16,7 @@
 import numpy as np
 import pytest
 
+from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
 from pymc_marketing.mmm.spend_reach import (
     CHANNEL_CONTRIBUTION,
@@ -282,6 +283,74 @@ def effective_l_max(mmm):
         cached = measure_spend_reach(mmm).effective_l_max
         mmm._tests_effective_l_max = cached
     return cached
+
+
+class TestResolveChannelDependentEffects:
+    """What ``resolve_channel_dependent_effects`` does with an unusual effect.
+
+    ``AttributeError`` is overloaded: Python raises it both when an attribute is
+    genuinely absent (the documented duck-typing escape hatch) and when a
+    property that *is* present fails while computing its value.  The two must
+    be told apart, because collapsing them means a bug inside
+    ``contribution_var_name`` gets reclassified as "this effect has none" and
+    silently dropped instead of surfacing as the programming error it is.
+    """
+
+    def test_attribute_error_inside_the_property_propagates(self, simple_fitted_mmm):
+        """A property that raises ``AttributeError`` internally must not be caught.
+
+        On the pre-fix code the broad ``except (AttributeError, ...)`` swallows
+        this exactly like a genuinely missing attribute, and the effect is
+        silently skipped instead of the bug surfacing.
+        """
+
+        class BuggyContributionVarNameEffect:
+            """An effect whose property touches a misspelled instance attribute."""
+
+            @property
+            def contribution_var_name(self) -> str:
+                """Read a name that was never set, raising ``AttributeError``."""
+                return self._typo_never_set
+
+        mmm = simple_fitted_mmm
+        mmm.mu_effects = [*mmm.mu_effects, BuggyContributionVarNameEffect()]
+
+        with pytest.raises(AttributeError):
+            resolve_channel_dependent_effects(mmm)
+
+    def test_a_duck_typed_instance_attribute_is_resolved(self, simple_fitted_mmm):
+        """An instance-level ``contribution_var_name`` is not mistaken for absent.
+
+        Duck-typed effects that set ``contribution_var_name`` on the instance
+        rather than as a class-level property are a documented pattern; the fix
+        must keep resolving them rather than special-casing them away as
+        "class has no such attribute".
+        """
+
+        class DuckTypedInstanceAttributeEffect:
+            """An effect that sets ``contribution_var_name`` in ``__init__``."""
+
+            def __init__(self, contribution_var_name: str) -> None:
+                self.contribution_var_name = contribution_var_name
+
+            def incrementality_spec(self):
+                """Opt in and declare nothing: the reach is measured."""
+                return IncrementalitySpec()
+
+        # A real, already-registered, channel-dependent deterministic (created
+        # by ``mock_fit``'s ``add_original_scale_contribution_variable`` call)
+        # with no declared dims, so it is trivially within the allowed dims of
+        # any model regardless of how many extra dims that model carries.
+        contribution_var = "total_media_contribution_original_scale"
+        mmm = simple_fitted_mmm
+        mmm.mu_effects = [
+            *mmm.mu_effects,
+            DuckTypedInstanceAttributeEffect(contribution_var),
+        ]
+
+        resolved = resolve_channel_dependent_effects(mmm)
+
+        assert any(effect.contribution_var == contribution_var for effect in resolved)
 
 
 class TestSpendProbe:

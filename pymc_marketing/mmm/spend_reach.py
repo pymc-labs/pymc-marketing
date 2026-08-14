@@ -43,6 +43,7 @@ at all.
 
 from __future__ import annotations
 
+import inspect
 import warnings
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -86,6 +87,9 @@ many chained operations can be several orders of magnitude larger than that
 one step; 100 is a generous margin for that accumulation without being so
 large that it could hide a real, small unattributed contribution.
 """
+
+_ABSENT = object()
+"""Sentinel for ``inspect.getattr_static``: tells "missing" apart from any real value."""
 
 
 @dataclass(frozen=True)
@@ -138,11 +142,15 @@ def resolve_channel_dependent_effects(
     Duck-typed effects are a documented pattern (see the module docstring of
     :mod:`~pymc_marketing.mmm.additive_effect`) and need not carry a
     ``contribution_var_name``; a ``MuEffect`` built without a ``prefix`` raises
-    rather than returning one.  Neither says anything about whether spend reaches
-    the effect, so the failure is deferred: such an effect is left unaccounted,
-    and :meth:`SpendProbe.assert_increment_is_complete` raises only if a spend
-    path really does escape through it.  Raising eagerly instead would break
-    every model that merely *owns* such an effect.
+    ``NotImplementedError`` rather than returning one.  Neither says anything
+    about whether spend reaches the effect, so the failure is deferred: such an
+    effect is left unaccounted, and :meth:`SpendProbe.assert_increment_is_complete`
+    raises only if a spend path really does escape through it.  Raising eagerly
+    instead would break every model that merely *owns* such an effect.  This is
+    distinct from an ``AttributeError`` raised *inside* a present
+    ``contribution_var_name`` (for example a property that touches a missing
+    ``self`` attribute): that is a bug in the effect, not an absent attribute,
+    and propagates instead of being swallowed.
 
     Parameters
     ----------
@@ -167,6 +175,10 @@ def resolve_channel_dependent_effects(
     ValueError
         If an included effect's contribution carries dimensions outside
         ``("date", *model.dims)``.
+    AttributeError
+        Propagated unchanged if an effect's ``contribution_var_name`` property
+        is present but raises while computing its value, rather than being
+        mistaken for an absent attribute.
     """
     pymc_model = model.model
     channel_data = pymc_model[CounterfactualEvaluator.CHANNEL_DATA]
@@ -175,9 +187,18 @@ def resolve_channel_dependent_effects(
 
     for effect in model.mu_effects:
         label = type(effect).__name__
+        # ``getattr_static`` reports whether the attribute exists at all --
+        # class-level or, for a duck-typed effect, set directly on the
+        # instance -- without invoking a property, so it cannot itself raise.
+        # It is the only way to tell "no such attribute" (skip, the documented
+        # duck-typing escape hatch) apart from "attribute present but its
+        # getter raised" (a bug in the effect, which must propagate rather
+        # than being reclassified as absent).
+        if inspect.getattr_static(effect, "contribution_var_name", _ABSENT) is _ABSENT:
+            continue
         try:
             name = effect.contribution_var_name
-        except (AttributeError, NotImplementedError):
+        except NotImplementedError:
             continue
         if name not in pymc_model.named_vars:
             continue
