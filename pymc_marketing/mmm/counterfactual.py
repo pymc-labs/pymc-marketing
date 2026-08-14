@@ -61,7 +61,7 @@ in spend while the mask is linear in contribution.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
@@ -86,6 +86,7 @@ __all__ = [
     "EvaluationWindows",
     "InterventionMode",
     "PeriodWindow",
+    "find_named_node",
 ]
 
 # Private: it is the key type of an internal mapping rather than a user-facing
@@ -121,6 +122,80 @@ removes the target's effect while everything upstream keeps its posterior value.
 Scaling has to stay symbolic because an endogenous target's factual values
 differ per posterior sample; there is no array a caller could hand over.
 """
+
+
+def find_named_node(
+    roots: Sequence[Variable],
+    name: str,
+    *,
+    exclude: Iterable[Variable] = (),
+) -> Variable | None:
+    """Find the one node of a graph that carries a given name.
+
+    Not every interesting quantity is a registered variable of a PyMC model: an
+    MMM's linear predictor is a ``Deterministic`` under a log link but only an
+    *anonymous intermediate carrying the name* ``mu`` under an identity link, so
+    it has to be recovered from the graph instead of looked up.  Recovering it
+    that way is sound only while the name picks out a single node, and graph
+    traversal is unordered, so taking the first match would bind to whichever
+    node happened to come up first.  Downstream that decides whether the
+    increment's completeness check compares the right two quantities, and a
+    wrong binding is invisible: it either refuses a correct model or passes a
+    broken one.  So an ambiguous name is refused rather than guessed at.
+
+    Parameters
+    ----------
+    roots : sequence of Variable
+        The nodes whose ancestors are searched.  The roots themselves are part
+        of the search, as :func:`~pytensor.graph.traversal.ancestors` yields
+        them.
+    name : str
+        The name to look for.
+    exclude : iterable of Variable, optional
+        Nodes that may not be returned, compared by identity.  The observed
+        variable belongs here whenever it could carry the requested name
+        itself, as a target column named after the quantity being searched for
+        would otherwise resolve to the observation.
+
+    Returns
+    -------
+    Variable or None
+        The single node carrying *name*, or ``None`` if the graph carries no
+        such node.
+
+    Raises
+    ------
+    ValueError
+        If more than one distinct node carries *name*, since no choice between
+        them can be made reliably.
+
+    Notes
+    -----
+    One variant is out of reach here: a user who *registers* a ``Deterministic``
+    named ``mu`` on an identity-link model shadows the predictor in the model's
+    ``named_vars``, which callers consult before any graph search runs.  No scan
+    of the graph is performed in that case, so this function never sees the
+    collision.
+    """
+    excluded = [node for node in exclude]
+    found: list[Variable] = []
+    for node in ancestors(roots):
+        if getattr(node, "name", None) != name:
+            continue
+        if any(node is other for other in excluded):
+            continue
+        if not any(node is other for other in found):
+            found.append(node)
+
+    if len(found) > 1:
+        raise ValueError(
+            f"The graph carries {len(found)} distinct nodes named {name!r}, so "
+            f"{name!r} cannot be bound to a single node reliably and the "
+            "increment's completeness check would have no way to tell which "
+            "one it is comparing against.  Rename the intermediate node so "
+            f"that only the model's own {name!r} carries the name."
+        )
+    return found[0] if found else None
 
 
 @dataclass(frozen=True)
@@ -997,6 +1072,13 @@ class CounterfactualEvaluator:
         -------
         Variable
             The corresponding node of the intervened model.
+
+        Raises
+        ------
+        ValueError
+            If the requested response is neither registered in the intervened
+            model nor recoverable from its graph, or if its name is carried by
+            more than one node of that graph.
         """
         name = var if isinstance(var, str) else var.name
         if mode == "scale" and name == target:
@@ -1013,12 +1095,11 @@ class CounterfactualEvaluator:
         # link: the clone carries a node of the same name, recovered the same
         # way spend_reach.linear_predictor found the original.
         observed = list(do_model.observed_RVs)
-        candidates = (
-            node
-            for node in ancestors(observed + list(do_model.deterministics))
-            if getattr(node, "name", None) == name and node not in observed
+        resolved = find_named_node(
+            observed + list(do_model.deterministics),
+            name,
+            exclude=observed,
         )
-        resolved = next(candidates, None)
         if resolved is None:
             raise ValueError(
                 f"Response variable {name!r} was not found in the intervened "

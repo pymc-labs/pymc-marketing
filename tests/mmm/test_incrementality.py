@@ -42,6 +42,7 @@ from pymc_marketing.mmm.incrementality import (
     LogLinkReducer,
 )
 from pymc_marketing.mmm.spend_reach import (
+    LINEAR_PREDICTOR,
     SpendProbe,
     TemporalReach,
     resolve_channel_dependent_effects,
@@ -1862,6 +1863,42 @@ class TestMediatedMuEffects:
         incr = funnel_misreported_fitted_mmm.incrementality
 
         with pytest.raises(NotImplementedError, match="Some path from spend"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_an_ambiguous_predictor_name_stops_the_increment(
+        self, funnel_identity_fitted_mmm, shadow_named_node
+    ):
+        """A second node named ``mu`` is refused on the public path too.
+
+        The completeness check is the whole reason the predictor is recovered,
+        so a name that no longer identifies it has to stop the computation
+        rather than be resolved by whichever node the traversal reached first.
+        """
+        shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
+        incr = funnel_identity_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="nodes named 'mu'"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_a_frozen_predictor_says_the_check_was_skipped(
+        self, funnel_log_link_fitted_mmm, monkeypatch
+    ):
+        """An unrecoverable predictor is announced, not passed over in silence.
+
+        Freezing ``mu`` at its posterior value leaves it unable to respond to
+        the probe, so there is nothing to check the accounted nodes against.
+        The increment is still computed, but a model carrying ``mu_effects`` is
+        exactly the case the completeness check exists for, and losing it
+        without a word is how a missing mediated path would go unnoticed.
+        """
+        monkeypatch.setattr(
+            type(funnel_log_link_fitted_mmm),
+            "frozen_deterministics",
+            property(lambda self: [LINEAR_PREDICTOR]),
+        )
+        incr = funnel_log_link_fitted_mmm.incrementality
+
+        with pytest.warns(UserWarning, match="completeness of the increment"):
             incr.compute_incremental_contribution(frequency="all_time")
 
     def test_a_global_effect_selects_full_axis_evaluation(

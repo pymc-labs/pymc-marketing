@@ -747,6 +747,23 @@ class TestSpendProbe:
         assert node is not None
         assert node.name == LINEAR_PREDICTOR
 
+    def test_a_second_node_named_mu_is_refused_rather_than_guessed(
+        self, simple_fitted_mmm, shadow_named_node
+    ):
+        """Two nodes named ``mu`` make the recovery a coin toss, so it refuses.
+
+        Recovering the predictor by name is only sound while the name picks out
+        one node.  A custom effect whose intermediate happens to be named ``mu``
+        breaks that, and graph traversal is unordered, so the completeness check
+        would bind to whichever of the two turned up first: a spurious refusal
+        on a correct model, or a vacuous pass on a broken one.  Neither is worth
+        having over an error that names the fix.
+        """
+        shadow_named_node(simple_fitted_mmm, LINEAR_PREDICTOR)
+
+        with pytest.raises(ValueError, match="nodes named 'mu'"):
+            linear_predictor(simple_fitted_mmm)
+
     def test_declared_carryover_survives_an_unprobeable_axis(self):
         """With nothing to probe, a declaration is all there is to go on.
 

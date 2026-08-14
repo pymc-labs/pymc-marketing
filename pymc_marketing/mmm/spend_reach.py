@@ -54,7 +54,7 @@ import xarray as xr
 from pytensor.graph.basic import Variable
 from pytensor.graph.traversal import ancestors
 
-from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator
+from pymc_marketing.mmm.counterfactual import CounterfactualEvaluator, find_named_node
 
 if TYPE_CHECKING:
     from pymc_marketing.mmm.mmm import MMM
@@ -260,6 +260,16 @@ def linear_predictor(model: MMM) -> Variable | None:
         The linear predictor, or ``None`` if this model does not expose one -- in
         which case :meth:`SpendProbe.assert_increment_is_complete` has nothing to
         check against and says so.
+
+    Raises
+    ------
+    ValueError
+        If the graph carries more than one node named ``mu``, which leaves the
+        predictor impossible to identify by name.  See
+        :func:`~pymc_marketing.mmm.counterfactual.find_named_node` for the one
+        collision that escapes the check: a user-registered ``Deterministic``
+        named ``mu`` is found by the ``named_vars`` lookup below before any
+        graph search happens.
     """
     pymc_model = model.model
     if LINEAR_PREDICTOR in pymc_model.named_vars:
@@ -273,13 +283,14 @@ def linear_predictor(model: MMM) -> Variable | None:
     if output_var not in pymc_model.named_vars:
         return None
     observed = pymc_model[output_var]
-    return next(
-        (
-            node
-            for node in ancestors([observed])
-            if getattr(node, "name", None) == LINEAR_PREDICTOR and node is not observed
-        ),
-        None,
+    # Rooted at the deterministics too, and not only at the observed, so that
+    # this search and the one CounterfactualEvaluator runs on the intervened
+    # clone cover the same graph: an identity-link ``mu`` is upstream of the
+    # observed either way, so the wider roots cannot lose it.
+    return find_named_node(
+        [observed, *pymc_model.deterministics],
+        LINEAR_PREDICTOR,
+        exclude=[observed],
     )
 
 

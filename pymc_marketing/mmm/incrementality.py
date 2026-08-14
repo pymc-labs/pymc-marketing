@@ -229,6 +229,7 @@ Google MMM Paper: https://storage.googleapis.com/gweb-research2023-media/pubtool
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
@@ -1011,6 +1012,22 @@ class Incrementality:
         posterior_predictive_model = self.model.model
         effect_names = tuple(effect.contribution_var for effect in effects)
         predictor = linear_predictor(self.model) if self.model.mu_effects else None
+        if self.model.mu_effects and predictor is None:
+            # The one case the check exists for is a model with mu_effects, so
+            # losing it here is worth a word: an effect that reports the wrong
+            # contribution variable, or a model-level node reading spend outside
+            # any effect, would drop a real part of the increment and the result
+            # would report the remainder as if it were the whole.
+            warnings.warn(
+                "This model's linear predictor could not be recovered, either "
+                "because it is frozen at its posterior values or because it is "
+                "not exposed by the model's graph.  The increment is still "
+                "computed, but the completeness of the increment -- that the "
+                "evaluated nodes account for the whole move in the linear "
+                "predictor -- goes unverified.",
+                UserWarning,
+                stacklevel=3,
+            )
         # The evaluator applies the spend intervention through pm.do, which
         # clones the model; response variables handed over as raw nodes, like
         # the predictor above, are re-resolved by name against that clone.

@@ -23,6 +23,8 @@ import pytest
 import xarray as xr
 from pydantic import InstanceOf
 from pymc_extras.prior import Prior
+from pytensor.graph.basic import Variable
+from pytensor.graph.traversal import ancestors
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
 from pymc_marketing.mmm.additive_effect import (
@@ -1489,3 +1491,38 @@ def trend_effect_fitted_mmm(funnel_mmm_data):
             mmm, funnel_mmm_data["X_df"], funnel_mmm_data["y_series"], random_seed=seed
         )
     return mmm
+
+
+@pytest.fixture
+def shadow_named_node():
+    """Give an anonymous graph node a second claim to a name, then take it back.
+
+    Stands in for the one hazard a stock model cannot produce on its own: a
+    custom effect whose intermediate happens to be named ``mu``, which leaves
+    the linear predictor's name carried by two different nodes.  The surgery is
+    done on the live graph because that is exactly what the user's effect would
+    do, and it is undone at teardown so that the module-scoped fitted fixtures
+    stay reusable.
+
+    Yields
+    ------
+    callable
+        ``shadow(model, name="mu")`` names one anonymous ancestor of the
+        model's observed and deterministic variables *name* and returns it.
+    """
+    renamed: list[tuple[Variable, str | None]] = []
+
+    def shadow(model, name: str = "mu") -> Variable:
+        pymc_model = model.model
+        roots = list(pymc_model.observed_RVs) + list(pymc_model.deterministics)
+        for node in ancestors(roots):
+            if node.owner is not None and getattr(node, "name", None) is None:
+                renamed.append((node, node.name))
+                node.name = name
+                return node
+        raise AssertionError(f"No anonymous node available to name {name!r}.")
+
+    yield shadow
+
+    for node, original_name in renamed:
+        node.name = original_name
