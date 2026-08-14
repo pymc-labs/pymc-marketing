@@ -16,7 +16,7 @@
 The decision vector handed to ``scipy.optimize.minimize`` is a flat 1-D array.
 Everything the optimizer knows about *what that vector means* — which model
 variable each segment substitutes, how a segment maps to model-space tensors
-(the forward map), and how a solution maps back to labelled ``DataArray``s
+(the forward map), and how a solution maps back to labelled ``DataArray`` objects
 (the inverse map) — lives here, stated once per variable.
 
 - :class:`OptimizationVariable` is the per-variable protocol: a named, contiguous
@@ -340,7 +340,7 @@ class OptimizationVariables:
 
     Owns the single flat symbolic input, the contiguous slice layout, and the
     forward/inverse maps between the flat vector and per-variable labelled
-    ``DataArray``s. The slice layout tiles ``[0, size)`` exactly: variables are
+    ``DataArray`` objects. The slice layout tiles ``[0, size)`` exactly: variables are
     laid out in order with no gaps or overlaps.
 
     Parameters
@@ -452,7 +452,7 @@ class OptimizationVariables:
         return x
 
     def unpack(self, x: np.ndarray) -> dict[str, DataArray]:
-        """Split a flat solution into labelled per-variable ``DataArray``s."""
+        """Split a flat solution into labelled per-variable ``DataArray`` objects."""
         x = np.asarray(x)
         if x.shape != (self.size,):
             raise ValueError(f"expected shape ({self.size},), got {x.shape}")

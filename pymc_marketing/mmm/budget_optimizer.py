@@ -1814,7 +1814,7 @@ class BudgetOptimizer(BaseModel):
             Initial guess. A labelled ``DataArray`` over the budget dims (e.g. a
             previous solution or a current spend plan) is packed into the flat
             decision vector automatically; a dict maps decision-variable names
-            to labelled ``DataArray``s. A flat ``np.ndarray`` of size (n,) is
+            to labelled ``DataArray`` objects. A flat ``np.ndarray`` of size (n,) is
             also accepted. If None, the total budget is spread uniformly across
             all drivers to be optimized.
         minimize_kwargs : dict, optional
