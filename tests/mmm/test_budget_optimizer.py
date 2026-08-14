@@ -20,6 +20,7 @@ import pymc.dims as pmd
 import pytensor
 import pytest
 import xarray as xr
+from pydantic import ValidationError
 from xarray import DataArray
 
 from pymc_marketing.mmm import MMM
@@ -455,9 +456,9 @@ def test_allocate_budget_custom_minimize_args(
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    with pytest.raises(
-        ValueError, match=r"NumPy boolean array indexing assignment cannot assign"
-    ):
+    # The mocked minimize returns a Mock result.x, which fails the optimization
+    # variables' shape validation when unpacking -- after minimize was called.
+    with pytest.raises(ValueError, match=r"expected shape"):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
         )
@@ -989,3 +990,150 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
+
+
+def test_shuffled_mask_labels_match_model_coords(mmm_wrapper):
+    """A mask in a different coord order than the model must not shift labels.
+
+    The mask is consumed positionally by the forward map (scatter into the
+    model's tensor layout) and also supplies the labels for the inverse map,
+    so it is reindexed to the model's coordinate order at construction. This
+    pins the inverse map to the forward map: with per-channel bounds that make
+    the optimum distinguishable, the value attributed to a channel must be the
+    one its own bounds produced.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # model order: channel_1, channel_2
+    shuffled = list(reversed(channels))
+
+    mask = xr.DataArray(
+        np.ones(len(shuffled), dtype=bool),
+        dims=("channel",),
+        coords={"channel": shuffled},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    # The mask is realigned to the model's coordinate order.
+    assert list(optimizer.budgets_to_optimize.coords["channel"].values) == channels
+
+    # channel_1 is capped at 5, channel_2 must take the remaining 95.
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 5.0], [0.0, 95.0]]),
+        channel=channels,
+        bound=["lower", "upper"],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    assert float(result.budgets.sel(channel="channel_1")) <= 5.0 + 1e-6
+    np.testing.assert_allclose(
+        float(result.budgets.sel(channel="channel_2")), 95.0, atol=1e-4
+    )
+
+
+def test_partial_mask_result_is_invariant_to_coord_order(mmm_wrapper):
+    """A partial mask must select the same cells however its coords are ordered.
+
+    With a partial mask the label shift and the positional selection shift can
+    cancel in the labelled output while the model optimizes the *other*
+    channel's curve -- the reported allocation looks right but the objective
+    behind it is wrong. Optimizing the same intent written in two coord orders
+    must agree on both the allocation and the objective value.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # [channel_1, channel_2]
+
+    def optimize(coord_order):
+        # Intent in every ordering: optimize channel_2 only.
+        mask = xr.DataArray(
+            np.array([c == "channel_2" for c in coord_order]),
+            dims=("channel",),
+            coords={"channel": coord_order},
+        )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+        bounds = optimizer_xarray_builder(
+            np.array([[0.0, 100.0], [0.0, 100.0]]),
+            channel=channels,
+            bound=["lower", "upper"],
+        )
+        return optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    in_model_order = optimize(channels)
+    in_shuffled_order = optimize(list(reversed(channels)))
+
+    xr.testing.assert_allclose(in_model_order.budgets, in_shuffled_order.budgets)
+    np.testing.assert_allclose(
+        in_model_order.scipy_result.fun, in_shuffled_order.scipy_result.fun, rtol=1e-8
+    )
+    # And the intent was honoured: the frozen channel got nothing.
+    np.testing.assert_allclose(
+        float(in_shuffled_order.budgets.sel(channel="channel_1")), 0.0, atol=1e-8
+    )
+
+
+def test_mask_missing_model_coords_raises(mmm_wrapper):
+    """A mask that does not cover the model's coordinates is rejected.
+
+    Reindexing such a mask would leave NaN, which `astype(bool)` would quietly
+    turn into True -- optimizing a cell the user never named.
+    """
+    mask = xr.DataArray(
+        np.array([True]),
+        dims=("channel",),
+        coords={"channel": ["channel_1"]},  # model also has channel_2
+    )
+    with pytest.raises(ValidationError, match="missing coordinates present in the"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_integer_mask_is_coerced_to_bool(mmm_wrapper):
+    """A 0/1 mask works: reindexing makes it float, so it is cast back."""
+    mask = xr.DataArray(
+        np.array([1, 0]),
+        dims=("channel",),
+        coords={"channel": list(mmm_wrapper.channel_columns)},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer.budgets_to_optimize.dtype == bool
+    assert optimizer._variables.size == 1  # only channel_1 optimized
+
+
+def test_allocate_budget_x0_dataarray(mmm_wrapper):
+    """A labelled x0 warm start gives the same result as the flat vector."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    x0_flat = np.array([70.0, 30.0])
+    x0_labelled = xr.DataArray(
+        x0_flat,
+        dims=("channel",),
+        coords={"channel": ["channel_1", "channel_2"]},
+    )
+
+    result_flat = optimizer.allocate_budget(total_budget=100, x0=x0_flat)
+    result_labelled = optimizer.allocate_budget(total_budget=100, x0=x0_labelled)
+    result_dict = optimizer.allocate_budget(
+        total_budget=100, x0={"channel_data": x0_labelled}
+    )
+
+    xr.testing.assert_allclose(result_flat.budgets, result_labelled.budgets)
+    xr.testing.assert_allclose(result_flat.budgets, result_dict.budgets)
