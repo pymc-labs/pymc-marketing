@@ -61,7 +61,7 @@ in spend while the mask is linear in contribution.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 
@@ -734,6 +734,20 @@ class CounterfactualEvaluator:
         :data:`InterventionMode`.  Under ``"scale"``, asking for the target
         itself as a response variable returns the *intervened* value, symmetric
         with ``"replace"`` where the evaluator's input is that value.
+    expected_aux_values : mapping of str to xr.DataArray, optional
+        Fit-time values of date-indexed inputs, keyed by variable name --
+        typically ``idata.constant_data``.  Every auxiliary input discovered in
+        the graph whose name appears here has its live value, read off the
+        model's own shared variable, checked against the stored one instead of
+        trusted outright.  A mismatch means the model was mutated after
+        fitting -- by ``MMM.sample_posterior_predictive(..., clone_model=False)``
+        or a direct ``pm.set_data`` call -- and is refused rather than silently
+        evaluated on a hybrid of fitted and mutated state.  A name absent from
+        the mapping falls back to the live snapshot, unchecked, which keeps
+        this optional: an evaluator built without fit-time values behaves as
+        before.  ``time_index`` is checked the same way when present, but
+        against the *fabricated* ``np.arange(n_dates)`` rather than a live
+        value, since the evaluator never reads a live ``time_index``.
 
     Attributes
     ----------
@@ -757,8 +771,12 @@ class CounterfactualEvaluator:
         dimension; if no response variable depends on the target; if a
         discovered date-indexed input does not span the fitted date axis; if
         a response variable has no name (an anonymous node such as a raw
-        arithmetic expression, unless ``.name`` was set on it); or if two
-        response variables share a name.
+        arithmetic expression, unless ``.name`` was set on it); if two
+        response variables share a name; or if a value in
+        *expected_aux_values* -- an auxiliary input, or the fabricated
+        ``time_index`` -- disagrees with what the live model or the
+        fabrication would produce, meaning the model was mutated after
+        fitting.
     """
 
     CHANNEL_DATA = "channel_data"
@@ -786,6 +804,7 @@ class CounterfactualEvaluator:
         dates: pd.DatetimeIndex,
         intervention_target: str = CHANNEL_DATA,
         intervention_mode: InterventionMode = "replace",
+        expected_aux_values: Mapping[str, xr.DataArray] | None = None,
     ) -> None:
         # Results are keyed by name whether the caller asked by name or handed
         # over the node: the linear predictor is only a registered variable
@@ -859,6 +878,20 @@ class CounterfactualEvaluator:
         replace: dict = {placeholder: self._batched(placeholder, intervention_target)}
         func_inputs: list = [replace[placeholder]]
 
+        # time_index is never read off the live model: both evaluation paths
+        # fabricate np.arange(n_dates) instead (see evaluate_baseline and
+        # EvaluationWindows.time_index), because the fit-time value always was
+        # that arange and re-deriving it avoids re-introducing exactly the
+        # hybrid live/stored state this guard exists to catch.  What can still
+        # be checked is that the fabrication agrees with what was actually
+        # fitted, when that is on record.
+        if expected_aux_values is not None and self.TIME_INDEX in expected_aux_values:
+            self._check_not_mutated(
+                self.TIME_INDEX,
+                live=np.arange(len(dates)),
+                stored=np.asarray(expected_aux_values[self.TIME_INDEX].values),
+            )
+
         # time_index: only replaced when the graph actually reads it (with
         # time_varying_intercept but not time_varying_media it is unused, and
         # passing it would raise UnusedInputError).
@@ -894,6 +927,18 @@ class CounterfactualEvaluator:
                     "Incrementality needs it to span the fitted date axis so it "
                     "can be cut to a window alongside spend."
                 )
+            if expected_aux_values is not None and data.name in expected_aux_values:
+                # The live value is trusted only once it is confirmed to agree
+                # with what was actually fitted; a same-length in-place
+                # mutation -- MMM.sample_posterior_predictive(...,
+                # clone_model=False), a direct pm.set_data() call -- would
+                # otherwise pass the length check above and be evaluated
+                # silently, mixing fitted spend and posterior draws with an
+                # out-of-sample covariate.
+                stored = np.asarray(
+                    expected_aux_values[data.name].transpose(*dims).values
+                )
+                self._check_not_mutated(data.name, live=values, stored=stored)
             batched = self._batched(data, data.name)
             replace[data] = batched
             func_inputs.append(batched)
@@ -1191,6 +1236,46 @@ class CounterfactualEvaluator:
             shape=(None, *variable.type.shape),
             dims=(CounterfactualEvaluator.BATCH_DIM, *variable.type.dims),
         )
+
+    @staticmethod
+    def _check_not_mutated(name: str, *, live: np.ndarray, stored: np.ndarray) -> None:
+        """Refuse a live value that disagrees with what was recorded at fit time.
+
+        A same-length in-place mutation of a shared variable -- the case this
+        exists for -- passes every other check available here: the date axis
+        is still the right length, the dtype is unchanged, only the numbers
+        moved.  Without this comparison that mutation is invisible, and the
+        counterfactual would be evaluated on a hybrid of fitted spend and
+        posterior draws with an out-of-sample covariate, silently.
+
+        Parameters
+        ----------
+        name : str
+            Name of the variable being compared, for the error message.
+        live : np.ndarray
+            Value read off the live model (or fabricated the way the
+            evaluator always does, for ``time_index``).
+        stored : np.ndarray
+            Value recorded in ``idata.constant_data`` at fit time.
+
+        Raises
+        ------
+        ValueError
+            If *live* and *stored* disagree, in shape or in value.
+        """
+        if not np.array_equal(live, stored, equal_nan=True):
+            raise ValueError(
+                f"Auxiliary input {name!r} has changed since the model was "
+                "fit: its live value no longer matches the value recorded in "
+                "idata.constant_data at fit time.  This happens when "
+                "MMM.sample_posterior_predictive(..., clone_model=False) or a "
+                "direct pm.set_data(...) call mutates the model's shared "
+                "variables in place after fitting; evaluating on the result "
+                "would silently mix fitted spend and posterior draws with "
+                "out-of-sample covariates.  Re-fit the model on the new data, "
+                "or rebuild it from a fresh clone, before computing a "
+                "counterfactual."
+            )
 
     @staticmethod
     def _date_indexed_data(

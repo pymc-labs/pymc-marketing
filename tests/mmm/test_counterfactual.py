@@ -228,6 +228,177 @@ class TestDateIndexedInputs:
             self._evaluator(("country", "date"), n_country=2, dates=self.dates[:4])
 
 
+def build_time_index_model(n_dates):
+    """A minimal model whose graph actually reads ``time_index``.
+
+    ``channel_contribution`` mixes ``time_index`` in directly, rather than
+    through ``time_varying_media``, so the model under test stays as small as
+    :func:`build_aux_dims_model` while still exercising the ``time_index``
+    invariant, which only fires when the intervened graph reads the variable.
+    """
+    coords = {"date": list(range(n_dates)), "channel": ["channel_1"]}
+    with pm.Model(coords=coords) as model:
+        channel_data = pmd.Data(
+            "channel_data", np.ones((n_dates, 1)), dims=("date", "channel")
+        )
+        time_index = pmd.Data(
+            "time_index", np.arange(n_dates, dtype="float64"), dims="date"
+        )
+        beta = pmd.Normal("beta", mu=0.0, sigma=1.0)
+        gamma = pmd.Normal("gamma", mu=0.0, sigma=1.0)
+        pmd.Deterministic(
+            "channel_contribution", beta * channel_data + gamma * time_index
+        )
+
+    posterior = xr.Dataset(
+        {
+            "beta": (("chain", "draw"), np.array([[1.0, 2.0]])),
+            "gamma": (("chain", "draw"), np.array([[0.1, 0.2]])),
+        },
+        coords={"chain": [0], "draw": [0, 1]},
+    )
+    return model, posterior
+
+
+class TestPostFitMutationGuard:
+    """A live value that disagrees with what ``constant_data`` recorded is refused.
+
+    ``MMM.sample_posterior_predictive(..., clone_model=False)`` and any direct
+    ``pm.set_data`` mutate a model's shared variables in place, keeping the
+    date axis the same length.  The pre-existing length check in
+    :class:`TestDateIndexedInputs` passes such a mutation through, and without
+    this comparison the evaluator would silently mix fitted spend and
+    posterior draws with the mutated covariate.  ``expected_aux_values`` is
+    the caller-supplied fit-time record -- typically ``idata.constant_data``
+    -- an evaluator checks its discovered inputs against.
+    """
+
+    dates = pd.date_range("2023-01-02", freq="W-MON", periods=6)
+
+    def test_a_mismatched_aux_value_is_refused(self):
+        """A same-length aux input that disagrees with the record is refused."""
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        mutated = xr.DataArray(aux_values + 1.0, dims=("date", "country"))
+
+        with pytest.raises(ValueError, match=r"'aux_input'.*changed since"):
+            CounterfactualEvaluator(
+                pymc_model=model,
+                posterior=posterior,
+                response_vars=["channel_contribution"],
+                frozen_deterministics=[],
+                dates=self.dates,
+                expected_aux_values={"aux_input": mutated},
+            )
+
+    def test_a_matching_aux_value_constructs_and_computes_as_before(self):
+        """The recorded value agreeing with the live one is not an error.
+
+        A fresh construction of the same model without ``expected_aux_values``
+        is the reference: agreement must not change what gets evaluated.
+        """
+        model, posterior, aux_values = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        unchecked = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        checked = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={
+                "aux_input": xr.DataArray(aux_values, dims=("date", "country"))
+            },
+        )
+
+        values = np.ones((6, 2, 1))
+        np.testing.assert_array_equal(
+            checked.evaluate_baseline(values)["channel_contribution"],
+            unchecked.evaluate_baseline(values)["channel_contribution"],
+        )
+
+    def test_a_name_missing_from_the_record_falls_back_to_the_live_snapshot(self):
+        """No stored value for a discovered input is not an error either.
+
+        ``expected_aux_values`` may come from an idata that predates a given
+        input, or lack a ``constant_data`` group at all; either way an
+        unlisted name keeps today's unchecked behaviour rather than being
+        refused for want of a record.
+        """
+        model, posterior, _ = build_aux_dims_model(
+            ("date", "country"), n_dates=len(self.dates), n_country=2
+        )
+        evaluator = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={},
+        )
+        assert evaluator.windowed_data_vars == ("aux_input",)
+
+    def test_a_mismatched_time_index_is_refused(self):
+        """``time_index`` is checked against the fabrication, never a live value.
+
+        Unlike the other auxiliary inputs, the evaluator never reads
+        ``time_index`` off the live model -- both evaluation paths fabricate
+        ``np.arange(n_dates)`` instead.  The guard therefore compares that
+        fabrication against the record, not a live snapshot, since adopting a
+        live ``time_index`` would reintroduce the exact hybrid-state bug this
+        task fixes.
+        """
+        model, posterior = build_time_index_model(n_dates=len(self.dates))
+        stored = xr.DataArray(
+            np.arange(len(self.dates), dtype="float64") + 1.0, dims="date"
+        )
+
+        with pytest.raises(ValueError, match=r"'time_index'.*changed since"):
+            CounterfactualEvaluator(
+                pymc_model=model,
+                posterior=posterior,
+                response_vars=["channel_contribution"],
+                frozen_deterministics=[],
+                dates=self.dates,
+                expected_aux_values={"time_index": stored},
+            )
+
+    def test_a_matching_time_index_constructs_and_computes_as_before(self):
+        """The fabricated positions agreeing with the record is not an error."""
+        model, posterior = build_time_index_model(n_dates=len(self.dates))
+        stored = xr.DataArray(np.arange(len(self.dates), dtype="float64"), dims="date")
+
+        unchecked = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+        )
+        checked = CounterfactualEvaluator(
+            pymc_model=model,
+            posterior=posterior,
+            response_vars=["channel_contribution"],
+            frozen_deterministics=[],
+            dates=self.dates,
+            expected_aux_values={"time_index": stored},
+        )
+
+        values = np.ones((6, 1))
+        np.testing.assert_array_equal(
+            checked.evaluate_baseline(values)["channel_contribution"],
+            unchecked.evaluate_baseline(values)["channel_contribution"],
+        )
+
+
 class TestPeriodEdgeCases:
     """Periods that are degenerate, and the windows they produce.
 

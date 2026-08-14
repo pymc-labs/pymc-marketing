@@ -2532,6 +2532,67 @@ class TestMediatedEdgeCases:
         assert summed < joint_total
 
 
+class TestPostFitMutationGuard:
+    """A same-length in-place mutation of an auxiliary input after fitting is refused.
+
+    ``MMM.sample_posterior_predictive(..., clone_model=False)`` and any direct
+    ``pm.set_data`` call mutate a fitted model's shared variables in place.
+    ``lf_budget`` -- the funnel mediator's exogenous input -- is exactly such
+    a variable: it never reaches ``fit_data``, so
+    :class:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator` reads
+    it off the live model rather than off a frame it could re-check the shape
+    of.  A mutation that keeps its length unchanged used to pass through
+    unnoticed and silently mix the fitted spend and posterior with the
+    mutated budget; it is now compared against ``idata.constant_data`` and
+    refused.
+    """
+
+    @pytest.fixture
+    def mutated_lf_budget(self, funnel_identity_fitted_mmm):
+        """Mutate ``lf_budget`` in place on the fixture, then restore it.
+
+        ``funnel_identity_fitted_mmm`` is module-scoped and reused by many
+        other tests in this file, so the mutation must not outlive this one
+        test regardless of whether it passes or fails.
+        """
+        model = funnel_identity_fitted_mmm.model
+        original = model["lf_budget"].get_value(borrow=False).copy()
+        with model:
+            pm.set_data({"lf_budget": original + 5.0})
+        try:
+            yield funnel_identity_fitted_mmm
+        finally:
+            with model:
+                pm.set_data({"lf_budget": original})
+
+    def test_a_mutated_mediator_input_is_refused(self, mutated_lf_budget):
+        """The mutation is caught and named, not silently evaluated.
+
+        On the code this guards against, the call below succeeds and returns
+        an increment computed from the mutated budget instead of the fitted
+        one, with nothing to say so.
+        """
+        with pytest.raises(ValueError, match=r"'lf_budget'.*changed since"):
+            mutated_lf_budget.incrementality.compute_incremental_contribution(
+                frequency="all_time"
+            )
+
+    def test_an_unmutated_model_still_constructs_and_computes(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The same fixture, left alone, computes exactly as it did before the guard."""
+        mmm = funnel_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm, "funnel_effect_contribution", l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+
 class TestIncrementalitySpecValidation:
     """What the extension point accepts, and what it refuses.
 

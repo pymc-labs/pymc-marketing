@@ -1031,6 +1031,12 @@ class Incrementality:
         # The evaluator applies the spend intervention through pm.do, which
         # clones the model; response variables handed over as raw nodes, like
         # the predictor above, are re-resolved by name against that clone.
+        # expected_aux_values lets the evaluator catch a post-fit mutation of
+        # its auxiliary inputs -- MMM.sample_posterior_predictive(...,
+        # clone_model=False) or a direct pm.set_data() call -- rather than
+        # silently evaluating on whatever the live model happens to hold.
+        # constant_data is missing only for idata built before this group was
+        # recorded, and the evaluator falls back to the live snapshot then.
         evaluator = CounterfactualEvaluator(
             pymc_model=posterior_predictive_model,
             posterior=posterior_sub,
@@ -1041,6 +1047,11 @@ class Incrementality:
             ],
             frozen_deterministics=self.model.frozen_deterministics,
             dates=dates,
+            expected_aux_values=(
+                self.idata.constant_data
+                if hasattr(self.idata, "constant_data")
+                else None
+            ),
         )
 
         # Evaluate baseline on full dataset (once).  Comparable to the windowed
