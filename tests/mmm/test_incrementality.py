@@ -213,6 +213,7 @@ def compute_log_link_ground_truth_by_period(
     joint=False,
     start_date=None,
     end_date=None,
+    full_axis=False,
 ):
     """Ground truth incremental contribution for a multiplicative (log-link) model.
 
@@ -251,6 +252,13 @@ def compute_log_link_ground_truth_by_period(
     start_date, end_date : str or pd.Timestamp, optional
         Date range the periods are built over, matching the module's
         ``start_date``/``end_date`` parameters.  Default to the fitted range.
+    full_axis : bool, default False
+        Sum each period's difference all the way to the last fitted date instead
+        of stopping ``l_max`` past the period.  What the module does when the
+        probe selects full-axis evaluation, either because some node's reach
+        could not be bounded from the axis or because it reduces over ``date``:
+        there is no measured tail length to stop at, so the sum runs to the end.
+        Supersedes *l_max*, which then has nothing to size.
 
     Returns
     -------
@@ -279,10 +287,12 @@ def compute_log_link_ground_truth_by_period(
     period_results = []
     for t0, t1 in periods:
         target_mask = (dates >= t0) & (dates <= t1)
-        if include_carryover:
-            eval_mask = (dates >= t0) & (dates <= t1 + l_max * freq_offset)
-        else:
+        if not include_carryover:
             eval_mask = (dates >= t0) & (dates <= t1)
+        elif full_axis:
+            eval_mask = dates >= t0
+        else:
+            eval_mask = (dates >= t0) & (dates <= t1 + l_max * freq_offset)
 
         channel_results = []
         for i, channel in enumerate(channels):
@@ -1868,6 +1878,12 @@ class TestMediatedMuEffects:
 
         A monthly frequency is what gives the test teeth: at ``all_time`` the
         window is already the whole axis and the distinction cannot fail.
+
+        The oracle sums each period's difference to the axis end.  A perturbation
+        that moves every date has no tail length to stop at, so a sum ending
+        ``l_max`` past the period would leave out moves the effect demonstrably
+        makes: the correction is to the oracle, whose old window was the model's
+        ``l_max`` for want of anything better, and not to the assertion.
         """
         mmm = global_normalization_fitted_mmm
 
@@ -1876,7 +1892,9 @@ class TestMediatedMuEffects:
         result = mmm.incrementality.compute_incremental_contribution(
             frequency="monthly"
         )
-        expected = compute_log_link_ground_truth_by_period(mmm, frequency="monthly")
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", full_axis=True
+        )
 
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
@@ -1975,6 +1993,40 @@ class TestMediatedMuEffects:
         expected = compute_log_link_ground_truth_by_period(
             mmm, frequency="monthly", l_max=effective_l_max(mmm)
         )
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_an_unbounded_mediated_tail_is_summed_to_the_axis_end(
+        self, long_tail_funnel_fitted_mmm
+    ):
+        """A tail the axis cannot bound is summed whole, not cut back to ``l_max``.
+
+        The mediator's second adstock is long enough that a perturbation early in
+        the series still moves the very last fitted date, so the probe cannot put
+        a number on the tail and selects full-axis evaluation.  Full-axis mode
+        widens the *window*, and the danger is that it stops there: the dates
+        entering the *sum* used to be bounded by ``end + effective_l_max``, which
+        for an effect declaring nothing is the model's own ``l_max``.  The tail
+        beyond that was computed correctly and then dropped, so the increment came
+        back low with nothing to indicate anything had been cut, which is exactly
+        the failure the measurement exists to prevent.
+
+        The oracle sums every date from the period's start onwards, which is what
+        a reach that could not be bounded leaves as the only honest window.
+        """
+        mmm = long_tail_funnel_fitted_mmm
+
+        reach = measure_spend_reach(mmm)
+        # Guards the premise: the tail is unbounded, and nothing was declared.
+        assert reach.measured["funnel_effect_contribution"].requires_full_axis
+        assert reach.requires_full_axis
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", full_axis=True
+        )
+
         xr.testing.assert_allclose(result, expected, rtol=1e-6)
 
     def test_declaring_a_window_for_a_date_reduction_is_refused(

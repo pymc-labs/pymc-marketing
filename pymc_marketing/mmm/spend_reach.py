@@ -264,7 +264,10 @@ class TemporalReach:
     ----------
     additional_carryover_lags : int
         Periods beyond the model's own ``adstock.l_max`` over which the node
-        still moves after a change in spend at a single date.
+        still moves after a change in spend at a single date.  Exact for a reach
+        the axis could bound; a lower bound alongside ``requires_full_axis``,
+        where all the probe established is that the tail had not ended by the
+        last fitted date.
     requires_full_axis : bool
         Whether the node has to be evaluated on the complete fitted date axis.
         True when a perturbation still moves the far end of the axis (reach
@@ -282,9 +285,26 @@ class TemporalReach:
         return cls(additional_carryover_lags=0, requires_full_axis=False)
 
     @classmethod
-    def full_axis(cls) -> TemporalReach:
-        """Return the reach of a node no window can reproduce."""
-        return cls(additional_carryover_lags=0, requires_full_axis=True)
+    def full_axis(cls, additional_carryover_lags: int = 0) -> TemporalReach:
+        """Return the reach of a node no window can reproduce.
+
+        Parameters
+        ----------
+        additional_carryover_lags : int, default=0
+            The lag lower bound the probe still established, if any.  Full-axis
+            evaluation sums to the axis end regardless, so this does not size
+            anything; it is kept so that a declaration narrower than what was
+            plainly measured can still be refused rather than accepted.
+
+        Returns
+        -------
+        TemporalReach
+            Full-axis, carrying whatever lower bound was measured.
+        """
+        return cls(
+            additional_carryover_lags=additional_carryover_lags,
+            requires_full_axis=True,
+        )
 
     @classmethod
     def widest(cls, reaches: Iterable[TemporalReach]) -> TemporalReach:
@@ -599,12 +619,13 @@ class SpendProbe:
                 UserWarning,
                 stacklevel=3,
             )
-            # The declarations are all there is to go on, and they still have to
-            # be honoured: full-axis mode widens the *window*, but the carry-out
-            # that enters each period's sum is sized by effective_l_max, so
-            # dropping a declared mediated tail here would shorten the sum rather
-            # than merely the window.  Nothing was measured, so no declaration can
-            # be contradicted and neither check in _reconcile_declarations fires.
+            # The declarations are all there is to go on, and they are still
+            # reported: full-axis evaluation sums to the axis end and so covers
+            # any declared mediated tail on its own, but effective_l_max is read
+            # by callers as the reach the evaluation accommodates, and answering
+            # with the model's own l_max would understate what was asked for.
+            # Nothing was measured, so no declaration can be contradicted and
+            # neither check in _reconcile_declarations fires.
             declared = TemporalReach.widest(self._reconcile_declarations(effects, {}))
             return SpendReach(
                 effective_l_max=l_max + declared.additional_carryover_lags,
@@ -675,10 +696,15 @@ class SpendProbe:
 
         moved = per_date > self.REACH_TOLERANCE * largest
         last_moved = int(np.flatnonzero(moved)[-1])
+        lags = max(last_moved - probe_index - l_max, 0)
         if moved[:probe_index].any() or last_moved == n_dates - 1:
-            return TemporalReach.full_axis()
+            # The axis could not bound the tail, but it did establish that the
+            # node still moved that far, and a declaration claiming less than
+            # that is still falsified.  Carrying the bound is what keeps
+            # _reconcile_declarations able to say so.
+            return TemporalReach.full_axis(additional_carryover_lags=lags)
         return TemporalReach(
-            additional_carryover_lags=max(last_moved - probe_index - l_max, 0),
+            additional_carryover_lags=lags,
             requires_full_axis=False,
         )
 

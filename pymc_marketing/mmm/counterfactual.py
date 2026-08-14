@@ -180,8 +180,10 @@ class PeriodWindow:
         in_window : np.ndarray
             Boolean mask over *dates* selecting the window.
         eval_end : pd.Timestamp
-            Last date to sum, which is *end* plus the carry-out length when
-            carryover is included and *end* itself when it is not.
+            Last date to sum: *end* itself when carryover is excluded, and
+            otherwise as far as the carry-out reaches, which is *end* plus the
+            window's ``l_max`` for a bounded reach and the last fitted date for a
+            reach the axis could not bound.
 
         Returns
         -------
@@ -257,6 +259,17 @@ class EvaluationWindows:
     inject synthetic history -- inert for spend, but not for an effect whose
     contribution at zero spend is its own intercept.
 
+    The dates that are *summed* run from the period's own start to its carry-out
+    end, and the estimand that fixes is a forward-looking one: a period's
+    increment is what moving its spend does to that period and to the dates after
+    it.  Under full-axis evaluation, selected for a node whose value depends on
+    the whole series, the perturbation also moves dates *before* the period, and
+    those moves are deliberately left out of the sum.  Summing them would make
+    the periods overlap in a quantity every caller reads as a decomposition, and
+    it is not what "this period's increment" is taken to mean.  A date-reducing
+    node is therefore evaluated on the whole series, as its value requires, and
+    still attributed forwards.
+
     Parameters
     ----------
     windows : list of PeriodWindow
@@ -298,10 +311,10 @@ class EvaluationWindows:
         freq_offset : pd.DateOffset
             Calendar-aware frequency offset.
         include_carryover : bool, default=True
-            Whether the *evaluation* range reaches ``l_max`` past the period to
-            pick up its carry-out.  Independent of the window, which always does:
-            the two lengths do different jobs and collapsing them would change
-            the numbers inside the period too.
+            Whether the *evaluation* range reaches past the period to pick up its
+            carry-out.  Independent of the window, which always does: the two
+            lengths do different jobs and collapsing them would change the
+            numbers inside the period too.
         full_axis : bool, default=False
             Evaluate every period on the complete fitted date axis, for an
             effect whose value depends on the whole series.  Expressed as a
@@ -319,19 +332,31 @@ class EvaluationWindows:
         for start, end in periods:
             if full_axis:
                 in_window = np.ones(len(dates), dtype=bool)
+                # Full-axis mode is selected precisely when no number could be
+                # put on some node's reach: the probe saw it still moving the
+                # last fitted date, or moving dates before the perturbed one.
+                # Stopping the sum at end + l_max would then cut a tail that was
+                # measured *not* to have ended, which is the silent under-count
+                # the measurement exists to prevent.  Summing to the axis end
+                # instead costs nothing in correctness: for a date the
+                # perturbation does not reach, the counterfactual and the
+                # baseline are the same computation on the same inputs, so the
+                # extra summands are exactly zero.
+                eval_end = dates[-1]
             else:
                 # Reach back l_max for carry-in context and forward l_max so
                 # carryover is captured; the eval mask decides what is summed.
                 in_window = (dates >= start - l_max * freq_offset) & (
                     dates <= end + l_max * freq_offset
                 )
+                eval_end = end + l_max * freq_offset
             windows.append(
                 PeriodWindow.build(
                     start=start,
                     end=end,
                     dates=dates,
                     in_window=in_window,
-                    eval_end=end + l_max * freq_offset if include_carryover else end,
+                    eval_end=eval_end if include_carryover else end,
                 )
             )
 

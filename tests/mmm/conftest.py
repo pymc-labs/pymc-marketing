@@ -754,6 +754,25 @@ class FullAxisFunnelEffect(FunnelEffect):
         )
 
 
+class LongTailFunnelEffect(FunnelEffect):
+    """A funnel effect whose mediated tail outlives the date axis itself.
+
+    Same graph as :class:`FunnelEffect`, but the second adstock is long enough
+    relative to the series that a perturbation early on still moves the *last*
+    fitted date.  The axis can then show only that the tail has not ended, never
+    how long it is, so full-axis evaluation is selected: exactly the case in
+    which the carry-out entering each period's sum must not be cut back to the
+    model's own ``l_max``.
+
+    It declares nothing, which is the documented "measure it" default, so the
+    measurement is the only thing the evaluation has to go on.
+    """
+
+    def incrementality_spec(self) -> IncrementalitySpec:
+        """Opt in and declare nothing: the reach is measured."""
+        return IncrementalitySpec()
+
+
 class GlobalNormalizationEffect(MuEffect):
     """An effect that divides spend by its own mean over the whole date axis.
 
@@ -1170,6 +1189,27 @@ def funnel_full_axis_fitted_mmm(funnel_mmm_data):
     """Funnel MMM whose effect declares ``evaluation_mode="full"``."""
     return _build_funnel_mmm(
         funnel_mmm_data, link="log", effect_cls=FullAxisFunnelEffect
+    )
+
+
+LONG_TAIL_DEMAND_L_MAX = 22
+"""Mediator adstock length in :func:`long_tail_funnel_fitted_mmm`.
+
+The series is 24 dates long and the probe lands in its first few dates, so two
+chained adstocks of 3 and 22 reach the very last one: the tail cannot be bounded
+from the axis, which is what selects full-axis evaluation.
+"""
+
+
+@pytest.fixture(scope="module")
+def long_tail_funnel_fitted_mmm(funnel_mmm_data):
+    """Funnel MMM whose mediated tail still moves the last fitted date."""
+    return _build_funnel_mmm(
+        funnel_mmm_data,
+        link="log",
+        effects=[
+            _funnel_effect(LongTailFunnelEffect, demand_l_max=LONG_TAIL_DEMAND_L_MAX)
+        ],
     )
 
 
