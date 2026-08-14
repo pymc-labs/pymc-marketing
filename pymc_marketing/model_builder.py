@@ -1612,6 +1612,8 @@ class RegressionModelBuilder(ModelBuilder):
 
         if not hasattr(self, "model"):
             self.build_model(X, y)
+        else:
+            self._data_setter(X, y)
 
         self._fit_data_group = self.create_fit_data(X, y)
 
