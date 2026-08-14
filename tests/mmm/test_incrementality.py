@@ -13,6 +13,8 @@
 #   limitations under the License.
 """Tests for Incrementality module - counterfactual analysis with carryover."""
 
+import warnings
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -22,21 +24,47 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from pymc_marketing.mmm.incrementality import Incrementality
+import pymc_marketing
+from pymc_marketing.mmm import (
+    MMM,
+    GeometricAdstock,
+    LogisticSaturation,
+    LogSaturation,
+)
+from pymc_marketing.mmm import incrementality as incrementality_module
+from pymc_marketing.mmm.additive_effect import IncrementalitySpec
+from pymc_marketing.mmm.counterfactual import (
+    CounterfactualEvaluator,
+    EvaluationWindows,
+)
+from pymc_marketing.mmm.incrementality import (
+    IdentityLinkReducer,
+    Incrementality,
+    IncrementalReducer,
+    LogLinkReducer,
+)
+from pymc_marketing.mmm.spend_reach import (
+    LINEAR_PREDICTOR,
+    SpendProbe,
+    TemporalReach,
+    resolve_channel_dependent_effects,
+)
+from pymc_marketing.mmm.transformers import geometric_adstock, logistic_saturation
 from pymc_marketing.model_graph import deterministics_to_flat
+from tests.mmm.test_spend_reach import (
+    effective_l_max,
+    measure_reach,
+    measure_spend_reach,
+    measures_channel_mixing,
+)
 
 
-def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
-    """Evaluate channel_contribution for given channel_data using sample_posterior_predictive.
+def evaluate_under_spend(mmm, channel_data_values, var_name):
+    """Evaluate ``var_name`` for given channel_data using sample_posterior_predictive.
 
     Uses the standard PyMC evaluation path (completely independent from
     extract_response_distribution + vectorize_graph) as an oracle.
     """
-    var_name = (
-        "channel_contribution_original_scale"
-        if original_scale
-        else "channel_contribution"
-    )
     names = mmm.frozen_deterministics
     if names:
         model = deterministics_to_flat(mmm.model, names=names)
@@ -55,6 +83,16 @@ def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False
             var_names=[var_name],
         )
     return result.posterior_predictive[var_name]
+
+
+def evaluate_channel_contribution(mmm, channel_data_values, original_scale=False):
+    """Evaluate channel_contribution for given channel_data (identity-link oracle)."""
+    var_name = (
+        "channel_contribution_original_scale"
+        if original_scale
+        else "channel_contribution"
+    )
+    return evaluate_under_spend(mmm, channel_data_values, var_name)
 
 
 def compute_ground_truth_incremental_by_period(
@@ -151,22 +189,318 @@ def compute_ground_truth_incremental_by_period(
         period_incr = period_incr.assign_coords(date=t1).expand_dims("date")
         period_results.append(period_incr)
 
-    # Concatenate and format
+    return _format_ground_truth(period_results, frequency)
+
+
+def _format_ground_truth(period_results, frequency, joint=False):
+    """Concatenate per-period ground truth and match the module's dimension order."""
     if frequency == "all_time":
         result = period_results[0].squeeze("date", drop=True)
     else:
         result = xr.concat(period_results, dim="date")
 
-    # Standard dimension order: (chain, draw, [date,] channel, *custom_dims)
-    core_dims = ["chain", "draw", "channel"]
+    # Standard dimension order: (chain, draw, [date,] [channel,] *custom_dims)
+    channel_dims = [] if joint else ["channel"]
+    core_dims = ["chain", "draw", *channel_dims]
     extra_dims = [d for d in result.dims if d not in [*core_dims, "date"]]
 
-    if frequency == "all_time":
-        dim_order = ["chain", "draw", "channel", *extra_dims]
-    else:
-        dim_order = ["chain", "draw", "date", "channel", *extra_dims]
+    date_dims = [] if frequency == "all_time" else ["date"]
+    return result.transpose("chain", "draw", *date_dims, *channel_dims, *extra_dims)
 
-    return result.transpose(*dim_order)
+
+def compute_log_link_ground_truth_by_period(
+    mmm,
+    frequency="all_time",
+    counterfactual_spend_factor=0.0,
+    include_carryover=True,
+    l_max=None,
+    joint=False,
+    start_date=None,
+    end_date=None,
+    full_axis=False,
+):
+    """Ground truth incremental contribution for a multiplicative (log-link) model.
+
+    Deliberately brute force, and deliberately **per channel**: under a log
+    link the response is multiplicative, so channel *m*'s increment cannot be
+    read off a single all-channels counterfactual the way it can under an
+    identity link.  Each ``(period, channel)`` pair therefore gets its own
+    counterfactual, evaluated on the model's response-scale prediction
+    ``{output_var}_original_scale`` through ``sample_posterior_predictive``.
+
+    Shares no code with the incrementality module -- in particular it never
+    forms a linear-predictor difference -- so it is an independent check of
+    both the algebra and the carryover window.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM built with ``link="log"``.
+    frequency : str
+        One of ``"original"``, ``"monthly"``, ``"all_time"``, etc.
+    counterfactual_spend_factor : float
+        Factor applied to the target period's spend (``0.0`` = zero-out).
+    include_carryover : bool
+        Whether to include adstock carryover effects.
+    l_max : int, optional
+        Carry-out length of the evaluation window.  Defaults to the model's own
+        ``adstock.l_max``; a mediated effect that chains a second adstock needs a
+        longer window, and the module's
+        :attr:`~pymc_marketing.mmm.spend_reach.SpendReach.effective_l_max` is
+        what it has to agree with.
+    joint : bool, default False
+        Perturb every channel in one counterfactual and return a single number
+        per period, matching
+        :meth:`Incrementality.compute_joint_incremental_contribution`, instead of
+        one leave-one-out counterfactual per channel.
+    start_date, end_date : str or pd.Timestamp, optional
+        Date range the periods are built over, matching the module's
+        ``start_date``/``end_date`` parameters.  Default to the fitted range.
+    full_axis : bool, default False
+        Sum each period's difference all the way to the last fitted date instead
+        of stopping ``l_max`` past the period.  What the module does when the
+        probe selects full-axis evaluation, either because some node's reach
+        could not be bounded from the axis or because it reduces over ``date``:
+        there is no measured tail length to stop at, so the sum runs to the end.
+        Supersedes *l_max*, which then has nothing to size.
+
+    Returns
+    -------
+    xr.DataArray
+        Ground truth with dimensions matching
+        ``compute_incremental_contribution`` output.
+    """
+    actual_data = mmm.model["channel_data"].get_value()
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    channels = list(mmm.channel_columns)
+    response_var = f"{mmm.output_var}_original_scale"
+
+    # Do not assume channel sits on axis 1: panel models lay channel_data out as
+    # (date, *custom_dims, channel), so the axis has to be looked up.
+    channel_axis = list(mmm.data.get_channel_data().dims).index("channel")
+
+    start = dates[0] if start_date is None else pd.to_datetime(start_date)
+    end = dates[-1] if end_date is None else pd.to_datetime(end_date)
+    periods = mmm.incrementality._create_period_groups(start, end, frequency)
+    if l_max is None:
+        l_max = mmm.adstock.l_max
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+
+    baseline = evaluate_under_spend(mmm, actual_data, response_var)
+
+    period_results = []
+    for t0, t1 in periods:
+        target_mask = (dates >= t0) & (dates <= t1)
+        if not include_carryover:
+            eval_mask = (dates >= t0) & (dates <= t1)
+        elif full_axis:
+            eval_mask = dates >= t0
+        else:
+            eval_mask = (dates >= t0) & (dates <= t1 + l_max * freq_offset)
+
+        channel_results = []
+        for i, channel in enumerate(channels):
+            # Perturb ONE channel; every other channel keeps actual spend.  For
+            # the joint estimand, perturb them all in a single counterfactual.
+            selector: list = [slice(None)] * actual_data.ndim
+            selector[0] = target_mask
+            if not joint:
+                selector[channel_axis] = i
+
+            cf_data = actual_data.copy()
+            cf_data[tuple(selector)] = (
+                actual_data[tuple(selector)] * counterfactual_spend_factor
+            )
+            cf = evaluate_under_spend(mmm, cf_data, response_var)
+
+            # Sign convention matches compute_incremental_contribution.
+            if counterfactual_spend_factor > 1.0:
+                diff = cf - baseline
+            else:
+                diff = baseline - cf
+
+            summed = diff.sel(date=dates[eval_mask]).sum(dim="date")
+            if joint:
+                channel_results.append(summed)
+                break
+            channel_results.append(summed.assign_coords(channel=channel))
+
+        if joint:
+            period_incr = channel_results[0]
+        else:
+            period_incr = xr.concat(channel_results, dim="channel")
+        period_results.append(period_incr.assign_coords(date=t1).expand_dims("date"))
+
+    return _format_ground_truth(period_results, frequency, joint=joint)
+
+
+def source_spend(X, frequency, channels):
+    """Total spend per channel per period, computed from the source frame.
+
+    Independent of both the module and ``MMMIDataWrapper``.  A ROAS test whose
+    denominator comes from ``_aggregate_spend`` -- the very call the method under
+    test makes -- verifies a division and nothing else, and would pass with an
+    arbitrarily wrong numerator.
+
+    Parameters
+    ----------
+    X : pd.DataFrame
+        The fixture's own source frame, with a ``date`` column.
+    frequency : str
+        ``"all_time"`` or ``"monthly"``.
+    channels : sequence of str
+        Channel columns, in the model's order.
+
+    Returns
+    -------
+    xr.DataArray
+        Dimensions ``("date", "channel")``, or ``("channel",)`` for
+        ``"all_time"``.  Period labels are the period *ends*, matching
+        :meth:`Incrementality._create_period_groups`.
+    """
+    frame = X.set_index("date")[list(channels)]
+    if frequency == "all_time":
+        return xr.DataArray(
+            frame.to_numpy().sum(axis=0),
+            dims="channel",
+            coords={"channel": list(channels)},
+        )
+    totals = frame.groupby(frame.index.to_period("M")).sum()
+    return xr.DataArray(
+        totals.to_numpy(),
+        dims=("date", "channel"),
+        coords={
+            "date": [
+                period.to_timestamp(how="end").normalize() for period in totals.index
+            ],
+            "channel": list(channels),
+        },
+    )
+
+
+def mediated_identity_oracle(mmm, *effect_vars, l_max=None, sum_channels=False):
+    """Per-channel mediated increment for an additive model, read off the graph.
+
+    Under ``link="identity"`` the increment is ``target_scale`` times the summed
+    change in the linear predictor, so the mediated part is available directly
+    from each effect's own contribution deterministic -- no response-scale
+    counterfactual needed.  Every evaluation goes through
+    ``sample_posterior_predictive``, so this shares no code with the module.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted MMM built with ``link="identity"``.
+    *effect_vars : str
+        Contribution variables of the mediated effects to include.
+    l_max : int, optional
+        Carry-out length; defaults to the reconciled reach the module uses.
+    sum_channels : bool, default=False
+        How to read ``channel_contribution`` out of a counterfactual that zeroed
+        one channel.  ``False`` reads that channel's own column, which is the
+        whole of its unilateral effect only while the media transform is
+        separable across channels.  ``True`` sums the whole contribution delta,
+        which is the unilateral estimand under any transform and is bit-identical
+        to the column readout for a separable one, since the untouched columns
+        do not move at all.
+
+    Returns
+    -------
+    xr.DataArray
+        All-time increment with dimensions ``(chain, draw, channel, *dims)``.
+    """
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    actual = mmm.model["channel_data"].get_value()
+    target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+    if l_max is None:
+        l_max = effective_l_max(mmm)
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+    eval_dates = dates[dates <= dates[-1] + l_max * freq_offset]
+    # Panel models lay channel_data out as (date, *custom_dims, channel), so the
+    # axis a per-channel counterfactual zeroes has to be looked up, not assumed.
+    channel_axis = list(mmm.data.get_channel_data().dims).index("channel")
+
+    def predictor(channel_data):
+        return (
+            evaluate_under_spend(mmm, channel_data, "channel_contribution"),
+            [evaluate_under_spend(mmm, channel_data, var) for var in effect_vars],
+        )
+
+    base_channel, base_effects = predictor(actual)
+
+    expected = []
+    for idx, channel in enumerate(mmm.channel_columns):
+        cf_data = actual.copy()
+        selector: list = [slice(None)] * actual.ndim
+        selector[channel_axis] = idx
+        cf_data[tuple(selector)] = 0.0
+        cf_channel, cf_effects = predictor(cf_data)
+
+        delta = (
+            (base_channel - cf_channel).sum("channel")
+            if sum_channels
+            else base_channel.isel(channel=idx, drop=True)
+            - cf_channel.isel(channel=idx, drop=True)
+        )
+        for base, counterfactual in zip(base_effects, cf_effects, strict=True):
+            delta = delta + (base - counterfactual)
+
+        expected.append(
+            (delta.sel(date=eval_dates).sum(dim="date") * target_scale).assign_coords(
+                channel=channel
+            )
+        )
+
+    return xr.concat(expected, dim="channel").transpose("chain", "draw", "channel", ...)
+
+
+def identity_joint_oracle(mmm, *effect_vars, l_max=None):
+    """All-channels increment for an additive model, read off the graph.
+
+    The joint counterpart of :func:`mediated_identity_oracle`: a single
+    counterfactual zeroing every channel at once, whose whole change in the
+    linear predictor is the joint increment.  No per-channel column is read, so
+    this is the one estimand a media transform that mixes channels cannot
+    disturb.
+
+    Parameters
+    ----------
+    mmm : MMM
+        Fitted model built with ``link="identity"``.
+    *effect_vars : str
+        Contribution variables of the mediated effects to include.
+    l_max : int, optional
+        Carry-out length; defaults to the reconciled reach the module uses.
+
+    Returns
+    -------
+    xr.DataArray
+        All-time increment with dimensions ``(chain, draw, *dims)``.
+    """
+    dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+    actual = mmm.model["channel_data"].get_value()
+    target_scale = mmm.idata.constant_data["target_scale"].squeeze(drop=True)
+    if l_max is None:
+        l_max = effective_l_max(mmm)
+    freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+    eval_dates = dates[dates <= dates[-1] + l_max * freq_offset]
+
+    def predictor(channel_data):
+        return (
+            evaluate_under_spend(mmm, channel_data, "channel_contribution"),
+            [evaluate_under_spend(mmm, channel_data, var) for var in effect_vars],
+        )
+
+    base_channel, base_effects = predictor(actual)
+    cf_channel, cf_effects = predictor(np.zeros_like(actual))
+
+    delta = (base_channel - cf_channel).sum("channel")
+    for base, counterfactual in zip(base_effects, cf_effects, strict=True):
+        delta = delta + (base - counterfactual)
+
+    return (delta.sel(date=eval_dates).sum(dim="date") * target_scale).transpose(
+        "chain", "draw", ...
+    )
 
 
 @pytest.fixture
@@ -257,7 +591,12 @@ class TestIncrementality:
         )
         # check no Nans in ground truth
         assert not np.isnan(gt).any()  # sanity check
-        xr.testing.assert_allclose(result, gt, rtol=1e-4)
+        # The identity-link reduction is a sum of differences against the
+        # oracle's difference of sums, so the two agree to float rounding and
+        # nothing about the algebra is approximate.  Measured across this whole
+        # parametrisation the worst relative error is 2.2e-11, so the tolerance
+        # keeps three orders of margin rather than the seven 1e-4 allowed.
+        xr.testing.assert_allclose(result, gt, rtol=1e-8)
 
     def test_negative_counterfactual_factor_raises_error(self, incrementality_lite):
         """Test that negative counterfactual factor raises ValueError."""
@@ -299,42 +638,58 @@ class TestIncrementality:
         assert result_sub.sizes["chain"] == 1
         assert result_sub.sizes["draw"] == 10
 
-    def test_num_samples_respects_total_across_chains(self, simple_fitted_mmm):
-        """Test that num_samples returns exactly num_samples with multi-chain posteriors."""
-        import copy
+    def test_num_samples_selects_whole_draws_across_chains(self, simple_fitted_mmm):
+        """``num_samples`` counts across chains and carries whole draws through.
 
+        The second chain gets a rescaled ``saturation_beta`` so every
+        ``(chain, draw)`` pair yields a distinct increment.  Duplicating the
+        posterior instead would let a chain-major/draw-major mix-up pass
+        unnoticed, since both orderings would then select equal values.
+        """
         mmm = simple_fitted_mmm
+        posterior = mmm.idata.posterior
+        if hasattr(posterior, "dataset"):
+            posterior = posterior.dataset
 
-        # Duplicate posterior along chain dim to simulate 2 chains
-        original_posterior = mmm.idata.posterior
-        if hasattr(original_posterior, "dataset"):
-            original_posterior = original_posterior.dataset
-        chain2 = original_posterior.assign_coords(
-            chain=[original_posterior.chain.values[0] + 1]
-        )
-        multi_chain_posterior = xr.concat([original_posterior, chain2], dim="chain")
+        chain2 = posterior.assign_coords(chain=[posterior.chain.values[0] + 1])
+        chain2["saturation_beta"] = chain2["saturation_beta"] * 0.5
+        multi_chain = xr.concat([posterior, chain2], dim="chain")
+        mmm.idata["posterior"] = multi_chain
 
-        # Replace posterior in idata with multi-chain version
-        mmm_idata_backup = copy.copy(mmm.idata)
-        mmm.idata["posterior"] = multi_chain_posterior
-
-        # Sanity: verify we now have 2 chains
-        n_chains = mmm.idata.posterior.dims["chain"]
-        assert n_chains == 2, f"Expected 2 chains, got {n_chains}"
-
+        n_chains = multi_chain.sizes["chain"]
+        n_draws = multi_chain.sizes["draw"]
         num_samples = 10
-        incr = mmm.incrementality
-        result = incr.compute_incremental_contribution(
+        assert n_chains == 2
+
+        full = mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        subset = mmm.incrementality.compute_incremental_contribution(
             frequency="all_time",
             num_samples=num_samples,
             random_state=42,
         )
 
-        assert result.sizes["chain"] == 1
-        assert result.sizes["draw"] == num_samples
+        # num_samples is a total, not a per-chain count.
+        assert subset.sizes["chain"] == 1
+        assert subset.sizes["draw"] == num_samples
 
-        # Restore original idata
-        mmm.idata = mmm_idata_backup
+        # The premise: the chains genuinely disagree, so draw identity matters.
+        assert not np.allclose(full.isel(chain=0).values, full.isel(chain=1).values)
+
+        # Same chain-major flat selection that subsample_draws makes.
+        flat_indices = np.random.default_rng(42).choice(
+            n_chains * n_draws, size=num_samples, replace=False
+        )
+        expected = (
+            full.stack(sample=("chain", "draw"))
+            .isel(sample=flat_indices)
+            .transpose("sample", ...)
+        )
+
+        np.testing.assert_allclose(
+            subset.squeeze("chain", drop=True).transpose("draw", ...).values,
+            expected.values,
+            rtol=1e-10,
+        )
 
     def test_random_state_makes_subsampling_reproducible(self, simple_fitted_mmm):
         """Test that random_state ensures reproducible subsampling."""
@@ -419,129 +774,143 @@ class TestHelperMethods:
         with pytest.raises(ValueError, match="is after"):
             incr._validate_input(dates[-1], dates[0])
 
-    def test_compute_window_metadata_no_padding_interior(self, incrementality_lite):
-        """Interior periods have no left/right padding."""
+    def test_an_interior_window_reaches_l_max_either_side(self, incrementality_lite):
+        """An interior period reaches l_max fitted dates either side."""
         incr, l_max = incrementality_lite
         dates = incr.data.dates
-        freq = pd.infer_freq(dates)
-        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
 
         # Pick a period well within the data
         mid_idx = len(dates) // 2
 
         # Only run test if the period is far enough from boundaries
         if mid_idx >= l_max and (len(dates) - 1 - mid_idx) >= l_max:
-            period = [(dates[mid_idx], dates[mid_idx])]
-            window_infos, _max_window = Incrementality._compute_window_metadata(
-                period, dates, l_max, freq_offset, freq
+            windows = EvaluationWindows.build(
+                periods=[(dates[mid_idx], dates[mid_idx])],
+                dates=dates,
+                l_max=l_max,
+                freq_offset=freq_offset,
             )
-            assert window_infos[0]["left_pad"] == 0
-            assert window_infos[0]["right_pad"] == 0
+            assert windows.windows[0].n_actual == 2 * l_max + 1
 
-    def test_compute_window_metadata_boundary_padding(self, incrementality_lite):
-        """Boundary periods get non-zero padding."""
+    def test_a_boundary_window_is_clamped_to_the_data(self, incrementality_lite):
+        """A boundary period's window stops at the data instead of padding past it.
+
+        There is no history before the first fitted date to supply, and the
+        graph's own adstock already pads with zeros there.  Synthesising rows
+        instead would be inert for spend but not for an effect whose contribution
+        at zero spend is its own intercept.
+        """
         incr, l_max = incrementality_lite
         dates = incr.data.dates
-        freq = pd.infer_freq(dates)
-        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
 
-        # First date should need left padding (ideal_start < data_start)
-        first_period = [(dates[0], dates[0])]
-        window_infos, _ = Incrementality._compute_window_metadata(
-            first_period, dates, l_max, freq_offset, freq
+        windows = EvaluationWindows.build(
+            periods=[(dates[0], dates[0])],
+            dates=dates,
+            l_max=l_max,
+            freq_offset=freq_offset,
         )
-        assert window_infos[0]["left_pad"] > 0
+        # No dates exist before dates[0], so the window starts there and only
+        # carries the carry-out side.
+        assert windows.windows[0].actual_dates[0] == dates[0]
+        assert windows.windows[0].n_actual == l_max + 1
+
+    def test_full_axis_windows_span_every_fitted_date(self, incrementality_lite):
+        """Full-axis mode gives every period the complete date axis."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+        periods = incr._create_period_groups(dates[0], dates[-1], "monthly")
+
+        windows = EvaluationWindows.build(
+            periods=periods,
+            dates=dates,
+            l_max=l_max,
+            freq_offset=freq_offset,
+            full_axis=True,
+        )
+
+        assert windows.max_window == len(dates)
+        assert all(window.n_actual == len(dates) for window in windows.windows)
+        # Each period still knows its own bounds, which is what keeps the
+        # perturbation and the aggregation period-specific.
+        assert [(w.start, w.end) for w in windows.windows] == list(periods)
 
     def test_build_counterfactual_scenarios_shape(self, incrementality_lite):
         """Counterfactual array has correct shape."""
         incr, l_max = incrementality_lite
         dates = incr.data.dates
-        freq = pd.infer_freq(dates)
-        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
         baseline_array = incr.data.get_channel_spend().values
         extra_shape = baseline_array.shape[1:]
 
         periods = incr._create_period_groups(dates[0], dates[-1], "monthly")
-        window_infos, max_window = Incrementality._compute_window_metadata(
-            periods, dates, l_max, freq_offset, freq
+        windows = EvaluationWindows.build(
+            periods=periods, dates=dates, l_max=l_max, freq_offset=freq_offset
         )
 
-        cf_array, cf_eval_masks, period_labels = (
-            Incrementality._build_counterfactual_scenarios(
-                periods=periods,
-                window_infos=window_infos,
-                max_window=max_window,
-                baseline_array=baseline_array,
-                counterfactual_spend_factor=0.0,
-                include_carryover=True,
-                l_max=l_max,
-                freq_offset=freq_offset,
-                extra_shape=extra_shape,
-                dtype="float64",
-            )
+        scenarios = windows.build_scenarios(
+            baseline_array=baseline_array,
+            counterfactual_spend_factor=0.0,
+            dtype="float64",
+            channel_axis=None,
+            n_channels=baseline_array.shape[-1],
+            estimand="per_channel",
         )
 
-        assert cf_array.shape == (len(periods), max_window, *extra_shape)
-        assert len(cf_eval_masks) == len(periods)
-        assert len(period_labels) == len(periods)
+        # Separable mode: one all-channels scenario per period.
+        assert scenarios.spend.shape == (
+            len(periods),
+            windows.max_window,
+            *extra_shape,
+        )
+        assert [window.end for window in windows.windows] == [end for _, end in periods]
+        # Every channel of a period reads that period's single scenario.
+        assert {
+            scenarios.rows[(0, channel)] for channel in range(baseline_array.shape[-1])
+        } == {0}
 
     def test_build_counterfactual_scenarios_factor_applied(self, incrementality_lite):
         """Counterfactual factor is only applied to target period dates."""
         incr, l_max = incrementality_lite
         dates = incr.data.dates
-        freq = pd.infer_freq(dates)
-        freq_offset = pd.tseries.frequencies.to_offset(freq)
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
         baseline_array = incr.data.get_channel_spend().values
         extra_shape = baseline_array.shape[1:]
 
         # Use "original" frequency: each period is a single date
         periods = incr._create_period_groups(dates[0], dates[-1], "original")
-        window_infos, max_window = Incrementality._compute_window_metadata(
-            periods, dates, l_max, freq_offset, freq
+        windows = EvaluationWindows.build(
+            periods=periods, dates=dates, l_max=l_max, freq_offset=freq_offset
         )
+
+        def build(factor):
+            return windows.build_scenarios(
+                baseline_array=baseline_array,
+                counterfactual_spend_factor=factor,
+                dtype="float64",
+                channel_axis=None,
+                n_channels=baseline_array.shape[-1],
+                estimand="per_channel",
+            ).spend
 
         # Factor = 0 should zero out only the target date
-        cf_array_zero, _, _ = Incrementality._build_counterfactual_scenarios(
-            periods=periods,
-            window_infos=window_infos,
-            max_window=max_window,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=0.0,
-            include_carryover=True,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            extra_shape=extra_shape,
-            dtype="float64",
-        )
-
+        cf_array_zero = build(0.0)
         # Factor = 1 (no change) should preserve all data
-        cf_array_one, _, _ = Incrementality._build_counterfactual_scenarios(
-            periods=periods,
-            window_infos=window_infos,
-            max_window=max_window,
-            baseline_array=baseline_array,
-            counterfactual_spend_factor=1.0,
-            include_carryover=True,
-            l_max=l_max,
-            freq_offset=freq_offset,
-            extra_shape=extra_shape,
-            dtype="float64",
-        )
+        cf_array_one = build(1.0)
 
         # With factor=0, some values should be zero (the target period dates)
         assert (cf_array_zero == 0).any()
         # With factor=1, counterfactual should equal baseline (no modification)
         # within padded windows
         expected_baseline = np.zeros(
-            (len(periods), max_window, *extra_shape), dtype="float64"
+            (len(periods), windows.max_window, *extra_shape), dtype="float64"
         )
-        for i, info in enumerate(window_infos):
-            start_pos = info["left_pad"]
-            end_pos = start_pos + info["n_actual"]
-            if info["n_actual"] > 0:
-                expected_baseline[i, start_pos:end_pos] = baseline_array[
-                    info["in_window"]
-                ].astype("float64")
+        for i, window in enumerate(windows.windows):
+            expected_baseline[i, : window.n_actual] = baseline_array[
+                window.in_window
+            ].astype("float64")
         np.testing.assert_allclose(cf_array_one, expected_baseline)
 
     def test_invalid_frequency_raises_validation_error(self, incrementality_lite):
@@ -560,51 +929,59 @@ class TestConvenienceFunctions:
     """Test convenience wrapper functions."""
 
     @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
-    def test_contribution_over_spend_ground_truth(self, simple_fitted_mmm, frequency):
-        """Test that contribution_over_spend matches ground truth."""
-        incr = simple_fitted_mmm.incrementality
-        roas = incr.contribution_over_spend(frequency=frequency)
+    def test_contribution_over_spend_matches_the_oracle(
+        self, simple_fitted_mmm, simple_mmm_data, frequency
+    ):
+        """ROAS against a numerator and a denominator the module did not compute.
 
-        ground_truth = incr.compute_incremental_contribution(
-            frequency=frequency, counterfactual_spend_factor=0.0
+        Both halves are independent: the increment comes from the
+        ``sample_posterior_predictive`` oracle, the spend from the fixture's own
+        frame.  Dividing the module's own increment by the module's own spend --
+        as this test used to -- checks the division and would pass with an
+        arbitrarily wrong increment, which is the whole of what ROAS is.
+        """
+        roas = simple_fitted_mmm.incrementality.contribution_over_spend(
+            frequency=frequency
         )
-        spend = simple_fitted_mmm.data.aggregate_time(
-            period=frequency, method="sum"
-        ).get_channel_spend()
-        roas_ground_truth = ground_truth / spend
-        # check that we didn't drop any dates (sanity check)
-        if frequency != "all_time":
-            assert len(roas.date) == len(spend.date)
-        # check no Nans in ground truth (sanity check)
-        assert not np.isnan(roas_ground_truth).any()
-        # check that roas is not empty (sanity check)
-        assert roas.size > 0
-        xr.testing.assert_allclose(roas, roas_ground_truth)
+        increment = compute_ground_truth_incremental_by_period(
+            simple_fitted_mmm, frequency=frequency
+        )
+        spend = source_spend(
+            simple_mmm_data["X"], frequency, simple_fitted_mmm.channel_columns
+        )
+
+        assert roas.size > 0  # sanity check
+        assert not np.isnan(roas).any()  # sanity check
+        xr.testing.assert_allclose(roas, increment / spend, rtol=1e-6)
 
     @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
-    def test_marginal_contribution_over_spend_ground_truth(
-        self, simple_fitted_mmm, frequency
+    def test_marginal_contribution_over_spend_matches_the_oracle(
+        self, simple_fitted_mmm, simple_mmm_data, frequency
     ):
-        """Test that marginal_contribution_over_spend matches ground truth."""
-        incr = simple_fitted_mmm.incrementality
+        """mROAS is equation (11): a 1 % perturbation over 1 % of the spend.
+
+        Same independence as the total: the numerator is the oracle's increment at
+        ``alpha = 1.01`` and the denominator is one percent of the source frame's
+        spend, so the factor and the divisor are checked rather than cancelled.
+        """
         spend_increase_pct = 0.01
 
-        mroas = incr.marginal_contribution_over_spend(
+        mroas = simple_fitted_mmm.incrementality.marginal_contribution_over_spend(
             frequency=frequency, spend_increase_pct=spend_increase_pct
         )
+        increment = compute_ground_truth_incremental_by_period(
+            simple_fitted_mmm,
+            frequency=frequency,
+            counterfactual_spend_factor=1.0 + spend_increase_pct,
+        )
+        spend = source_spend(
+            simple_mmm_data["X"], frequency, simple_fitted_mmm.channel_columns
+        )
 
-        ground_truth = incr.compute_incremental_contribution(
-            frequency=frequency, counterfactual_spend_factor=1.0 + spend_increase_pct
+        assert not np.isnan(mroas).any()  # sanity check
+        xr.testing.assert_allclose(
+            mroas, increment / (spend_increase_pct * spend), rtol=1e-6
         )
-        spend = simple_fitted_mmm.data.aggregate_time(
-            period=frequency, method="sum"
-        ).get_channel_spend()
-        incremental_spend = spend_increase_pct * spend
-        incremental_spend_safe = xr.where(
-            incremental_spend == 0, np.nan, incremental_spend
-        )
-        mroas_ground_truth = ground_truth / incremental_spend_safe
-        xr.testing.assert_allclose(mroas, mroas_ground_truth)
 
     def test_contribution_over_spend_handles_zero_spend(self, simple_fitted_mmm):
         """Test that zero spend results in NaN ROAS."""
@@ -703,3 +1080,2065 @@ class TestConvenienceFunctions:
             random_state=42,
         )
         assert result.sizes["draw"] == 10
+
+
+class TestStackSamples:
+    """Flattening ``(chain, draw)`` ahead of the link-specific reduction."""
+
+    def test_preserves_custom_dims_and_their_coords(self):
+        """Panel quantities keep every non-sample dimension, labels included.
+
+        ``y_sigma`` and ``y_original_scale`` both carry the model's custom
+        dims, and the reduction broadcasts them against a ``(date, channel,
+        *custom_dims)`` perturbation by name, so the labels have to survive.
+        """
+        da = xr.DataArray(
+            np.arange(2 * 3 * 2, dtype=float).reshape(2, 3, 2),
+            dims=("chain", "draw", "country"),
+            coords={"country": ["US", "UK"]},
+        )
+
+        stacked = Incrementality._stack_samples(da)
+
+        assert stacked.dims == ("sample", "country")
+        assert stacked.coords["country"].values.tolist() == ["US", "UK"]
+
+    def test_flattening_is_chain_major(self):
+        """Positions along ``sample`` must line up with the batched evaluation.
+
+        ``extract_response_distribution`` stacks the posterior chain-major, so
+        anything multiplied into its output has to use the same order.
+        """
+        da = xr.DataArray(
+            np.arange(2 * 3, dtype=float).reshape(2, 3),
+            dims=("chain", "draw"),
+        )
+
+        stacked = Incrementality._stack_samples(da)
+
+        assert stacked.dims == ("sample",)
+        np.testing.assert_allclose(stacked.values, [0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+
+
+class TestIncrementalReducers:
+    """Unit tests for the link-specific reduction, without a fitted model.
+
+    These exercise the one piece of the calculation that depends on the link
+    function, in isolation from the counterfactual machinery.
+    """
+
+    @staticmethod
+    def _delta(values, dates):
+        return xr.DataArray(
+            np.asarray(values, dtype=float),
+            dims=("sample", "date", "channel"),
+            coords={"date": dates},
+        )
+
+    def test_identity_reducer_is_scaled_sum_over_date(self):
+        """Identity link: the base term cancels, leaving s * sum_t delta."""
+        dates = pd.date_range("2024-01-01", periods=3, freq="W")
+        delta = self._delta([[[1.0, -2.0], [3.0, 4.0], [0.5, 0.5]]], dates)
+
+        result = IdentityLinkReducer(scale=10.0).counterfactual_minus_baseline(delta)
+
+        np.testing.assert_allclose(result.values, [[45.0, 25.0]])
+        assert result.dims == ("sample", "channel")
+
+    def test_log_reducer_weights_by_baseline_response(self):
+        """Log link: sum_t yhat_t * (exp(delta) - 1)."""
+        dates = pd.date_range("2024-01-01", periods=2, freq="W")
+        delta = self._delta([[[0.1, -0.2], [0.3, -0.4]]], dates)
+        baseline = xr.DataArray(
+            [[100.0, 200.0]],
+            dims=("sample", "date"),
+            coords={"date": dates},
+        )
+
+        result = LogLinkReducer(baseline_response=baseline)
+        result = result.counterfactual_minus_baseline(delta)
+
+        expected = [
+            [
+                100.0 * np.expm1(0.1) + 200.0 * np.expm1(0.3),
+                100.0 * np.expm1(-0.2) + 200.0 * np.expm1(-0.4),
+            ]
+        ]
+        np.testing.assert_allclose(result.values, expected)
+
+    def test_log_reducer_selects_baseline_by_date_label(self):
+        """The baseline spans the fitted data; only the eval window is used."""
+        all_dates = pd.date_range("2024-01-01", periods=5, freq="W")
+        baseline = xr.DataArray(
+            [[1.0, 2.0, 4.0, 8.0, 16.0]],
+            dims=("sample", "date"),
+            coords={"date": all_dates},
+        )
+        window = all_dates[2:4]
+        delta = self._delta([[[0.5], [0.25]]], window)
+
+        result = LogLinkReducer(
+            baseline_response=baseline
+        ).counterfactual_minus_baseline(delta)
+
+        expected = 4.0 * np.expm1(0.5) + 8.0 * np.expm1(0.25)
+        np.testing.assert_allclose(result.values, [[expected]])
+
+    def test_log_reducer_zero_perturbation_gives_zero(self):
+        """No change in the linear predictor means no incremental response."""
+        dates = pd.date_range("2024-01-01", periods=3, freq="W")
+        delta = self._delta(np.zeros((2, 3, 2)), dates)
+        baseline = xr.DataArray(
+            np.full((2, 3), 50.0),
+            dims=("sample", "date"),
+            coords={"date": dates},
+        )
+
+        result = LogLinkReducer(
+            baseline_response=baseline
+        ).counterfactual_minus_baseline(delta)
+
+        np.testing.assert_allclose(result.values, np.zeros((2, 2)))
+
+    def test_log_reducer_beats_naive_exp_minus_one_on_tiny_perturbation(self):
+        """expm1 keeps precision where exp(x) - 1 loses it.
+
+        Marginal incrementality perturbs spend by 1 %, so delta is small and
+        ``exp(delta) - 1`` cancels leading digits.
+        """
+        dates = pd.date_range("2024-01-01", periods=1, freq="W")
+        tiny = 1e-17
+        delta = self._delta([[[tiny]]], dates)
+        baseline = xr.DataArray(
+            [[1.0]], dims=("sample", "date"), coords={"date": dates}
+        )
+
+        result = LogLinkReducer(
+            baseline_response=baseline
+        ).counterfactual_minus_baseline(delta)
+
+        # exp(1e-17) - 1 rounds to exactly 0 in float64; expm1 does not.
+        assert np.exp(tiny) - 1.0 == 0.0
+        np.testing.assert_allclose(result.values, [[tiny]])
+
+    def test_reducer_is_abstract(self):
+        """The base class cannot be instantiated without a reduction."""
+        with pytest.raises(TypeError):
+            IncrementalReducer()
+
+
+class TestLogLinkIncrementality:
+    """Incrementality for multiplicative (log-link) models."""
+
+    @pytest.mark.parametrize(
+        "model_fixture, frequency, include_carryover, counterfactual_spend_factor",
+        [
+            ("log_link_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_fitted_mmm", "monthly", True, 0.0),
+            ("log_link_fitted_mmm", "all_time", False, 0.0),
+            # At all_time the carryover mask cannot differ (the last period
+            # already ends at the last fitted date), so a monthly case is what
+            # actually exercises include_carryover=False under a log link.
+            ("log_link_fitted_mmm", "monthly", False, 0.0),
+            ("log_link_fitted_mmm", "all_time", True, 1.01),
+            # Factors strictly between 0 and 1 measure the cost of *less*
+            # spend, and 1.0 is the no-op boundary of the sign convention.
+            ("log_link_fitted_mmm", "all_time", True, 0.5),
+            ("log_link_fitted_mmm", "all_time", True, 1.0),
+            # Controls enter the baseline weight rather than cancelling.
+            ("log_link_control_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_control_fitted_mmm", "all_time", True, 1.01),
+            # HSGP media multiplier on the date-dependent evaluation path.
+            ("log_link_time_varying_media_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_time_varying_media_fitted_mmm", "monthly", True, 0.0),
+            ("log_link_panel_fitted_mmm", "all_time", True, 0.0),
+            ("log_link_panel_fitted_mmm", "monthly", True, 0.0),
+            ("log_link_panel_fitted_mmm", "all_time", False, 0.0),
+            ("log_link_panel_fitted_mmm", "all_time", True, 1.01),
+        ],
+    )
+    def test_matches_per_channel_ground_truth(
+        self,
+        request,
+        model_fixture,
+        frequency,
+        include_carryover,
+        counterfactual_spend_factor,
+    ):
+        """Validate against brute-force per-channel response-scale counterfactuals.
+
+        The ground truth runs one ``sample_posterior_predictive`` per
+        ``(period, channel)`` on ``y_original_scale``.  Matching it confirms
+        that reading per-channel increments off a single all-channels
+        perturbation stays valid under a log link, provided the baseline
+        response is used as the weight.
+        """
+        mmm = request.getfixturevalue(model_fixture)
+
+        gt = compute_log_link_ground_truth_by_period(
+            mmm,
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+        )
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            include_carryover=include_carryover,
+        )
+
+        assert not np.isnan(gt).any()  # sanity check
+        xr.testing.assert_allclose(result, gt, rtol=1e-6)
+
+    def test_single_channel_equals_total_media_contribution(
+        self, log_link_single_channel_fitted_mmm
+    ):
+        """With one channel, incrementality must equal the model's own counterfactual.
+
+        ``LogLinkSpec.create_media_contribution_deterministic`` registers
+        ``total_media_contribution_original_scale`` as
+        ``sum_t [exp(mu) - exp(mu - mu_media)] * s``.  With a single channel
+        ``mu_media`` is that channel's contribution, and ``LogSaturation`` maps
+        zero spend to zero contribution, so a full-range zero-out counterfactual
+        must reproduce it draw for draw.
+        """
+        mmm = log_link_single_channel_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time",
+            counterfactual_spend_factor=0.0,
+        ).squeeze("channel", drop=True)
+        expected = mmm.idata.posterior["total_media_contribution_original_scale"]
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_channel_increments_exceed_total_media_by_the_overlap(
+        self, log_link_fitted_mmm
+    ):
+        """Per-channel increments must not sum to the total media increment.
+
+        Under a log link, removing both channels at once is not the sum of
+        removing each alone.  Writing :math:`e_m = \\exp(-v_m)`, the per-channel
+        increments sum to :math:`\\sum_t \\hat{Y}_t (2 - e_1 - e_2)` while the
+        joint knock-out is :math:`\\sum_t \\hat{Y}_t (1 - e_1 e_2)`, leaving an
+        overlap of :math:`\\sum_t \\hat{Y}_t (1 - e_1)(1 - e_2) > 0` whenever
+        both contributions are positive.  So the per-channel sum *overstates*
+        the joint effect: media effects double count where they coincide.
+
+        This is a property of the model, not of the estimator.  Asserting the
+        direction pins the interpretation down, so nobody "fixes" the module
+        into forcing additivity.
+        """
+        mmm = log_link_fitted_mmm
+        kwargs = {"frequency": "all_time", "counterfactual_spend_factor": 0.0}
+
+        per_channel = mmm.incrementality.compute_incremental_contribution(**kwargs)
+        joint = mmm.incrementality.compute_joint_incremental_contribution(**kwargs)
+
+        # LogSaturation with a HalfNormal beta keeps every contribution
+        # positive, which is what fixes the sign of the overlap term.
+        assert (mmm.idata.posterior["channel_contribution"] > 0).all()
+
+        summed = per_channel.sum(dim="channel")
+        assert (summed > joint).all()
+        assert not np.allclose(summed.values, joint.values)
+
+        # The joint estimand is a spend knock-out, and LogSaturation sends zero
+        # spend to zero contribution, so it has to land on the model's own
+        # media counterfactual deterministic.
+        xr.testing.assert_allclose(
+            joint,
+            mmm.idata.posterior["total_media_contribution_original_scale"],
+            rtol=1e-6,
+        )
+
+    def test_result_is_not_the_linear_predictor_difference(self, log_link_fitted_mmm):
+        """Guard against a regression to summing linear-predictor contributions.
+
+        The pre-fix behaviour summed ``channel_contribution`` differences and
+        multiplied by ``target_scale``, which is not incremental response under
+        a log link.  Assert the two disagree, so an accidental revert fails
+        loudly rather than returning plausible-looking numbers.
+        """
+        mmm = log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time",
+            counterfactual_spend_factor=0.0,
+        )
+
+        actual_data = mmm.model["channel_data"].get_value()
+        baseline = evaluate_under_spend(mmm, actual_data, "channel_contribution")
+        cf = evaluate_under_spend(
+            mmm, np.zeros_like(actual_data), "channel_contribution"
+        )
+        linear_predictor_version = (baseline - cf).sum(
+            dim="date"
+        ) * mmm.data.get_target_scale()
+
+        assert not np.allclose(
+            result.values, linear_predictor_version.transpose(*result.dims).values
+        )
+
+    def test_mean_central_tendency_applies_lognormal_correction(
+        self, log_link_fitted_mmm
+    ):
+        """``central_tendency="mean"`` rescales by exp(sigma**2 / 2) per draw.
+
+        The correction multiplies the baseline response, which enters the
+        increment linearly, so it factors straight through the sum.
+        """
+        incr = log_link_fitted_mmm.incrementality
+        kwargs = {"frequency": "all_time", "counterfactual_spend_factor": 0.0}
+
+        median = incr.compute_incremental_contribution(
+            central_tendency="median", **kwargs
+        )
+        mean = incr.compute_incremental_contribution(central_tendency="mean", **kwargs)
+
+        sigma = log_link_fitted_mmm.idata.posterior["y_sigma"]
+        expected_ratio = np.exp(sigma**2 / 2)
+
+        ratio = (mean / median).transpose("chain", "draw", "channel")
+        np.testing.assert_allclose(
+            ratio.values,
+            np.broadcast_to(
+                expected_ratio.values[..., None],
+                ratio.shape,
+            ),
+            rtol=1e-6,
+        )
+
+    def test_panel_mean_central_tendency_corrects_each_custom_dim_cell(
+        self, log_link_panel_fitted_mmm
+    ):
+        """Panel ``central_tendency="mean"`` applies each cell's own sigma.
+
+        A panel ``y_sigma`` keeps the model's custom dims, so the LogNormal
+        correction differs per country.  Collapsing it to a single factor --
+        or dropping the dim while stacking samples -- has to fail here.
+        """
+        incr = log_link_panel_fitted_mmm.incrementality
+        kwargs = {"frequency": "all_time", "counterfactual_spend_factor": 0.0}
+
+        median = incr.compute_incremental_contribution(
+            central_tendency="median", **kwargs
+        )
+        mean = incr.compute_incremental_contribution(central_tendency="mean", **kwargs)
+
+        sigma = log_link_panel_fitted_mmm.idata.posterior["y_sigma"]
+        assert "country" in sigma.dims  # guards the premise of this test
+
+        ratio = mean / median
+        xr.testing.assert_allclose(
+            ratio, np.exp(sigma**2 / 2).broadcast_like(ratio), rtol=1e-6
+        )
+
+    def test_convenience_methods_match_the_log_link_oracle(
+        self, log_link_fitted_mmm, log_link_mmm_data
+    ):
+        """ROAS and mROAS under a log link, against response-scale counterfactuals.
+
+        This is the headline of the change and it needs a number, not a shape.
+        Asserting only that the results are finite and reciprocal -- as this used
+        to -- passes for any increment whatsoever, so the correctness of the
+        log-link ROAS rested entirely on the increment's own tests.
+        """
+        mmm = log_link_fitted_mmm
+        incr = mmm.incrementality
+        spend = source_spend(log_link_mmm_data["X"], "all_time", mmm.channel_columns)
+
+        roas = incr.contribution_over_spend(frequency="all_time")
+        mroas = incr.marginal_contribution_over_spend(frequency="all_time")
+
+        xr.testing.assert_allclose(
+            roas,
+            compute_log_link_ground_truth_by_period(mmm, frequency="all_time") / spend,
+            rtol=1e-6,
+        )
+        xr.testing.assert_allclose(
+            mroas,
+            compute_log_link_ground_truth_by_period(
+                mmm, frequency="all_time", counterfactual_spend_factor=1.01
+            )
+            / (0.01 * spend),
+            rtol=1e-6,
+        )
+
+    def test_cac_is_the_reciprocal_of_roas_under_log_link(self, log_link_fitted_mmm):
+        """CAC adds nothing but a reciprocal, and the dimensions survive it."""
+        incr = log_link_fitted_mmm.incrementality
+
+        roas = incr.contribution_over_spend(frequency="all_time")
+        cac = incr.spend_over_contribution(frequency="all_time")
+
+        for result in (roas, cac):
+            assert set(result.dims) == {"chain", "draw", "channel"}
+            assert np.isfinite(result.values).all()
+        np.testing.assert_allclose(cac.values, 1.0 / roas.values, rtol=1e-10)
+
+    def test_a_two_chain_posterior_matches_the_oracle(
+        self, log_link_two_chain_fitted_mmm
+    ):
+        """Draws are flattened chain-major, and the flattening has to be right.
+
+        The reduction lines a posterior array up against a batched graph
+        evaluation positionally, so its ``(chain, draw)`` flattening has to agree
+        with the one ``extract_response_distribution`` used.  With a single chain
+        both orders coincide and a mismatch is invisible; with two it is a wrong
+        number rather than an error, which is why every log-link fixture having
+        ``chain=1`` was worth fixing.
+        """
+        mmm = log_link_two_chain_fitted_mmm
+        assert mmm.idata.posterior.dataset.sizes["chain"] == 2  # guards the premise
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(mmm, frequency="all_time")
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+        # The mean correction is also per draw, so it has to survive the same
+        # flattening rather than being broadcast against the wrong chain.
+        mean = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", central_tendency="mean"
+        )
+        sigma = mmm.idata.posterior["y_sigma"]
+        xr.testing.assert_allclose(
+            mean / result, np.exp(sigma**2 / 2).broadcast_like(result), rtol=1e-6
+        )
+
+    def test_num_samples_matches_the_oracle_on_the_selected_draws(
+        self, log_link_two_chain_fitted_mmm
+    ):
+        """Subsampling keeps the baseline weights aligned with the evaluated draws.
+
+        ``LogLinkReducer`` weights each draw's linear-predictor change by the
+        *same* draw's baseline response, taken from the subsampled posterior,
+        while the change itself comes from a graph conditioned on that same
+        subsample.  A draw misalignment between the two would weight deltas by
+        the wrong draws' baselines -- a silently wrong number, not an error --
+        and a self-consistency check cannot see it.  So the subsampled result is
+        compared against the full oracle restricted to the very draws
+        ``subsample_draws`` selects, on a two-chain posterior so the chain-major
+        flattening is observable too.
+        """
+        mmm = log_link_two_chain_fitted_mmm
+        posterior = mmm.idata.posterior.dataset
+        n_chains, n_draws = posterior.sizes["chain"], posterior.sizes["draw"]
+        num_samples = 10
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", num_samples=num_samples, random_state=123
+        )
+
+        full = compute_log_link_ground_truth_by_period(mmm, frequency="all_time")
+        # Same chain-major flat selection that subsample_draws makes.
+        flat_indices = np.random.default_rng(123).choice(
+            n_chains * n_draws, size=num_samples, replace=False
+        )
+        expected = (
+            full.stack(sample=("chain", "draw"))
+            .isel(sample=flat_indices)
+            .transpose("sample", ...)
+        )
+
+        np.testing.assert_allclose(
+            result.squeeze("chain", drop=True).transpose("draw", ...).values,
+            expected.values,
+            rtol=1e-6,
+        )
+
+    def test_mean_central_tendency_matches_the_corrected_oracle(
+        self, log_link_fitted_mmm
+    ):
+        """End to end, the mean scale is the median-scale oracle times exp(sigma^2/2).
+
+        The ratio tests above cannot catch a mean-scale result that is wrong on
+        both scales by the same factor.  The correction multiplies the baseline
+        weight, which enters the increment linearly, so the corrected oracle is
+        exact rather than approximate -- and a monthly frequency runs it through
+        the windowing rather than only the full range.
+        """
+        mmm = log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", central_tendency="mean"
+        )
+
+        sigma = mmm.idata.posterior["y_sigma"]
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly"
+        ) * np.exp(sigma**2 / 2)
+
+        xr.testing.assert_allclose(result, expected.transpose(*result.dims), rtol=1e-6)
+
+    def test_contribution_over_spend_matches_the_monthly_log_link_oracle(
+        self, log_link_fitted_mmm, log_link_mmm_data
+    ):
+        """Monthly ROAS under a log link: windowed increments over monthly spend.
+
+        The all-time case divides one number by one number; the monthly one has
+        to line period labels up between the increment and the spend, which is
+        where a date-alignment bug would hide.
+        """
+        mmm = log_link_fitted_mmm
+
+        roas = mmm.incrementality.contribution_over_spend(frequency="monthly")
+
+        spend = source_spend(log_link_mmm_data["X"], "monthly", mmm.channel_columns)
+        expected = (
+            compute_log_link_ground_truth_by_period(mmm, frequency="monthly") / spend
+        )
+
+        assert not np.isnan(roas).any()
+        xr.testing.assert_allclose(roas, expected, rtol=1e-6)
+
+    def test_panel_roas_matches_the_log_link_oracle(
+        self, log_link_panel_fitted_mmm, panel_mmm_data
+    ):
+        """Panel ROAS divides each country's increment by that country's spend."""
+        mmm = log_link_panel_fitted_mmm
+
+        roas = mmm.incrementality.contribution_over_spend(frequency="all_time")
+
+        totals = panel_mmm_data["X"].groupby("country")[list(mmm.channel_columns)].sum()
+        spend = xr.DataArray(
+            totals.to_numpy(),
+            dims=("country", "channel"),
+            coords={
+                "country": totals.index.to_list(),
+                "channel": list(mmm.channel_columns),
+            },
+        )
+        expected = (
+            compute_log_link_ground_truth_by_period(mmm, frequency="all_time") / spend
+        )
+
+        assert set(roas.dims) == {"chain", "draw", "channel", "country"}
+        xr.testing.assert_allclose(roas, expected.transpose(*roas.dims), rtol=1e-6)
+
+    def test_date_filtering_matches_the_log_link_oracle(self, log_link_fitted_mmm):
+        """``start_date``/``end_date`` restrict the periods, not just the output.
+
+        The identity-link filtering test only checks the returned date labels;
+        under a log link the filtered increment also has to carry the right
+        baseline weights for the shorter window, so it is compared against the
+        oracle built over the same restricted range.
+        """
+        mmm = log_link_fitted_mmm
+        dates = pd.to_datetime(mmm.idata.fit_data.date.values)
+        start, end = dates[3], dates[9]
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time", start_date=start, end_date=end
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", start_date=start, end_date=end
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+        # And the restriction genuinely changed the answer.
+        full = mmm.incrementality.compute_incremental_contribution(frequency="all_time")
+        assert not np.allclose(result.values, full.values)
+
+
+class TestLinkDispatch:
+    """Selection of the link-specific reducer."""
+
+    def test_identity_link_uses_identity_reducer(self, simple_fitted_mmm):
+        incr = simple_fitted_mmm.incrementality
+        reducer = incr._build_reducer(incr.idata.posterior.dataset, "median")
+        assert isinstance(reducer, IdentityLinkReducer)
+
+    def test_log_link_uses_log_reducer(self, log_link_fitted_mmm):
+        incr = log_link_fitted_mmm.incrementality
+        reducer = incr._build_reducer(incr.idata.posterior.dataset, "median")
+        assert isinstance(reducer, LogLinkReducer)
+
+    def test_unknown_link_raises_not_implemented(self, simple_fitted_mmm):
+        """A new link must add a reducer rather than silently reuse the additive one."""
+        incr = simple_fitted_mmm.incrementality
+        incr.model.link = "sqrt"
+
+        with pytest.raises(NotImplementedError, match="link='sqrt'"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_invalid_central_tendency_raises(self, simple_fitted_mmm):
+        incr = simple_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="central_tendency must be"):
+            incr.compute_incremental_contribution(
+                frequency="all_time", central_tendency="mode"
+            )
+
+    def test_central_tendency_is_a_no_op_for_identity_link(self, simple_fitted_mmm):
+        """The Normal likelihood's mean equals its median, so both agree."""
+        incr = simple_fitted_mmm.incrementality
+
+        median = incr.compute_incremental_contribution(
+            frequency="all_time", central_tendency="median"
+        )
+        mean = incr.compute_incremental_contribution(
+            frequency="all_time", central_tendency="mean"
+        )
+
+        xr.testing.assert_allclose(median, mean)
+
+    def test_missing_baseline_response_raises(self, log_link_fitted_mmm):
+        """A posterior stripped of the response-scale prediction fails clearly."""
+        incr = log_link_fitted_mmm.incrementality
+        posterior = incr.idata.posterior.dataset.drop_vars("y_original_scale")
+
+        with pytest.raises(ValueError, match="y_original_scale"):
+            incr._build_reducer(posterior, "median")
+
+    def test_fixed_sigma_lognormal_refuses_mean_central_tendency(
+        self, log_link_fixed_sigma_fitted_mmm
+    ):
+        """A fixed LogNormal sigma leaves no ``y_sigma`` to build the correction from.
+
+        The median scale needs no correction, so it still works; asking for the
+        mean has to fail with a message naming the missing variable rather than
+        silently returning median-scale numbers.
+        """
+        incr = log_link_fixed_sigma_fitted_mmm.incrementality
+
+        median = incr.compute_incremental_contribution(frequency="all_time")
+        assert np.isfinite(median.values).all()
+
+        with pytest.raises(ValueError, match="y_sigma"):
+            incr.compute_incremental_contribution(
+                frequency="all_time", central_tendency="mean"
+            )
+
+
+class TestMediatedMuEffects:
+    """Incrementality when a ``mu_effect`` stands between spend and the response.
+
+    The module's original assumption was that a spend counterfactual reaches the
+    response only through ``channel_contribution``.  A funnel effect breaks that:
+    it reads ``channel_data`` itself, so part of the incremental response travels
+    through the effect rather than through ``channel_contribution``.  These tests
+    pin down that the mediated part is now included, that it is *material* (so a
+    regression would be caught rather than shrugged at), and that an effect which
+    has not opted in is refused instead of silently dropped.
+    """
+
+    @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
+    @pytest.mark.parametrize("counterfactual_spend_factor", [0.0, 1.01])
+    def test_matches_oracle_under_log_link(
+        self, funnel_log_link_fitted_mmm, frequency, counterfactual_spend_factor
+    ):
+        """Mediated increments match a per-channel posterior-predictive oracle.
+
+        The oracle re-runs ``sample_posterior_predictive`` on the response scale
+        for every (period, channel) counterfactual and never forms a
+        linear-predictor difference, so agreement checks the mediated algebra,
+        the widened carryover window and the windowing of the effect's own
+        ``lf_budget`` data all at once.
+        """
+        mmm = funnel_log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm,
+            frequency=frequency,
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            l_max=effective_l_max(mmm),
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_matches_oracle_under_identity_link(self, funnel_identity_fitted_mmm):
+        """The mediated path is included under an additive link too.
+
+        Under ``link="identity"`` the increment is ``target_scale`` times the
+        summed change in the linear predictor, so the oracle can read the
+        mediated part straight off the effect's own contribution deterministic --
+        an independent route to the same number.
+        """
+        mmm = funnel_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm, "funnel_effect_contribution", l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_joint_matches_oracle(self, funnel_log_link_fitted_mmm):
+        """The joint estimand matches an all-channels-at-once oracle."""
+        mmm = funnel_log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_joint_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm,
+            frequency="all_time",
+            l_max=effective_l_max(mmm),
+            joint=True,
+        )
+
+        assert "channel" not in result.dims
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_leave_one_out_overcounts_the_joint(self, funnel_log_link_fitted_mmm):
+        """Per-channel increments do not sum to the joint, and are labelled so.
+
+        Two sources of non-additivity compound here: the log link, and a funnel
+        that mixes channels inside a saturating transform.  The per-channel
+        numbers are leave-one-out, so interaction mass is counted by every
+        channel that touches it and the sum exceeds the joint.  Asserting the
+        direction rather than a value keeps this a statement about the estimand.
+        """
+        incr = funnel_log_link_fitted_mmm.incrementality
+
+        loo = incr.compute_incremental_contribution(frequency="all_time")
+        joint = incr.compute_joint_incremental_contribution(frequency="all_time")
+
+        loo_total = float(loo.sum("channel").mean(("chain", "draw")))
+        joint_total = float(joint.mean(("chain", "draw")))
+
+        assert joint_total > 0
+        assert loo_total > joint_total
+
+    def test_joint_equals_channel_sum_for_an_additive_model(self, simple_fitted_mmm):
+        """With an additive link and no mediation the two estimands coincide.
+
+        This is the boundary case the paper's :math:`\\text{ROAS}_m` derivation
+        assumes, and the reason the joint estimand is not interesting there.
+        """
+        incr = simple_fitted_mmm.incrementality
+
+        loo = incr.compute_incremental_contribution(frequency="all_time")
+        joint = incr.compute_joint_incremental_contribution(frequency="all_time")
+
+        xr.testing.assert_allclose(loo.sum("channel"), joint, rtol=1e-10)
+
+    def test_ignoring_the_mediated_path_understates_the_increment(
+        self, funnel_log_link_fitted_mmm, monkeypatch
+    ):
+        """The mediated part is material, not a rounding correction.
+
+        Reproduces the pre-fix behaviour by resolving no effects at all, which is
+        exactly what the module used to do, and checks the resulting number is
+        materially smaller.  Without a magnitude assertion, a regression that
+        quietly dropped the effect again would still pass every other test here.
+
+        Dropping the effect also has to be *caught*, so the completeness guard
+        is checked to fire before being disabled to take the measurement.
+        """
+        incr = funnel_log_link_fitted_mmm.incrementality
+        full = incr.compute_incremental_contribution(frequency="all_time")
+
+        monkeypatch.setattr(
+            incrementality_module, "resolve_channel_dependent_effects", lambda model: ()
+        )
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+        monkeypatch.setattr(
+            SpendProbe,
+            "assert_increment_is_complete",
+            lambda self, **kwargs: None,
+        )
+        direct_only = incr.compute_incremental_contribution(frequency="all_time")
+
+        full_total = float(full.sum("channel").mean(("chain", "draw")))
+        direct_total = float(direct_only.sum("channel").mean(("chain", "draw")))
+
+        assert full_total > 0
+        # The mediated path carries a double-digit share for one of the channels
+        # in this fixture.  How large a share is a property of the priors, so the
+        # bound is deliberately loose; what it rules out is the path vanishing.
+        assert direct_total < 0.95 * full_total
+
+    def test_effect_that_ignores_spend_is_left_alone(self, trend_effect_fitted_mmm):
+        """A ``mu_effect`` the counterfactual cannot reach needs no opt-in.
+
+        A linear trend does not read ``channel_data``, so it cancels in the
+        difference.  It must be skipped without ever consulting its spec --
+        otherwise every effect that already exists would suddenly have to opt in.
+        """
+        incr = trend_effect_fitted_mmm.incrementality
+
+        assert resolve_channel_dependent_effects(incr.model) == ()
+        # And the computation still runs, on the separable path.
+        result = incr.compute_incremental_contribution(frequency="all_time")
+        assert set(result.dims) == {"chain", "draw", "channel"}
+
+    def test_effect_without_a_spec_raises(self, funnel_not_opted_in_fitted_mmm):
+        """A spend-dependent effect that has not opted in is refused."""
+        incr = funnel_not_opted_in_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="incrementality_spec"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_a_duck_typed_baseline_effect_still_works(
+        self, duck_typed_baseline_effect_fitted_mmm
+    ):
+        """An effect that is not a ``MuEffect`` does not break incrementality.
+
+        The additive-effect module documents duck typing as a supported way to
+        write an effect, so such an effect has no ``contribution_var_name`` to
+        read.  It is also not reached by a spend counterfactual here, which
+        makes asking it for one pointless.  Demanding the attribute up front
+        would turn every model owning such an effect into a crash.
+        """
+        incr = duck_typed_baseline_effect_fitted_mmm.incrementality
+
+        assert resolve_channel_dependent_effects(incr.model) == ()
+        result = incr.compute_incremental_contribution(frequency="all_time")
+        assert set(result.dims) == {"chain", "draw", "channel"}
+
+    def test_a_duck_typed_spend_effect_is_refused(
+        self, duck_typed_spend_effect_fitted_mmm
+    ):
+        """An unattributable effect that spend reaches is caught, not ignored.
+
+        The other side of the previous test: being unable to name the effect's
+        contribution is only harmless while the counterfactual cannot reach it.
+        Here it can, so the increment would be missing a real path -- and the
+        completeness guard is what notices, since effect resolution deliberately
+        said nothing.
+        """
+        incr = duck_typed_spend_effect_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_a_misreported_contribution_is_refused(self, funnel_misreported_fitted_mmm):
+        """Naming the wrong contribution variable does not pass unnoticed.
+
+        The effect names ``funnel_demand``: a real variable, spend-dependent,
+        and not the term it adds to the linear predictor.  Evaluating it in
+        place of the true contribution would leave the mediated path out of the
+        increment while looking entirely well-formed.
+        """
+        incr = funnel_misreported_fitted_mmm.incrementality
+
+        with pytest.raises(NotImplementedError, match="Some path from spend"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_an_ambiguous_predictor_name_stops_the_increment(
+        self, funnel_identity_fitted_mmm, shadow_named_node
+    ):
+        """A second node named ``mu`` is refused on the public path too.
+
+        The completeness check is the whole reason the predictor is recovered,
+        so a name that no longer identifies it has to stop the computation
+        rather than be resolved by whichever node the traversal reached first.
+        """
+        shadow_named_node(funnel_identity_fitted_mmm, LINEAR_PREDICTOR)
+        incr = funnel_identity_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="nodes named 'mu'"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_a_frozen_predictor_says_the_check_was_skipped(
+        self, funnel_log_link_fitted_mmm, monkeypatch
+    ):
+        """An unrecoverable predictor is announced, not passed over in silence.
+
+        Freezing ``mu`` at its posterior value leaves it unable to respond to
+        the probe, so there is nothing to check the accounted nodes against.
+        The increment is still computed, but a model carrying ``mu_effects`` is
+        exactly the case the completeness check exists for, and losing it
+        without a word is how a missing mediated path would go unnoticed.
+        """
+        monkeypatch.setattr(
+            type(funnel_log_link_fitted_mmm),
+            "frozen_deterministics",
+            property(lambda self: [LINEAR_PREDICTOR]),
+        )
+        incr = funnel_log_link_fitted_mmm.incrementality
+
+        with pytest.warns(UserWarning, match="completeness of the increment"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_a_global_effect_selects_full_axis_evaluation(
+        self, global_normalization_fitted_mmm
+    ):
+        """An effect reading the whole series is evaluated on the whole series.
+
+        ``spend / spend.mean("date")`` has no bounded reach to widen a window
+        by: perturbing one date moves *every* date, including earlier ones,
+        because the denominator is a reduction over the axis.  Evaluating it on
+        a window would silently compute a different function -- the mean of the
+        window rather than of the series -- so the probe has to notice and
+        switch to the full axis.
+
+        A monthly frequency is what gives the test teeth: at ``all_time`` the
+        window is already the whole axis and the distinction cannot fail.
+
+        The oracle sums each period's difference to the axis end.  A perturbation
+        that moves every date has no tail length to stop at, so a sum ending
+        ``l_max`` past the period would leave out moves the effect demonstrably
+        makes: the correction is to the oracle, whose old window was the model's
+        ``l_max`` for want of anything better, and not to the assertion.
+        """
+        mmm = global_normalization_fitted_mmm
+
+        assert measure_reach(mmm)["global_effect_contribution"].requires_full_axis
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", full_axis=True
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_a_global_effect_is_exactly_zero_at_unit_factor(
+        self, global_normalization_fitted_mmm
+    ):
+        """Not perturbing spend produces no increment, to the last bit.
+
+        Under full-axis evaluation the counterfactual array at ``alpha = 1.0``
+        is the baseline array, so the two evaluations are the same computation
+        on the same inputs and the difference is exactly zero -- no tolerance
+        needed.  A windowing bug would show up here as a small non-zero number,
+        which is the shape a truncation error takes.
+        """
+        result = global_normalization_fitted_mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", counterfactual_spend_factor=1.0
+        )
+
+        np.testing.assert_array_equal(result.values, np.zeros_like(result.values))
+
+    def test_under_declared_carryover_is_refused(
+        self, funnel_under_declared_fitted_mmm
+    ):
+        """Declaring less reach than the effect has raises, with both numbers.
+
+        This is the quiet failure the measurement exists for: the window would
+        be sized for the direct path, the mediated tail would fall outside it,
+        and the increment would come back low with nothing to indicate anything
+        had been cut.
+        """
+        incr = funnel_under_declared_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="additional_carryover_lags=0"):
+            incr.compute_incremental_contribution(frequency="all_time")
+
+    def test_measured_reach_is_covered_by_the_declaration(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """The fixture declares at least what the probe measures.
+
+        The oracle these tests compare against builds its window from the
+        declaration, so a measurement exceeding it would make the module and the
+        oracle disagree about the window rather than about the algebra.
+        """
+        mmm = funnel_log_link_fitted_mmm
+        effects = resolve_channel_dependent_effects(mmm)
+        measured = measure_reach(mmm)["funnel_effect_contribution"]
+
+        assert not measured.requires_full_axis
+        # Two chained adstocks of l_max each reach 2 * (l_max - 1) lags, of
+        # which the model's own window already covers l_max.
+        assert measured.additional_carryover_lags == mmm.adstock.l_max - 2
+        assert measured.additional_carryover_lags <= effects[0].declared_carryover_lags
+
+    def test_effective_l_max_widens_the_window(self, funnel_log_link_fitted_mmm):
+        """A mediated path that chains a second adstock lengthens the window."""
+        mmm = funnel_log_link_fitted_mmm
+        effects = resolve_channel_dependent_effects(mmm)
+
+        assert len(effects) == 1
+        assert effects[0].contribution_var == "funnel_effect_contribution"
+        extra = mmm.mu_effects[0].demand_transform.adstock.l_max
+        assert effective_l_max(mmm) == mmm.adstock.l_max + extra
+
+    def test_the_window_length_is_a_known_number(self, funnel_log_link_fitted_mmm):
+        """The window the oracle sums over, written down rather than derived.
+
+        Every other mediated test takes its window from ``effective_l_max``, which
+        reads it back off the module.  Narrow the module's own calculation and both
+        sides narrow together, so a dozen oracle comparisons keep passing while the
+        mediated tail is quietly cut off.  One literal is what breaks that tie.
+        """
+        mmm = funnel_log_link_fitted_mmm
+
+        assert mmm.adstock.l_max == 3
+        assert mmm.mu_effects[0].demand_transform.adstock.l_max == 3
+        assert effective_l_max(mmm) == 6
+
+    def test_a_declared_full_axis_mode_is_honoured(self, funnel_full_axis_fitted_mmm):
+        """``evaluation_mode="full"`` overrides a measurement that says otherwise.
+
+        The effect's reach is bounded and the probe says so, so ``"auto"`` would
+        give it a window.  An author may still know of a dependence on the whole
+        series that one perturbation cannot reveal, and honouring the declaration
+        costs compute rather than correctness -- which the oracle then confirms.
+        """
+        mmm = funnel_full_axis_fitted_mmm
+
+        reach = measure_spend_reach(mmm)
+        assert not reach.measured["funnel_effect_contribution"].requires_full_axis
+        assert reach.requires_full_axis
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", l_max=effective_l_max(mmm)
+        )
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_an_unbounded_mediated_tail_is_summed_to_the_axis_end(
+        self, long_tail_funnel_fitted_mmm
+    ):
+        """A tail the axis cannot bound is summed whole, not cut back to ``l_max``.
+
+        The mediator's second adstock is long enough that a perturbation early in
+        the series still moves the very last fitted date, so the probe cannot put
+        a number on the tail and selects full-axis evaluation.  Full-axis mode
+        widens the *window*, and the danger is that it stops there: the dates
+        entering the *sum* used to be bounded by ``end + effective_l_max``, which
+        for an effect declaring nothing is the model's own ``l_max``.  The tail
+        beyond that was computed correctly and then dropped, so the increment came
+        back low with nothing to indicate anything had been cut, which is exactly
+        the failure the measurement exists to prevent.
+
+        The oracle sums every date from the period's start onwards, which is what
+        a reach that could not be bounded leaves as the only honest window.
+        """
+        mmm = long_tail_funnel_fitted_mmm
+
+        reach = measure_spend_reach(mmm)
+        # Guards the premise: the tail is unbounded, and nothing was declared.
+        assert reach.measured["funnel_effect_contribution"].requires_full_axis
+        assert reach.requires_full_axis
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", full_axis=True
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_declaring_a_window_for_a_date_reduction_is_refused(
+        self, windowed_global_normalization_fitted_mmm
+    ):
+        """``evaluation_mode="window"`` against a measured full-axis need raises.
+
+        The mirror image of an under-declared carryover: the declaration is
+        falsifiable, the probe falsifies it, and honouring it would evaluate the
+        mean of the window in place of the mean of the series.
+        """
+        incr = windowed_global_normalization_fitted_mmm.incrementality
+
+        with pytest.raises(ValueError, match="evaluation_mode='window'"):
+            incr.compute_incremental_contribution(frequency="monthly")
+
+    def test_a_dark_start_still_measures_the_mediated_reach(
+        self, dark_start_funnel_fitted_mmm
+    ):
+        """A flighted campaign does not disable the probe.
+
+        The end-to-end form of :class:`TestSpendProbe`'s blocker: with no spend
+        before the tenth date, a probe placed a quarter of the way along the axis
+        perturbs an all-zero row, measures nothing, and sizes the window from the
+        model's own adstock alone.  The mediated tail then falls outside it and the
+        increment comes back low with nothing to indicate anything was cut, so the
+        oracle -- which sums over the *right* window -- is what catches it.
+        """
+        mmm = dark_start_funnel_fitted_mmm
+        spend = mmm.data.get_channel_data().values
+        assert not spend[len(spend) // 4].any()  # guards the premise
+
+        assert effective_l_max(mmm) == 6
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", l_max=6
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_a_mediator_reading_a_dark_channel_is_probed_on_its_own_dates(
+        self, dark_probe_funnel_fitted_mmm, partial_channel_funnel_fitted_mmm
+    ):
+        """A mediated channel dark at the probed date still gets its tail.
+
+        An A/B on one graph: the mediator reads ``channel_1`` alone and declares
+        nothing, so the window has only the measurement to go on.  In the control
+        every date carries spend on both channels; in the treatment the channels'
+        spend supports are disjoint, and a probe placed by total spend lands
+        where ``channel_1`` is dark -- the mediator then came back bit-identical,
+        its measured reach collapsed to nothing, and the window was sized from
+        the model's own adstock alone, silently understating the increment.  The
+        two arms have to agree: probing per channel when no date covers them all
+        is what makes them.
+        """
+        control = partial_channel_funnel_fitted_mmm
+        treatment = dark_probe_funnel_fitted_mmm
+
+        # Guards the premise: no date moves both channels, and the head of the
+        # axis -- where a single probe would land -- is dark on the mediated one.
+        spend = treatment.data.get_channel_data().values
+        assert not (spend[:, 0] * spend[:, 1]).any()
+        assert not spend[: len(spend) // 8, 0].any()
+
+        reach_control = measure_spend_reach(control)
+        reach_treatment = measure_spend_reach(treatment)
+        mediator = "funnel_effect_contribution"
+
+        assert reach_control.measured[mediator] != TemporalReach.none()
+        assert reach_treatment.measured[mediator] == reach_control.measured[mediator]
+        assert reach_treatment.effective_l_max == reach_control.effective_l_max
+        assert not reach_treatment.requires_full_axis
+
+        result = treatment.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            treatment, frequency="all_time", l_max=reach_treatment.effective_l_max
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_evaluator_discovers_the_effect_s_own_data(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """Date-indexed inputs an effect reads are found in the graph, not declared.
+
+        ``lf_budget`` has to be cut to the same window as spend or the graph is
+        handed inputs of two different lengths.  Discovery is by traversal so an
+        effect cannot forget to mention one; ``channel_data`` and ``time_index``
+        are handled separately and must not be double-counted.
+        """
+        mmm = funnel_log_link_fitted_mmm
+        incr = mmm.incrementality
+        effects = resolve_channel_dependent_effects(incr.model)
+
+        evaluator = CounterfactualEvaluator(
+            pymc_model=mmm.model,
+            posterior=incr.idata.posterior.dataset,
+            response_vars=["channel_contribution", effects[0].contribution_var],
+            frozen_deterministics=mmm.frozen_deterministics,
+            dates=incr.data.dates,
+        )
+
+        assert evaluator.windowed_data_vars == ("lf_budget",)
+        assert evaluator.non_date_dims["channel_contribution"] == ("channel",)
+        assert evaluator.non_date_dims["funnel_effect_contribution"] == ()
+
+    def test_cutting_an_input_matches_the_spend_window(self, incrementality_lite):
+        """An auxiliary input is cut position for position like spend is."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+        periods = incr._create_period_groups(dates[0], dates[-1], "original")
+        windows = EvaluationWindows.build(
+            periods=periods, dates=dates, l_max=l_max, freq_offset=freq_offset
+        )
+        values = np.arange(len(dates), dtype="float64") + 1.0
+
+        cut = windows.cut(values, dtype="float64")
+
+        assert cut.shape == (len(periods), windows.max_window)
+        # Fitted values start at position zero, in order.
+        window = windows.windows[0]
+        np.testing.assert_allclose(cut[0, : window.n_actual], values[window.in_window])
+        # Anything past the window's own length is padding, and is zero.
+        assert (cut[0, window.n_actual :] == 0).all()
+
+    @staticmethod
+    def _scenarios(incrementality_lite, *, channel_axis, estimand, frequency):
+        """Build scenarios directly, bypassing the compiled evaluation."""
+        incr, l_max = incrementality_lite
+        dates = incr.data.dates
+        freq_offset = pd.tseries.frequencies.to_offset(pd.infer_freq(dates))
+        baseline_array = incr.data.get_channel_spend().values
+        periods = incr._create_period_groups(dates[0], dates[-1], frequency)
+        windows = EvaluationWindows.build(
+            periods=periods, dates=dates, l_max=l_max, freq_offset=freq_offset
+        )
+        return periods, windows.build_scenarios(
+            baseline_array=baseline_array,
+            counterfactual_spend_factor=0.0,
+            dtype="float64",
+            channel_axis=channel_axis,
+            n_channels=baseline_array.shape[-1],
+            estimand=estimand,
+        )
+
+    def test_per_channel_scenarios_perturb_one_channel_each(self, incrementality_lite):
+        """In per-channel mode each scenario zeroes exactly one channel."""
+        n_channels = incrementality_lite[0].data.get_channel_spend().shape[-1]
+        _, scenarios = self._scenarios(
+            incrementality_lite,
+            channel_axis=0,
+            estimand="per_channel",
+            frequency="all_time",
+        )
+
+        assert scenarios.spend.shape[0] == n_channels
+        for channel in range(n_channels):
+            spend = scenarios.spend[scenarios.rows[(0, channel)]]
+            assert (spend[:, channel] == 0).all()
+            others = [c for c in range(n_channels) if c != channel]
+            assert (spend[:, others] != 0).any()
+
+    @pytest.mark.parametrize("frequency", ["all_time", "monthly"])
+    @pytest.mark.parametrize(
+        ("channel_axis", "estimand", "per_period"),
+        [
+            (None, "per_channel", 1),
+            (None, "joint", 1),
+            (0, "per_channel", 2),
+            (0, "joint", 1),
+        ],
+    )
+    def test_only_the_scenarios_that_are_read_are_built(
+        self, incrementality_lite, frequency, channel_axis, estimand, per_period
+    ):
+        """Scenario counts are pinned, per estimand and per mode.
+
+        Everything downstream is proportional to this count -- the perturbed
+        spend arrays, the compiled evaluation, the memory it holds -- so a
+        mediated model asked for the joint number must not build the
+        per-channel rows it will never read.  Separable models need one
+        all-channels row either way, since each channel's column can be read
+        straight off it.
+        """
+        periods, scenarios = self._scenarios(
+            incrementality_lite,
+            channel_axis=channel_axis,
+            estimand=estimand,
+            frequency=frequency,
+        )
+
+        assert scenarios.spend.shape[0] == per_period * len(periods)
+        # And whatever the estimand asks to read is addressable.
+        keys = (
+            range(2)
+            if estimand == "per_channel" and channel_axis is not None
+            else [None]
+        )
+        for period_idx in range(len(periods)):
+            for key in keys:
+                assert (period_idx, key) in scenarios.rows
+
+    def test_the_joint_scenario_zeroes_every_channel(self, incrementality_lite):
+        """The all-channels perturbation is exactly that."""
+        _, scenarios = self._scenarios(
+            incrementality_lite,
+            channel_axis=0,
+            estimand="joint",
+            frequency="all_time",
+        )
+
+        assert (scenarios.spend[scenarios.rows[(0, None)]] == 0).all()
+
+
+class TestChannelMixingMediaTransforms:
+    r"""Increments when the media transform itself is not separable across channels.
+
+    Both readout sites in the module rest on the same unverified assumption: that
+    :math:`v_{t,c}` depends on channel *c*'s spend alone.  A saturation of the
+    shape :math:`x_c / (1 + \sum_{c'} x_{c'})` is expressible -- ``forward_pass``
+    hands the saturation the whole ``(date, channel)`` tensor -- and breaks it in
+    both places at once.  Without an effect, the module perturbs every channel
+    together and reads column *m* as channel *m*'s unilateral counterfactual; with
+    one, it perturbs channel *m* alone but then discards the movement its
+    perturbation caused in every other column.  Neither failure is visible to the
+    existing guards: the reach probe collapses the channel dimension, and the
+    completeness identity sums over channels, so it still closes.
+    """
+
+    def test_a_mixing_transform_matches_the_unilateral_oracle(
+        self, mixing_identity_fitted_mmm
+    ):
+        """The separable branch: per-channel increments are truly unilateral.
+
+        The oracle zeroes one channel at a time and sums the *whole* change in
+        ``channel_contribution``, which is what the increment for channel *m*
+        means.  On a single all-channels perturbation, column *m* answers a
+        different question -- what channel *m* contributed when every channel was
+        dark -- and the two numbers are not close.
+        """
+        mmm = mixing_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm, l_max=effective_l_max(mmm), sum_channels=True
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_the_mixing_is_material(self, mixing_identity_fitted_mmm):
+        """The two readouts differ by far more than rounding.
+
+        Without this, a regression that quietly went back to reading the joint
+        row's column *m* could still satisfy a loose tolerance somewhere.  The
+        column readout attributes the whole shared denominator to every channel,
+        so it overstates each one.
+        """
+        mmm = mixing_identity_fitted_mmm
+
+        unilateral = mediated_identity_oracle(
+            mmm, l_max=effective_l_max(mmm), sum_channels=True
+        )
+        joint_column = mediated_identity_oracle(mmm, l_max=effective_l_max(mmm))
+
+        assert float(unilateral.mean(("chain", "draw")).sum()) > 0
+        assert float(joint_column.mean(("chain", "draw")).sum()) > 1.2 * float(
+            unilateral.mean(("chain", "draw")).sum()
+        )
+
+    def test_a_mediated_mixing_transform_matches_the_unilateral_oracle(
+        self, mixing_funnel_identity_fitted_mmm
+    ):
+        """The mediated branch: the dedicated per-channel row is read whole.
+
+        The funnel effect already forces one counterfactual per channel, so the
+        perturbation is right; what the pre-fix readout does is take channel
+        *m*'s column out of it and drop the movement the same perturbation caused
+        in the other columns.  That movement is exactly zero for a separable
+        transform, which is why this needs a mixing one to have anything to fail
+        on.
+        """
+        mmm = mixing_funnel_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm,
+            "funnel_effect_contribution",
+            l_max=effective_l_max(mmm),
+            sum_channels=True,
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_mixing_is_detected_and_separability_is_not_assumed(
+        self, mixing_identity_fitted_mmm, simple_fitted_mmm
+    ):
+        """The probe measures the assumption rather than the module taking it.
+
+        The detection is what routes a mixing model onto per-channel scenarios in
+        the first place, and it has to stay quiet for a separable model or every
+        plain MMM pays a factor of ``n_channels`` for nothing.
+        """
+        assert measures_channel_mixing(mixing_identity_fitted_mmm)
+        assert not measures_channel_mixing(simple_fitted_mmm)
+
+    def test_the_joint_estimand_is_unaffected_by_mixing(
+        self, mixing_identity_fitted_mmm
+    ):
+        """Perturbing every channel at once needs no per-channel column at all.
+
+        The joint number sums the contribution delta over channels either way, so
+        mixing changes nothing about how it is read -- and it must not start
+        paying for per-channel scenarios it would never look at.
+        """
+        mmm = mixing_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_joint_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = identity_joint_oracle(mmm, l_max=effective_l_max(mmm))
+
+        assert "channel" not in result.dims
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+
+class TestMediatedEdgeCases:
+    """Mediation crossed with the settings that change how a window is built.
+
+    Every test in :class:`TestMediatedMuEffects` uses the same funnel fixture at
+    its default settings, so the mediated path and the ordinary machinery are
+    only ever exercised in one combination.  These are the combinations where
+    the two interact: the window's length, its position on the date axis, the
+    layout of the array being perturbed, and how many effects have to be
+    collected.
+    """
+
+    def test_the_window_comes_from_the_mediator_when_the_model_carries_nothing(
+        self, funnel_instantaneous_adstock_fitted_mmm
+    ):
+        """With an instantaneous adstock, the mediated path sets the window alone.
+
+        Every other mediated test has the model's own adstock to fall back on,
+        so a bug that widened the window by the model's ``l_max`` instead of the
+        mediator's would still land inside the right ballpark.  Here the model's
+        adstock reaches lag zero only and the mediator has to supply the rest.
+        """
+        mmm = funnel_instantaneous_adstock_fitted_mmm
+
+        assert mmm.adstock.l_max == 1
+        l_max = effective_l_max(mmm)
+        assert l_max > mmm.adstock.l_max
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", l_max=l_max
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_carryover_can_be_excluded_under_mediation(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """``include_carryover=False`` still evaluates on the widened window.
+
+        The two lengths do different jobs and must not be conflated: the window
+        is sized for the longest path spend can take, so the graph sees the
+        right inputs, while the *evaluation mask* is what ``include_carryover``
+        narrows to the period itself.  Collapsing the window along with the mask
+        would change the numbers inside the period too.
+        """
+        mmm = funnel_log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly", include_carryover=False
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm,
+            frequency="monthly",
+            include_carryover=False,
+            l_max=effective_l_max(mmm),
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+        # And excluding the tail really does leave something out.
+        with_carryover = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        assert float(result.sum()) < float(with_carryover.sum())
+
+    def test_a_time_varying_multiplier_survives_the_widened_window(
+        self, funnel_time_varying_media_fitted_mmm
+    ):
+        """Mediation and ``time_index`` are consistent about where a window sits.
+
+        The HSGP multiplier evaluates its basis at the window's absolute
+        positions on the date axis, and mediation is what makes that window
+        wider than the model's own adstock implies.  Get the positions from the
+        un-widened window and the multiplier is read at the wrong dates.
+        """
+        mmm = funnel_time_varying_media_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="monthly"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="monthly", l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_two_mediators_are_both_collected_and_the_longer_sets_the_window(
+        self, two_mediators_fitted_mmm
+    ):
+        """Two effects of different reach: both included, the wider one governs.
+
+        Taking the first effect's reach, or averaging the two, would truncate
+        the slower mediator's tail; summing only one contribution would drop a
+        real path.  A single-effect fixture cannot tell any of these apart.
+        """
+        mmm = two_mediators_fitted_mmm
+        effects = resolve_channel_dependent_effects(mmm)
+
+        assert {effect.contribution_var for effect in effects} == {
+            "funnel_effect_contribution",
+            "slow_effect_contribution",
+        }
+        declared = [effect.declared_carryover_lags for effect in effects]
+        assert effective_l_max(mmm) == mmm.adstock.l_max + max(declared)
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_a_panel_model_perturbs_the_channel_axis_not_the_first_one(
+        self, panel_mediated_fitted_mmm
+    ):
+        """Mediated panel models index ``channel`` where it actually is.
+
+        ``channel_data`` is ``(date, country, channel)`` here, so the
+        per-channel scenarios have to perturb the last axis.  Perturbing axis
+        zero of the non-date axes would silently zero a *country* instead, and
+        with two of each the shapes would agree throughout.
+
+        The effect's contribution also drops the panel dimension, which the
+        increment has to broadcast back rather than refuse.
+        """
+        mmm = panel_mediated_fitted_mmm
+        incr = mmm.incrementality
+
+        (effect,) = resolve_channel_dependent_effects(incr.model)
+        assert effect.contribution_var == "global_effect_contribution"
+
+        result = incr.compute_incremental_contribution(frequency="all_time")
+        expected = mediated_identity_oracle(mmm, effect.contribution_var)
+
+        assert set(result.dims) == {"chain", "draw", "channel", "country"}
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_a_panel_log_link_model_with_a_mediator_matches_the_oracle(
+        self, panel_mediated_log_link_fitted_mmm
+    ):
+        """Panel layout, log link and mediation combine without shortcuts.
+
+        ``channel_data`` is ``(date, country, channel)``, the effect's
+        contribution drops the panel dimension, and the log-link reducer weights
+        the perturbation with a ``(date, country)`` baseline response.  The
+        identity-link panel test and the non-mediated log-link panel test each
+        pass with one of those axes confused in a way the other cancels; the
+        combination is what pins all three down at once.
+        """
+        mmm = panel_mediated_log_link_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = compute_log_link_ground_truth_by_period(
+            mmm, frequency="all_time", l_max=effective_l_max(mmm)
+        )
+
+        assert set(result.dims) == {"chain", "draw", "channel", "country"}
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_subsampling_the_posterior_keeps_the_mediated_path(
+        self, funnel_log_link_fitted_mmm
+    ):
+        """``num_samples`` selects draws for every evaluated node alike.
+
+        The mediated increment reads several nodes out of one compiled
+        evaluation, so a subsample that applied to ``channel_contribution`` but
+        not to the effect would misalign the two and produce a difference of
+        unrelated draws -- a wrong number, not an error.
+        """
+        incr = funnel_log_link_fitted_mmm.incrementality
+
+        result = incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=10, random_state=20260804
+        )
+
+        assert result.sizes["draw"] * result.sizes["chain"] == 10
+        # And it is still the mediated number, not the direct one: rerunning on
+        # the same subsample is deterministic, so the two agree exactly.
+        again = incr.compute_incremental_contribution(
+            frequency="all_time", num_samples=10, random_state=20260804
+        )
+        xr.testing.assert_allclose(result, again, rtol=0)
+
+    @pytest.mark.parametrize("counterfactual_spend_factor", [0.0, 0.5, 1.0, 1.01])
+    @pytest.mark.parametrize("estimand", ["per_channel", "joint"])
+    def test_every_factor_and_estimand_matches_the_oracle(
+        self, funnel_log_link_fitted_mmm, counterfactual_spend_factor, estimand
+    ):
+        """The whole factor grid, on both estimands, under mediation.
+
+        ``0.0`` is the leave-one-out case, ``0.5`` a halving, ``1.01`` the
+        marginal perturbation, and ``1.0`` no intervention at all -- which must
+        come back as exactly zero rather than as accumulated float noise, since
+        the counterfactual array is then the baseline array.
+        """
+        mmm = funnel_log_link_fitted_mmm
+        incr = mmm.incrementality
+        compute = (
+            incr.compute_incremental_contribution
+            if estimand == "per_channel"
+            else incr.compute_joint_incremental_contribution
+        )
+
+        result = compute(
+            frequency="all_time",
+            counterfactual_spend_factor=counterfactual_spend_factor,
+        )
+
+        if counterfactual_spend_factor == 1.0:
+            np.testing.assert_array_equal(result.values, np.zeros_like(result.values))
+            return
+
+        expected = compute_log_link_ground_truth_by_period(
+            mmm,
+            frequency="all_time",
+            counterfactual_spend_factor=counterfactual_spend_factor,
+            l_max=effective_l_max(mmm),
+            joint=estimand == "joint",
+        )
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+    def test_the_gap_between_the_estimands_has_no_fixed_direction(
+        self, negative_effect_fitted_mmm
+    ):
+        """Summed per-channel increments can fall *below* the joint one.
+
+        With strictly positive contributions the per-channel numbers overcount,
+        because interaction mass is claimed by every channel that touches it --
+        which is the case the module docstring used to state as though it were
+        general.  A mediated term that subtracts from the response reverses the
+        interaction, and the sum lands under the joint number instead.  The
+        estimands differ by an interaction, not by a bias with a known sign.
+        """
+        incr = negative_effect_fitted_mmm.incrementality
+
+        per_channel = incr.compute_incremental_contribution(frequency="all_time")
+        joint = incr.compute_joint_incremental_contribution(frequency="all_time")
+
+        summed = float(per_channel.sum("channel").mean(("chain", "draw")))
+        joint_total = float(joint.mean(("chain", "draw")))
+
+        assert summed < joint_total
+
+
+class TestPostFitMutationGuard:
+    """A same-length in-place mutation of an auxiliary input after fitting is refused.
+
+    ``MMM.sample_posterior_predictive(..., clone_model=False)`` and any direct
+    ``pm.set_data`` call mutate a fitted model's shared variables in place.
+    ``lf_budget`` -- the funnel mediator's exogenous input -- is exactly such
+    a variable: it never reaches ``fit_data``, so
+    :class:`~pymc_marketing.mmm.counterfactual.CounterfactualEvaluator` reads
+    it off the live model rather than off a frame it could re-check the shape
+    of.  A mutation that keeps its length unchanged used to pass through
+    unnoticed and silently mix the fitted spend and posterior with the
+    mutated budget; it is now compared against ``idata.constant_data`` and
+    refused.
+    """
+
+    @pytest.fixture
+    def mutated_lf_budget(self, funnel_identity_fitted_mmm):
+        """Mutate ``lf_budget`` in place on the fixture, then restore it.
+
+        ``funnel_identity_fitted_mmm`` is module-scoped and reused by many
+        other tests in this file, so the mutation must not outlive this one
+        test regardless of whether it passes or fails.
+        """
+        model = funnel_identity_fitted_mmm.model
+        original = model["lf_budget"].get_value(borrow=False).copy()
+        with model:
+            pm.set_data({"lf_budget": original + 5.0})
+        try:
+            yield funnel_identity_fitted_mmm
+        finally:
+            with model:
+                pm.set_data({"lf_budget": original})
+
+    def test_a_mutated_mediator_input_is_refused(self, mutated_lf_budget):
+        """The mutation is caught and named, not silently evaluated.
+
+        On the code this guards against, the call below succeeds and returns
+        an increment computed from the mutated budget instead of the fitted
+        one, with nothing to say so.
+        """
+        with pytest.raises(ValueError, match=r"'lf_budget'.*changed since"):
+            mutated_lf_budget.incrementality.compute_incremental_contribution(
+                frequency="all_time"
+            )
+
+    def test_an_unmutated_model_still_constructs_and_computes(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The same fixture, left alone, computes exactly as it did before the guard."""
+        mmm = funnel_identity_fitted_mmm
+
+        result = mmm.incrementality.compute_incremental_contribution(
+            frequency="all_time"
+        )
+        expected = mediated_identity_oracle(
+            mmm, "funnel_effect_contribution", l_max=effective_l_max(mmm)
+        )
+
+        xr.testing.assert_allclose(result, expected, rtol=1e-6)
+
+
+class TestIncrementalitySpecValidation:
+    """What the extension point accepts, and what it refuses.
+
+    ``IncrementalitySpec`` is the only thing a third-party effect has to write
+    to take part in incrementality, and its ``additional_carryover_lags`` sizes
+    an evaluation window.  Accepting ``True`` or ``1.5`` there would produce a
+    window of a nonsensical length rather than a message saying so.
+    """
+
+    @pytest.mark.parametrize("bad", [-1, -10])
+    def test_a_negative_window_is_refused(self, bad):
+        """A negative carryover length is a mistake, not a shorter window."""
+        with pytest.raises(ValidationError, match="additional_carryover_lags"):
+            IncrementalitySpec(additional_carryover_lags=bad)
+
+    @pytest.mark.parametrize("bad", [1.5, 2.0, True, "3"])
+    def test_a_non_integer_window_is_refused(self, bad):
+        """Only integers size a window; a float or a bool is a typo."""
+        with pytest.raises(ValidationError, match="additional_carryover_lags"):
+            IncrementalitySpec(additional_carryover_lags=bad)
+
+    @pytest.mark.parametrize("good", [0, 7, np.int64(4)])
+    def test_an_integer_window_is_accepted(self, good):
+        """Zero is meaningful, and a NumPy integer is still an integer.
+
+        ``0`` says "this effect adds no carryover of its own", which the
+        reconciliation then checks against the probe.  NumPy integers arrive
+        wherever a caller writes ``spec.l_max`` of something array-shaped.
+        """
+        spec = IncrementalitySpec(additional_carryover_lags=good)
+
+        assert spec.additional_carryover_lags == int(good)
+
+    def test_the_default_leaves_everything_to_be_measured(self):
+        """An empty spec opts in and declares nothing."""
+        spec = IncrementalitySpec()
+
+        assert spec.additional_carryover_lags is None
+        assert spec.evaluation_mode == "auto"
+
+    def test_an_unknown_field_is_refused(self):
+        """A misspelled field is a silent no-op unless the model forbids it."""
+        with pytest.raises(ValidationError, match="carryover_lags"):
+            IncrementalitySpec(carryover_lags=3)
+
+    @pytest.mark.parametrize("bad", ["windowed", "partial", ""])
+    def test_an_unknown_evaluation_mode_is_refused(self, bad):
+        """The mode is a closed set; anything else would be read as ``auto``."""
+        with pytest.raises(ValidationError, match="evaluation_mode"):
+            IncrementalitySpec(evaluation_mode=bad)
+
+    def test_the_spec_is_immutable(self):
+        """An effect's declaration cannot be edited after it is read."""
+        spec = IncrementalitySpec(additional_carryover_lags=2)
+
+        with pytest.raises(ValidationError):
+            spec.additional_carryover_lags = 5
+
+
+# ============================================================================
+# End-to-end ROAS recovery (slow): the three mmm_multiplicative variants
+# ============================================================================
+#
+# Every other test in this file compares the module against an oracle evaluated
+# on the *same* posterior, so a systematic problem upstream of the module -- the
+# wrong estimand, the wrong scale, a link misread at fit time -- would cancel
+# out of all of them.  The recovery tests close that loop: data is simulated
+# from the ``mmm_example`` notebook's data-generating process (library
+# ``geometric_adstock`` and ``logistic_saturation``, additive response), the
+# **true** ROAS is computed from the DGP itself -- a counterfactual difference
+# of the noise-free response, the ``mmm_roas`` notebook's construction -- and
+# the three model variants the ``mmm_multiplicative`` notebook fits -- linear
+# (identity link), log, and log-log -- are each fit with real MCMC and asked to
+# recover it through ``mmm.incrementality.contribution_over_spend``.
+#
+# The data is additive, so the linear model is well-specified; the log and
+# log-log models are misspecified in the way real models always are, and only
+# have to land close.  Slow by construction (three NUTS fits), hence the
+# marker; run with ``pytest --run-slow``.
+
+SEED = sum(map(ord, "incrementality_recovery"))
+N_DATES = 120
+L_MAX = 8
+ADSTOCK_ALPHA = {"x1": 0.4, "x2": 0.2}
+SATURATION_LAM = {"x1": 4.0, "x2": 3.0}
+BETA = {"x1": 3.0, "x2": 2.0}
+INTERCEPT = 2.0
+NOISE_SIGMA = 0.25
+CHANNELS = ["x1", "x2"]
+
+FIT_KWARGS = {
+    "draws": 300,
+    "tune": 300,
+    "chains": 2,
+    "cores": 2,
+    "target_accept": 0.9,
+    "random_seed": SEED,
+    "progressbar": False,
+}
+
+
+@pytest.fixture(scope="module")
+def recovery_data():
+    """The ``mmm_example`` DGP, with its DGP-derived true ROAS.
+
+    Spend patterns, transformations and coefficients follow the notebook: two
+    channels (one always-on with spikes, one flighted), the library's
+    ``geometric_adstock`` and ``logistic_saturation``, and an additive target.
+    Trend, seasonality and events are omitted so the three fitted variants need
+    no control columns.
+
+    The true ROAS is the ``mmm_roas`` notebook's construction: the summed
+    difference between the noise-free response with actual spend and with
+    channel *m*'s spend zeroed over the whole range, divided by the channel's
+    spend.  The DGP is additive and both transformations map zero spend to
+    zero, so that difference is exactly channel *m*'s own media term.
+    """
+    rng = np.random.default_rng(SEED)
+    dates = pd.date_range("2022-01-03", periods=N_DATES, freq="W-MON")
+
+    x1 = rng.uniform(size=N_DATES)
+    x1 = np.where(x1 > 0.9, x1, x1 / 2)
+    x2 = rng.uniform(size=N_DATES)
+    x2 = np.where(x2 > 0.8, x2, 0.0)
+    spend = {"x1": x1, "x2": x2}
+
+    media = {}
+    for channel, values in spend.items():
+        adstocked = geometric_adstock(
+            x=xr.DataArray(values, dims=("date",)),
+            alpha=ADSTOCK_ALPHA[channel],
+            l_max=L_MAX,
+            normalize=True,
+            dim="date",
+        )
+        saturated = logistic_saturation(x=adstocked, lam=SATURATION_LAM[channel])
+        media[channel] = BETA[channel] * np.asarray(saturated.eval())
+
+    mu = INTERCEPT + media["x1"] + media["x2"]
+    y = mu + rng.normal(0.0, NOISE_SIGMA, size=N_DATES)
+
+    true_roas = {
+        channel: float(media[channel].sum() / spend[channel].sum())
+        for channel in CHANNELS
+    }
+
+    X = pd.DataFrame({"date": dates, "x1": x1, "x2": x2})
+    return {"X": X, "y": pd.Series(y, name="y"), "true_roas": true_roas}
+
+
+def _fit(recovery_data, saturation, link):
+    """Fit one ``mmm_multiplicative`` variant on the shared data."""
+    mmm = MMM(
+        date_column="date",
+        channel_columns=CHANNELS,
+        adstock=GeometricAdstock(l_max=L_MAX),
+        saturation=saturation,
+        link=link,
+    )
+    with warnings.catch_warnings():
+        # link="log" is flagged experimental and LogSaturation overrides the
+        # channel scaling; both are the point of the fixture.
+        warnings.simplefilter("ignore", UserWarning)
+        mmm.fit(recovery_data["X"], recovery_data["y"], **FIT_KWARGS)
+    return mmm
+
+
+@pytest.fixture(scope="module")
+def linear_recovery_mmm(recovery_data):
+    """The notebook's additive variant: identity link, logistic saturation."""
+    return _fit(recovery_data, LogisticSaturation(), "identity")
+
+
+@pytest.fixture(scope="module")
+def log_recovery_mmm(recovery_data):
+    """The notebook's multiplicative variant: log link, logistic saturation."""
+    return _fit(recovery_data, LogisticSaturation(), "log")
+
+
+@pytest.fixture(scope="module")
+def loglog_recovery_mmm(recovery_data):
+    """The notebook's log-log variant: log link, ``LogSaturation`` on raw spend."""
+    return _fit(recovery_data, LogSaturation(), "log")
+
+
+def _posterior_roas(mmm):
+    """All-time ROAS samples per channel, flattened over (chain, draw)."""
+    roas = mmm.incrementality.contribution_over_spend(frequency="all_time")
+    return roas.stack(sample=("chain", "draw"))
+
+
+@pytest.mark.slow
+class TestRoasRecovery:
+    """The three notebook variants recover the DGP's ROAS, and agree."""
+
+    # The misspecified models absorb the DGP's additive structure into their
+    # own multiplicative form, so bias rather than posterior width dominates;
+    # their bound is on accuracy, not coverage.
+    MISSPECIFIED_RTOL = 0.35
+    WELL_SPECIFIED_RTOL = 0.15
+
+    @pytest.mark.parametrize(
+        "model_fixture, rtol",
+        [
+            ("linear_recovery_mmm", WELL_SPECIFIED_RTOL),
+            ("log_recovery_mmm", MISSPECIFIED_RTOL),
+            ("loglog_recovery_mmm", MISSPECIFIED_RTOL),
+        ],
+    )
+    def test_posterior_median_roas_is_close_to_the_truth(
+        self, request, recovery_data, model_fixture, rtol
+    ):
+        """Each variant's posterior-median ROAS lands within tolerance per channel."""
+        mmm = request.getfixturevalue(model_fixture)
+        roas = _posterior_roas(mmm).median("sample")
+
+        for channel, truth in recovery_data["true_roas"].items():
+            estimate = float(roas.sel(channel=channel))
+            assert abs(estimate - truth) < rtol * truth, (
+                f"{model_fixture}: channel {channel} ROAS {estimate:.4f} vs "
+                f"true {truth:.4f}"
+            )
+
+    def test_the_well_specified_model_covers_the_truth(
+        self, recovery_data, linear_recovery_mmm
+    ):
+        """The linear model has the DGP's form, so its posterior has to reach the truth.
+
+        The 99% interval rather than the conventional 94%, with a small relative
+        slack: the model is well-specified in functional form, but the default
+        priors shrink the spiky channel's coefficient slightly, and with a tight
+        posterior that bias parks the truth at the interval's edge.  What the
+        test rules out is the truth sitting *clear* of the posterior -- the
+        signature of a wrong estimand rather than of shrinkage.
+        """
+        samples = _posterior_roas(linear_recovery_mmm)
+        slack = 0.02
+
+        for channel, truth in recovery_data["true_roas"].items():
+            channel_samples = samples.sel(channel=channel)
+            low = float(channel_samples.quantile(0.005))
+            high = float(channel_samples.quantile(0.995))
+            assert low * (1 - slack) < truth < high * (1 + slack), (
+                f"channel {channel}: true ROAS {truth:.4f} outside [{low:.4f}, "
+                f"{high:.4f}]"
+            )
+
+    def test_the_three_variants_agree_with_each_other(
+        self, linear_recovery_mmm, log_recovery_mmm, loglog_recovery_mmm
+    ):
+        """The estimand is a property of the data, not of the link chosen.
+
+        All three models see the same spend and the same response, so their
+        ROAS estimates have to be close to *each other* as well as to the truth
+        -- this is the claim the ``mmm_multiplicative`` notebook makes when it
+        compares the variants' channel contributions.
+        """
+        medians = {
+            name: _posterior_roas(mmm).median("sample")
+            for name, mmm in {
+                "linear": linear_recovery_mmm,
+                "log": log_recovery_mmm,
+                "loglog": loglog_recovery_mmm,
+            }.items()
+        }
+
+        for channel in CHANNELS:
+            estimates = np.array(
+                [float(roas.sel(channel=channel)) for roas in medians.values()]
+            )
+            spread = estimates.max() / estimates.min() - 1.0
+            assert spread < 0.35, f"channel {channel}: estimates {estimates}"
+
+    def test_the_pre_fix_computation_would_not_recover_the_truth(
+        self, recovery_data, log_recovery_mmm
+    ):
+        """The linear-predictor version this PR replaced fails this suite.
+
+        Before the fix, incrementality summed ``channel_contribution``
+        differences and multiplied by ``target_scale`` -- under a log link that
+        is a log-space quantity wearing response-scale units.  The saturation
+        maps zero spend to zero contribution, so the pre-fix all-time number is
+        simply ``channel_contribution.sum("date") * target_scale``, and on this
+        data it misses the truth by 60-70% per channel while the fixed
+        estimator lands within 10%.  End-to-end negative control: an accidental
+        revert cannot pass.
+
+        Only the log variant serves as the control: for the log-log variant on
+        this DGP the pre-fix number for the spiky channel happens to land
+        within the model-misspecification range (~28%), so it could not
+        discriminate a revert from an imperfect model.
+        """
+        mmm = log_recovery_mmm
+        posterior = mmm.idata.posterior
+
+        pre_fix = (
+            posterior["channel_contribution"].sum("date") * mmm.data.get_target_scale()
+        ).median(("chain", "draw"))
+        spend = mmm.data.get_channel_spend().sum("date")
+        pre_fix_roas = pre_fix / spend
+
+        for channel, truth in recovery_data["true_roas"].items():
+            estimate = float(pre_fix_roas.sel(channel=channel))
+            assert abs(estimate - truth) > 0.5 * truth, (
+                f"channel {channel}: pre-fix ROAS {estimate:.4f} is "
+                f"unexpectedly close to the truth {truth:.4f}"
+            )
+
+
+class TestWarningFrameAttribution:
+    """The full-axis fallback warning has to blame the caller, not spend_reach.
+
+    A static ``stacklevel`` cannot be right from every public entry point at
+    once: the call depth from ``SpendProbe.measure`` back to user code differs
+    per entry point (``Incrementality.contribution_over_spend`` is one frame
+    shallower than ``mmm.summary.roas(method="incremental")``, for instance).
+    ``skip_file_prefixes`` fixes this by walking up until the first frame
+    outside the package, regardless of depth.
+    """
+
+    @pytest.fixture
+    def unmeasurable_spend_fitted_mmm(self, simple_mmm_data):
+        """A model whose channels spend only on the first date.
+
+        No interior date can be probed (see
+        ``SpendProbe._select_probe_indices``), so ``measure`` cannot establish
+        a window and falls back to full-axis evaluation, warning as it does.
+        """
+        from tests.mmm.conftest import mock_fit
+
+        X = simple_mmm_data["X"].copy()
+        channel_cols = ["channel_1", "channel_2", "channel_3"]
+        X.loc[X.index[1:], channel_cols] = 0.0
+        y = simple_mmm_data["y"]
+
+        mmm = MMM(
+            channel_columns=channel_cols,
+            date_column="date",
+            target_column="target",
+            control_columns=None,
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mock_fit(mmm, X, y, random_seed=42)
+        return mmm
+
+    def test_fallback_warning_filename_is_outside_the_package(
+        self, unmeasurable_spend_fitted_mmm
+    ):
+        """The reported filename is this test file's, not spend_reach.py's.
+
+        Regression for the stacklevel=3 bug: at this call depth (test ->
+        ``contribution_over_spend`` -> ``compute_incremental_contribution`` ->
+        ``_compute_increments`` -> ``SpendProbe.measure`` ->
+        ``warnings.warn``) a static ``stacklevel=3`` lands inside
+        incrementality.py, still inside the package, rather than at this test.
+        """
+        package_dir = str(Path(pymc_marketing.__file__).resolve().parent)
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            unmeasurable_spend_fitted_mmm.incrementality.contribution_over_spend(
+                frequency="all_time"
+            )
+
+        fallback = [w for w in caught if "could not be measured" in str(w.message)]
+        assert len(fallback) == 1
+        assert not fallback[0].filename.startswith(package_dir), (
+            f"warning attributed to {fallback[0].filename!r}, inside the "
+            f"package directory {package_dir!r}"
+        )
