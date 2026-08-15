@@ -40,7 +40,6 @@ dependencies = [
     "pymc-extras>=0.14.0,<0.15.0",
     "pymc>=6.2.0,<6.3.0",
     "pyprojroot",
-    "pytensor>=3.2.3,<4.0",
     "pyyaml",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
