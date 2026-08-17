@@ -261,6 +261,8 @@ from pymc_marketing.serialization import DeserializationContext, serialization
 from pymc_marketing.version import __version__
 
 if TYPE_CHECKING:
+    import graphviz
+
     from pymc_marketing.mmm.budget_optimizer import (
         BudgetOptimizationResult,
         BudgetOptimizer,
@@ -724,7 +726,7 @@ class MMM(RegressionModelBuilder):
             effect_names=effect_names,
         )
 
-    def plot_causal_graph(self, *, rankdir: str = "LR") -> object:
+    def plot_causal_graph(self, *, rankdir: str = "LR") -> graphviz.Digraph:
         """Plot the model-implied causal DAG with graphviz.
 
         Unlike :meth:`~pymc_marketing.model_builder.ModelBuilder.graphviz`, this

@@ -175,6 +175,16 @@ def test_build_star_graph_raises_when_target_matches_predictor():
         )
 
 
+def test_build_star_graph_raises_when_season_column_conflicts_with_fourier():
+    with pytest.raises(ValueError, match="yearly_seasonality"):
+        build_mmm_star_graph(
+            channel_columns=["tv"],
+            control_columns=["season"],
+            target_column="y",
+            yearly_seasonality=2,
+        )
+
+
 def test_plot_causal_graph_returns_graphviz_digraph():
     mmm = _minimal_mmm(control_columns=["control_1"], yearly_seasonality=2)
     digraph = mmm.plot_causal_graph()

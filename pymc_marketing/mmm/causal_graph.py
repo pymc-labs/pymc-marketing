@@ -15,7 +15,12 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import networkx as nx
+
+if TYPE_CHECKING:
+    import graphviz
 
 SEASON_NODE = "season"
 
@@ -47,12 +52,19 @@ def build_mmm_star_graph(
     Raises
     ------
     ValueError
-        If a predictor column name equals the target column name.
+        If a predictor column name equals the target column name, or if
+        ``yearly_seasonality`` is set while a channel or control is named
+        ``season``.
     """
     predictors = list(channel_columns)
     if control_columns:
         predictors.extend(control_columns)
     if yearly_seasonality is not None:
+        if SEASON_NODE in predictors:
+            raise ValueError(
+                f"yearly_seasonality cannot be used when a channel or control "
+                f"column is named {SEASON_NODE!r}."
+            )
         predictors.append(SEASON_NODE)
 
     if target_column in predictors:
@@ -122,7 +134,7 @@ def causal_graph_to_graphviz(
     causal_graph: nx.DiGraph,
     *,
     rankdir: str = "LR",
-) -> object:
+) -> graphviz.Digraph:
     """Convert a causal DAG to a graphviz Digraph for plotting.
 
     Parameters
@@ -145,8 +157,8 @@ def causal_graph_to_graphviz(
         import graphviz
     except ImportError as exc:
         raise ImportError(
-            "plot_causal_graph requires the graphviz package. "
-            "Install it with: pip install graphviz"
+            "plot_causal_graph requires the graphviz Python package and the "
+            "Graphviz system binaries. Install with: pip install graphviz"
         ) from exc
 
     digraph = graphviz.Digraph()
