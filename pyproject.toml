@@ -47,7 +47,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dag = ["dowhy", "networkx", "osqp<1.0.0,>=0.6.2", "pygraphviz"]
+# The causal tooling (discovery, DAG->model, Markov equivalence, backdoor
+# identification) is implemented in pathmc, so that is all this extra needs.
+# 0.2.0 is the first release carrying the discovery front end re-exported from
+# `pymc_marketing.mmm.causal`; the resolver picks the newest pathmc the pinned
+# PyMC/PyTensor stack allows.
+dag = ["pathmc>=0.2.0"]
 pie = ["pymc-bart>=0.12.0"]
 docs = [
     "blackjax<1.6",
@@ -74,8 +79,7 @@ docs = [
     "watermark",
     "mlflow>=2.0.0",
     "networkx",
-    "dowhy",
-    "osqp<1.0.0,>=0.6.2",
+    "pathmc>=0.2.0",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
     "impulso>=0.0.12"
@@ -100,10 +104,7 @@ test = [
     "pytest>=7.0.1",
     "pytest-split",
     "mlflow>=2.0.0",
-    "networkx",
-    "dowhy",
-    "osqp<1.0.0,>=0.6.2",
-    "pygraphviz",
+    "pathmc>=0.2.0",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
     "pymc-bart>=0.12.0",
@@ -189,10 +190,7 @@ addopts = [
     "--durations=50",
     "--color=yes",
 ]
-filterwarnings = [
-    "ignore::DeprecationWarning:bokeh.core.property.primitive:37",
-    "ignore::SyntaxWarning:dowhy.*",
-]
+filterwarnings = ["ignore::DeprecationWarning:bokeh.core.property.primitive:37"]
 testpaths = "tests"
 
 [tool.mypy]
