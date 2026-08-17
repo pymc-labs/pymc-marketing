@@ -251,6 +251,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
@@ -262,6 +263,7 @@ from pymc_marketing.mmm.constraints import (
 )
 from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
+    LeverVariable,
     MediaVariable,
     OptimizationVariables,
     align_to_model_coords,
@@ -1223,6 +1225,23 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
+        Field(
+            default_factory=dict,
+            description=(
+                "Additional pm.Data variables to co-optimize alongside "
+                "`channel_data_var`, keyed by variable name. Each value gives the "
+                "native (low, high) bounds per entry in the variable's coordinate "
+                "order, or None for unbounded. Each variable must have exactly one "
+                "dim, which must not be the date dim, since date-varying variables "
+                "are not supported. Optimal values are returned in "
+                "`result.optimized_vars`. These variables are optimized in their "
+                "own units and do not participate in the default budget-sum "
+                "constraint, which sums the media budgets alone."
+            ),
+        )
+    )
+
     response_variable: str = Field(
         default="total_media_contribution_original_scale",
         description="The response variable to optimize.",
@@ -1529,7 +1548,17 @@ class BudgetOptimizer(BaseModel):
             budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
             cost_per_unit_tensor=self._cost_per_unit_tensor,
         )
-        self._variables = OptimizationVariables([media_variable])
+        # Optimizable vars become lever variables appended after media. They
+        # are optimized in their own units and stay out of the budget-sum
+        # constraint, which sums the media tensor alone.
+        levers = [
+            LeverVariable.from_model(
+                self.model, lever_name, lever_bounds, date_dim=self.date_dim
+            )
+            for lever_name, lever_bounds in self.optimizable_vars.items()
+        ]
+
+        self._variables = OptimizationVariables([media_variable, *levers])
         self._budgets_flat = self._variables.flat
         self._budgets = media_variable.scattered(
             self._variables.variable_slice(self.channel_data_var)
@@ -1550,12 +1579,52 @@ class BudgetOptimizer(BaseModel):
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
 
+        # 8b. Every lever must be able to move the response variable. A lever
+        # the objective cannot reach has an identically zero gradient, so the
+        # solver would return its warm-start value and report it as optimal.
+        # Graph reachability answers this exactly, before anything is compiled.
+        if self.optimizable_vars:
+            reachable = set(ancestors([self._pymc_model[self.response_variable]]))
+            unreachable = [
+                name
+                for name in self.optimizable_vars
+                if self._pymc_model[name] not in reachable
+            ]
+            if unreachable:
+                raise ValueError(
+                    f"response_variable={self.response_variable!r} does not "
+                    f"depend on optimizable_vars {unreachable}, so their "
+                    "gradient is identically zero and they cannot be "
+                    "optimized. Pass a response variable that includes their "
+                    "contribution."
+                )
+
         # 9. Compile objective & gradient
         self._compile_objective_and_grad()
 
         # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
+
+    @property
+    def optimization_variables(self) -> OptimizationVariables:
+        """The decision vector's variables: media, plus any ``optimizable_vars``.
+
+        Exposed so a custom
+        :class:`~pymc_marketing.mmm.constraints.Constraint` can reach a
+        variable's segment of the flat vector, which is what constraining
+        anything other than the media budgets requires. For example, capping
+        the total of a lever named ``promo_data``::
+
+            Constraint(
+                key="max_total_discount",
+                constraint_type="ineq",
+                constraint_fun=lambda budgets, total, opt: (
+                    1.0 - opt.optimization_variables.variable_slice("promo_data").sum()
+                ),
+            )
+        """
+        return self._variables
 
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
