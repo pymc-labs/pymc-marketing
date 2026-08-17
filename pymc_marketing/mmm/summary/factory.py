@@ -596,6 +596,29 @@ class MMMSummaryFactory:
            Effects. Google Inc.
            https://research.google/pubs/bayesian-methods-for-media-mix-modeling-with-carryover-and-shape-effects/
 
+        Raises
+        ------
+        ValueError
+            If an incremental-only parameter is passed with
+            ``method="elementwise"``; if ``method`` is neither
+            ``"incremental"`` nor ``"elementwise"``; or, with
+            ``method="incremental"``, for the reasons documented on
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.contribution_over_spend`.
+        NotImplementedError
+            With ``method="incremental"``, for the reasons documented on
+            :meth:`~pymc_marketing.mmm.incrementality.Incrementality.compute_incremental_contribution`
+            (an unsupported link, or a channel-dependent ``mu_effect`` that has
+            not opted in).
+
+        Warns
+        -----
+        UserWarning
+            With ``method="incremental"``, when the counterfactual's reach
+            could not be measured and the evaluation falls back to the full
+            date axis; see
+            :meth:`~pymc_marketing.mmm.spend_reach.SpendProbe.measure` for the
+            full story.
+
         Examples
         --------
         >>> df = mmm.summary.roas()
