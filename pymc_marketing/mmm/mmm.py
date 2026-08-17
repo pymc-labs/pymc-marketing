@@ -2431,6 +2431,18 @@ class MMM(RegressionModelBuilder):
                 output_var=self.output_var,
             )
 
+            # `total_media_contribution_original_scale` is built from the
+            # `channel_contribution` tensor alone, so any response routed
+            # through a mu effect -- a funnel mediator, a promotional lever --
+            # is invisible to it, and a budget optimized against it undervalues
+            # whatever drives that effect. Registered only when the model has
+            # effects, so plain media models keep their posterior unchanged.
+            if self.mu_effects:
+                self._link_spec.create_total_response_deterministic(
+                    mu_var=mu_var,
+                    target_scale=_target_scale,
+                )
+
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,

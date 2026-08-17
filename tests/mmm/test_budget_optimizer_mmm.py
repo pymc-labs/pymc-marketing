@@ -17,11 +17,14 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pytensor import function
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
 from pymc_marketing.mmm.mmm import (
     MMM,
@@ -1755,3 +1758,97 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
     assert isinstance(optimizer, BudgetOptimizer)
     _, result = optimizer.allocate_budget(total_budget=100)
     assert result.success
+
+
+class _MediatedEffect(MuEffect):
+    """Extra response reaching the target through a mediator, favouring one channel.
+
+    Reads ``channel_data_scaled``, so it is downstream of ``channel_data`` and
+    ``pm.do`` on the budgets moves it. But it lands in ``mu``, *not* in
+    ``channel_contribution`` -- which is precisely what the media-only
+    objective cannot see.
+    """
+
+    prefix: str = "mediated"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Concave mediated response, weighted onto channel_1 only."""
+        spend = mmm.channel_data_scaled
+        # Michaelis-Menten rather than sqrt: concave, but with a finite
+        # derivative at zero spend, so the solver is well behaved at a bound.
+        saturated = spend / (1.0 + spend)
+        weights = as_xtensor(np.array([4.0, 0.0]), dims=["channel"])
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            (saturated * weights).sum(dim="channel"),
+        )
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_mediated(dummy_df, mock_pymc_sample):
+    """A fitted model whose response partly travels through a mu effect."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    ).add_mu_effect(_MediatedEffect())
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
+def test_mediated_response_changes_the_allocation(dummy_df, fitted_mmm_mediated):
+    """The objective that sees the mu effect allocates differently.
+
+    #2890 measured this on a real funnel model: scored against the media-only
+    objective, the optimizer is blind to everything the mediator carries and
+    underspends whatever drives it. Here channel_1 is the only channel feeding
+    the mediator, so the funnel-aware objective must send it more budget.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    def allocate(response_variable):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm_mediated,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        )
+        budgets, result = wrapper.optimize_budget(
+            budget=10, response_variable=response_variable
+        )
+        assert result.success
+        return budgets
+
+    media_only = allocate("total_media_contribution_original_scale")
+    funnel_aware = allocate("total_response_original_scale")
+
+    assert not np.allclose(media_only.to_numpy(), funnel_aware.to_numpy(), atol=1e-6), (
+        "the two objectives produced the same plan, so the mu effect was invisible"
+    )
+
+    ch1 = {"channel": "channel_1"}
+    assert funnel_aware.sel(**ch1).sum() > media_only.sel(**ch1).sum(), (
+        "the objective that sees the mediator should fund the channel driving it"
+    )
