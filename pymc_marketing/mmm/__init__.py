@@ -17,6 +17,7 @@ from pymc_marketing.mmm import preprocessing, validating
 from pymc_marketing.mmm.additive_effect import (
     ControlMuEffect,
     DataVarMuEffect,
+    IncrementalitySpec,
     MediaMuEffect,
 )
 from pymc_marketing.mmm.budget_optimizer import (
@@ -60,6 +61,7 @@ from pymc_marketing.mmm.hsgp import (
     create_eta_prior,
     create_m_and_L_recommendations,
 )
+from pymc_marketing.mmm.incrementality import Incrementality
 from pymc_marketing.mmm.linear_regression import FancyLinearRegression
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import (
@@ -113,6 +115,8 @@ __all__ = [
     "HSGPPeriodic",
     "HillSaturation",
     "HillSaturationSigmoid",
+    "Incrementality",
+    "IncrementalitySpec",
     "InverseScaledLogisticSaturation",
     "LinearTrend",
     "LogSaturation",
