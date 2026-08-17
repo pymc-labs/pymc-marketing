@@ -1892,6 +1892,31 @@ class TestDefaultObjectiveWarning:
                 response_variable="total_response_original_scale",
             )
 
+    def test_explicit_none_resolves_rather_than_failing_validation(
+        self, dummy_df, fitted_mmm_mediated
+    ):
+        """`response_variable=None` is an omission, not a value to pass through.
+
+        Without this it reaches BudgetOptimizer as None and fails Pydantic type
+        validation, reporting a type error rather than the real problem.
+        """
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with pytest.warns(UserWarning, match="undercounts any response"):
+            optimizer = fitted_mmm_mediated.budget_optimizer(
+                **self._window(X_dummy), response_variable=None
+            )
+        assert optimizer.response_variable == "total_media_contribution_original_scale"
+
+    def test_warning_points_at_the_caller(self, dummy_df, fitted_mmm_mediated):
+        """stacklevel has to blame the user's call, not the library internals."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with pytest.warns(UserWarning, match="undercounts any response") as record:
+            fitted_mmm_mediated.budget_optimizer(**self._window(X_dummy))
+
+        assert record[0].filename == __file__, (
+            f"warning blamed {record[0].filename}, not the caller"
+        )
+
     def test_silent_without_mu_effects(self, dummy_df, fitted_mmm):
         """A plain media model has nothing the default objective misses."""
         _df_kwargs, X_dummy, _y_dummy = dummy_df

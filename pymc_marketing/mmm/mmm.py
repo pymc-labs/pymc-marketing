@@ -2647,7 +2647,10 @@ class MMM(RegressionModelBuilder):
         whose response partly travels through a ``MuEffect`` optimizes against a
         quantity that misses it -- silently, and in a direction nothing reports.
         Only warns when the caller expressed no preference: an explicit
-        ``response_variable`` is a deliberate choice and is left alone.
+        ``response_variable`` is a deliberate choice and is returned untouched,
+        which is the path both entry points take when a caller names one --
+        :meth:`budget_optimizer` and
+        :meth:`BudgetOptimizerWrapper.optimize_budget`.
         """
         if response_variable is not None:
             return response_variable
@@ -2736,10 +2739,14 @@ class MMM(RegressionModelBuilder):
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
         # duplicating that rule here would only re-derive the same mask and then send
         # it back through the optimizer's validation branch.
-        if "response_variable" not in kwargs:
-            # Resolving here rather than leaving it to BudgetOptimizer's own
-            # default: only this layer knows the model has effects.
-            kwargs["response_variable"] = self._resolve_response_variable(None)
+        # `.get`, not `not in`: an explicit `response_variable=None` has to
+        # resolve the same way an omitted one does, rather than reaching
+        # BudgetOptimizer as None and failing type validation. Resolving here
+        # rather than in BudgetOptimizer because only this layer knows the
+        # model has effects.
+        kwargs["response_variable"] = self._resolve_response_variable(
+            kwargs.get("response_variable")
+        )
 
         return BudgetOptimizer(
             model=pymc_model,
