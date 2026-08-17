@@ -1,0 +1,123 @@
+model:
+  class: pymc_marketing.mmm.mmm.MMM
+  kwargs:
+    date_column: date
+    target_column: y
+    channel_columns: [tv_spend, social_spend]
+    dims: [geo]
+    scaling:
+      channel: {method: max, dims: []}
+      target: {method: max, dims: []}
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs:
+        l_max: 8
+        priors:
+          alpha:
+            distribution: Beta
+            alpha: 2
+            beta: 3
+            dims: channel
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs:
+        priors:
+          lam:
+            distribution: Gamma
+            mu: 3.0
+            sigma: 1.0
+            dims: channel
+          beta:
+            distribution: HalfNormal
+            sigma: 1.0
+            dims: [geo, channel]
+    yearly_seasonality: 2
+    model_config:
+      intercept:
+        distribution: Normal
+        mu: 0.2
+        sigma: 0.2
+        dims: geo
+      gamma_fourier:
+        distribution: Normal
+        mu: 0
+        sigma: 0.1
+        dims: [geo, fourier_mode]
+      likelihood:
+        distribution: Normal
+        sigma:
+          distribution: HalfNormal
+          sigma: 0.5
+          dims: geo
+        dims: [date, geo]
+    sampler_config:
+      nuts_sampler: nutpie
+
+extra_vars: [lower_spend, search_volume, category_demand, lf_budget]
+
+effects:
+  - class: GeoFunnelEffect
+    kwargs:
+      data_vars: [lower_spend, search_volume, category_demand, lf_budget]
+      prefix: funnel
+      upper_transform:
+        class: pymc_marketing.mmm.media_transformation.MediaTransformation
+        kwargs:
+          adstock_first: true
+          dims: [geo, channel]
+          adstock:
+            class: pymc_marketing.mmm.GeometricAdstock
+            kwargs:
+              l_max: 8
+              prefix: adstock_uf
+              priors:
+                alpha:
+                  distribution: Beta
+                  alpha: 2
+                  beta: 3
+                  dims: channel
+          saturation:
+            class: pymc_marketing.mmm.LogisticSaturation
+            kwargs:
+              prefix: sat_uf
+              priors:
+                lam:
+                  distribution: Gamma
+                  mu: 2.0
+                  sigma: 1.0
+                  dims: channel
+                beta:
+                  distribution: HalfNormal
+                  sigma: 1.0
+                  dims: [geo, channel]
+      demand_transform:
+        class: pymc_marketing.mmm.media_transformation.MediaTransformation
+        kwargs:
+          adstock_first: true
+          dims: [geo]
+          adstock:
+            class: pymc_marketing.mmm.GeometricAdstock
+            kwargs:
+              l_max: 8
+              prefix: adstock_lf
+              priors:
+                alpha:
+                  distribution: Beta
+                  alpha: 2
+                  beta: 3
+                  dims: geo
+          saturation:
+            class: pymc_marketing.mmm.LogisticSaturation
+            kwargs:
+              prefix: sat_lf
+              priors:
+                lam:
+                  distribution: Gamma
+                  mu: 1.5
+                  sigma: 0.5
+                beta:
+                  distribution: HalfNormal
+                  sigma: 1.0
+                  dims: geo
+
+original_scale_vars: [channel_contribution, funnel_effect_contribution, y]

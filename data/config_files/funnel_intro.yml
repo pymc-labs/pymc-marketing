@@ -1,0 +1,34 @@
+model:
+  class: pymc_marketing.mmm.mmm.MMM
+  kwargs:
+    date_column: date
+    target_column: y_obs
+    channel_columns: [upper_spend]
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 8}
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs: {}
+    sampler_config:
+      nuts_sampler: nutpie
+
+extra_vars: [lower_spend, lower_control]
+
+effects:
+  - class: FunnelEffect
+    kwargs:
+      adstock_uf:
+        class: pymc_marketing.mmm.GeometricAdstock
+        kwargs: {l_max: 8, prefix: adstock_uf}
+      saturation_uf:
+        class: pymc_marketing.mmm.LogisticSaturation
+        kwargs: {prefix: sat_uf}
+      adstock_lf:
+        class: pymc_marketing.mmm.GeometricAdstock
+        kwargs: {l_max: 8, prefix: adstock_lf}
+      saturation_lf:
+        class: pymc_marketing.mmm.LogisticSaturation
+        kwargs: {prefix: sat_lf}
+
+original_scale_vars: [channel_contribution, funnel_effect_contribution, y]

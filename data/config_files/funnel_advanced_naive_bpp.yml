@@ -1,0 +1,57 @@
+model:
+  class: pymc_marketing.mmm.mmm.MMM
+  kwargs:
+    date_column: date
+    target_column: y
+    channel_columns: [tv_spend, social_spend]
+    control_columns: [t]
+    dims: [geo]
+    scaling:
+      channel: {method: max, dims: []}
+      target: {method: max, dims: []}
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs:
+        l_max: 8
+        priors:
+          alpha:
+            distribution: Beta
+            alpha: 2
+            beta: 3
+            dims: channel
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs:
+        priors:
+          lam:
+            distribution: Gamma
+            mu: 3.0
+            sigma: 1.0
+            dims: channel
+          beta:
+            distribution: HalfNormal
+            sigma: 1.0
+            dims: [geo, channel]
+    yearly_seasonality: 2
+    model_config:
+      intercept:
+        distribution: Normal
+        mu: 0.2
+        sigma: 0.2
+        dims: geo
+      gamma_fourier:
+        distribution: Normal
+        mu: 0
+        sigma: 0.1
+        dims: [geo, fourier_mode]
+      likelihood:
+        distribution: Normal
+        sigma:
+          distribution: HalfNormal
+          sigma: 0.5
+          dims: geo
+        dims: [date, geo]
+    sampler_config:
+      nuts_sampler: nutpie
+
+original_scale_vars: [channel_contribution, y]
