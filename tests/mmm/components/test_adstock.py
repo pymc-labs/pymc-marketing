@@ -31,6 +31,7 @@ from pymc_marketing.mmm.components.adstock import (
     GeometricAdstock,
     NoAdstock,
 )
+from pymc_marketing.mmm.components.base import ParameterPriorException
 from pymc_marketing.mmm.transformers import ConvMode
 from pymc_marketing.serialization import serialization
 
@@ -429,6 +430,38 @@ class TestDelayedAdstockHalfLife:
             )
 
             assert adstock.function_priors["theta"] == theta
+
+    def test_halflife_priors_missing_argument_raises(self) -> None:
+        """theta is an argument of function but has no prior here."""
+
+        class IncompleteDelayedAdstock(DelayedAdstock):
+            halflife_priors = {"halflife": Prior("InverseGamma", alpha=9, beta=5.75)}
+
+        with pytest.raises(
+            ParameterPriorException, match=r"Missing default prior: {'theta'}"
+        ):
+            IncompleteDelayedAdstock(l_max=10, parametrization="halflife")
+
+    def test_halflife_priors_extra_argument_raises(self) -> None:
+        """Shadowing default_priors is what makes this branch reachable."""
+
+        class ExtraDelayedAdstock(DelayedAdstock):
+            halflife_priors = {
+                "halflife": Prior("InverseGamma", alpha=9, beta=5.75),
+                "theta": Prior("HalfNormal", sigma=1),
+                "not_an_argument": Prior("HalfNormal", sigma=1),
+            }
+
+        with pytest.raises(
+            ParameterPriorException,
+            match=r"Missing function parameter: {'not_an_argument'}",
+        ) as exc_info:
+            ExtraDelayedAdstock(l_max=10, parametrization="halflife")
+
+        # The base implementation would also report alpha as missing a prior,
+        # so an empty set here is what pins this to the override.
+        assert exc_info.value.priors == set()
+        assert exc_info.value.parameters == {"not_an_argument"}
 
     @pytest.mark.parametrize(
         "quantile, tolerance",
