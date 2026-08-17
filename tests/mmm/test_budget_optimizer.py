@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import ast
+import inspect
 from unittest.mock import patch
 
 import numpy as np
@@ -21,9 +23,12 @@ import pytensor
 import pytest
 import xarray as xr
 from pydantic import ValidationError
+from pytensor.graph.traversal import ancestors
 from xarray import DataArray
 
+import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
 from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
@@ -33,7 +38,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.constraints import Constraint, build_default_sum_constraint
 from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
@@ -1233,4 +1238,200 @@ def test_default_bounds_come_from_the_media_variable(mmm_wrapper):
     with pytest.warns(UserWarning, match="No budget bounds provided"):
         result = optimizer.allocate_budget(total_budget=100.0)
     assert result.scipy_result.success
+    np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
+
+
+class _LeverEffect(MuEffect):
+    """Test-only effect registering an optimizable pm.Data node.
+
+    Deliberately a plain MuEffect: this PR wires levers by variable *name*, so
+    the optimizer needs no knowledge of effect classes.
+    """
+
+    prefix: str = "promo"
+
+    def create_data(self, mmm) -> None:
+        model = mmm.model
+        model.add_coord(self.prefix, ["evt1", "evt2"])
+        pmd.Data(f"{self.prefix}_data", np.full(2, 0.10), dims=self.prefix)
+
+    def create_effect(self, mmm):
+        model = mmm.model
+        data = model[f"{self.prefix}_data"]
+        coef = pmd.HalfNormal(f"{self.prefix}_coef", sigma=1.0, dims=self.prefix)
+        contribution = pmd.Deterministic(
+            f"{self.prefix}_effect_contribution", data * coef, dims=self.prefix
+        )
+        # An objective that sees both blocks. The stock media objective is
+        # media only, so a lever declared against it is (correctly) rejected by
+        # the reachability guard.
+        pmd.Deterministic(
+            "joint_objective",
+            model["channel_contribution"].sum() + contribution.sum(),
+        )
+        return contribution.sum(dim=self.prefix)
+
+    def set_data(self, mmm, model, X) -> None:
+        pass
+
+
+def _fit_mmm_with_lever(mock_pymc_sample):
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_LeverEffect())
+    mmm.fit(X, y, random_seed=0)
+    return mmm, date_range
+
+
+def test_optimizable_vars_co_optimized_with_media(mock_pymc_sample):
+    """A named pm.Data node is optimized alongside the budgets, in one solve."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+    )
+    # One joint flat vector: media entries first, then the lever.
+    assert optimizer._variables.slices["promo_data"] == slice(
+        optimizer.budgets_to_optimize.sum().item(),
+        optimizer.budgets_to_optimize.sum().item() + 2,
+    )
+    # The lever really is wired into the graph the objective is built from.
+    assert optimizer._budgets_flat in ancestors([optimizer._pymc_model["promo_data"]])
+
+    result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.scipy_result.success
+    # Media still sums to the budget: the lever does not draw from the pot.
+    np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
+    # The lever's optimum comes back labelled.
+    promo = result.optimized_vars["promo_data"]
+    assert list(promo.coords["promo"].values) == ["evt1", "evt2"]
+    assert ((promo.values >= 0.0) & (promo.values <= 1.0)).all()
+
+
+def test_optimizable_vars_warm_start_at_current_value(mock_pymc_sample):
+    """With maxiter=0 the solver returns x0, exposing the seeding convention."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+    )
+    result = optimizer.allocate_budget(
+        total_budget=100.0,
+        minimize_kwargs={"options": {"maxiter": 0}},
+        return_if_fail=True,
+    )
+    # Media spreads the budget uniformly; the lever starts at its model value.
+    np.testing.assert_allclose(result.scipy_result.x[:2], [50.0, 50.0])
+    np.testing.assert_allclose(result.scipy_result.x[2:], 0.10)
+
+
+def test_optimizable_vars_unreachable_response_raises(mock_pymc_sample):
+    """A lever the response variable cannot reach is rejected at construction."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    with pytest.raises(ValidationError, match="does not depend on optimizable_vars"):
+        mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+            optimizable_vars={"promo_data": None},
+            # channel_contribution is media only, so it cannot reach the lever.
+            response_variable="channel_contribution",
+        )
+
+
+@pytest.mark.parametrize(
+    "entry, match",
+    [
+        ({"not_a_variable": None}, "not a variable with named dims"),
+        ({"promo_data": [(0.0, 1.0)]}, "bounds pairs"),
+    ],
+    ids=["unknown_name", "bounds_length_mismatch"],
+)
+def test_optimizable_vars_validation_raises(mock_pymc_sample, entry, match):
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    with pytest.raises(ValidationError, match=match):
+        mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+            optimizable_vars=entry,
+            response_variable="joint_objective",
+        )
+
+
+def test_optimized_vars_empty_without_optimizable_vars(mmm_wrapper):
+    """Backward compatible: a plain optimization returns no extra variables."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    with pytest.warns(UserWarning, match="No budget bounds provided"):
+        result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.optimized_vars == {}
+
+
+def test_budget_optimizer_has_no_marketing_imports():
+    """The optimizer stays a graph-level tool: levers are wired by name only."""
+    banned = ("pymc_marketing.mmm.additive_effect", "pymc_marketing.mmm.mmm")
+    tree = ast.parse(inspect.getsource(budget_optimizer_module))
+    imported: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+    offenders = [m for m in imported if any(m.startswith(b) for b in banned)]
+    assert not offenders, (
+        f"budget_optimizer must not import marketing modules: {offenders}"
+    )
+
+
+def test_custom_constraint_can_bind_a_lever(mock_pymc_sample):
+    """A lever is constrainable through the public variables accessor.
+
+    Levers stay out of the default budget-sum constraint, so the only way to
+    bound one jointly is a custom constraint reaching its segment of the flat
+    vector. That has to be possible without private attributes.
+    """
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    cap = 0.4
+
+    total_lever_cap = Constraint(
+        key="max_total_lever",
+        constraint_type="ineq",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            cap - optimizer.optimization_variables.variable_slice("promo_data").sum()
+        ),
+    )
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+        constraints=[total_lever_cap, build_default_sum_constraint()],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0)
+
+    assert result.scipy_result.success
+    # The lever cap binds: unconstrained, both entries would climb to 1.0.
+    assert float(result.optimized_vars["promo_data"].sum()) <= cap + 1e-6
+    # And the budget constraint is still honoured alongside it.
     np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
