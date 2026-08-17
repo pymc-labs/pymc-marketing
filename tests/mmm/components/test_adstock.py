@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import inspect
+from itertools import pairwise
 
 import numpy as np
 import pymc as pm
@@ -331,6 +332,301 @@ class TestGeometricAdstockHalfLife:
         assert "parametrization" not in serialization.serialize(
             GeometricAdstock(l_max=7)
         )
+
+
+class TestDelayedAdstockHalfLife:
+    """The half-life parametrisation replaces alpha with a prior on the half-life.
+
+    ``theta`` is shared by both parametrisations, so only the width of the
+    response around the peak is being re-expressed.
+    """
+
+    def test_halflife_prior_implies_parametrization(self) -> None:
+        adstock = DelayedAdstock(
+            l_max=12, priors={"halflife": Prior("LogNormal", mu=1, sigma=0.3)}
+        )
+
+        assert adstock.parametrization == "halflife"
+        assert adstock.function_priors == {
+            "halflife": Prior("LogNormal", mu=1, sigma=0.3),
+            "theta": Prior("HalfNormal", sigma=1),
+        }
+        assert adstock.variable_mapping == {
+            "halflife": "adstock_halflife",
+            "theta": "adstock_theta",
+        }
+        assert adstock.model_config == {
+            "adstock_halflife": Prior("LogNormal", mu=1, sigma=0.3),
+            "adstock_theta": Prior("HalfNormal", sigma=1),
+        }
+
+    def test_parametrization_without_prior_uses_default(self) -> None:
+        adstock = DelayedAdstock(l_max=12, parametrization="halflife")
+
+        assert adstock.function_priors == DelayedAdstock.halflife_priors
+
+    def test_class_default_priors_unchanged(self) -> None:
+        DelayedAdstock(l_max=12, parametrization="halflife")
+
+        assert DelayedAdstock.default_priors == {
+            "alpha": Prior("Beta", alpha=1, beta=3),
+            "theta": Prior("HalfNormal", sigma=1),
+        }
+        assert DelayedAdstock(l_max=12).parametrization == "alpha"
+
+    def test_alpha_prior_rejected(self) -> None:
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            DelayedAdstock(
+                l_max=12,
+                parametrization="halflife",
+                priors={"alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_halflife_prior_rejected(self) -> None:
+        """An explicit alpha parametrization is not silently overridden."""
+        with pytest.raises(
+            ValueError, match=r"Priors for 'halflife' are not used when.*'alpha'"
+        ):
+            DelayedAdstock(
+                l_max=12,
+                parametrization="alpha",
+                priors={"halflife": Prior("LogNormal", mu=1, sigma=0.3)},
+            )
+
+    def test_both_priors_rejected(self) -> None:
+        """Neither prior is silently dropped when the parametrization is inferred."""
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            DelayedAdstock(
+                l_max=12,
+                priors={
+                    "alpha": Prior("Beta", alpha=1, beta=3),
+                    "halflife": Prior("LogNormal", mu=1, sigma=0.3),
+                },
+            )
+
+    def test_conflicting_prior_assignment_rejected(self) -> None:
+        """Assignment is the other route to a state that cannot be deserialised."""
+        adstock = DelayedAdstock(l_max=12, parametrization="halflife")
+
+        with pytest.raises(
+            ValueError, match=r"Priors for 'alpha' are not used when.*'halflife'"
+        ):
+            adstock.function_priors = {"alpha": Prior("Beta", alpha=1, beta=3)}
+
+        assert adstock.function_priors == DelayedAdstock.halflife_priors
+
+    def test_theta_prior_shared_by_both_parametrizations(self) -> None:
+        """``theta`` is orthogonal to the width, so it is not an alternative."""
+        theta = Prior("HalfNormal", sigma=2)
+
+        for parametrization in ("alpha", "halflife"):
+            adstock = DelayedAdstock(
+                l_max=12, parametrization=parametrization, priors={"theta": theta}
+            )
+
+            assert adstock.function_priors["theta"] == theta
+
+    @pytest.mark.parametrize(
+        "quantile, tolerance",
+        [(0.05, 0.005), (0.25, 0.005), (0.5, 0.005), (0.75, 0.01), (0.95, 0.02)],
+    )
+    def test_default_prior_matches_alpha_default(
+        self, quantile: float, tolerance: float
+    ) -> None:
+        """The default half-life prior implies the default alpha prior.
+
+        Retuning either default should be a deliberate act, so pin the implied
+        quantiles of alpha against those of ``Beta(1, 3)``. Both are available in
+        closed form, since ``alpha = 2 ** (-1 / h**2)`` is monotone in ``h``.
+        """
+        halflife_prior = DelayedAdstock.halflife_priors["halflife"]
+        assert halflife_prior.distribution == "InverseGamma"
+
+        halflife = stats.invgamma(
+            a=halflife_prior.parameters["alpha"],
+            scale=halflife_prior.parameters["beta"],
+        ).ppf(quantile)
+        implied_alpha = 2.0 ** (-1.0 / halflife**2)
+
+        alpha_prior = DelayedAdstock.default_priors["alpha"]
+        assert alpha_prior.distribution == "Beta"
+
+        expected = stats.beta(
+            a=alpha_prior.parameters["alpha"], b=alpha_prior.parameters["beta"]
+        ).ppf(quantile)
+        assert implied_alpha == pytest.approx(expected, abs=tolerance)
+
+    def test_update_priors(self) -> None:
+        adstock = DelayedAdstock(l_max=12, parametrization="halflife")
+        prior = Prior("InverseGamma", alpha=4, beta=2)
+
+        adstock.update_priors({"adstock_halflife": prior})
+
+        assert adstock.function_priors["halflife"] == prior
+
+    @pytest.mark.parametrize("alpha", [0.1, 0.3, 0.5, 0.7, 0.9])
+    @pytest.mark.parametrize("theta", [0.0, 2.0, 5.0])
+    @pytest.mark.parametrize("l_max", [8, 12, 20], ids=lambda v: f"l_max={v}")
+    @pytest.mark.parametrize("normalize", [False, True], ids=["raw", "normalized"])
+    def test_matches_equivalent_alpha(
+        self, model, alpha: float, theta: float, l_max: int, normalize: bool
+    ) -> None:
+        """The half-life parametrisation is an exact change of coordinates.
+
+        ``h = sqrt(log(0.5) / log(alpha))`` inverts ``alpha = 2 ** (-1 / h**2)``,
+        so both parametrisations must build the same kernel.
+        """
+        halflife = np.sqrt(np.log(0.5) / np.log(alpha))
+        spike = as_xtensor(x, dims=("time",))
+        kwargs = {"l_max": l_max, "normalize": normalize}
+
+        with model:
+            from_halflife = DelayedAdstock(
+                **kwargs, priors={"halflife": halflife, "theta": theta}
+            ).apply(spike, core_dim="time")
+            from_alpha = DelayedAdstock(
+                **kwargs, priors={"alpha": alpha, "theta": theta}
+            ).apply(spike, core_dim="time")
+
+        np.testing.assert_allclose(from_halflife.eval(), from_alpha.eval())
+
+    @pytest.mark.parametrize("normalize", [False, True], ids=["raw", "normalized"])
+    def test_half_peak_interpretation(self, model, normalize: bool) -> None:
+        """A half-life away from the peak, effectiveness is half of the peak.
+
+        Normalization divides every weight by the same sum, so it moves the
+        absolute scale but not the ratio to the peak.
+        """
+        theta, halflife = 4, 2
+        spike = as_xtensor(x, dims=("time",))
+
+        with model:
+            weights = (
+                DelayedAdstock(
+                    l_max=12,
+                    normalize=normalize,
+                    priors={"halflife": halflife, "theta": theta},
+                )
+                .apply(spike, core_dim="time")
+                .eval()
+            )
+
+        assert weights[theta - halflife] / weights[theta] == pytest.approx(0.5)
+        assert weights[theta + halflife] / weights[theta] == pytest.approx(0.5)
+
+        if not normalize:
+            assert weights[theta] == pytest.approx(1.0)
+            assert weights[theta - halflife] == pytest.approx(0.5)
+            assert weights[theta + halflife] == pytest.approx(0.5)
+
+    @pytest.mark.parametrize("distance", [1, 2, 3])
+    def test_symmetric_about_theta(self, model, distance: int) -> None:
+        theta = 5
+        spike = as_xtensor(x, dims=("time",))
+
+        with model:
+            weights = (
+                DelayedAdstock(
+                    l_max=12, normalize=False, priors={"halflife": 2.5, "theta": theta}
+                )
+                .apply(spike, core_dim="time")
+                .eval()
+            )
+
+        assert weights[theta - distance] == pytest.approx(weights[theta + distance])
+
+    def test_larger_halflife_widens_the_kernel(self, model) -> None:
+        """A larger half-life holds more of the peak at any distance from it."""
+        theta = 6
+        spike = as_xtensor(x, dims=("time",))
+        halflives = [0.5, 1.0, 2.0, 4.0]
+
+        with model:
+            kernels = [
+                DelayedAdstock(
+                    l_max=13,
+                    normalize=False,
+                    priors={"halflife": halflife, "theta": theta},
+                )
+                .apply(spike, core_dim="time")
+                .eval()
+                for halflife in halflives
+            ]
+
+        for narrow, wide in pairwise(kernels):
+            assert narrow[theta] == pytest.approx(wide[theta])
+            for distance in (1, 2, 3):
+                assert wide[theta + distance] > narrow[theta + distance]
+                assert wide[theta - distance] > narrow[theta - distance]
+
+    def test_function_requires_exactly_one_parameter(self) -> None:
+        adstock = DelayedAdstock(l_max=12)
+        spike = as_xtensor(x, dims=("time",))
+
+        with pytest.raises(ValueError, match="exactly one"):
+            adstock.function(spike, dim="time")
+
+        with pytest.raises(ValueError, match="exactly one"):
+            adstock.function(spike, alpha=0.5, halflife=2.0, dim="time")
+
+    def test_sample_prior_and_curve(self) -> None:
+        adstock = DelayedAdstock(l_max=12, parametrization="halflife")
+
+        prior = adstock.sample_prior()
+        assert "adstock_halflife" in prior
+        assert "adstock_theta" in prior
+
+        curve = adstock.sample_curve(prior)
+        assert curve.shape == (1, 500, adstock.l_max)
+
+    def test_roundtrip(self) -> None:
+        original = DelayedAdstock(
+            l_max=7, priors={"halflife": Prior("LogNormal", mu=1, sigma=0.3)}
+        )
+
+        data = serialization.serialize(original)
+        assert data["parametrization"] == "halflife"
+
+        restored = serialization.deserialize(data)
+        assert restored.parametrization == "halflife"
+        assert restored == original
+
+    def test_alpha_parametrization_not_serialized(self) -> None:
+        assert "parametrization" not in serialization.serialize(DelayedAdstock(l_max=7))
+
+    @pytest.mark.parametrize(
+        "x, dims",
+        [
+            pytest.param(x, ("time",), id="vector"),
+            pytest.param(np.broadcast_to(x, (3, 20)), ("channel", "time"), id="matrix"),
+        ],
+    )
+    def test_apply_with_channel_specific_priors(self, model, x, dims) -> None:
+        """Half-life broadcasts over dims the same way alpha does.
+
+        A channel-specific half-life lifts a bare time series up to
+        ``(channel, time)``, so compare named sizes rather than raw shapes.
+        """
+        adstock = DelayedAdstock(
+            l_max=12,
+            priors={
+                "halflife": Prior("InverseGamma", alpha=9, beta=5.75, dims="channel"),
+                "theta": Prior("HalfNormal", sigma=1, dims="channel"),
+            },
+        )
+
+        with model:
+            y = adstock.apply(as_xtensor(x, dims=dims), core_dim="time")
+
+        assert isinstance(y, XTensorVariable)
+        assert dict(zip(y.dims, y.eval().shape, strict=True)) == {
+            "channel": 3,
+            "time": 20,
+        }
 
 
 @pytest.mark.parametrize(
