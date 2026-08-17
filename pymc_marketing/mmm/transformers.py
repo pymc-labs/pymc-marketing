@@ -515,9 +515,10 @@ def weibull_adstock(
 
     if type == WeibullType.PDF:
         w = density(Weibull, value=t, alpha=k, beta=lam)
-        w = (w - w.min(dim=kernel_dim)) / (
-            w.max(dim=kernel_dim) - w.min(dim=kernel_dim)
-        )
+        # Use -max(-w) instead of min(w): the lowered xtensor `Min` Op has no
+        # gradient implementation, which silently demotes NUTS to Metropolis.
+        w_min = -((-w).max(dim=kernel_dim))
+        w = (w - w_min) / (w.max(dim=kernel_dim) - w_min)
     elif type == WeibullType.CDF:
         w = 1 - cdf(Weibull, value=t, alpha=k, beta=lam)
         padded_w = ptx.concat([1, w], dim=kernel_dim)
