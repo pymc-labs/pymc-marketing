@@ -17,6 +17,7 @@ Tests for the YAML builder module in pymc_marketing.mmm.builders.yaml.
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import xarray as xr
@@ -636,3 +637,89 @@ def test_original_scale_vars_ordering_does_not_matter(X_data, y_data):
 
     obs_names = [rv.name for rv in model.model.observed_RVs]
     assert any("lift" in name for name in obs_names)
+
+
+def test_build_mmm_from_yaml_extra_vars_on_dataset(tmp_path):
+    """DataFrame + extra_vars should pass mediator columns through to the model."""
+    n = 52
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=n, freq="W"),
+            "channel_1": range(n),
+            "lower_spend": range(100, 100 + n),
+            "lower_control": range(200, 200 + n),
+        }
+    )
+    y = pd.Series(range(n), name="y")
+    config_path = "tests/mmm/builders/config_files/extra_vars_model.yml"
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert "lower_spend" in model.xarray_dataset.data_vars
+    assert "lower_control" in model.xarray_dataset.data_vars
+
+
+def test_build_mmm_from_yaml_accepts_xarray_dataset(tmp_path):
+    """Dataset inputs should build without a date column in DataFrame columns."""
+    n = 52
+    dates = pd.date_range("2023-01-01", periods=n, freq="W")
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(
+                np.arange(n, dtype=float).reshape(n, 1),
+                dims=("date", "channel"),
+                coords={"date": dates, "channel": ["channel_1"]},
+            )
+        }
+    )
+    y = pd.Series(range(n), name="y")
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.mmm.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        }
+    }
+    config_path = tmp_path / "dataset_model.yml"
+    config_path.write_text(yaml.dump(config))
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert model is not None
+    assert "_channel" in model.xarray_dataset.data_vars
+
+
+def test_build_mmm_from_yaml_extra_vars_geo_dims():
+    """extra_vars with panel dims should produce (date, geo) data variables."""
+    geos = ["g1", "g2"]
+    dates = pd.date_range("2023-01-01", periods=4, freq="W")
+    rows = []
+    for date in dates:
+        for geo in geos:
+            rows.append(
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": float(len(rows)),
+                    "lower_spend": float(10 + len(rows)),
+                }
+            )
+    X = pd.DataFrame(rows)
+    y = X.set_index(["date", "geo"]).assign(y=range(len(rows)))["y"].rename("y")
+    config_path = "tests/mmm/builders/config_files/extra_vars_geo_model.yml"
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert "lower_spend" in model.xarray_dataset.data_vars
+    assert model.xarray_dataset["lower_spend"].dims == ("date", "geo")

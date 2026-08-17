@@ -15,6 +15,6 @@
 
 from pymc_marketing.mmm.builders.factories import build
 from pymc_marketing.mmm.builders.schema import MMMYamlConfig
-from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
+from pymc_marketing.mmm.builders.yaml import as_model_dataset, build_mmm_from_yaml
 
-__all__ = ["MMMYamlConfig", "build", "build_mmm_from_yaml"]
+__all__ = ["MMMYamlConfig", "as_model_dataset", "build", "build_mmm_from_yaml"]
