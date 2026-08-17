@@ -17,6 +17,7 @@ import xarray as xr
 
 from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
+    LeverVariable,
     MediaVariable,
     OptimizationVariables,
 )
@@ -282,3 +283,108 @@ def test_channel_scales_applied_on_both_spreading_paths(with_distribution):
     # divided by that channel's scale. A uniform distribution reproduces the
     # default spreading exactly, so both paths must agree.
     np.testing.assert_allclose(out[0], spend / scales)
+
+
+def make_lever_variable(
+    bounds=((0.05, 0.45), (0.05, 0.45)),
+    initial=(0.30, 0.20),
+    name: str = "promo_data",
+) -> LeverVariable:
+    return LeverVariable(
+        name=name,
+        dim="promo",
+        coords=["spring", "fall"],
+        bounds=list(bounds) if bounds is not None else None,
+        initial_value=np.asarray(initial),
+    )
+
+
+def test_lever_pack_unpack_round_trip():
+    lever = make_lever_variable()
+    x = np.array([0.11, 0.42])
+    da = lever.unpack(x)
+    assert da.dims == ("promo",)
+    np.testing.assert_array_equal(lever.pack(da), x)
+    # order invariant: packing follows the lever's coords, not the input's
+    np.testing.assert_array_equal(lever.pack(da.sel(promo=["fall", "spring"])), x)
+
+
+def test_lever_warm_start_clipped_to_bounds():
+    np.testing.assert_allclose(
+        make_lever_variable(initial=(0.80, 0.01)).default_x0(100.0), [0.45, 0.05]
+    )
+    # an unbounded lever starts at its raw model value
+    np.testing.assert_allclose(
+        make_lever_variable(bounds=None, initial=(0.80, 0.01)).default_x0(100.0),
+        [0.80, 0.01],
+    )
+
+
+def test_lever_default_bounds():
+    assert make_lever_variable().default_bounds(100.0) == [(0.05, 0.45)] * 2
+    assert make_lever_variable(bounds=None).default_bounds(100.0) == [(None, None)] * 2
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        ({"bounds": [(0.0, 1.0)]}, "bounds pairs"),
+        ({"initial": (0.3,)}, "expected 2"),
+    ],
+    ids=["bounds_length", "initial_length"],
+)
+def test_lever_validation_raises(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        make_lever_variable(**kwargs)
+
+
+def test_lever_pack_rejects_unknown_coords():
+    lever = make_lever_variable()
+    da = xr.DataArray(
+        np.zeros(2), dims=("promo",), coords={"promo": ["spring", "typo"]}
+    )
+    with pytest.raises(ValueError, match="coordinates the model does not have"):
+        lever.pack(da)
+
+
+def test_media_and_lever_layout_exercises_the_isel_path():
+    """Two variables: the isel branch of variable_slice runs and stays correct.
+
+    With a single variable the slice covers the whole flat vector and
+    ``variable_slice`` short-circuits to ``self.flat``, so the ``isel`` branch
+    every additional variable depends on never executes.
+    """
+    from pytensor import function
+
+    rng = np.random.default_rng(11)
+    media = make_media_variable(rng, sizes=(3,))
+    lever = make_lever_variable()
+    opt_vars = OptimizationVariables([media, lever])
+
+    assert opt_vars.slices == {
+        "channel_data": slice(0, 3),
+        "promo_data": slice(3, 5),
+    }
+    assert opt_vars.size == 5
+
+    media_slice = opt_vars.variable_slice("channel_data")
+    lever_slice = opt_vars.variable_slice("promo_data")
+    assert media_slice is not opt_vars.flat  # no short-circuit with two variables
+    assert lever_slice.type.shape == (2,)
+
+    # to_model on the isel'd slice reads the lever's own entries.
+    x = np.array([10.0, 20.0, 30.0, 0.25, 0.75])
+    got = function(
+        [opt_vars.flat], lever.to_model(lever_slice).values, on_unused_input="ignore"
+    )(x)
+    np.testing.assert_allclose(got, [0.25, 0.75])
+
+    # x0 and bounds concatenate in variable order.
+    np.testing.assert_allclose(opt_vars.x0(90.0), [30.0, 30.0, 30.0, 0.30, 0.20])
+    assert opt_vars.bounds(90.0) == [(0.0, 90.0)] * 3 + [(0.05, 0.45)] * 2
+
+    # pack/unpack round-trips across both variables.
+    unpacked = opt_vars.unpack(x)
+    assert set(unpacked) == {"channel_data", "promo_data"}
+    np.testing.assert_array_equal(opt_vars.pack(unpacked), x)
+    assert set(opt_vars.substitutions()) == {"channel_data", "promo_data"}

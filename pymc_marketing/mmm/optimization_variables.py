@@ -31,7 +31,7 @@ variable each segment substitutes, how a segment maps to model-space tensors
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 import pytensor.tensor as pt
@@ -42,6 +42,7 @@ from xarray import DataArray
 
 __all__ = [
     "FLAT_DIM",
+    "LeverVariable",
     "MediaVariable",
     "OptimizationVariable",
     "OptimizationVariables",
@@ -419,6 +420,108 @@ class MediaVariable(OptimizationVariable):
     ) -> list[tuple[float | None, float | None]]:
         """Default ``[0, total_budget]`` bounds per optimized cell."""
         return [(0.0, float(total_budget))] * self.size
+
+
+class LeverVariable(OptimizationVariable):
+    """A non-media decision variable: one ``pm.Data`` node in native units.
+
+    Where :class:`MediaVariable` converts monetary budgets into channel data,
+    a lever is optimized directly in whatever units the model already uses for
+    it (a discount fraction, a price index), so the forward map is the identity
+    up to relabelling the flat dimension.
+
+    Levers do not participate in the default budget-sum constraint, which sums
+    the media tensor alone: a discount depth is not money drawn from a shared
+    pool. To constrain one, write a custom
+    :class:`~pymc_marketing.mmm.constraints.Constraint` and reach its segment
+    of the flat vector through
+    ``optimizer.optimization_variables.variable_slice(name)``.
+
+    Parameters
+    ----------
+    name : str
+        Name of the model's ``pm.Data`` node this lever substitutes.
+    dim : str
+        The node's single dimension, which must not be the date dim.
+    coords : list
+        Coordinates of ``dim``, in the model's order.
+    bounds : Sequence[tuple] or None
+        Declared ``(low, high)`` bounds per entry in the lever's native units,
+        or None to leave it unbounded.
+    initial_value : np.ndarray
+        The node's current value in the model, used as the warm start.
+    flat_dim : str
+        Name of the flat decision vector's dimension.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        dim: str,
+        coords: list,
+        bounds: Sequence[tuple[float | None, float | None]] | None,
+        initial_value: np.ndarray,
+        flat_dim: str = FLAT_DIM,
+    ) -> None:
+        self.name = name
+        self.dim = dim
+        self.dims = (dim,)
+        self.coords = {dim: list(coords)}
+        self.bounds = list(bounds) if bounds is not None else None
+        self.initial_value = np.ravel(np.asarray(initial_value, dtype=float))
+        self.flat_dim = flat_dim
+        if self.initial_value.shape != (self.size,):
+            raise ValueError(
+                f"{name}: initial value has {self.initial_value.size} entries, "
+                f"expected {self.size} (the length of dim {dim!r})"
+            )
+        if self.bounds is not None and len(self.bounds) != self.size:
+            raise ValueError(
+                f"{name}: {len(self.bounds)} bounds pairs for {self.size} "
+                f"entries of dim {dim!r}"
+            )
+
+    @property
+    def size(self) -> int:
+        """Number of lever entries, the length of its dim."""
+        return len(self.coords[self.dim])
+
+    def to_model(self, z: XTensorVariable) -> XTensorVariable:
+        """Relabel the flat slice with the lever's own dim."""
+        return z.rename({self.flat_dim: self.dim})
+
+    def unpack(self, x: np.ndarray) -> DataArray:
+        """Label a flat solution slice with the lever's dim and coords."""
+        return DataArray(np.asarray(x, dtype=float), dims=self.dims, coords=self.coords)
+
+    def pack(self, da: DataArray) -> np.ndarray:
+        """Flatten labelled lever values into flat-vector order."""
+        if set(da.dims) != set(self.dims):
+            raise ValueError(
+                f"{self.name}: expected dims {list(self.dims)}, got {list(da.dims)}"
+            )
+        return (
+            align_to_model_coords(da, self.coords, label=self.name)
+            .transpose(*self.dims)
+            .values
+        )
+
+    def default_x0(self, total_budget: float) -> np.ndarray:
+        """Warm start at the lever's current model value, clipped to bounds."""
+        x0 = self.initial_value.copy()
+        if self.bounds is not None:
+            lows = np.array([-np.inf if lo is None else lo for lo, _ in self.bounds])
+            highs = np.array([np.inf if hi is None else hi for _, hi in self.bounds])
+            x0 = np.clip(x0, lows, highs)
+        return x0
+
+    def default_bounds(
+        self, total_budget: float
+    ) -> list[tuple[float | None, float | None]]:
+        """Return the declared native-unit bounds, or unbounded."""
+        if self.bounds is not None:
+            return list(self.bounds)
+        return [(None, None)] * self.size
 
 
 class OptimizationVariables:
