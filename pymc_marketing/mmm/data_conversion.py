@@ -83,6 +83,7 @@ def to_mmm_dataset(
     dims: tuple[str, ...] = (),
     channel_columns: list[str],
     control_columns: list[str] | None = None,
+    extra_vars: list[str] | None = None,
     target_column: str | None = None,
 ) -> xr.Dataset:
     """Normalise X (and optionally y) to a single canonical ``xr.Dataset``.
@@ -107,14 +108,19 @@ def to_mmm_dataset(
         Names of the media-channel columns.
     control_columns
         Names of control-variable columns.
+    extra_vars
+        Column names to carry as additional data variables (for custom
+        ``DataVarMuEffect`` effects). Each becomes a variable indexed by
+        ``date`` and any panel ``dims``.
     target_column
         Name of the target / response variable.
 
     Returns
     -------
     xr.Dataset
-        Dataset with variables ``_channel``, (optional) ``_target``, and
-        (optional) ``_control`` and coordinates for each dimension.
+        Dataset with variables ``_channel``, (optional) ``_target``,
+        (optional) ``_control``, any ``extra_vars``, and coordinates for
+        each dimension.
     """
     # 1. Coerce date column to datetime for DataFrame inputs.
     if isinstance(X, pd.DataFrame) and date_column in X.columns:
@@ -127,6 +133,7 @@ def to_mmm_dataset(
         dims=dims,
         channel_columns=channel_columns,
         control_columns=control_columns,
+        extra_vars=extra_vars,
     )
 
     # 2. Normalise y and merge into the dataset.
@@ -167,6 +174,7 @@ def _(X, /, **params) -> xr.Dataset:
         X = X.rename(rename)
 
     _validate_mmm_structure(X, **params)
+    _validate_extra_vars(X, params.get("extra_vars"))
     return X
 
 
@@ -194,6 +202,12 @@ def _(X, /, **params) -> xr.Dataset:
             X, date_column, dims, control_columns, "control"
         )
         datasets.append(control_ds)
+
+    extra_vars = params.get("extra_vars")
+    if extra_vars:
+        datasets.append(
+            xr.Dataset(_pandas_columns_to_dataarrays(X, date_column, dims, extra_vars))
+        )
 
     ds = xr.merge(datasets).fillna(0)
     ds = _reindex_to_user_order(ds, channel_columns, control_columns)
@@ -262,6 +276,17 @@ def _reshape_flat_target(
     index_cols = ["date", *dim_cols]
     y_df = y_df.drop_duplicates(subset=index_cols, keep="first")
     return y_df.set_index(index_cols).sort_index().to_xarray()["_target"]
+
+
+def _validate_extra_vars(X: xr.Dataset, extra_vars: list[str] | None) -> None:
+    if not extra_vars:
+        return
+    missing = [name for name in extra_vars if name not in X.data_vars]
+    if missing:
+        raise KeyError(
+            f"Columns {missing} are declared but absent from the data. "
+            f"Present: {sorted(map(str, X.data_vars))}."
+        )
 
 
 def _validate_mmm_structure(X: xr.Dataset, **params) -> None:
@@ -358,3 +383,27 @@ def _pandas_to_xarray_dataarray(
     return _process_dataframe(
         data, date_column, valid_dims, valid_metrics, metric_coordinate_name
     )
+
+
+def _pandas_columns_to_dataarrays(
+    data: pd.DataFrame,
+    date_column: str,
+    dims: tuple[str, ...],
+    column_names: list[str],
+) -> dict[str, xr.DataArray]:
+    """Convert named columns into date-indexed (or panel) data variables."""
+    missing = [name for name in column_names if name not in data.columns]
+    if missing:
+        raise KeyError(
+            f"Columns {missing} are declared but absent from the data. "
+            f"Present: {sorted(map(str, data.columns))}."
+        )
+
+    dim_cols = [dim for dim in dims if dim in data.columns]
+    index_cols = ["date", *dim_cols]
+    result: dict[str, xr.DataArray] = {}
+    for name in column_names:
+        pivot = data[[date_column, *dim_cols, name]].drop_duplicates()
+        pivot = pivot.rename(columns={date_column: "date"})
+        result[name] = pivot.set_index(index_cols).sort_index()[name].to_xarray()
+    return result

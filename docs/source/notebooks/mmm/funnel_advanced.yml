@@ -1,3 +1,4 @@
+# Requires GeoFunnelEffect defined in mmm_funnel_from_yml.ipynb (registered on REGISTRY).
 model:
   class: pymc_marketing.mmm.mmm.MMM
   kwargs:

@@ -347,3 +347,98 @@ class TestToMmmDatasetUnsupportedTypes:
                 date_column="date",
                 channel_columns=["channel_1"],
             )
+
+
+class TestToMmmDatasetExtraVars:
+    """to_mmm_dataset carries extra_vars as named data variables."""
+
+    def test_extra_vars_on_dataframe(self):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=4, freq="W"),
+                "channel_1": [1.0, 2.0, 3.0, 4.0],
+                "lower_spend": [10.0, 11.0, 12.0, 13.0],
+            }
+        )
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            channel_columns=["channel_1"],
+            extra_vars=["lower_spend"],
+        )
+        assert "lower_spend" in ds.data_vars
+        assert ds["lower_spend"].dims == ("date",)
+
+    def test_extra_vars_with_control_columns(self):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=4, freq="W"),
+                "channel_1": [1.0, 2.0, 3.0, 4.0],
+                "control_1": [5.0, 6.0, 7.0, 8.0],
+                "lower_spend": [10.0, 11.0, 12.0, 13.0],
+            }
+        )
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            channel_columns=["channel_1"],
+            control_columns=["control_1"],
+            extra_vars=["lower_spend"],
+        )
+        assert "_control" in ds.data_vars
+        assert "lower_spend" in ds.data_vars
+
+    def test_extra_vars_panel_fillna_ragged_panel(self):
+        dates = pd.date_range("2023-01-01", periods=3, freq="W")
+        X = pd.DataFrame(
+            {
+                "date": [dates[0], dates[0], dates[1], dates[2]],
+                "geo": ["g1", "g2", "g1", "g1"],
+                "channel_1": [1.0, 2.0, 3.0, 4.0],
+                "lower_spend": [10.0, 11.0, 12.0, 13.0],
+            }
+        )
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            dims=("geo",),
+            channel_columns=["channel_1"],
+            extra_vars=["lower_spend"],
+        )
+        assert not ds["lower_spend"].isnull().any()
+
+    def test_missing_extra_var_raises_key_error(self):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=2, freq="W"),
+                "channel_1": [1.0, 2.0],
+            }
+        )
+        with pytest.raises(KeyError, match="lower_spend"):
+            to_mmm_dataset(
+                X,
+                date_column="date",
+                channel_columns=["channel_1"],
+                extra_vars=["lower_spend"],
+            )
+
+    def test_dataset_extra_vars_validated(self):
+        ds = xr.Dataset(
+            {
+                "_channel": xr.DataArray(
+                    [[1.0, 2.0], [3.0, 4.0]],
+                    dims=("date", "channel"),
+                    coords={
+                        "date": pd.date_range("2023-01-01", periods=2, freq="W"),
+                        "channel": ["tv", "digital"],
+                    },
+                ),
+            }
+        )
+        with pytest.raises(KeyError, match="lower_spend"):
+            to_mmm_dataset(
+                ds,
+                date_column="date",
+                channel_columns=["tv", "digital"],
+                extra_vars=["lower_spend"],
+            )

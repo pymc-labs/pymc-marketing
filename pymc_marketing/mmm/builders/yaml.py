@@ -23,90 +23,8 @@ import xarray as xr
 
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
-from pymc_marketing.mmm.data_conversion import _pandas_to_xarray_dataarray
+from pymc_marketing.mmm.data_conversion import _validate_extra_vars, to_mmm_dataset
 from pymc_marketing.mmm.mmm import MMM
-
-
-def as_model_dataset(
-    X: pd.DataFrame,
-    *,
-    date_column: str,
-    channel_columns: list[str],
-    extra_vars: list[str],
-    dims: tuple[str, ...] = (),
-) -> xr.Dataset:
-    """Convert a feature frame into an ``xr.Dataset`` for ``DataVarMuEffect``.
-
-    The DataFrame path in :func:`~pymc_marketing.mmm.data_conversion.to_mmm_dataset`
-    keeps only channel and control columns. Effects that read their own series
-    therefore need ``X`` as an ``xarray.Dataset``, where those series ride along
-    as data variables.
-
-    Parameters
-    ----------
-    X
-        Feature frame, including the date column, channel columns, and every
-        declared extra variable.
-    date_column
-        Name of the date column.
-    channel_columns
-        Media channel column names.
-    extra_vars
-        Column names to carry as additional data variables.
-    dims
-        Extra dimension names (e.g. ``("geo",)``) for panel data in long format.
-
-    Returns
-    -------
-    xr.Dataset
-        ``media`` indexed by date and channel (and optional dims), plus one
-        variable per entry in ``extra_vars``.
-
-    Raises
-    ------
-    KeyError
-        When a declared column is absent from the frame.
-    """
-    extra = list(extra_vars)
-    dim_cols = [d for d in dims if d in X.columns]
-
-    missing = [c for c in [date_column, *channel_columns, *extra] if c not in X.columns]
-    if missing:
-        raise KeyError(
-            f"Columns {missing} are declared but absent from the data. "
-            f"Present: {sorted(map(str, X.columns))}."
-        )
-
-    frame = X.copy()
-    frame[date_column] = pd.to_datetime(frame[date_column])
-
-    if dim_cols:
-        channel_ds = _pandas_to_xarray_dataarray(
-            frame, date_column, dims, channel_columns, "channel"
-        )
-        media = channel_ds["_channel"].rename("media")
-        data: dict[str, xr.DataArray] = {"media": media}
-        for name in extra:
-            pivot = frame[[date_column, *dim_cols, name]].drop_duplicates()
-            pivot = pivot.rename(columns={date_column: "date"})
-            data[name] = pivot.set_index(["date", *dim_cols])[name].to_xarray()
-        return xr.Dataset(data)
-
-    dates = frame[date_column].to_numpy()
-    data = {
-        "media": xr.DataArray(
-            frame[channel_columns].to_numpy(dtype=float),
-            dims=("date", "channel"),
-            coords={"date": dates, "channel": channel_columns},
-        )
-    }
-    for name in extra:
-        data[name] = xr.DataArray(
-            frame[name].to_numpy(dtype=float),
-            dims=("date",),
-            coords={"date": dates},
-        )
-    return xr.Dataset(data)
 
 
 def _load_df(path: str | Path) -> pd.DataFrame:
@@ -237,14 +155,26 @@ def build_mmm_from_yaml(
         )
 
     extra_vars = cfg.extra_vars or []
+    kwargs_from_spec = model_spec["kwargs"]
+    channel_columns = kwargs_from_spec.get("channel_columns", [])
+    control_columns = kwargs_from_spec.get("control_columns")
+    dims = tuple(kwargs_from_spec.get("dims") or ())
+    target_column = kwargs_from_spec.get("target_column")
+
     if extra_vars and isinstance(X, pd.DataFrame):
-        X = as_model_dataset(
+        X = to_mmm_dataset(
             X,
+            y,
             date_column=date_column,
-            channel_columns=model_spec["kwargs"].get("channel_columns", []),
+            dims=dims,
+            channel_columns=channel_columns,
+            control_columns=control_columns,
             extra_vars=extra_vars,
-            dims=tuple(model_spec["kwargs"].get("dims") or ()),
+            target_column=target_column,
         )
+        y = None
+    elif extra_vars and isinstance(X, xr.Dataset):
+        _validate_extra_vars(X, extra_vars)
 
     # 3 -- effects (preserve order)
     for eff_spec in cfg.effects or []:

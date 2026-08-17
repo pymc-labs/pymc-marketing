@@ -92,6 +92,7 @@ def get_yaml_files():
         and "multi_dimensional_example_model_with_2_geos.yml" not in file.name
         and "multi_dimensional_fivetran.yml" not in file.name
         and "cost_per_unit_example.yml" not in file.name
+        and not file.name.startswith("funnel_")
     ]
 
 
@@ -639,7 +640,7 @@ def test_original_scale_vars_ordering_does_not_matter(X_data, y_data):
     assert any("lift" in name for name in obs_names)
 
 
-def test_build_mmm_from_yaml_extra_vars_on_dataset(tmp_path):
+def test_build_mmm_from_yaml_extra_vars_on_dataset():
     """DataFrame + extra_vars should pass mediator columns through to the model."""
     n = 52
     X = pd.DataFrame(
@@ -723,3 +724,94 @@ def test_build_mmm_from_yaml_extra_vars_geo_dims():
 
     assert "lower_spend" in model.xarray_dataset.data_vars
     assert model.xarray_dataset["lower_spend"].dims == ("date", "geo")
+
+
+def test_build_mmm_from_yaml_extra_vars_geo_flat_y():
+    """extra_vars + panel dims + flat RangeIndex y should not misalign."""
+    geos = ["g1", "g2"]
+    dates = pd.date_range("2023-01-01", periods=4, freq="W")
+    rows = []
+    for date in dates:
+        for geo in geos:
+            rows.append(
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": float(len(rows)),
+                    "lower_spend": float(10 + len(rows)),
+                }
+            )
+    X = pd.DataFrame(rows)
+    y = pd.Series(range(len(rows)), name="y")
+    config_path = "tests/mmm/builders/config_files/extra_vars_geo_model.yml"
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert "_target" in model.xarray_dataset.data_vars
+    assert model.xarray_dataset["_target"].dims == ("date", "geo")
+    assert "lower_spend" in model.xarray_dataset.data_vars
+
+
+def test_build_mmm_from_yaml_extra_vars_with_control_columns():
+    """extra_vars and control_columns should both reach the model dataset."""
+    n = 52
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=n, freq="W"),
+            "channel_1": range(n),
+            "control_1": range(50, 50 + n),
+            "lower_spend": range(100, 100 + n),
+        }
+    )
+    y = pd.Series(range(n), name="y")
+    config_path = "tests/mmm/builders/config_files/extra_vars_controls_model.yml"
+
+    model = build_mmm_from_yaml(config_path, X=X, y=y)
+
+    assert "_control" in model.xarray_dataset.data_vars
+    assert "lower_spend" in model.xarray_dataset.data_vars
+
+
+def test_build_mmm_from_yaml_extra_vars_dataset_typo_raises(tmp_path):
+    """Dataset input should validate extra_vars names at build time."""
+    n = 52
+    dates = pd.date_range("2023-01-01", periods=n, freq="W")
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(
+                np.arange(n, dtype=float).reshape(n, 1),
+                dims=("date", "channel"),
+                coords={"date": dates, "channel": ["channel_1"]},
+            ),
+            "lower_spend": xr.DataArray(
+                np.arange(100, 100 + n, dtype=float),
+                dims=("date",),
+                coords={"date": dates},
+            ),
+        }
+    )
+    y = pd.Series(range(n), name="y")
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.mmm.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        },
+        "extra_vars": ["serch_volume"],
+    }
+    config_path = tmp_path / "bad_extra_vars.yml"
+    config_path.write_text(yaml.dump(config))
+
+    with pytest.raises(KeyError, match="serch_volume"):
+        build_mmm_from_yaml(config_path, X=X, y=y)
