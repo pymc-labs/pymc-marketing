@@ -485,6 +485,11 @@ class DelayedAdstock(_AlphaHalfLifeParametrization, AdstockTransformation):
     parametrisation the trace will contain ``adstock_halflife`` instead of
     ``adstock_alpha``.
 
+    Unlike :class:`GeometricAdstock`, where the half-life is a decay time
+    measured from lag zero, here it is a half-width either side of the peak at
+    ``theta``: the effect takes ``halflife`` periods to rise to its peak as well
+    as to fall back from it.
+
     The two defaults are matched, implying a median ``alpha`` of 0.207 against
     0.206. The priors imply a median half-life of 0.66 periods. A custom
     half-life prior must have positive support and should keep its mass away
