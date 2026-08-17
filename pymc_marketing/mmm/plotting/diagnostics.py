@@ -99,41 +99,14 @@ from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
 from pymc_marketing.data.idata import MMMIDataWrapper
-from pymc_marketing.data.idata.utils import (
-    get_posterior_predictive,
-    get_prior,
-    get_prior_predictive,
-)
+from pymc_marketing.data.idata.utils import get_posterior_predictive
 from pymc_marketing.mmm.plotting._helpers import (
     _dims_to_sel_kwargs,
     _extract_matplotlib_result,
     _process_plot_params,
     _select_dims,
 )
-
-
-def _get_prior_for_plot(data: MMMIDataWrapper, original_scale: bool) -> xr.Dataset:
-    """Return the correct idata group for prior predictive plotting.
-
-    PyMC stores observed variables in ``idata.prior_predictive`` and
-    Deterministics (such as ``y_original_scale``) in ``idata.prior``.
-    This helper selects the right group based on *original_scale*.
-
-    Parameters
-    ----------
-    data : MMMIDataWrapper
-        Wrapper holding the model's DataTree.
-    original_scale : bool
-        If True, return ``idata.prior`` (contains ``y_original_scale``).
-        If False, return ``idata.prior_predictive`` (contains ``y``).
-
-    Returns
-    -------
-    xr.Dataset
-    """
-    if original_scale:
-        return get_prior(data.idata)
-    return get_prior_predictive(data.idata)
+from pymc_marketing.mmm.summary.helpers import compute_residuals, get_prior_for_plot
 
 
 class DiagnosticsPlots:
@@ -254,41 +227,6 @@ class DiagnosticsPlots:
 
         return pc
 
-    def _compute_residuals(
-        self,
-        data: MMMIDataWrapper,
-    ) -> xr.DataArray:
-        """Compute residuals as target_data - posterior predictions.
-
-        Parameters
-        ----------
-        data : MMMIDataWrapper
-            Wrapper holding idata with posterior_predictive and constant_data.
-
-        Returns
-        -------
-        xr.DataArray
-            Residuals named "residuals" with same dims as ``y_original_scale``
-            (typically ``(chain, draw, date[, extra_dims])``).
-
-        Raises
-        ------
-        ValueError
-            If ``y_original_scale`` not in posterior_predictive, or target_data not in constant_data.
-        """
-        pp_var = "y_original_scale"
-        pp_ds = get_posterior_predictive(data.idata)
-        if pp_var not in pp_ds:
-            raise ValueError(
-                f"Variable '{pp_var}' not found in posterior_predictive. "
-                f"Available: {list(pp_ds.data_vars)}"
-            )
-        predictions = pp_ds[pp_var]
-        target = data.get_target(original_scale=True)
-        residuals = target - predictions
-        residuals.name = "residuals"
-        return residuals
-
     def posterior_predictive(
         self,
         original_scale: bool = True,
@@ -351,6 +289,10 @@ class DiagnosticsPlots:
             fig, axes = mmm.plot.diagnostics.posterior_predictive(
                 original_scale=False, hdi_prob=0.50, dims={"geo": ["CA"]}
             )
+
+        See Also
+        --------
+        MMMSummaryFactory.posterior_predictive : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -444,6 +386,10 @@ class DiagnosticsPlots:
 
             fig, axes = mmm.plot.diagnostics.prior_predictive()
             fig, axes = mmm.plot.diagnostics.prior_predictive(original_scale=False)
+
+        See Also
+        --------
+        MMMSummaryFactory.prior_predictive : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -458,7 +404,7 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        pp_ds = _get_prior_for_plot(data, original_scale)
+        pp_ds = get_prior_for_plot(data, original_scale)
 
         var_name = "y_original_scale" if original_scale else "y"
         group_name = "prior" if original_scale else "prior_predictive"
@@ -530,6 +476,10 @@ class DiagnosticsPlots:
 
             fig, axes = mmm.plot.diagnostics.residuals_over_time()
             fig, axes = mmm.plot.diagnostics.residuals_over_time(hdi_prob=0.50)
+
+        See Also
+        --------
+        MMMSummaryFactory.residuals_over_time : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -544,9 +494,7 @@ class DiagnosticsPlots:
             **pc_kwargs,
         )
 
-        residuals_da = self._compute_residuals(
-            data
-        )  # (chain, draw, date[, extra_dims])
+        residuals_da = compute_residuals(data)
         residuals_da = _select_dims(residuals_da, dims)
 
         extra_dims = list(data.custom_dims)
@@ -659,6 +607,10 @@ class DiagnosticsPlots:
             fig, axes = mmm.plot.diagnostics.residuals_distribution(
                 quantiles=[0.05, 0.5, 0.95], aggregation=["geo"]
             )
+
+        See Also
+        --------
+        MMMSummaryFactory.residuals_distribution : Tabular export for custom frontends
         """
         data = (
             MMMIDataWrapper(idata, schema=self._data.schema)
@@ -672,7 +624,7 @@ class DiagnosticsPlots:
             if not 0.0 <= q <= 1.0:
                 raise ValueError(f"Each quantile must be in [0, 1]; got {q}.")
 
-        residuals_da = self._compute_residuals(data)
+        residuals_da = compute_residuals(data)
         residuals_da = _select_dims(residuals_da, dims)
 
         if isinstance(aggregation, str):
@@ -860,6 +812,10 @@ class DiagnosticsPlots:
             fig, axes = mmm.plot.diagnostics.prior_vs_posterior(
                 var_names=["alpha"], dims={"channel": ["tv"]}
             )
+
+        See Also
+        --------
+        MMMSummaryFactory.prior_vs_posterior : Tabular export for custom frontends
         """
         idata_to_use = idata if idata is not None else self._data.idata
 
