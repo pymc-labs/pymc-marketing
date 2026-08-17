@@ -1,0 +1,30 @@
+docs/source/notebooks/mmm/mmm_causal_identification.ipynb
+  h_d36ca8649a0e95 2598,4180,5195
+docs/source/notebooks/mmm/mmm_funnel_mueffect_advanced.ipynb
+  h_d36ca8649a0e95 4252
+docs/source/notebooks/pie/pie_example.ipynb
+  h_d36ca8649a0e95 64-65
+pymc_marketing/causal_utils.py
+  h_d36ca8649a0e95 14-25,29,40-63
+pymc_marketing/mmm/causal.py
+  h_d36ca8649a0e95 14,16-18,20-25,27-31,33,35-36,38-44,47,49-50,53-62,65-66,68-70,72-74,83-87,90-92,100,104,106,130-134,139-143,147-170,193
+pyproject.toml
+  h_d36ca8649a0e95 50-55,82,107,193
+tests/mmm/test_causal.py
+  h_d36ca8649a0e95 14,16-20,22-23,25-26,28-29,32-34,36-37,39-43,99-114,121,129,134-164,225-243,250,267-269,272-276,279-281,284-286,289-292,295-299
+tests/test_causal_utils.py
+  h_d36ca8649a0e95 14,16-21,23,25,27,30-38,41-48,51-55,58-61,64-67,69-75,78-82
+uv.lock
+  h_d36ca8649a0e95 1454,1456,1464,1466,1474,1476,1484,1486,1493,1495,1503,1505,1517,3179-3201,3228,3864,3882,3918,3977-3979,4554,4603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "2fb0c06219b60c4c35d06e003201806e8ab8e502",
+  "prompts": {},
+  "humans": {
+    "h_d36ca8649a0e95": {
+      "author": "Carlos Trujillo <carlangastr@gmail.com>"
+    }
+  }
+}
