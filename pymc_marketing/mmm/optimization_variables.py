@@ -36,6 +36,7 @@ from collections.abc import Mapping, Sequence
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
+from pymc import Model
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
@@ -467,7 +468,12 @@ class LeverVariable(OptimizationVariable):
         Declared ``(low, high)`` bounds per entry in the lever's native units,
         or None to leave it unbounded.
     initial_value : np.ndarray
-        The node's current value in the model, used as the warm start.
+        The node's current value in the model, used as the warm start. It is
+        read once, when the optimizer is constructed, which matches the rest of
+        the optimizer: the objective graph is built and frozen at construction
+        too, and this node is substituted out of it entirely. Updating the
+        ``pm.Data`` node afterwards therefore changes neither the objective nor
+        the warm start; rebuild the optimizer to pick up a new value.
     flat_dim : str
         Name of the flat decision vector's dimension.
     """
@@ -524,6 +530,68 @@ class LeverVariable(OptimizationVariable):
             .values
         )
 
+    @classmethod
+    def from_model(
+        cls,
+        model: Model,
+        name: str,
+        bounds: Sequence[tuple[float | None, float | None]] | None = None,
+        *,
+        date_dim: str = "date",
+        flat_dim: str = FLAT_DIM,
+    ) -> "LeverVariable":
+        """Build a lever by reading a named node's dim, coords and value off a model.
+
+        Everything a lever needs besides its bounds already lives in the model,
+        so callers name the node and this reads the rest, raising if the node
+        cannot serve as a lever.
+
+        Parameters
+        ----------
+        model : Model
+            The model holding the node.
+        name : str
+            Name of the node to optimize. Must carry named dims.
+        bounds : Sequence[tuple] or None
+            Declared ``(low, high)`` bounds per entry, in native units.
+        date_dim : str
+            The model's date dimension, which a lever may not vary over.
+        flat_dim : str
+            Name of the flat decision vector's dimension.
+
+        Returns
+        -------
+        LeverVariable
+            A lever over ``name``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` has no named dims in the model, or does not have
+            exactly one dim other than ``date_dim``.
+        """
+        if name not in model.named_vars_to_dims:
+            raise ValueError(
+                f"optimizable_vars entry '{name}' is not a variable "
+                "with named dims in the model."
+            )
+        dims = tuple(model.named_vars_to_dims[name])
+        if len(dims) != 1 or dims[0] == date_dim:
+            raise ValueError(
+                f"optimizable_vars entry '{name}' must have exactly "
+                f"one dim, and not the {date_dim!r} dim; got "
+                f"{dims}. Date-varying optimizable variables "
+                "are not supported."
+            )
+        return cls(
+            name=name,
+            dim=dims[0],
+            coords=list(model.coords[dims[0]]),
+            bounds=bounds,
+            initial_value=model[name].get_value(),
+            flat_dim=flat_dim,
+        )
+
     def default_x0(self, total_budget: float) -> np.ndarray:
         """Warm start at the lever's current model value, clipped to bounds."""
         x0 = self.initial_value.copy()
@@ -571,7 +639,10 @@ class OptimizationVariables:
         names = [variable.name for variable in variables]
         if len(set(names)) != len(names):
             raise ValueError(f"Duplicate variable names: {names}")
-        self.variables = list(variables)
+        # A tuple, not a list: the slice layout is computed once below, so a
+        # variable appended later would silently desynchronise it from the
+        # flat input. The container is exposed publicly for constraints.
+        self.variables: tuple[OptimizationVariable, ...] = tuple(variables)
         self.flat_dim = flat_dim
         # Reject a variable naming a different flat dimension rather than
         # realigning it: a variable whose own tensors are keyed on its name is

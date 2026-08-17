@@ -1551,30 +1551,12 @@ class BudgetOptimizer(BaseModel):
         # Optimizable vars become lever variables appended after media. They
         # are optimized in their own units and stay out of the budget-sum
         # constraint, which sums the media tensor alone.
-        levers = []
-        for lever_name, lever_bounds in self.optimizable_vars.items():
-            if lever_name not in self.model.named_vars_to_dims:
-                raise ValueError(
-                    f"optimizable_vars entry '{lever_name}' is not a variable "
-                    "with named dims in the model."
-                )
-            lever_dims = list(self.model.named_vars_to_dims[lever_name])
-            if len(lever_dims) != 1 or lever_dims[0] == self.date_dim:
-                raise ValueError(
-                    f"optimizable_vars entry '{lever_name}' must have exactly "
-                    f"one dim, and not the {self.date_dim!r} dim; got "
-                    f"{tuple(lever_dims)}. Date-varying optimizable variables "
-                    "are not supported."
-                )
-            levers.append(
-                LeverVariable(
-                    name=lever_name,
-                    dim=lever_dims[0],
-                    coords=list(self.model.coords[lever_dims[0]]),
-                    bounds=lever_bounds,
-                    initial_value=self.model[lever_name].get_value(),
-                )
+        levers = [
+            LeverVariable.from_model(
+                self.model, lever_name, lever_bounds, date_dim=self.date_dim
             )
+            for lever_name, lever_bounds in self.optimizable_vars.items()
+        ]
 
         self._variables = OptimizationVariables([media_variable, *levers])
         self._budgets_flat = self._variables.flat

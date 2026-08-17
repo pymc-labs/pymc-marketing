@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import numpy as np
+import pymc as pm
 import pytest
 import xarray as xr
 
@@ -462,3 +463,45 @@ def test_a_second_monetary_variable_shares_the_budget():
         np.array([30.0, 20.0, 50.0])
     )
     np.testing.assert_allclose(got, 100.0)
+
+
+@pytest.fixture(scope="module")
+def lever_model() -> pm.Model:
+    """A model with a one-dim lever node, a date-varying node and an unnamed one."""
+    coords = {"promo": ["p1", "p2"], "date": [0, 1, 2]}
+    with pm.Model(coords=coords) as model:
+        pm.Data("promo_data", np.array([0.1, 0.2]), dims="promo")
+        pm.Data("daily_data", np.zeros(3), dims="date")
+        pm.Data("both_data", np.zeros((3, 2)), dims=("date", "promo"))
+    return model
+
+
+def test_from_model_reads_dim_coords_and_value(lever_model):
+    """The factory needs only a name: the rest is already in the model."""
+    lever = LeverVariable.from_model(lever_model, "promo_data", [(0.0, 0.5)] * 2)
+
+    assert lever.name == "promo_data"
+    assert lever.dim == "promo"
+    assert lever.coords == {"promo": ["p1", "p2"]}
+    assert lever.size == 2
+    np.testing.assert_allclose(lever.initial_value, [0.1, 0.2])
+    assert lever.default_bounds(total_budget=1.0) == [(0.0, 0.5)] * 2
+
+
+def test_from_model_leaves_bounds_optional(lever_model):
+    lever = LeverVariable.from_model(lever_model, "promo_data")
+    assert lever.default_bounds(total_budget=1.0) == [(None, None)] * 2
+
+
+@pytest.mark.parametrize(
+    "name, match",
+    [
+        ("not_a_node", "not a variable with named dims"),
+        ("daily_data", "must have exactly one dim"),
+        ("both_data", "must have exactly one dim"),
+    ],
+    ids=["unknown", "date_varying", "multidim"],
+)
+def test_from_model_rejects_nodes_that_cannot_be_levers(lever_model, name, match):
+    with pytest.raises(ValueError, match=match):
+        LeverVariable.from_model(lever_model, name, date_dim="date")
