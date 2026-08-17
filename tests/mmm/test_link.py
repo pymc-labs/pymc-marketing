@@ -934,6 +934,70 @@ class TestTruncatedNormalMeanCorrection:
             offset.values[0], [10.098093, 40.024969, 100.009998], rtol=1e-5
         )
 
+    def test_two_sided_truncation_matches_scipy(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[-1.0, 0.5, 4.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 2.0, 1.5]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, upper=5, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        mus = np.array([-1.0, 0.5, 4.0])
+        sigmas = np.array([1.0, 2.0, 1.5])
+        expected = [
+            stats.truncnorm.mean((0.0 - m) / s, (5.0 - m) / s, loc=m, scale=s) - m
+            for m, s in zip(mus, sigmas, strict=True)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+
+    def test_upper_only_truncation_matches_scipy(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.0, 4.0, 60.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", upper=3, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        expected = [
+            stats.truncnorm.mean(-np.inf, (3.0 - m) / 1.0, loc=m, scale=1.0) - m
+            for m in (0.0, 4.0, 60.0)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+        assert np.all(np.isfinite(offset.values))
+
+    def test_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0)
+        with pytest.raises(ValueError, match="wrapper such as Censored"):
+            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+    def test_missing_baseline_term_raises(self):
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
+            }
+        )
+        dataset = xr.Dataset(
+            {"channel_1": xr.DataArray([[1.0]], dims=("chain", "date"))}
+        )
+        with pytest.raises(ValueError, match="'intercept' term, which is missing"):
+            IdentityLinkSpec().to_mean_scale(
+                dataset,
+                posterior,
+                Prior("TruncatedNormal", lower=0, sigma=1),
+                xr.DataArray(1.0),
+            )
+
     def test_raises_without_mu_in_posterior(self):
         posterior = xr.Dataset(
             {"y_sigma": xr.DataArray([[1.0]], dims=("chain", "date"))}

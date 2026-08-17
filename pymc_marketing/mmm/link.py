@@ -31,7 +31,7 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
-from scipy.stats import truncnorm
+from scipy.special import erfcx, ndtr
 
 
 class LinkFunction(StrEnum):
@@ -259,8 +259,10 @@ class LinkSpec(ABC):
         -------
         xr.DataArray
             The multiplicative correction with ``(chain, draw, ...)`` dims
-            (broadcasting over ``date``).  It is identically ``1`` for links
-            whose mean equals the median (e.g. the identity link).
+            (broadcasting over ``date``).  Identically ``1`` under the identity
+            link, which is the legacy behaviour and is wrong for
+            ``TruncatedNormal``: that case is exactly what a single factor
+            cannot express.
         """
         warnings.warn(
             f"{type(self).__name__}.mean_correction is deprecated, use "
@@ -432,6 +434,14 @@ class IdentityLinkSpec(LinkSpec):
         dist_name = _distribution_name(likelihood)
 
         if dist_name == "TruncatedNormal":
+            if BASELINE_PART not in dataset:
+                raise ValueError(
+                    f"The truncation correction is added to the "
+                    f"'{BASELINE_PART}' term, which is missing from the "
+                    f"contribution dataset (found "
+                    f"{sorted(dataset.data_vars)}). Use "
+                    f"central_tendency='median'."
+                )
             offset = self._truncation_offset(posterior, likelihood, output_var)
             corrected = dataset.copy()
             corrected[BASELINE_PART] = corrected[BASELINE_PART] + offset * target_scale
@@ -469,6 +479,10 @@ class IdentityLinkSpec(LinkSpec):
 
             E[y] - \mu = \sigma \,
                 \frac{\phi(\alpha) - \phi(\beta)}{\Phi(\beta) - \Phi(\alpha)}
+
+        One-sided truncation is evaluated through ``erfcx`` rather than that
+        expression directly, since the ratio loses all precision far from the
+        bound.  The value is the same.
         """
         if "mu" not in posterior:
             raise ValueError(
@@ -488,9 +502,18 @@ class IdentityLinkSpec(LinkSpec):
                 f"central_tendency='median' or give sigma a prior."
             )
 
+        parameters = getattr(likelihood, "parameters", None)
+        if parameters is None:
+            raise ValueError(
+                "The truncation correction needs the TruncatedNormal prior "
+                "itself, but the likelihood is a wrapper such as Censored, "
+                "whose mean differs because censoring piles mass at the "
+                "bounds. Use central_tendency='median'."
+            )
+
         bounds = {}
         for bound, default in (("lower", -np.inf), ("upper", np.inf)):
-            value = likelihood.parameters.get(bound, default)
+            value = parameters.get(bound, default)
             if isinstance(value, Prior):
                 raise ValueError(
                     f"The truncation correction needs a fixed '{bound}' bound, "
@@ -500,16 +523,26 @@ class IdentityLinkSpec(LinkSpec):
 
         mu = posterior["mu"]
         sigma = posterior[sigma_name]
+        alpha = (bounds["lower"] - mu) / sigma
+        beta = (bounds["upper"] - mu) / sigma
 
-        def _offset(m: np.ndarray, s: np.ndarray) -> np.ndarray:
-            alpha = (bounds["lower"] - m) / s
-            beta = (bounds["upper"] - m) / s
-            return truncnorm.mean(alpha, beta, loc=m, scale=s) - m
+        # The textbook ratio cancels to zero once the truncation point is about
+        # ten sigma from mu, which the identity link permits, and returns nan
+        # there.  erfcx is the scaled complementary error function, which keeps
+        # the one-sided cases exact and is a ufunc, so it stays vectorised.
+        # scipy.stats.truncnorm is exact too but roughly 2000x slower, which
+        # matters on a full posterior.
+        root_two = np.sqrt(2.0)
+        if np.isposinf(bounds["upper"]):
+            return sigma * np.sqrt(2 / np.pi) / erfcx(alpha / root_two)
+        if np.isneginf(bounds["lower"]):
+            return -sigma * np.sqrt(2 / np.pi) / erfcx(-beta / root_two)
 
-        # scipy rather than the textbook phi/Phi ratio: that form cancels to
-        # zero once the truncation point is about ten sigma above mu, which the
-        # identity link permits, and returns nan there.
-        return xr.apply_ufunc(_offset, mu, sigma)
+        # Two-sided truncation. The direct form is accurate unless both bounds
+        # sit many sigma away on the same side, which excludes nearly all mass.
+        pdf_alpha = np.exp(-(alpha**2) / 2) / np.sqrt(2 * np.pi)
+        pdf_beta = np.exp(-(beta**2) / 2) / np.sqrt(2 * np.pi)
+        return sigma * (pdf_alpha - pdf_beta) / (ndtr(beta) - ndtr(alpha))
 
 
 class LogLinkSpec(LinkSpec):
