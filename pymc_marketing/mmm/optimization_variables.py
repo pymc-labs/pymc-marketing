@@ -212,6 +212,20 @@ class OptimizationVariable(ABC):
     ) -> list[tuple[float | None, float | None]]:
         """Default ``(low, high)`` bounds per flat entry."""
 
+    def budget_contribution(self, z: XTensorVariable) -> XTensorVariable | None:
+        """Monetary amount this variable draws from the shared budget.
+
+        Returns None by default, for a variable optimized in its own units: a
+        discount depth is not money. A variable that spends from the pot
+        returns that spend, and the default budget-sum constraint totals every
+        such contribution.
+
+        The amount must follow the same convention as the media budgets, which
+        are per-period rates rather than totals over the horizon, since the
+        constraint sums the contributions directly.
+        """
+        return None
+
 
 class MediaVariable(OptimizationVariable):
     """The media-budget decision variable.
@@ -382,6 +396,10 @@ class MediaVariable(OptimizationVariable):
         )
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
         return repeated_budgets_with_carry_over
+
+    def budget_contribution(self, z: XTensorVariable) -> XTensorVariable:
+        """Media spends its whole slice, already in monetary units."""
+        return self.scattered(z)
 
     def unpack(self, x: np.ndarray) -> DataArray:
         """Scatter a flat solution back into a labelled monetary ``DataArray``."""
@@ -594,6 +612,17 @@ class OptimizationVariables:
         if flat_slice == slice(0, self.size):
             return self.flat
         return self.flat.isel({self.flat_dim: flat_slice})
+
+    def budget_contributions(self) -> list[XTensorVariable]:
+        """Monetary contributions of every variable that spends from the pot."""
+        contributions = []
+        for variable in self.variables:
+            contribution = variable.budget_contribution(
+                self.variable_slice(variable.name)
+            )
+            if contribution is not None:
+                contributions.append(contribution)
+        return contributions
 
     def substitutions(self) -> dict[str, XTensorVariable]:
         """Model substitution dict: one entry per variable, one joint graph."""

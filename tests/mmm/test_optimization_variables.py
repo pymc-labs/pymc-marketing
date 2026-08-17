@@ -19,6 +19,7 @@ from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
     LeverVariable,
     MediaVariable,
+    OptimizationVariable,
     OptimizationVariables,
 )
 
@@ -388,3 +389,76 @@ def test_media_and_lever_layout_exercises_the_isel_path():
     assert set(unpacked) == {"channel_data", "promo_data"}
     np.testing.assert_array_equal(opt_vars.pack(unpacked), x)
     assert set(opt_vars.substitutions()) == {"channel_data", "promo_data"}
+
+
+class _SpendVariable(OptimizationVariable):
+    """Test-only stand-in for a second monetary variable.
+
+    Reach-and-frequency budgets and funnel spend are money, so unlike a lever
+    they have to come out of the shared pot. This is the minimum such variable:
+    a per-entry spend spread over the periods.
+    """
+
+    def __init__(self, name: str, coords: list, num_periods: int):
+        self.name = name
+        self.dims = ("rf_channel",)
+        self.coords = {"rf_channel": list(coords)}
+        self.num_periods = num_periods
+        self.flat_dim = FLAT_DIM
+
+    @property
+    def size(self) -> int:
+        return len(self.coords["rf_channel"])
+
+    def to_model(self, z):
+        return z.rename({self.flat_dim: "rf_channel"}).expand_dims(
+            date=self.num_periods
+        )
+
+    def unpack(self, x):
+        return xr.DataArray(
+            np.asarray(x, dtype=float), dims=self.dims, coords=self.coords
+        )
+
+    def pack(self, da):
+        return da.reindex(self.coords).transpose(*self.dims).values
+
+    def default_x0(self, total_budget):
+        return np.full(self.size, total_budget / self.size)
+
+    def default_bounds(self, total_budget):
+        return [(0.0, float(total_budget))] * self.size
+
+    def budget_contribution(self, z):
+        """Unlike a lever, this one spends from the pot."""
+        return z.rename({self.flat_dim: "rf_channel"})
+
+
+def test_media_is_the_only_budget_contributor_by_default():
+    rng = np.random.default_rng(20)
+    opt_vars = OptimizationVariables(
+        [make_media_variable(rng, sizes=(3,)), make_lever_variable()]
+    )
+    # A lever is optimized in its own units, so it never draws from the pot.
+    assert len(opt_vars.budget_contributions()) == 1
+
+
+def test_a_second_monetary_variable_shares_the_budget():
+    """Two spending variables total together, which is what the sum constraint uses."""
+    from pytensor import function
+
+    rng = np.random.default_rng(21)
+    media = make_media_variable(rng, sizes=(2,))
+    spend = _SpendVariable("rf_data", ["rf1"], num_periods=media.num_periods)
+    opt_vars = OptimizationVariables([media, spend])
+
+    contributions = opt_vars.budget_contributions()
+    assert len(contributions) == 2
+
+    total = contributions[0].sum()
+    for contribution in contributions[1:]:
+        total = total + contribution.sum()
+    got = function([opt_vars.flat], total.values, on_unused_input="ignore")(
+        np.array([30.0, 20.0, 50.0])
+    )
+    np.testing.assert_allclose(got, 100.0)
