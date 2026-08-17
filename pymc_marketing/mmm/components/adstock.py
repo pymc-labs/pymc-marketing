@@ -507,7 +507,8 @@ class DelayedAdstock(_AlphaHalfLifeParametrization, AdstockTransformation):
     theta : tensor
         Delay from exposure to peak effectiveness; must be between 0 and
         ``l_max - 1``. Default prior: ``Prior("HalfNormal", sigma=1)``. Used by
-        both parametrisations.
+        both parametrisations, and passed to ``function`` by keyword only, so
+        that a positional call cannot bind it to ``halflife`` by mistake.
     parametrization : str
         Either ``"alpha"`` or ``"halflife"``. When left unset it is inferred
         from the priors, defaulting to ``"alpha"``. Passing a prior for the
@@ -556,7 +557,7 @@ class DelayedAdstock(_AlphaHalfLifeParametrization, AdstockTransformation):
         """Map a half-life onto the retention rate of the decay."""
         return 2.0 ** (-1.0 / halflife**2)
 
-    def function(self, x, alpha=None, halflife=None, theta=0, *, dim: str):
+    def function(self, x, alpha=None, halflife=None, *, theta, dim: str):
         """Delayed adstock function."""
         return delayed_adstock(
             x,

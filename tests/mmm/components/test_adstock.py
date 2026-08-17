@@ -568,10 +568,26 @@ class TestDelayedAdstockHalfLife:
         spike = as_xtensor(x, dims=("time",))
 
         with pytest.raises(ValueError, match="exactly one"):
-            adstock.function(spike, dim="time")
+            adstock.function(spike, theta=0, dim="time")
 
         with pytest.raises(ValueError, match="exactly one"):
-            adstock.function(spike, alpha=0.5, halflife=2.0, dim="time")
+            adstock.function(spike, alpha=0.5, halflife=2.0, theta=0, dim="time")
+
+    def test_function_requires_theta_by_keyword(self) -> None:
+        """A positional call must fail rather than fall back to no delay.
+
+        ``halflife`` sits where ``theta`` used to, so leaving ``theta`` with a
+        default would let ``function(x, 0.5, 2)`` fit an undelayed curve without
+        complaint.
+        """
+        adstock = DelayedAdstock(l_max=12)
+        spike = as_xtensor(x, dims=("time",))
+
+        with pytest.raises(TypeError, match="theta"):
+            adstock.function(spike, 0.5, dim="time")
+
+        weights = adstock.function(spike, alpha=0.5, theta=2.0, dim="time").eval()
+        assert np.argmax(weights) == 2
 
     def test_sample_prior_and_curve(self) -> None:
         adstock = DelayedAdstock(l_max=12, parametrization="halflife")
