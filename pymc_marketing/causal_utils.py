@@ -24,9 +24,16 @@ lazily so the module stays importable without ``pathmc`` (install it with
 
 from __future__ import annotations
 
-from typing import Protocol
+import re
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 __all__ = ["same_markov_equivalence_class_CPdag"]
+
+# Whitespace and comments that may precede a DOT ``graph``/``digraph`` header.
+_DOT_PREAMBLE = re.compile(r"\A(?:\s|//[^\n]*|#[^\n]*|/\*.*?\*/)*", re.DOTALL)
 
 
 class _SupportsSource(Protocol):
@@ -34,18 +41,40 @@ class _SupportsSource(Protocol):
     def source(self) -> str: ...
 
 
-def same_markov_equivalence_class_CPdag(
-    dot1: str | _SupportsSource, dot2: str | _SupportsSource
-) -> bool:
-    """Determine whether two DOT graphs share a Markov equivalence class.
+# What pathmc's Markov-equivalence check accepts.
+type Graph = str | _SupportsSource | nx.DiGraph
+
+
+def _strip_dot_preamble(dot: str) -> str:
+    """Drop comments and whitespace preceding a DOT ``graph``/``digraph`` header.
+
+    ``graphviz.Digraph(comment=...)`` emits ``// <comment>`` above the header,
+    while pathmc's DOT readers require the keyword to come first. Text with no
+    such preamble is returned unchanged.
+    """
+    return dot[_DOT_PREAMBLE.match(dot).end() :]  # type: ignore[union-attr]
+
+
+def _as_dot(graph: Graph) -> Graph:
+    """Strip the DOT preamble off *graph*, leaving non-DOT inputs untouched."""
+    if isinstance(graph, str):
+        return _strip_dot_preamble(graph)
+    source = getattr(graph, "source", None)
+    if isinstance(source, str):
+        return _strip_dot_preamble(source)
+    return graph
+
+
+def same_markov_equivalence_class_CPdag(dot1: Graph, dot2: Graph) -> bool:
+    """Determine whether two graphs share a Markov equivalence class.
 
     Thin wrapper over :func:`pathmc.same_markov_equivalence_class`. Each
-    argument may be a DOT string or an object exposing a ``.source`` attribute
-    (e.g. a ``graphviz.Digraph``).
+    argument may be a DOT string, an object exposing a ``.source`` attribute
+    (e.g. a ``graphviz.Digraph``), or a :class:`networkx.DiGraph`.
 
     Parameters
     ----------
-    dot1, dot2 : str | object with ``.source``
+    dot1, dot2 : str | object with ``.source`` | networkx.DiGraph
         The two graphs to compare.
 
     Returns
@@ -60,4 +89,4 @@ def same_markov_equivalence_class_CPdag(
             "same_markov_equivalence_class_CPdag delegates to the 'pathmc' "
             "library. Install it with 'pip install pymc-marketing[dag]'."
         ) from exc
-    return same_markov_equivalence_class(dot1, dot2)
+    return same_markov_equivalence_class(_as_dot(dot1), _as_dot(dot2))

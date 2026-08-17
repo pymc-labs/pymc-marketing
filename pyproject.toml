@@ -82,7 +82,9 @@ docs = [
     "pathmc>=0.2.0",
     "preliz>=0.20.0",
     "plotly>=6.3.0",
-    "impulso>=0.0.12"
+    # ``[diagnostics]`` pulls statsmodels, which the brand-metrics notebook needs
+    # via impulso; it used to arrive by accident as a dowhy transitive dependency.
+    "impulso[diagnostics]>=0.0.12",
 ]
 lint = ["mypy", "pandas-stubs", "pre-commit>=2.19.0", "ruff>=0.1.4"]
 test = [

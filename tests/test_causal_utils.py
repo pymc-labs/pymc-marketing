@@ -75,6 +75,49 @@ def test_accepts_objects_exposing_source():
     )
 
 
+def test_accepts_graphviz_digraph_with_comment():
+    """``Digraph(comment=...)`` puts ``// <comment>`` above the DOT header."""
+    from graphviz import Digraph
+
+    chain = Digraph(comment="True Causal DAG")
+    for tail, head in [("A", "B"), ("B", "C")]:
+        chain.edge(tail, head)
+    fork = Digraph()
+    for tail, head in [("B", "A"), ("B", "C")]:
+        fork.edge(tail, head)
+
+    assert chain.source.startswith("// True Causal DAG")
+    assert same_markov_equivalence_class_CPdag(chain.source, fork.source) is True
+    assert same_markov_equivalence_class_CPdag(chain, fork) is True
+
+
+@pytest.mark.parametrize(
+    "preamble",
+    ["", "// leading digraph comment\n", "/* block\n   comment */\n", "# hash\n"],
+    ids=["none", "line", "block", "hash"],
+)
+def test_dot_preamble_is_ignored(preamble):
+    assert (
+        same_markov_equivalence_class_CPdag(
+            f"{preamble}digraph {{ A -> B; B -> C; }}",
+            "digraph { B -> A; B -> C; }",
+        )
+        is True
+    )
+
+
+def test_accepts_networkx_digraphs():
+    """pathmc compares ``networkx`` graphs directly; they pass through untouched."""
+    import networkx as nx
+
+    chain = nx.DiGraph([("A", "B"), ("B", "C")])
+    fork = nx.DiGraph([("B", "A"), ("B", "C")])
+    collider = nx.DiGraph([("A", "B"), ("C", "B")])
+
+    assert same_markov_equivalence_class_CPdag(chain, fork) is True
+    assert same_markov_equivalence_class_CPdag(chain, collider) is False
+
+
 def test_errors_actionably_without_pathmc(monkeypatch):
     """``None`` in ``sys.modules`` is what a missing ``dag`` extra looks like."""
     monkeypatch.setitem(sys.modules, "pathmc", None)

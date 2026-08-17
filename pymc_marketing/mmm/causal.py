@@ -35,6 +35,8 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING
 
+from pymc_marketing.causal_utils import _strip_dot_preamble
+
 if TYPE_CHECKING:
     from pathmc import (
         TBFPC,
@@ -129,8 +131,11 @@ class CausalGraphModel:
         """
         pathmc = _import_pathmc()
         # ``dag_to_spec`` turns each edge ``A -> B`` into a regression term; no
-        # data is passed because identification reads the graph only.
-        path_model = pathmc.model(pathmc.dag_to_spec(graph))
+        # data is passed because identification reads the graph only. Its DOT
+        # reader wants the ``digraph`` keyword first, so a ``graphviz`` comment
+        # header is stripped.
+        spec = pathmc.dag_to_spec(_strip_dot_preamble(graph))
+        path_model = pathmc.model(spec)
         return cls(path_model, treatment, outcome)
 
     def get_unique_adjustment_nodes(self) -> list[str]:

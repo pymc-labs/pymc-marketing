@@ -139,6 +139,16 @@ def test_build_graphical_model_is_pathmc_backed():
     assert causal_model.path_model.adjustment_sets("X", "Y") == [{"Z"}]
 
 
+def test_build_graphical_model_accepts_commented_dot():
+    """A ``graphviz.Digraph(comment=...)`` source keeps working as a DAG string."""
+    causal_model = CausalGraphModel.build_graphical_model(
+        graph="// True Causal DAG\ndigraph {\n Z -> X;\n Z -> Y;\n X -> Y;\n}\n",
+        treatment=["X"],
+        outcome="Y",
+    )
+    assert causal_model.get_unique_adjustment_nodes() == ["Z"]
+
+
 def test_treatment_absent_from_dag_raises():
     causal_model = CausalGraphModel.build_graphical_model(
         graph="digraph { Z -> X; Z -> Y; X -> Y; }",
