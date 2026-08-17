@@ -1088,7 +1088,7 @@ def test_mask_missing_model_coords_raises(mmm_wrapper):
         dims=("channel",),
         coords={"channel": ["channel_1"]},  # model also has channel_2
     )
-    with pytest.raises(ValidationError, match="missing coordinates present in the"):
+    with pytest.raises(ValidationError, match="does not cover every model coordinate"):
         BudgetOptimizer(
             model=mmm_wrapper,
             num_periods=30,
@@ -1137,3 +1137,100 @@ def test_allocate_budget_x0_dataarray(mmm_wrapper):
 
     xr.testing.assert_allclose(result_flat.budgets, result_labelled.budgets)
     xr.testing.assert_allclose(result_flat.budgets, result_dict.budgets)
+
+
+def test_shuffled_distribution_matches_model_order(mmm_wrapper):
+    """A shuffled mask and distribution pair must not swap temporal profiles.
+
+    The mask is realigned to the model's coordinate order, so the distribution
+    has to be too: they are combined positionally, and aligning only one hands
+    each channel another channel's spending profile.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # [channel_1, channel_2]
+    profile = {"channel_1": [0.8, 0.2], "channel_2": [0.2, 0.8]}
+
+    def build(order):
+        return BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=2,
+            response_variable="total_media_contribution_original_scale",
+            budgets_to_optimize=xr.DataArray(
+                np.ones(2, dtype=bool), dims=("channel",), coords={"channel": order}
+            ),
+            budget_distribution_over_period=xr.DataArray(
+                np.array([[profile[c][t] for c in order] for t in range(2)]),
+                dims=("date", "channel"),
+                coords={"date": [0, 1], "channel": order},
+            ),
+        )
+
+    in_model_order = build(channels)._budget_distribution_over_period_tensor
+    in_shuffled_order = build(
+        list(reversed(channels))
+    )._budget_distribution_over_period_tensor
+    np.testing.assert_allclose(
+        in_model_order.values.eval(), in_shuffled_order.values.eval()
+    )
+
+
+def test_mask_with_unknown_coords_raises(mmm_wrapper):
+    """A mask naming a channel the model does not have is rejected.
+
+    Reindexing drops unknown labels silently, so the cell would vanish and its
+    budget be redistributed while the user believed it was considered.
+    """
+    mask = xr.DataArray(
+        np.ones(3, dtype=bool),
+        dims=("channel",),
+        coords={"channel": [*mmm_wrapper.channel_columns, "channel_typo"]},
+    )
+    with pytest.raises(ValidationError, match="coordinates the model does not have"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_cost_per_unit_missing_coord_raises(mmm_wrapper):
+    """cost_per_unit missing a model coordinate is caught, not turned into NaN."""
+    cost = xr.DataArray(
+        np.ones((30, 1)),
+        dims=("date", "channel"),
+        coords={"date": range(30), "channel": ["channel_1"]},  # channel_2 missing
+    )
+    with pytest.raises(ValidationError, match="does not cover every model coordinate"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            cost_per_unit=cost,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_budget_bounds_missing_coord_raises(mmm_wrapper):
+    """A bounds DataArray missing a model coordinate raises instead of NaN bounds."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 50.0]]), channel=["channel_1"], bound=["lower", "upper"]
+    )
+    with pytest.raises(ValueError, match="does not cover every model coordinate"):
+        optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+
+def test_default_bounds_come_from_the_media_variable(mmm_wrapper):
+    """With no user bounds, the variable's own defaults are used."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    with pytest.warns(UserWarning, match="No budget bounds provided"):
+        result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.scipy_result.success
+    np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)

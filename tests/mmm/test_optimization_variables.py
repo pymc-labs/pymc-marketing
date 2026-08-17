@@ -16,6 +16,7 @@ import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.optimization_variables import (
+    FLAT_DIM,
     MediaVariable,
     OptimizationVariables,
 )
@@ -221,3 +222,63 @@ def test_pack_unknown_variable_name_raises():
 
     with pytest.raises(ValueError, match="unknown variables"):
         opt_vars.pack({"channel_data": da, "chanel_data": da})
+
+
+def test_empty_mask_raises_at_construction():
+    """A mask selecting nothing is rejected, not left to divide by zero later."""
+    mask = xr.DataArray(
+        np.zeros(2, dtype=bool), dims=("channel",), coords={"channel": ["a", "b"]}
+    )
+    with pytest.raises(ValueError, match="selects no cells"):
+        MediaVariable(
+            name="channel_data",
+            mask=mask,
+            num_periods=4,
+            adstock_periods=2,
+            channel_scales=1.0,
+            dtype="float64",
+        )
+
+
+@pytest.mark.parametrize(
+    "with_distribution", [False, True], ids=["uniform", "temporal"]
+)
+def test_channel_scales_applied_on_both_spreading_paths(with_distribution):
+    """channel_scales must reach the model tensor however budgets are spread.
+
+    The temporal branch used to build its result from the raw flat vector, so
+    the scales division in to_model never reached it and the substituted data
+    stayed in monetary units.
+    """
+    import pytensor.xtensor as ptx
+    from pytensor import function
+
+    num_periods, scales = 2, np.array([1.0, 10.0])
+    mask = xr.DataArray(
+        np.ones(2, dtype=bool), dims=("channel",), coords={"channel": ["c1", "c2"]}
+    )
+    distribution = (
+        ptx.xtensor_constant(
+            np.full((num_periods, 2), 1.0 / num_periods),
+            dims=("date", FLAT_DIM),
+        )
+        if with_distribution
+        else None
+    )
+    variable = MediaVariable(
+        name="channel_data",
+        mask=mask,
+        num_periods=num_periods,
+        adstock_periods=0,
+        channel_scales=scales,
+        dtype="float64",
+        budget_distribution_over_period_tensor=distribution,
+    )
+    z = ptx.xtensor("z", shape=(2,), dims=(FLAT_DIM,))
+    spend = np.array([100.0, 100.0])
+    out = function([z], variable.to_model(z).values, on_unused_input="ignore")(spend)
+
+    # Budgets are per-period rates, so every period carries the full value,
+    # divided by that channel's scale. A uniform distribution reproduces the
+    # default spreading exactly, so both paths must agree.
+    np.testing.assert_allclose(out[0], spend / scales)

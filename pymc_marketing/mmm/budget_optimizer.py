@@ -204,7 +204,7 @@ Requirements
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an
   xarray.DataArray (use ``optimizer_xarray_builder(...)``).
 - For backward compatibility, pass a legacy wrapper (implementing
-  ``OptimizerCompatibleModel``) as ``model=`` — the optimizer will unpack it
+  ``OptimizerCompatibleModel``) as ``model=``, the optimizer will unpack it
   automatically.
 
 Notes
@@ -261,8 +261,10 @@ from pymc_marketing.mmm.constraints import (
     compile_constraints_for_scipy,
 )
 from pymc_marketing.mmm.optimization_variables import (
+    FLAT_DIM,
     MediaVariable,
     OptimizationVariables,
+    align_to_model_coords,
 )
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
@@ -445,7 +447,7 @@ def merge_inference_data(
         ``"channel_data"`` so the shared budget variable remains
         unprefixed.  Pass ``None`` to prefix every variable.
     use_every_n_draw : int, optional
-        Thinning factor — keeps every *n*-th posterior draw before
+        Thinning factor, keeps every *n*-th posterior draw before
         merging.  Useful when merging many models to keep memory usage
         manageable.  Defaults to ``1`` (no thinning).
 
@@ -737,7 +739,7 @@ class OptimizerCompatibleModel(Protocol):
         ...
 
 
-# Backward-compatible alias — will be removed in the next major version.
+# Backward-compatible alias, will be removed in the next major version.
 OptimizerCompatibleModelWrapper = OptimizerCompatibleModel
 
 
@@ -1136,7 +1138,7 @@ class BudgetOptimizer(BaseModel):
         ``"date"`` dim for every combination of the remaining dims
         (i.e., ``budget_distribution_over_period.sum(dim="date")`` must
         be all ones). Each value is the fraction of that cell's total
-        budget assigned to the corresponding period — e.g. fractions
+        budget assigned to the corresponding period, e.g. fractions
         ``[0.4, 0.3, 0.2, 0.1]`` along ``"date"`` mean 40 % of the
         budget in period 0, 30 % in period 1, and so on.
         If None, budget is distributed uniformly
@@ -1161,12 +1163,12 @@ class BudgetOptimizer(BaseModel):
     Notes
     -----
     For backward compatibility, pass a legacy wrapper (implementing
-    ``OptimizerCompatibleModel``) as ``model=`` — the optimizer will
+    ``OptimizerCompatibleModel``) as ``model=``, the optimizer will
     unpack it automatically via a ``model_validator``.
 
     Examples
     --------
-    Basic usage — pass a PyMC model and its posterior inference data directly:
+    Basic usage, pass a PyMC model and its posterior inference data directly:
 
     .. code-block:: python
 
@@ -1481,20 +1483,18 @@ class BudgetOptimizer(BaseModel):
                     )
 
         # Align the mask with the model's coordinate order, not just its dim
-        # order: the mask is consumed positionally downstream (scatter into the
-        # model's tensor layout, and the labels the solution is unpacked with),
-        # so a mask ordered differently from the model would otherwise select
-        # the wrong cells and label them with the wrong coordinates.
-        # `cost_per_unit` and `budget_bounds` are reindexed for the same reason.
-        self.budgets_to_optimize = self.budgets_to_optimize.reindex(
-            self._budget_coords
-        ).transpose(*self._budget_dims)
-        if bool(self.budgets_to_optimize.isnull().any()):
-            raise ValueError(
-                "budgets_to_optimize is missing coordinates present in the "
-                f"model; expected {self._budget_coords}."
+        # order: every coordinate-bearing input is consumed positionally
+        # against the model's tensor layout, so all of them go through the same
+        # alignment (see `align_to_model_coords`).
+        self.budgets_to_optimize = (
+            align_to_model_coords(
+                self.budgets_to_optimize,
+                self._budget_coords,
+                label="budgets_to_optimize",
             )
-        self.budgets_to_optimize = self.budgets_to_optimize.astype(bool)
+            .transpose(*self._budget_dims)
+            .astype(bool)
+        )
 
         # 6. Validate and process budget_distribution_over_period
         self._budget_distribution_over_period_tensor = (
@@ -1659,6 +1659,16 @@ class BudgetOptimizer(BaseModel):
                 "for each combination of other dimensions"
             )
 
+        # Align to the model's coordinate order before flattening: the factors
+        # are combined positionally with the (model-ordered) mask below, so an
+        # input in a different coordinate order would hand each cell another
+        # cell's temporal profile.
+        budget_distribution_over_period = align_to_model_coords(
+            budget_distribution_over_period,
+            {dim: list(budgets_to_optimize.coords[dim].values) for dim in budget_dims},
+            label="budget_distribution_over_period",
+        )
+
         # Pre-process: Apply the mask to get only factors for optimized budgets
         # This avoids shape mismatches during gradient computation
         time_factors_full = budget_distribution_over_period.transpose(
@@ -1674,7 +1684,7 @@ class BudgetOptimizer(BaseModel):
         return ptx.xtensor_constant(
             time_factors_masked,
             name="budget_distribution_over_period",
-            dims=(date_dim, "budgets_flat"),
+            dims=(date_dim, FLAT_DIM),
         )
 
     @staticmethod
@@ -1728,14 +1738,19 @@ class BudgetOptimizer(BaseModel):
                 f"but got {len(cost_per_unit.coords[date_dim])}"
             )
 
+        if budget_coords is not None:
+            # Align before validating: a coordinate the model has but
+            # cost_per_unit lacks becomes NaN during alignment, and validating
+            # first would let it through into the graph.
+            cost_per_unit = align_to_model_coords(
+                cost_per_unit, budget_coords, label="cost_per_unit"
+            )
+
         if cost_per_unit.isnull().any() or (cost_per_unit <= 0).any():
             raise ValueError(
                 "cost_per_unit values must be positive "
                 "(no NaN, zero, or negative values)."
             )
-
-        if budget_coords is not None:
-            cost_per_unit = cost_per_unit.reindex(budget_coords)
         values = cost_per_unit.transpose(*expected_dims)
         return ptx.as_xtensor(values, name="cost_per_unit")
 
@@ -1864,16 +1879,14 @@ class BudgetOptimizer(BaseModel):
             minimize_kwargs = {**self.DEFAULT_MINIMIZE_KWARGS, **minimize_kwargs}
 
         # 1. Process budget bounds
+        bounds_overrides: dict[str, list[tuple[float | None, float | None]]] = {}
         if budget_bounds is None:
             warnings.warn(
                 "No budget bounds provided. Using default bounds (0, total_budget) for each channel.",
                 UserWarning,
                 stacklevel=2,
             )
-            budget_bounds_array = np.broadcast_to(
-                [0, total_budget],
-                (*self._budget_shape, 2),
-            )
+            budget_bounds_array = None
         elif isinstance(budget_bounds, dict):
             if len(self._budget_dims) > 1:
                 raise ValueError(
@@ -1897,8 +1910,8 @@ class BudgetOptimizer(BaseModel):
                     f"budget_bounds must be a DataArray with dims {(*self._budget_dims, 'bound')}"
                 )
             budget_bounds_array = (
-                budget_bounds.reindex(
-                    {d: self._budget_coords[d] for d in self._budget_dims}
+                align_to_model_coords(
+                    budget_bounds, self._budget_coords, label="budget_bounds"
                 )
                 .transpose(*self._budget_dims, "bound")
                 .values
@@ -1908,14 +1921,14 @@ class BudgetOptimizer(BaseModel):
                 "budget_bounds must be a dictionary or an xarray.DataArray"
             )
 
-        # 2. Build the final bounds list, variable by variable
-        media_bounds = [
-            (low, high)
-            for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
-        ]
-        bounds = self._variables.bounds(
-            total_budget, overrides={self.channel_data_var: media_bounds}
-        )
+        # 2. Build the final bounds list, variable by variable. With no
+        # user-supplied bounds the media variable's own defaults apply.
+        if budget_bounds_array is not None:
+            bounds_overrides[self.channel_data_var] = [
+                (low, high)
+                for (low, high) in budget_bounds_array[self.budgets_to_optimize.values]  # type: ignore
+            ]
+        bounds = self._variables.bounds(total_budget, overrides=bounds_overrides)
 
         # 3. Construct the initial guess (x0) if not provided; labelled values
         # are packed into flat order by the optimization variables.
@@ -1983,7 +1996,10 @@ class BudgetOptimizer(BaseModel):
 
         # 6. Process results
         if result.success or return_if_fail:
-            # Fill zeros, then place the solution in masked positions
+            # Media is the named output; every other optimization variable
+            # travels in `optimized_vars`. This is already the general form, so
+            # registering further variables needs no change here: with media
+            # alone the remainder is simply empty.
             unpacked = self._variables.unpack(result.x)
             optimal_budgets = unpacked.pop(self.channel_data_var)
             optimal_budgets.attrs["pymc_marketing_version"] = __version__
@@ -1991,6 +2007,7 @@ class BudgetOptimizer(BaseModel):
             return BudgetOptimizationResult(
                 budgets=optimal_budgets,
                 scipy_result=result,
+                optimized_vars=unpacked,
                 callback_info=callback_info if callback else None,
             )
 

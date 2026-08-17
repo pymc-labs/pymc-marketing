@@ -14,10 +14,10 @@
 """Optimization variables for budget optimization.
 
 The decision vector handed to ``scipy.optimize.minimize`` is a flat 1-D array.
-Everything the optimizer knows about *what that vector means* — which model
+Everything the optimizer knows about *what that vector means*, which model
 variable each segment substitutes, how a segment maps to model-space tensors
 (the forward map), and how a solution maps back to labelled ``DataArray`` objects
-(the inverse map) — lives here, stated once per variable.
+(the inverse map), lives here, stated once per variable.
 
 - :class:`OptimizationVariable` is the per-variable protocol: a named, contiguous
   segment of the flat vector with a forward map (``to_model``), an inverse
@@ -41,10 +41,86 @@ from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 __all__ = [
+    "FLAT_DIM",
     "MediaVariable",
     "OptimizationVariable",
     "OptimizationVariables",
+    "align_to_model_coords",
 ]
+
+#: Name of the flat decision vector's dimension, shared by every variable and
+#: by the container so a rename cannot desynchronise them.
+FLAT_DIM = "budgets_flat"
+
+
+def align_to_model_coords(
+    da: DataArray,
+    coords: Mapping[str, list],
+    *,
+    label: str,
+) -> DataArray:
+    """Reindex a labelled input onto the model's budget coordinates.
+
+    Every coordinate-bearing input the optimizer accepts (the optimization
+    mask, the temporal distribution, cost per unit, budget bounds) is
+    ultimately consumed positionally against the model's tensor layout, so all
+    of them have to be expressed in the model's coordinate order before use.
+    Reindexing alone is not enough to make that safe: it silently drops labels
+    the model does not have and silently fills missing ones with NaN, so both
+    are rejected here.
+
+    Parameters
+    ----------
+    da : DataArray
+        User-supplied input carrying some or all of the budget dims.
+    coords : Mapping[str, list]
+        The model's coordinates for the budget dims.
+    label : str
+        Name of the input, used in error messages.
+
+    Returns
+    -------
+    DataArray
+        ``da`` reindexed onto ``coords``. Dims outside ``coords`` (a date or
+        bound dim, say) are left untouched, as are dims carrying no
+        coordinates, which reindex labels positionally.
+
+    Raises
+    ------
+    ValueError
+        If the input carries coordinates the model does not have, or does not
+        cover every coordinate the model does.
+    """
+    unknown = {
+        dim: sorted(
+            set(np.asarray(da.coords[dim].values).ravel().tolist()) - set(values)
+        )
+        for dim, values in coords.items()
+        if dim in da.coords
+    }
+    unknown = {dim: labels for dim, labels in unknown.items() if labels}
+    if unknown:
+        raise ValueError(
+            f"{label} has coordinates the model does not have: {unknown}. "
+            "They would be dropped silently, so the input is rejected instead."
+        )
+
+    aligned = da.reindex(coords)
+    if bool(aligned.isnull().any()):
+        missing = {
+            dim: sorted(
+                set(values) - set(np.asarray(da.coords[dim].values).ravel().tolist())
+            )
+            for dim, values in coords.items()
+            if dim in da.coords
+        }
+        missing = {dim: labels for dim, labels in missing.items() if labels}
+        raise ValueError(
+            f"{label} does not cover every model coordinate; missing {missing}."
+            if missing
+            else f"{label} contains missing values (NaN) after alignment."
+        )
+    return aligned
 
 
 class OptimizationVariable(ABC):
@@ -140,10 +216,10 @@ class MediaVariable(OptimizationVariable):
     """The media-budget decision variable.
 
     Owns the forward map from flat monetary budgets to the model's channel
-    data tensor: scatter through the optimization mask, divide by
-    ``channel_scales``, spread over ``num_periods`` (uniformly or via a fixed
-    temporal distribution), convert monetary units via ``cost_per_unit``, and
-    zero-pad ``adstock_periods`` for carry-over — and the inverse map from a
+    data tensor: scatter through the optimization mask, spread over
+    ``num_periods`` (uniformly or via a fixed temporal distribution), divide by
+    ``channel_scales``, convert monetary units via ``cost_per_unit``, and
+    zero-pad ``adstock_periods`` for carry-over, and the inverse map from a
     flat solution back to a labelled monetary ``DataArray``.
 
     Parameters
@@ -190,7 +266,7 @@ class MediaVariable(OptimizationVariable):
         date_dim: str = "date",
         budget_distribution_over_period_tensor: XTensorVariable | None = None,
         cost_per_unit_tensor: XTensorVariable | None = None,
-        flat_dim: str = "budgets_flat",
+        flat_dim: str = FLAT_DIM,
     ) -> None:
         if np.dtype(dtype).kind != "f":
             raise ValueError(
@@ -211,11 +287,18 @@ class MediaVariable(OptimizationVariable):
         self.cost_per_unit_tensor = cost_per_unit_tensor
         self.flat_dim = flat_dim
         self._bool_mask = np.asarray(self.mask.values).astype(bool)
+        self._size = int(self._bool_mask.sum())
+        if self._size == 0:
+            raise ValueError(
+                f"{name}: the optimization mask selects no cells, so there is "
+                "nothing to optimize. Check budgets_to_optimize, or the "
+                "posterior contributions it is auto-detected from."
+            )
 
     @property
     def size(self) -> int:
         """Number of optimized budget cells."""
-        return int(self._bool_mask.sum())
+        return self._size
 
     @property
     def shape(self) -> tuple[int, ...]:
@@ -235,25 +318,23 @@ class MediaVariable(OptimizationVariable):
         )
 
     def _apply_budget_distribution_over_period(
-        self, budgets: XTensorVariable, z: XTensorVariable
+        self, z: XTensorVariable
     ) -> XTensorVariable:
         """Distribute each cell's budget across periods with fixed factors.
 
-        The distribution factors are pre-masked to the optimized cells, so
-        the product is computed on the flat slice and scattered back per
-        period.
+        The distribution factors are pre-masked to the optimized cells, so the
+        product is computed on the flat slice and scattered back per period.
+        Values stay in monetary units; :meth:`to_model` scales them.
         """
         repeated_budgets_flat = (
             z * self.budget_distribution_over_period_tensor
         ).transpose(self.date_dim, self.flat_dim)
 
-        repeated_budgets_x = ptx.zeros_like(budgets).expand_dims(
-            **{self.date_dim: self.num_periods}, axis=0
+        dims = (self.date_dim, *self.dims)
+        zeros = pt.zeros((self.num_periods, *self.shape))
+        repeated_budgets = as_xtensor(
+            zeros[:, self._bool_mask].set(repeated_budgets_flat.values), dims=dims
         )
-        repeated_budgets = repeated_budgets_x.values[:, self._bool_mask].set(
-            repeated_budgets_flat.values
-        )
-        repeated_budgets = as_xtensor(repeated_budgets, dims=repeated_budgets_x.dims)
 
         # Factors are fractions of the per-period budget level; rescale so a
         # uniform distribution reproduces the default (repeat) behaviour.
@@ -263,17 +344,22 @@ class MediaVariable(OptimizationVariable):
 
     def to_model(self, z: XTensorVariable) -> XTensorVariable:
         """Build the channel-data substitution tensor from the flat slice."""
-        budgets = self.scattered(z)
-        budgets /= as_xtensor(
+        # Spread the monetary budgets over the periods, then scale. Scaling is
+        # elementwise per channel and spreading is elementwise per period, so
+        # the two commute; doing it after the branch means both the uniform and
+        # the temporal path are scaled by construction, rather than only the
+        # one that remembers to.
+        if self.budget_distribution_over_period_tensor is not None:
+            repeated_budgets = self._apply_budget_distribution_over_period(z)
+        else:
+            repeated_budgets = self.scattered(z).expand_dims(
+                **{self.date_dim: self.num_periods}
+            )
+
+        repeated_budgets = repeated_budgets / as_xtensor(
             self.channel_scales,
             dims=() if np.ndim(self.channel_scales) == 0 else ("channel",),
         )
-
-        # Repeat budgets over num_periods (still in monetary units)
-        if self.budget_distribution_over_period_tensor is not None:
-            repeated_budgets = self._apply_budget_distribution_over_period(budgets, z)
-        else:
-            repeated_budgets = budgets.expand_dims(**{self.date_dim: self.num_periods})
 
         # Convert from monetary units to original units using date-specific
         # rates. Applied AFTER time distribution so each period uses its own
@@ -356,8 +442,8 @@ class OptimizationVariables:
     def __init__(
         self,
         variables: list[OptimizationVariable],
-        flat_name: str = "budgets_flat",
-        flat_dim: str = "budgets_flat",
+        flat_name: str = FLAT_DIM,
+        flat_dim: str = FLAT_DIM,
     ) -> None:
         if not variables:
             raise ValueError("OptimizationVariables requires at least one variable")
