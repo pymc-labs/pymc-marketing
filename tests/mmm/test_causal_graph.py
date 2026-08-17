@@ -18,13 +18,25 @@ import networkx as nx
 import pytest
 from pydantic import ConfigDict
 
-from pymc_marketing.mmm.additive_effect import ControlMuEffect, MuEffect
+from pymc_marketing.mmm.additive_effect import (
+    ControlMuEffect,
+    FourierEffect,
+    LinearTrendEffect,
+    MediaMuEffect,
+    MuEffect,
+)
 from pymc_marketing.mmm.causal_graph import (
     SEASON_NODE,
+    TREND_NODE,
+    build_direct_effect_fragment,
     build_mmm_star_graph,
+    host_target_column,
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
+from pymc_marketing.mmm.fourier import YearlyFourier
+from pymc_marketing.mmm.linear_trend import LinearTrend
+from pymc_marketing.mmm.media_transformation import MediaTransformation
 from pymc_marketing.mmm.mmm import MMM
 
 
@@ -105,11 +117,55 @@ def test_causal_graph_rebuild_on_access():
     assert ("channel_1", "channel_2") not in mmm.causal_graph.edges
 
 
-def test_add_mu_effect_with_empty_fragment_does_not_change_graph():
+def test_control_mu_effect_fragment_adds_edges():
     mmm = _minimal_mmm(control_columns=["control_1"])
-    before = set(mmm.causal_graph.edges)
     mmm.add_mu_effect(ControlMuEffect(data_vars=["extra_control"], prefix="extra"))
-    assert set(mmm.causal_graph.edges) == before
+    graph = mmm.causal_graph
+    assert ("extra_control", "target") in graph.edges
+    assert ("control_1", "target") in graph.edges
+
+
+def test_build_direct_effect_fragment():
+    graph = build_direct_effect_fragment(["a", "b"], "y")
+    assert set(graph.edges) == {("a", "y"), ("b", "y")}
+
+
+def test_host_target_column():
+    mmm = _minimal_mmm()
+    assert host_target_column(mmm) == "target"
+
+
+def test_fourier_effect_fragment_adds_season_edge():
+    mmm = _minimal_mmm(yearly_seasonality=None)
+    mmm.add_mu_effect(FourierEffect(fourier=YearlyFourier(n_order=2, prefix="yearly")))
+    assert (SEASON_NODE, "target") in mmm.causal_graph.edges
+
+
+def test_linear_trend_effect_fragment_adds_t_edge():
+    mmm = _minimal_mmm(yearly_seasonality=None)
+    mmm.add_mu_effect(
+        LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+    )
+    assert (TREND_NODE, "target") in mmm.causal_graph.edges
+
+
+def test_media_mu_effect_fragment_uses_channel_columns_before_build():
+    mmm = _minimal_mmm(yearly_seasonality=None)
+    media_effect = MediaMuEffect(
+        data_vars=["media_data"],
+        media_transformation=MediaTransformation(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            adstock_first=True,
+            dims=("channel",),
+        ),
+        prefix="media",
+    )
+    fragment = media_effect.causal_graph_fragment(mmm)
+    assert set(fragment.edges) == {
+        ("channel_1", "target"),
+        ("channel_2", "target"),
+    }
 
 
 class _FragmentMuEffect(MuEffect):

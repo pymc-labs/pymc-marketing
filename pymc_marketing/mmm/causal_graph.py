@@ -23,6 +23,30 @@ if TYPE_CHECKING:
     import graphviz
 
 SEASON_NODE = "season"
+TREND_NODE = "t"
+
+
+def host_target_column(mmm: object) -> str:
+    """Return the outcome column name from an MMM host."""
+    target_column = getattr(mmm, "target_column", None)
+    if target_column is None:
+        raise TypeError(
+            "causal_graph_fragment requires a host model with target_column."
+        )
+    return str(target_column)
+
+
+def build_direct_effect_fragment(
+    predictors: list[str],
+    target_column: str,
+) -> nx.DiGraph:
+    """Build a fragment with each predictor as a direct cause of the target."""
+    graph = nx.DiGraph()
+    graph.add_node(target_column)
+    for predictor in predictors:
+        graph.add_node(predictor)
+        graph.add_edge(predictor, target_column)
+    return graph
 
 
 def build_mmm_star_graph(
