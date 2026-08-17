@@ -1470,8 +1470,12 @@ class MMM(RegressionModelBuilder):
         dataset = xr.Dataset(parts)
 
         if central_tendency == "mean":
-            dataset = dataset * self._link_spec.mean_correction(
-                posterior, self.output_var
+            dataset = self._link_spec.to_mean_scale(
+                dataset,
+                posterior,
+                self.model_config["likelihood"],
+                target_scale,
+                self.output_var,
             )
 
         return dataset
@@ -2422,7 +2426,13 @@ class MMM(RegressionModelBuilder):
             if self.link == LinkFunction.LOG:
                 mu_var = pmd.Deterministic("mu", mu_var.transpose("date", ...))
             else:
-                mu_var.name = "mu"
+                # Registered rather than merely named, because the identity-link
+                # mean correction is pointwise in mu and reconstructing it by
+                # summing the contribution Deterministics is not safe:
+                # MuEffect.create_effect is only required to return its term,
+                # not to register one. Not transposed, unlike the log branch,
+                # which would change the dims order the likelihood sees.
+                mu_var = pmd.Deterministic("mu", mu_var)
 
             self._link_spec.create_media_contribution_deterministic(
                 mu_var=mu_var,
