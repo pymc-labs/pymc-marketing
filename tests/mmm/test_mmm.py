@@ -33,6 +33,7 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
+    DelayedAdstock,
     GeometricAdstock,
     LogisticSaturation,
     SoftPlusHSGP,
@@ -239,6 +240,69 @@ class TestGeometricAdstockHalfLife:
         mmm.fit(df.drop(columns=[target_column]), df[target_column])
 
         file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
+
+
+class TestDelayedAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM.
+
+    ``theta`` is shared by both parametrisations, so it must reach the model
+    either way.
+    """
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=DelayedAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_theta" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_theta" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("LogNormal", mu=1, sigma=0.3, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "delayed_halflife.nc")
         mmm.save(file)
         loaded = MMM.load(file)
 
@@ -1522,6 +1586,48 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
         "When passing identical data for posterior predictive, "
         "'channel_contribution' should match exactly (or within floating tolerance) "
         "the values in the 'posterior' group."
+    )
+
+
+@pytest.mark.parametrize("clone_model", [True, False])
+def test_sample_posterior_predictive_clone_model(
+    single_dim_data, mock_pymc_sample, clone_model
+):
+    """
+    Test that sampling from the posterior predictive works with both clone_model
+    values when no deterministics are frozen, and that clone_model=False sets the
+    new data on the original model in place.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    X_new = X.iloc[-5:]
+    y_train = y.iloc[:-5]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=42)
+
+    # The clone_model=False branch is only reachable without frozen deterministics.
+    assert mmm.frozen_deterministics == []
+
+    out_of_sample_idata = mmm.sample_posterior_predictive(
+        X_new, extend_idata=False, clone_model=clone_model, random_seed=42
+    )
+
+    assert out_of_sample_idata.coords["date"].values.shape == X_new.date.values.shape
+
+    # clone_model=True samples on a copy and leaves the original model untouched,
+    # while clone_model=False sets the new data on the original model.
+    expected_dates = X_train.date if clone_model else X_new.date
+    np.testing.assert_array_equal(
+        np.asarray(mmm.model.coords["date"]), expected_dates.to_numpy()
     )
 
 
@@ -2909,6 +3015,11 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     assert optimizer.date_column == fit_mmm.date_column
     assert optimizer.channel_columns == fit_mmm.channel_columns
     assert optimizer.dims == fit_mmm.dims
+
+    fit_mmm.plot_suite = "new"
+    from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+    assert optimizer.summary is BudgetSummaryFactory
 
     # Create a budget bounds DataArray
     budget = 1000

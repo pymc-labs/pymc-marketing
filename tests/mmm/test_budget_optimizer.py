@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import ast
+import inspect
 from unittest.mock import patch
 
 import numpy as np
@@ -20,9 +22,13 @@ import pymc.dims as pmd
 import pytensor
 import pytest
 import xarray as xr
+from pydantic import ValidationError
+from pytensor.graph.traversal import ancestors
 from xarray import DataArray
 
+import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
 from pymc_marketing.mmm import MMM
+from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.budget_optimizer import (
     BudgetOptimizationResult,
     BudgetOptimizer,
@@ -32,7 +38,7 @@ from pymc_marketing.mmm.budget_optimizer import (
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
 from pymc_marketing.mmm.components.saturation import LogisticSaturation
-from pymc_marketing.mmm.constraints import Constraint
+from pymc_marketing.mmm.constraints import Constraint, build_default_sum_constraint
 from pymc_marketing.mmm.utility import _check_samples_dimensionality
 
 
@@ -455,9 +461,9 @@ def test_allocate_budget_custom_minimize_args(
         "options": {"ftol": 1e-8, "maxiter": 1_002},
     }
 
-    with pytest.raises(
-        ValueError, match=r"NumPy boolean array indexing assignment cannot assign"
-    ):
+    # The mocked minimize returns a Mock result.x, which fails the optimization
+    # variables' shape validation when unpacking -- after minimize was called.
+    with pytest.raises(ValueError, match=r"expected shape"):
         optimizer.allocate_budget(
             total_budget, budget_bounds, minimize_kwargs=minimize_kwargs
         )
@@ -989,3 +995,443 @@ def test_custom_protocol_model_budget_optimizer_works(mock_pymc_sample):
     assert list(optimal_budgets.coords["channel"].values) == channels
     assert result.success
     assert np.isclose(optimal_budgets.sum().item(), 100.0)
+
+
+def test_shuffled_mask_labels_match_model_coords(mmm_wrapper):
+    """A mask in a different coord order than the model must not shift labels.
+
+    The mask is consumed positionally by the forward map (scatter into the
+    model's tensor layout) and also supplies the labels for the inverse map,
+    so it is reindexed to the model's coordinate order at construction. This
+    pins the inverse map to the forward map: with per-channel bounds that make
+    the optimum distinguishable, the value attributed to a channel must be the
+    one its own bounds produced.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # model order: channel_1, channel_2
+    shuffled = list(reversed(channels))
+
+    mask = xr.DataArray(
+        np.ones(len(shuffled), dtype=bool),
+        dims=("channel",),
+        coords={"channel": shuffled},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    # The mask is realigned to the model's coordinate order.
+    assert list(optimizer.budgets_to_optimize.coords["channel"].values) == channels
+
+    # channel_1 is capped at 5, channel_2 must take the remaining 95.
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 5.0], [0.0, 95.0]]),
+        channel=channels,
+        bound=["lower", "upper"],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    assert float(result.budgets.sel(channel="channel_1")) <= 5.0 + 1e-6
+    np.testing.assert_allclose(
+        float(result.budgets.sel(channel="channel_2")), 95.0, atol=1e-4
+    )
+
+
+def test_partial_mask_result_is_invariant_to_coord_order(mmm_wrapper):
+    """A partial mask must select the same cells however its coords are ordered.
+
+    With a partial mask the label shift and the positional selection shift can
+    cancel in the labelled output while the model optimizes the *other*
+    channel's curve -- the reported allocation looks right but the objective
+    behind it is wrong. Optimizing the same intent written in two coord orders
+    must agree on both the allocation and the objective value.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # [channel_1, channel_2]
+
+    def optimize(coord_order):
+        # Intent in every ordering: optimize channel_2 only.
+        mask = xr.DataArray(
+            np.array([c == "channel_2" for c in coord_order]),
+            dims=("channel",),
+            coords={"channel": coord_order},
+        )
+        optimizer = BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+        bounds = optimizer_xarray_builder(
+            np.array([[0.0, 100.0], [0.0, 100.0]]),
+            channel=channels,
+            bound=["lower", "upper"],
+        )
+        return optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+    in_model_order = optimize(channels)
+    in_shuffled_order = optimize(list(reversed(channels)))
+
+    xr.testing.assert_allclose(in_model_order.budgets, in_shuffled_order.budgets)
+    np.testing.assert_allclose(
+        in_model_order.scipy_result.fun, in_shuffled_order.scipy_result.fun, rtol=1e-8
+    )
+    # And the intent was honoured: the frozen channel got nothing.
+    np.testing.assert_allclose(
+        float(in_shuffled_order.budgets.sel(channel="channel_1")), 0.0, atol=1e-8
+    )
+
+
+def test_mask_missing_model_coords_raises(mmm_wrapper):
+    """A mask that does not cover the model's coordinates is rejected.
+
+    Reindexing such a mask would leave NaN, which `astype(bool)` would quietly
+    turn into True -- optimizing a cell the user never named.
+    """
+    mask = xr.DataArray(
+        np.array([True]),
+        dims=("channel",),
+        coords={"channel": ["channel_1"]},  # model also has channel_2
+    )
+    with pytest.raises(ValidationError, match="does not cover every model coordinate"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_integer_mask_is_coerced_to_bool(mmm_wrapper):
+    """A 0/1 mask works: reindexing makes it float, so it is cast back."""
+    mask = xr.DataArray(
+        np.array([1, 0]),
+        dims=("channel",),
+        coords={"channel": list(mmm_wrapper.channel_columns)},
+    )
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        budgets_to_optimize=mask,
+        response_variable="total_media_contribution_original_scale",
+    )
+    assert optimizer.budgets_to_optimize.dtype == bool
+    assert optimizer._variables.size == 1  # only channel_1 optimized
+
+
+def test_allocate_budget_x0_dataarray(mmm_wrapper):
+    """A labelled x0 warm start gives the same result as the flat vector."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+
+    x0_flat = np.array([70.0, 30.0])
+    x0_labelled = xr.DataArray(
+        x0_flat,
+        dims=("channel",),
+        coords={"channel": ["channel_1", "channel_2"]},
+    )
+
+    result_flat = optimizer.allocate_budget(total_budget=100, x0=x0_flat)
+    result_labelled = optimizer.allocate_budget(total_budget=100, x0=x0_labelled)
+    result_dict = optimizer.allocate_budget(
+        total_budget=100, x0={"channel_data": x0_labelled}
+    )
+
+    xr.testing.assert_allclose(result_flat.budgets, result_labelled.budgets)
+    xr.testing.assert_allclose(result_flat.budgets, result_dict.budgets)
+
+
+def test_shuffled_distribution_matches_model_order(mmm_wrapper):
+    """A shuffled mask and distribution pair must not swap temporal profiles.
+
+    The mask is realigned to the model's coordinate order, so the distribution
+    has to be too: they are combined positionally, and aligning only one hands
+    each channel another channel's spending profile.
+    """
+    channels = list(mmm_wrapper.channel_columns)  # [channel_1, channel_2]
+    profile = {"channel_1": [0.8, 0.2], "channel_2": [0.2, 0.8]}
+
+    def build(order):
+        return BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=2,
+            response_variable="total_media_contribution_original_scale",
+            budgets_to_optimize=xr.DataArray(
+                np.ones(2, dtype=bool), dims=("channel",), coords={"channel": order}
+            ),
+            budget_distribution_over_period=xr.DataArray(
+                np.array([[profile[c][t] for c in order] for t in range(2)]),
+                dims=("date", "channel"),
+                coords={"date": [0, 1], "channel": order},
+            ),
+        )
+
+    in_model_order = build(channels)._budget_distribution_over_period_tensor
+    in_shuffled_order = build(
+        list(reversed(channels))
+    )._budget_distribution_over_period_tensor
+    np.testing.assert_allclose(
+        in_model_order.values.eval(), in_shuffled_order.values.eval()
+    )
+
+
+def test_mask_with_unknown_coords_raises(mmm_wrapper):
+    """A mask naming a channel the model does not have is rejected.
+
+    Reindexing drops unknown labels silently, so the cell would vanish and its
+    budget be redistributed while the user believed it was considered.
+    """
+    mask = xr.DataArray(
+        np.ones(3, dtype=bool),
+        dims=("channel",),
+        coords={"channel": [*mmm_wrapper.channel_columns, "channel_typo"]},
+    )
+    with pytest.raises(ValidationError, match="coordinates the model does not have"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            budgets_to_optimize=mask,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_cost_per_unit_missing_coord_raises(mmm_wrapper):
+    """cost_per_unit missing a model coordinate is caught, not turned into NaN."""
+    cost = xr.DataArray(
+        np.ones((30, 1)),
+        dims=("date", "channel"),
+        coords={"date": range(30), "channel": ["channel_1"]},  # channel_2 missing
+    )
+    with pytest.raises(ValidationError, match="does not cover every model coordinate"):
+        BudgetOptimizer(
+            model=mmm_wrapper,
+            num_periods=30,
+            cost_per_unit=cost,
+            response_variable="total_media_contribution_original_scale",
+        )
+
+
+def test_budget_bounds_missing_coord_raises(mmm_wrapper):
+    """A bounds DataArray missing a model coordinate raises instead of NaN bounds."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    bounds = optimizer_xarray_builder(
+        np.array([[0.0, 50.0]]), channel=["channel_1"], bound=["lower", "upper"]
+    )
+    with pytest.raises(ValueError, match="does not cover every model coordinate"):
+        optimizer.allocate_budget(total_budget=100.0, budget_bounds=bounds)
+
+
+def test_default_bounds_come_from_the_media_variable(mmm_wrapper):
+    """With no user bounds, the variable's own defaults are used."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    with pytest.warns(UserWarning, match="No budget bounds provided"):
+        result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.scipy_result.success
+    np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
+
+
+class _LeverEffect(MuEffect):
+    """Test-only effect registering an optimizable pm.Data node.
+
+    Deliberately a plain MuEffect: this PR wires levers by variable *name*, so
+    the optimizer needs no knowledge of effect classes.
+    """
+
+    prefix: str = "promo"
+
+    def create_data(self, mmm) -> None:
+        model = mmm.model
+        model.add_coord(self.prefix, ["evt1", "evt2"])
+        pmd.Data(f"{self.prefix}_data", np.full(2, 0.10), dims=self.prefix)
+
+    def create_effect(self, mmm):
+        model = mmm.model
+        data = model[f"{self.prefix}_data"]
+        coef = pmd.HalfNormal(f"{self.prefix}_coef", sigma=1.0, dims=self.prefix)
+        contribution = pmd.Deterministic(
+            f"{self.prefix}_effect_contribution", data * coef, dims=self.prefix
+        )
+        # An objective that sees both blocks. The stock media objective is
+        # media only, so a lever declared against it is (correctly) rejected by
+        # the reachability guard.
+        pmd.Deterministic(
+            "joint_objective",
+            model["channel_contribution"].sum() + contribution.sum(),
+        )
+        return contribution.sum(dim=self.prefix)
+
+    def set_data(self, mmm, model, X) -> None:
+        pass
+
+
+def _fit_mmm_with_lever(mock_pymc_sample):
+    date_range = pd.date_range("2023-01-01", periods=14, freq="W")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "date": date_range,
+            "ch1": rng.uniform(100, 500, size=len(date_range)),
+            "ch2": rng.uniform(100, 500, size=len(date_range)),
+        }
+    )
+    y = pd.Series(rng.uniform(500, 1500, size=len(date_range)), name="target")
+    mmm = MMM(
+        date_column="date",
+        channel_columns=["ch1", "ch2"],
+        target_column="target",
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    ).add_mu_effect(_LeverEffect())
+    mmm.fit(X, y, random_seed=0)
+    return mmm, date_range
+
+
+def test_optimizable_vars_co_optimized_with_media(mock_pymc_sample):
+    """A named pm.Data node is optimized alongside the budgets, in one solve."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+    )
+    # One joint flat vector: media entries first, then the lever.
+    assert optimizer._variables.slices["promo_data"] == slice(
+        optimizer.budgets_to_optimize.sum().item(),
+        optimizer.budgets_to_optimize.sum().item() + 2,
+    )
+    # The lever really is wired into the graph the objective is built from.
+    assert optimizer._budgets_flat in ancestors([optimizer._pymc_model["promo_data"]])
+
+    result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.scipy_result.success
+    # Media still sums to the budget: the lever does not draw from the pot.
+    np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
+    # The lever's optimum comes back labelled.
+    promo = result.optimized_vars["promo_data"]
+    assert list(promo.coords["promo"].values) == ["evt1", "evt2"]
+    assert ((promo.values >= 0.0) & (promo.values <= 1.0)).all()
+
+
+def test_optimizable_vars_warm_start_at_current_value(mock_pymc_sample):
+    """With maxiter=0 the solver returns x0, exposing the seeding convention."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+    )
+    result = optimizer.allocate_budget(
+        total_budget=100.0,
+        minimize_kwargs={"options": {"maxiter": 0}},
+        return_if_fail=True,
+    )
+    # Media spreads the budget uniformly; the lever starts at its model value.
+    np.testing.assert_allclose(result.scipy_result.x[:2], [50.0, 50.0])
+    np.testing.assert_allclose(result.scipy_result.x[2:], 0.10)
+
+
+def test_optimizable_vars_unreachable_response_raises(mock_pymc_sample):
+    """A lever the response variable cannot reach is rejected at construction."""
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    with pytest.raises(ValidationError, match="does not depend on optimizable_vars"):
+        mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+            optimizable_vars={"promo_data": None},
+            # channel_contribution is media only, so it cannot reach the lever.
+            response_variable="channel_contribution",
+        )
+
+
+@pytest.mark.parametrize(
+    "entry, match",
+    [
+        ({"not_a_variable": None}, "not a variable with named dims"),
+        ({"promo_data": [(0.0, 1.0)]}, "bounds pairs"),
+    ],
+    ids=["unknown_name", "bounds_length_mismatch"],
+)
+def test_optimizable_vars_validation_raises(mock_pymc_sample, entry, match):
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    with pytest.raises(ValidationError, match=match):
+        mmm.budget_optimizer(
+            start_date=date_range[-1] + pd.Timedelta(weeks=1),
+            end_date=date_range[-1] + pd.Timedelta(weeks=4),
+            optimizable_vars=entry,
+            response_variable="joint_objective",
+        )
+
+
+def test_optimized_vars_empty_without_optimizable_vars(mmm_wrapper):
+    """Backward compatible: a plain optimization returns no extra variables."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=30,
+        response_variable="total_media_contribution_original_scale",
+    )
+    with pytest.warns(UserWarning, match="No budget bounds provided"):
+        result = optimizer.allocate_budget(total_budget=100.0)
+    assert result.optimized_vars == {}
+
+
+def test_budget_optimizer_has_no_marketing_imports():
+    """The optimizer stays a graph-level tool: levers are wired by name only."""
+    banned = ("pymc_marketing.mmm.additive_effect", "pymc_marketing.mmm.mmm")
+    tree = ast.parse(inspect.getsource(budget_optimizer_module))
+    imported: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+    offenders = [m for m in imported if any(m.startswith(b) for b in banned)]
+    assert not offenders, (
+        f"budget_optimizer must not import marketing modules: {offenders}"
+    )
+
+
+def test_custom_constraint_can_bind_a_lever(mock_pymc_sample):
+    """A lever is constrainable through the public variables accessor.
+
+    Levers stay out of the default budget-sum constraint, so the only way to
+    bound one jointly is a custom constraint reaching its segment of the flat
+    vector. That has to be possible without private attributes.
+    """
+    mmm, date_range = _fit_mmm_with_lever(mock_pymc_sample)
+    cap = 0.4
+
+    total_lever_cap = Constraint(
+        key="max_total_lever",
+        constraint_type="ineq",
+        constraint_fun=lambda budgets_sym, total_budget_sym, optimizer: (
+            cap - optimizer.optimization_variables.variable_slice("promo_data").sum()
+        ),
+    )
+
+    optimizer = mmm.budget_optimizer(
+        start_date=date_range[-1] + pd.Timedelta(weeks=1),
+        end_date=date_range[-1] + pd.Timedelta(weeks=4),
+        optimizable_vars={"promo_data": [(0.0, 1.0), (0.0, 1.0)]},
+        response_variable="joint_objective",
+        constraints=[total_lever_cap, build_default_sum_constraint()],
+    )
+    result = optimizer.allocate_budget(total_budget=100.0)
+
+    assert result.scipy_result.success
+    # The lever cap binds: unconstrained, both entries would climb to 1.0.
+    assert float(result.optimized_vars["promo_data"].sum()) <= cap + 1e-6
+    # And the budget constraint is still honoured alongside it.
+    np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)

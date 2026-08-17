@@ -272,17 +272,40 @@ See [references/media_deep_dive.md](references/media_deep_dive.md#incremental-an
 
 ### `mmm.summary`
 
-DataFrame generation for key metrics:
+DataFrame generation for key metrics and **frontend export** (JSON-serializable tables). Guide: `docs/source/guide/mmm/data_export.md`.
 
 ```python
+from pymc_marketing.mmm.summary import dataframe_to_json_records
+
+# Core summaries
 mmm.summary.posterior_predictive()       # mean, median, HDI, observed
 mmm.summary.contributions()              # per-channel/control/seasonality contributions
+mmm.summary.waterfall()                  # waterfall decomposition totals
+mmm.summary.channel_share_hdi()          # channel share of contribution
+mmm.summary.prior_predictive()
+mmm.summary.residuals_over_time()
+mmm.summary.residuals_distribution()
+mmm.summary.prior_vs_posterior()
 mmm.summary.roas()                       # ROAS with HDI
 mmm.summary.channel_spend()              # raw spend per channel/date
 mmm.summary.saturation_curves()          # saturation response curves
 mmm.summary.adstock_curves()             # adstock decay curves
+mmm.summary.saturation_scatterplot()
 mmm.summary.total_contribution()         # summed contributions by component type
 mmm.summary.change_over_time()           # percentage change between periods
+mmm.summary.sensitivity_analysis()
+mmm.summary.sensitivity_uplift()
+mmm.summary.sensitivity_marginal()
+
+# Frontend JSON export
+records = mmm.summary.contributions().to_dict(orient="records")
+records = dataframe_to_json_records(mmm.summary.contributions())
+
+# Budget allocation samples (via optimizer wrapper)
+df = optimizer.summary.allocation_roas(samples=samples)
+
+# Cross-validation (after cv.run())
+df = cv.summary.predictions()
 ```
 
 ### `mmm.data`
