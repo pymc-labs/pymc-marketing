@@ -561,6 +561,103 @@ def test_prefix_model_exclude_none_renames_vars_dims_and_coords():
     assert "d" not in coords_keys
 
 
+def _model_with_deterministic_alias():
+    with pm.Model(coords={"obs": range(5)}) as model:
+        x = pm.Normal("x")
+        pm.Deterministic("x_alias", x)
+        d = pm.Deterministic("d", 2 * x)
+        pm.Deterministic("dd", d + 1)
+        y_obs = pm.Data("y_obs", np.zeros(5), dims="obs")
+        pm.Normal("y", x, observed=y_obs, dims="obs")
+    return model
+
+
+def test_merge_models_deterministic_alias_of_rv():
+    """A Deterministic that aliases an RV must not duplicate the RV after merging.
+
+    Rebuilding the ``ModelVar`` ops has to replace consumers before producers,
+    otherwise the stale ``ModelFreeRV`` node is re-imported through the alias.
+    """
+    merged = merge_models(
+        [_model_with_deterministic_alias(), _model_with_deterministic_alias()],
+        prefixes=["a", "b"],
+    )
+
+    assert {rv.name for rv in merged.free_RVs} == {"a_x", "b_x"}
+    expected_names = {
+        f"{prefix}_{name}"
+        for prefix in ("a", "b")
+        for name in ("x", "x_alias", "d", "dd", "y_obs", "y")
+    }
+    assert set(merged.named_vars) == expected_names
+    assert tuple(merged.named_vars_to_dims["a_y"]) == ("a_obs",)
+    assert tuple(merged.named_vars_to_dims["b_y_obs"]) == ("b_obs",)
+    assert set(merged.coords) == {"a_obs", "b_obs"}
+    assert set(merged.dim_lengths) == {"a_obs", "b_obs"}
+    validate_unique_value_vars(merged)
+    assert np.isfinite(merged.compile_logp()(merged.initial_point()))
+
+
+def test_merge_models_variables_already_starting_with_prefix():
+    """Variables whose name already starts with ``<prefix>_`` still get unique value vars."""
+
+    def make():
+        with pm.Model() as model:
+            pm.Normal("a_x")
+            pm.HalfNormal("a_s")
+        return model
+
+    merged = merge_models([make(), make()], prefixes=["a", "b"])
+
+    assert set(merged.named_vars) == {"a_a_x", "a_a_s", "b_a_x", "b_a_s"}
+    assert {v.name for v in merged.value_vars} == {
+        "a_a_x",
+        "a_a_s_log__",
+        "b_a_x",
+        "b_a_s_log__",
+    }
+    validate_unique_value_vars(merged)
+    assert np.isfinite(merged.compile_logp()(merged.initial_point()))
+
+
+def test_merge_models_merge_on_shares_dim_lengths():
+    """``set_data`` on a shared dim after ``merge_on`` resizes both merged models."""
+
+    def make(seed):
+        coords = {"channel": ["c1", "c2"], "date": np.arange(4)}
+        with pm.Model(coords=coords) as model:
+            X = pm.Data(
+                "channel_data", np.ones((4, 2)) * seed, dims=("date", "channel")
+            )
+            y_obs = pm.Data("y_obs", np.ones(4), dims="date")
+            beta = pm.HalfNormal("beta", dims="channel")
+            mu = pm.Deterministic("mu", (X * beta).sum(-1), dims="date")
+            eps = pm.Normal("eps", dims="date")
+            pm.Normal("y", mu + eps, 1.0, observed=y_obs, dims="date")
+        return model
+
+    merged = merge_models(
+        [make(1), make(2)], prefixes=["a", "b"], merge_on="channel_data"
+    )
+    assert set(merged.dim_lengths) == {"channel", "date"}
+
+    with merged:
+        pm.set_data(
+            {
+                "channel_data": np.ones((5, 2)),
+                "a_y_obs": np.ones(5),
+                "b_y_obs": np.ones(5),
+            },
+            coords={"date": np.arange(5)},
+        )
+
+    assert tuple(merged["a_eps"].shape.eval()) == (5,)
+    assert tuple(merged["b_eps"].shape.eval()) == (5,)
+    assert tuple(merged["a_mu"].shape.eval()) == (5,)
+    assert tuple(merged["b_mu"].shape.eval()) == (5,)
+    assert np.isfinite(merged.compile_logp()(merged.initial_point()))
+
+
 def test_extract_response_distribution_accepts_several_variables():
     """Several variables extract in one pass, sharing the subgraph they have in common.
 
