@@ -210,6 +210,7 @@ coefficients.
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, Literal, Protocol
 
+import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -504,6 +505,23 @@ class MuEffect(SerializableBaseModel, ABC):
         IncrementalitySpec : What has to be declared, and why.
         """
         return None
+
+    def causal_graph_fragment(self, mmm: Model) -> nx.DiGraph:
+        """Nodes and edges this effect adds to the host causal DAG.
+
+        Default: empty graph. Subclasses that put a term in μ override.
+
+        Parameters
+        ----------
+        mmm
+            Host MMM instance.
+
+        Returns
+        -------
+        networkx.DiGraph
+            Directed graph fragment to union with the MMM star.
+        """
+        return nx.DiGraph()
 
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.

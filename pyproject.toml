@@ -44,6 +44,7 @@ dependencies = [
     "pymc-extras>=0.11.0,<0.13.0",
     "preliz>=0.20.0,<1.0",
     "pyyaml",
+    "networkx",
 ]
 
 [project.optional-dependencies]

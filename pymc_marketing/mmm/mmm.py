@@ -187,6 +187,7 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Annotated, Any, Literal, Self, cast
 
 import arviz as az
+import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -211,6 +212,11 @@ from pymc_marketing.mmm.additive_effect import (
 )
 from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
 from pymc_marketing.mmm.causal import CausalGraphModel
+from pymc_marketing.mmm.causal_graph import (
+    build_mmm_star_graph,
+    causal_graph_to_graphviz,
+    compose_causal_graph,
+)
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
 from pymc_marketing.mmm.constraints import Constraint
@@ -274,6 +280,14 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+def _mu_effect_causal_name(mu_effect: MuEffect) -> str:
+    """Label a mu effect when reporting causal-graph composition errors."""
+    prefix = getattr(mu_effect, "prefix", None)
+    if prefix is not None:
+        return f"{type(mu_effect).__name__}({prefix!r})"
+    return type(mu_effect).__name__
 
 
 class MMM(RegressionModelBuilder):
@@ -664,6 +678,82 @@ class MMM(RegressionModelBuilder):
         """
         self.mu_effects.append(mu_effect)
         return self
+
+    @property
+    def causal_graph(self) -> nx.DiGraph:
+        """Model-implied causal DAG rebuilt from the current MMM specification.
+
+        The graph is the union of the default star (each channel, control, and
+        optional ``season`` node points directly to the target) plus causal
+        fragments declared by attached :class:`~pymc_marketing.mmm.additive_effect.MuEffect`
+        subclasses via :meth:`~pymc_marketing.mmm.additive_effect.MuEffect.causal_graph_fragment`.
+
+        The returned graph is a snapshot. Mutating it does not update the MMM;
+        the next read rebuilds from the current specification.
+
+        Returns
+        -------
+        networkx.DiGraph
+            Directed acyclic graph implied by the model specification.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mmm = MMM(
+                date_column="date",
+                channel_columns=["tv", "social"],
+                control_columns=["price"],
+                yearly_seasonality=2,
+                adstock=GeometricAdstock(l_max=6),
+                saturation=LogisticSaturation(),
+            )
+            list(mmm.causal_graph.edges())
+        """
+        star = build_mmm_star_graph(
+            channel_columns=self.channel_columns,
+            control_columns=self.control_columns,
+            target_column=self.target_column,
+            yearly_seasonality=self.yearly_seasonality,
+        )
+        fragments = [effect.causal_graph_fragment(self) for effect in self.mu_effects]
+        effect_names = [_mu_effect_causal_name(effect) for effect in self.mu_effects]
+        return compose_causal_graph(
+            star,
+            fragments,
+            effect_names=effect_names,
+        )
+
+    def plot_causal_graph(self, *, rankdir: str = "LR") -> object:
+        """Plot the model-implied causal DAG with graphviz.
+
+        Unlike :meth:`~pymc_marketing.model_builder.ModelBuilder.graphviz`, this
+        shows the causal assumptions encoded by channels, controls, seasonality,
+        and attached mu effects—not the PyMC computation graph.
+
+        Parameters
+        ----------
+        rankdir
+            Graph layout direction passed to graphviz.
+
+        Returns
+        -------
+        graphviz.Digraph
+            Graphviz object for inline display in Jupyter or export.
+
+        Raises
+        ------
+        ImportError
+            If the optional ``graphviz`` package is not installed.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            mmm = MMM(...)
+            mmm.plot_causal_graph()
+        """
+        return causal_graph_to_graphviz(self.causal_graph, rankdir=rankdir)
 
     def __eq__(self, other: object) -> bool:
         """Compare two MMM instances for equivalence.
