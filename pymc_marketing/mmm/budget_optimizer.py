@@ -198,7 +198,8 @@ Requirements
   The optimizer replaces ``channel_data`` with the optimization variable under the hood.
 - Posterior must contain a response variable (default: ``"total_media_contribution_original_scale"``)
   or any custom ``response_variable`` you pass, and the required MMM deterministics
-  (e.g. ``channel_contribution``).
+  (e.g. ``channel_contribution``). Models with ``mu_effects`` also expose
+  ``"total_response_original_scale"``, which includes those effects' contributions.
 - For time distribution: pass a DataArray with dims ``("date", *budget_dims)`` and values along
   ``date`` summing to 1 for each budget cell.
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an
@@ -1123,7 +1124,12 @@ class BudgetOptimizer(BaseModel):
         or time-varying components. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
-        ``"total_media_contribution_original_scale"``.
+        ``"total_media_contribution_original_scale"``, which is built from the
+        channel contribution alone. A model whose response partly travels
+        through a ``MuEffect`` -- a funnel mediator, or an effect carrying an
+        optimizable lever -- should pass ``"total_response_original_scale"``
+        instead, since the default cannot see those contributions and a budget
+        optimized against it undervalues whatever drives them.
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional

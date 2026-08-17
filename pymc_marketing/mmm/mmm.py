@@ -3997,7 +3997,10 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
         response_variable : str
-            Response variable to optimize.
+            Response variable to optimize. Pass
+            ``"total_response_original_scale"`` for a model with ``mu_effects``:
+            the default is built from the channel contribution alone and cannot
+            see an effect's contribution.
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
