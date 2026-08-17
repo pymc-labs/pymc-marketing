@@ -2638,6 +2638,33 @@ class MMM(RegressionModelBuilder):
 
         return pymc_model
 
+    DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+
+    def _resolve_response_variable(self, response_variable: str | None) -> str:
+        """Resolve the objective, warning when the default cannot see the effects.
+
+        The default is built from the channel contribution alone, so a model
+        whose response partly travels through a ``MuEffect`` optimizes against a
+        quantity that misses it -- silently, and in a direction nothing reports.
+        Only warns when the caller expressed no preference: an explicit
+        ``response_variable`` is a deliberate choice and is left alone.
+        """
+        if response_variable is not None:
+            return response_variable
+        if self.mu_effects:
+            warnings.warn(
+                "This model has mu_effects, whose contributions are not part of "
+                f"{self.DEFAULT_RESPONSE_VARIABLE!r}, the default objective. "
+                "Optimizing against it undercounts any response travelling "
+                "through an effect, so budgets that drive one are undervalued. "
+                "Pass response_variable='total_response_original_scale' to score "
+                "against the full response, or pass the default explicitly to "
+                "silence this warning.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return self.DEFAULT_RESPONSE_VARIABLE
+
     def budget_optimizer(
         self,
         start_date: str | pd.Timestamp,
@@ -2709,6 +2736,11 @@ class MMM(RegressionModelBuilder):
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
         # duplicating that rule here would only re-derive the same mask and then send
         # it back through the optimizer's validation branch.
+        if "response_variable" not in kwargs:
+            # Resolving here rather than leaving it to BudgetOptimizer's own
+            # default: only this layer knows the model has effects.
+            kwargs["response_variable"] = self._resolve_response_variable(None)
+
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
@@ -3979,7 +4011,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         budget: float | int,
         budget_bounds: xr.DataArray | None = None,
-        response_variable: str = "total_media_contribution_original_scale",
+        response_variable: str | None = None,
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[Constraint] = (),
         budgets_to_optimize: xr.DataArray | None = None,
@@ -3996,11 +4028,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Total budget to allocate.
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
-        response_variable : str
-            Response variable to optimize. Pass
-            ``"total_response_original_scale"`` for a model with ``mu_effects``:
-            the default is built from the channel contribution alone and cannot
-            see an effect's contribution.
+        response_variable : str, optional
+            Response variable to optimize. Defaults to
+            ``"total_media_contribution_original_scale"``, which is built from
+            the channel contribution alone. Pass
+            ``"total_response_original_scale"`` for a model with ``mu_effects``,
+            whose contributions the default cannot see; leaving this unset on
+            such a model warns.
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
@@ -4078,7 +4112,9 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=response_variable,
+            response_variable=self.model_class._resolve_response_variable(
+                response_variable
+            ),
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,

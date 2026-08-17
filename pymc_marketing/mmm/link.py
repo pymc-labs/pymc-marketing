@@ -180,6 +180,12 @@ class LinkSpec(ABC):
         (:class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` with
         ``response_variable="total_response_original_scale"``).
 
+        The result is a scalar: the date axis is summed first, then **every
+        remaining dimension**, so a model with extra dims (geo, product) totals
+        across all of them. That is the right contract for a single shared
+        budget, and the wrong one if segments hold separate budgets -- those
+        want a per-segment objective and a constraint per segment.
+
         Parameters
         ----------
         mu_var : XTensorVariable

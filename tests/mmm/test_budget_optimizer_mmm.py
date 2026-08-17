@@ -1852,3 +1852,49 @@ def test_mediated_response_changes_the_allocation(dummy_df, fitted_mmm_mediated)
     assert funnel_aware.sel(**ch1).sum() > media_only.sel(**ch1).sum(), (
         "the objective that sees the mediator should fund the channel driving it"
     )
+
+
+class TestDefaultObjectiveWarning:
+    """A mu-effect model must not silently optimize the media-only objective.
+
+    The optimizer's reachability check only fires for declared levers, so a
+    model with effects and no levers would otherwise misconfigure silently --
+    the exact failure this objective exists to prevent.
+    """
+
+    @staticmethod
+    def _window(X_dummy):
+        return {
+            "start_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            "end_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        }
+
+    def test_warns_when_the_objective_is_left_unset(
+        self, dummy_df, fitted_mmm_mediated
+    ):
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with pytest.warns(UserWarning, match="undercounts any response"):
+            fitted_mmm_mediated.budget_optimizer(**self._window(X_dummy))
+
+    def test_silent_when_the_objective_is_chosen_explicitly(
+        self, dummy_df, fitted_mmm_mediated
+    ):
+        """Passing the default explicitly is a deliberate choice, not a mistake."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            fitted_mmm_mediated.budget_optimizer(
+                **self._window(X_dummy),
+                response_variable="total_media_contribution_original_scale",
+            )
+            fitted_mmm_mediated.budget_optimizer(
+                **self._window(X_dummy),
+                response_variable="total_response_original_scale",
+            )
+
+    def test_silent_without_mu_effects(self, dummy_df, fitted_mmm):
+        """A plain media model has nothing the default objective misses."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            fitted_mmm.budget_optimizer(**self._window(X_dummy))
