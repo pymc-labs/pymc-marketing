@@ -1,0 +1,24 @@
+pymc_marketing/causal_utils.py
+  h_d36ca8649a0e95 27-31,35-37,44-69,72-73,77,92
+pymc_marketing/mmm/causal.py
+  h_d36ca8649a0e95 38-39,134-138
+pyproject.toml
+  h_d36ca8649a0e95 85-87
+tests/mmm/test_causal.py
+  h_d36ca8649a0e95 142-151
+tests/test_causal_utils.py
+  h_d36ca8649a0e95 78-120
+uv.lock
+  h_d36ca8649a0e95 1723-1727,3875,3958,4985-5018
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "0f2d9149fd03eeaa22c539f984cf1ef71b611fea",
+  "prompts": {},
+  "humans": {
+    "h_d36ca8649a0e95": {
+      "author": "Carlos Trujillo <carlangastr@gmail.com>"
+    }
+  }
+}
