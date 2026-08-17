@@ -376,7 +376,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::
 ::::
 
-## Predicted Incrementality by Experimentation (PIE)
+## Campaign Optimization
 
 ::::{grid} 1 2 3 3
 :gutter: 3
@@ -384,6 +384,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Predicting Campaign Incrementality with PIE
 :img-top: ../gallery/images/pie_example.png
 :link: ../notebooks/pie/pie_example.html
+:::
+
+:::{grid-item-card} Who Earned the Credit? Splitting MMM Channel Impact Across Campaigns
+:img-top: ../gallery/images/mmm_credibility_disaggregation.png
+:link: ../notebooks/mmm/mmm_credibility_disaggregation.html
 :::
 ::::
 

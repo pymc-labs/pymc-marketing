@@ -150,10 +150,12 @@ sections:
     cards:
       - title: Bass Diffusion Model Example
         notebook: bass/bass_example
-  - title: Predicted Incrementality by Experimentation (PIE)
+  - title: Campaign Optimization
     cards:
       - title: Predicting Campaign Incrementality with PIE
         notebook: pie/pie_example
+      - title: "Who Earned the Credit? Splitting MMM Channel Impact Across Campaigns"
+        notebook: mmm/mmm_credibility_disaggregation
   - title: General Tutorials
     cards:
       - title: Model Configuration
