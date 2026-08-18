@@ -19,8 +19,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
+from arviz_stats.ecdf_utils import (
+    compute_ecdf,
+    get_pointwise_confidence_band,
+    simulate_confidence_bands,
+)
 from matplotlib.lines import Line2D
-from scipy.stats import binom
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
@@ -580,39 +584,6 @@ def plot_expected_purchases_ppc(
     return ax
 
 
-def _ecdf(sample: np.ndarray, eval_points: np.ndarray) -> np.ndarray:
-    """Evaluate the empirical CDF of ``sample`` at ``eval_points``."""
-    sample = np.sort(sample)
-    return np.searchsorted(sample, eval_points, side="right") / len(sample)
-
-
-def _ecdf_confidence_band(
-    n: int,
-    z: np.ndarray,
-    num_trials: int,
-    fpr: float,
-    rng: np.random.Generator,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Simulate a 1 - ``fpr`` simultaneous confidence band for an ECDF of ``n`` draws.
-
-    Adapted from the simulation-based algorithm in Sailynoja et al. (2021),
-    as implemented by the legacy ``arviz.plot_ecdf``:
-    https://github.com/arviz-devs/arviz/blob/v0.17.0/arviz/plots/ecdfplot.py
-    """
-    gamma = np.empty(num_trials)
-    for i in range(num_trials):
-        unif_samples = np.sort(rng.uniform(0, 1, n))
-        f_z = _ecdf(unif_samples, z)
-        gamma[i] = 2 * min(
-            np.amin(binom.cdf(n * f_z, n, z)),
-            np.amin(1 - binom.cdf(n * f_z - 1, n, z)),
-        )
-    gamma_q = np.quantile(gamma, fpr)
-    lower = binom.ppf(gamma_q / 2, n, z) / n
-    upper = binom.ppf(1 - gamma_q / 2, n, z) / n
-    return lower, upper
-
-
 def _plot_expected_purchases_ecdf(
     observed: np.ndarray,
     ppc: np.ndarray,
@@ -630,15 +601,23 @@ def _plot_expected_purchases_ecdf(
         ax_ecdf, ax_diff = ax
 
     rng = np.random.default_rng(random_seed)
-    fpr = 1 - confidence_level
     x = np.linspace(observed.min(), observed.max(), npoints)
     # reference cdf estimated from the (prior or posterior) predictive samples
-    z = _ecdf(ppc, x)
+    z = compute_ecdf(ppc, x)
     n = len(observed)
-    lower, upper = _ecdf_confidence_band(n, z, num_trials, fpr, rng)
+    # simulation-based simultaneous confidence band of Sailynoja et al. (2021)
+    gamma = simulate_confidence_bands(
+        n_draws=n,
+        n_chains=1,
+        eval_points=z,
+        prob=confidence_level,
+        n_simulations=num_trials,
+        rng=rng,
+    )
+    lower, upper = get_pointwise_confidence_band(gamma, n, z)
 
     band_label = f"{int(confidence_level * 100)}% HDI"
-    observed_ecdf = _ecdf(observed, x)
+    observed_ecdf = compute_ecdf(observed, x)
 
     ecdf_x = np.insert(x, 0, x[0])
     ecdf_y = np.insert(observed_ecdf, 0, 0)
