@@ -2611,6 +2611,14 @@ class MMM(RegressionModelBuilder):
         declares nothing contributes nothing, which reproduces the previous
         behaviour rather than guessing on its behalf.
 
+        An effect that has not implemented ``incrementality_spec`` is skipped,
+        and so is one that returns ``None`` to opt out. Any *other* exception
+        from an effect's ``incrementality_spec`` propagates deliberately: it
+        means the effect cannot answer a question about itself, and sizing the
+        window from a silently swallowed error would truncate the tail exactly
+        as before, with nothing to show why. Catch it at the effect if it is
+        expected there.
+
         Returns
         -------
         int

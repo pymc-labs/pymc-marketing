@@ -12,6 +12,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pymc as pm
@@ -1203,6 +1205,30 @@ class TestAdstockCarryIn:
         # Only the leading block is history; the decision window and the
         # carry-over tail stay at zero for the optimizer to fill.
         assert (channel_data[lags:] == 0).all()
+
+    def test_carry_in_clips_to_the_history_that_exists_and_says_so(
+        self, funnel_identity_fitted_mmm, caplog
+    ):
+        """You cannot carry in spend from before the data starts.
+
+        A window opening at the first training date has no history behind it,
+        so the leading block clips to nothing. That is correct rather than
+        exceptional -- it is also how the model itself was fitted -- so it is
+        not a warning; but a partially warm adstock is indistinguishable from a
+        fully warm one from the outside, which makes it worth a debug record.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        lags = mmm.effective_carryover_lags()
+
+        with caplog.at_level(logging.DEBUG, logger="pymc_marketing.mmm.utils"):
+            opt = mmm.create_optimization_model(
+                start_date=dates[0], end_date=dates[-(lags + 1)]
+            )
+
+        # Nothing precedes the first training date, so no leading block at all.
+        assert len(opt.coords["date"]) == len(dates)
+        assert f"carry-in clipped to 0 of {lags}" in caplog.text
 
     def test_the_date_axis_is_carry_in_plus_decisions_plus_carry_over(
         self, funnel_identity_fitted_mmm

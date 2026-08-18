@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Utility functions for the Marketing Mix Modeling module."""
 
+import logging
 import warnings
 from collections.abc import Callable
 from typing import Any
@@ -24,6 +25,8 @@ from pymc.logprob.basic import logcdf, logp
 from pytensor import xtensor as ptx
 from pytensor.graph.basic import Variable
 from pytensor.graph.replace import graph_replace
+
+logger = logging.getLogger(__name__)
 
 
 def apply_sklearn_transformer_across_dim(
@@ -369,6 +372,19 @@ def create_zero_dataset(
     if carry_in_periods:
         before = training_dates[training_dates < new_dates[0]]
         carry_in_dates = pd.DatetimeIndex(before[-carry_in_periods:])
+        if len(carry_in_dates) < carry_in_periods:
+            # Expected whenever the window opens at or near the start of
+            # training -- there is no spend to carry in -- so this is not a
+            # warning. Logged because a partially warm adstock is otherwise
+            # indistinguishable from a fully warm one, and that is the first
+            # thing to check when carry-over looks wrong.
+            logger.debug(
+                "carry-in clipped to %d of %d requested periods: only %d "
+                "training dates precede the window.",
+                len(carry_in_dates),
+                carry_in_periods,
+                len(before),
+            )
         new_dates = pd.DatetimeIndex(carry_in_dates.append(new_dates))
 
     n_dates = len(new_dates)
@@ -460,6 +476,15 @@ def create_zero_dataset(
         ctrl_coords["control"] = control_cols
 
         if preserve_observed and "_control" in xa:
+            # Only the date axis is reindexed, deliberately. `build_model` calls
+            # `pmd.Data("control_data", xarray_dataset._control)`, so the model's
+            # `control` coord order *is* the training variable's, and inheriting
+            # it here is what keeps `pm.set_data` -- which writes positionally --
+            # aligned. Reordering to `model.control_columns` looks tidier and
+            # silently misaligns every control coefficient. (The zero-filled
+            # branch below does order by `control_columns`; that disagrees with
+            # the model whenever the two differ, and is harmless only because
+            # zeros are order-invariant.)
             data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
         else:
             data_vars["_control"] = xr.DataArray(
