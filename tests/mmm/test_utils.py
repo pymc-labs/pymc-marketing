@@ -20,6 +20,7 @@ import xarray as xr
 from pytensor.compile.mode import Mode
 from sklearn.preprocessing import MaxAbsScaler
 
+from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.utils import (
     _convert_frequency_to_timedelta,
     add_noise_to_channel_allocation,
@@ -1024,10 +1025,10 @@ class TestEffectDataInTheOptimizationWindow:
         """
         mmm = funnel_identity_fitted_mmm
         dates = mmm.xarray_dataset.coords["date"].values
-        l_max = mmm.adstock.l_max
+        lags = mmm.effective_carryover_lags()
 
         opt = mmm.create_optimization_model(
-            start_date=dates[0], end_date=dates[-(l_max + 1)]
+            start_date=dates[0], end_date=dates[-(lags + 1)]
         )
 
         np.testing.assert_allclose(
@@ -1058,10 +1059,10 @@ class TestEffectDataInTheOptimizationWindow:
         """Restoring inputs must never restore the spend being decided."""
         mmm = funnel_identity_fitted_mmm
         dates = mmm.xarray_dataset.coords["date"].values
-        l_max = mmm.adstock.l_max
+        lags = mmm.effective_carryover_lags()
 
         opt = mmm.create_optimization_model(
-            start_date=dates[0], end_date=dates[-(l_max + 1)]
+            start_date=dates[0], end_date=dates[-(lags + 1)]
         )
 
         assert (np.asarray(opt["channel_data"].get_value()) == 0).all()
@@ -1191,28 +1192,28 @@ class TestAdstockCarryIn:
         self, funnel_identity_fitted_mmm
     ):
         mmm = funnel_identity_fitted_mmm
-        l_max = mmm.adstock.l_max
+        lags = mmm.effective_carryover_lags()
         start, end = self._window(mmm)
 
         opt = mmm.create_optimization_model(start_date=start, end_date=end)
 
         channel_data = np.asarray(opt["channel_data"].get_value())
         training = np.asarray(mmm.model["channel_data"].get_value())
-        np.testing.assert_allclose(channel_data[:l_max], training[-l_max:])
+        np.testing.assert_allclose(channel_data[:lags], training[-lags:])
         # Only the leading block is history; the decision window and the
         # carry-over tail stay at zero for the optimizer to fill.
-        assert (channel_data[l_max:] == 0).all()
+        assert (channel_data[lags:] == 0).all()
 
     def test_the_date_axis_is_carry_in_plus_decisions_plus_carry_over(
         self, funnel_identity_fitted_mmm
     ):
         mmm = funnel_identity_fitted_mmm
-        l_max = mmm.adstock.l_max
+        lags = mmm.effective_carryover_lags()
         start, end = self._window(mmm)
 
         opt = mmm.create_optimization_model(start_date=start, end_date=end)
 
-        assert len(opt.coords["date"]) == l_max + self.N_PERIODS + l_max
+        assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
 
     def test_the_leading_dates_are_not_decisions(self, funnel_identity_fitted_mmm):
         """The budget must be spread over the window, never over history.
@@ -1232,4 +1233,45 @@ class TestAdstockCarryIn:
         )
 
         assert optimizer.num_periods == self.N_PERIODS
-        assert optimizer.carry_in_periods == mmm.adstock.l_max
+        assert optimizer.carry_in_periods == mmm.effective_carryover_lags()
+
+
+class TestEffectiveCarryover:
+    """An effect's declared carryover has to size the optimization window.
+
+    ``spend_reach`` already honours ``additional_carryover_lags`` when it sizes
+    the incrementality evaluation windows. Sizing the optimization window from
+    ``adstock.l_max`` alone truncates the same tail, so the objective
+    undercounts the carry-over every candidate plan produces.
+    """
+
+    def test_the_declaration_widens_the_window(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        mmm = funnel_identity_fitted_mmm
+        l_max = mmm.adstock.l_max
+        declared = mmm.effective_carryover_lags()
+        # The fixture's mediator chains a second adstock behind the model's own.
+        assert declared > l_max
+
+        effect = mmm.mu_effects[0]
+        monkeypatch.setattr(
+            type(effect), "incrementality_spec", lambda self: IncrementalitySpec()
+        )
+
+        assert mmm.effective_carryover_lags() == l_max
+
+    def test_an_effect_that_declares_nothing_changes_nothing(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """Declarations only -- never a guess on the effect's behalf.
+
+        ``effective_carryover_lags`` runs at build time, where reach cannot be
+        measured. An effect that opts out entirely must therefore leave the
+        window exactly as ``adstock.l_max`` sized it.
+        """
+        mmm = funnel_identity_fitted_mmm
+        effect = mmm.mu_effects[0]
+        monkeypatch.setattr(type(effect), "incrementality_spec", lambda self: None)
+
+        assert mmm.effective_carryover_lags() == mmm.adstock.l_max

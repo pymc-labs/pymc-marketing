@@ -234,6 +234,7 @@ def create_zero_dataset(
     include_carryover: bool = True,
     preserve_observed: bool = False,
     carry_in_periods: int = 0,
+    carryover_periods: int | None = None,
 ) -> xr.Dataset:
     """Create an ``xr.Dataset`` for future prediction, with zero fills.
 
@@ -263,6 +264,16 @@ def create_zero_dataset(
         periods, so that spend inside the window is scored with the carry-over it
         produces after it.  The extension is trailing; nothing is prepended, and
         the window therefore starts from a cold adstock state.
+    carry_in_periods
+        Number of leading dates to prepend, taken from the training index so
+        they are real observed dates.  ``_channel`` holds its observed spend on
+        them, so the adstock does not start cold.  Clips itself when the window
+        starts near the beginning of training.
+    carryover_periods
+        Periods to extend past *end_date* when *include_carryover*, defaulting
+        to ``model.adstock.l_max``.  Pass the *effective* carryover when an
+        effect chains a further adstock behind the model's own, or its tail is
+        truncated.
     preserve_observed
         Whether every non-decision variable -- controls, and the variables the
         model's ``mu_effects`` read -- takes its **observed** value on each date
@@ -338,10 +349,13 @@ def create_zero_dataset(
             start_date = pd.Timestamp(start_date)
         if not isinstance(end_date, pd.Timestamp):
             end_date = pd.Timestamp(end_date)
-        if hasattr(model.adstock, "l_max"):
-            end_date += _convert_frequency_to_timedelta(
-                model.adstock.l_max, inferred_freq
-            )
+        lags = (
+            carryover_periods
+            if carryover_periods is not None
+            else getattr(model.adstock, "l_max", None)
+        )
+        if lags:
+            end_date += _convert_frequency_to_timedelta(lags, inferred_freq)
 
     new_dates = pd.date_range(start=start_date, end=end_date, freq=inferred_freq)
     if new_dates.empty:
