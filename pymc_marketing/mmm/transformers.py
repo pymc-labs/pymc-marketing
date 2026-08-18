@@ -17,6 +17,7 @@ from enum import StrEnum
 from typing import NamedTuple
 
 import numpy as np
+import pytensor
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 from pymc.dims import Weibull
@@ -55,6 +56,20 @@ def _check_alpha(
     checked_alpha_tensor = alpha_check_op(
         alpha_tensor, ((alpha_tensor >= 0) & (alpha_tensor <= 1)).all()
     )
+    # The check above accepts alpha == 0, but its own message ("0 < alpha")
+    # says it shouldn't reach any caller as exactly zero. Every caller raises
+    # alpha to a non-negative power and, when normalize=True, divides by the
+    # sum of those powers: at alpha == 0 every term with a strictly positive
+    # exponent is 0, the sum is 0, and normalization is 0 / 0 -> NaN (not
+    # caught here because delayed_adstock's exponent (lag - theta) ** 2 is
+    # zero, and the whole array finite, only when theta happens to be an
+    # integer). Flooring away from exact zero keeps every adstock's weights
+    # finite without changing the accepted range or raising for any input
+    # that already worked. `pytensor.config.floatX`, not a hardcoded
+    # `np.finfo(float)`: alpha may be float32, and float64's tiny would
+    # silently upcast the graph.
+    tiny = np.finfo(pytensor.config.floatX).tiny
+    checked_alpha_tensor = pt.maximum(checked_alpha_tensor, tiny)
     return as_xtensor(checked_alpha_tensor, dims=alpha.dims)
 
 

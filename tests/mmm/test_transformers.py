@@ -15,6 +15,7 @@ from contextlib import nullcontext as does_not_raise
 
 import numpy as np
 import pytensor
+import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
 import scipy as sp
@@ -27,6 +28,7 @@ from pymc_marketing.mmm.transformers import (
     ConvMode,
     TanhSaturationParameters,
     WeibullType,
+    _check_alpha,
     batched_convolution,
     binomial_adstock,
     delayed_adstock,
@@ -218,6 +220,70 @@ class TestsAdstockTransformers:
             x=as_xtensor(x, dims=("t",)), alpha=0.2, theta=2, l_max=4, dim="t"
         )
         np.testing.assert_array_equal(actual=x, desired=y.eval())
+
+    def test_delayed_adstock_alpha_zero_noninteger_theta_is_finite(self):
+        """alpha=0 with a non-integer theta used to divide 0 / 0 -> NaN.
+
+        Every weight's exponent (lag - theta) ** 2 is strictly positive
+        when theta is not an integer, so every weight was 0 and normalizing
+        by their sum was 0 / 0. Flooring alpha away from exact zero in
+        `_check_alpha` keeps this finite without changing accepted inputs.
+        """
+        x = ptx.as_xtensor(np.ones(shape=(20,)), dims=("time",))
+        y = delayed_adstock(
+            x=x, alpha=0.0, theta=0.5, l_max=12, dim="time", normalize=True
+        )
+        y_np = y.eval()
+        assert not np.isnan(y_np).any()
+        assert np.isfinite(y_np).all()
+
+    def test_delayed_adstock_alpha_zero_integer_theta_still_spikes(self):
+        """Regression guard: alpha=0 with integer theta was already finite.
+
+        (lag - theta) ** 2 is exactly 0 at lag == theta regardless of the
+        floor, so the kernel is (numerically) a spike at that lag both
+        before and after this fix -- only the previously-broken
+        non-integer-theta case should change.
+        """
+        x = ptx.as_xtensor(np.ones(shape=(20,)), dims=("time",))
+        y = delayed_adstock(
+            x=x, alpha=0.0, theta=5, l_max=12, dim="time", normalize=True
+        )
+        y_np = y.eval()
+        assert not np.isnan(y_np).any()
+        # Steady-state response to constant input saturates at the sum of
+        # the (normalized) kernel weights, which is 1 by construction.
+        np.testing.assert_allclose(y_np[-1], 1.0, atol=1e-6)
+
+    def test_binomial_adstock_alpha_zero_is_finite(self):
+        """`_check_alpha`'s floor also protects binomial_adstock's 1 / alpha.
+
+        Unlike delayed_adstock's 0 / 0, this one was 1 / 0 -> inf, not NaN
+        -- a different symptom of the same unguarded alpha == 0.
+        """
+        x = ptx.as_xtensor(np.ones(shape=(20,)), dims=("time",))
+        y = binomial_adstock(x=x, alpha=0.0, l_max=12, dim="time", normalize=True)
+        y_np = y.eval()
+        assert not np.isnan(y_np).any()
+        assert not np.isinf(y_np).any()
+
+    def test_check_alpha_floor_respects_floatx_no_upcast(self):
+        """The floor must come from the graph's own floatX, not a hardcoded float64.
+
+        `np.finfo(float).tiny` is a float64 value; mixing it into a
+        float32 graph would silently upcast every downstream computation.
+        Set floatX=float32 explicitly rather than relying on the default
+        (float64) -- under the default, a hardcoded float64 floor would
+        pass this assertion for the wrong reason. Isolated from
+        delayed_adstock/theta here because theta's own default dtype
+        (Python float -> floatX) would otherwise confound the result being
+        checked.
+        """
+        with pytensor.config.change_flags(floatX="float32"):
+            alpha = pt.as_tensor_variable(np.float32(0.0))
+            checked = _check_alpha(ptx.as_xtensor(alpha))
+            assert checked.dtype == "float32"
+            assert checked.eval() == np.finfo(np.float32).tiny
 
     @pytest.mark.parametrize(
         argnames="mode",
