@@ -1013,9 +1013,7 @@ class TestEffectDataInTheOptimizationWindow:
 
         np.testing.assert_allclose(model["lf_budget"].get_value(), 0.7)
 
-    def test_carry_in_reproduces_history_on_an_in_sample_window(
-        self, funnel_identity_fitted_mmm
-    ):
+    def test_an_in_sample_window_reproduces_history(self, funnel_identity_fitted_mmm):
         """With ``carry_in``, only the decision variable differs from the fit.
 
         Re-optimizing a window that overlaps training is a counterfactual on
@@ -1029,21 +1027,35 @@ class TestEffectDataInTheOptimizationWindow:
         l_max = mmm.adstock.l_max
 
         opt = mmm.create_optimization_model(
-            start_date=dates[0], end_date=dates[-(l_max + 1)], carry_in=True
+            start_date=dates[0], end_date=dates[-(l_max + 1)]
         )
 
         np.testing.assert_allclose(
             opt["lf_budget"].get_value(), mmm.model["lf_budget"].get_value()
         )
 
-    def test_the_default_still_zero_fills_an_in_sample_window(
+    def test_create_zero_dataset_still_zero_fills_by_default(
         self, funnel_identity_fitted_mmm
     ):
-        """``carry_in`` is opt-in; without it the old behaviour stands.
+        """Optimization restores observed values; the zero dataset itself does not.
 
-        The in-sample window is the only place the flag is observable, so it
-        is the only place backward compatibility can be pinned.
+        ``sample_response_distribution`` scores an allocation against a zeroed
+        baseline, so the default has to keep zero-filling. The in-sample window
+        is the only place the difference is observable, which makes it the only
+        place that default can be pinned.
         """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        l_max = mmm.adstock.l_max
+
+        ds = create_zero_dataset(
+            model=mmm, start_date=dates[0], end_date=dates[-(l_max + 1)]
+        )
+
+        assert (ds["lf_budget"].to_numpy() == 0).all()
+
+    def test_the_decision_variable_is_still_zeroed(self, funnel_identity_fitted_mmm):
+        """Restoring inputs must never restore the spend being decided."""
         mmm = funnel_identity_fitted_mmm
         dates = mmm.xarray_dataset.coords["date"].values
         l_max = mmm.adstock.l_max
@@ -1052,23 +1064,9 @@ class TestEffectDataInTheOptimizationWindow:
             start_date=dates[0], end_date=dates[-(l_max + 1)]
         )
 
-        assert (np.asarray(opt["lf_budget"].get_value()) == 0).all()
-
-    def test_carry_in_leaves_the_decision_variable_at_zero(
-        self, funnel_identity_fitted_mmm
-    ):
-        """``carry_in`` restores inputs, never the spend being decided."""
-        mmm = funnel_identity_fitted_mmm
-        dates = mmm.xarray_dataset.coords["date"].values
-        l_max = mmm.adstock.l_max
-
-        opt = mmm.create_optimization_model(
-            start_date=dates[0], end_date=dates[-(l_max + 1)], carry_in=True
-        )
-
         assert (np.asarray(opt["channel_data"].get_value()) == 0).all()
 
-    def test_carry_in_falls_back_to_zero_where_training_does_not_reach(
+    def test_preserve_observed_falls_back_to_zero_where_training_does_not_reach(
         self, funnel_identity_fitted_mmm
     ):
         """On a genuinely future window the flag changes nothing.
@@ -1078,8 +1076,8 @@ class TestEffectDataInTheOptimizationWindow:
         window means. The flag therefore needs no knowledge of which kind of
         window it was handed.
         """
-        ds_on = self._zero_ds(funnel_identity_fitted_mmm, carry_in=True)
-        ds_off = self._zero_ds(funnel_identity_fitted_mmm, carry_in=False)
+        ds_on = self._zero_ds(funnel_identity_fitted_mmm, preserve_observed=True)
+        ds_off = self._zero_ds(funnel_identity_fitted_mmm, preserve_observed=False)
 
         np.testing.assert_allclose(
             ds_on["lf_budget"].to_numpy(), ds_off["lf_budget"].to_numpy()

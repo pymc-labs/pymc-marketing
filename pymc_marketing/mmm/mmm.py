@@ -2599,7 +2599,6 @@ class MMM(RegressionModelBuilder):
         self,
         start_date: str | pd.Timestamp,
         end_date: str | pd.Timestamp,
-        carry_in: bool = False,
     ) -> pm.Model:
         """Return a PyMC model configured for the given optimization window.
 
@@ -2615,13 +2614,6 @@ class MMM(RegressionModelBuilder):
             First date of the optimization window (inclusive).
         end_date : str or pd.Timestamp
             Last date of the optimization window (inclusive).
-        carry_in : bool, default False
-            Whether non-decision variables -- controls, and the variables the
-            model's ``mu_effects`` read -- keep their observed values on dates
-            the training data covers.  Needed to re-optimize a window that
-            overlaps training against the posterior the model was fitted to;
-            on a purely future window it changes nothing, since no date is
-            covered.  See :func:`~pymc_marketing.mmm.utils.create_zero_dataset`.
 
         Returns
         -------
@@ -2633,7 +2625,7 @@ class MMM(RegressionModelBuilder):
             start_date=start_date,
             end_date=end_date,
             include_carryover=True,
-            carry_in=carry_in,
+            preserve_observed=True,
         )
 
         dataset_xarray = self._posterior_predictive_data_transformation(
@@ -2717,7 +2709,6 @@ class MMM(RegressionModelBuilder):
         budgets_to_optimize: xr.DataArray | None = None,
         cost_per_unit: pd.DataFrame | xr.DataArray | None = None,
         compile_kwargs: dict | None = None,
-        carry_in: bool = False,
         **kwargs: Any,
     ) -> BudgetOptimizer:
         """Create a :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` for a future window.
@@ -2744,12 +2735,6 @@ class MMM(RegressionModelBuilder):
             Cost-per-unit conversion factors for non-monetary channels.
         compile_kwargs : dict or None, optional
             Extra keyword arguments for PyTensor's ``function()``.
-        carry_in : bool, default False
-            Whether non-decision variables -- controls, and the variables the
-            model's ``mu_effects`` read -- keep their observed values on dates
-            the training data covers.  Set it to re-optimize a window that
-            overlaps training against the posterior the model was fitted to;
-            on a purely future window no date is covered and it changes nothing.
         **kwargs
             Additional arguments forwarded to
             :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`.
@@ -2761,9 +2746,7 @@ class MMM(RegressionModelBuilder):
         """
         from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
 
-        pymc_model = self.create_optimization_model(
-            start_date, end_date, carry_in=carry_in
-        )
+        pymc_model = self.create_optimization_model(start_date, end_date)
 
         adstock_lag = getattr(self.adstock, "l_max", 0)
         # Honour a caller-supplied date_dim rather than assuming "date": this is

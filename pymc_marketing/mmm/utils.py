@@ -232,7 +232,7 @@ def create_zero_dataset(
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
     include_carryover: bool = True,
-    carry_in: bool = False,
+    preserve_observed: bool = False,
 ) -> xr.Dataset:
     """Create an ``xr.Dataset`` for future prediction, with zero fills.
 
@@ -262,13 +262,15 @@ def create_zero_dataset(
         periods, so that spend inside the window is scored with the carry-over it
         produces after it.  The extension is trailing; nothing is prepended, and
         the window therefore starts from a cold adstock state.
-    carry_in
+    preserve_observed
         Whether every non-decision variable -- controls, and the variables the
         model's ``mu_effects`` read -- takes its **observed** value on each date
         the training data covers, falling back to zero only on dates it does
         not.  ``_channel`` is unaffected: it is the decision variable and stays
-        at zero (or at *channel_xr*).  Defaults to ``False``, which zero-fills
-        everything and is what plain forward prediction wants.
+        at zero (or at *channel_xr*).  Optimization sets this; the default
+        ``False`` zero-fills everything, which is what
+        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution` wants,
+        since it scores an allocation against a zeroed baseline.
 
     Returns
     -------
@@ -284,10 +286,12 @@ def create_zero_dataset(
     rather than a reconstruction of history: an exogenous series the effect
     reads -- a category-demand index, a committed budget -- comes back as zero
     rather than at its fitted value, so the response no longer matches the
-    posterior it was fitted to.  ``carry_in=True`` is the fix, and it needs no
-    knowledge of which window it was handed: taking the observed value wherever
-    the training data reaches reproduces history in-sample and decays to zeros
-    on genuinely future dates.
+    posterior it was fitted to.  ``preserve_observed=True`` is the fix, and needs
+    no knowledge of which window it was handed: taking the observed value
+    wherever the training data reaches reproduces history in-sample and decays
+    to zeros on genuinely future dates.  This is *not* adstock carry-in, which
+    is a leading block of real spend before the window; that is
+    ``include_last_observations``.
 
     For a scenario that is neither -- a planned promotional calendar, a
     committed lower-funnel budget -- build the model with
@@ -422,7 +426,7 @@ def create_zero_dataset(
         ctrl_shape.append(len(control_cols))
         ctrl_coords["control"] = control_cols
 
-        if carry_in and "_control" in xa:
+        if preserve_observed and "_control" in xa:
             data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
         else:
             data_vars["_control"] = xr.DataArray(
@@ -465,7 +469,7 @@ def create_zero_dataset(
             # `reindex` alone keeps the observed value on every date the
             # training data covers and fills 0 on the rest, which is exactly
             # the carry-in rule. Zeroing first drops the observed part.
-            source = template if carry_in else xr.zeros_like(template)
+            source = template if preserve_observed else xr.zeros_like(template)
             data_vars[var_name] = source.reindex(date=new_dates, fill_value=0)
     # Zeros, because a future window has no committed activity by default. To
     # plan against one that does -- a promotional calendar, a committed
