@@ -870,6 +870,41 @@ class TestBassModelDims:
 
         assert logps[0] == logps[1]
 
+    def test_observed_data_without_dims_is_labelled_positionally(self) -> None:
+        """A pm.Data registered without dims falls back to combined_dims.
+
+        There is nothing to read the labels from, so the data must already
+        be laid out in ``(T, ...)`` order. Documented behaviour, same as
+        before the ``pymc.dims`` migration.
+        """
+        coords = {
+            "T": np.arange(4),
+            "product": ["x", "y", "z"],
+        }
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200, dims=("product",)),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson"),
+        }
+        counts = np.arange(12, dtype=float).reshape(4, 3)
+
+        logps = []
+        for dims in [None, ("T", "product")]:
+            with pm.Model(coords=coords) as model:
+                y_obs = pm.Data("y_obs", counts, dims=dims)
+                create_bass_model(
+                    t=coords["T"],
+                    observed=y_obs,
+                    priors=priors,
+                    coords=coords,
+                    model=model,
+                )
+            assert model.named_vars_to_dims["y"] == ("T", "product")
+            logps.append(model.point_logps()["y"])
+
+        assert logps[0] == logps[1]
+
     def test_observed_dataarray_keeps_its_layout(self) -> None:
         """An xr.DataArray carries its own dims; both layouts must agree."""
         coords = {

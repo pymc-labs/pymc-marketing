@@ -261,7 +261,13 @@ def f(
 
 
 def _supports_xdist(prior: Prior | Censored | VariableFactory) -> bool:
-    """Whether ``prior`` can build itself directly in ``pymc.dims`` space."""
+    """Whether ``prior`` can build itself directly in ``pymc.dims`` space.
+
+    The check reads the ``create_variable`` signature for a literal ``xdist``
+    parameter, so a factory that hides it behind ``**kwargs`` is treated as
+    not supporting it and gets the ``as_xtensor`` wrapping instead. Declare
+    the parameter explicitly to take the native path.
+    """
     if "xdist" not in signature(prior.create_variable).parameters:
         # A VariableFactory written against the ``create_variable(name)``
         # signature the protocol documents.
@@ -394,7 +400,12 @@ def create_bass_model(
         Time points for which the adoption is modeled.
     observed : pt.TensorLike | None
         Observed adoption data at each time point. If None, only
-        prior predictive sampling is possible.
+        prior predictive sampling is possible. Axis labels are read from
+        the data itself (an ``xr.DataArray``) or from the model (a
+        ``pm.Data`` registered with dims); anything else, such as a plain
+        array or a ``pm.Data`` without dims, is labelled positionally in
+        ``(T, ...)`` order with the extra dims following the order they
+        are declared in ``priors``.
     priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior
