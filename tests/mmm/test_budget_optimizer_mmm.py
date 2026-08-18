@@ -17,12 +17,16 @@ import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pytensor import function
+from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -1755,3 +1759,235 @@ def test_budget_optimizer_new_api(dummy_df, fitted_mmm):
     assert isinstance(optimizer, BudgetOptimizer)
     _, result = optimizer.allocate_budget(total_budget=100)
     assert result.success
+
+
+class _MediatedEffect(MuEffect):
+    """Extra response reaching the target through a mediator, favouring one channel.
+
+    Reads ``channel_data_scaled``, so it is downstream of ``channel_data`` and
+    ``pm.do`` on the budgets moves it. But it lands in ``mu``, *not* in
+    ``channel_contribution`` -- which is precisely what the media-only
+    objective cannot see.
+    """
+
+    prefix: str = "mediated"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """No data of its own."""
+
+    def set_data(self, mmm, model, X) -> None:
+        """No data of its own."""
+
+    def create_effect(self, mmm):
+        """Concave mediated response, weighted onto channel_1 only."""
+        spend = mmm.channel_data_scaled
+        # Michaelis-Menten rather than sqrt: concave, but with a finite
+        # derivative at zero spend, so the solver is well behaved at a bound.
+        saturated = spend / (1.0 + spend)
+        weights = as_xtensor(np.array([4.0, 0.0]), dims=["channel"])
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            (saturated * weights).sum(dim="channel"),
+        )
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_mediated(dummy_df, mock_pymc_sample):
+    """A fitted model whose response partly travels through a mu effect."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    ).add_mu_effect(_MediatedEffect())
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
+def test_mediated_response_changes_the_allocation(dummy_df, fitted_mmm_mediated):
+    """The objective that sees the mu effect allocates differently.
+
+    #2890 measured this on a real funnel model: scored against the media-only
+    objective, the optimizer is blind to everything the mediator carries and
+    underspends whatever drives it. Here channel_1 is the only channel feeding
+    the mediator, so the funnel-aware objective must send it more budget.
+    """
+    _df_kwargs, X_dummy, _y_dummy = dummy_df
+
+    def allocate(response_variable):
+        wrapper = BudgetOptimizerWrapper(
+            model=fitted_mmm_mediated,
+            start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        )
+        budgets, result = wrapper.optimize_budget(
+            budget=10, response_variable=response_variable
+        )
+        assert result.success
+        return budgets
+
+    media_only = allocate("total_media_contribution_original_scale")
+    funnel_aware = allocate("total_response_original_scale")
+
+    assert not np.allclose(media_only.to_numpy(), funnel_aware.to_numpy(), atol=1e-6), (
+        "the two objectives produced the same plan, so the mu effect was invisible"
+    )
+
+    ch1 = {"channel": "channel_1"}
+    assert funnel_aware.sel(**ch1).sum() > media_only.sel(**ch1).sum(), (
+        "the objective that sees the mediator should fund the channel driving it"
+    )
+
+
+@pytest.fixture(scope="module")
+def fitted_mmm_trend(dummy_df, mock_pymc_sample):
+    """A fitted model with a mu effect that is *not* downstream of the budgets.
+
+    `LinearTrendEffect` stands for the whole family -- events, Fourier,
+    controls -- whose contributions the media objective correctly excludes.
+    """
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    ).add_mu_effect(
+        LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
+class TestDefaultObjectiveWarning:
+    """A model routing media response through an effect must not do so silently.
+
+    The optimizer's reachability check only fires for declared levers, so a
+    model with a mediating effect and no levers would otherwise misconfigure
+    silently -- the exact failure this objective exists to prevent.
+    """
+
+    @staticmethod
+    def _window(X_dummy):
+        return {
+            "start_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+            "end_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
+        }
+
+    @pytest.fixture(params=["budget_optimizer", "optimize_budget"])
+    def call_entry_point(self, request, dummy_df):
+        """Both public paths resolve the objective, so both must behave alike."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        window = self._window(X_dummy)
+
+        def call(mmm, **kwargs):
+            if request.param == "budget_optimizer":
+                return mmm.budget_optimizer(**window, **kwargs)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                wrapper = BudgetOptimizerWrapper(model=mmm, **window)
+            return wrapper.optimize_budget(budget=10, **kwargs)
+
+        return call
+
+    @staticmethod
+    def _assert_no_objective_warning(call, *args, **kwargs):
+        """Assert our warning is absent, ignoring unrelated ones.
+
+        `simplefilter("error")` would also trip on warnings this guard has
+        nothing to do with, such as the optimizer's default-bounds notice.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            call(*args, **kwargs)
+        offending = [w for w in caught if "undercounts that path" in str(w.message)]
+        assert not offending, f"unexpected objective warning: {offending}"
+
+    def test_warns_when_the_objective_is_left_unset(
+        self, fitted_mmm_mediated, call_entry_point
+    ):
+        with pytest.warns(UserWarning, match="undercounts that path"):
+            call_entry_point(fitted_mmm_mediated)
+
+    def test_silent_when_the_objective_is_chosen_explicitly(
+        self, fitted_mmm_mediated, call_entry_point
+    ):
+        """Passing the default explicitly is a deliberate choice, not a mistake."""
+        for chosen in (
+            "total_media_contribution_original_scale",
+            "total_response_original_scale",
+        ):
+            self._assert_no_objective_warning(
+                call_entry_point, fitted_mmm_mediated, response_variable=chosen
+            )
+
+    def test_warning_points_at_the_caller(self, fitted_mmm_mediated, call_entry_point):
+        """stacklevel has to blame the user's call, not the library internals."""
+        with pytest.warns(UserWarning, match="undercounts that path") as record:
+            call_entry_point(fitted_mmm_mediated)
+
+        assert record[0].filename == __file__, (
+            f"warning blamed {record[0].filename}, not the caller"
+        )
+
+    def test_explicit_none_resolves_rather_than_failing_validation(
+        self, dummy_df, fitted_mmm_mediated
+    ):
+        """`response_variable=None` is an omission, not a value to pass through.
+
+        Without this it reaches BudgetOptimizer as None and fails Pydantic type
+        validation, reporting a type error rather than the real problem.
+        """
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with pytest.warns(UserWarning, match="undercounts that path"):
+            optimizer = fitted_mmm_mediated.budget_optimizer(
+                **self._window(X_dummy), response_variable=None
+            )
+        assert optimizer.response_variable == "total_media_contribution_original_scale"
+
+    def test_silent_without_mu_effects(self, dummy_df, fitted_mmm):
+        """A plain media model has nothing the default objective misses."""
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        self._assert_no_objective_warning(
+            fitted_mmm.budget_optimizer, **self._window(X_dummy)
+        )
+
+    def test_silent_for_effects_that_do_not_carry_media_response(
+        self, dummy_df, fitted_mmm_trend
+    ):
+        """A trend effect is not downstream of the budgets, so the default is right.
+
+        Warning here would tell every existing events or trend user that their
+        already-correct objective undercounts.
+        """
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        self._assert_no_objective_warning(
+            fitted_mmm_trend.budget_optimizer, **self._window(X_dummy)
+        )

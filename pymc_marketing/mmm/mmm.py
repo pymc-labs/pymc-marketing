@@ -197,6 +197,7 @@ from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -209,7 +210,10 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
     safe_to_datetime,
 )
-from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.budget_optimizer import (
+    DEFAULT_RESPONSE_VARIABLE,
+    OptimizerCompatibleModelWrapper,
+)
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
@@ -2431,6 +2435,18 @@ class MMM(RegressionModelBuilder):
                 output_var=self.output_var,
             )
 
+            # `total_media_contribution_original_scale` is built from the
+            # `channel_contribution` tensor alone, so any response routed
+            # through a mu effect -- a funnel mediator, a promotional lever --
+            # is invisible to it, and a budget optimized against it undervalues
+            # whatever drives that effect. Registered only when the model has
+            # effects, so plain media models keep their posterior unchanged.
+            if self.mu_effects:
+                self._link_spec.create_total_response_deterministic(
+                    mu_var=mu_var,
+                    target_scale=_target_scale,
+                )
+
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
@@ -2626,6 +2642,64 @@ class MMM(RegressionModelBuilder):
 
         return pymc_model
 
+    def _effects_carry_media_response(self) -> bool:
+        """Report whether a mu effect routes media response around the default.
+
+        Non-emptiness of ``mu_effects`` is the wrong predicate: an events,
+        trend, Fourier or control effect is not downstream of the channel data,
+        so ``total_media_contribution_original_scale`` is exactly right for
+        those models and warning about them would be false. What matters is
+        graph reachability -- whether an effect's contribution has the channel
+        data among its ancestors, as a funnel mediator does.
+
+        An effect that does not name its contribution cannot be checked, and is
+        treated as though it might carry response: a spurious warning is
+        recoverable, a silently undercounted objective is not.
+        """
+        if not self.mu_effects or self.model is None:
+            return False
+        if "channel_data" not in self.model.named_vars:
+            return False
+        media = self.model["channel_data"]
+        for effect in self.mu_effects:
+            try:
+                name = effect.contribution_var_name
+            except NotImplementedError:
+                return True
+            if name not in self.model.named_vars:
+                return True
+            if media in set(ancestors([self.model[name]])):
+                return True
+        return False
+
+    def _resolve_response_variable(self, response_variable: str | None) -> str:
+        """Resolve the objective, warning when the default cannot see the effects.
+
+        The default is built from the channel contribution alone, so a model
+        whose response partly travels through a ``MuEffect`` optimizes against a
+        quantity that misses it -- silently, and in a direction nothing reports.
+        Only warns when the caller expressed no preference: an explicit
+        ``response_variable`` is a deliberate choice and is returned untouched,
+        which is the path both entry points take when a caller names one --
+        :meth:`budget_optimizer` and
+        :meth:`BudgetOptimizerWrapper.optimize_budget`.
+        """
+        if response_variable is not None:
+            return response_variable
+        if self._effects_carry_media_response():
+            warnings.warn(
+                "This model routes part of the media response through a "
+                f"mu_effect, which {DEFAULT_RESPONSE_VARIABLE!r}, the default "
+                "objective, is not built from. Optimizing against it "
+                "undercounts that path, so budgets driving it are undervalued. "
+                "Pass response_variable='total_response_original_scale' to "
+                "score against the full response, or pass the default "
+                "explicitly to silence this warning.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return DEFAULT_RESPONSE_VARIABLE
+
     def budget_optimizer(
         self,
         start_date: str | pd.Timestamp,
@@ -2697,6 +2771,15 @@ class MMM(RegressionModelBuilder):
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
         # duplicating that rule here would only re-derive the same mask and then send
         # it back through the optimizer's validation branch.
+        # `.get`, not `not in`: an explicit `response_variable=None` has to
+        # resolve the same way an omitted one does, rather than reaching
+        # BudgetOptimizer as None and failing type validation. Resolving here
+        # rather than in BudgetOptimizer because only this layer knows the
+        # model has effects.
+        kwargs["response_variable"] = self._resolve_response_variable(
+            kwargs.get("response_variable")
+        )
+
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
@@ -3967,7 +4050,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         budget: float | int,
         budget_bounds: xr.DataArray | None = None,
-        response_variable: str = "total_media_contribution_original_scale",
+        response_variable: str | None = None,
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[Constraint] = (),
         budgets_to_optimize: xr.DataArray | None = None,
@@ -3984,8 +4067,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Total budget to allocate.
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
-        response_variable : str
-            Response variable to optimize.
+        response_variable : str, optional
+            Response variable to optimize. Defaults to
+            ``"total_media_contribution_original_scale"``, which is built from
+            the channel contribution alone. Pass
+            ``"total_response_original_scale"`` for a model with ``mu_effects``,
+            whose contributions the default cannot see; leaving this unset on
+            such a model warns.
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
@@ -4063,7 +4151,9 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=response_variable,
+            response_variable=self.model_class._resolve_response_variable(
+                response_variable
+            ),
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,
