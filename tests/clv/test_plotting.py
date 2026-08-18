@@ -188,6 +188,11 @@ def test_plot_expected_purchases_ppc_exceptions(fitted_model):
     ):
         plot_expected_purchases_ppc(fitted_model, ppc="ppc")
 
+    with pytest.raises(
+        NameError, match=r"Specify 'hist' or 'ecdf' for 'plot_type' parameter."
+    ):
+        plot_expected_purchases_ppc(fitted_model, plot_type="bar")
+
 
 @pytest.mark.parametrize(
     "ppc, max_purchases, samples, subplot",
@@ -205,6 +210,26 @@ def test_plot_expected_purchases_ppc(
     )
 
     assert isinstance(ax, plt.Axes)
+
+    # clear any existing pyplot figures
+    plt.clf()
+
+
+@pytest.mark.parametrize(
+    "ppc, subplot",
+    [("prior", None), ("posterior", (plt.subplot(), plt.subplot()))],
+)
+def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, subplot):
+    ax_ecdf, ax_diff = plot_expected_purchases_ppc(
+        model=fitted_model,
+        ppc=ppc,
+        plot_type="ecdf",
+        samples=100,
+        ax=subplot,
+    )
+
+    assert isinstance(ax_ecdf, plt.Axes)
+    assert isinstance(ax_diff, plt.Axes)
 
     # clear any existing pyplot figures
     plt.clf()

@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 from matplotlib.lines import Line2D
+from scipy.stats import binom
 
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
@@ -469,12 +470,13 @@ def plot_expected_purchases_over_time(
 def plot_expected_purchases_ppc(
     model,
     ppc: str = "posterior",
+    plot_type: str = "hist",
     max_purchases: int = 10,
     samples: int = 1000,
     random_seed: int = 45,
-    ax: plt.Axes | None = None,
+    ax: plt.Axes | Sequence[plt.Axes] | None = None,
     **kwargs,
-) -> plt.Axes:
+) -> plt.Axes | tuple[plt.Axes, plt.Axes]:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
 
     ``ParetoNBDModel``, ``BetaGeoBetaBinomModel``, ``BetaGeoModel`` and ``ModifiedBetaGeoModel`` are supported.
@@ -488,22 +490,31 @@ def plot_expected_purchases_ppc(
         A built CLV model is required for prior predictive checks, and a fitted model for posterior predictive checks.
     ppc : string, optional
         Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
+    plot_type : string, optional
+        Type of plot to produce. Options are 'hist' for a bar chart of estimated vs observed purchase
+        counts, or 'ecdf' for an ECDF plot with a 95% confidence band and a companion difference plot.
+        Defaults to 'hist'.
     max_purchases : int, optional
-        Cutoff for bars of purchase counts to plot. Default is 10.
+        Cutoff for bars of purchase counts to plot. Only used when ``plot_type`` is 'hist'. Default is 10.
     samples : int, optional
         Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
     random_seed : int, optional
         Random seed to fix sampling results
-    ax : matplotlib.Axes, optional
-        A matplotlib Axes instance. Creates new axes instance by default.
+    ax : matplotlib.Axes or sequence of matplotlib.Axes, optional
+        A matplotlib Axes instance, or a pair of Axes when ``plot_type`` is 'ecdf'. Creates new axes
+        instance(s) by default.
     **kwargs
-        Additional arguments to pass into the pandas.DataFrame.plot command.
+        Additional arguments to pass into the pandas.DataFrame.plot command. Only used when
+        ``plot_type`` is 'hist'.
 
     Returns
     -------
-    axes : matplotlib.AxesSubplot
+    axes : matplotlib.AxesSubplot, or tuple of two matplotlib.AxesSubplot when ``plot_type`` is 'ecdf'
     """
-    if ax is None:
+    if plot_type not in ("hist", "ecdf"):
+        raise NameError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
+
+    if plot_type == "hist" and ax is None:
         ax = plt.subplot(111)
 
     match ppc:
@@ -523,6 +534,7 @@ def plot_expected_purchases_ppc(
                 obs_var="frequency"
             )
             title = "Prior Predictive Check for Customer Frequency"
+            title_prefix = "Prior Predictive"
         case "posterior":
             obs_freq = model.idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
@@ -533,8 +545,18 @@ def plot_expected_purchases_ppc(
                 n_samples=1,
             ).sel(obs_var="frequency")
             title = "Posterior Predictive Check for Customer Frequency"
+            title_prefix = "Posterior Predictive"
         case _:
             raise NameError("Specify 'prior' or 'posterior' for 'ppc' parameter.")
+
+    if plot_type == "ecdf":
+        return _plot_expected_purchases_ecdf(
+            observed=obs_freq.values.ravel(),
+            ppc=ppc_freq.values.ravel(),
+            title_prefix=title_prefix,
+            random_seed=random_seed,
+            ax=ax,
+        )
 
     # convert estimated and observed xarrays into dataframes for plotting
     estimated = ppc_freq.to_dataframe().value_counts(normalize=True).sort_index()
@@ -556,6 +578,87 @@ def plot_expected_purchases_ppc(
         **kwargs,
     )
     return ax
+
+
+def _ecdf(sample: np.ndarray, eval_points: np.ndarray) -> np.ndarray:
+    """Evaluate the empirical CDF of ``sample`` at ``eval_points``."""
+    sample = np.sort(sample)
+    return np.searchsorted(sample, eval_points, side="right") / len(sample)
+
+
+def _ecdf_confidence_band(
+    n: int,
+    z: np.ndarray,
+    num_trials: int,
+    fpr: float,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Simulate a 1 - ``fpr`` simultaneous confidence band for an ECDF of ``n`` draws.
+
+    Adapted from the simulation-based algorithm in Sailynoja et al. (2021),
+    as implemented by the legacy ``arviz.plot_ecdf``:
+    https://github.com/arviz-devs/arviz/blob/v0.17.0/arviz/plots/ecdfplot.py
+    """
+    gamma = np.empty(num_trials)
+    for i in range(num_trials):
+        unif_samples = np.sort(rng.uniform(0, 1, n))
+        f_z = _ecdf(unif_samples, z)
+        gamma[i] = 2 * min(
+            np.amin(binom.cdf(n * f_z, n, z)),
+            np.amin(1 - binom.cdf(n * f_z - 1, n, z)),
+        )
+    gamma_q = np.quantile(gamma, fpr)
+    lower = binom.ppf(gamma_q / 2, n, z) / n
+    upper = binom.ppf(1 - gamma_q / 2, n, z) / n
+    return lower, upper
+
+
+def _plot_expected_purchases_ecdf(
+    observed: np.ndarray,
+    ppc: np.ndarray,
+    title_prefix: str,
+    random_seed: int,
+    ax: plt.Axes | Sequence[plt.Axes] | None = None,
+    npoints: int = 100,
+    num_trials: int = 500,
+    confidence_level: float = 0.95,
+) -> tuple[plt.Axes, plt.Axes]:
+    """Plot an ECDF plot and companion difference plot against a 95% confidence band."""
+    if ax is None:
+        _, (ax_ecdf, ax_diff) = plt.subplots(2, 1)
+    else:
+        ax_ecdf, ax_diff = ax
+
+    rng = np.random.default_rng(random_seed)
+    fpr = 1 - confidence_level
+    x = np.linspace(observed.min(), observed.max(), npoints)
+    # reference cdf estimated from the (prior or posterior) predictive samples
+    z = _ecdf(ppc, x)
+    n = len(observed)
+    lower, upper = _ecdf_confidence_band(n, z, num_trials, fpr, rng)
+
+    band_label = f"{int(confidence_level * 100)}% HDI"
+    observed_ecdf = _ecdf(observed, x)
+
+    ecdf_x = np.insert(x, 0, x[0])
+    ecdf_y = np.insert(observed_ecdf, 0, 0)
+    ax_ecdf.step(ecdf_x, ecdf_y, where="post", label="Observed")
+    ax_ecdf.fill_between(x, lower, upper, step="post", alpha=0.2, label=band_label)
+    ax_ecdf.set_title(f"{title_prefix} ECDF Plot")
+    ax_ecdf.set_xlabel("Purchases per Customer")
+    ax_ecdf.set_ylabel("Percent of Total")
+    ax_ecdf.legend()
+
+    ax_diff.step(x, observed_ecdf - z, where="post", label="Observed")
+    ax_diff.fill_between(
+        x, lower - z, upper - z, step="post", alpha=0.2, label=band_label
+    )
+    ax_diff.set_title(f"{title_prefix} Difference Plot")
+    ax_diff.set_xlabel("Purchases per Customer")
+    ax_diff.set_ylabel("Percent Deviation from Expectation")
+    ax_diff.legend()
+
+    return ax_ecdf, ax_diff
 
 
 def _force_aspect(ax: plt.Axes, aspect=1):
