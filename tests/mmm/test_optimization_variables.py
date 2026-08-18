@@ -12,12 +12,15 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import numpy as np
+import pymc as pm
 import pytest
 import xarray as xr
 
 from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
+    LeverVariable,
     MediaVariable,
+    OptimizationVariable,
     OptimizationVariables,
 )
 
@@ -282,3 +285,223 @@ def test_channel_scales_applied_on_both_spreading_paths(with_distribution):
     # divided by that channel's scale. A uniform distribution reproduces the
     # default spreading exactly, so both paths must agree.
     np.testing.assert_allclose(out[0], spend / scales)
+
+
+def make_lever_variable(
+    bounds=((0.05, 0.45), (0.05, 0.45)),
+    initial=(0.30, 0.20),
+    name: str = "promo_data",
+) -> LeverVariable:
+    return LeverVariable(
+        name=name,
+        dim="promo",
+        coords=["spring", "fall"],
+        bounds=list(bounds) if bounds is not None else None,
+        initial_value=np.asarray(initial),
+    )
+
+
+def test_lever_pack_unpack_round_trip():
+    lever = make_lever_variable()
+    x = np.array([0.11, 0.42])
+    da = lever.unpack(x)
+    assert da.dims == ("promo",)
+    np.testing.assert_array_equal(lever.pack(da), x)
+    # order invariant: packing follows the lever's coords, not the input's
+    np.testing.assert_array_equal(lever.pack(da.sel(promo=["fall", "spring"])), x)
+
+
+def test_lever_warm_start_clipped_to_bounds():
+    np.testing.assert_allclose(
+        make_lever_variable(initial=(0.80, 0.01)).default_x0(100.0), [0.45, 0.05]
+    )
+    # an unbounded lever starts at its raw model value
+    np.testing.assert_allclose(
+        make_lever_variable(bounds=None, initial=(0.80, 0.01)).default_x0(100.0),
+        [0.80, 0.01],
+    )
+
+
+def test_lever_default_bounds():
+    assert make_lever_variable().default_bounds(100.0) == [(0.05, 0.45)] * 2
+    assert make_lever_variable(bounds=None).default_bounds(100.0) == [(None, None)] * 2
+
+
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [
+        ({"bounds": [(0.0, 1.0)]}, "bounds pairs"),
+        ({"initial": (0.3,)}, "expected 2"),
+    ],
+    ids=["bounds_length", "initial_length"],
+)
+def test_lever_validation_raises(kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        make_lever_variable(**kwargs)
+
+
+def test_lever_pack_rejects_unknown_coords():
+    lever = make_lever_variable()
+    da = xr.DataArray(
+        np.zeros(2), dims=("promo",), coords={"promo": ["spring", "typo"]}
+    )
+    with pytest.raises(ValueError, match="coordinates the model does not have"):
+        lever.pack(da)
+
+
+def test_media_and_lever_layout_exercises_the_isel_path():
+    """Two variables: the isel branch of variable_slice runs and stays correct.
+
+    With a single variable the slice covers the whole flat vector and
+    ``variable_slice`` short-circuits to ``self.flat``, so the ``isel`` branch
+    every additional variable depends on never executes.
+    """
+    from pytensor import function
+
+    rng = np.random.default_rng(11)
+    media = make_media_variable(rng, sizes=(3,))
+    lever = make_lever_variable()
+    opt_vars = OptimizationVariables([media, lever])
+
+    assert opt_vars.slices == {
+        "channel_data": slice(0, 3),
+        "promo_data": slice(3, 5),
+    }
+    assert opt_vars.size == 5
+
+    media_slice = opt_vars.variable_slice("channel_data")
+    lever_slice = opt_vars.variable_slice("promo_data")
+    assert media_slice is not opt_vars.flat  # no short-circuit with two variables
+    assert lever_slice.type.shape == (2,)
+
+    # to_model on the isel'd slice reads the lever's own entries.
+    x = np.array([10.0, 20.0, 30.0, 0.25, 0.75])
+    got = function(
+        [opt_vars.flat], lever.to_model(lever_slice).values, on_unused_input="ignore"
+    )(x)
+    np.testing.assert_allclose(got, [0.25, 0.75])
+
+    # x0 and bounds concatenate in variable order.
+    np.testing.assert_allclose(opt_vars.x0(90.0), [30.0, 30.0, 30.0, 0.30, 0.20])
+    assert opt_vars.bounds(90.0) == [(0.0, 90.0)] * 3 + [(0.05, 0.45)] * 2
+
+    # pack/unpack round-trips across both variables.
+    unpacked = opt_vars.unpack(x)
+    assert set(unpacked) == {"channel_data", "promo_data"}
+    np.testing.assert_array_equal(opt_vars.pack(unpacked), x)
+    assert set(opt_vars.substitutions()) == {"channel_data", "promo_data"}
+
+
+class _SpendVariable(OptimizationVariable):
+    """Test-only stand-in for a second monetary variable.
+
+    Reach-and-frequency budgets and funnel spend are money, so unlike a lever
+    they have to come out of the shared pot. This is the minimum such variable:
+    a per-entry spend spread over the periods.
+    """
+
+    def __init__(self, name: str, coords: list, num_periods: int):
+        self.name = name
+        self.dims = ("rf_channel",)
+        self.coords = {"rf_channel": list(coords)}
+        self.num_periods = num_periods
+        self.flat_dim = FLAT_DIM
+
+    @property
+    def size(self) -> int:
+        return len(self.coords["rf_channel"])
+
+    def to_model(self, z):
+        return z.rename({self.flat_dim: "rf_channel"}).expand_dims(
+            date=self.num_periods
+        )
+
+    def unpack(self, x):
+        return xr.DataArray(
+            np.asarray(x, dtype=float), dims=self.dims, coords=self.coords
+        )
+
+    def pack(self, da):
+        return da.reindex(self.coords).transpose(*self.dims).values
+
+    def default_x0(self, total_budget):
+        return np.full(self.size, total_budget / self.size)
+
+    def default_bounds(self, total_budget):
+        return [(0.0, float(total_budget))] * self.size
+
+    def budget_contribution(self, z):
+        """Unlike a lever, this one spends from the pot."""
+        return z.rename({self.flat_dim: "rf_channel"})
+
+
+def test_media_is_the_only_budget_contributor_by_default():
+    rng = np.random.default_rng(20)
+    opt_vars = OptimizationVariables(
+        [make_media_variable(rng, sizes=(3,)), make_lever_variable()]
+    )
+    # A lever is optimized in its own units, so it never draws from the pot.
+    assert len(opt_vars.budget_contributions()) == 1
+
+
+def test_a_second_monetary_variable_shares_the_budget():
+    """Two spending variables total together, which is what the sum constraint uses."""
+    from pytensor import function
+
+    rng = np.random.default_rng(21)
+    media = make_media_variable(rng, sizes=(2,))
+    spend = _SpendVariable("rf_data", ["rf1"], num_periods=media.num_periods)
+    opt_vars = OptimizationVariables([media, spend])
+
+    contributions = opt_vars.budget_contributions()
+    assert len(contributions) == 2
+
+    total = contributions[0].sum()
+    for contribution in contributions[1:]:
+        total = total + contribution.sum()
+    got = function([opt_vars.flat], total.values, on_unused_input="ignore")(
+        np.array([30.0, 20.0, 50.0])
+    )
+    np.testing.assert_allclose(got, 100.0)
+
+
+@pytest.fixture(scope="module")
+def lever_model() -> pm.Model:
+    """A model with a one-dim lever node, a date-varying node and an unnamed one."""
+    coords = {"promo": ["p1", "p2"], "date": [0, 1, 2]}
+    with pm.Model(coords=coords) as model:
+        pm.Data("promo_data", np.array([0.1, 0.2]), dims="promo")
+        pm.Data("daily_data", np.zeros(3), dims="date")
+        pm.Data("both_data", np.zeros((3, 2)), dims=("date", "promo"))
+    return model
+
+
+def test_from_model_reads_dim_coords_and_value(lever_model):
+    """The factory needs only a name: the rest is already in the model."""
+    lever = LeverVariable.from_model(lever_model, "promo_data", [(0.0, 0.5)] * 2)
+
+    assert lever.name == "promo_data"
+    assert lever.dim == "promo"
+    assert lever.coords == {"promo": ["p1", "p2"]}
+    assert lever.size == 2
+    np.testing.assert_allclose(lever.initial_value, [0.1, 0.2])
+    assert lever.default_bounds(total_budget=1.0) == [(0.0, 0.5)] * 2
+
+
+def test_from_model_leaves_bounds_optional(lever_model):
+    lever = LeverVariable.from_model(lever_model, "promo_data")
+    assert lever.default_bounds(total_budget=1.0) == [(None, None)] * 2
+
+
+@pytest.mark.parametrize(
+    "name, match",
+    [
+        ("not_a_node", "not a variable with named dims"),
+        ("daily_data", "must have exactly one dim"),
+        ("both_data", "must have exactly one dim"),
+    ],
+    ids=["unknown", "date_varying", "multidim"],
+)
+def test_from_model_rejects_nodes_that_cannot_be_levers(lever_model, name, match):
+    with pytest.raises(ValueError, match=match):
+        LeverVariable.from_model(lever_model, name, date_dim="date")
