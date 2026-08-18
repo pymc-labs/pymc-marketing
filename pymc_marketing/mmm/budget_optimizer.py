@@ -198,7 +198,8 @@ Requirements
   The optimizer replaces ``channel_data`` with the optimization variable under the hood.
 - Posterior must contain a response variable (default: ``"total_media_contribution_original_scale"``)
   or any custom ``response_variable`` you pass, and the required MMM deterministics
-  (e.g. ``channel_contribution``).
+  (e.g. ``channel_contribution``). Models with ``mu_effects`` also expose
+  ``"total_response_original_scale"``, which includes those effects' contributions.
 - For time distribution: pass a DataArray with dims ``("date", *budget_dims)`` and values along
   ``date`` summing to 1 for each budget cell.
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an
@@ -251,6 +252,7 @@ from pymc.model.transform.optimization import freeze_dims_and_data
 from pytensor import function
 from pytensor.compile.sharedvalue import SharedVariable, shared
 from pytensor.graph import rewrite_graph
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor.type import XTensorVariable
 from scipy.optimize import OptimizeResult, minimize
 from xarray import DataArray, DataTree
@@ -262,6 +264,7 @@ from pymc_marketing.mmm.constraints import (
 )
 from pymc_marketing.mmm.optimization_variables import (
     FLAT_DIM,
+    LeverVariable,
     MediaVariable,
     OptimizationVariables,
     align_to_model_coords,
@@ -269,6 +272,11 @@ from pymc_marketing.mmm.optimization_variables import (
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
 from pymc_marketing.version import __version__
+
+DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+"""Objective used when no ``response_variable`` is given: the media contribution
+alone. A model whose response also travels through a ``MuEffect`` wants
+``"total_response_original_scale"`` instead."""
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -1121,7 +1129,16 @@ class BudgetOptimizer(BaseModel):
         or time-varying components. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
-        ``"total_media_contribution_original_scale"``.
+        ``"total_media_contribution_original_scale"``, which is built from the
+        channel contribution alone. A model whose response partly travels
+        through a ``MuEffect`` -- a funnel mediator, or an effect carrying an
+        optimizable lever -- should pass ``"total_response_original_scale"``
+        instead, since the default cannot see those contributions and a budget
+        optimized against it undervalues whatever drives them.
+        :meth:`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` warns when it
+        detects that case, but constructing this class directly cannot -- it has
+        no view of the model's effects -- so silence here is not evidence that
+        the default is the right objective.
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -1223,8 +1240,25 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
+        Field(
+            default_factory=dict,
+            description=(
+                "Additional pm.Data variables to co-optimize alongside "
+                "`channel_data_var`, keyed by variable name. Each value gives the "
+                "native (low, high) bounds per entry in the variable's coordinate "
+                "order, or None for unbounded. Each variable must have exactly one "
+                "dim, which must not be the date dim, since date-varying variables "
+                "are not supported. Optimal values are returned in "
+                "`result.optimized_vars`. These variables are optimized in their "
+                "own units and do not participate in the default budget-sum "
+                "constraint, which sums the media budgets alone."
+            ),
+        )
+    )
+
     response_variable: str = Field(
-        default="total_media_contribution_original_scale",
+        default=DEFAULT_RESPONSE_VARIABLE,
         description="The response variable to optimize.",
     )
 
@@ -1529,7 +1563,17 @@ class BudgetOptimizer(BaseModel):
             budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
             cost_per_unit_tensor=self._cost_per_unit_tensor,
         )
-        self._variables = OptimizationVariables([media_variable])
+        # Optimizable vars become lever variables appended after media. They
+        # are optimized in their own units and stay out of the budget-sum
+        # constraint, which sums the media tensor alone.
+        levers = [
+            LeverVariable.from_model(
+                self.model, lever_name, lever_bounds, date_dim=self.date_dim
+            )
+            for lever_name, lever_bounds in self.optimizable_vars.items()
+        ]
+
+        self._variables = OptimizationVariables([media_variable, *levers])
         self._budgets_flat = self._variables.flat
         self._budgets = media_variable.scattered(
             self._variables.variable_slice(self.channel_data_var)
@@ -1550,12 +1594,52 @@ class BudgetOptimizer(BaseModel):
                 "Pass an explicit response_variable to BudgetOptimizer."
             )
 
+        # 8b. Every lever must be able to move the response variable. A lever
+        # the objective cannot reach has an identically zero gradient, so the
+        # solver would return its warm-start value and report it as optimal.
+        # Graph reachability answers this exactly, before anything is compiled.
+        if self.optimizable_vars:
+            reachable = set(ancestors([self._pymc_model[self.response_variable]]))
+            unreachable = [
+                name
+                for name in self.optimizable_vars
+                if self._pymc_model[name] not in reachable
+            ]
+            if unreachable:
+                raise ValueError(
+                    f"response_variable={self.response_variable!r} does not "
+                    f"depend on optimizable_vars {unreachable}, so their "
+                    "gradient is identically zero and they cannot be "
+                    "optimized. Pass a response variable that includes their "
+                    "contribution."
+                )
+
         # 9. Compile objective & gradient
         self._compile_objective_and_grad()
 
         # 10. Build constraints
         self._constraints = {}
         self.set_constraints(constraints=self.constraints)
+
+    @property
+    def optimization_variables(self) -> OptimizationVariables:
+        """The decision vector's variables: media, plus any ``optimizable_vars``.
+
+        Exposed so a custom
+        :class:`~pymc_marketing.mmm.constraints.Constraint` can reach a
+        variable's segment of the flat vector, which is what constraining
+        anything other than the media budgets requires. For example, capping
+        the total of a lever named ``promo_data``::
+
+            Constraint(
+                key="max_total_discount",
+                constraint_type="ineq",
+                constraint_fun=lambda budgets, total, opt: (
+                    1.0 - opt.optimization_variables.variable_slice("promo_data").sum()
+                ),
+            )
+        """
+        return self._variables
 
     def set_constraints(self, constraints: Sequence[Constraint]) -> None:
         """Set constraints for the optimizer.
