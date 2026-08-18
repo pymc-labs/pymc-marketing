@@ -51,24 +51,26 @@ def _check_alpha(
         msg="0 < alpha <= 1", can_be_replaced_by_ninf=False
     ),
 ):
+    """Validate alpha's range and floor it away from exact zero.
+
+    The floor avoids the 0 / 0 that `delayed_adstock` hits when `theta` is
+    non-integer (see #2889); returned value differs from the input at
+    alpha == 0 even though the check itself accepts it.
+    """
     alpha = as_xtensor(alpha)
     alpha_tensor = alpha.values
     checked_alpha_tensor = alpha_check_op(
         alpha_tensor, ((alpha_tensor >= 0) & (alpha_tensor <= 1)).all()
     )
-    # The check above accepts alpha == 0, but its own message ("0 < alpha")
-    # says it shouldn't reach any caller as exactly zero. Every caller raises
-    # alpha to a non-negative power and, when normalize=True, divides by the
-    # sum of those powers: at alpha == 0 every term with a strictly positive
-    # exponent is 0, the sum is 0, and normalization is 0 / 0 -> NaN (not
-    # caught here because delayed_adstock's exponent (lag - theta) ** 2 is
-    # zero, and the whole array finite, only when theta happens to be an
-    # integer). Flooring away from exact zero keeps every adstock's weights
-    # finite without changing the accepted range or raising for any input
-    # that already worked. `pytensor.config.floatX`, not a hardcoded
-    # `np.finfo(float)`: alpha may be float32, and float64's tiny would
-    # silently upcast the graph.
-    tiny = np.finfo(pytensor.config.floatX).tiny
+    # Keyed off alpha's own dtype, not `pytensor.config.floatX`: those two
+    # can disagree (e.g. a float32 alpha under the float64 default), and
+    # `floatX`'s tiny would upcast the graph in exactly that case. Integer
+    # alpha (e.g. a bare Python `1`) has no `finfo`, so it falls back to
+    # `floatX` there.
+    alpha_dtype = checked_alpha_tensor.dtype
+    tiny = np.finfo(
+        alpha_dtype if alpha_dtype.startswith("float") else pytensor.config.floatX
+    ).smallest_normal
     checked_alpha_tensor = pt.maximum(checked_alpha_tensor, tiny)
     return as_xtensor(checked_alpha_tensor, dims=alpha.dims)
 

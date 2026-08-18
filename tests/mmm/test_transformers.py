@@ -228,6 +228,10 @@ class TestsAdstockTransformers:
         when theta is not an integer, so every weight was 0 and normalizing
         by their sum was 0 / 0. Flooring alpha away from exact zero in
         `_check_alpha` keeps this finite without changing accepted inputs.
+        At theta=0.5, only lags 0 and 1 sit within 0.5 of theta, tying for
+        the smallest exponent (0.25); every other lag's exponent is larger,
+        so its floored weight underflows to 0 relative to those two,
+        leaving an exact [0.5, 0.5, 0, ...] kernel -- the alpha -> 0+ limit.
         """
         x = ptx.as_xtensor(np.ones(shape=(20,)), dims=("time",))
         y = delayed_adstock(
@@ -236,6 +240,10 @@ class TestsAdstockTransformers:
         y_np = y.eval()
         assert not np.isnan(y_np).any()
         assert np.isfinite(y_np).all()
+        # Steady-state response to constant input saturates at the sum of
+        # the (normalized) kernel weights, split evenly across lags 0-1.
+        np.testing.assert_allclose(y_np[0], 0.5, atol=1e-6)
+        np.testing.assert_allclose(y_np[1:], 1.0, atol=1e-6)
 
     def test_delayed_adstock_alpha_zero_integer_theta_still_spikes(self):
         """Regression guard: alpha=0 with integer theta was already finite.
@@ -255,35 +263,62 @@ class TestsAdstockTransformers:
         # the (normalized) kernel weights, which is 1 by construction.
         np.testing.assert_allclose(y_np[-1], 1.0, atol=1e-6)
 
-    def test_binomial_adstock_alpha_zero_is_finite(self):
-        """`_check_alpha`'s floor also protects binomial_adstock's 1 / alpha.
+    def test_check_alpha_floor_keeps_binomial_rescaled_alpha_finite(self):
+        """`_check_alpha`'s floor keeps `binomial_adstock`'s `1 / alpha - 1` finite.
 
-        Unlike delayed_adstock's 0 / 0, this one was 1 / 0 -> inf, not NaN
-        -- a different symptom of the same unguarded alpha == 0.
+        Not an output-level test: `binomial_adstock`'s kernel is
+        `(1 - lag / (l_max + 1)) ** (1 / alpha - 1)`, and at alpha == 0 that
+        intermediate exponent is inf, but the kernel it feeds into was
+        already finite before this fix (`1.0 ** inf == 1.0`, every other
+        base is < 1 so `base ** inf == 0.0`), so an output-finiteness
+        assertion here would pass with or without the floor and never catch
+        a regression. This asserts the actual quantity the floor protects.
         """
-        x = ptx.as_xtensor(np.ones(shape=(20,)), dims=("time",))
-        y = binomial_adstock(x=x, alpha=0.0, l_max=12, dim="time", normalize=True)
-        y_np = y.eval()
-        assert not np.isnan(y_np).any()
-        assert not np.isinf(y_np).any()
+        alpha = _check_alpha(ptx.as_xtensor(pt.as_tensor_variable(0.0)))
+        rescaled_alpha = 1 / alpha - 1
+        assert np.isfinite(rescaled_alpha.values.eval())
 
-    def test_check_alpha_floor_respects_floatx_no_upcast(self):
-        """The floor must come from the graph's own floatX, not a hardcoded float64.
+    @pytest.mark.parametrize(
+        argnames="floatX, alpha_dtype",
+        argvalues=[
+            ("float32", "float32"),
+            ("float64", "float32"),
+            ("float64", "float64"),
+        ],
+        ids=["floatX=32,alpha=32", "floatX=64,alpha=32", "floatX=64,alpha=64"],
+    )
+    def test_check_alpha_floor_respects_alpha_dtype_no_upcast(
+        self, floatX, alpha_dtype
+    ):
+        """The floor must come from alpha's own dtype, not the graph's floatX.
 
-        `np.finfo(float).tiny` is a float64 value; mixing it into a
-        float32 graph would silently upcast every downstream computation.
-        Set floatX=float32 explicitly rather than relying on the default
-        (float64) -- under the default, a hardcoded float64 floor would
-        pass this assertion for the wrong reason. Isolated from
-        delayed_adstock/theta here because theta's own default dtype
-        (Python float -> floatX) would otherwise confound the result being
-        checked.
+        The middle case is the one that actually distinguishes this from
+        keying off `floatX`: floatX=float64 with a float32 alpha (a user
+        passing an explicit np.float32 array under the float64 default) is
+        exactly the combination where reading `floatX` -- as an earlier
+        version of this fix did -- would upcast the whole downstream graph
+        to float64, silently defeating the caller's choice of float32.
+        Isolated from delayed_adstock/theta here because theta's own
+        default dtype (Python float -> floatX) would otherwise confound the
+        result being checked.
         """
-        with pytensor.config.change_flags(floatX="float32"):
-            alpha = pt.as_tensor_variable(np.float32(0.0))
+        with pytensor.config.change_flags(floatX=floatX):
+            alpha = pt.as_tensor_variable(np.zeros((), dtype=alpha_dtype))
             checked = _check_alpha(ptx.as_xtensor(alpha))
-            assert checked.dtype == "float32"
-            assert checked.eval() == np.finfo(np.float32).tiny
+            assert checked.dtype == alpha_dtype
+            assert checked.eval() == np.finfo(alpha_dtype).smallest_normal
+
+    def test_check_alpha_floor_falls_back_to_floatx_for_integer_alpha(self):
+        """Integer alpha (e.g. a bare Python `0`) has no `np.finfo`; falls back to floatX.
+
+        `checked_alpha_tensor.dtype` for an integer input does not start
+        with "float", so `_check_alpha` uses `pytensor.config.floatX`
+        rather than calling `np.finfo` on an integer dtype, which raises.
+        """
+        alpha = pt.as_tensor_variable(0)
+        assert not alpha.dtype.startswith("float")
+        checked = _check_alpha(ptx.as_xtensor(alpha))
+        assert checked.eval() == np.finfo(pytensor.config.floatX).smallest_normal
 
     @pytest.mark.parametrize(
         argnames="mode",
