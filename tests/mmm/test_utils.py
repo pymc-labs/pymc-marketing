@@ -14,8 +14,10 @@
 
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
+from pytensor.compile.mode import Mode
 from sklearn.preprocessing import MaxAbsScaler
 
 from pymc_marketing.mmm.utils import (
@@ -925,3 +927,77 @@ class TestBuildContributions:
         assert isinstance(df, pd.DataFrame)
         assert "intercept" in df.columns
         assert len(df) == 10
+
+
+class TestEffectDataInTheOptimizationWindow:
+    """`create_zero_dataset` has to carry the variables mu_effects read.
+
+    Without them `DataVarMuEffect.set_data` silently skips its own variables --
+    it only sets what the dataset carries -- so the effect's `pm.Data` keeps its
+    fit-time length. In-sample the lengths happen to agree; every other window
+    fails on shape.
+    """
+
+    WINDOW = {"start_date": "2023-07-03", "end_date": "2023-08-28"}
+
+    def _zero_ds(self, mmm, **kwargs):
+        return create_zero_dataset(model=mmm, **self.WINDOW, **kwargs)
+
+    def test_effect_variables_are_present_and_zero_filled(
+        self, funnel_identity_fitted_mmm
+    ):
+        ds = self._zero_ds(funnel_identity_fitted_mmm)
+
+        assert "lf_budget" in ds.data_vars
+        assert ds["lf_budget"].sizes["date"] == ds["_channel"].sizes["date"]
+        assert (ds["lf_budget"].to_numpy() == 0).all()
+
+    def test_out_of_sample_optimization_model_builds(self, funnel_identity_fitted_mmm):
+        """The regression: a window other than the training one used to fail on shape."""
+        model = funnel_identity_fitted_mmm.create_optimization_model(**self.WINDOW)
+
+        n_dates = len(model.coords["date"])
+        assert model["lf_budget"].get_value().shape == (n_dates,)
+
+    def test_a_funnel_model_optimizes_over_a_future_window(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The claim itself: allocate a budget on a funnel model, out of sample.
+
+        Building the model with the right shapes is the fix; this is what the
+        fix is *for*. Scored against the objective that sees the mediated path,
+        so the plan reflects the demand the upper funnel creates rather than the
+        direct path alone.
+
+        `cvm` because the numba backend cannot compile the gradient of this
+        effect's second, sample-batched adstock (pytensor#2360); that is
+        upstream and unrelated to the window.
+        """
+        optimizer = funnel_identity_fitted_mmm.budget_optimizer(
+            **self.WINDOW,
+            response_variable="total_response_original_scale",
+            compile_kwargs={"mode": Mode(linker="cvm")},
+        )
+
+        result = optimizer.allocate_budget(total_budget=10.0)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(float(result.budgets.sum()), 10.0, rtol=1e-6)
+        assert (result.budgets >= 0).all()
+
+    def test_a_planned_calendar_can_be_set_on_the_built_model(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Zeros are the default, not the only option.
+
+        Planning against committed activity needs no parameter of its own:
+        set the variable on the model and hand that model to BudgetOptimizer,
+        which is what its ``model`` + ``idata`` signature is for. That only
+        works because the variable is now present at the window's length.
+        """
+        model = funnel_identity_fitted_mmm.create_optimization_model(**self.WINDOW)
+        n_dates = len(model.coords["date"])
+
+        pm.set_data({"lf_budget": np.full(n_dates, 0.7)}, model=model)
+
+        np.testing.assert_allclose(model["lf_budget"].get_value(), 0.7)

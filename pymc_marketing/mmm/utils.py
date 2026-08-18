@@ -396,6 +396,38 @@ def create_zero_dataset(
             coords=ctrl_coords,
         )
 
+    # ---- 6. Variables the model's mu_effects read ------------------------------
+    # Without these the effect's `pm.Data` keeps its fit-time length, because
+    # `DataVarMuEffect.set_data` skips any variable the dataset does not carry.
+    # That is invisible in-sample, where the lengths happen to agree, and a
+    # shape error for every other window.
+    for effect in getattr(model, "mu_effects", []):
+        for var_name in getattr(effect, "data_vars", []):
+            if var_name in data_vars:
+                continue
+            if var_name not in xa:
+                raise ValueError(
+                    f"mu_effect {type(effect).__name__} reads {var_name!r}, but "
+                    "the model's training dataset has no such variable, so its "
+                    "dims and coords cannot be determined."
+                )
+            template = xa[var_name]
+            if "date" not in template.dims:
+                # Window-independent, so its `pm.Data` already has the right
+                # shape and `set_data` has nothing to correct. Zero-filling it
+                # here would overwrite a constant -- a population, a per-channel
+                # rate -- with zeros.
+                continue
+            data_vars[var_name] = xr.zeros_like(template).reindex(
+                date=new_dates, fill_value=0
+            )
+    # Zeros, because a future window has no committed activity by default. To
+    # plan against one that does -- a promotional calendar, a committed
+    # lower-funnel budget -- ``pm.set_data`` the variable on the model this
+    # feeds and hand that model to ``BudgetOptimizer`` directly, which is what
+    # its ``model`` + ``idata`` signature is for. That only works once the
+    # variable is present at the window's length, which is what this does.
+
     return xr.Dataset(data_vars)
 
 
