@@ -2626,6 +2626,7 @@ class MMM(RegressionModelBuilder):
             end_date=end_date,
             include_carryover=True,
             preserve_observed=True,
+            carry_in_periods=getattr(self.adstock, "l_max", 0),
         )
 
         dataset_xarray = self._posterior_predictive_data_transformation(
@@ -2760,13 +2761,19 @@ class MMM(RegressionModelBuilder):
                 "explicit num_periods."
             )
         n_dates = len(pymc_model.coords[date_dim])
-        if n_dates <= adstock_lag:
+        # Leading dates hold spend that already happened, so they are neither
+        # decisions nor carry-over. Counting them as either would spread the
+        # budget over history.
+        model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
+        carry_in_periods = int((model_dates < pd.Timestamp(start_date)).sum())
+        decision_and_tail = n_dates - carry_in_periods
+        if decision_and_tail <= adstock_lag:
             raise ValueError(
-                f"The optimization window covers {n_dates} periods, which does not "
-                f"exceed the adstock warm-up of {adstock_lag} periods. Widen the "
-                "window between start_date and end_date."
+                f"The optimization window covers {decision_and_tail} periods, "
+                f"which does not exceed the adstock carry-over of {adstock_lag} "
+                "periods. Widen the window between start_date and end_date."
             )
-        num_periods = n_dates - adstock_lag
+        num_periods = decision_and_tail - adstock_lag
 
         # budgets_to_optimize is intentionally passed through untouched. When it is
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
@@ -2786,6 +2793,7 @@ class MMM(RegressionModelBuilder):
             idata=self.idata,
             num_periods=num_periods,
             adstock_periods=self.adstock.l_max,
+            carry_in_periods=carry_in_periods,
             channel_scales=getattr(self, "_channel_scales", 1.0),
             budgets_to_optimize=budgets_to_optimize,
             cost_per_unit=cost_per_unit,

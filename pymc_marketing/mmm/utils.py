@@ -233,6 +233,7 @@ def create_zero_dataset(
     channel_xr: xr.Dataset | xr.DataArray | None = None,
     include_carryover: bool = True,
     preserve_observed: bool = False,
+    carry_in_periods: int = 0,
 ) -> xr.Dataset:
     """Create an ``xr.Dataset`` for future prediction, with zero fills.
 
@@ -346,6 +347,16 @@ def create_zero_dataset(
     if new_dates.empty:
         raise ValueError("Generated date range is empty. Check dates and frequency.")
 
+    # ---- 2a. Leading dates that already happened ------------------------------
+    # Taken from the training index rather than generated, so they are real
+    # observed dates by construction and the count clips itself when the window
+    # starts at (or near) the beginning of training.
+    carry_in_dates = pd.DatetimeIndex([])
+    if carry_in_periods:
+        before = training_dates[training_dates < new_dates[0]]
+        carry_in_dates = pd.DatetimeIndex(before[-carry_in_periods:])
+        new_dates = pd.DatetimeIndex(carry_in_dates.append(new_dates))
+
     n_dates = len(new_dates)
 
     # ---- 3. Dimension coordinates from training data --------------------------
@@ -363,6 +374,14 @@ def create_zero_dataset(
     chan_coords["channel"] = channel_cols
 
     channel_data = np.zeros(chan_shape, dtype=float)
+
+    # Spend on the leading dates is not a decision -- it already happened -- so
+    # it is held at its observed value. Everything from the window onwards stays
+    # at zero for the optimizer to fill.
+    if len(carry_in_dates):
+        channel_data[: len(carry_in_dates)] = (
+            xa["_channel"].sel(date=carry_in_dates).to_numpy()
+        )
 
     # ---- 4a. Inject channel_xr values -----------------------------------------
     if channel_xr is not None:

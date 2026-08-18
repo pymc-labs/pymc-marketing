@@ -1231,6 +1231,17 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    carry_in_periods: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of leading periods of the model's date axis that hold spend "
+            "already made before the window. They are held at the model's own "
+            "channel-data values rather than optimized, so the adstock does not "
+            "start cold. Defaults to 0."
+        ),
+    )
+
     channel_scales: Any = Field(
         default=1.0,
         description=(
@@ -1552,11 +1563,20 @@ class BudgetOptimizer(BaseModel):
 
         # 7. Build the optimization variables and substitute them into the
         # model graph. One do() call over every variable keeps gradients joint.
+        # Read from the model we were handed: it already carries the spend that
+        # preceded the window, so nothing here needs to know where history lives.
+        carry_in_values = None
+        if self.carry_in_periods:
+            carry_in_values = np.asarray(self.model[self.channel_data_var].get_value())[
+                : self.carry_in_periods
+            ]
+
         media_variable = MediaVariable(
             name=self.channel_data_var,
             mask=self.budgets_to_optimize,
             num_periods=self.num_periods,
             adstock_periods=self.adstock_periods,
+            carry_in_values=carry_in_values,
             channel_scales=self.channel_scales,
             dtype=self.model[self.channel_data_var].dtype,
             date_dim=self.date_dim,

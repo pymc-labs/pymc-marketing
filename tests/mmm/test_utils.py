@@ -1168,3 +1168,68 @@ class TestEffectDataInTheOptimizationWindow:
         ds = self._zero_ds(mmm, channel_xr=channel_xr)
 
         np.testing.assert_allclose(ds["_channel"].to_numpy(), 3.0)
+
+
+class TestAdstockCarryIn:
+    """The window opens on the spend that preceded it, not on a cold adstock.
+
+    Optimizing from ``t0+1`` with no leading spend models a business that went
+    dark before the plan starts. Because adstock feeds saturation, that is not
+    an additive constant: it moves the curve's operating point over the first
+    ``l_max`` periods and so changes the marginal return the optimizer
+    equalises. The data exists -- it is the tail of the training set.
+    """
+
+    N_PERIODS = 8
+
+    def _window(self, mmm):
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        t0 = dates[-1]
+        return t0 + pd.Timedelta(weeks=1), t0 + pd.Timedelta(weeks=self.N_PERIODS)
+
+    def test_the_leading_dates_hold_the_spend_that_already_happened(
+        self, funnel_identity_fitted_mmm
+    ):
+        mmm = funnel_identity_fitted_mmm
+        l_max = mmm.adstock.l_max
+        start, end = self._window(mmm)
+
+        opt = mmm.create_optimization_model(start_date=start, end_date=end)
+
+        channel_data = np.asarray(opt["channel_data"].get_value())
+        training = np.asarray(mmm.model["channel_data"].get_value())
+        np.testing.assert_allclose(channel_data[:l_max], training[-l_max:])
+        # Only the leading block is history; the decision window and the
+        # carry-over tail stay at zero for the optimizer to fill.
+        assert (channel_data[l_max:] == 0).all()
+
+    def test_the_date_axis_is_carry_in_plus_decisions_plus_carry_over(
+        self, funnel_identity_fitted_mmm
+    ):
+        mmm = funnel_identity_fitted_mmm
+        l_max = mmm.adstock.l_max
+        start, end = self._window(mmm)
+
+        opt = mmm.create_optimization_model(start_date=start, end_date=end)
+
+        assert len(opt.coords["date"]) == l_max + self.N_PERIODS + l_max
+
+    def test_the_leading_dates_are_not_decisions(self, funnel_identity_fitted_mmm):
+        """The budget must be spread over the window, never over history.
+
+        ``num_periods`` is derived by subtracting the flanking blocks from the
+        date axis, so a leading block that is not subtracted would silently
+        turn spend that already happened into a decision.
+        """
+        mmm = funnel_identity_fitted_mmm
+        start, end = self._window(mmm)
+
+        optimizer = mmm.budget_optimizer(
+            start_date=start,
+            end_date=end,
+            response_variable="total_response_original_scale",
+            compile_kwargs={"mode": Mode(linker="cvm")},
+        )
+
+        assert optimizer.num_periods == self.N_PERIODS
+        assert optimizer.carry_in_periods == mmm.adstock.l_max
