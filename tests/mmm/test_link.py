@@ -969,16 +969,78 @@ class TestTruncatedNormalMeanCorrection:
         np.testing.assert_allclose(offset.values[0], expected)
         assert np.all(np.isfinite(offset.values))
 
-    def test_censored_wrapper_raises_rather_than_using_the_wrong_mean(self):
+    @pytest.mark.parametrize(
+        "inner",
+        [
+            Prior("TruncatedNormal", lower=0, sigma=1),
+            Prior("Normal", sigma=1),
+            Prior("StudentT", nu=3, sigma=1),
+        ],
+    )
+    def test_censored_wrapper_raises_rather_than_using_the_wrong_mean(self, inner):
+        # Censoring piles mass at the bounds, so E[y] != mu even for the
+        # response-scale names the wrapper resolves to.
         posterior = xr.Dataset(
             {
                 "mu": xr.DataArray([[1.0]], dims=("chain", "date")),
                 "y_sigma": xr.DataArray([[1.0]], dims=("chain", "date")),
             }
         )
-        likelihood = Censored(Prior("TruncatedNormal", lower=0, sigma=1), lower=0)
-        with pytest.raises(ValueError, match="wrapper such as Censored"):
-            IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        dataset = xr.Dataset({"intercept": posterior["mu"]})
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            IdentityLinkSpec().to_mean_scale(
+                dataset, posterior, Censored(inner, lower=0), xr.DataArray(1.0)
+            )
+
+    def test_fixed_sigma_is_used_instead_of_the_posterior(self):
+        posterior = xr.Dataset({"mu": xr.DataArray([[0.0]], dims=("chain", "date"))})
+        likelihood = Prior("TruncatedNormal", lower=0, sigma=2.0)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        np.testing.assert_allclose(offset.values[0], [2.0 * np.sqrt(2 / np.pi)])
+
+    def test_two_sided_stays_finite_far_from_both_bounds(self):
+        # The direct phi/Phi form returns -inf and nan here.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[39.0, 42.0, -42.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=0, upper=1, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+        assert np.all(np.isfinite(offset.values))
+        expected = [
+            stats.truncnorm.mean((0.0 - m) / 1.0, (1.0 - m) / 1.0, loc=m, scale=1.0) - m
+            for m in (39.0, 42.0, -42.0)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+
+
+class TestMeanScaleFactor:
+    """The factor-only entry point used where a scale is folded in."""
+
+    @staticmethod
+    def _posterior():
+        return xr.Dataset(
+            {"y_sigma": xr.DataArray([[0.5, 0.5]], dims=("chain", "date"))}
+        )
+
+    def test_identity_normal_is_one(self):
+        factor = IdentityLinkSpec().mean_scale_factor(
+            self._posterior(), Prior("Normal", sigma=1)
+        )
+        assert float(factor) == 1.0
+
+    def test_identity_truncated_normal_refuses(self):
+        with pytest.raises(ValueError, match="is an offset, not a factor"):
+            IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Prior("TruncatedNormal", lower=0, sigma=1)
+            )
+
+    def test_log_returns_the_lognormal_ratio(self):
+        posterior = self._posterior()
+        factor = LogLinkSpec().mean_scale_factor(posterior, Prior("LogNormal", sigma=1))
+        xr.testing.assert_allclose(factor, np.exp(posterior["y_sigma"] ** 2 / 2))
 
     def test_missing_baseline_term_raises(self):
         posterior = xr.Dataset(

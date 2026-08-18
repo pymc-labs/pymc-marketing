@@ -31,7 +31,8 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
-from scipy.special import erfcx, ndtr
+from scipy.special import erfcx
+from scipy.stats import truncnorm
 
 
 class LinkFunction(StrEnum):
@@ -72,6 +73,10 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 #: distributional form for their counterfactual decomposition to be correct.
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
 
+
+#: Likelihoods whose identity-link mean correction is an offset rather than a
+#: factor, so it cannot be folded into a scale.
+ADDITIVE_CORRECTION_LIKELIHOODS = frozenset({"TruncatedNormal"})
 
 #: Key of the baseline term in a counterfactual contribution dataset.  Under
 #: the identity link a correction that belongs to the noise distribution is
@@ -274,6 +279,35 @@ class LinkSpec(ABC):
         )
         return self._mean_ratio(posterior, output_var)
 
+    def mean_scale_factor(
+        self,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        """Return the mean correction as a multiplicative factor.
+
+        For callers that fold the correction into a scale rather than applying
+        it to a contribution dataset.  Raises where the correction is not
+        expressible as a factor, which is the whole reason
+        :meth:`to_mean_scale` exists.
+
+        Raises
+        ------
+        ValueError
+            If the correction for this link and likelihood is additive.
+        """
+        dist_name = _distribution_name(likelihood)
+        if dist_name in ADDITIVE_CORRECTION_LIKELIHOODS and self.link == (
+            LinkFunction.IDENTITY
+        ):
+            raise ValueError(
+                f"The mean correction for '{dist_name}' under link='identity' "
+                f"is an offset, not a factor, so it cannot be folded into a "
+                f"scale. Use central_tendency='median'."
+            )
+        return self._mean_ratio(posterior, output_var)
+
     def _mean_ratio(
         self,
         posterior: xr.Dataset,
@@ -433,6 +467,18 @@ class IdentityLinkSpec(LinkSpec):
         """
         dist_name = _distribution_name(likelihood)
 
+        # Wrappers such as Censored resolve to the name of the distribution they
+        # hold, but change its mean by piling mass at the bounds, so E[y] != mu
+        # even for the response-scale names. Reject them before dispatching,
+        # rather than silently returning median-scale numbers labelled as means.
+        if getattr(likelihood, "parameters", None) is None:
+            raise ValueError(
+                f"No mean correction is defined for a wrapped likelihood "
+                f"({type(likelihood).__name__} holding '{dist_name}'). Censoring "
+                f"moves the mean off 'mu', so the contributions cannot be read "
+                f"as means. Use central_tendency='median'."
+            )
+
         if dist_name == "TruncatedNormal":
             if BASELINE_PART not in dataset:
                 raise ValueError(
@@ -493,22 +539,20 @@ class IdentityLinkSpec(LinkSpec):
                 "central_tendency='median'."
             )
 
-        sigma_name = f"{output_var}_sigma"
-        if sigma_name not in posterior:
-            raise ValueError(
-                f"Mean-scale contributions require a sampled likelihood scale "
-                f"'{sigma_name}' in the posterior, which was not found. This "
-                f"happens when sigma is fixed rather than given a prior. Use "
-                f"central_tendency='median' or give sigma a prior."
-            )
+        parameters = likelihood.parameters
 
-        parameters = getattr(likelihood, "parameters", None)
-        if parameters is None:
+        # A fixed sigma never reaches the posterior, but it is usable directly.
+        sigma_name = f"{output_var}_sigma"
+        if sigma_name in posterior:
+            sigma = posterior[sigma_name]
+        elif "sigma" in parameters and not isinstance(parameters["sigma"], Prior):
+            sigma = parameters["sigma"]
+        else:
             raise ValueError(
-                "The truncation correction needs the TruncatedNormal prior "
-                "itself, but the likelihood is a wrapper such as Censored, "
-                "whose mean differs because censoring piles mass at the "
-                "bounds. Use central_tendency='median'."
+                f"The truncation correction needs the likelihood scale, which "
+                f"is neither in the posterior as '{sigma_name}' nor a fixed "
+                f"'sigma' on the prior. A tau-parameterised TruncatedNormal "
+                f"lands here too. Use central_tendency='median'."
             )
 
         bounds = {}
@@ -522,7 +566,6 @@ class IdentityLinkSpec(LinkSpec):
             bounds[bound] = value
 
         mu = posterior["mu"]
-        sigma = posterior[sigma_name]
         alpha = (bounds["lower"] - mu) / sigma
         beta = (bounds["upper"] - mu) / sigma
 
@@ -538,11 +581,17 @@ class IdentityLinkSpec(LinkSpec):
         if np.isneginf(bounds["lower"]):
             return -sigma * np.sqrt(2 / np.pi) / erfcx(-beta / root_two)
 
-        # Two-sided truncation. The direct form is accurate unless both bounds
-        # sit many sigma away on the same side, which excludes nearly all mass.
-        pdf_alpha = np.exp(-(alpha**2) / 2) / np.sqrt(2 * np.pi)
-        pdf_beta = np.exp(-(beta**2) / 2) / np.sqrt(2 * np.pi)
-        return sigma * (pdf_alpha - pdf_beta) / (ndtr(beta) - ndtr(alpha))
+        # Two-sided truncation. The direct form returns inf or nan once both
+        # bounds sit on the same side of mu, since numerator and denominator
+        # both underflow. scipy handles the whole range; it is far slower, but
+        # a two-sided likelihood is uncommon and correctness comes first.
+        return xr.apply_ufunc(
+            lambda a, b, m, s: truncnorm.mean(a, b, loc=m, scale=s) - m,
+            alpha,
+            beta,
+            mu,
+            sigma,
+        )
 
 
 class LogLinkSpec(LinkSpec):
