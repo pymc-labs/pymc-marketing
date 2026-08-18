@@ -13,9 +13,14 @@
 #   limitations under the License.
 """Tests for model-implied causal DAGs on MMM."""
 
+import builtins
+from unittest.mock import patch
+
 import graphviz
 import networkx as nx
+import numpy as np
 import pytest
+import xarray as xr
 from pydantic import ConfigDict
 
 from pymc_marketing.mmm.additive_effect import (
@@ -30,6 +35,8 @@ from pymc_marketing.mmm.causal_graph import (
     TREND_NODE,
     build_direct_effect_fragment,
     build_mmm_star_graph,
+    causal_graph_to_graphviz,
+    compose_causal_graph,
     host_target_column,
 )
 from pymc_marketing.mmm.components.adstock import GeometricAdstock
@@ -37,7 +44,7 @@ from pymc_marketing.mmm.components.saturation import LogisticSaturation
 from pymc_marketing.mmm.fourier import YearlyFourier
 from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.media_transformation import MediaTransformation
-from pymc_marketing.mmm.mmm import MMM
+from pymc_marketing.mmm.mmm import MMM, _mu_effect_causal_name
 
 
 def _minimal_mmm(**kwargs) -> MMM:
@@ -135,6 +142,11 @@ def test_host_target_column():
     assert host_target_column(mmm) == "target"
 
 
+def test_host_target_column_raises_without_target():
+    with pytest.raises(TypeError, match="target_column"):
+        host_target_column(object())
+
+
 def test_fourier_effect_fragment_adds_season_edge():
     mmm = _minimal_mmm(yearly_seasonality=None)
     mmm.add_mu_effect(FourierEffect(fourier=YearlyFourier(n_order=2, prefix="yearly")))
@@ -147,6 +159,46 @@ def test_linear_trend_effect_fragment_adds_t_edge():
         LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
     )
     assert (TREND_NODE, "target") in mmm.causal_graph.edges
+
+
+def test_media_mu_effect_fragment_from_xarray_channel_coords():
+    mmm = _minimal_mmm(yearly_seasonality=None)
+    mmm.xarray_dataset = xr.Dataset(
+        {"media_data": (["date", "channel"], np.zeros((5, 2)))},
+        coords={"date": np.arange(5), "channel": ["channel_1", "channel_2"]},
+    )
+    media_effect = MediaMuEffect(
+        data_vars=["media_data"],
+        media_transformation=MediaTransformation(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            adstock_first=True,
+            dims=("channel",),
+        ),
+        prefix="media",
+    )
+    fragment = media_effect.causal_graph_fragment(mmm)
+    assert set(fragment.edges) == {
+        ("channel_1", "target"),
+        ("channel_2", "target"),
+    }
+
+
+def test_media_mu_effect_fragment_falls_back_to_var_name():
+    mmm = _minimal_mmm(yearly_seasonality=None)
+    media_effect = MediaMuEffect(
+        data_vars=["media_product"],
+        media_transformation=MediaTransformation(
+            adstock=GeometricAdstock(l_max=4),
+            saturation=LogisticSaturation(),
+            adstock_first=True,
+            dims=("product", "channel"),
+        ),
+        channel_dim="product",
+        prefix="media",
+    )
+    fragment = media_effect.causal_graph_fragment(mmm)
+    assert set(fragment.edges) == {("media_product", "target")}
 
 
 def test_media_mu_effect_fragment_uses_channel_columns_before_build():
@@ -168,10 +220,24 @@ def test_media_mu_effect_fragment_uses_channel_columns_before_build():
     }
 
 
+class _EmptyFragmentMuEffect(MuEffect):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def create_data(self, mmm):
+        return None
+
+    def create_effect(self, mmm):
+        return None
+
+    def set_data(self, mmm, model, X):
+        return None
+
+
 class _FragmentMuEffect(MuEffect):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     fragment: nx.DiGraph
+    prefix: str | None = None
 
     def create_data(self, mmm):
         return None
@@ -206,6 +272,45 @@ def test_compose_duplicate_edges_are_no_op():
     assert ("channel_1", "target") in mmm.causal_graph.edges
 
 
+def test_mu_effect_default_causal_graph_fragment_is_empty():
+    effect = _EmptyFragmentMuEffect()
+    assert list(effect.causal_graph_fragment(_minimal_mmm()).nodes) == []
+
+
+def test_mu_effect_causal_name_includes_prefix():
+    effect = _FragmentMuEffect(fragment=nx.DiGraph(), prefix="custom")
+    assert _mu_effect_causal_name(effect) == "_FragmentMuEffect('custom')"
+
+
+def test_compose_causal_graph_raises_on_length_mismatch():
+    star = build_mmm_star_graph(["tv"], None, "y", None)
+    with pytest.raises(ValueError, match="same length"):
+        compose_causal_graph(star, [nx.DiGraph()], effect_names=[])
+
+
+@patch(
+    "pymc_marketing.mmm.causal_graph.nx.is_directed_acyclic_graph",
+    return_value=False,
+)
+def test_build_mmm_star_graph_raises_when_not_dag(_mock_is_dag):
+    with pytest.raises(ValueError, match="not a DAG"):
+        build_mmm_star_graph(["tv"], None, "y", None)
+
+
+def test_causal_graph_to_graphviz_raises_without_graphviz(monkeypatch):
+    real_import = builtins.__import__
+
+    def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "graphviz":
+            raise ImportError("no graphviz")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", blocked_import)
+
+    with pytest.raises(ImportError, match="plot_causal_graph requires"):
+        causal_graph_to_graphviz(nx.DiGraph())
+
+
 def test_compose_cycle_raises_with_effect_name():
     fragment = nx.DiGraph()
     fragment.add_edges_from([("target", "channel_1")])
@@ -214,6 +319,16 @@ def test_compose_cycle_raises_with_effect_name():
 
     with pytest.raises(ValueError, match="_FragmentMuEffect"):
         mmm.causal_graph
+
+
+def test_compose_cycle_raises_with_prefixed_effect_name():
+    fragment = nx.DiGraph()
+    fragment.add_edge("target", "channel_1")
+    mmm = _minimal_mmm()
+    mmm.add_mu_effect(_FragmentMuEffect(fragment=fragment, prefix="custom"))
+
+    with pytest.raises(ValueError, match="_FragmentMuEffect\\('custom'\\)"):
+        _ = mmm.causal_graph
 
 
 def test_no_causal_graphical_model_without_dag_kwarg():
@@ -248,3 +363,9 @@ def test_plot_causal_graph_returns_graphviz_digraph():
     body = "".join(digraph.body)
     for node in ("channel_1", "channel_2", "control_1", SEASON_NODE, "target"):
         assert node in body
+
+
+def test_plot_causal_graph_passes_rankdir():
+    mmm = _minimal_mmm()
+    digraph = mmm.plot_causal_graph(rankdir="TB")
+    assert "rankdir=TB" in digraph.source
