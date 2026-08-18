@@ -498,6 +498,67 @@ def test_build_mmm_raises_when_y_missing_and_no_data_path(
         build_mmm_from_yaml(config_path, X=X)
 
 
+def test_build_mmm_from_yaml_dataframe_missing_date_column_raises(
+    tmp_path, _minimal_model_config, _sample_data
+):
+    """DataFrame input must include the configured date column."""
+    X, y = _sample_data
+    X = X.drop(columns=["date"])
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(yaml.dump(_minimal_model_config))
+
+    with pytest.raises(ValueError, match="Date column 'date'"):
+        build_mmm_from_yaml(config_path, X=X, y=y)
+
+
+def test_build_mmm_from_yaml_dataset_with_target_name_y_none(tmp_path):
+    """Dataset carrying unprefixed ``target`` should build when *y* is omitted."""
+    n = 52
+    dates = pd.date_range("2023-01-01", periods=n, freq="W")
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(
+                np.arange(n, dtype=float).reshape(n, 1),
+                dims=("date", "channel"),
+                coords={"date": dates, "channel": ["channel_1"]},
+            ),
+            "target": xr.DataArray(
+                np.arange(n, dtype=float),
+                dims=("date",),
+                coords={"date": dates},
+            ),
+        }
+    )
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.mmm.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        }
+    }
+    config_path = tmp_path / "dataset_target_name.yml"
+    config_path.write_text(yaml.dump(config))
+
+    model = build_mmm_from_yaml(config_path, X=X, y=None)
+
+    assert model is not None
+    np.testing.assert_array_equal(
+        model.xarray_dataset["_target"].values, X["target"].values
+    )
+
+
 def test_build_mmm_loads_idata_from_path(tmp_path, _minimal_model_config, _sample_data):
     """idata_path in YAML causes InferenceData to be loaded into model."""
     import arviz as az

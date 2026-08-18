@@ -160,6 +160,34 @@ class TestToMmmDatasetYInputTypes:
         )
         assert ds["_target"].values.tolist() == [10.0, 20.0, 30.0]
 
+    def test_target_column_extracts_panel_target_when_y_omitted(self):
+        geos = ["g1", "g2"]
+        dates = pd.date_range("2023-01-01", periods=2, freq="W")
+        rows = []
+        for date in dates:
+            for geo in geos:
+                rows.append(
+                    {
+                        "date": date,
+                        "geo": geo,
+                        "channel_1": float(len(rows)),
+                        "sales": float(10 + len(rows)),
+                    }
+                )
+        X = pd.DataFrame(rows)
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            dims=("geo",),
+            channel_columns=["channel_1"],
+            target_column="sales",
+        )
+        assert ds["_target"].dims == ("date", "geo")
+        np.testing.assert_array_equal(
+            ds["_target"].values,
+            X.pivot(index="date", columns="geo", values="sales").values,
+        )
+
     def test_dataset_with_target_and_y_raises(self):
         dates = pd.date_range("2023-01-01", periods=3, freq="W")
         ds_in = xr.Dataset(
