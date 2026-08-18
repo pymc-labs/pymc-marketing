@@ -237,15 +237,18 @@ def create_zero_dataset(
 
     Creates a dataset with dates from *start_date* to *end_date* and all model
     dimensions, filling channel and control variables with zeros (or with values
-    from *channel_xr* if provided).  The output has the canonical underscore
-    variable names (``_channel``, ``_control``).
+    from *channel_xr* if provided), under the canonical underscore names
+    (``_channel``, ``_control``).  Date-varying variables that the model's
+    ``mu_effects`` read are zero-filled too, under their own names, so that
+    ``MuEffect.set_data`` has something to set for a window other than the
+    training one.
 
     Parameters
     ----------
     model
         Fitted MMM instance.  Must have ``xarray_dataset``, ``date_column``,
         ``channel_columns``, ``control_columns``, ``dims`` and ``adstock``
-        attributes.
+        attributes.  ``mu_effects`` is read when present.
     start_date, end_date
         Date range for the prediction period.
     channel_xr
@@ -254,14 +257,28 @@ def create_zero_dataset(
         ``model.dims`` and must **not** include the date dimension.  Values are
         broadcast across every date in the generated range.
     include_carryover
-        Whether to extend the date range by ``adstock.l_max`` periods so that
-        adstock initialisation has enough leading observations.
+        Whether to extend the date range *past* ``end_date`` by ``adstock.l_max``
+        periods, so that spend inside the window is scored with the carry-over it
+        produces after it.  The extension is trailing; nothing is prepended, and
+        the window therefore starts from a cold adstock state.
 
     Returns
     -------
     xr.Dataset
         Dataset with ``_channel`` (and optionally ``_control``) variables,
-        indexed by ``("date", *dims, "channel")``.
+        indexed by ``("date", *dims, "channel")``, plus one zero-filled variable
+        per date-varying name the model's ``mu_effects`` read.
+
+    Notes
+    -----
+    The effect variables are zeros, which is what a future window with no
+    committed activity means.  In-sample that is a *change of scenario* rather
+    than a reconstruction of history: an exogenous series the effect reads --
+    a category-demand index, a committed budget -- comes back as zero, not at
+    its fitted value.  To score a window against particular values, build the
+    model with :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
+    ``pm.set_data`` those variables on it, and hand that model to
+    ``BudgetOptimizer`` directly.
     """
     if not hasattr(model, "xarray_dataset"):
         raise ValueError(

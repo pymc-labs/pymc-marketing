@@ -1055,6 +1055,32 @@ class TestEffectDataInTheOptimizationWindow:
 
         assert "channel_capacity" not in ds.data_vars
 
+    def test_a_multidimensional_effect_variable_keeps_its_other_dims(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """Effect variables are not all one-dimensional.
+
+        `MediaMuEffect` and `ControlMuEffect` are `DataVarMuEffect`s whose
+        variables carry a channel or control dim alongside date, so only the
+        date axis may be rebuilt: the other dims and their coords have to
+        survive intact, or `set_data` writes a correctly-sized wrong shape.
+        """
+        mmm = funnel_identity_fitted_mmm
+        channels = list(mmm.xarray_dataset.coords["channel"].values)
+        template = mmm.xarray_dataset["_channel"].rename("media_by_channel")
+        monkeypatch.setattr(
+            mmm, "xarray_dataset", mmm.xarray_dataset.assign(media_by_channel=template)
+        )
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["media_by_channel"])])
+
+        ds = self._zero_ds(mmm)
+
+        filled = ds["media_by_channel"]
+        assert filled.dims == ("date", "channel")
+        assert filled.sizes["date"] == ds["_channel"].sizes["date"]
+        assert list(filled.coords["channel"].values) == channels
+        assert (filled.to_numpy() == 0).all()
+
     def test_a_variable_the_dataset_already_carries_is_not_overwritten(
         self, funnel_identity_fitted_mmm, monkeypatch
     ):
