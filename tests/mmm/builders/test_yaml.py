@@ -913,6 +913,43 @@ def test_build_mmm_from_yaml_dataset_with_target_and_y_raises():
         )
 
 
+def test_build_mmm_from_yaml_dataframe_target_column_no_y(tmp_path):
+    """DataFrame with target_column in X should build without y or y_path."""
+    n = 52
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=n, freq="W"),
+            "channel_1": range(n),
+            "y": range(n),
+        }
+    )
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.mmm.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        }
+    }
+    config_path = tmp_path / "embedded_target_model.yml"
+    config_path.write_text(yaml.dump(config))
+
+    model = build_mmm_from_yaml(config_path, X=X, y=None)
+
+    assert model is not None
+    np.testing.assert_array_equal(model.xarray_dataset["_target"].values, X["y"].values)
+
+
 def test_build_mmm_from_yaml_panel_dataset_flat_y_raises():
     """Panel Dataset plus flat RangeIndex y should raise a readable error."""
     geos = ["g1", "g2"]

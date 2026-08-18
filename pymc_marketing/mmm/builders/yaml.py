@@ -137,8 +137,13 @@ def build_mmm_from_yaml(
         if data_cfg is None or data_cfg.X_path is None:
             raise ValueError("X not provided and no `data.X_path` found in YAML.")
         X = _load_df(data_cfg.X_path)
+    target_column = model_spec["kwargs"].get("target_column")
     if y is None:
-        has_embedded_target = isinstance(X, xr.Dataset) and _dataset_has_target(X)
+        has_embedded_target = (
+            isinstance(X, xr.Dataset) and _dataset_has_target(X)
+        ) or (
+            isinstance(X, pd.DataFrame) and target_column and target_column in X.columns
+        )
         if not has_embedded_target:
             if data_cfg is None or data_cfg.y_path is None:
                 raise ValueError("y not provided and no `data.y_path` found in YAML.")
@@ -172,7 +177,6 @@ def build_mmm_from_yaml(
     channel_columns = kwargs_from_spec.get("channel_columns", [])
     control_columns = kwargs_from_spec.get("control_columns")
     dims = tuple(kwargs_from_spec.get("dims") or ())
-    target_column = kwargs_from_spec.get("target_column")
 
     if extra_vars and isinstance(X, pd.DataFrame):
         X = to_mmm_dataset(
