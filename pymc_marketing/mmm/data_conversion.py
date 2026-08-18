@@ -403,7 +403,9 @@ def _pandas_columns_to_dataarrays(
     index_cols = ["date", *dim_cols]
     result: dict[str, xr.DataArray] = {}
     for name in column_names:
-        pivot = data[[date_column, *dim_cols, name]].drop_duplicates()
+        pivot = data[[date_column, *dim_cols, name]].drop_duplicates(
+            subset=[date_column, *dim_cols], keep="first"
+        )
         pivot = pivot.rename(columns={date_column: "date"})
         result[name] = pivot.set_index(index_cols).sort_index()[name].to_xarray()
     return result

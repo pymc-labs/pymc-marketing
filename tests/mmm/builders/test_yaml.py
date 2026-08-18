@@ -701,6 +701,43 @@ def test_build_mmm_from_yaml_accepts_xarray_dataset(tmp_path):
     assert "_channel" in model.xarray_dataset.data_vars
 
 
+def test_build_mmm_from_yaml_dataset_missing_date_coord_raises(tmp_path):
+    """Dataset input must carry a date coordinate when date_column is set."""
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(
+                [[1.0], [2.0]],
+                dims=("week", "channel"),
+                coords={"week": [0, 1], "channel": ["channel_1"]},
+            )
+        }
+    )
+    y = pd.Series([1.0, 2.0], name="y")
+    config = {
+        "model": {
+            "class": "pymc_marketing.mmm.mmm.MMM",
+            "kwargs": {
+                "date_column": "date",
+                "channel_columns": ["channel_1"],
+                "target_column": "y",
+                "adstock": {
+                    "class": "pymc_marketing.mmm.GeometricAdstock",
+                    "kwargs": {"l_max": 4},
+                },
+                "saturation": {
+                    "class": "pymc_marketing.mmm.LogisticSaturation",
+                    "kwargs": {},
+                },
+            },
+        }
+    }
+    config_path = tmp_path / "dataset_no_date.yml"
+    config_path.write_text(yaml.dump(config))
+
+    with pytest.raises(ValueError, match="missing a 'date' coordinate"):
+        build_mmm_from_yaml(config_path, X=X, y=y)
+
+
 def test_build_mmm_from_yaml_extra_vars_geo_dims():
     """extra_vars with panel dims should produce (date, geo) data variables."""
     geos = ["g1", "g2"]

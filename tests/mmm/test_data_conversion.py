@@ -388,6 +388,32 @@ class TestToMmmDatasetExtraVars:
         assert "_control" in ds.data_vars
         assert "lower_spend" in ds.data_vars
 
+    def test_extra_vars_dedupes_on_index_keys_not_values(self):
+        """Extra vars dedupe on date/dim keys, like channel and target paths."""
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(
+                    ["2025-01-01", "2025-01-01", "2025-01-08", "2025-01-08"]
+                ),
+                "market": ["us", "uk", "us", "uk"],
+                "upper_spend": [1.0, 2.0, 3.0, 4.0],
+                "lower_spend": [10.0, 20.0, 30.0, 40.0],
+            }
+        )
+        y = pd.Series([5.0, 6.0, 7.0, 8.0])
+
+        ds = to_mmm_dataset(
+            df,
+            y,
+            date_column="date",
+            dims=(),
+            channel_columns=["upper_spend"],
+            extra_vars=["lower_spend"],
+        )
+
+        assert ds.sizes == {"date": 2, "channel": 1}
+        assert ds["lower_spend"].dims == ("date",)
+
     def test_extra_vars_panel_fillna_ragged_panel(self):
         dates = pd.date_range("2023-01-01", periods=3, freq="W")
         X = pd.DataFrame(
