@@ -1,4 +1,4 @@
-# Requires GeoFunnelEffect defined in mmm_funnel_from_yml.ipynb (registered on REGISTRY).
+# Requires BudgetDualIndicatorEffect defined in mmm_funnel_from_yml.ipynb (registered on REGISTRY).
 model:
   class: pymc_marketing.mmm.mmm.MMM
   kwargs:
@@ -57,11 +57,11 @@ model:
 extra_vars: [lower_spend, search_volume, category_demand, lf_budget]
 
 effects:
-  - class: GeoFunnelEffect
+  - class: BudgetDualIndicatorEffect
     kwargs:
       data_vars: [lower_spend, search_volume, category_demand, lf_budget]
-      prefix: funnel
-      upper_transform:
+      prefix: budget_dual
+      hub_input_transform:
         class: pymc_marketing.mmm.media_transformation.MediaTransformation
         kwargs:
           adstock_first: true
@@ -70,7 +70,7 @@ effects:
             class: pymc_marketing.mmm.GeometricAdstock
             kwargs:
               l_max: 8
-              prefix: adstock_uf
+              prefix: adstock_hub_input
               priors:
                 alpha:
                   distribution: Beta
@@ -80,7 +80,7 @@ effects:
           saturation:
             class: pymc_marketing.mmm.LogisticSaturation
             kwargs:
-              prefix: sat_uf
+              prefix: sat_hub_input
               priors:
                 lam:
                   distribution: Gamma
@@ -91,7 +91,7 @@ effects:
                   distribution: HalfNormal
                   sigma: 1.0
                   dims: [geo, channel]
-      demand_transform:
+      contribution_transform:
         class: pymc_marketing.mmm.media_transformation.MediaTransformation
         kwargs:
           adstock_first: true
@@ -100,7 +100,7 @@ effects:
             class: pymc_marketing.mmm.GeometricAdstock
             kwargs:
               l_max: 8
-              prefix: adstock_lf
+              prefix: adstock_contribution
               priors:
                 alpha:
                   distribution: Beta
@@ -110,7 +110,7 @@ effects:
           saturation:
             class: pymc_marketing.mmm.LogisticSaturation
             kwargs:
-              prefix: sat_lf
+              prefix: sat_contribution
               priors:
                 lam:
                   distribution: Gamma
@@ -121,4 +121,4 @@ effects:
                   sigma: 1.0
                   dims: geo
 
-original_scale_vars: [channel_contribution, funnel_effect_contribution, y]
+original_scale_vars: [channel_contribution, budget_dual_effect_contribution, y]

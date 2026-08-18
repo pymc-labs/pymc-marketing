@@ -1,4 +1,4 @@
-# Requires FunnelEffect defined in mmm_funnel_from_yml.ipynb (registered on REGISTRY).
+# Requires MeasuredMediatorEffect defined in mmm_funnel_from_yml.ipynb (registered on REGISTRY).
 model:
   class: pymc_marketing.mmm.mmm.MMM
   kwargs:
@@ -17,19 +17,19 @@ model:
 extra_vars: [lower_spend, lower_control]
 
 effects:
-  - class: FunnelEffect
+  - class: MeasuredMediatorEffect
     kwargs:
-      adstock_uf:
+      hub_adstock:
         class: pymc_marketing.mmm.GeometricAdstock
-        kwargs: {l_max: 8, prefix: adstock_uf}
-      saturation_uf:
+        kwargs: {l_max: 8, prefix: adstock_hub}
+      hub_saturation:
         class: pymc_marketing.mmm.LogisticSaturation
-        kwargs: {prefix: sat_uf}
-      adstock_lf:
+        kwargs: {prefix: sat_hub}
+      contribution_adstock:
         class: pymc_marketing.mmm.GeometricAdstock
-        kwargs: {l_max: 8, prefix: adstock_lf}
-      saturation_lf:
+        kwargs: {l_max: 8, prefix: adstock_contribution}
+      contribution_saturation:
         class: pymc_marketing.mmm.LogisticSaturation
-        kwargs: {prefix: sat_lf}
+        kwargs: {prefix: sat_contribution}
 
-original_scale_vars: [channel_contribution, funnel_effect_contribution, y]
+original_scale_vars: [channel_contribution, mediator_effect_contribution, y]
