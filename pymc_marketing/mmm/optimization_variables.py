@@ -449,6 +449,12 @@ class LeverVariable(OptimizationVariable):
     it (a discount fraction, a price index), so the forward map is the identity
     up to relabelling the flat dimension.
 
+    A lever only moves if the optimizer's ``response_variable`` can reach it.
+    The default ``total_media_contribution_original_scale`` is built from the
+    channel contribution alone, so a lever acting through a ``MuEffect`` is
+    invisible to it; score against ``total_response_original_scale``, which an
+    :class:`~pymc_marketing.mmm.mmm.MMM` with mu effects registers.
+
     Levers do not participate in the default budget-sum constraint, which sums
     the media tensor alone: a discount depth is not money drawn from a shared
     pool. To constrain one, write a custom

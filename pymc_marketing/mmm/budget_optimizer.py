@@ -198,7 +198,8 @@ Requirements
   The optimizer replaces ``channel_data`` with the optimization variable under the hood.
 - Posterior must contain a response variable (default: ``"total_media_contribution_original_scale"``)
   or any custom ``response_variable`` you pass, and the required MMM deterministics
-  (e.g. ``channel_contribution``).
+  (e.g. ``channel_contribution``). Models with ``mu_effects`` also expose
+  ``"total_response_original_scale"``, which includes those effects' contributions.
 - For time distribution: pass a DataArray with dims ``("date", *budget_dims)`` and values along
   ``date`` summing to 1 for each budget cell.
 - Bounds can be a dict only for single‑dimensional budgets; otherwise use an
@@ -271,6 +272,11 @@ from pymc_marketing.mmm.optimization_variables import (
 from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
 from pymc_marketing.version import __version__
+
+DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+"""Objective used when no ``response_variable`` is given: the media contribution
+alone. A model whose response also travels through a ``MuEffect`` wants
+``"total_response_original_scale"`` instead."""
 
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
@@ -1123,7 +1129,16 @@ class BudgetOptimizer(BaseModel):
         or time-varying components. Defaults to ``None``.
     response_variable : str, optional
         The response variable to optimize. Default is
-        ``"total_media_contribution_original_scale"``.
+        ``"total_media_contribution_original_scale"``, which is built from the
+        channel contribution alone. A model whose response partly travels
+        through a ``MuEffect`` -- a funnel mediator, or an effect carrying an
+        optimizable lever -- should pass ``"total_response_original_scale"``
+        instead, since the default cannot see those contributions and a budget
+        optimized against it undervalues whatever drives them.
+        :meth:`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` warns when it
+        detects that case, but constructing this class directly cannot -- it has
+        no view of the model's effects -- so silence here is not evidence that
+        the default is the right objective.
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -1243,7 +1258,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="total_media_contribution_original_scale",
+        default=DEFAULT_RESPONSE_VARIABLE,
         description="The response variable to optimize.",
     )
 
