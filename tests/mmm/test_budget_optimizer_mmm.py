@@ -2008,6 +2008,12 @@ class TestFunnelEffectPropagation:
     has a posterior counterpart, and ``total_response_original_scale`` (registered
     because the model has mu effects) is the objective that counts the mediated
     path. Both compile modes are exercised: the default one and the C/VM linker.
+
+    The tests deliberately go through the private ``_objective_and_grad``: it is
+    the exact callable handed to SLSQP (objective and gradient in one compiled
+    function), so what is pinned here is what the solver sees. The advanced funnel
+    notebook proves the same facts through the public API
+    (``optimization_variables``, ``extract_response_distribution``).
     """
 
     @pytest.fixture(scope="class", params=["default", "cvm"])
