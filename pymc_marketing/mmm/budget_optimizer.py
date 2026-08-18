@@ -273,6 +273,11 @@ from pymc_marketing.mmm.utility import UtilityFunctionType, average_response
 from pymc_marketing.pytensor_utils import merge_models
 from pymc_marketing.version import __version__
 
+DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+"""Objective used when no ``response_variable`` is given: the media contribution
+alone. A model whose response also travels through a ``MuEffect`` wants
+``"total_response_original_scale"`` instead."""
+
 # Delayed import inside methods to avoid circular dependency on pytensor_utils
 
 
@@ -1130,6 +1135,10 @@ class BudgetOptimizer(BaseModel):
         optimizable lever -- should pass ``"total_response_original_scale"``
         instead, since the default cannot see those contributions and a budget
         optimized against it undervalues whatever drives them.
+        :meth:`~pymc_marketing.mmm.mmm.MMM.budget_optimizer` warns when it
+        detects that case, but constructing this class directly cannot -- it has
+        no view of the model's effects -- so silence here is not evidence that
+        the default is the right objective.
     utility_function : UtilityFunctionType, optional
         The utility function to maximize. Default is the mean of the response distribution.
     budgets_to_optimize : xarray.DataArray, optional
@@ -1249,7 +1258,7 @@ class BudgetOptimizer(BaseModel):
     )
 
     response_variable: str = Field(
-        default="total_media_contribution_original_scale",
+        default=DEFAULT_RESPONSE_VARIABLE,
         description="The response variable to optimize.",
     )
 

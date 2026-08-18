@@ -197,6 +197,7 @@ from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -209,7 +210,10 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
     safe_to_datetime,
 )
-from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.budget_optimizer import (
+    DEFAULT_RESPONSE_VARIABLE,
+    OptimizerCompatibleModelWrapper,
+)
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
@@ -2638,7 +2642,35 @@ class MMM(RegressionModelBuilder):
 
         return pymc_model
 
-    DEFAULT_RESPONSE_VARIABLE = "total_media_contribution_original_scale"
+    def _effects_carry_media_response(self) -> bool:
+        """Report whether a mu effect routes media response around the default.
+
+        Non-emptiness of ``mu_effects`` is the wrong predicate: an events,
+        trend, Fourier or control effect is not downstream of the channel data,
+        so ``total_media_contribution_original_scale`` is exactly right for
+        those models and warning about them would be false. What matters is
+        graph reachability -- whether an effect's contribution has the channel
+        data among its ancestors, as a funnel mediator does.
+
+        An effect that does not name its contribution cannot be checked, and is
+        treated as though it might carry response: a spurious warning is
+        recoverable, a silently undercounted objective is not.
+        """
+        if not self.mu_effects or self.model is None:
+            return False
+        if "channel_data" not in self.model.named_vars:
+            return False
+        media = self.model["channel_data"]
+        for effect in self.mu_effects:
+            try:
+                name = effect.contribution_var_name
+            except NotImplementedError:
+                return True
+            if name not in self.model.named_vars:
+                return True
+            if media in set(ancestors([self.model[name]])):
+                return True
+        return False
 
     def _resolve_response_variable(self, response_variable: str | None) -> str:
         """Resolve the objective, warning when the default cannot see the effects.
@@ -2654,19 +2686,19 @@ class MMM(RegressionModelBuilder):
         """
         if response_variable is not None:
             return response_variable
-        if self.mu_effects:
+        if self._effects_carry_media_response():
             warnings.warn(
-                "This model has mu_effects, whose contributions are not part of "
-                f"{self.DEFAULT_RESPONSE_VARIABLE!r}, the default objective. "
-                "Optimizing against it undercounts any response travelling "
-                "through an effect, so budgets that drive one are undervalued. "
-                "Pass response_variable='total_response_original_scale' to score "
-                "against the full response, or pass the default explicitly to "
-                "silence this warning.",
+                "This model routes part of the media response through a "
+                f"mu_effect, which {DEFAULT_RESPONSE_VARIABLE!r}, the default "
+                "objective, is not built from. Optimizing against it "
+                "undercounts that path, so budgets driving it are undervalued. "
+                "Pass response_variable='total_response_original_scale' to "
+                "score against the full response, or pass the default "
+                "explicitly to silence this warning.",
                 UserWarning,
                 stacklevel=3,
             )
-        return self.DEFAULT_RESPONSE_VARIABLE
+        return DEFAULT_RESPONSE_VARIABLE
 
     def budget_optimizer(
         self,

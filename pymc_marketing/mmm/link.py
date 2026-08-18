@@ -180,11 +180,11 @@ class LinkSpec(ABC):
         (:class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` with
         ``response_variable="total_response_original_scale"``).
 
-        The result is a scalar: the date axis is summed first, then **every
-        remaining dimension**, so a model with extra dims (geo, product) totals
-        across all of them. That is the right contract for a single shared
-        budget, and the wrong one if segments hold separate budgets -- those
-        want a per-segment objective and a constraint per segment.
+        The result is a scalar: the sum reduces **every** dimension, so a model
+        with extra dims (geo, product) totals across all of them. That is the
+        right contract for a single shared budget, and the wrong one if segments
+        hold separate budgets -- those want a per-segment objective and a
+        constraint per segment.
 
         Parameters
         ----------
@@ -209,10 +209,16 @@ class LinkSpec(ABC):
         direct-versus-mediated decomposition see
         :class:`~pymc_marketing.mmm.incrementality.Incrementality`, which
         computes proper counterfactuals.
+
+        Under the log link this sums ``exp(mu) * target_scale``, the conditional
+        *median* rather than the mean; :meth:`mean_correction` is the factor
+        between them. The argmax is unaffected, since that factor is per-draw
+        and budget-independent, but a reader taking the value itself as the
+        expected response is off by it.
         """
         pmd.Deterministic(
             "total_response_original_scale",
-            self.original_scale_transform(mu_var, target_scale).sum(dim="date").sum(),
+            self.original_scale_transform(mu_var, target_scale).sum(),
         )
 
     @abstractmethod

@@ -24,8 +24,9 @@ from pytensor import function
 from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
-from pymc_marketing.mmm.additive_effect import MuEffect
+from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
 from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer, BuildMergedModel
+from pymc_marketing.mmm.linear_trend import LinearTrend
 from pymc_marketing.mmm.mmm import (
     MMM,
     BudgetOptimizerWrapper,
@@ -1854,12 +1855,43 @@ def test_mediated_response_changes_the_allocation(dummy_df, fitted_mmm_mediated)
     )
 
 
+@pytest.fixture(scope="module")
+def fitted_mmm_trend(dummy_df, mock_pymc_sample):
+    """A fitted model with a mu effect that is *not* downstream of the budgets.
+
+    `LinearTrendEffect` stands for the whole family -- events, Fourier,
+    controls -- whose contributions the media objective correctly excludes.
+    """
+    df_kwargs, X_dummy, y_dummy = dummy_df
+
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    ).add_mu_effect(
+        LinearTrendEffect(trend=LinearTrend(n_changepoints=2), prefix="trend")
+    )
+
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    mmm.fit(
+        X=X_dummy,
+        y=y_dummy,
+        chains=2,
+        target_accept=0.8,
+        tune=50,
+        draws=50,
+        progressbar=False,
+        random_seed=42,
+    )
+    return mmm
+
+
 class TestDefaultObjectiveWarning:
-    """A mu-effect model must not silently optimize the media-only objective.
+    """A model routing media response through an effect must not do so silently.
 
     The optimizer's reachability check only fires for declared levers, so a
-    model with effects and no levers would otherwise misconfigure silently --
-    the exact failure this objective exists to prevent.
+    model with a mediating effect and no levers would otherwise misconfigure
+    silently -- the exact failure this objective exists to prevent.
     """
 
     @staticmethod
@@ -1869,28 +1901,61 @@ class TestDefaultObjectiveWarning:
             "end_date": X_dummy["date_week"].max() + pd.Timedelta(weeks=10),
         }
 
-    def test_warns_when_the_objective_is_left_unset(
-        self, dummy_df, fitted_mmm_mediated
-    ):
+    @pytest.fixture(params=["budget_optimizer", "optimize_budget"])
+    def call_entry_point(self, request, dummy_df):
+        """Both public paths resolve the objective, so both must behave alike."""
         _df_kwargs, X_dummy, _y_dummy = dummy_df
-        with pytest.warns(UserWarning, match="undercounts any response"):
-            fitted_mmm_mediated.budget_optimizer(**self._window(X_dummy))
+        window = self._window(X_dummy)
+
+        def call(mmm, **kwargs):
+            if request.param == "budget_optimizer":
+                return mmm.budget_optimizer(**window, **kwargs)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                wrapper = BudgetOptimizerWrapper(model=mmm, **window)
+            return wrapper.optimize_budget(budget=10, **kwargs)
+
+        return call
+
+    @staticmethod
+    def _assert_no_objective_warning(call, *args, **kwargs):
+        """Assert our warning is absent, ignoring unrelated ones.
+
+        `simplefilter("error")` would also trip on warnings this guard has
+        nothing to do with, such as the optimizer's default-bounds notice.
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            call(*args, **kwargs)
+        offending = [w for w in caught if "undercounts that path" in str(w.message)]
+        assert not offending, f"unexpected objective warning: {offending}"
+
+    def test_warns_when_the_objective_is_left_unset(
+        self, fitted_mmm_mediated, call_entry_point
+    ):
+        with pytest.warns(UserWarning, match="undercounts that path"):
+            call_entry_point(fitted_mmm_mediated)
 
     def test_silent_when_the_objective_is_chosen_explicitly(
-        self, dummy_df, fitted_mmm_mediated
+        self, fitted_mmm_mediated, call_entry_point
     ):
         """Passing the default explicitly is a deliberate choice, not a mistake."""
-        _df_kwargs, X_dummy, _y_dummy = dummy_df
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)
-            fitted_mmm_mediated.budget_optimizer(
-                **self._window(X_dummy),
-                response_variable="total_media_contribution_original_scale",
+        for chosen in (
+            "total_media_contribution_original_scale",
+            "total_response_original_scale",
+        ):
+            self._assert_no_objective_warning(
+                call_entry_point, fitted_mmm_mediated, response_variable=chosen
             )
-            fitted_mmm_mediated.budget_optimizer(
-                **self._window(X_dummy),
-                response_variable="total_response_original_scale",
-            )
+
+    def test_warning_points_at_the_caller(self, fitted_mmm_mediated, call_entry_point):
+        """stacklevel has to blame the user's call, not the library internals."""
+        with pytest.warns(UserWarning, match="undercounts that path") as record:
+            call_entry_point(fitted_mmm_mediated)
+
+        assert record[0].filename == __file__, (
+            f"warning blamed {record[0].filename}, not the caller"
+        )
 
     def test_explicit_none_resolves_rather_than_failing_validation(
         self, dummy_df, fitted_mmm_mediated
@@ -1901,25 +1966,28 @@ class TestDefaultObjectiveWarning:
         validation, reporting a type error rather than the real problem.
         """
         _df_kwargs, X_dummy, _y_dummy = dummy_df
-        with pytest.warns(UserWarning, match="undercounts any response"):
+        with pytest.warns(UserWarning, match="undercounts that path"):
             optimizer = fitted_mmm_mediated.budget_optimizer(
                 **self._window(X_dummy), response_variable=None
             )
         assert optimizer.response_variable == "total_media_contribution_original_scale"
 
-    def test_warning_points_at_the_caller(self, dummy_df, fitted_mmm_mediated):
-        """stacklevel has to blame the user's call, not the library internals."""
-        _df_kwargs, X_dummy, _y_dummy = dummy_df
-        with pytest.warns(UserWarning, match="undercounts any response") as record:
-            fitted_mmm_mediated.budget_optimizer(**self._window(X_dummy))
-
-        assert record[0].filename == __file__, (
-            f"warning blamed {record[0].filename}, not the caller"
-        )
-
     def test_silent_without_mu_effects(self, dummy_df, fitted_mmm):
         """A plain media model has nothing the default objective misses."""
         _df_kwargs, X_dummy, _y_dummy = dummy_df
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", UserWarning)
-            fitted_mmm.budget_optimizer(**self._window(X_dummy))
+        self._assert_no_objective_warning(
+            fitted_mmm.budget_optimizer, **self._window(X_dummy)
+        )
+
+    def test_silent_for_effects_that_do_not_carry_media_response(
+        self, dummy_df, fitted_mmm_trend
+    ):
+        """A trend effect is not downstream of the budgets, so the default is right.
+
+        Warning here would tell every existing events or trend user that their
+        already-correct objective undercounts.
+        """
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        self._assert_no_objective_warning(
+            fitted_mmm_trend.budget_optimizer, **self._window(X_dummy)
+        )
