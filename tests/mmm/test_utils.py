@@ -929,6 +929,17 @@ class TestBuildContributions:
         assert len(df) == 10
 
 
+class _StubEffect:
+    """A mu effect that reads *data_vars* and nothing else.
+
+    `create_zero_dataset` only ever asks an effect which variables it reads, so
+    the branches below need a name and a list -- not a fitted funnel.
+    """
+
+    def __init__(self, data_vars):
+        self.data_vars = list(data_vars)
+
+
 class TestEffectDataInTheOptimizationWindow:
     """`create_zero_dataset` has to carry the variables mu_effects read.
 
@@ -1001,3 +1012,62 @@ class TestEffectDataInTheOptimizationWindow:
         pm.set_data({"lf_budget": np.full(n_dates, 0.7)}, model=model)
 
         np.testing.assert_allclose(model["lf_budget"].get_value(), 0.7)
+
+    def test_a_variable_the_training_data_does_not_carry_is_an_error(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """An effect reading a variable the training data lacks cannot be served.
+
+        Its dims and coords are only knowable from the training dataset, so
+        there is nothing to build the window-length array from. Better to say
+        so than to leave the variable out and fail later on shape, where the
+        message points at the model rather than at the effect.
+        """
+        monkeypatch.setattr(
+            funnel_identity_fitted_mmm, "mu_effects", [_StubEffect(["no_such_var"])]
+        )
+
+        with pytest.raises(ValueError, match="_StubEffect reads 'no_such_var'"):
+            self._zero_ds(funnel_identity_fitted_mmm)
+
+    def test_a_window_independent_variable_is_left_alone(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """A variable without a date dim keeps its value; zero-filling would destroy it.
+
+        Its `pm.Data` is already the right shape for any window, so there is
+        nothing to correct -- and it is a constant, a per-channel rate or a
+        population. Reindexing it onto the new dates would replace that constant
+        with zeros and quietly change the model.
+        """
+        mmm = funnel_identity_fitted_mmm
+        capacity = xr.DataArray(
+            [2.0, 5.0],
+            dims=("channel",),
+            coords={"channel": list(mmm.xarray_dataset.coords["channel"].values)},
+        )
+        monkeypatch.setattr(
+            mmm, "xarray_dataset", mmm.xarray_dataset.assign(channel_capacity=capacity)
+        )
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["channel_capacity"])])
+
+        ds = self._zero_ds(mmm)
+
+        assert "channel_capacity" not in ds.data_vars
+
+    def test_a_variable_the_dataset_already_carries_is_not_overwritten(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """An effect reading `_channel` must not clobber the spend just built.
+
+        `_channel` is the decision variable. Zero-filling it here would erase
+        whatever `channel_xr` supplied -- and, in the optimizer, the allocation
+        itself.
+        """
+        mmm = funnel_identity_fitted_mmm
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["_channel"])])
+        channel_xr = xr.Dataset({ch: xr.DataArray(3.0) for ch in mmm.channel_columns})
+
+        ds = self._zero_ds(mmm, channel_xr=channel_xr)
+
+        np.testing.assert_allclose(ds["_channel"].to_numpy(), 3.0)
