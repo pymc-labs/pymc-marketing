@@ -401,23 +401,32 @@ def create_zero_dataset(
     # `DataVarMuEffect.set_data` skips any variable the dataset does not carry.
     # That is invisible in-sample, where the lengths happen to agree, and a
     # shape error for every other window.
-    for effect in getattr(model, "mu_effects", []):
-        for var_name in getattr(effect, "data_vars", []):
-            if var_name in data_vars:
-                continue
-            if var_name not in xa:
-                raise ValueError(
-                    f"mu_effect {type(effect).__name__} reads {var_name!r}, but "
-                    "the model's training dataset has no such variable, so its "
-                    "dims and coords cannot be determined."
-                )
-            template = xa[var_name]
-            if "date" not in template.dims:
-                # Window-independent, so its `pm.Data` already has the right
-                # shape and `set_data` has nothing to correct. Zero-filling it
-                # here would overwrite a constant -- a population, a per-channel
-                # rate -- with zeros.
-                continue
+    # `getattr` rather than `isinstance(effect, DataVarMuEffect)`: only that
+    # subclass declares `data_vars`, but this module is a leaf -- it imports
+    # nothing from the package -- and `additive_effect` reaches back here
+    # through `events`, so naming the class would close an import cycle.
+    # Skip what sections 4 and 5 already built: `_channel` is the decision
+    # variable itself, so zero-filling it here would erase the allocation.
+    reads = {
+        var_name: type(effect).__name__
+        for effect in getattr(model, "mu_effects", [])
+        for var_name in getattr(effect, "data_vars", [])
+        if var_name not in data_vars
+    }
+
+    for var_name, effect_name in reads.items():
+        if var_name not in xa:
+            raise ValueError(
+                f"mu_effect {effect_name} reads {var_name!r}, but the model's "
+                "training dataset has no such variable, so its dims and coords "
+                "cannot be determined."
+            )
+        template = xa[var_name]
+        # Only date-varying variables need rebuilding. A window-independent one
+        # -- a population, a per-channel rate -- already has the right shape, so
+        # `set_data` has nothing to correct and zero-filling would overwrite a
+        # constant with zeros.
+        if "date" in template.dims:
             data_vars[var_name] = xr.zeros_like(template).reindex(
                 date=new_dates, fill_value=0
             )
