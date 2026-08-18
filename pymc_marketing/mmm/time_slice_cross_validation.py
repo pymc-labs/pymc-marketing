@@ -33,6 +33,7 @@ from tqdm.auto import tqdm
 from pymc_marketing.mmm.builders.yaml import build_mmm_from_yaml
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting.cv import MMMCVPlotSuite
+from pymc_marketing.mmm.summary.cv import MMMCVSummaryFactory
 from pymc_marketing.mmm.types import MMMBuilder
 
 
@@ -217,6 +218,42 @@ class TimeSliceCrossValidator:
                 "completed successfully."
             )
         return MMMCVPlotSuite(self.cv_idata)
+
+    @property
+    def summary(self) -> MMMCVSummaryFactory:
+        """Summary factory for cross-validation results.
+
+        Returns a factory for tabular CV summaries (predictions, parameter
+        stability, CRPS) suitable for JSON export to frontends.
+
+        Returns
+        -------
+        MMMCVSummaryFactory
+            Factory bound to the CV DataTree from ``run()``.
+
+        Examples
+        --------
+        .. code-block:: python
+
+            cv_idata = cv.run(X, y, mmm=mmm)
+
+            df_pred = cv.summary.predictions()
+            df_stab = cv.summary.param_stability(var_names=["alpha"])
+            df_crps = cv.summary.crps()
+
+            records = df_pred.to_dict(orient="records")
+
+        See Also
+        --------
+        MMMCVPlotSuite.summary : Same factory when accessed via ``cv.plot``
+        """
+        self._validate_model_was_built()
+        if not hasattr(self, "cv_idata"):
+            raise ValueError(
+                "cv_idata is not available. Ensure TimeSliceCrossValidator.run() "
+                "completed successfully."
+            )
+        return MMMCVSummaryFactory(self.cv_idata)
 
     def _validate_model_was_built(self) -> None:
         """Validate that at least one CV run has produced results.

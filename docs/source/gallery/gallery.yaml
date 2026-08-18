@@ -50,6 +50,8 @@ sections:
             thumb: mmm_example.png
           - title: Custom MMM with ROAS Parameterization
             notebook: mmm/mmm_roas_parametrization
+          - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
+            notebook: mmm/mmm_halo
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
@@ -72,6 +74,8 @@ sections:
             notebook: mmm/mmm_geolift_calibration
           - title: Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
             notebook: mmm/mmm_roas
+          - title: Calibrating an MMM with ROAS Estimates
+            notebook: mmm/mmm_roas_calibration
       - title: Time-Varying Parameters
         cards:
           - title: MMM with time-varying media baseline

@@ -33,6 +33,7 @@ from pymc_marketing.data.idata.mmm_wrapper import MMMIDataWrapper
 from pymc_marketing.hsgp_kwargs import HSGPKwargs
 from pymc_marketing.mmm import (
     CovFunc,
+    DelayedAdstock,
     GeometricAdstock,
     LogisticSaturation,
     SoftPlusHSGP,
@@ -188,6 +189,126 @@ def test_target_column():
         target_column="epsilon",
     )
     assert mmm_custom.target_column == "epsilon"
+
+
+class TestGeometricAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM."""
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=GeometricAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("Gamma", mu=5, sigma=1, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
+
+
+class TestDelayedAdstockHalfLife:
+    """The half-life parametrisation propagates through the MMM.
+
+    ``theta`` is shared by both parametrisations, so it must reach the model
+    either way.
+    """
+
+    def _mmm(self, target_column, **kwargs):
+        return MMM(
+            date_column="date",
+            channel_columns=["C1", "C2"],
+            dims=("country",),
+            target_column=target_column,
+            adstock=DelayedAdstock(l_max=2, parametrization="halflife"),
+            saturation=LogisticSaturation(),
+            **kwargs,
+        )
+
+    def test_builds_halflife_variable(self, df, target_column) -> None:
+        mmm = self._mmm(target_column)
+
+        assert "adstock_halflife" in mmm.model_config
+        assert "adstock_theta" in mmm.model_config
+        assert "adstock_alpha" not in mmm.model_config
+
+        mmm.build_model(df.drop(columns=[target_column]), df[target_column])
+
+        assert "adstock_halflife" in mmm.model.named_vars
+        assert "adstock_theta" in mmm.model.named_vars
+        assert "adstock_alpha" not in mmm.model.named_vars
+        assert mmm.model.named_vars_to_dims["adstock_halflife"] == (
+            "country",
+            "channel",
+        )
+
+    def test_model_config_overrides_halflife(self, target_column) -> None:
+        prior = Prior("LogNormal", mu=1, sigma=0.3, dims=("country", "channel"))
+        mmm = self._mmm(target_column, model_config={"adstock_halflife": prior})
+
+        assert mmm.adstock.function_priors["halflife"] == prior
+
+    def test_alpha_in_model_config_warns(self, target_column) -> None:
+        with pytest.warns(UserWarning, match="adstock_alpha"):
+            self._mmm(
+                target_column,
+                model_config={"adstock_alpha": Prior("Beta", alpha=1, beta=3)},
+            )
+
+    def test_save_load_roundtrip(
+        self, df, target_column, tmp_path, mock_pymc_sample
+    ) -> None:
+        mmm = self._mmm(target_column)
+        mmm.fit(df.drop(columns=[target_column]), df[target_column])
+
+        file = str(tmp_path / "delayed_halflife.nc")
+        mmm.save(file)
+        loaded = MMM.load(file)
+
+        assert loaded.adstock.parametrization == "halflife"
+        assert loaded.adstock == mmm.adstock
+        assert "adstock_halflife" in loaded.model.named_vars
 
 
 def test_reserved_dims():
@@ -1465,6 +1586,48 @@ def test_sample_posterior_predictive_same_data(single_dim_data, mock_pymc_sample
         "When passing identical data for posterior predictive, "
         "'channel_contribution' should match exactly (or within floating tolerance) "
         "the values in the 'posterior' group."
+    )
+
+
+@pytest.mark.parametrize("clone_model", [True, False])
+def test_sample_posterior_predictive_clone_model(
+    single_dim_data, mock_pymc_sample, clone_model
+):
+    """
+    Test that sampling from the posterior predictive works with both clone_model
+    values when no deterministics are frozen, and that clone_model=False sets the
+    new data on the original model in place.
+    """
+    X, y = single_dim_data
+    X_train = X.iloc[:-5]
+    X_new = X.iloc[-5:]
+    y_train = y.iloc[:-5]
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+
+    mmm.build_model(X_train, y_train)
+    mmm.fit(X_train, y_train, draws=200, tune=100, chains=1, random_seed=42)
+
+    # The clone_model=False branch is only reachable without frozen deterministics.
+    assert mmm.frozen_deterministics == []
+
+    out_of_sample_idata = mmm.sample_posterior_predictive(
+        X_new, extend_idata=False, clone_model=clone_model, random_seed=42
+    )
+
+    assert out_of_sample_idata.coords["date"].values.shape == X_new.date.values.shape
+
+    # clone_model=True samples on a copy and leaves the original model untouched,
+    # while clone_model=False sets the new data on the original model.
+    expected_dates = X_train.date if clone_model else X_new.date
+    np.testing.assert_array_equal(
+        np.asarray(mmm.model.coords["date"]), expected_dates.to_numpy()
     )
 
 
@@ -2853,6 +3016,11 @@ def test_multidimensional_budget_optimizer_wrapper(fit_mmm, mock_pymc_sample):
     assert optimizer.channel_columns == fit_mmm.channel_columns
     assert optimizer.dims == fit_mmm.dims
 
+    fit_mmm.plot_suite = "new"
+    from pymc_marketing.mmm.summary import BudgetSummaryFactory
+
+    assert optimizer.summary is BudgetSummaryFactory
+
     # Create a budget bounds DataArray
     budget = 1000
     countries = fit_mmm.xarray_dataset.country.values
@@ -3019,6 +3187,96 @@ def test_add_calibration_test_measurements(multi_dim_data):
 
     obs_names = [rv.name for rv in mmm.model.observed_RVs]
     assert "cpt_calibration" in obs_names
+
+
+def test_add_roas_calibration_target_per_cost(multi_dim_data):
+    """`target_per_cost=True` calibrates contribution/spend (ROAS) instead of CPT."""
+    X, y = multi_dim_data
+
+    def build_calibrated_model(target_per_cost: bool) -> MMM:
+        mmm = MMM(
+            date_column="date",
+            target_column="target",
+            channel_columns=["channel_1", "channel_2", "channel_3"],
+            dims=("country",),
+            adstock=GeometricAdstock(l_max=2),
+            saturation=LogisticSaturation(),
+        )
+        mmm.build_model(X, y)
+        mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+        countries = mmm.model.coords["country"]
+        roas_df = pd.DataFrame(
+            {
+                "country": [countries[0], countries[1]],
+                "channel": ["channel_1", "channel_2"],
+                "roas": [3.5, 2.0],
+                "sigma": [0.3, 0.2],
+            }
+        )
+
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=roas_df,
+            name_prefix="roas_calibration",
+            target_column="roas",
+            target_per_cost=target_per_cost,
+        )
+        return mmm
+
+    mmm = build_calibrated_model(target_per_cost=True)
+
+    obs_names = [rv.name for rv in mmm.model.observed_RVs]
+    assert "roas_calibration" in obs_names
+
+    assert "_roas_calibration" in mmm.model.coords
+    assert mmm.model.dim_lengths["_roas_calibration"].eval() == 2
+
+    # The flag must reach the likelihood: the same calibration values scored as
+    # target-per-cost vs cost-per-target give different logps, so an identical
+    # model built with the flag flipped must not match.
+    mmm_cpt = build_calibrated_model(target_per_cost=False)
+
+    def calibration_logp(mmm_: MMM) -> float:
+        model = mmm_.model
+        logp_fn = model.compile_logp(vars=[model["roas_calibration"]])
+        return logp_fn(model.initial_point())
+
+    assert calibration_logp(mmm) != pytest.approx(calibration_logp(mmm_cpt))
+
+
+def test_add_cost_per_target_calibration_missing_target_column(multi_dim_data) -> None:
+    """A missing target column raises a clear KeyError."""
+    X, y = multi_dim_data
+
+    mmm = MMM(
+        date_column="date",
+        target_column="target",
+        channel_columns=["channel_1", "channel_2", "channel_3"],
+        dims=("country",),
+        adstock=GeometricAdstock(l_max=2),
+        saturation=LogisticSaturation(),
+    )
+    mmm.build_model(X, y)
+    mmm.add_original_scale_contribution_variable(var=["channel_contribution"])
+
+    countries = mmm.model.coords["country"]
+    calibration_df = pd.DataFrame(
+        {
+            "country": [countries[0]],
+            "channel": ["channel_1"],
+            "cost_per_target": [30.0],
+            "sigma": [2.0],
+        }
+    )
+
+    with pytest.raises(KeyError, match="'roas' column missing in calibration_data"):
+        mmm.add_cost_per_target_calibration(
+            data=X.copy(),
+            calibration_data=calibration_df,
+            target_column="roas",
+            target_per_cost=True,
+        )
 
 
 def test_add_cost_per_target_calibration_requires_model(multi_dim_data) -> None:

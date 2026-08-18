@@ -114,6 +114,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_roas_parametrization.png
 :link: ../notebooks/mmm/mmm_roas_parametrization.html
 :::
+
+:::{grid-item-card} Halo and Cannibalisation Effects in Multi-Dimensional MMMs
+:img-top: ../gallery/images/mmm_halo.png
+:link: ../notebooks/mmm/mmm_halo.html
+:::
 ::::
 
 ### Data Connectors
@@ -171,6 +176,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Mitigating Unobserved Confounders in MMMs with Lift Test Likelihoods
 :img-top: ../gallery/images/mmm_roas.png
 :link: ../notebooks/mmm/mmm_roas.html
+:::
+
+:::{grid-item-card} Calibrating an MMM with ROAS Estimates
+:img-top: ../gallery/images/mmm_roas_calibration.png
+:link: ../notebooks/mmm/mmm_roas_calibration.html
 :::
 ::::
 
