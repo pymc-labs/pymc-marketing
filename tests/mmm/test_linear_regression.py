@@ -86,6 +86,7 @@ def test_fancy_linear_regression(
         "draw",
         "gamma_control",
         "intercept_contribution",
+        "mu",
         "saturation_beta",
         "total_media_contribution_original_scale",
         "y_sigma",
