@@ -232,6 +232,7 @@ def create_zero_dataset(
     end_date: str | pd.Timestamp,
     channel_xr: xr.Dataset | xr.DataArray | None = None,
     include_carryover: bool = True,
+    carry_in: bool = False,
 ) -> xr.Dataset:
     """Create an ``xr.Dataset`` for future prediction, with zero fills.
 
@@ -261,6 +262,13 @@ def create_zero_dataset(
         periods, so that spend inside the window is scored with the carry-over it
         produces after it.  The extension is trailing; nothing is prepended, and
         the window therefore starts from a cold adstock state.
+    carry_in
+        Whether every non-decision variable -- controls, and the variables the
+        model's ``mu_effects`` read -- takes its **observed** value on each date
+        the training data covers, falling back to zero only on dates it does
+        not.  ``_channel`` is unaffected: it is the decision variable and stays
+        at zero (or at *channel_xr*).  Defaults to ``False``, which zero-fills
+        everything and is what plain forward prediction wants.
 
     Returns
     -------
@@ -271,12 +279,19 @@ def create_zero_dataset(
 
     Notes
     -----
-    The effect variables are zeros, which is what a future window with no
-    committed activity means.  In-sample that is a *change of scenario* rather
-    than a reconstruction of history: an exogenous series the effect reads --
-    a category-demand index, a committed budget -- comes back as zero, not at
-    its fitted value.  To score a window against particular values, build the
-    model with :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
+    By default the effect variables are zeros, which is what a future window
+    with no committed activity means.  In-sample that is a *change of scenario*
+    rather than a reconstruction of history: an exogenous series the effect
+    reads -- a category-demand index, a committed budget -- comes back as zero
+    rather than at its fitted value, so the response no longer matches the
+    posterior it was fitted to.  ``carry_in=True`` is the fix, and it needs no
+    knowledge of which window it was handed: taking the observed value wherever
+    the training data reaches reproduces history in-sample and decays to zeros
+    on genuinely future dates.
+
+    For a scenario that is neither -- a planned promotional calendar, a
+    committed lower-funnel budget -- build the model with
+    :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
     ``pm.set_data`` those variables on it, and hand that model to
     ``BudgetOptimizer`` directly.
     """
@@ -407,11 +422,14 @@ def create_zero_dataset(
         ctrl_shape.append(len(control_cols))
         ctrl_coords["control"] = control_cols
 
-        data_vars["_control"] = xr.DataArray(
-            np.zeros(ctrl_shape, dtype=float),
-            dims=("date", *dim_cols, "control"),
-            coords=ctrl_coords,
-        )
+        if carry_in and "_control" in xa:
+            data_vars["_control"] = xa["_control"].reindex(date=new_dates, fill_value=0)
+        else:
+            data_vars["_control"] = xr.DataArray(
+                np.zeros(ctrl_shape, dtype=float),
+                dims=("date", *dim_cols, "control"),
+                coords=ctrl_coords,
+            )
 
     # ---- 6. Variables the model's mu_effects read ------------------------------
     # Without these the effect's `pm.Data` keeps its fit-time length, because
@@ -444,9 +462,11 @@ def create_zero_dataset(
         # `set_data` has nothing to correct and zero-filling would overwrite a
         # constant with zeros.
         if "date" in template.dims:
-            data_vars[var_name] = xr.zeros_like(template).reindex(
-                date=new_dates, fill_value=0
-            )
+            # `reindex` alone keeps the observed value on every date the
+            # training data covers and fills 0 on the rest, which is exactly
+            # the carry-in rule. Zeroing first drops the observed part.
+            source = template if carry_in else xr.zeros_like(template)
+            data_vars[var_name] = source.reindex(date=new_dates, fill_value=0)
     # Zeros, because a future window has no committed activity by default. To
     # plan against one that does -- a promotional calendar, a committed
     # lower-funnel budget -- ``pm.set_data`` the variable on the model this

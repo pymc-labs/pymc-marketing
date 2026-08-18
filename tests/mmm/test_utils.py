@@ -1013,6 +1013,79 @@ class TestEffectDataInTheOptimizationWindow:
 
         np.testing.assert_allclose(model["lf_budget"].get_value(), 0.7)
 
+    def test_carry_in_reproduces_history_on_an_in_sample_window(
+        self, funnel_identity_fitted_mmm
+    ):
+        """With ``carry_in``, only the decision variable differs from the fit.
+
+        Re-optimizing a window that overlaps training is a counterfactual on
+        the spend alone: every other input should still hold the value the
+        posterior was fitted to. When it does, the response at the historical
+        plan equals the in-sample posterior mean by construction -- the graph
+        is the same and every non-decision input is the same.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        l_max = mmm.adstock.l_max
+
+        opt = mmm.create_optimization_model(
+            start_date=dates[0], end_date=dates[-(l_max + 1)], carry_in=True
+        )
+
+        np.testing.assert_allclose(
+            opt["lf_budget"].get_value(), mmm.model["lf_budget"].get_value()
+        )
+
+    def test_the_default_still_zero_fills_an_in_sample_window(
+        self, funnel_identity_fitted_mmm
+    ):
+        """``carry_in`` is opt-in; without it the old behaviour stands.
+
+        The in-sample window is the only place the flag is observable, so it
+        is the only place backward compatibility can be pinned.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        l_max = mmm.adstock.l_max
+
+        opt = mmm.create_optimization_model(
+            start_date=dates[0], end_date=dates[-(l_max + 1)]
+        )
+
+        assert (np.asarray(opt["lf_budget"].get_value()) == 0).all()
+
+    def test_carry_in_leaves_the_decision_variable_at_zero(
+        self, funnel_identity_fitted_mmm
+    ):
+        """``carry_in`` restores inputs, never the spend being decided."""
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        l_max = mmm.adstock.l_max
+
+        opt = mmm.create_optimization_model(
+            start_date=dates[0], end_date=dates[-(l_max + 1)], carry_in=True
+        )
+
+        assert (np.asarray(opt["channel_data"].get_value()) == 0).all()
+
+    def test_carry_in_falls_back_to_zero_where_training_does_not_reach(
+        self, funnel_identity_fitted_mmm
+    ):
+        """On a genuinely future window the flag changes nothing.
+
+        No date is covered by the training data, so every observed value the
+        rule could carry is absent and the fill decays to the zeros a future
+        window means. The flag therefore needs no knowledge of which kind of
+        window it was handed.
+        """
+        ds_on = self._zero_ds(funnel_identity_fitted_mmm, carry_in=True)
+        ds_off = self._zero_ds(funnel_identity_fitted_mmm, carry_in=False)
+
+        np.testing.assert_allclose(
+            ds_on["lf_budget"].to_numpy(), ds_off["lf_budget"].to_numpy()
+        )
+        assert (ds_on["lf_budget"].to_numpy() == 0).all()
+
     def test_a_variable_the_training_data_does_not_carry_is_an_error(
         self, funnel_identity_fitted_mmm, monkeypatch
     ):
