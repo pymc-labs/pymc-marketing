@@ -113,7 +113,9 @@ def to_mmm_dataset(
         ``DataVarMuEffect`` effects). Each becomes a variable indexed by
         ``date`` and any panel ``dims``.
     target_column
-        Name of the target / response variable.
+        Name of the target column in a ``pd.DataFrame`` when *y* is
+        omitted.  Ignored when *y* is supplied or when *X* already carries
+        a target variable.
 
     Returns
     -------
@@ -138,17 +140,44 @@ def to_mmm_dataset(
 
     # 2. Normalise y and merge into the dataset.
     if y is not None:
-        y_da = _to_mmm_target(y)
-        if "date" not in y_da.coords and isinstance(X, pd.DataFrame):
-            y_da = _reshape_flat_target(
-                y_da,
-                X,
-                date_column=date_column,
-                dims=dims,
+        if _dataset_has_target(ds):
+            raise ValueError(
+                "X already contains a target variable ('_target' or 'target'); "
+                "pass either a Dataset with a target or a separate y, not both."
             )
+        y_da = _to_mmm_target(y)
+        if "date" not in y_da.coords:
+            if isinstance(X, pd.DataFrame):
+                y_da = _reshape_flat_target(
+                    y_da,
+                    X,
+                    date_column=date_column,
+                    dims=dims,
+                )
+            elif dims:
+                raise ValueError(
+                    f"y has no 'date' coordinate but X is a panel Dataset with "
+                    f"dims {dims!r}. Pass y with a MultiIndex matching the panel, "
+                    "or pass a DataFrame so the target can be reshaped."
+                )
         ds["_target"] = y_da
+    elif not _dataset_has_target(ds) and isinstance(X, pd.DataFrame):
+        if target_column and target_column in X.columns:
+            y_da = _to_mmm_target(X[target_column])
+            if "date" not in y_da.coords:
+                y_da = _reshape_flat_target(
+                    y_da,
+                    X,
+                    date_column=date_column,
+                    dims=dims,
+                )
+            ds["_target"] = y_da
 
     return ds
+
+
+def _dataset_has_target(ds: xr.Dataset) -> bool:
+    return "_target" in ds.data_vars or "target" in ds.data_vars
 
 
 @singledispatch

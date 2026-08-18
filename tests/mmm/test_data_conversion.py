@@ -144,6 +144,67 @@ class TestToMmmDatasetYInputTypes:
         ds = to_mmm_dataset(X, date_column="date", channel_columns=["channel_1"])
         assert "_target" not in ds.data_vars
 
+    def test_target_column_extracts_when_y_omitted(self):
+        X = pd.DataFrame(
+            {
+                "date": pd.date_range("2023-01-01", periods=3, freq="W"),
+                "channel_1": [1.0, 2.0, 3.0],
+                "sales": [10.0, 20.0, 30.0],
+            }
+        )
+        ds = to_mmm_dataset(
+            X,
+            date_column="date",
+            channel_columns=["channel_1"],
+            target_column="sales",
+        )
+        assert ds["_target"].values.tolist() == [10.0, 20.0, 30.0]
+
+    def test_dataset_with_target_and_y_raises(self):
+        dates = pd.date_range("2023-01-01", periods=3, freq="W")
+        ds_in = xr.Dataset(
+            {
+                "media": xr.DataArray(
+                    [[1.0], [2.0], [3.0]],
+                    dims=("date", "channel"),
+                    coords={"date": dates, "channel": ["channel_1"]},
+                ),
+                "_target": xr.DataArray(
+                    [10.0, 20.0, 30.0], dims=("date",), coords={"date": dates}
+                ),
+            }
+        )
+        y = pd.Series([99.0, 99.0, 99.0])
+        with pytest.raises(ValueError, match="not both"):
+            to_mmm_dataset(
+                ds_in,
+                y,
+                date_column="date",
+                channel_columns=["channel_1"],
+            )
+
+    def test_panel_dataset_flat_y_raises(self):
+        dates = pd.date_range("2023-01-01", periods=2, freq="W")
+        geos = ["g1", "g2"]
+        ds_in = xr.Dataset(
+            {
+                "media": xr.DataArray(
+                    np.arange(4, dtype=float).reshape(2, 2, 1),
+                    dims=("date", "geo", "channel"),
+                    coords={"date": dates, "geo": geos, "channel": ["channel_1"]},
+                )
+            }
+        )
+        y = pd.Series([1.0, 2.0, 3.0, 4.0])
+        with pytest.raises(ValueError, match="no 'date' coordinate"):
+            to_mmm_dataset(
+                ds_in,
+                y,
+                date_column="date",
+                dims=("geo",),
+                channel_columns=["channel_1"],
+            )
+
     def test_y_as_dataframe_multi_column_raises(self):
         X = pd.DataFrame(
             {

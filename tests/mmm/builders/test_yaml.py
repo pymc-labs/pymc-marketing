@@ -29,6 +29,7 @@ from pymc_marketing.mmm.builders.yaml import (
     _apply_and_validate_calibration_steps,
     build_mmm_from_yaml,
 )
+from pymc_marketing.mmm.data_conversion import to_mmm_dataset
 from pymc_marketing.model_config import ModelConfigError
 
 
@@ -851,4 +852,102 @@ def test_build_mmm_from_yaml_extra_vars_dataset_typo_raises(tmp_path):
     config_path.write_text(yaml.dump(config))
 
     with pytest.raises(KeyError, match="serch_volume"):
+        build_mmm_from_yaml(config_path, X=X, y=y)
+
+
+def test_build_mmm_from_yaml_dataset_with_target_y_none():
+    """Dataset carrying _target should build when y is omitted."""
+    n = 52
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=n, freq="W"),
+            "channel_1": range(n),
+            "lower_spend": range(100, 100 + n),
+            "lower_control": range(200, 200 + n),
+        }
+    )
+    y = pd.Series(range(n), name="y")
+    ds = to_mmm_dataset(
+        X,
+        y,
+        date_column="date",
+        channel_columns=["channel_1"],
+        extra_vars=["lower_spend", "lower_control"],
+    )
+    config_path = "tests/mmm/builders/config_files/extra_vars_model.yml"
+
+    model = build_mmm_from_yaml(config_path, X=ds, y=None)
+
+    np.testing.assert_array_equal(
+        model.xarray_dataset["_target"].values, ds["_target"].values
+    )
+    assert "lower_spend" in model.xarray_dataset.data_vars
+
+
+def test_build_mmm_from_yaml_dataset_with_target_and_y_raises():
+    """Passing redundant y must not silently overwrite an embedded target."""
+    n = 52
+    X = pd.DataFrame(
+        {
+            "date": pd.date_range("2023-01-01", periods=n, freq="W"),
+            "channel_1": range(n),
+            "lower_spend": range(100, 100 + n),
+            "lower_control": range(200, 200 + n),
+        }
+    )
+    y = pd.Series(range(n), name="y")
+    ds = to_mmm_dataset(
+        X,
+        y,
+        date_column="date",
+        channel_columns=["channel_1"],
+        extra_vars=["lower_spend", "lower_control"],
+    )
+    config_path = "tests/mmm/builders/config_files/extra_vars_model.yml"
+
+    with pytest.raises(ValueError, match="not both"):
+        build_mmm_from_yaml(
+            config_path,
+            X=ds,
+            y=pd.Series(np.full(n, -999.0), name="y"),
+        )
+
+
+def test_build_mmm_from_yaml_panel_dataset_flat_y_raises():
+    """Panel Dataset plus flat RangeIndex y should raise a readable error."""
+    geos = ["g1", "g2"]
+    dates = pd.date_range("2023-01-01", periods=4, freq="W")
+    rows = []
+    for date in dates:
+        for geo in geos:
+            rows.append(
+                {
+                    "date": date,
+                    "geo": geo,
+                    "channel_1": float(len(rows)),
+                    "lower_spend": float(10 + len(rows)),
+                }
+            )
+    X = xr.Dataset(
+        {
+            "media": xr.DataArray(
+                np.array([row["channel_1"] for row in rows], dtype=float).reshape(
+                    len(dates), len(geos), 1
+                ),
+                dims=("date", "geo", "channel"),
+                coords={"date": dates, "geo": geos, "channel": ["channel_1"]},
+            ),
+            "lower_spend": xr.DataArray(
+                np.array([row["lower_spend"] for row in rows], dtype=float).reshape(
+                    len(dates), len(geos)
+                ),
+                dims=("date", "geo"),
+                coords={"date": dates, "geo": geos},
+            ),
+        }
+    )
+    y = pd.Series(range(len(rows)), name="y")
+    config_path = "tests/mmm/builders/config_files/extra_vars_geo_model.yml"
+
+    with pytest.raises(ValueError, match="no 'date' coordinate"):
         build_mmm_from_yaml(config_path, X=X, y=y)

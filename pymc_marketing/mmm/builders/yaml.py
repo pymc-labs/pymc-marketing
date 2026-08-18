@@ -23,7 +23,11 @@ import xarray as xr
 
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
-from pymc_marketing.mmm.data_conversion import _validate_extra_vars, to_mmm_dataset
+from pymc_marketing.mmm.data_conversion import (
+    _dataset_has_target,
+    _validate_extra_vars,
+    to_mmm_dataset,
+)
 from pymc_marketing.mmm.mmm import MMM
 
 
@@ -107,7 +111,9 @@ def build_mmm_from_yaml(
         ``xarray.Dataset`` before ``build_model``.
     y : pandas.DataFrame | pandas.Series, optional
         Pre-loaded target vector.  If omitted, the loader tries to read it
-        from a path in the YAML under `data.y_path`.
+        from a path in the YAML under `data.y_path`.  When *X* is an
+        ``xarray.Dataset`` that already contains ``_target`` (or ``target``),
+        *y* may be omitted.
     model_kwargs : dict, optional
         Additional keyword arguments for the model.
         They override any defaults specified in the YAML config.
@@ -132,9 +138,16 @@ def build_mmm_from_yaml(
             raise ValueError("X not provided and no `data.X_path` found in YAML.")
         X = _load_df(data_cfg.X_path)
     if y is None:
-        if data_cfg is None or data_cfg.y_path is None:
-            raise ValueError("y not provided and no `data.y_path` found in YAML.")
-        y = _load_df(data_cfg.y_path)
+        has_embedded_target = isinstance(X, xr.Dataset) and _dataset_has_target(X)
+        if not has_embedded_target:
+            if data_cfg is None or data_cfg.y_path is None:
+                raise ValueError("y not provided and no `data.y_path` found in YAML.")
+            y = _load_df(data_cfg.y_path)
+    elif isinstance(X, xr.Dataset) and _dataset_has_target(X):
+        raise ValueError(
+            "X already contains a target variable ('_target' or 'target'); "
+            "pass either a Dataset with a target or a separate y, not both."
+        )
 
     date_column = model_spec["kwargs"].get("date_column")
     if isinstance(X, pd.DataFrame) and date_column:
