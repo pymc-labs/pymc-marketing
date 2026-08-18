@@ -25,25 +25,27 @@ classifiers = [
 ]
 
 dependencies = [
-    "arviz>=1.2.0,<2.0",
     "arviz-plots[matplotlib]>=1.2.0,<2.0",
+    "arviz>=1.2.0,<2.0",
     "matplotlib>=3.5.1,<3.11",
     "narwhals",
-    "numpy>=2.0,<3.0",
+    # numba<=0.66 (a hard requirement of pytensor 3.x) does not support numpy 2.5,
+    # and uv>=0.12 otherwise falls back to a numba pre-release. Lift together with
+    # the next pytensor bump that allows numba>=0.67.
+    "numpy>=2.0,<2.5",
     "pandas",
     "patsy",
+    "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
-    "pymc>=6.0.0,<6.1.0",
-    "pytensor>=3.0.0,<4.0",
+    "pymc-extras>=0.14.0,<0.15.0",
+    "pymc>=6.2.0,<6.3.0",
+    "pyprojroot",
+    "pyyaml",
     "scikit-learn>=1.1.1",
     "seaborn>=0.12.2",
     "tqdm",
-    "xarray>=2024.1.0",
     "xarray-einstats>=0.5.1",
-    "pyprojroot",
-    "pymc-extras>=0.11.0,<0.13.0",
-    "preliz>=0.20.0,<1.0",
-    "pyyaml",
+    "xarray>=2024.1.0",
 ]
 
 [project.optional-dependencies]
@@ -108,6 +110,7 @@ test = [
     "plotly>=6.3.0",
     "pymc-bart>=0.12.0",
     "watermark",
+    "ipywidgets>=8.1.8",
 ]
 
 [tool.hatch.build.targets.sdist]
@@ -213,12 +216,6 @@ ignore_missing_imports = true
 
 [tool.mypy-scipy]
 ignore_missing_imports = true
-
-# Temporary: pin pymc-extras to a specific commit until a release containing
-# the pymc>=6 / DataTree changes is published on PyPI. Pinning the commit keeps
-# the build reproducible (an unpinned branch would resolve to a moving target).
-[tool.uv.sources]
-pymc-extras = { git = "https://github.com/pymc-devs/pymc-extras.git", rev = "ee8cc37df25f177ae7aea8a76587fb26da261a80" }
 
 [dependency-groups]
 dev = [
