@@ -31,17 +31,19 @@ variable each segment substitutes, how a segment maps to model-space tensors
 """
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
+from pymc import Model
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 from xarray import DataArray
 
 __all__ = [
     "FLAT_DIM",
+    "LeverVariable",
     "MediaVariable",
     "OptimizationVariable",
     "OptimizationVariables",
@@ -210,6 +212,20 @@ class OptimizationVariable(ABC):
         self, total_budget: float
     ) -> list[tuple[float | None, float | None]]:
         """Default ``(low, high)`` bounds per flat entry."""
+
+    def budget_contribution(self, z: XTensorVariable) -> XTensorVariable | None:
+        """Monetary amount this variable draws from the shared budget.
+
+        Returns None by default, for a variable optimized in its own units: a
+        discount depth is not money. A variable that spends from the pot
+        returns that spend, and the default budget-sum constraint totals every
+        such contribution.
+
+        The amount must follow the same convention as the media budgets, which
+        are per-period rates rather than totals over the horizon, since the
+        constraint sums the contributions directly.
+        """
+        return None
 
 
 class MediaVariable(OptimizationVariable):
@@ -382,6 +398,10 @@ class MediaVariable(OptimizationVariable):
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
         return repeated_budgets_with_carry_over
 
+    def budget_contribution(self, z: XTensorVariable) -> XTensorVariable:
+        """Media spends its whole slice, already in monetary units."""
+        return self.scattered(z)
+
     def unpack(self, x: np.ndarray) -> DataArray:
         """Scatter a flat solution back into a labelled monetary ``DataArray``."""
         full = np.zeros(self.shape, dtype=float)
@@ -421,6 +441,175 @@ class MediaVariable(OptimizationVariable):
         return [(0.0, float(total_budget))] * self.size
 
 
+class LeverVariable(OptimizationVariable):
+    """A non-media decision variable: one ``pm.Data`` node in native units.
+
+    Where :class:`MediaVariable` converts monetary budgets into channel data,
+    a lever is optimized directly in whatever units the model already uses for
+    it (a discount fraction, a price index), so the forward map is the identity
+    up to relabelling the flat dimension.
+
+    Levers do not participate in the default budget-sum constraint, which sums
+    the media tensor alone: a discount depth is not money drawn from a shared
+    pool. To constrain one, write a custom
+    :class:`~pymc_marketing.mmm.constraints.Constraint` and reach its segment
+    of the flat vector through
+    ``optimizer.optimization_variables.variable_slice(name)``.
+
+    Parameters
+    ----------
+    name : str
+        Name of the model's ``pm.Data`` node this lever substitutes.
+    dim : str
+        The node's single dimension, which must not be the date dim.
+    coords : list
+        Coordinates of ``dim``, in the model's order.
+    bounds : Sequence[tuple] or None
+        Declared ``(low, high)`` bounds per entry in the lever's native units,
+        or None to leave it unbounded.
+    initial_value : np.ndarray
+        The node's current value in the model, used as the warm start. It is
+        read once, when the optimizer is constructed, which matches the rest of
+        the optimizer: the objective graph is built and frozen at construction
+        too, and this node is substituted out of it entirely. Updating the
+        ``pm.Data`` node afterwards therefore changes neither the objective nor
+        the warm start; rebuild the optimizer to pick up a new value.
+    flat_dim : str
+        Name of the flat decision vector's dimension.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        dim: str,
+        coords: list,
+        bounds: Sequence[tuple[float | None, float | None]] | None,
+        initial_value: np.ndarray,
+        flat_dim: str = FLAT_DIM,
+    ) -> None:
+        self.name = name
+        self.dim = dim
+        self.dims = (dim,)
+        self.coords = {dim: list(coords)}
+        self.bounds = list(bounds) if bounds is not None else None
+        self.initial_value = np.ravel(np.asarray(initial_value, dtype=float))
+        self.flat_dim = flat_dim
+        if self.initial_value.shape != (self.size,):
+            raise ValueError(
+                f"{name}: initial value has {self.initial_value.size} entries, "
+                f"expected {self.size} (the length of dim {dim!r})"
+            )
+        if self.bounds is not None and len(self.bounds) != self.size:
+            raise ValueError(
+                f"{name}: {len(self.bounds)} bounds pairs for {self.size} "
+                f"entries of dim {dim!r}"
+            )
+
+    @property
+    def size(self) -> int:
+        """Number of lever entries, the length of its dim."""
+        return len(self.coords[self.dim])
+
+    def to_model(self, z: XTensorVariable) -> XTensorVariable:
+        """Relabel the flat slice with the lever's own dim."""
+        return z.rename({self.flat_dim: self.dim})
+
+    def unpack(self, x: np.ndarray) -> DataArray:
+        """Label a flat solution slice with the lever's dim and coords."""
+        return DataArray(np.asarray(x, dtype=float), dims=self.dims, coords=self.coords)
+
+    def pack(self, da: DataArray) -> np.ndarray:
+        """Flatten labelled lever values into flat-vector order."""
+        if set(da.dims) != set(self.dims):
+            raise ValueError(
+                f"{self.name}: expected dims {list(self.dims)}, got {list(da.dims)}"
+            )
+        return (
+            align_to_model_coords(da, self.coords, label=self.name)
+            .transpose(*self.dims)
+            .values
+        )
+
+    @classmethod
+    def from_model(
+        cls,
+        model: Model,
+        name: str,
+        bounds: Sequence[tuple[float | None, float | None]] | None = None,
+        *,
+        date_dim: str = "date",
+        flat_dim: str = FLAT_DIM,
+    ) -> "LeverVariable":
+        """Build a lever by reading a named node's dim, coords and value off a model.
+
+        Everything a lever needs besides its bounds already lives in the model,
+        so callers name the node and this reads the rest, raising if the node
+        cannot serve as a lever.
+
+        Parameters
+        ----------
+        model : Model
+            The model holding the node.
+        name : str
+            Name of the node to optimize. Must carry named dims.
+        bounds : Sequence[tuple] or None
+            Declared ``(low, high)`` bounds per entry, in native units.
+        date_dim : str
+            The model's date dimension, which a lever may not vary over.
+        flat_dim : str
+            Name of the flat decision vector's dimension.
+
+        Returns
+        -------
+        LeverVariable
+            A lever over ``name``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` has no named dims in the model, or does not have
+            exactly one dim other than ``date_dim``.
+        """
+        if name not in model.named_vars_to_dims:
+            raise ValueError(
+                f"optimizable_vars entry '{name}' is not a variable "
+                "with named dims in the model."
+            )
+        dims = tuple(model.named_vars_to_dims[name])
+        if len(dims) != 1 or dims[0] == date_dim:
+            raise ValueError(
+                f"optimizable_vars entry '{name}' must have exactly "
+                f"one dim, and not the {date_dim!r} dim; got "
+                f"{dims}. Date-varying optimizable variables "
+                "are not supported."
+            )
+        return cls(
+            name=name,
+            dim=dims[0],
+            coords=list(model.coords[dims[0]]),
+            bounds=bounds,
+            initial_value=model[name].get_value(),
+            flat_dim=flat_dim,
+        )
+
+    def default_x0(self, total_budget: float) -> np.ndarray:
+        """Warm start at the lever's current model value, clipped to bounds."""
+        x0 = self.initial_value.copy()
+        if self.bounds is not None:
+            lows = np.array([-np.inf if lo is None else lo for lo, _ in self.bounds])
+            highs = np.array([np.inf if hi is None else hi for _, hi in self.bounds])
+            x0 = np.clip(x0, lows, highs)
+        return x0
+
+    def default_bounds(
+        self, total_budget: float
+    ) -> list[tuple[float | None, float | None]]:
+        """Return the declared native-unit bounds, or unbounded."""
+        if self.bounds is not None:
+            return list(self.bounds)
+        return [(None, None)] * self.size
+
+
 class OptimizationVariables:
     """The complete decision vector: an ordered list of variables.
 
@@ -450,7 +639,10 @@ class OptimizationVariables:
         names = [variable.name for variable in variables]
         if len(set(names)) != len(names):
             raise ValueError(f"Duplicate variable names: {names}")
-        self.variables = list(variables)
+        # A tuple, not a list: the slice layout is computed once below, so a
+        # variable appended later would silently desynchronise it from the
+        # flat input. The container is exposed publicly for constraints.
+        self.variables: tuple[OptimizationVariable, ...] = tuple(variables)
         self.flat_dim = flat_dim
         # Reject a variable naming a different flat dimension rather than
         # realigning it: a variable whose own tensors are keyed on its name is
@@ -491,6 +683,17 @@ class OptimizationVariables:
         if flat_slice == slice(0, self.size):
             return self.flat
         return self.flat.isel({self.flat_dim: flat_slice})
+
+    def budget_contributions(self) -> list[XTensorVariable]:
+        """Monetary contributions of every variable that spends from the pot."""
+        contributions = []
+        for variable in self.variables:
+            contribution = variable.budget_contribution(
+                self.variable_slice(variable.name)
+            )
+            if contribution is not None:
+                contributions.append(contribution)
+        return contributions
 
     def substitutions(self) -> dict[str, XTensorVariable]:
         """Model substitution dict: one entry per variable, one joint graph."""
