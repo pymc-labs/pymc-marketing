@@ -5432,10 +5432,11 @@ class TestAmbientLayoutEngine:
     """The plot methods must not replace a layout engine set by the caller."""
 
     def test_helper_lays_out_when_no_engine(self):
-        fig, _ax = plt.subplots()
-        left_before = fig.axes[0].get_position().x0
-        _tight_layout(fig)
-        assert fig.axes[0].get_position().x0 != pytest.approx(left_before)
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _ax = plt.subplots()
+            left_before = fig.axes[0].get_position().x0
+            _tight_layout(fig)
+            assert fig.axes[0].get_position().x0 != pytest.approx(left_before)
         plt.close(fig)
 
     def test_helper_leaves_an_existing_engine_alone(self):
@@ -5450,9 +5451,10 @@ class TestAmbientLayoutEngine:
         plt.close(fig)
 
     def test_helper_forwards_kwargs(self):
-        fig, _ax = plt.subplots()
-        _tight_layout(fig, rect=[0, 0.5, 1, 1])
-        assert fig.axes[0].get_position().y0 >= 0.5
+        with plt.rc_context({"figure.constrained_layout.use": False}):
+            fig, _ax = plt.subplots()
+            _tight_layout(fig, rect=[0, 0.5, 1, 1])
+            assert fig.axes[0].get_position().y0 >= 0.5
         plt.close(fig)
 
     def test_budget_allocation_keeps_engine(self, mock_suite_with_constant_data):
