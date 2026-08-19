@@ -271,7 +271,10 @@ def create_zero_dataset(
         Number of leading dates to prepend, taken from the training index so
         they are real observed dates.  ``_channel`` holds its observed spend on
         them, so the adstock does not start cold.  Clips itself when the window
-        starts near the beginning of training.
+        starts near the beginning of training.  The history has to run up to
+        the window at the training frequency: when it does not (a window
+        opening long after training ends), a ``UserWarning`` is issued and the
+        window starts cold, because year-old spend is not last period's.
     carryover_periods
         Periods to extend past *end_date* when *include_carryover*, defaulting
         to ``model.adstock.l_max``.  Pass the *effective* carryover when an
@@ -282,17 +285,23 @@ def create_zero_dataset(
         model's ``mu_effects`` read -- takes its **observed** value on each date
         the training data covers, falling back to zero only on dates it does
         not.  ``_channel`` is unaffected: it is the decision variable and stays
-        at zero (or at *channel_xr*).  Optimization sets this; the default
-        ``False`` zero-fills everything, which is what
-        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_response_distribution` wants,
-        since it scores an allocation against a zeroed baseline.
+        at zero (or at *channel_xr*).  The default ``False`` zero-fills
+        everything, which is the function's contract (a window with no
+        committed activity) and keeps ``_control`` exactly as existing callers
+        get it.  :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`
+        opts in explicitly; the deprecated
+        :meth:`~pymc_marketing.mmm.mmm.BudgetOptimizerWrapper.sample_response_distribution`
+        relies on the default, since it scores an allocation against a zeroed
+        baseline.
 
     Returns
     -------
     xr.Dataset
         Dataset with ``_channel`` (and optionally ``_control``) variables,
-        indexed by ``("date", *dims, "channel")``, plus one zero-filled variable
-        per date-varying name the model's ``mu_effects`` read.
+        indexed by ``("date", *dims, "channel")``, plus one variable per
+        date-varying name the model's ``mu_effects`` read: zero-filled by
+        default, observed wherever the training data reaches when
+        *preserve_observed* is set.
 
     Notes
     -----
@@ -312,7 +321,18 @@ def create_zero_dataset(
     committed lower-funnel budget -- build the model with
     :meth:`~pymc_marketing.mmm.mmm.MMM.create_optimization_model`,
     ``pm.set_data`` those variables on it, and hand that model to
-    ``BudgetOptimizer`` directly.
+    ``BudgetOptimizer`` directly.  That model's date axis is three blocks,
+    ``carry_in + decisions + carry_over``, each flank
+    :meth:`~pymc_marketing.mmm.mmm.MMM.effective_carryover_lags` wide, so pass
+    ``carry_in_periods=mmm.effective_carryover_lags()`` and
+    ``adstock_periods=mmm.effective_carryover_lags()`` along with
+    ``num_periods`` (``BudgetOptimizer`` checks that the three add up to the
+    axis and says so if they do not).
+
+    An effect variable whose coordinate labels do not cover the shared index
+    (a ``channel``-dimensioned variable carrying a subset of the channels, say)
+    is NaN-filled the moment xarray aligns it, and is refused here by name
+    rather than written into the model as NaN.
     """
     if not hasattr(model, "xarray_dataset"):
         raise ValueError(
@@ -372,7 +392,30 @@ def create_zero_dataset(
     if carry_in_periods:
         before = training_dates[training_dates < new_dates[0]]
         carry_in_dates = pd.DatetimeIndex(before[-carry_in_periods:])
-        if len(carry_in_dates) < carry_in_periods:
+        # The history has to be the spend *immediately* before the window. The
+        # last training dates are that only when they run up to the window at
+        # the training frequency; a window opening a year after training ends
+        # would otherwise be warmed with year-old spend as if it were last
+        # period's. Compared elementwise rather than with `DatetimeIndex.equals`,
+        # which is False across datetime64 units (the training coordinate may be
+        # microsecond-resolution, the generated range is nanosecond).
+        expected = pd.date_range(
+            end=new_dates[0], periods=len(carry_in_dates) + 1, freq=inferred_freq
+        )[:-1]
+        contiguous = len(carry_in_dates) == len(expected) and bool(
+            (carry_in_dates == expected).all()
+        )
+        if len(carry_in_dates) and not contiguous:
+            warnings.warn(
+                f"Requested {carry_in_periods} carry-in periods, but the training "
+                f"data ending {carry_in_dates[-1].date()} is not contiguous with "
+                f"the window starting {new_dates[0].date()}. Falling back to a "
+                "cold start (zeros).",
+                UserWarning,
+                stacklevel=2,
+            )
+            carry_in_dates = carry_in_dates[:0]
+        elif len(carry_in_dates) < carry_in_periods:
             # Expected whenever the window opens at or near the start of
             # training -- there is no spend to carry in -- so this is not a
             # warning. Logged because a partially warm adstock is otherwise
@@ -504,17 +547,20 @@ def create_zero_dataset(
     # through `events`, so naming the class would close an import cycle.
     # Skip what sections 4 and 5 already built: `_channel` is the decision
     # variable itself, so zero-filling it here would erase the allocation.
-    reads = {
-        var_name: type(effect).__name__
-        for effect in getattr(model, "mu_effects", [])
-        for var_name in getattr(effect, "data_vars", [])
-        if var_name not in data_vars
-    }
+    # Every effect that reads a variable is recorded, so an error can name them
+    # all rather than whichever happened to come last.
+    reads: dict[str, list[str]] = {}
+    for effect in getattr(model, "mu_effects", []):
+        for var_name in getattr(effect, "data_vars", []):
+            if var_name not in data_vars:
+                reads.setdefault(var_name, []).append(type(effect).__name__)
 
-    for var_name, effect_name in reads.items():
+    effect_vars: list[str] = []
+    for var_name, effect_names in reads.items():
+        readers = ", ".join(effect_names)
         if var_name not in xa:
             raise ValueError(
-                f"mu_effect {effect_name} reads {var_name!r}, but the model's "
+                f"mu_effect {readers} reads {var_name!r}, but the model's "
                 "training dataset has no such variable, so its dims and coords "
                 "cannot be determined."
             )
@@ -529,14 +575,30 @@ def create_zero_dataset(
             # the carry-in rule. Zeroing first drops the observed part.
             source = template if preserve_observed else xr.zeros_like(template)
             data_vars[var_name] = source.reindex(date=new_dates, fill_value=0)
-    # Zeros, because a future window has no committed activity by default. To
-    # plan against one that does -- a promotional calendar, a committed
-    # lower-funnel budget -- ``pm.set_data`` the variable on the model this
-    # feeds and hand that model to ``BudgetOptimizer`` directly, which is what
-    # its ``model`` + ``idata`` signature is for. That only works once the
-    # variable is present at the window's length, which is what this does.
+            effect_vars.append(var_name)
 
-    return xr.Dataset(data_vars)
+    dataset = xr.Dataset(data_vars)
+
+    # A Dataset holds one index per dimension, so an effect variable whose
+    # labels do not cover the shared index -- a `channel`-dimensioned variable
+    # carrying a subset of the channels -- is NaN-filled on the missing labels
+    # the moment it is aligned, here or already in the training dataset. Nothing
+    # downstream can repair that: `pm.set_data` would write the NaN into the
+    # model and the optimizer would score it, failing somewhere inside scipy
+    # with no mention of the variable. Refuse it here, by name.
+    for var_name in effect_vars:
+        if bool(dataset[var_name].isnull().any()):
+            readers = ", ".join(reads[var_name])
+            raise ValueError(
+                f"mu_effect {readers} reads {var_name!r}, which contains NaN "
+                "after aligning it to the dataset's coordinates. Its labels do "
+                "not cover the shared index (for example a 'channel' dimension "
+                "carrying a subset of the model's channels), or the training "
+                "data itself has gaps. Give the variable the full set of "
+                "coordinate labels, or a dimension name of its own."
+            )
+
+    return dataset
 
 
 def add_noise_to_channel_allocation(

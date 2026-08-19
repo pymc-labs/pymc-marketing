@@ -2634,6 +2634,10 @@ class MMM(RegressionModelBuilder):
                 spec = spec_of()
             except NotImplementedError:
                 continue
+            if spec is None:
+                # Opted out. Skip this effect only: another effect's declaration
+                # must still widen the window.
+                continue
             lags = getattr(spec, "additional_carryover_lags", None)
             if lags:
                 declared = max(declared, int(lags))
