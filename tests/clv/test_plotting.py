@@ -11,6 +11,8 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
+import warnings
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -213,6 +215,18 @@ def test_plot_expected_purchases_ppc_exceptions(fitted_model):
     plt.close("all")
 
 
+def test_plot_expected_purchases_ecdf_warns_on_small_ppc():
+    with pytest.warns(UserWarning, match=r"predictive samples per observation"):
+        _plot_expected_purchases_ecdf(
+            observed=np.arange(10),
+            ppc=np.arange(10),
+            title_prefix="Posterior Predictive",
+            random_seed=45,
+        )
+
+    plt.close("all")
+
+
 @pytest.mark.parametrize(
     "ppc, max_purchases, samples, use_ax",
     [("prior", 10, 100, False), ("posterior", 20, 50, True)],
@@ -269,6 +283,25 @@ def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, use_ax):
     assert np.array_equal(ax_diff.lines[0].get_xdata(), ax_ecdf.lines[0].get_xdata())
 
     # clear any existing pyplot figures
+    plt.close("all")
+
+
+def test_plot_expected_purchases_ppc_ecdf_map_fit(map_fitted_bg):
+    """A point-estimate fit has a single posterior draw, so the predictive samples for the
+    reference CDF have to come from 'samples' instead."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ax_ecdf, ax_diff = plot_expected_purchases_ppc(
+            model=map_fitted_bg,
+            plot_type="ecdf",
+            samples=100,
+        )
+
+    # the reference CDF must not fall back to one predictive sample per customer
+    assert not [w for w in caught if "predictive samples" in str(w.message)]
+    assert isinstance(ax_ecdf, plt.Axes)
+    assert isinstance(ax_diff, plt.Axes)
+
     plt.close("all")
 
 

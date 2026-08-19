@@ -30,6 +30,12 @@ from matplotlib.lines import Line2D
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
+# Predictive samples per observation below which the ECDF confidence band is too narrow, because
+# the reference CDF is estimated rather than known. Simulated coverage of a nominal 95% band, on
+# negative-binomial counts with n = 2357: 0.41 at a ratio of 1, 0.83 at 10, 0.89 at 20, 0.91 at 50,
+# against the 0.93 an exact reference CDF achieves on discrete data.
+_MIN_PPC_RATIO = 20
+
 __all__ = [
     "plot_customer_exposure",
     "plot_expected_purchases_over_time",
@@ -503,7 +509,10 @@ def plot_expected_purchases_ppc(
     max_purchases : int, optional
         Cutoff for bars of purchase counts to plot. Only used when ``plot_type`` is 'hist'. Default is 10.
     samples : int, optional
-        Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
+        Number of samples to draw for prior predictive checks. For posterior predictive checks it is
+        only used when the model was fit with a point estimate, such as ``fit(method="map")``, whose
+        posterior holds a single draw. Fits with a sampled posterior already provide
+        (chain * draw * customer) samples and ignore this.
     random_seed : int, optional
         Random seed to fix sampling results
     ax : matplotlib.Axes or sequence of matplotlib.Axes, optional
@@ -521,8 +530,7 @@ def plot_expected_purchases_ppc(
     Notes
     -----
     The confidence band of the 'ecdf' plot assumes a continuous reference CDF, which does not hold
-    for integer purchase counts. The band is therefore conservative: it is less likely to flag a
-    real misfit, rather than more likely to raise a false alarm.
+    for integer purchase counts, so its coverage is only approximately the nominal level.
     """
     if plot_type not in ("hist", "ecdf"):
         raise ValueError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
@@ -567,10 +575,11 @@ def plot_expected_purchases_ppc(
             obs_freq = model.idata.observed_data["recency_frequency"].sel(
                 obs_var="frequency"
             )
-            # Keep samples at 1 here because (chain * draw * customer) samples are already being drawn
+            # n_samples only takes effect for a point-estimate fit, where the posterior holds a
+            # single draw. A sampled posterior already provides (chain * draw * customer) samples.
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
-                n_samples=1,
+                n_samples=samples,
             ).sel(obs_var="frequency")
             title = "Posterior Predictive Check for Customer Frequency"
             title_prefix = "Posterior Predictive"
@@ -621,12 +630,27 @@ def _plot_expected_purchases_ecdf(
     """Plot an ECDF plot and companion difference plot against a simultaneous confidence band.
 
     The band of Sailynoja et al. (2021) assumes a continuous reference CDF, which does not hold for
-    integer purchase counts. The band is therefore conservative: it is less likely to flag a real
-    misfit, rather than more likely to raise a false alarm.
+    integer purchase counts, so its coverage is only approximately the nominal level.
+
+    It also assumes the reference CDF is known rather than estimated. ``ppc`` therefore has to hold
+    many more samples than ``observed``; otherwise both curves carry sampling error of the same
+    order and the band comes out too narrow, failing models that fit perfectly well. Warns rather
+    than raising when it does not, since the plot is still readable and a short fit is a legitimate
+    thing to want to look at.
     """
     if observed.min() == observed.max():
         raise ValueError(
             "An ECDF plot requires more than one distinct observed purchase count."
+        )
+
+    if len(ppc) < _MIN_PPC_RATIO * len(observed):
+        warnings.warn(
+            "The confidence band treats the predictive CDF as known, which needs at least "
+            f"{_MIN_PPC_RATIO} predictive samples per observation; got "
+            f"{len(ppc) / len(observed):.3g}. The band is too narrow, so a well-fitting model can "
+            "fall outside it. Increase 'samples', or fit the model with more draws.",
+            UserWarning,
+            stacklevel=3,
         )
 
     if ax is None:
