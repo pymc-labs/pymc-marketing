@@ -467,6 +467,10 @@ class TestMultidimMMMEdgeCases:
         with pytest.raises(ValueError, match="not in channel_columns"):
             mmm.scaled_channel("missing_channel")
 
+        unbuilt = self._build_basic_mmm()
+        with pytest.raises(ValueError, match="Model was not built"):
+            unbuilt.scaled_channel("channel_1")
+
     def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):
         """Per-dim channel scaling with one zero slice must not produce Inf.
 

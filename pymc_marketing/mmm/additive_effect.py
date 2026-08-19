@@ -532,6 +532,10 @@ class DataVarMuEffect(MuEffect, ABC):
     Subclasses only need to implement ``create_effect``.
     ``create_data`` and ``set_data`` are provided by default.
 
+    Dataset column names in ``data_vars`` are registered in the PyMC model as
+    ``{prefix}_{var_name}``. Inside ``create_effect``, read them with
+    ``model[self.model_data_name(var_name)]`` rather than ``model[var_name]``.
+
     Parameters
     ----------
     data_vars : list[str]
