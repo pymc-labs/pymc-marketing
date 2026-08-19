@@ -2595,6 +2595,54 @@ class MMM(RegressionModelBuilder):
 
         return model
 
+    def effective_carryover_lags(self) -> int:
+        """Periods over which a change in spend can still move the response.
+
+        The model's own ``adstock.l_max`` bounds the direct path, but an effect
+        that chains a further adstock behind it -- a funnel mediator, say --
+        keeps moving for longer, and declares how much longer through
+        ``incrementality_spec().additional_carryover_lags``. That declaration
+        already sizes the incrementality module's evaluation windows; sizing the
+        optimization window from ``l_max`` alone truncates the same tail, so the
+        objective undercounts the carry-over every plan produces.
+
+        Declarations only, never a probe: this runs at model-build time, where
+        measuring reach is neither available nor affordable. An effect that
+        declares nothing contributes nothing, which reproduces the previous
+        behaviour rather than guessing on its behalf.
+
+        An effect that has not implemented ``incrementality_spec`` is skipped,
+        and so is one that returns ``None`` to opt out. Any *other* exception
+        from an effect's ``incrementality_spec`` propagates deliberately: it
+        means the effect cannot answer a question about itself, and sizing the
+        window from a silently swallowed error would truncate the tail exactly
+        as before, with nothing to show why. Catch it at the effect if it is
+        expected there.
+
+        Returns
+        -------
+        int
+            ``adstock.l_max`` plus the widest additional carryover declared by
+            any registered effect.
+        """
+        declared = 0
+        for effect in self.mu_effects:
+            spec_of = getattr(effect, "incrementality_spec", None)
+            if spec_of is None:
+                continue
+            try:
+                spec = spec_of()
+            except NotImplementedError:
+                continue
+            if spec is None:
+                # Opted out. Skip this effect only: another effect's declaration
+                # must still widen the window.
+                continue
+            lags = getattr(spec, "additional_carryover_lags", None)
+            if lags:
+                declared = max(declared, int(lags))
+        return int(getattr(self.adstock, "l_max", 0)) + declared
+
     def create_optimization_model(
         self,
         start_date: str | pd.Timestamp,
@@ -2620,11 +2668,15 @@ class MMM(RegressionModelBuilder):
         pymc.Model
             A cloned PyMC model ready for budget optimization.
         """
+        carryover_lags = self.effective_carryover_lags()
         zero_data = create_zero_dataset(
             model=self,
             start_date=start_date,
             end_date=end_date,
             include_carryover=True,
+            preserve_observed=True,
+            carry_in_periods=carryover_lags,
+            carryover_periods=carryover_lags,
         )
 
         dataset_xarray = self._posterior_predictive_data_transformation(
@@ -2747,7 +2799,7 @@ class MMM(RegressionModelBuilder):
 
         pymc_model = self.create_optimization_model(start_date, end_date)
 
-        adstock_lag = getattr(self.adstock, "l_max", 0)
+        adstock_lag = self.effective_carryover_lags()
         # Honour a caller-supplied date_dim rather than assuming "date": this is
         # the method that feeds BudgetOptimizer's configurable date_dim field.
         date_dim = kwargs.get("date_dim", "date")
@@ -2759,13 +2811,19 @@ class MMM(RegressionModelBuilder):
                 "explicit num_periods."
             )
         n_dates = len(pymc_model.coords[date_dim])
-        if n_dates <= adstock_lag:
+        # Leading dates hold spend that already happened, so they are neither
+        # decisions nor carry-over. Counting them as either would spread the
+        # budget over history.
+        model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
+        carry_in_periods = int((model_dates < pd.Timestamp(start_date)).sum())
+        decision_and_tail = n_dates - carry_in_periods
+        if decision_and_tail <= adstock_lag:
             raise ValueError(
-                f"The optimization window covers {n_dates} periods, which does not "
-                f"exceed the adstock warm-up of {adstock_lag} periods. Widen the "
-                "window between start_date and end_date."
+                f"The optimization window covers {decision_and_tail} periods, "
+                f"which does not exceed the adstock carry-over of {adstock_lag} "
+                "periods. Widen the window between start_date and end_date."
             )
-        num_periods = n_dates - adstock_lag
+        num_periods = decision_and_tail - adstock_lag
 
         # budgets_to_optimize is intentionally passed through untouched. When it is
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
@@ -2784,7 +2842,8 @@ class MMM(RegressionModelBuilder):
             model=pymc_model,
             idata=self.idata,
             num_periods=num_periods,
-            adstock_periods=self.adstock.l_max,
+            adstock_periods=adstock_lag,
+            carry_in_periods=carry_in_periods,
             channel_scales=getattr(self, "_channel_scales", 1.0),
             budgets_to_optimize=budgets_to_optimize,
             cost_per_unit=cost_per_unit,
