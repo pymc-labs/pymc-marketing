@@ -25,6 +25,7 @@ from pymc_marketing.clv import (
     plot_frequency_recency_matrix,
     plot_probability_alive_matrix,
 )
+from pymc_marketing.clv.plotting import _plot_expected_purchases_ecdf
 
 
 class MockModel:
@@ -189,18 +190,35 @@ def test_plot_expected_purchases_ppc_exceptions(fitted_model):
         plot_expected_purchases_ppc(fitted_model, ppc="ppc")
 
     with pytest.raises(
-        NameError, match=r"Specify 'hist' or 'ecdf' for 'plot_type' parameter."
+        ValueError, match=r"Specify 'hist' or 'ecdf' for 'plot_type' parameter."
     ):
         plot_expected_purchases_ppc(fitted_model, plot_type="bar")
 
+    with pytest.raises(ValueError, match=r"sequence of two matplotlib Axes"):
+        plot_expected_purchases_ppc(
+            fitted_model, plot_type="ecdf", ax=plt.subplots(1, 1)[1]
+        )
+
+    with pytest.raises(ValueError, match=r"single matplotlib Axes"):
+        plot_expected_purchases_ppc(fitted_model, ax=plt.subplots(2, 1)[1])
+
+    with pytest.raises(ValueError, match=r"distinct observed purchase count"):
+        _plot_expected_purchases_ecdf(
+            observed=np.ones(10),
+            ppc=np.ones(10),
+            title_prefix="Posterior Predictive",
+            random_seed=45,
+        )
+
+    plt.close("all")
+
 
 @pytest.mark.parametrize(
-    "ppc, max_purchases, samples, subplot",
-    [("prior", 10, 100, None), ("posterior", 20, 50, plt.subplot())],
+    "ppc, max_purchases, samples, use_ax",
+    [("prior", 10, 100, False), ("posterior", 20, 50, True)],
 )
-def test_plot_expected_purchases_ppc(
-    fitted_model, ppc, max_purchases, samples, subplot
-):
+def test_plot_expected_purchases_ppc(fitted_model, ppc, max_purchases, samples, use_ax):
+    subplot = plt.subplots(1, 1)[1] if use_ax else None
     ax = plot_expected_purchases_ppc(
         model=fitted_model,
         ppc=ppc,
@@ -209,27 +227,57 @@ def test_plot_expected_purchases_ppc(
         ax=subplot,
     )
 
+    # the default plot_type is 'hist', which returns a single Axes
     assert isinstance(ax, plt.Axes)
+    if use_ax:
+        assert ax is subplot
 
     # clear any existing pyplot figures
-    plt.clf()
+    plt.close("all")
 
 
-@pytest.mark.parametrize(
-    "ppc, subplot",
-    [("prior", None), ("posterior", (plt.subplot(), plt.subplot()))],
-)
-def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, subplot):
+@pytest.mark.parametrize("ppc", ["prior", "posterior"])
+@pytest.mark.parametrize("use_ax", [False, True])
+def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, use_ax):
+    subplots = plt.subplots(2, 1)[1] if use_ax else None
     ax_ecdf, ax_diff = plot_expected_purchases_ppc(
         model=fitted_model,
         ppc=ppc,
         plot_type="ecdf",
         samples=100,
-        ax=subplot,
+        ax=subplots,
     )
 
     assert isinstance(ax_ecdf, plt.Axes)
     assert isinstance(ax_diff, plt.Axes)
+    if use_ax:
+        assert (ax_ecdf, ax_diff) == tuple(subplots)
+    else:
+        assert ax_ecdf.figure is ax_diff.figure
+
+    ecdf_y = ax_ecdf.lines[0].get_ydata()
+    assert np.all(np.diff(ecdf_y) >= 0)
+    assert ecdf_y.min() >= 0.0
+    assert ecdf_y.max() <= 1.0
+
+    # the confidence band stays within [0, 1] and brackets the observed ECDF nowhere outside it
+    band_y = ax_ecdf.collections[0].get_paths()[0].vertices[:, 1]
+    assert band_y.min() >= 0.0
+    assert band_y.max() <= 1.0
+
+    # the difference panel is drawn on the same grid as the ECDF panel
+    assert np.array_equal(ax_diff.lines[0].get_xdata(), ax_ecdf.lines[0].get_xdata())
 
     # clear any existing pyplot figures
-    plt.clf()
+    plt.close("all")
+
+
+def test_plot_expected_purchases_ppc_ecdf_ignores_max_purchases(fitted_model):
+    with pytest.warns(UserWarning, match=r"'max_purchases' is ignored"):
+        plot_expected_purchases_ppc(
+            model=fitted_model,
+            plot_type="ecdf",
+            max_purchases=20,
+        )
+
+    plt.close("all")

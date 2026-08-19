@@ -13,6 +13,7 @@
 #   limitations under the License.
 """Plotting functions for the CLV module."""
 
+import warnings
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -496,7 +497,8 @@ def plot_expected_purchases_ppc(
         Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
     plot_type : string, optional
         Type of plot to produce. Options are 'hist' for a bar chart of estimated vs observed purchase
-        counts, or 'ecdf' for an ECDF plot with a 95% confidence band and a companion difference plot.
+        counts, or 'ecdf' for an ECDF plot with a 95% simultaneous confidence band and a companion
+        difference plot.
         Defaults to 'hist'.
     max_purchases : int, optional
         Cutoff for bars of purchase counts to plot. Only used when ``plot_type`` is 'hist'. Default is 10.
@@ -508,18 +510,40 @@ def plot_expected_purchases_ppc(
         A matplotlib Axes instance, or a pair of Axes when ``plot_type`` is 'ecdf'. Creates new axes
         instance(s) by default.
     **kwargs
-        Additional arguments to pass into the pandas.DataFrame.plot command. Only used when
-        ``plot_type`` is 'hist'.
+        Additional arguments to pass into the pandas.DataFrame.plot command when ``plot_type`` is
+        'hist'. When ``plot_type`` is 'ecdf', ``num_trials`` and ``confidence_level`` can be passed
+        to control the confidence band.
 
     Returns
     -------
     axes : matplotlib.AxesSubplot, or tuple of two matplotlib.AxesSubplot when ``plot_type`` is 'ecdf'
+
+    Notes
+    -----
+    The confidence band of the 'ecdf' plot assumes a continuous reference CDF, which does not hold
+    for integer purchase counts. The band is therefore conservative: it is less likely to flag a
+    real misfit, rather than more likely to raise a false alarm.
     """
     if plot_type not in ("hist", "ecdf"):
-        raise NameError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
+        raise ValueError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
 
-    if plot_type == "hist" and ax is None:
+    if plot_type == "ecdf":
+        if ax is not None and (isinstance(ax, plt.Axes) or len(ax) != 2):
+            raise ValueError(
+                "Specify a sequence of two matplotlib Axes for 'ax' when 'plot_type' is 'ecdf'."
+            )
+        if max_purchases != 10:
+            warnings.warn(
+                "'max_purchases' is ignored when 'plot_type' is 'ecdf'.",
+                UserWarning,
+                stacklevel=2,
+            )
+    elif ax is None:
         ax = plt.subplot(111)
+    elif not isinstance(ax, plt.Axes):
+        raise ValueError(
+            "Specify a single matplotlib Axes for 'ax' when 'plot_type' is 'hist'."
+        )
 
     match ppc:
         # TODO: Revisit prior logic after adding PPC support for CLVModels in ModelBuilder
@@ -560,6 +584,7 @@ def plot_expected_purchases_ppc(
             title_prefix=title_prefix,
             random_seed=random_seed,
             ax=ax,
+            **kwargs,
         )
 
     # convert estimated and observed xarrays into dataframes for plotting
@@ -590,18 +615,28 @@ def _plot_expected_purchases_ecdf(
     title_prefix: str,
     random_seed: int,
     ax: plt.Axes | Sequence[plt.Axes] | None = None,
-    npoints: int = 100,
     num_trials: int = 500,
     confidence_level: float = 0.95,
 ) -> tuple[plt.Axes, plt.Axes]:
-    """Plot an ECDF plot and companion difference plot against a 95% confidence band."""
+    """Plot an ECDF plot and companion difference plot against a simultaneous confidence band.
+
+    The band of Sailynoja et al. (2021) assumes a continuous reference CDF, which does not hold for
+    integer purchase counts. The band is therefore conservative: it is less likely to flag a real
+    misfit, rather than more likely to raise a false alarm.
+    """
+    if observed.min() == observed.max():
+        raise ValueError(
+            "An ECDF plot requires more than one distinct observed purchase count."
+        )
+
     if ax is None:
-        _, (ax_ecdf, ax_diff) = plt.subplots(2, 1)
+        _, (ax_ecdf, ax_diff) = plt.subplots(2, 1, layout="constrained")
     else:
         ax_ecdf, ax_diff = ax
 
     rng = np.random.default_rng(random_seed)
-    x = np.linspace(observed.min(), observed.max(), npoints)
+    # purchase counts are integers, so evaluate on the attainable counts
+    x = np.arange(observed.min(), observed.max() + 1)
     # reference cdf estimated from the (prior or posterior) predictive samples
     z = compute_ecdf(ppc, x)
     n = len(observed)
@@ -616,16 +651,14 @@ def _plot_expected_purchases_ecdf(
     )
     lower, upper = get_pointwise_confidence_band(gamma, n, z)
 
-    band_label = f"{int(confidence_level * 100)}% HDI"
+    band_label = f"{int(confidence_level * 100)}% simultaneous band"
     observed_ecdf = compute_ecdf(observed, x)
 
-    ecdf_x = np.insert(x, 0, x[0])
-    ecdf_y = np.insert(observed_ecdf, 0, 0)
-    ax_ecdf.step(ecdf_x, ecdf_y, where="post", label="Observed")
+    ax_ecdf.step(x, observed_ecdf, where="post", label="Observed")
     ax_ecdf.fill_between(x, lower, upper, step="post", alpha=0.2, label=band_label)
     ax_ecdf.set_title(f"{title_prefix} ECDF Plot")
     ax_ecdf.set_xlabel("Purchases per Customer")
-    ax_ecdf.set_ylabel("Percent of Total")
+    ax_ecdf.set_ylabel("Proportion of Customers")
     ax_ecdf.legend()
 
     ax_diff.step(x, observed_ecdf - z, where="post", label="Observed")
@@ -634,7 +667,7 @@ def _plot_expected_purchases_ecdf(
     )
     ax_diff.set_title(f"{title_prefix} Difference Plot")
     ax_diff.set_xlabel("Purchases per Customer")
-    ax_diff.set_ylabel("Percent Deviation from Expectation")
+    ax_diff.set_ylabel("Deviation from Expected Proportion")
     ax_diff.legend()
 
     return ax_ecdf, ax_diff
