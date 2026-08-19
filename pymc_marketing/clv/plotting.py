@@ -40,9 +40,16 @@ __all__ = [
 
 # Predictive samples per observation below which the ECDF confidence band is too narrow, because
 # the reference CDF is estimated rather than known. Simulated coverage of a nominal 95% band, on
-# negative-binomial counts with n = 2357: 0.41 at a ratio of 1, 0.83 at 10, 0.89 at 20, 0.91 at 50,
-# against the 0.93 an exact reference CDF achieves on discrete data.
+# negative-binomial counts with n = 2357: 0.28-0.41 at a ratio of 1, 0.83 at 10, 0.89 at 20, and
+# indistinguishable from nominal (0.90-0.96, within Monte Carlo error at these replicate counts)
+# from 50 upwards.
 _MIN_PPC_RATIO = 20
+
+# Predictive draws per customer used to estimate the ECDF reference CDF on a point-estimate fit,
+# whose posterior holds a single draw. Bounded rather than taken from `samples`, because the cost is
+# linear in the draws while the coverage above saturates well before this: at 20k customers a ratio
+# of 1000 costs 646 MB and 171 s, against 38 MB and 9 s at 50, for no measurable gain.
+_REFERENCE_DRAWS = 100
 
 
 def plot_customer_exposure(
@@ -481,11 +488,11 @@ def plot_expected_purchases_over_time(
 def plot_expected_purchases_ppc(
     model,
     ppc: str = "posterior",
-    plot_type: str = "hist",
     max_purchases: int = 10,
     samples: int = 1000,
     random_seed: int = 45,
     ax: plt.Axes | Sequence[plt.Axes] | None = None,
+    plot_type: str = "hist",
     **kwargs,
 ) -> plt.Axes | tuple[plt.Axes, plt.Axes]:
     """Plot a prior or posterior predictive check for the customer purchase frequency distribution.
@@ -501,23 +508,20 @@ def plot_expected_purchases_ppc(
         A built CLV model is required for prior predictive checks, and a fitted model for posterior predictive checks.
     ppc : string, optional
         Type of predictive check to perform. Options are 'prior' or 'posterior'; defaults to 'posterior'.
-    plot_type : string, optional
-        Type of plot to produce. Options are 'hist' for a bar chart of estimated vs observed purchase
-        counts, or 'ecdf' for an ECDF plot with a 95% simultaneous confidence band and a companion
-        difference plot.
-        Defaults to 'hist'.
     max_purchases : int, optional
         Cutoff for bars of purchase counts to plot. Only used when ``plot_type`` is 'hist'. Default is 10.
     samples : int, optional
-        Number of samples to draw for prior predictive checks. For posterior predictive checks it
-        only applies when ``plot_type`` is 'ecdf' and the model was fit with a point estimate, such
-        as ``fit(method="map")``, whose posterior holds a single draw. Fits with a sampled posterior
-        already provide (chain * draw * customer) samples and ignore this.
+        Number of samples to draw for prior predictive checks. This is not used for posterior predictive checks.
     random_seed : int, optional
         Random seed to fix sampling results
     ax : matplotlib.Axes or sequence of matplotlib.Axes, optional
         A matplotlib Axes instance, or a pair of Axes when ``plot_type`` is 'ecdf'. Creates new axes
         instance(s) by default.
+    plot_type : string, optional
+        Type of plot to produce. Options are 'hist' for a bar chart of estimated vs observed purchase
+        counts, or 'ecdf' for an ECDF plot with a 95% simultaneous confidence band and a companion
+        difference plot.
+        Defaults to 'hist'.
     **kwargs
         Additional arguments to pass into the pandas.DataFrame.plot command when ``plot_type`` is
         'hist'. When ``plot_type`` is 'ecdf', ``num_trials`` and ``confidence_level`` can be passed
@@ -538,10 +542,8 @@ def plot_expected_purchases_ppc(
         raise ValueError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
 
     if plot_type == "ecdf":
-        if ax is not None and (
-            isinstance(ax, plt.Axes)
-            or len(ax) != 2
-            or not all(isinstance(panel, plt.Axes) for panel in ax)
+        if ax is not None and not (
+            np.shape(ax) == (2,) and all(isinstance(panel, plt.Axes) for panel in ax)
         ):
             raise ValueError(
                 "Specify a sequence of two matplotlib Axes for 'ax' when 'plot_type' is 'ecdf'."
@@ -586,7 +588,7 @@ def plot_expected_purchases_ppc(
             # Only the ECDF band needs a precise reference CDF, so only it pays for the extra draws.
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
-                n_samples=samples if plot_type == "ecdf" else 1,
+                n_samples=_REFERENCE_DRAWS if plot_type == "ecdf" else 1,
             ).sel(obs_var="frequency")
             title = "Posterior Predictive Check for Customer Frequency"
             title_prefix = "Posterior Predictive"
@@ -655,7 +657,8 @@ def _plot_expected_purchases_ecdf(
             "The confidence band treats the predictive CDF as known, which needs at least "
             f"{_MIN_PPC_RATIO} predictive samples per observation; got "
             f"{len(ppc) / len(observed):.3g}. The band is too narrow, so a well-fitting model can "
-            "fall outside it. Increase 'samples', or fit the model with more draws.",
+            "fall outside it. Increase 'samples' for a prior check, or fit the model with more "
+            "draws for a posterior check.",
             UserWarning,
             stacklevel=3,
         )
@@ -682,7 +685,7 @@ def _plot_expected_purchases_ecdf(
     )
     lower, upper = get_pointwise_confidence_band(gamma, n, z)
 
-    band_label = f"{int(confidence_level * 100)}% simultaneous band"
+    band_label = f"{confidence_level * 100:.4g}% simultaneous band"
     observed_ecdf = compute_ecdf(observed, x)
 
     ax_ecdf.step(x, observed_ecdf, where="post", label="Observed")
