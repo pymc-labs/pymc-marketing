@@ -206,6 +206,11 @@ def test_plot_expected_purchases_ppc_exceptions(fitted_model):
             fitted_model, plot_type="ecdf", ax=plt.subplots(2, 2)[1]
         )
 
+    # anything that is not a two-element container of Axes, sized or not
+    for bad_ax in (42, plt.figure(), set(plt.subplots(2, 1)[1]), [1, 2]):
+        with pytest.raises(ValueError, match=r"sequence of two matplotlib Axes"):
+            plot_expected_purchases_ppc(fitted_model, plot_type="ecdf", ax=bad_ax)
+
     with pytest.raises(ValueError, match=r"single matplotlib Axes"):
         plot_expected_purchases_ppc(fitted_model, ax=plt.subplots(2, 1)[1])
 
@@ -265,6 +270,8 @@ def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, use_ax):
         plot_type="ecdf",
         samples=100,
         ax=subplots,
+        confidence_level=0.9,
+        num_trials=50,
     )
 
     assert isinstance(ax_ecdf, plt.Axes)
@@ -274,32 +281,47 @@ def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, use_ax):
     else:
         assert ax_ecdf.figure is ax_diff.figure
 
-    ecdf_y = ax_ecdf.lines[0].get_ydata()
-    assert np.all(np.diff(ecdf_y) >= 0)
-    assert ecdf_y.min() >= 0.0
-    assert ecdf_y.max() <= 1.0
+    # 'confidence_level' reached the band through **kwargs, rather than being silently swallowed
+    assert "90% simultaneous band" in [
+        text.get_text() for text in ax_ecdf.get_legend().get_texts()
+    ]
 
-    # the confidence band stays within [0, 1]
-    band_y = ax_ecdf.collections[0].get_paths()[0].vertices[:, 1]
-    assert band_y.min() >= 0.0
-    assert band_y.max() <= 1.0
+    observed = (
+        fitted_model.idata.observed_data["recency_frequency"]
+        .sel(obs_var="frequency")
+        .values.ravel()
+    )
+    grid = np.arange(observed.min(), observed.max() + 1)
 
-    # the difference panel is drawn on the same grid as the ECDF panel
-    assert np.array_equal(ax_diff.lines[0].get_xdata(), ax_ecdf.lines[0].get_xdata())
+    # the ECDF panel plots the observed ECDF, on one point per attainable purchase count
+    assert np.array_equal(ax_ecdf.lines[0].get_xdata(), grid)
+    np.testing.assert_allclose(
+        ax_ecdf.lines[0].get_ydata(), [(observed <= point).mean() for point in grid]
+    )
+
+    # the band spans the same grid as the curve it is drawn around
+    band_x = ax_ecdf.collections[0].get_paths()[0].vertices[:, 0]
+    assert (band_x.min(), band_x.max()) == (grid.min(), grid.max())
+
+    # the difference panel is the same ECDF minus a reference CDF, on the same grid
+    assert np.array_equal(ax_diff.lines[0].get_xdata(), grid)
+    reference = ax_ecdf.lines[0].get_ydata() - ax_diff.lines[0].get_ydata()
+    assert np.all(np.diff(reference) >= 0)
+    assert reference.min() >= 0.0
+    assert reference.max() <= 1.0
 
     # clear any existing pyplot figures
     plt.close("all")
 
 
 def test_plot_expected_purchases_ppc_ecdf_map_fit(map_fitted_bg):
-    """A point-estimate fit has a single posterior draw, so the predictive samples for the
-    reference CDF have to come from 'samples' instead."""
+    """A point-estimate fit has a single posterior draw, so the reference CDF has to come from
+    extra predictive draws per customer rather than from the posterior."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         ax_ecdf, ax_diff = plot_expected_purchases_ppc(
             model=map_fitted_bg,
             plot_type="ecdf",
-            samples=100,
         )
 
     # the reference CDF must not fall back to one predictive sample per customer
