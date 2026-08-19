@@ -201,6 +201,11 @@ def test_plot_expected_purchases_ppc_exceptions(fitted_model):
             fitted_model, plot_type="ecdf", ax=plt.subplots(1, 1)[1]
         )
 
+    with pytest.raises(ValueError, match=r"sequence of two matplotlib Axes"):
+        plot_expected_purchases_ppc(
+            fitted_model, plot_type="ecdf", ax=plt.subplots(2, 2)[1]
+        )
+
     with pytest.raises(ValueError, match=r"single matplotlib Axes"):
         plot_expected_purchases_ppc(fitted_model, ax=plt.subplots(2, 1)[1])
 

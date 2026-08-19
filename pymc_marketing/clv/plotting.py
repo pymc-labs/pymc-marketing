@@ -30,12 +30,6 @@ from matplotlib.lines import Line2D
 from pymc_marketing.clv import BetaGeoModel, ParetoNBDModel
 from pymc_marketing.clv.utils import _expected_cumulative_transactions
 
-# Predictive samples per observation below which the ECDF confidence band is too narrow, because
-# the reference CDF is estimated rather than known. Simulated coverage of a nominal 95% band, on
-# negative-binomial counts with n = 2357: 0.41 at a ratio of 1, 0.83 at 10, 0.89 at 20, 0.91 at 50,
-# against the 0.93 an exact reference CDF achieves on discrete data.
-_MIN_PPC_RATIO = 20
-
 __all__ = [
     "plot_customer_exposure",
     "plot_expected_purchases_over_time",
@@ -43,6 +37,12 @@ __all__ = [
     "plot_frequency_recency_matrix",
     "plot_probability_alive_matrix",
 ]
+
+# Predictive samples per observation below which the ECDF confidence band is too narrow, because
+# the reference CDF is estimated rather than known. Simulated coverage of a nominal 95% band, on
+# negative-binomial counts with n = 2357: 0.41 at a ratio of 1, 0.83 at 10, 0.89 at 20, 0.91 at 50,
+# against the 0.93 an exact reference CDF achieves on discrete data.
+_MIN_PPC_RATIO = 20
 
 
 def plot_customer_exposure(
@@ -509,10 +509,10 @@ def plot_expected_purchases_ppc(
     max_purchases : int, optional
         Cutoff for bars of purchase counts to plot. Only used when ``plot_type`` is 'hist'. Default is 10.
     samples : int, optional
-        Number of samples to draw for prior predictive checks. For posterior predictive checks it is
-        only used when the model was fit with a point estimate, such as ``fit(method="map")``, whose
-        posterior holds a single draw. Fits with a sampled posterior already provide
-        (chain * draw * customer) samples and ignore this.
+        Number of samples to draw for prior predictive checks. For posterior predictive checks it
+        only applies when ``plot_type`` is 'ecdf' and the model was fit with a point estimate, such
+        as ``fit(method="map")``, whose posterior holds a single draw. Fits with a sampled posterior
+        already provide (chain * draw * customer) samples and ignore this.
     random_seed : int, optional
         Random seed to fix sampling results
     ax : matplotlib.Axes or sequence of matplotlib.Axes, optional
@@ -530,13 +530,19 @@ def plot_expected_purchases_ppc(
     Notes
     -----
     The confidence band of the 'ecdf' plot assumes a continuous reference CDF, which does not hold
-    for integer purchase counts, so its coverage is only approximately the nominal level.
+    for integer purchase counts, so its coverage is only approximately the nominal level. It also
+    assumes that CDF is known rather than estimated, so it warns when the predictive samples behind
+    it are too few relative to the number of customers.
     """
     if plot_type not in ("hist", "ecdf"):
         raise ValueError("Specify 'hist' or 'ecdf' for 'plot_type' parameter.")
 
     if plot_type == "ecdf":
-        if ax is not None and (isinstance(ax, plt.Axes) or len(ax) != 2):
+        if ax is not None and (
+            isinstance(ax, plt.Axes)
+            or len(ax) != 2
+            or not all(isinstance(panel, plt.Axes) for panel in ax)
+        ):
             raise ValueError(
                 "Specify a sequence of two matplotlib Axes for 'ax' when 'plot_type' is 'ecdf'."
             )
@@ -576,10 +582,11 @@ def plot_expected_purchases_ppc(
                 obs_var="frequency"
             )
             # n_samples only takes effect for a point-estimate fit, where the posterior holds a
-            # single draw. A sampled posterior already provides (chain * draw * customer) samples.
+            # single draw; a sampled posterior already provides (chain * draw * customer) samples.
+            # Only the ECDF band needs a precise reference CDF, so only it pays for the extra draws.
             ppc_freq = model.distribution_new_customer_recency_frequency(
                 random_seed=random_seed,
-                n_samples=samples,
+                n_samples=samples if plot_type == "ecdf" else 1,
             ).sel(obs_var="frequency")
             title = "Posterior Predictive Check for Customer Frequency"
             title_prefix = "Posterior Predictive"
