@@ -260,7 +260,7 @@ def test_plot_expected_purchases_ppc_ecdf(fitted_model, ppc, use_ax):
     assert ecdf_y.min() >= 0.0
     assert ecdf_y.max() <= 1.0
 
-    # the confidence band stays within [0, 1] and brackets the observed ECDF nowhere outside it
+    # the confidence band stays within [0, 1]
     band_y = ax_ecdf.collections[0].get_paths()[0].vertices[:, 1]
     assert band_y.min() >= 0.0
     assert band_y.max() <= 1.0
