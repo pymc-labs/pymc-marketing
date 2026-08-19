@@ -454,6 +454,19 @@ class TestMultidimMMMEdgeCases:
             col_idx = mmm.channel_columns.index(column)
             np.testing.assert_array_equal(scaled[..., col_idx], 0.0)
 
+    def test_scaled_channel_selects_by_name(self, simple_mmm_data):
+        """scaled_channel returns the same slice as isel by channel_columns index."""
+        mmm = self._build_basic_mmm()
+        mmm.build_model(simple_mmm_data["X"], simple_mmm_data["y"])
+
+        by_name = fast_eval(mmm.scaled_channel("channel_2"))
+        by_index = fast_eval(mmm.channel_data_scaled.isel(channel=1))
+
+        np.testing.assert_allclose(by_name, by_index)
+
+        with pytest.raises(ValueError, match="not in channel_columns"):
+            mmm.scaled_channel("missing_channel")
+
     def test_heterogeneous_zero_slice_channel_scaled_tensor_is_finite(self):
         """Per-dim channel scaling with one zero slice must not produce Inf.
 
