@@ -1,0 +1,35 @@
+# Requires MeasuredMediatorEffect defined in mmm_funnel_from_yml.ipynb (registered on REGISTRY).
+model:
+  class: pymc_marketing.mmm.mmm.MMM
+  kwargs:
+    date_column: date
+    target_column: y_obs
+    channel_columns: [upper_spend]
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 8}
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs: {}
+    sampler_config:
+      nuts_sampler: nutpie
+
+extra_vars: [lower_spend, lower_control]
+
+effects:
+  - class: MeasuredMediatorEffect
+    kwargs:
+      hub_adstock:
+        class: pymc_marketing.mmm.GeometricAdstock
+        kwargs: {l_max: 8, prefix: adstock_hub}
+      hub_saturation:
+        class: pymc_marketing.mmm.LogisticSaturation
+        kwargs: {prefix: sat_hub}
+      contribution_adstock:
+        class: pymc_marketing.mmm.GeometricAdstock
+        kwargs: {l_max: 8, prefix: adstock_contribution}
+      contribution_saturation:
+        class: pymc_marketing.mmm.LogisticSaturation
+        kwargs: {prefix: sat_contribution}
+
+original_scale_vars: [channel_contribution, mediator_effect_contribution, y]
