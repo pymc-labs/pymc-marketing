@@ -282,6 +282,7 @@ class MediaVariable(OptimizationVariable):
         date_dim: str = "date",
         budget_distribution_over_period_tensor: XTensorVariable | None = None,
         cost_per_unit_tensor: XTensorVariable | None = None,
+        carry_in_values: np.ndarray | None = None,
         flat_dim: str = FLAT_DIM,
     ) -> None:
         if np.dtype(dtype).kind != "f":
@@ -302,6 +303,18 @@ class MediaVariable(OptimizationVariable):
         )
         self.cost_per_unit_tensor = cost_per_unit_tensor
         self.flat_dim = flat_dim
+        self.carry_in_values = (
+            None if carry_in_values is None else np.asarray(carry_in_values)
+        )
+        if self.carry_in_values is not None:
+            expected = (self.carry_in_values.shape[0], *tuple(mask.shape))
+            if self.carry_in_values.shape != expected:
+                raise ValueError(
+                    f"{name}: carry_in_values has shape "
+                    f"{self.carry_in_values.shape}, expected "
+                    f"{expected} -- one leading period per carry-in date, over "
+                    "the same cells as the mask."
+                )
         self._bool_mask = np.asarray(self.mask.values).astype(bool)
         self._size = int(self._bool_mask.sum())
         if self._size == 0:
@@ -385,16 +398,26 @@ class MediaVariable(OptimizationVariable):
 
         repeated_budgets.name = "repeated_budgets"
 
-        repeated_budgets_with_carry_over = ptx.concat(
-            [
-                repeated_budgets.astype(self.dtype),
+        # The date axis is three blocks and only the middle one is decided:
+        # spend already made before the window (fixed, so the adstock does not
+        # start cold), the decisions, and zero-spend periods that catch the
+        # carry-over the decisions produce after the window closes.
+        blocks = []
+        if self.carry_in_values is not None:
+            blocks.append(
                 ptx.as_xtensor(
-                    pt.zeros(self.adstock_periods, dtype=self.dtype),
-                    dims=(self.date_dim,),
-                ),
-            ],
-            dim=self.date_dim,
+                    pt.as_tensor_variable(self.carry_in_values).astype(self.dtype),
+                    dims=(self.date_dim, *self.dims),
+                )
+            )
+        blocks.append(repeated_budgets.astype(self.dtype))
+        blocks.append(
+            ptx.as_xtensor(
+                pt.zeros(self.adstock_periods, dtype=self.dtype),
+                dims=(self.date_dim,),
+            )
         )
+        repeated_budgets_with_carry_over = ptx.concat(blocks, dim=self.date_dim)
         repeated_budgets_with_carry_over.name = "repeated_budgets_with_carry_over"
         return repeated_budgets_with_carry_over
 
