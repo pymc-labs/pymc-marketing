@@ -4069,7 +4069,7 @@ dev = [
 requires-dist = [
     { name = "arviz", specifier = ">=1.2.0,<2.0" },
     { name = "arviz-plots", extras = ["matplotlib"], specifier = ">=1.2.0,<2.0" },
-    { name = "arviz-stats", specifier = ">=1.2.0,<1.3.0" },
+    { name = "arviz-stats", specifier = ">=1.2.0,<2.0" },
     { name = "blackjax", marker = "extra == 'docs'", specifier = "<1.6" },
     { name = "blackjax", marker = "extra == 'test'", specifier = "<1.6" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.1" },
