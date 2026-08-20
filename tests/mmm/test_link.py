@@ -16,6 +16,8 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import pymc as pm
+import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pydantic import ValidationError
@@ -23,6 +25,7 @@ from pymc_extras.prior import Censored, Prior
 from scipy import stats
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, LogSaturation
+from pymc_marketing.mmm.additive_effect import MuEffect
 from pymc_marketing.mmm.link import (
     IdentityLinkSpec,
     LinkFunction,
@@ -1199,3 +1202,100 @@ class TestOriginalScaleGuardLogLink:
         with warnings.catch_warnings():
             warnings.simplefilter("error", UserWarning)
             mmm.add_original_scale_contribution_variable(["channel_contribution"])
+
+
+class _DataShiftEffect(MuEffect):
+    """Minimal mu effect adding a settable per-date term to the predictor.
+
+    Deliberately trivial: the point of the tests below is *where the effect's
+    contribution shows up*, not what it computes.
+    """
+
+    prefix: str = "shift"
+
+    def to_dict(self) -> dict:
+        """Serialize the effect."""
+        return {"prefix": self.prefix}
+
+    def create_data(self, mmm) -> None:
+        """Register the settable per-date term."""
+        pmd.Data(
+            f"{self.prefix}_data",
+            np.zeros(len(mmm.model.coords["date"])),
+            dims="date",
+        )
+
+    def set_data(self, mmm, model, X) -> None:
+        """No prediction-time refresh needed for these tests."""
+
+    def create_effect(self, mmm):
+        """Add the term to the linear predictor."""
+        return pmd.Deterministic(
+            f"{self.prefix}_effect_contribution",
+            mmm.model[f"{self.prefix}_data"],
+        )
+
+
+class TestTotalResponseDeterministic:
+    """``total_response_original_scale``: the objective that sees mu effects."""
+
+    @staticmethod
+    def _built(link: str, with_effect: bool) -> MMM:
+        mmm = _make_mmm(link=link)
+        if with_effect:
+            mmm.mu_effects.append(_DataShiftEffect())
+        X, y = _make_positive_panel()
+        mmm.build_model(X, y)
+        return mmm
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_absent_without_mu_effects(self, link, mock_pymc_sample):
+        """Plain media models keep their posterior unchanged."""
+        mmm = self._built(link, with_effect=False)
+        assert "total_response_original_scale" not in mmm.model.named_vars
+
+    @pytest.mark.parametrize("link", ["identity", "log"])
+    def test_registered_with_mu_effects(self, link, mock_pymc_sample):
+        mmm = self._built(link, with_effect=True)
+        assert "total_response_original_scale" in mmm.model.named_vars
+
+    def test_log_matches_summed_response(self, mock_pymc_sample):
+        """Cross-check against the independently built ``y_original_scale``."""
+        mmm = self._built("log", with_effect=True)
+        with mmm.model:
+            total, per_date = pm.draw(
+                [
+                    mmm.model["total_response_original_scale"],
+                    mmm.model["y_original_scale"],
+                ],
+                random_seed=0,
+            )
+        np.testing.assert_allclose(float(total), float(per_date.sum()), rtol=1e-10)
+
+    def test_identity_sees_the_effect_where_the_media_objective_does_not(
+        self, mock_pymc_sample
+    ):
+        """The gap this closes: under identity the media objective is blind.
+
+        ``total_media_contribution_original_scale`` is built from the channel
+        tensor alone, so moving a mu effect leaves it bit-identical while the
+        response genuinely changes -- which is how a budget optimized against
+        it undervalues whatever drives the effect.
+        """
+        mmm = self._built("identity", with_effect=True)
+        names = [
+            "total_response_original_scale",
+            "total_media_contribution_original_scale",
+        ]
+        n_dates = len(mmm.model.coords["date"])
+
+        with mmm.model:
+            before = pm.draw([mmm.model[n] for n in names], random_seed=0)
+            pm.set_data(
+                {"shift_data": np.full(n_dates, 0.5)},
+                model=mmm.model,
+            )
+            after = pm.draw([mmm.model[n] for n in names], random_seed=0)
+
+        assert float(before[0]) != float(after[0])
+        assert float(before[1]) == float(after[1])

@@ -12,12 +12,18 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
+import logging
+import warnings
+
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
+from pytensor.compile.mode import Mode
 from sklearn.preprocessing import MaxAbsScaler
 
+from pymc_marketing.mmm.additive_effect import IncrementalitySpec
 from pymc_marketing.mmm.utils import (
     _convert_frequency_to_timedelta,
     add_noise_to_channel_allocation,
@@ -925,3 +931,532 @@ class TestBuildContributions:
         assert isinstance(df, pd.DataFrame)
         assert "intercept" in df.columns
         assert len(df) == 10
+
+
+class _StubEffect:
+    """A mu effect that reads *data_vars* and nothing else.
+
+    `create_zero_dataset` only ever asks an effect which variables it reads, so
+    the branches below need a name and a list -- not a fitted funnel.
+    ``set_data`` mirrors ``DataVarMuEffect``: it sets what the dataset carries,
+    which is what lets ``create_optimization_model`` run the stub end to end.
+    """
+
+    def __init__(self, data_vars):
+        self.data_vars = list(data_vars)
+
+    def set_data(self, mmm, model, X):
+        for var_name in self.data_vars:
+            if var_name in X.data_vars and var_name in model.named_vars:
+                pm.set_data({var_name: X[var_name].values}, model=model)
+
+
+class TestEffectDataInTheOptimizationWindow:
+    """`create_zero_dataset` has to carry the variables mu_effects read.
+
+    Without them `DataVarMuEffect.set_data` silently skips its own variables --
+    it only sets what the dataset carries -- so the effect's `pm.Data` keeps its
+    fit-time length. In-sample the lengths happen to agree; every other window
+    fails on shape.
+    """
+
+    # Opens the week after the fixture's training data ends (2023-06-12), so
+    # the carry-in block is real history rather than a warned cold start.
+    WINDOW = {"start_date": "2023-06-19", "end_date": "2023-08-14"}
+
+    def _zero_ds(self, mmm, **kwargs):
+        return create_zero_dataset(model=mmm, **self.WINDOW, **kwargs)
+
+    def test_effect_variables_are_present_and_zero_filled(
+        self, funnel_identity_fitted_mmm
+    ):
+        ds = self._zero_ds(funnel_identity_fitted_mmm)
+
+        assert "lf_budget" in ds.data_vars
+        assert ds["lf_budget"].sizes["date"] == ds["_channel"].sizes["date"]
+        assert (ds["lf_budget"].to_numpy() == 0).all()
+
+    def test_out_of_sample_optimization_model_builds(self, funnel_identity_fitted_mmm):
+        """The regression: a window other than the training one used to fail on shape."""
+        model = funnel_identity_fitted_mmm.create_optimization_model(**self.WINDOW)
+
+        n_dates = len(model.coords["date"])
+        assert model["lf_budget"].get_value().shape == (n_dates,)
+
+    def test_a_funnel_model_optimizes_over_a_future_window(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The claim itself: allocate a budget on a funnel model, out of sample.
+
+        Building the model with the right shapes is the fix; this is what the
+        fix is *for*. Scored against the objective that sees the mediated path,
+        so the plan reflects the demand the upper funnel creates rather than the
+        direct path alone.
+
+        `cvm` because the numba backend cannot compile the gradient of this
+        effect's second, sample-batched adstock (pytensor#2360); that is
+        upstream and unrelated to the window.
+        """
+        optimizer = funnel_identity_fitted_mmm.budget_optimizer(
+            **self.WINDOW,
+            response_variable="total_response_original_scale",
+            compile_kwargs={"mode": Mode(linker="cvm")},
+        )
+
+        result = optimizer.allocate_budget(total_budget=10.0)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(float(result.budgets.sum()), 10.0, rtol=1e-6)
+        assert (result.budgets >= 0).all()
+
+    def test_a_planned_calendar_can_be_set_on_the_built_model(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Zeros are the default, not the only option.
+
+        Planning against committed activity needs no parameter of its own:
+        set the variable on the model and hand that model to BudgetOptimizer,
+        which is what its ``model`` + ``idata`` signature is for. That only
+        works because the variable is now present at the window's length.
+
+        The documented direct path is then exercised end to end: the model's
+        date axis is carry-in + decisions + carry-over, so the optimizer has
+        to be told about the leading block, and the allocation has to land on
+        the window dates rather than on the history before them.
+        """
+        from pytensor import function
+
+        from pymc_marketing.mmm.budget_optimizer import BudgetOptimizer
+
+        mmm = funnel_identity_fitted_mmm
+        lags = mmm.effective_carryover_lags()
+        # Opens right after training, so the leading block is real history.
+        n_decisions = 8
+        t0 = pd.Timestamp(mmm.xarray_dataset.coords["date"].values[-1])
+        model = mmm.create_optimization_model(
+            start_date=t0 + pd.Timedelta(weeks=1),
+            end_date=t0 + pd.Timedelta(weeks=n_decisions),
+        )
+        n_dates = len(model.coords["date"])
+        assert n_dates == lags + n_decisions + lags
+
+        pm.set_data({"lf_budget": np.full(n_dates, 0.7)}, model=model)
+        np.testing.assert_allclose(model["lf_budget"].get_value(), 0.7)
+
+        optimizer = BudgetOptimizer(
+            model=model,
+            idata=mmm.idata,
+            num_periods=n_decisions,
+            adstock_periods=lags,
+            carry_in_periods=lags,
+            response_variable="total_response_original_scale",
+            compile_kwargs={"mode": Mode(linker="cvm")},
+        )
+        result = optimizer.allocate_budget(total_budget=10.0)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        np.testing.assert_allclose(float(result.budgets.sum()), 10.0, rtol=1e-6)
+
+        # The channel tensor the objective actually saw, at the solution.
+        substituted = function(
+            [optimizer._budgets_flat],
+            optimizer._pymc_model["channel_data"],
+            mode=Mode(linker="cvm"),
+        )(result.scipy_result.x)
+        substituted = np.asarray(substituted)
+        history = np.asarray(model["channel_data"].get_value())[:lags]
+        assert (history > 0).all()  # real spend, not a zeroed block
+        assert substituted.shape == (n_dates, len(mmm.channel_columns))
+        np.testing.assert_allclose(substituted[:lags], history)
+        assert (substituted[lags : lags + n_decisions] > 0).all()
+        np.testing.assert_allclose(substituted[lags + n_decisions :], 0.0)
+
+    def test_an_in_sample_window_reproduces_history(self, funnel_identity_fitted_mmm):
+        """With ``carry_in``, only the decision variable differs from the fit.
+
+        Re-optimizing a window that overlaps training is a counterfactual on
+        the spend alone: every other input should still hold the value the
+        posterior was fitted to. When it does, the response at the historical
+        plan equals the in-sample posterior mean by construction -- the graph
+        is the same and every non-decision input is the same.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        lags = mmm.effective_carryover_lags()
+
+        opt = mmm.create_optimization_model(
+            start_date=dates[0], end_date=dates[-(lags + 1)]
+        )
+
+        np.testing.assert_allclose(
+            opt["lf_budget"].get_value(), mmm.model["lf_budget"].get_value()
+        )
+
+    def test_create_zero_dataset_still_zero_fills_by_default(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Optimization restores observed values; the zero dataset itself does not.
+
+        ``sample_response_distribution`` scores an allocation against a zeroed
+        baseline, so the default has to keep zero-filling. The in-sample window
+        is the only place the difference is observable, which makes it the only
+        place that default can be pinned.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        l_max = mmm.adstock.l_max
+
+        ds = create_zero_dataset(
+            model=mmm, start_date=dates[0], end_date=dates[-(l_max + 1)]
+        )
+
+        assert (ds["lf_budget"].to_numpy() == 0).all()
+
+    def test_the_decision_variable_is_still_zeroed(self, funnel_identity_fitted_mmm):
+        """Restoring inputs must never restore the spend being decided."""
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        lags = mmm.effective_carryover_lags()
+
+        opt = mmm.create_optimization_model(
+            start_date=dates[0], end_date=dates[-(lags + 1)]
+        )
+
+        assert (np.asarray(opt["channel_data"].get_value()) == 0).all()
+
+    def test_preserve_observed_falls_back_to_zero_where_training_does_not_reach(
+        self, funnel_identity_fitted_mmm
+    ):
+        """On a genuinely future window the flag changes nothing.
+
+        No date is covered by the training data, so every observed value the
+        rule could carry is absent and the fill decays to the zeros a future
+        window means. The flag therefore needs no knowledge of which kind of
+        window it was handed.
+        """
+        ds_on = self._zero_ds(funnel_identity_fitted_mmm, preserve_observed=True)
+        ds_off = self._zero_ds(funnel_identity_fitted_mmm, preserve_observed=False)
+
+        np.testing.assert_allclose(
+            ds_on["lf_budget"].to_numpy(), ds_off["lf_budget"].to_numpy()
+        )
+        assert (ds_on["lf_budget"].to_numpy() == 0).all()
+
+    def test_a_variable_the_training_data_does_not_carry_is_an_error(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """An effect reading a variable the training data lacks cannot be served.
+
+        Its dims and coords are only knowable from the training dataset, so
+        there is nothing to build the window-length array from. Better to say
+        so than to leave the variable out and fail later on shape, where the
+        message points at the model rather than at the effect.
+        """
+        monkeypatch.setattr(
+            funnel_identity_fitted_mmm, "mu_effects", [_StubEffect(["no_such_var"])]
+        )
+
+        with pytest.raises(ValueError, match="_StubEffect reads 'no_such_var'"):
+            self._zero_ds(funnel_identity_fitted_mmm)
+
+    def test_the_error_names_every_effect_that_reads_the_variable(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """Two effects reading the same missing variable are both named.
+
+        Collapsing the readers to one would point at whichever effect came
+        last, and the user would fix that one and hit the error again.
+        """
+
+        class _OtherStubEffect(_StubEffect):
+            pass
+
+        monkeypatch.setattr(
+            funnel_identity_fitted_mmm,
+            "mu_effects",
+            [_StubEffect(["no_such_var"]), _OtherStubEffect(["no_such_var"])],
+        )
+
+        with pytest.raises(ValueError, match="_StubEffect, _OtherStubEffect"):
+            self._zero_ds(funnel_identity_fitted_mmm)
+
+    def test_an_effect_variable_with_holes_is_a_loud_error(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """A variable that does not cover the shared index cannot be set silently.
+
+        One ``xr.Dataset`` holds a single index per dim, so an effect variable
+        whose ``channel`` labels are a strict subset of the model's is NaN-filled
+        on the missing labels the moment it is aligned. Nothing downstream can
+        repair that: ``pm.set_data`` would write the NaN into the model and the
+        optimizer would score it. Better to stop here, naming the effect and the
+        variable, than to fail on NaN several frames into scipy.
+        """
+        mmm = funnel_identity_fitted_mmm
+        partial = mmm.xarray_dataset["_channel"].sel(channel=["channel_2"])
+        # Assigning into the dataset aligns on the full channel index, which
+        # leaves channel_1 as NaN: the reviewer's probe, reproduced.
+        monkeypatch.setattr(
+            mmm, "xarray_dataset", mmm.xarray_dataset.assign(partial=partial)
+        )
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["partial"])])
+        # In-sample, so the observed (and holed) values are what gets carried.
+        dates = mmm.xarray_dataset.coords["date"].values
+        lags = mmm.effective_carryover_lags()
+
+        with pytest.raises(ValueError, match=r"_StubEffect.*'partial'.*NaN"):
+            mmm.create_optimization_model(
+                start_date=dates[0], end_date=dates[-(lags + 1)]
+            )
+
+    def test_a_window_independent_variable_is_left_alone(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """A variable without a date dim keeps its value; zero-filling would destroy it.
+
+        Its `pm.Data` is already the right shape for any window, so there is
+        nothing to correct -- and it is a constant, a per-channel rate or a
+        population. Reindexing it onto the new dates would replace that constant
+        with zeros and quietly change the model.
+        """
+        mmm = funnel_identity_fitted_mmm
+        capacity = xr.DataArray(
+            [2.0, 5.0],
+            dims=("channel",),
+            coords={"channel": list(mmm.xarray_dataset.coords["channel"].values)},
+        )
+        monkeypatch.setattr(
+            mmm, "xarray_dataset", mmm.xarray_dataset.assign(channel_capacity=capacity)
+        )
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["channel_capacity"])])
+
+        ds = self._zero_ds(mmm)
+
+        assert "channel_capacity" not in ds.data_vars
+
+    def test_a_multidimensional_effect_variable_keeps_its_other_dims(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """Effect variables are not all one-dimensional.
+
+        `MediaMuEffect` and `ControlMuEffect` are `DataVarMuEffect`s whose
+        variables carry a channel or control dim alongside date, so only the
+        date axis may be rebuilt: the other dims and their coords have to
+        survive intact, or `set_data` writes a correctly-sized wrong shape.
+        """
+        mmm = funnel_identity_fitted_mmm
+        channels = list(mmm.xarray_dataset.coords["channel"].values)
+        template = mmm.xarray_dataset["_channel"].rename("media_by_channel")
+        monkeypatch.setattr(
+            mmm, "xarray_dataset", mmm.xarray_dataset.assign(media_by_channel=template)
+        )
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["media_by_channel"])])
+
+        ds = self._zero_ds(mmm)
+
+        filled = ds["media_by_channel"]
+        assert filled.dims == ("date", "channel")
+        assert filled.sizes["date"] == ds["_channel"].sizes["date"]
+        assert list(filled.coords["channel"].values) == channels
+        assert (filled.to_numpy() == 0).all()
+
+    def test_a_variable_the_dataset_already_carries_is_not_overwritten(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """An effect reading `_channel` must not clobber the spend just built.
+
+        `_channel` is the decision variable. Zero-filling it here would erase
+        whatever `channel_xr` supplied -- and, in the optimizer, the allocation
+        itself.
+        """
+        mmm = funnel_identity_fitted_mmm
+        monkeypatch.setattr(mmm, "mu_effects", [_StubEffect(["_channel"])])
+        channel_xr = xr.Dataset({ch: xr.DataArray(3.0) for ch in mmm.channel_columns})
+
+        ds = self._zero_ds(mmm, channel_xr=channel_xr)
+
+        np.testing.assert_allclose(ds["_channel"].to_numpy(), 3.0)
+
+
+class TestAdstockCarryIn:
+    """The window opens on the spend that preceded it, not on a cold adstock.
+
+    Optimizing from ``t0+1`` with no leading spend models a business that went
+    dark before the plan starts. Because adstock feeds saturation, that is not
+    an additive constant: it moves the curve's operating point over the first
+    ``l_max`` periods and so changes the marginal return the optimizer
+    equalises. The data exists -- it is the tail of the training set.
+    """
+
+    N_PERIODS = 8
+
+    def _window(self, mmm):
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        t0 = dates[-1]
+        return t0 + pd.Timedelta(weeks=1), t0 + pd.Timedelta(weeks=self.N_PERIODS)
+
+    def test_the_leading_dates_hold_the_spend_that_already_happened(
+        self, funnel_identity_fitted_mmm
+    ):
+        mmm = funnel_identity_fitted_mmm
+        lags = mmm.effective_carryover_lags()
+        start, end = self._window(mmm)
+
+        opt = mmm.create_optimization_model(start_date=start, end_date=end)
+
+        channel_data = np.asarray(opt["channel_data"].get_value())
+        training = np.asarray(mmm.model["channel_data"].get_value())
+        np.testing.assert_allclose(channel_data[:lags], training[-lags:])
+        # Only the leading block is history; the decision window and the
+        # carry-over tail stay at zero for the optimizer to fill.
+        assert (channel_data[lags:] == 0).all()
+
+    def test_carry_in_clips_to_the_history_that_exists_and_says_so(
+        self, funnel_identity_fitted_mmm, caplog
+    ):
+        """You cannot carry in spend from before the data starts.
+
+        A window opening at the first training date has no history behind it,
+        so the leading block clips to nothing. That is correct rather than
+        exceptional -- it is also how the model itself was fitted -- so it is
+        not a warning; but a partially warm adstock is indistinguishable from a
+        fully warm one from the outside, which makes it worth a debug record.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = mmm.xarray_dataset.coords["date"].values
+        lags = mmm.effective_carryover_lags()
+
+        with caplog.at_level(logging.DEBUG, logger="pymc_marketing.mmm.utils"):
+            opt = mmm.create_optimization_model(
+                start_date=dates[0], end_date=dates[-(lags + 1)]
+            )
+
+        # Nothing precedes the first training date, so no leading block at all.
+        assert len(opt.coords["date"]) == len(dates)
+        assert f"carry-in clipped to 0 of {lags}" in caplog.text
+
+    def test_history_that_is_not_adjacent_to_the_window_is_not_carried_in(
+        self, funnel_identity_fitted_mmm, caplog
+    ):
+        """Carry-in means the spend immediately before the window, not any spend.
+
+        A window opening a year after training ends has no adjacent history:
+        splicing the last training weeks onto it would convolve year-old spend
+        as if it were last week's, and the window would come up warm on
+        activity that decayed to nothing long ago. The right answer is the
+        cold start the user would have got anyway, said out loud, and without
+        the "clipped" debug record, whose wording assumes the history is
+        merely short.
+        """
+        mmm = funnel_identity_fitted_mmm
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        lags = mmm.effective_carryover_lags()
+        start = dates[-1] + pd.Timedelta(weeks=52)
+        end = start + pd.Timedelta(weeks=self.N_PERIODS - 1)
+
+        with (
+            caplog.at_level(logging.DEBUG, logger="pymc_marketing.mmm.utils"),
+            pytest.warns(UserWarning, match="not contiguous with the window"),
+        ):
+            opt = mmm.create_optimization_model(start_date=start, end_date=end)
+
+        assert len(opt.coords["date"]) == self.N_PERIODS + lags
+        assert (np.asarray(opt["channel_data"].get_value()) == 0).all()
+        assert "carry-in clipped" not in caplog.text
+
+    def test_adjacent_history_is_carried_in_without_a_word(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The common case, a window opening right after training, stays quiet."""
+        mmm = funnel_identity_fitted_mmm
+        start, end = self._window(mmm)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            opt = mmm.create_optimization_model(start_date=start, end_date=end)
+
+        lags = mmm.effective_carryover_lags()
+        assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
+
+    def test_the_date_axis_is_carry_in_plus_decisions_plus_carry_over(
+        self, funnel_identity_fitted_mmm
+    ):
+        mmm = funnel_identity_fitted_mmm
+        lags = mmm.effective_carryover_lags()
+        start, end = self._window(mmm)
+
+        opt = mmm.create_optimization_model(start_date=start, end_date=end)
+
+        assert len(opt.coords["date"]) == lags + self.N_PERIODS + lags
+
+    def test_the_leading_dates_are_not_decisions(self, funnel_identity_fitted_mmm):
+        """The budget must be spread over the window, never over history.
+
+        ``num_periods`` is derived by subtracting the flanking blocks from the
+        date axis, so a leading block that is not subtracted would silently
+        turn spend that already happened into a decision.
+        """
+        mmm = funnel_identity_fitted_mmm
+        start, end = self._window(mmm)
+
+        optimizer = mmm.budget_optimizer(
+            start_date=start,
+            end_date=end,
+            response_variable="total_response_original_scale",
+            compile_kwargs={"mode": Mode(linker="cvm")},
+        )
+
+        assert optimizer.num_periods == self.N_PERIODS
+        assert optimizer.carry_in_periods == mmm.effective_carryover_lags()
+
+
+class TestEffectiveCarryover:
+    """An effect's declared carryover has to size the optimization window.
+
+    ``spend_reach`` already honours ``additional_carryover_lags`` when it sizes
+    the incrementality evaluation windows. Sizing the optimization window from
+    ``adstock.l_max`` alone truncates the same tail, so the objective
+    undercounts the carry-over every candidate plan produces.
+    """
+
+    def test_the_declaration_widens_the_window(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """Both flanks of the date axis follow the declaration, and only it."""
+        mmm = funnel_identity_fitted_mmm
+        l_max = mmm.adstock.l_max
+        declared = mmm.effective_carryover_lags()
+        # The fixture's mediator chains a second adstock behind the model's own.
+        assert declared > l_max
+
+        n_periods = 8
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        start = dates[-1] + pd.Timedelta(weeks=1)
+        end = dates[-1] + pd.Timedelta(weeks=n_periods)
+
+        with_declaration = mmm.create_optimization_model(start_date=start, end_date=end)
+        assert len(with_declaration.coords["date"]) == declared + n_periods + declared
+
+        effect = mmm.mu_effects[0]
+        monkeypatch.setattr(
+            type(effect), "incrementality_spec", lambda self: IncrementalitySpec()
+        )
+
+        assert mmm.effective_carryover_lags() == l_max
+        without = mmm.create_optimization_model(start_date=start, end_date=end)
+        assert len(without.coords["date"]) == l_max + n_periods + l_max
+
+    def test_an_effect_that_declares_nothing_changes_nothing(
+        self, funnel_identity_fitted_mmm, monkeypatch
+    ):
+        """Declarations only -- never a guess on the effect's behalf.
+
+        ``effective_carryover_lags`` runs at build time, where reach cannot be
+        measured. An effect that opts out entirely must therefore leave the
+        window exactly as ``adstock.l_max`` sized it.
+        """
+        mmm = funnel_identity_fitted_mmm
+        effect = mmm.mu_effects[0]
+        monkeypatch.setattr(type(effect), "incrementality_spec", lambda self: None)
+
+        assert mmm.effective_carryover_lags() == mmm.adstock.l_max

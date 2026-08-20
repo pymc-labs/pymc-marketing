@@ -140,6 +140,11 @@ class LinkSpec(ABC):
     * :meth:`validate_target` -- fit-time target checks.
     * :meth:`create_media_contribution_deterministic` -- graph for
       ``total_media_contribution_original_scale``.
+
+    One concrete helper is shared by all links:
+    :meth:`create_total_response_deterministic` (the mu-effect objective
+    ``total_response_original_scale``, registered by ``MMM.build_model`` only
+    when the model has mu effects).
     """
 
     link: LinkFunction
@@ -201,6 +206,62 @@ class LinkSpec(ABC):
         link, ``{output_var}_original_scale``) as :func:`pmd.Deterministic`
         nodes.
         """
+
+    def create_total_response_deterministic(
+        self,
+        mu_var: XTensorVariable,
+        target_scale: XTensorVariable,
+    ) -> None:
+        """Register ``total_response_original_scale``.
+
+        The total predicted response (original scale, scalar per draw),
+        computed via :meth:`original_scale_transform` so it is correct for
+        every link.  Because ``mu_var`` already includes every additive
+        mu-effect, this is the natural objective for optimizing an effect's
+        lever, or a mediated funnel path, jointly with media
+        (:class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer` with
+        ``response_variable="total_response_original_scale"``).
+
+        The result is a scalar: the sum reduces **every** dimension, so a model
+        with extra dims (geo, product) totals across all of them. That is the
+        right contract for a single shared budget, and the wrong one if segments
+        hold separate budgets -- those want a per-segment objective and a
+        constraint per segment.
+
+        Parameters
+        ----------
+        mu_var : XTensorVariable
+            The finalized linear predictor, including every mu effect.
+        target_scale : XTensorVariable
+            The target scaling factor.
+
+        Warnings
+        --------
+        Unlike ``total_media_contribution_original_scale``, this quantity
+        includes the (approximately constant) baseline response.  For the
+        default mean utility the ``argmax`` is unchanged, but a risk-adjusted
+        utility function shifts the mean/variance trade-off, so those should
+        prefer a media or effect contribution response variable.  In an
+        optimization model the sum also runs over the full date coord, which
+        includes the ``adstock_periods`` carry-over tail, so an event window
+        landing in that tail would be optimized against periods outside the
+        intended plan.
+
+        This is a response total, not a media attribution: for the
+        direct-versus-mediated decomposition see
+        :class:`~pymc_marketing.mmm.incrementality.Incrementality`, which
+        computes proper counterfactuals.
+
+        Under the log link this sums ``exp(mu) * target_scale``, the conditional
+        *median* rather than the mean; :meth:`mean_correction` is the factor
+        between them. The argmax is unaffected, since that factor is per-draw
+        and budget-independent, but a reader taking the value itself as the
+        expected response is off by it.
+        """
+        pmd.Deterministic(
+            "total_response_original_scale",
+            self.original_scale_transform(mu_var, target_scale).sum(),
+        )
 
     @abstractmethod
     def to_mean_scale(

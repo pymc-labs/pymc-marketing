@@ -1010,10 +1010,10 @@ class _CustomEffectWithSuppData(MuEffect):
         pass
 
     def create_effect(self, mmm):
-        # Date-length, like the sibling effect below. A length-1 tensor claiming
-        # the date dim only survives while nothing forces the shape, which stops
-        # being true once "mu" is a registered Deterministic.
-        return as_xtensor(pt.zeros(mmm.model.dim_lengths["date"]), dims=["date"])
+        # Full date length, not `pt.zeros(1)`: a contribution carrying the
+        # `date` dim has to match the model's date coord. A length-1 stand-in
+        # only survived while nothing forced `mu` to be evaluated.
+        return as_xtensor(pt.zeros(len(mmm.model.coords["date"])), dims=["date"])
 
     def set_data(self, mmm, model, X):
         pass
