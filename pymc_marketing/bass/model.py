@@ -267,7 +267,9 @@ def _supports_xdist(prior: Prior | Censored | VariableFactory) -> bool:
     The check reads the ``create_variable`` signature for a literal ``xdist``
     parameter, so a factory that hides it behind ``**kwargs`` is treated as
     not supporting it and gets the ``as_xtensor`` wrapping instead. Declare
-    the parameter explicitly to take the native path.
+    the parameter explicitly to take the native path. Nested priors are
+    checked too: a distribution missing from ``pymc.dims`` anywhere in the
+    tree sends the whole prior down the fallback.
     """
     if "xdist" not in signature(prior.create_variable).parameters:
         # A VariableFactory written against the ``create_variable(name)``
@@ -278,7 +280,11 @@ def _supports_xdist(prior: Prior | Censored | VariableFactory) -> bool:
         return _supports_xdist(prior.distribution)
 
     if isinstance(prior, Prior):
-        return hasattr(pmd, prior.distribution)
+        return hasattr(pmd, prior.distribution) and all(
+            _supports_xdist(value)
+            for value in prior.parameters.values()
+            if hasattr(value, "create_variable")
+        )
 
     # A factory that takes the kwarg handles its own dispatch.
     return True
@@ -502,6 +508,12 @@ def create_bass_model(
                     getattr(observed, "name", None), combined_dims
                 )
             )
+            unknown = [dim for dim in observed_dims if dim not in model.dim_lengths]
+            if unknown:
+                raise ValueError(
+                    f"Observed dims {unknown} are not part of the model coords. "
+                    "Add them at initialization time or use `model.add_coord`."
+                )
             observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
 
         _create_likelihood_variable(

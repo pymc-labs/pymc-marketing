@@ -699,6 +699,40 @@ class TestBassModelXdistFallbacks:
         with pytest.raises(ValueError, match=r"product.*not part of the model coords"):
             create_bass_model(t=t, observed=None, priors=priors, coords={"T": t})
 
+    def test_nested_prior_with_non_pmd_distribution_falls_back(
+        self, coords: dict[str, Any]
+    ) -> None:
+        """A nested distribution missing from pymc.dims takes the fallback path."""
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=Prior("Wald", mu=10, lam=1)),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson"),
+        }
+
+        model = create_bass_model(
+            t=coords["T"], observed=None, priors=priors, coords=coords
+        )
+
+        assert {"m", "m_sigma", "y"} <= set(model.named_vars)
+
+    def test_observed_dim_missing_from_coords_raises(
+        self, coords: dict[str, Any]
+    ) -> None:
+        """An observed dim the model does not know fails with a clear error."""
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson"),
+        }
+        observed = xr.DataArray(np.ones((5, 2)), dims=("T", "geo"))
+
+        with pytest.raises(ValueError, match=r"geo.*not part of the model coords"):
+            create_bass_model(
+                t=coords["T"], observed=observed, priors=priors, coords=coords
+            )
+
     @pytest.mark.parametrize(
         "likelihood",
         [
