@@ -1,0 +1,14 @@
+model:
+  class: pymc_marketing.mmm.mmm.MMM
+  kwargs:
+    date_column: date
+    channel_columns: [channel_1]
+    target_column: y
+    adstock:
+      class: pymc_marketing.mmm.GeometricAdstock
+      kwargs: {l_max: 4}
+    saturation:
+      class: pymc_marketing.mmm.LogisticSaturation
+      kwargs: {}
+
+extra_vars: [lower_spend, lower_control]

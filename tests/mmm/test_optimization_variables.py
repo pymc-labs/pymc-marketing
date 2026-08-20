@@ -13,6 +13,8 @@
 #   limitations under the License.
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 
@@ -199,6 +201,60 @@ def test_non_float_dtype_raises():
             adstock_periods=2,
             channel_scales=1.0,
             dtype="int64",
+        )
+
+
+def test_carry_in_values_survive_the_substitution():
+    """The leading block must reach the model graph unchanged.
+
+    ``pm.do`` replaces the whole channel tensor, so spend that already happened
+    cannot simply sit in the model's data and be left alone -- if ``to_model``
+    does not re-emit it, the substitution silently zeroes the history and the
+    window starts from a cold adstock.
+    """
+    rng = np.random.default_rng(13)
+    mask = xr.DataArray(
+        np.ones((3,), dtype=bool),
+        dims=("channel",),
+        coords={"channel": [f"channel_{i}" for i in range(3)]},
+    )
+    carry_in = rng.normal(size=(2, 3)) ** 2
+    variable = MediaVariable(
+        name="channel_data",
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype="float64",
+        carry_in_values=carry_in,
+    )
+
+    z = ptx.as_xtensor(pt.as_tensor_variable(np.ones(3)), dims=(FLAT_DIM,))
+    built = variable.to_model(z).values.eval()
+
+    # 2 carry-in + 4 decided + 2 carry-over
+    assert built.shape == (8, 3)
+    np.testing.assert_allclose(built[:2], carry_in)
+    np.testing.assert_allclose(built[-2:], 0.0)
+    assert (built[2:6] > 0).all()
+
+
+def test_carry_in_values_must_match_the_mask_cells():
+    """A wrong-shaped leading block is caught at construction, not at compile."""
+    mask = xr.DataArray(
+        np.ones((3,), dtype=bool),
+        dims=("channel",),
+        coords={"channel": [f"channel_{i}" for i in range(3)]},
+    )
+    with pytest.raises(ValueError, match="carry_in_values has shape"):
+        MediaVariable(
+            name="channel_data",
+            mask=mask,
+            num_periods=4,
+            adstock_periods=2,
+            channel_scales=1.0,
+            dtype="float64",
+            carry_in_values=np.zeros((2, 5)),
         )
 
 
