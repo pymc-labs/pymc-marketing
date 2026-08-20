@@ -119,9 +119,9 @@ Even make it hierarchical...
 
     # "fourier" is the default prefix!
     prior = Prior(
-        "Laplace",
+        "Normal",
         mu=Prior("Normal", dims="fourier"),
-        b=Prior("HalfNormal", sigma=0.1, dims="fourier"),
+        sigma=Prior("HalfNormal", sigma=0.1, dims="fourier"),
         dims=("fourier", "hierarchy"),
     )
     yearly = YearlyFourier(n_order=3, prior=prior)
@@ -138,9 +138,9 @@ All the plotting will still work! Just pass any coords.
 
     # "fourier" is the default prefix!
     prior = Prior(
-        "Laplace",
+        "Normal",
         mu=Prior("Normal", dims="fourier"),
-        b=Prior("HalfNormal", sigma=0.1, dims="fourier"),
+        sigma=Prior("HalfNormal", sigma=0.1, dims="fourier"),
         dims=("fourier", "hierarchy"),
     )
     yearly = YearlyFourier(n_order=3, prior=prior)
@@ -331,7 +331,7 @@ class FourierBase(BaseModel):
         "fourier"
     prior : Prior | VariableFactory, optional
         Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+        default `Prior("Normal", mu=0, sigma=1)`
     variable_name : str, optional
         Name of the variable that multiplies the fourier modes. By default None,
         in which case it is set to the `{prefix}_beta`.
@@ -342,7 +342,7 @@ class FourierBase(BaseModel):
     days_in_period: float = Field(..., gt=0)
     prefix: str = Field("fourier")
     prior: InstanceOf[Prior] | InstanceOf[VariableFactory] = Field(
-        Prior("Laplace", mu=0, b=1)
+        Prior("Normal", mu=0, sigma=1)
     )
     variable_name: str | None = Field(None)
     model_config = ConfigDict(extra="forbid")
@@ -915,8 +915,8 @@ class YearlyFourier(FourierBase):
         rng = np.random.default_rng(seed)
 
         mu = np.array([0, 0, -1, 0])
-        b = 0.15
-        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        sigma = 0.15
+        dist = Prior("Normal", mu=mu, sigma=sigma, dims="fourier")
         yearly = YearlyFourier(n_order=2, prior=dist)
         prior = yearly.sample_prior(random_seed=rng)
         curve = yearly.sample_curve(prior)
@@ -932,7 +932,7 @@ class YearlyFourier(FourierBase):
         "fourier"
     prior : Prior | VariableFactory, optional
         Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+        default `Prior("Normal", mu=0, sigma=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional
@@ -980,8 +980,8 @@ class MonthlyFourier(FourierBase):
         rng = np.random.default_rng(seed)
 
         mu = np.array([0, 0, 0.5, 0])
-        b = 0.075
-        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        sigma = 0.075
+        dist = Prior("Normal", mu=mu, sigma=sigma, dims="fourier")
         monthly = MonthlyFourier(n_order=2, prior=dist)
         prior = monthly.sample_prior(samples=100)
         curve = monthly.sample_curve(prior)
@@ -997,7 +997,7 @@ class MonthlyFourier(FourierBase):
         "fourier"
     prior : Prior | VariableFactory, optional
         Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+        default `Prior("Normal", mu=0, sigma=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional
@@ -1044,8 +1044,8 @@ class WeeklyFourier(FourierBase):
         rng = np.random.default_rng(seed)
 
         mu = np.array([0, 0, 0.5, 0])
-        b = 0.075
-        dist = Prior("Laplace", mu=mu, b=b, dims="fourier")
+        sigma = 0.075
+        dist = Prior("Normal", mu=mu, sigma=sigma, dims="fourier")
         weekly = WeeklyFourier(n_order=2, prior=dist)
         prior = weekly.sample_prior(samples=100)
         curve = weekly.sample_curve(prior)
@@ -1061,7 +1061,7 @@ class WeeklyFourier(FourierBase):
         "fourier"
     prior : Prior | VariableFactory, optional
         Prior distribution or VariableFactory for the fourier seasonality beta parameters, by
-        default `Prior("Laplace", mu=0, b=1)`
+        default `Prior("Normal", mu=0, sigma=1)`
     name : str, optional
         Name of the variable that multiplies the fourier modes, by default None
     variable_name : str, optional
