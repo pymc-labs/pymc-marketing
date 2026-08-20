@@ -114,7 +114,10 @@ directly from the training ``xr.Dataset``.
 ``DataVarMuEffect``
     Abstract base for effects that reference named variables in the Dataset.
     Subclasses implement ``create_effect``; ``create_data`` and ``set_data``
-    are provided.
+    are provided.  Dataset variable names are registered in the PyMC model as
+    ``{prefix}_{var_name}`` so multiple effects can share column names without
+    colliding at build time.  Use :meth:`DataVarMuEffect.model_data_name` (or
+  ``mmm.model[effect.model_data_name(var)]``) inside ``create_effect``.
 
 ``MediaMuEffect(DataVarMuEffect)``
     Applies a ``MediaTransformation`` (adstock + saturation) to a named
@@ -529,6 +532,10 @@ class DataVarMuEffect(MuEffect, ABC):
     Subclasses only need to implement ``create_effect``.
     ``create_data`` and ``set_data`` are provided by default.
 
+    Dataset column names in ``data_vars`` are registered in the PyMC model as
+    ``{prefix}_{var_name}``. Inside ``create_effect``, read them with
+    ``model[self.model_data_name(var_name)]`` rather than ``model[var_name]``.
+
     Parameters
     ----------
     data_vars : list[str]
@@ -541,6 +548,21 @@ class DataVarMuEffect(MuEffect, ABC):
     data_vars: Annotated[list[str], Field(min_length=1)]
     prefix: str
 
+    def model_data_name(self, var_name: str) -> str:
+        """PyMC model variable name for a dataset variable.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of the variable in ``mmm.xarray_dataset`` / prediction ``X``.
+
+        Returns
+        -------
+        str
+            Namespaced name ``{prefix}_{var_name}`` used in ``pm.Data``.
+        """
+        return f"{self.prefix}_{var_name}"
+
     def create_data(self, mmm: Model) -> None:
         """Register each data variable as ``pm.Data``.
 
@@ -551,7 +573,7 @@ class DataVarMuEffect(MuEffect, ABC):
         """
         for var_name in self.data_vars:
             da = mmm.xarray_dataset[var_name]
-            pmd.Data(var_name, da.values, dims=da.dims)
+            pmd.Data(self.model_data_name(var_name), da.values, dims=da.dims)
 
     @abstractmethod
     def create_effect(self, mmm: Model) -> XTensorVariable:
@@ -571,7 +593,10 @@ class DataVarMuEffect(MuEffect, ABC):
         """
         for var_name in self.data_vars:
             if var_name in X.data_vars:
-                pm.set_data({var_name: X[var_name].values}, model=model)
+                pm.set_data(
+                    {self.model_data_name(var_name): X[var_name].values},
+                    model=model,
+                )
 
 
 class MediaMuEffect(DataVarMuEffect):
@@ -634,7 +659,7 @@ class MediaMuEffect(DataVarMuEffect):
             The media contribution with dims ``("date", *effect_dims)``.
         """
         var_name = self.data_vars[0]
-        data = mmm.model[var_name]
+        data = mmm.model[self.model_data_name(var_name)]
         effect = self.media_transformation(data, dim="date")
         return pmd.Deterministic(
             f"{self.prefix}_effect_contribution",
@@ -698,7 +723,7 @@ class ControlMuEffect(DataVarMuEffect):
         model = mmm.model
         contributions = []
         for var_name in self.data_vars:
-            data = model[var_name]
+            data = model[self.model_data_name(var_name)]
             coef = self.prior.create_variable(
                 f"{self.prefix}_{var_name}_coef",
                 xdist=True,
