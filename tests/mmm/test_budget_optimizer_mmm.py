@@ -2022,10 +2022,11 @@ class TestFunnelEffectPropagation:
         """Two optimizers on the training window: funnel-aware and direct-only."""
         mmm = funnel_identity_fitted_mmm
         dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
-        l_max = mmm.adstock.l_max
-        # The window plus the carry-over is exactly the training range, so the
-        # effect's own lf_budget lines up with channel_data.
-        opt_model = mmm.create_optimization_model(dates[0], dates[-(l_max + 1)])
+        lags = mmm.effective_carryover_lags()
+        # The window plus the effective carry-over (the model's own l_max plus
+        # the extra lags the effect declares) is exactly the training range, so
+        # the effect's own lf_budget lines up with channel_data.
+        opt_model = mmm.create_optimization_model(dates[0], dates[-(lags + 1)])
         assert (pd.DatetimeIndex(opt_model.coords["date"]) == dates).all()
 
         spend = mmm.xarray_dataset["_channel"]
