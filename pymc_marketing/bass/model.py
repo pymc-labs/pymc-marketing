@@ -156,6 +156,7 @@ from pymc_extras.prior import (
     Censored,
     MuAlreadyExistsError,
     Prior,
+    UnsupportedDistributionError,
     VariableFactory,
 )
 from pytensor.xtensor.type import XTensorVariable
@@ -274,7 +275,7 @@ def _supports_xdist(prior: Prior | Censored | VariableFactory) -> bool:
         return False
 
     if isinstance(prior, Censored):
-        return hasattr(pmd, "Censored") and _supports_xdist(prior.distribution)
+        return _supports_xdist(prior.distribution)
 
     if isinstance(prior, Prior):
         return hasattr(pmd, prior.distribution)
@@ -290,7 +291,7 @@ def _create_dim_variable(
 
     Uses ``xdist=True`` so the variable lives in xtensor space from the start.
     Whatever cannot take that route -- a distribution ``pymc.dims`` does not
-    implement (``DiracDelta`` before pymc 6.2, ``Wald``, ...) or a custom
+    implement (``Wald``, ...) or a custom
     factory written against the ``create_variable(name)`` signature -- gets a
     regular variable wrapped with ``pmd.as_xtensor``.
     """
@@ -315,7 +316,7 @@ def _create_likelihood_variable(
     likelihood needs data, so pymc_extras refuses ``observed=None`` there
     (pymc-devs/pymc-extras#731). Prior predictive still needs the outcome
     node, so build it with ``create_variable`` and ``mu`` attached, keeping
-    the same ``mu`` guard the pymc_extras method applies.
+    the same guards the pymc_extras method applies.
     """
     xdist = _supports_xdist(prior)
 
@@ -332,6 +333,10 @@ def _create_likelihood_variable(
 
     # Censored keeps its parameters on the wrapped distribution.
     inner = prior.distribution if isinstance(prior, Censored) else prior
+    if "mu" not in signature(inner.pymc_distribution.dist).parameters:
+        raise UnsupportedDistributionError(
+            f"Likelihood distribution {inner.distribution!r} is not supported."
+        )
     if "mu" in inner.parameters:
         raise MuAlreadyExistsError(inner)
 
@@ -355,6 +360,14 @@ def _align_to_dims(
     dim would be stored without those dims. Sizes come from the model, which
     knows every dim it has registered, coords argument or not.
     """
+    unknown = [
+        dim for dim in dims if dim not in var.dims and dim not in model.dim_lengths
+    ]
+    if unknown:
+        raise ValueError(
+            f"Dims {unknown} are not part of the model coords. Add them at "
+            "initialization time or use `model.add_coord`."
+        )
     missing = {dim: model.dim_lengths[dim] for dim in dims if dim not in var.dims}
     if missing:
         var = var.expand_dims(missing)
@@ -404,8 +417,9 @@ def create_bass_model(
         the data itself (an ``xr.DataArray``) or from the model (a
         ``pm.Data`` registered with dims); anything else, such as a plain
         array or a ``pm.Data`` without dims, is labelled positionally in
-        ``(T, ...)`` order with the extra dims following the order they
-        are declared in ``priors``.
+        ``(T, ...)`` order with the extra dims following their first
+        appearance across the ``p``, ``q``, ``m`` and ``likelihood``
+        priors, in that order.
     priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior

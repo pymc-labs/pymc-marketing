@@ -26,7 +26,13 @@ import pytensor.tensor as pt
 import pytest
 import xarray as xr
 from pydantic import BaseModel, ConfigDict
-from pymc_extras.prior import Censored, MuAlreadyExistsError, Prior, Scaled
+from pymc_extras.prior import (
+    Censored,
+    MuAlreadyExistsError,
+    Prior,
+    Scaled,
+    UnsupportedDistributionError,
+)
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
@@ -663,6 +669,35 @@ class TestBassModelXdistFallbacks:
             create_bass_model(
                 t=coords["T"], observed=None, priors=priors, coords=coords
             )
+
+    def test_mu_less_likelihood_without_observed_raises(
+        self, coords: dict[str, Any]
+    ) -> None:
+        """The unobserved path applies the same guard as create_likelihood_variable."""
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Binomial", n=10, p=0.5),
+        }
+
+        with pytest.raises(UnsupportedDistributionError, match="Binomial"):
+            create_bass_model(
+                t=coords["T"], observed=None, priors=priors, coords=coords
+            )
+
+    def test_likelihood_dim_missing_from_coords_raises(self) -> None:
+        """A likelihood-only dim without a coord fails with a clear error."""
+        t = np.arange(5)
+        priors = {
+            "m": Prior("Normal", mu=1000, sigma=200),
+            "p": Prior("Beta", alpha=1.5, beta=20),
+            "q": Prior("Beta", alpha=2, beta=5),
+            "likelihood": Prior("Poisson", dims=("product",)),
+        }
+
+        with pytest.raises(ValueError, match=r"product.*not part of the model coords"):
+            create_bass_model(t=t, observed=None, priors=priors, coords={"T": t})
 
     @pytest.mark.parametrize(
         "likelihood",
