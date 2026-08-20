@@ -15,17 +15,18 @@
 """Beta-Geometric/Beta-Binomial Model."""
 
 from collections.abc import Sequence
+from functools import cached_property
 from typing import Literal
 
 import numpy as np
 import pandas as pd
 import pymc as pm
+import pytensor
 import pytensor.tensor as pt
 import xarray
 from numpy import exp
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from pytensor.graph import vectorize_graph
 from scipy.special import betaln, gammaln
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
@@ -243,9 +244,32 @@ class BetaGeoBetaBinomModel(CLVModel):
                 dims=["customer_id", "obs_var"],
             )
 
-    # TODO: cache this as a property
-    @staticmethod
+    @cached_property
+    def _logp_fn(self):
+        """Compile the BG/BB log-likelihood function once, so it can be reused with new inputs.
+
+        Rebuilding and evaluating this pytensor graph on every predictive call is the
+        bottleneck for the predictive methods below, so it is compiled once per model
+        instance with mutable inputs and cached here.
+        """
+        floatX = pytensor.config.floatX
+        alpha = pt.tensor("alpha", shape=(None,), dtype=floatX)
+        beta = pt.tensor("beta", shape=(None,), dtype=floatX)
+        gamma = pt.tensor("gamma", shape=(None,), dtype=floatX)
+        delta = pt.tensor("delta", shape=(None,), dtype=floatX)
+        T = pt.tensor("T", shape=(None,), dtype=floatX)
+        values = pt.tensor("values", shape=(None, 2), dtype=floatX)
+
+        bgbb_dist = BetaGeoBetaBinom.dist(
+            alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
+        )
+        loglike = pm.logp(bgbb_dist, values)
+        return pytensor.function(
+            [alpha, beta, gamma, delta, T, values], loglike, allow_input_downcast=True
+        )
+
     def _logp(
+        self,
         alpha: xarray.DataArray,
         beta: xarray.DataArray,
         gamma: xarray.DataArray,
@@ -258,31 +282,28 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         Utility function for using BG/BB log-likelihood in predictive methods.
         """
-        # The BetaGeoBetaBinom distribution only works with vector parameters
-        # We stack the chain/draw dimensions in a long vector and use vectorize
-        # to broadcast along each customer `T`
-        dummy_T = pt.tensor(shape=(1,), dtype=int)
-        dummy_values = pt.tensor(shape=(1, 2), dtype=int)
-        bgbb_dist = BetaGeoBetaBinom.dist(
-            alpha=alpha.stack(sample=("chain", "draw")).values,
-            beta=beta.stack(sample=("chain", "draw")).values,
-            gamma=gamma.stack(sample=("chain", "draw")).values,
-            delta=delta.stack(sample=("chain", "draw")).values,
-            T=dummy_T,
+        n_chain = alpha.sizes["chain"]
+        n_draw = alpha.sizes["draw"]
+        n_samples = n_chain * n_draw
+        n_customers = T.sizes["customer_id"]
+
+        # The BetaGeoBetaBinom distribution only works with vector parameters, so the
+        # per-sample params and per-customer data are each repeated to cover every
+        # (customer, sample) pair as a single flat vector.
+        alpha_rep = np.tile(alpha.stack(sample=("chain", "draw")).values, n_customers)
+        beta_rep = np.tile(beta.stack(sample=("chain", "draw")).values, n_customers)
+        gamma_rep = np.tile(gamma.stack(sample=("chain", "draw")).values, n_customers)
+        delta_rep = np.tile(delta.stack(sample=("chain", "draw")).values, n_customers)
+        T_rep = np.repeat(T.values, n_samples)
+        values_rep = np.repeat(
+            np.stack((t_x.values, x.values), axis=-1), n_samples, axis=0
         )
-        dummy_logp = pm.logp(bgbb_dist, dummy_values)
-        values = pt.constant(np.stack((t_x.values, x.values), axis=-1))
-        loglike = vectorize_graph(
-            dummy_logp,
-            replace={
-                dummy_T: pt.as_tensor(T.values[:, None]),
-                dummy_values: pt.as_tensor(values[:, None, :]),
-            },
-        ).eval()
+
+        loglike = self._logp_fn(
+            alpha_rep, beta_rep, gamma_rep, delta_rep, T_rep, values_rep
+        )
         # Unstack chain/draw and put customer in last axis
-        loglike = np.moveaxis(
-            loglike.reshape((-1, alpha.sizes["chain"], alpha.sizes["draw"])), 0, -1
-        )
+        loglike = np.moveaxis(loglike.reshape((n_customers, n_chain, n_draw)), 0, -1)
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
     # TODO: move this into BaseModel
