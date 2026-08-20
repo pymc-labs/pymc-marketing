@@ -31,10 +31,12 @@ import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from numpy.typing import (
-    ArrayLike,  # noqa: F401  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
+    ArrayLike,  # resolves pt.TensorLike's ForwardRef('ArrayLike') for sphinx_autodoc_typehints (#1197)
 )
+from pymc.distributions.dist_math import check_parameters
 from pymc_extras.deserialize import deserialize, register_deserialization
 from pymc_extras.prior import (
+    MuAlreadyExistsError,
     Prior,
     Scaled,
     VariableFactory,
@@ -84,6 +86,23 @@ serialization.register(
     serializer=_serialize_scaled,
     deserializer=_deserialize_scaled,
 )
+
+
+class MeanAlreadyExistsError(MuAlreadyExistsError):
+    """Error for when ``mean`` is already present in a likelihood prior.
+
+    Subclasses :class:`pymc_extras.prior.MuAlreadyExistsError` so existing
+    ``except MuAlreadyExistsError`` handlers keep working, but the message
+    names ``mean``, the key that actually collides in
+    :meth:`LogNormalPrior.create_likelihood_variable`.
+    """
+
+    def __init__(self, distribution) -> None:
+        self.distribution = distribution
+        self.message = (
+            f"The mean parameter (or its alias mu) is already defined in {distribution}"
+        )
+        Exception.__init__(self, self.message)
 
 
 class SpecialPrior(ABC):
@@ -290,14 +309,18 @@ class LogNormalPrior(SpecialPrior):
 
     Parameters
     ----------
-    mean : Prior, float, int, array-like
-        The mean of the distribution on the positive scale.
+    mean : Prior, float, int, array-like, optional
+        The mean of the distribution on the positive scale. It can be omitted
+        only when the instance is used as a likelihood, in which case the mean
+        is supplied later as ``mu`` by :meth:`create_likelihood_variable`.
     std : Prior, float, int, array-like
         The standard deviation of the distribution on the positive scale.
     dims : tuple[str, ...], optional
         The dimensions of the distribution, by default None.
     centered : bool, optional
         Whether to use the centered parameterization, by default True.
+        Ignored when the instance is used as a likelihood, since an observed
+        variable has no non-centered form.
 
     Examples
     --------
@@ -313,6 +336,38 @@ class LogNormalPrior(SpecialPrior):
             dims=("geo",),
             centered=False,
         )
+
+    Use it as an MMM likelihood under ``link="identity"`` by configuring only
+    ``std``. The linear predictor ``mu`` becomes the response-scale mean, so
+    unlike a plain ``LogNormal`` likelihood the additive decomposition stays
+    in the units of the target. Both the target and the fitted ``mu`` must be
+    strictly positive; during sampling a non-positive ``mu`` is rejected with
+    ``-inf`` log-probability rather than being silently folded to ``|mu|``.
+    This guard protects only log-probability evaluation: forward sampling is
+    rewritten so that a non-positive ``mu`` produces draws of exactly
+    ``exp(-inf) = 0``, with no error (see
+    :meth:`create_likelihood_variable`); the MMM warns when posterior
+    predictive draws show this signature.
+
+    This parameterization also changes the noise model. Holding ``std``
+    constant across dates makes ``sigma_log`` shrink as ``mu`` grows, so the
+    likelihood models (approximately) constant additive noise of size
+    ``std`` in the units of the target. A plain ``LogNormal`` likelihood
+    with fixed ``sigma`` instead models constant relative noise, with a
+    standard deviation proportional to the mean. Note the likelihood scale
+    variable is named ``y_std``, not ``y_sigma`` as with the default
+    ``Normal`` likelihood.
+
+    .. code-block:: python
+
+        from pymc_extras.prior import Prior
+        from pymc_marketing.special_priors import LogNormalPrior
+
+        likelihood = LogNormalPrior(
+            std=Prior("HalfNormal", sigma=0.5, dims=("country",)),
+            dims=("date", "country"),
+        )
+        mmm = MMM(..., model_config={"likelihood": likelihood})
 
     References
     ----------
@@ -333,9 +388,13 @@ class LogNormalPrior(SpecialPrior):
         self._parameters_are_correct_set()
 
     def _parameters_are_correct_set(self) -> None:
-        # Only allow exactly these keys after alias normalization
-        if set(self.parameters.keys()) != {"mean", "std"}:
-            raise ValueError("Parameters must be mean and std")
+        # Only allow exactly these keys after alias normalization. A std-only
+        # instance is the likelihood configuration: the mean arrives later as
+        # ``mu`` in ``create_likelihood_variable``.
+        if set(self.parameters.keys()) not in ({"mean", "std"}, {"std"}):
+            raise ValueError(
+                "Parameters must be mean and std, or std alone for likelihood use"
+            )
 
     def create_variable(
         self, name: str, xdist: bool = False
@@ -343,6 +402,11 @@ class LogNormalPrior(SpecialPrior):
         """Create a variable from the prior distribution."""
         if not xdist:
             raise NotImplementedError(f"{self!r} only supports xdist=True")
+        if "mean" not in self.parameters:
+            raise ValueError(
+                "LogNormalPrior with only 'std' can only be used as a likelihood "
+                "via create_likelihood_variable. Provide 'mean' to use it as a prior."
+            )
 
         parameters = {
             param: as_xtensor(self._create_parameter(param, value, name, xdist=True))
@@ -371,6 +435,141 @@ class LogNormalPrior(SpecialPrior):
         phi = pmd.Deterministic(name, phi)
 
         return phi
+
+    def validate_observed(self, y: ArrayLike) -> None:
+        """Raise if observed data lies outside the LogNormal support.
+
+        A LogNormal observed variable has support on the strictly positive
+        reals, so a single zero, negative, or non-finite observation drives
+        the whole likelihood to ``-inf`` and the model cannot sample. Callers
+        that preprocess the target (for example the MMM, which clamps
+        NaN/inf scaled targets to ``0.0``) should invoke this before building
+        the model so the failure surfaces as an informative error instead.
+
+        Parameters
+        ----------
+        y : ArrayLike
+            Observed data intended for :meth:`create_likelihood_variable`.
+
+        Raises
+        ------
+        ValueError
+            If ``y`` contains non-positive or non-finite values.
+        """
+        y_arr = np.asarray(y)
+        non_finite = np.count_nonzero(~np.isfinite(y_arr))
+        non_positive = np.count_nonzero(y_arr <= 0)
+        if non_finite or non_positive:
+            raise ValueError(
+                "A LogNormalPrior likelihood requires strictly positive, finite "
+                f"observed values, but the target contains {non_positive} "
+                f"non-positive and {non_finite} non-finite entries. Any such "
+                "entry makes the log-likelihood -inf, so the model cannot "
+                "sample. Remove or impute these values, or use a likelihood "
+                "whose support includes them."
+            )
+
+    def create_likelihood_variable(
+        self,
+        name: str,
+        mu: XTensorVariable,
+        observed: Any,
+        xdist: bool = False,
+    ) -> XTensorVariable:
+        """Create an observed LogNormal variable whose response-scale mean is ``mu``.
+
+        The instance must be configured with only ``std``; ``mu`` takes the
+        role of ``mean`` and the pair is converted to the log-scale
+        parameters of the observed ``LogNormal``, so that ``E[y] = mu``.
+
+        The conversion is only valid for ``mu > 0``, and the positivity guard
+        protects only log-probability evaluation. During sampling a
+        non-positive ``mu`` yields ``-inf`` log-probability (surfacing as a
+        generic ``SamplingError`` when the starting point is invalid), and a
+        direct evaluation of the model logp raises a ``ParameterValueError``
+        naming this requirement. The gradient at such a point is NaN, because
+        the untaken branch of the guard still propagates ``log(mu)``; NUTS
+        treats this as a divergence, so it is safe but not a clean rejection
+        with a finite gradient. Forward sampling is not protected at all:
+        pymc rewrites the guard in every compiled function, so a
+        forward-sampling graph turns a non-positive ``mu`` into a ``-inf``
+        log-mean and the draw becomes exactly ``exp(-inf) = 0``, with no
+        error or warning at this level. A genuine LogNormal draw is never
+        exactly zero except through float underflow of an extremely negative
+        log-scale draw, so exact zeros almost always indicate a non-positive
+        ``mu``. Prior draws, out-of-sample predictions, or counterfactuals
+        that push ``mu`` below zero therefore return zeros that look like
+        real predictions;
+        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_posterior_predictive` and
+        :meth:`~pymc_marketing.mmm.mmm.MMM.sample_prior_predictive`
+        detect and warn about such draws. The sign is never silently
+        folded to ``|mu|``.
+
+        The ``centered`` flag is ignored: an observed variable has no
+        non-centered parameterization.
+
+        Parameters
+        ----------
+        name : str
+            Name of the observed variable. A ``Prior`` std creates its own
+            variable named ``f"{name}_std"``.
+        mu : XTensorVariable
+            Response-scale mean, e.g. the linear predictor of an MMM under
+            ``link="identity"``. Must be positive.
+        observed : XTensorLike
+            Observed data, strictly positive.
+        xdist : bool, optional
+            Only ``True`` is supported, matching :meth:`create_variable`.
+
+        Returns
+        -------
+        XTensorVariable
+            The observed variable.
+
+        Raises
+        ------
+        NotImplementedError
+            If ``xdist`` is False.
+        MeanAlreadyExistsError
+            If the instance already defines ``mean`` (or its alias ``mu``).
+            Subclass of ``MuAlreadyExistsError``.
+        """
+        if not xdist:
+            raise NotImplementedError(f"{self!r} only supports xdist=True")
+        if "mean" in self.parameters:
+            raise MeanAlreadyExistsError(self)
+
+        new = copy.deepcopy(self)
+        new.parameters["mean"] = mu
+
+        parameters = {
+            param: as_xtensor(new._create_parameter(param, value, name, xdist=True))
+            for param, value in new.parameters.items()
+        }
+        mean = parameters["mean"]
+        std = parameters["std"]
+
+        var_ratio = pmd.math.log1p((std / mean) ** 2)
+        # Exact for mean > 0 and NaN for mean <= 0; never folds to |mean| like
+        # the squared form log(mean**2 / sqrt(mean**2 + std**2)) would.
+        mu_log = pmd.math.log(mean) - 0.5 * var_ratio
+        sigma_log = pmd.math.sqrt(var_ratio)
+
+        # check_parameters/CheckParameterValue is tensor-only, so unwrap the
+        # xtensor expressions and re-wrap the checked result.
+        mu_log_tensor = check_parameters(
+            as_tensor(mu_log, allow_xtensor_conversion=True),
+            as_tensor(mean > 0, allow_xtensor_conversion=True),
+            msg="LogNormalPrior likelihood requires mu > 0. The response-scale "
+            "mean of a LogNormal must be positive; the model produced a "
+            "non-positive mu.",
+            can_be_replaced_by_ninf=True,
+        )
+        mu_log = as_xtensor(mu_log_tensor, dims=mu_log.type.dims)
+
+        return pmd.LogNormal(
+            name, mu=mu_log, sigma=sigma_log, observed=observed, dims=self.dims
+        )
 
 
 def _is_LogNormalPrior_type(data: dict) -> bool:

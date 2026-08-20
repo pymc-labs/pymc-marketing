@@ -256,6 +256,7 @@ from pymc_marketing.model_builder import RegressionModelBuilder, SamplingMethod
 from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.model_graph import deterministics_to_flat
 from pymc_marketing.serialization import DeserializationContext, serialization
+from pymc_marketing.special_priors import LogNormalPrior
 from pymc_marketing.version import __version__
 
 if TYPE_CHECKING:
@@ -2247,11 +2248,15 @@ class MMM(RegressionModelBuilder):
             y=y,
         )
 
+        likelihood = self.model_config["likelihood"]
         if "_target" in self.xarray_dataset.data_vars:
             self._link_spec.validate_target(self.xarray_dataset["_target"].values)
-        LinkSpec.validate_likelihood_compatibility(
-            self.link, self.model_config["likelihood"]
-        )
+            # Likelihood-specific support checks (e.g. LogNormalPrior requires a
+            # strictly positive target). Link-level validate_target cannot know
+            # the likelihood, so this is a separate, duck-typed hook.
+            if hasattr(likelihood, "validate_observed"):
+                likelihood.validate_observed(self.xarray_dataset["_target"].values)
+        LinkSpec.validate_likelihood_compatibility(self.link, likelihood)
 
         if self.link == LinkFunction.LOG and self.mu_effects:
             warnings.warn(
@@ -2852,6 +2857,63 @@ class MMM(RegressionModelBuilder):
             **kwargs,
         )
 
+    def sample_prior_predictive(
+        self,
+        X,
+        y=None,
+        samples: int | None = None,
+        extend_idata: bool = True,
+        combined: bool = True,
+        **kwargs,
+    ):
+        """Sample from the model's prior predictive distribution.
+
+        Delegates to
+        :meth:`RegressionModelBuilder.sample_prior_predictive` and
+        additionally warns when a
+        :class:`~pymc_marketing.special_priors.LogNormalPrior` likelihood
+        produces exactly-zero draws, the symptom of a non-positive
+        response-scale mean under the prior. See
+        :meth:`_warn_on_zero_lognormal_draws`.
+
+        When ``y`` is omitted and ``X`` is an :class:`xarray.Dataset` that
+        embeds a ``target`` / ``_target`` variable, that embedded target is
+        passed through explicitly so the base class's zeros default does
+        not overwrite it. With a LogNormalPrior likelihood and no target
+        anywhere, a strictly positive placeholder target of ones is used
+        instead of the base class's zeros default, which the likelihood's
+        ``validate_observed`` would reject before any draws are produced.
+        """
+        if y is None and isinstance(X, xr.Dataset):
+            for target_var in ("_target", "target"):
+                if target_var in X.data_vars:
+                    y = X[target_var]
+                    break
+        if y is None and isinstance(self.model_config["likelihood"], LogNormalPrior):
+            # Observed values only enter prior sampling through the max-abs
+            # target scale, so ones (scale = 1) is an inert placeholder.
+            if isinstance(X, xr.Dataset | xr.DataArray):
+                target_dims = ("date", *self.dims)
+                y = xr.DataArray(
+                    np.ones([X.sizes[d] for d in target_dims]),
+                    dims=target_dims,
+                    coords={d: X.coords[d] for d in target_dims},
+                )
+            else:
+                y = np.ones(len(X))
+        prior_predictive_samples = super().sample_prior_predictive(
+            X,
+            y=y,
+            samples=samples,
+            extend_idata=extend_idata,
+            combined=combined,
+            **kwargs,
+        )
+        self._warn_on_zero_lognormal_draws(
+            prior_predictive_samples, group_label="prior-predictive"
+        )
+        return prior_predictive_samples
+
     def sample_posterior_predictive(
         self,
         X: pd.DataFrame | xr.Dataset | None = None,  # type: ignore
@@ -2932,7 +2994,59 @@ class MMM(RegressionModelBuilder):
                 date=slice(self.adstock.l_max, None)
             )
 
+        self._warn_on_zero_lognormal_draws(
+            posterior_predictive_samples, group_label="posterior-predictive"
+        )
+
         return posterior_predictive_samples
+
+    def _warn_on_zero_lognormal_draws(
+        self, predictive_samples: xr.Dataset, group_label: str
+    ) -> None:
+        """Warn when LogNormalPrior forward draws collapse to exactly zero.
+
+        The ``mu > 0`` check in the LogNormalPrior likelihood only protects
+        log-probability evaluation. In compiled forward-sampling graphs pymc
+        rewrites the check to a ``-inf`` log-mean, so a non-positive
+        response-scale mean (for example a negative intercept, a prior that
+        puts mass below zero, or counterfactual ``X`` that pushes the linear
+        predictor below zero) silently yields ``exp(-inf) = 0`` draws. A
+        genuine LogNormal draw is never exactly zero except through float
+        underflow of an extremely negative log-scale draw, so exact zeros
+        almost always indicate this failure mode. Called from both
+        :meth:`sample_posterior_predictive` and :meth:`sample_prior_predictive`
+        (``stacklevel=3`` assumes exactly that one intermediate frame).
+
+        Parameters
+        ----------
+        predictive_samples : xr.Dataset
+            Extracted forward draws containing ``self.output_var``.
+        group_label : str
+            Label naming the sampling path in the warning message, e.g.
+            ``"posterior-predictive"`` or ``"prior-predictive"``.
+        """
+        if not isinstance(self.model_config["likelihood"], LogNormalPrior):
+            return
+        if self.output_var not in predictive_samples:
+            return
+        y_draws = predictive_samples[self.output_var].values
+        n_zero = int(np.count_nonzero(y_draws == 0))
+        if n_zero:
+            warnings.warn(
+                f"{n_zero} of {y_draws.size} {group_label} draws "
+                f"({n_zero / y_draws.size:.1%}) of '{self.output_var}' are "
+                "exactly zero. With a LogNormalPrior likelihood this almost "
+                "always means the model produced a non-positive response-scale "
+                "mean 'mu' for those draws: forward sampling rewrites the "
+                "mu > 0 check to a -inf log-mean, so the draw becomes "
+                "exp(-inf) = 0 instead of raising an error. (Rarely, a finite "
+                "but extremely negative log-scale draw can also underflow to "
+                "exactly zero.) Check for a negative intercept or input data "
+                "that pushes the linear predictor below zero before using "
+                "these predictions.",
+                UserWarning,
+                stacklevel=3,
+            )
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def sample_saturation_curve(
