@@ -1,0 +1,43 @@
+pymc_marketing/clv/utils.py
+  s_ea18efeb148529::t_e136e2c77254b0 32-33,35-36
+  s_ea18efeb148529::t_4b1ebe74bace17 132,134-137
+  s_7da92319a17efa::t_5c10d7976d5318 133
+  s_7da92319a17efa::t_0975c0bce72c8e 34
+pymc_marketing/clv/distributions.py
+  s_ea18efeb148529::t_a3241ea2d40c91 433-434,439-440
+  s_ea18efeb148529::t_728c0f0ca323f9 585-588,590-592
+  s_ea18efeb148529::t_33353b28a6f93e 700-703
+  s_ea18efeb148529::t_5e3181f97a68c3 105
+  s_ea18efeb148529::t_ab757729ea96c2 102-104,106-111,113-117
+  s_ea18efeb148529::t_9e7c9cbbb4688e 112
+  s_ea18efeb148529::t_76fcfcda0ed465 444,596
+tests/clv/test_utils.py
+  s_ea18efeb148529::t_53ec447af47ee2 135-137,139-145,148-169
+  s_ea18efeb148529::t_2b9129cec8e3da 134
+  s_7da92319a17efa::t_7f37e17ee7f0fa 146-147
+  s_7da92319a17efa::t_23ed272da09c71 138
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "582bf17fe539daa7c4cddf267a3c7aabb0340c64",
+  "prompts": {},
+  "sessions": {
+    "s_7da92319a17efa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2b4a8b19-3530-4f20-8285-bf631972c516",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    },
+    "s_ea18efeb148529": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5ccfcde0-bd3a-4562-9808-60793a7b4305",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}

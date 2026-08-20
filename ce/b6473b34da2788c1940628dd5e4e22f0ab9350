@@ -1,0 +1,24 @@
+pymc_marketing/mmm/mmm.py
+  s_f7ed65cc4d0bfa::t_fb4bde24953ad1 2650-2653,2655-2658,2660
+tests/mmm/test_budget_optimizer_merge_helpers.py
+  s_f7ed65cc4d0bfa::t_ac3766943b8084 159,170-198
+  s_f7ed65cc4d0bfa::t_c86b0bc0047eb6 199
+pymc_marketing/mmm/budget_optimizer.py
+  s_f7ed65cc4d0bfa::t_35862bf5d0b9b2 453-463,465-466,468-473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "ceb6473b34da2788c1940628dd5e4e22f0ab9350",
+  "prompts": {},
+  "sessions": {
+    "s_f7ed65cc4d0bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1ff7e12-f4e7-474e-99f7-994e047d4891",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}

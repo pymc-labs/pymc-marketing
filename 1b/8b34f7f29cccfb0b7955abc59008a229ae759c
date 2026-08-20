@@ -1,0 +1,26 @@
+tests/mmm/conftest.py
+  s_03fb9e2d1ad2bd::t_5c19db5db409b8 21,23-24,28,30
+tests/mmm/test_incrementality.py
+  s_03fb9e2d1ad2bd::t_0d47673e294e6d 214-223,241-242
+  s_03fb9e2d1ad2bd::t_1febf2f77c15b7 167,174-176,179-180
+  s_03fb9e2d1ad2bd::t_1902a59f6e0b42 588-600,603-610
+  s_03fb9e2d1ad2bd::t_73229bead85f1a 627-641,643-644,646
+  s_03fb9e2d1ad2bd::t_373b5494392c86 257-259,261-262,265-267,276-280,282-285,288
+  s_03fb9e2d1ad2bd::t_6ac983eaf2bb98 188-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1b8b34f7f29cccfb0b7955abc59008a229ae759c",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}

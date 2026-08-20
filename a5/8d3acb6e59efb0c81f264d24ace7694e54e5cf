@@ -1,0 +1,23 @@
+docs/source/gallery/gallery.md
+  s_7a2b8b1a25a39b::t_e5e0f5c46f9a1a 117-121
+docs/source/gallery/gallery.yaml
+  s_7a2b8b1a25a39b::t_815cfef202878d 53-54
+docs/source/notebooks/mmm/mmm_yoy_target_transform.ipynb
+  s_7a2b8b1a25a39b::t_a7e2f79cf57ef9 1-5063
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a58d3acb6e59efb0c81f264d24ace7694e54e5cf",
+  "prompts": {},
+  "sessions": {
+    "s_7a2b8b1a25a39b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c19c57ef-4460-43a9-a7b3-3dd62d2ba829",
+        "model": "claude-opus-5"
+      },
+      "human_author": "daimon-pymclabs <daimon@pymc-labs.com>"
+    }
+  }
+}

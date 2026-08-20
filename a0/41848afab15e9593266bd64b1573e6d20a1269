@@ -1,0 +1,52 @@
+tests/mmm/test_budget_optimizer.py
+  s_6f9e3d2cdd0786::t_f2a2e45bb718a1 683-696,698-705,707-709,711,713-716
+  s_6f9e3d2cdd0786::t_3476ad5e9e1b9e 642,672,697
+  s_6f9e3d2cdd0786::t_0a3958d699fc8b 706,710,712
+  s_6f9e3d2cdd0786::t_6ae92520fccd6a 608,611-612,636-638,641
+  s_6f9e3d2cdd0786::t_e7d7b9ebd902a2 27
+tests/mmm/test_budget_optimizer_mmm.py
+  s_6f9e3d2cdd0786::t_3476ad5e9e1b9e 1512,1529
+  s_6f9e3d2cdd0786::t_e3b9ab39e5849b 1508
+  s_6f9e3d2cdd0786::t_1caea8527440f0 1509-1510
+pymc_marketing/mmm/budget_optimizer.py
+  s_6f9e3d2cdd0786::t_471f4153404cdf 1783
+  s_6f9e3d2cdd0786::t_f03e4d3ccac3e2 1979-1981,1983
+  s_6f9e3d2cdd0786::t_15c7a832b26db8 1914
+  s_6f9e3d2cdd0786::t_36a5c0e9789a49 1919
+  s_6f9e3d2cdd0786::t_4f9be6d79dda41 1810-1812,1816-1819,1821-1822
+  s_6f9e3d2cdd0786::t_7ea009c06ff94e 1323-1333
+  s_6f9e3d2cdd0786::t_f1ef42e2bbc6df 1773
+  s_6f9e3d2cdd0786::t_83522d81c202da 322
+  s_6f9e3d2cdd0786::t_3476ad5e9e1b9e 218,311,319,1809,1820,1982
+  s_6f9e3d2cdd0786::t_5856e0d0e32cfb 1956
+  s_6f9e3d2cdd0786::t_e96f5a0eed5847 216-217,219,223-224
+  s_6f9e3d2cdd0786::t_e915950af0fab5 225-233
+  s_6f9e3d2cdd0786::t_f515489b54cd85 288-310,312-318,320-321,323-326
+  s_6f9e3d2cdd0786::t_60161794e8f866 1265
+  s_6f9e3d2cdd0786::t_789db73e57bb31 271-287
+  s_6f9e3d2cdd0786::t_91c9c2a5bb244c 1922,1930
+pymc_marketing/mmm/mmm.py
+  s_6f9e3d2cdd0786::t_54fa224418e167 3896
+  s_6f9e3d2cdd0786::t_9af1dc75077239 3945,3952-3953,3955
+  s_6f9e3d2cdd0786::t_3476ad5e9e1b9e 3946,3954
+  s_6f9e3d2cdd0786::t_188e0f09a128ac 258-261
+pymc_marketing/mmm/__init__.py
+  s_6f9e3d2cdd0786::t_21f68b78a7dc52 93
+  s_6f9e3d2cdd0786::t_b9fc6559bcbf9e 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "a041848afab15e9593266bd64b1573e6d20a1269",
+  "prompts": {},
+  "sessions": {
+    "s_6f9e3d2cdd0786": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c1f2c1c-b754-45cf-927a-0175eba13c78",
+        "model": "claude-fable-5"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}

@@ -1,0 +1,24 @@
+tests/mmm/test_additive_effect.py
+  s_ec4618204667e6::t_b3b78f50ebd843 700
+pymc_marketing/mmm/additive_effect.py
+  s_ec4618204667e6::t_e6d61850c50b16 1293-1295
+  s_ec4618204667e6::t_a2e797ba7ae7f4 1327
+  s_ec4618204667e6::t_1783bf4b58b371 1355,1365
+  s_ec4618204667e6::t_986897a5052160 1248-1260,1262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "5d3c6bd29f970a835f127fc428474f2a8c66a09b",
+  "prompts": {},
+  "sessions": {
+    "s_ec4618204667e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "120916b0-21d5-4147-983f-f0ca08198c3e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}

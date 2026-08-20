@@ -1,0 +1,23 @@
+pymc_marketing/mmm/incrementality.py
+  s_03fb9e2d1ad2bd::t_c4c8cafe415cf8 1315-1318,1320,1454-1457,1475-1477,1481-1482,1486-1493,1499,1505-1508,1523-1525,1547,1570-1575,1655,1665,1694,1741,1858,1913-1918
+tests/mmm/conftest.py
+  s_03fb9e2d1ad2bd::t_4c346ab345182f 545-553,565,628-633
+tests/mmm/test_incrementality.py
+  s_03fb9e2d1ad2bd::t_53134239ae3c7a 544-547,562-565,567-571,582-585,669-671,1362-1363,1382,1385,1387-1388
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "b4d9b0e5242ca56cbd49d72a7df697f8f4521890",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}

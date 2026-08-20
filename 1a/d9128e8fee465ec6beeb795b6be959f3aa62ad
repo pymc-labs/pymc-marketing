@@ -1,0 +1,22 @@
+pymc_marketing/pytensor_utils.py
+  s_03fb9e2d1ad2bd::t_11d41315138901 267-284
+  s_03fb9e2d1ad2bd::t_b9a801ba3ef4ed 19
+pymc_marketing/mmm/incrementality.py
+  s_03fb9e2d1ad2bd::t_00ea06441de045 520,1704-1708,1747-1749
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "1ad9128e8fee465ec6beeb795b6be959f3aa62ad",
+  "prompts": {},
+  "sessions": {
+    "s_03fb9e2d1ad2bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "001cd6bd-e662-40e7-89e0-f739e525791c",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}

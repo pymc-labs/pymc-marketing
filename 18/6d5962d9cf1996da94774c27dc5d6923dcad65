@@ -1,0 +1,26 @@
+pymc_marketing/mmm/budget_optimizer.py
+  s_ec4618204667e6::t_6f4fcca6919343 993-1000,1002,1008
+  s_ec4618204667e6::t_19cc2a42b67488 1457
+  s_ec4618204667e6::t_a40d34f22d699a 967-992,1001,1003-1007,1009-1059,1301,1441-1445,1449,1453,1458,1768-1778,1957-1960
+tests/mmm/test_budget_optimizer.py
+  s_ec4618204667e6::t_68bc908aa4f080 21
+  s_ec4618204667e6::t_5d6429c0aaba24 31,958-979,981-1021,1023-1026,1032-1036
+  s_ec4618204667e6::t_ec89ed0f841866 980
+  s_ec4618204667e6::t_04c14e01356ef7 1022,1027-1031,1037-1039
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "186d5962d9cf1996da94774c27dc5d6923dcad65",
+  "prompts": {},
+  "sessions": {
+    "s_ec4618204667e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "120916b0-21d5-4147-983f-f0ca08198c3e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}

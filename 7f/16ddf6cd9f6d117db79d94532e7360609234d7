@@ -1,0 +1,30 @@
+docs/source/notebooks/mmm/mmm_discounted_events.ipynb
+  s_edd7ac06665535::t_05da2eece0e4fc 1596-1598,1671-1673
+  s_edd7ac06665535::t_c0f332fd9ad8e0 1730-1747
+  s_edd7ac06665535::t_428ec75c5329d0 1-422,559-587,1599-1670,1678-1729
+  s_edd7ac06665535::t_4ead21d2b126df 1675-1677
+  s_edd7ac06665535::t_1a2b117ec81152 426-555
+  s_edd7ac06665535::t_e9b89ab57d6aa1 591-1595,1674
+  s_edd7ac06665535::t_1b5d03bdd3f1c5 423-425
+  s_edd7ac06665535::t_25f979379da926 556-558,588-590
+docs/source/gallery/gallery.yaml
+  s_edd7ac06665535::t_928d172d07b80d 61-62
+docs/source/gallery/gallery.md
+  s_edd7ac06665535::t_928d172d07b80d 140-144
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "7f16ddf6cd9f6d117db79d94532e7360609234d7",
+  "prompts": {},
+  "sessions": {
+    "s_edd7ac06665535": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "259251d9-dd97-4892-b687-97bd874cd226",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}

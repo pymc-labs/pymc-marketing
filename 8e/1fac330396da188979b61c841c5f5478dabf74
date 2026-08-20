@@ -1,0 +1,27 @@
+pymc_marketing/mmm/budget_optimizer.py
+  h_cd9496771935ec 1892
+  s_ec4618204667e6::t_dccfedd8838306 1894-1896
+  s_ec4618204667e6::t_4ce85994a28efc 1993-1996,1998
+  s_ec4618204667e6::t_04c1cd776f8385 1881-1888,1891
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8e1fac330396da188979b61c841c5f5478dabf74",
+  "prompts": {},
+  "humans": {
+    "h_cd9496771935ec": {
+      "author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  },
+  "sessions": {
+    "s_ec4618204667e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "120916b0-21d5-4147-983f-f0ca08198c3e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}

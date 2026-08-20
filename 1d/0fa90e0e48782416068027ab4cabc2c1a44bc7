@@ -1,0 +1,32 @@
+pymc_marketing/mmm/constraints.py
+  s_26cecd4efa1218::t_61fda794233e66 88
+pymc_marketing/mmm/utils.py
+  s_26cecd4efa1218::t_61fda794233e66 328-339
+pymc_marketing/mmm/__init__.py
+  s_26cecd4efa1218::t_61fda794233e66 17-21,96,114,117
+pymc_marketing/mmm/mmm.py
+  s_26cecd4efa1218::t_61fda794233e66 210,1049,1078-1079,4349-4379,4382-4383,4392
+pymc_marketing/mmm/budget_optimizer.py
+  s_26cecd4efa1218::t_61fda794233e66 241,708-709,730-737,748,788-792,794-796,799-802,807,811-827,837,845-853,856,868,872,1078-1085,1122,1124-1125,1127-1138,1162-1172,1179-1199,1343,1349-1359,1361,1429-1435,1440,1445-1473
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1d0fa90e0e48782416068027ab4cabc2c1a44bc7",
+  "prompts": {},
+  "humans": {
+    "h_cd9496771935ec": {
+      "author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  },
+  "sessions": {
+    "s_26cecd4efa1218": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a20d2644ffeJIOwIKzvtriCYG",
+        "model": "mlx-community/Qwen3.5-4B-MLX-4bit"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}

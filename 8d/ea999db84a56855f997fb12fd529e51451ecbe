@@ -1,0 +1,22 @@
+pymc_marketing/mmm/additive_effect/frequency_reach_effect.py
+  s_26cecd4efa1218::t_3c4785976f3b2a 344,349
+  s_26cecd4efa1218::t_a4e58dd3c9c717 479-482
+  s_26cecd4efa1218::t_346fd31e485c7f 116
+  s_26cecd4efa1218::t_4e68903ead03ff 377-378,382,389,398,410,416
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8dea999db84a56855f997fb12fd529e51451ecbe",
+  "prompts": {},
+  "sessions": {
+    "s_26cecd4efa1218": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_1a20d2644ffeJIOwIKzvtriCYG",
+        "model": "mlx-community/Qwen3.5-4B-MLX-4bit"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}

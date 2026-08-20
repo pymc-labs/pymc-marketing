@@ -1,0 +1,56 @@
+tests/mmm/test_budget_optimizer_merge_helpers.py
+  s_8700a744a30662::t_842549c075acb6 1-18,20-76,83-84,86-89,101-171,173-182,213-279,282,284-285,289-295,297,299-302,303-381
+  s_f7ed65cc4d0bfa::t_ac3766943b8084 172,183-211
+  s_f7ed65cc4d0bfa::t_c86b0bc0047eb6 212
+  s_8700a744a30662::t_60ff31916fa753 19
+  s_8700a744a30662::t_ff85e92cc4d76f 280-281,283,286-288,296,298
+  s_8700a744a30662::t_40395652190aa0 77-82,85,90-98
+  s_8700a744a30662::t_397a4491c80e99 99-100
+pymc_marketing/mmm/budget_optimizer.py
+  s_8700a744a30662::t_7e6a0a4f8c95bc 1437
+  s_8700a744a30662::t_3f017fc68b994c 1042-1049
+  s_8700a744a30662::t_7cf23b8576dd5c 1303-1312
+  s_8700a744a30662::t_4f4b46a5185eee 676,684-688,691-694,697,700,702-703
+  s_8700a744a30662::t_cfeeed43baf9d1 1300-1302
+  s_8700a744a30662::t_c53415e7e88e56 499
+  s_8700a744a30662::t_e14ab4a65966e5 1358-1361
+  s_8700a744a30662::t_efc9e18eb24fad 452,464,467,474-476
+  s_8700a744a30662::t_a92d0f4b4e679a 950-952
+  s_8700a744a30662::t_7d175aa5203b06 1362-1366
+  s_8700a744a30662::t_864859681c7192 221
+  s_8700a744a30662::t_c844cfaea078e6 674-675,677-683,689-690,695-696,698-699,701
+  s_8700a744a30662::t_1890eae7682df0 1508-1531
+  s_8700a744a30662::t_902695de012158 953-954
+  s_f7ed65cc4d0bfa::t_35862bf5d0b9b2 453-463,465-466,468-473
+pymc_marketing/mmm/mmm.py
+  s_8700a744a30662::t_83aab382c5559c 2654,2659,2661-2667,2669-2672
+  s_8700a744a30662::t_7284bdbe9703ef 2628-2631
+  s_8700a744a30662::t_9929a0e54a2fa8 2616-2619
+  s_f7ed65cc4d0bfa::t_fb4bde24953ad1 2650-2653,2655-2658,2660
+docs/source/conf.py
+  s_8700a744a30662::t_37eabde70c4ce1 92,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "98dc87054f76617a3f09438b5a9845a5db6fd0cb",
+  "prompts": {},
+  "sessions": {
+    "s_8700a744a30662": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "49baf030-8239-4ab6-8794-1e0e19f641ff",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    },
+    "s_f7ed65cc4d0bfa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1ff7e12-f4e7-474e-99f7-994e047d4891",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+pymc_marketing/mmm/__init__.py
+  s_733fa6de6a6fcf::t_99f560c1754d3c 17-21,102,120,123
+pymc_marketing/mmm/additive_effect.py
+  s_ec4618204667e6::t_4b9454b86c5e8c 1348
+  s_733fa6de6a6fcf::t_99f560c1754d3c 109,113,120-121,819-1120,1122-1146,1148-1159,1161-1172,1186-1309,1311-1347,1349-1463
+  s_ec4618204667e6::t_b9c3247308521c 1121
+  s_ec4618204667e6::t_04b3c955a55c9c 1173-1185
+  s_ec4618204667e6::t_340dd11ccf15ff 1310
+  s_ec4618204667e6::t_698c0417d2674c 1147,1160
+pymc_marketing/mmm/budget_optimizer.py
+  s_733fa6de6a6fcf::t_99f560c1754d3c 220,1667-1704,1875,1881-1896,1900-1906,1970-1975,1980,1987-2002
+  s_733fa6de6a6fcf::t_168afed0b26e18 2003
+tests/mmm/test_additive_effect.py
+  s_733fa6de6a6fcf::t_99f560c1754d3c 23,26,482-891
+pymc_marketing/mmm/link.py
+  s_733fa6de6a6fcf::t_99f560c1754d3c 116-146,263-278,356-378
+  s_733fa6de6a6fcf::t_f49a8ffb12be69 115,379-380
+pymc_marketing/mmm/mmm.py
+  s_733fa6de6a6fcf::t_99f560c1754d3c 210,2648-2665,2982-2992,4311-4321,4574-4600,4612-4621
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0ace28c858154a53b8fc122f400ed3a6bbd6c493",
+  "prompts": {},
+  "sessions": {
+    "s_733fa6de6a6fcf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6e969a59-2bf8-4526-8999-7eeb43855b8a",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    },
+    "s_ec4618204667e6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "120916b0-21d5-4147-983f-f0ca08198c3e",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "PabloRoque <pablo.deroque@glovoapp.com>"
+    }
+  }
+}
