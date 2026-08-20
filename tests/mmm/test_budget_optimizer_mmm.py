@@ -2115,3 +2115,36 @@ class TestFunnelEffectPropagation:
         np.testing.assert_allclose(
             grad_total - grad_direct, -mediated_gradient, rtol=1e-4
         )
+
+
+class TestLegacyWrapperNumPeriods:
+    """The deprecated wrapper's window, not the caller's ``num_periods``, sizes the model.
+
+    ``BudgetOptimizerWrapper.optimization_model`` ignores the ``num_periods``
+    it is handed and rebuilds from the wrapper's own date range, so a caller
+    who passes a different number gets a channel tensor that disagrees with
+    the model's date axis. That used to be tolerated silently whenever nothing
+    else in the graph was date-indexed; now it is said at construction, with
+    the number to pass instead.
+    """
+
+    def test_a_different_num_periods_is_refused_with_the_right_number(
+        self, dummy_df, fitted_mmm
+    ):
+        _df_kwargs, X_dummy, _y_dummy = dummy_df
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            wrapper = BudgetOptimizerWrapper(
+                model=fitted_mmm,
+                start_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=1),
+                end_date=X_dummy["date_week"].max() + pd.Timedelta(weeks=4),
+            )
+        assert wrapper.num_periods == 4
+
+        with pytest.raises(ValueError, match=r"num_periods=4") as info:
+            BudgetOptimizer(
+                model=wrapper,
+                num_periods=3,
+                response_variable="total_media_contribution_original_scale",
+            )
+        assert "BudgetOptimizerWrapper" in str(info.value)

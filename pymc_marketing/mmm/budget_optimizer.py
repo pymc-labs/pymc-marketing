@@ -506,7 +506,10 @@ def merge_inference_data(
             model=merged_model,
             idata=merged_idata,
             num_periods=13,
-            adstock_periods=mmm_north.adstock.l_max,
+            # The model's date axis is carry-in + decisions + carry-over, each
+            # flank effective_carryover_lags() wide.
+            carry_in_periods=mmm_north.effective_carryover_lags(),
+            adstock_periods=mmm_north.effective_carryover_lags(),
             response_variable="north_total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -682,7 +685,10 @@ def merge_models_and_idata(
             model=merged_model,
             idata=merged_idata,
             num_periods=13,
-            adstock_periods=mmm_north.adstock.l_max,
+            # The model's date axis is carry-in + decisions + carry-over, each
+            # flank effective_carryover_lags() wide.
+            carry_in_periods=mmm_north.effective_carryover_lags(),
+            adstock_periods=mmm_north.effective_carryover_lags(),
             response_variable="north_total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1203,7 +1209,10 @@ class BudgetOptimizer(BaseModel):
             model=pymc_model,
             idata=mmm.idata,
             num_periods=13,
-            adstock_periods=mmm.adstock.l_max,
+            # The model's date axis is carry-in + decisions + carry-over, each
+            # flank effective_carryover_lags() wide; the three must add up to it.
+            carry_in_periods=mmm.effective_carryover_lags(),
+            adstock_periods=mmm.effective_carryover_lags(),
             response_variable="total_media_contribution_original_scale",
         )
         optimal, result = optimizer.allocate_budget(total_budget=100_000)
@@ -1231,6 +1240,21 @@ class BudgetOptimizer(BaseModel):
         description=(
             "Number of extra carry-over periods appended to the optimization horizon. "
             "For built-in MMM this equals adstock.l_max; defaults to 0 (no carry-over)."
+        ),
+    )
+
+    carry_in_periods: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Number of leading periods of the model's date axis that hold spend "
+            "already made before the window. They are held at the model's own "
+            "channel-data values rather than optimized, so the adstock does not "
+            "start cold. Defaults to 0. A model from "
+            "MMM.create_optimization_model carries mmm.effective_carryover_lags() "
+            "of them (fewer only when the window opens at the start of training), "
+            "and carry_in_periods + num_periods + adstock_periods must equal the "
+            "model's date axis."
         ),
     )
 
@@ -1398,6 +1422,22 @@ class BudgetOptimizer(BaseModel):
             raise ValueError(
                 "num_periods must be provided when using the legacy model= argument"
             )
+        # A wrapper built around a date window (BudgetOptimizerWrapper, and
+        # BuildMergedModel over one) already knows its number of periods and
+        # sizes the model from that, not from the argument it is handed. A
+        # different caller value would then disagree with the model's date
+        # axis; say so here, with the number to pass, rather than letting the
+        # generic date-length check hint at a carry-in these users do not have.
+        wrapper_periods = getattr(model, "num_periods", None)
+        if wrapper_periods is not None and int(wrapper_periods) != int(num_periods):
+            raise ValueError(
+                f"num_periods={int(num_periods)} disagrees with the "
+                f"{type(model).__name__}'s own window of {int(wrapper_periods)} "
+                "periods, which is what its optimization_model() builds the "
+                f"model from. Pass num_periods={int(wrapper_periods)} (the "
+                "wrapper's num_periods), or change the wrapper's start_date / "
+                "end_date."
+            )
         # Prefer a concrete optimization_model implementation over the
         # protocol stub.  A real implementation lives on the class itself,
         # not inherited from the Protocol.
@@ -1466,6 +1506,15 @@ class BudgetOptimizer(BaseModel):
             dim: list(self.model.coords[dim]) for dim in self._budget_dims
         }
         self._budget_shape = tuple(len(coord) for coord in self._budget_coords.values())
+
+        # 3a. The date axis is three blocks -- carry-in, decisions, carry-over --
+        #     and the substituted channel tensor is exactly their sum long. A
+        #     disagreement with the model's date axis would otherwise surface only
+        #     as a pytensor shape error inside scipy, with no mention of which
+        #     block was miscounted. Measured on the channel tensor itself, which is
+        #     what gets replaced: `model.coords[date_dim]` may be None for a
+        #     dimension declared by length alone.
+        self._validate_date_length()
 
         # 3b. Validate channel_scales here rather than letting a wrong length surface
         #     as a broadcasting error deep inside graph construction.
@@ -1555,11 +1604,20 @@ class BudgetOptimizer(BaseModel):
 
         # 7. Build the optimization variables and substitute them into the
         # model graph. One do() call over every variable keeps gradients joint.
+        # Read from the model we were handed: it already carries the spend that
+        # preceded the window, so nothing here needs to know where history lives.
+        carry_in_values = None
+        if self.carry_in_periods:
+            carry_in_values = np.asarray(self.model[self.channel_data_var].get_value())[
+                : self.carry_in_periods
+            ]
+
         media_variable = MediaVariable(
             name=self.channel_data_var,
             mask=self.budgets_to_optimize,
             num_periods=self.num_periods,
             adstock_periods=self.adstock_periods,
+            carry_in_values=carry_in_values,
             channel_scales=self.channel_scales,
             dtype=self.model[self.channel_data_var].dtype,
             date_dim=self.date_dim,
@@ -1667,6 +1725,48 @@ class BudgetOptimizer(BaseModel):
         self._compiled_constraints = compile_constraints_for_scipy(
             constraints=self._constraints, optimizer=self
         )
+
+    def _validate_date_length(self) -> None:
+        """Check that the three date blocks add up to the model's date axis.
+
+        ``carry_in_periods + num_periods + adstock_periods`` is the length of
+        the channel tensor the optimizer substitutes into the model, so it has
+        to equal the length of the channel-data variable it replaces. Measured
+        on that variable rather than on ``model.coords[date_dim]``, which is
+        ``None`` for a dimension declared by length alone.
+
+        Raises
+        ------
+        ValueError
+            If the blocks do not add up, naming each of them and how to fix it.
+        """
+        dims = list(self.model.named_vars_to_dims[self.channel_data_var])
+        if self.date_dim not in dims:
+            raise ValueError(
+                f"{self.channel_data_var!r} has dims {tuple(dims)}, which do not "
+                f"include date_dim={self.date_dim!r}."
+            )
+        actual = int(
+            np.asarray(self.model[self.channel_data_var].get_value()).shape[
+                dims.index(self.date_dim)
+            ]
+        )
+        expected = self.carry_in_periods + self.num_periods + self.adstock_periods
+        if expected != actual:
+            raise ValueError(
+                f"Date length mismatch: the model has {actual} dates but "
+                f"carry_in_periods ({self.carry_in_periods}) + num_periods "
+                f"({self.num_periods}) + adstock_periods ({self.adstock_periods}) "
+                f"= {expected}. If this model came from "
+                "MMM.create_optimization_model, its date axis is carry-in + "
+                "decisions + carry-over with each flank "
+                "mmm.effective_carryover_lags() wide: pass "
+                "carry_in_periods=mmm.effective_carryover_lags() (or the number "
+                "of model dates before your start_date, when the window opens "
+                "at the start of training) and "
+                "adstock_periods=mmm.effective_carryover_lags(), or use "
+                "mmm.budget_optimizer(start_date, end_date), which sets all three."
+            )
 
     def _validate_channel_scales(self) -> None:
         """Check that ``channel_scales`` is a scalar or a 1-D array over channels.
