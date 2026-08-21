@@ -1125,10 +1125,13 @@ class BudgetOptimizer(BaseModel):
     channel_scales : float or array-like, optional
         Per-channel scale factors used to convert monetary budgets into the
         model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
-    mu_effects : Sequence, optional
-        Additional ``mu`` effects carried over from the fitted model. Effects
-        exposing ``replace_for_optimization`` are not supported yet and raise
-        ``NotImplementedError``. Defaults to an empty list.
+    optimizable_vars : dict, optional
+        Additional one-dimensional, non-date ``pm.Data`` variables to co-optimize
+        alongside the media budgets, keyed by name, each mapped to its native
+        ``(low, high)`` bounds per entry (or ``None`` for unbounded). Levers are
+        optimized in their own units and stay out of the default budget-sum
+        constraint. Defaults to no levers. ``mu_effects`` are not a parameter:
+        effects are baked into the model graph at build time.
     frozen_deterministics : list of str, optional
         Names of ``Deterministic`` variables to freeze at their posterior values
         instead of recomputing them from the graph. Required for models with HSGP

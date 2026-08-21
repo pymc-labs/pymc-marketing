@@ -12,6 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 import warnings
+from types import SimpleNamespace
 
 import arviz as az
 import numpy as np
@@ -21,7 +22,10 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pytensor import function
+from pytensor.compile.mode import Mode
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
+from scipy.optimize import approx_fprime
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
 from pymc_marketing.mmm.additive_effect import LinearTrendEffect, MuEffect
@@ -1990,6 +1994,127 @@ class TestDefaultObjectiveWarning:
         _df_kwargs, X_dummy, _y_dummy = dummy_df
         self._assert_no_objective_warning(
             fitted_mmm_trend.budget_optimizer, **self._window(X_dummy)
+        )
+
+
+class TestFunnelEffectPropagation:
+    """The optimizer's intervention on ``channel_data`` reaches a funnel ``MuEffect``.
+
+    The conftest ``FunnelEffect`` reads ``mmm.channel_data_scaled``, chains a second
+    adstock/saturation behind the model's own and brings a date-indexed ``pm.Data``
+    (``lf_budget``). The optimizer is built on the in-sample window with each
+    channel's historical spend pattern as ``budget_distribution_over_period``, so
+    the historical plan is a point of the decision space at which every quantity
+    has a posterior counterpart, and ``total_response_original_scale`` (registered
+    because the model has mu effects) is the objective that counts the mediated
+    path. Both compile modes are exercised: the default one and the C/VM linker.
+
+    The tests deliberately go through the private ``_objective_and_grad``: it is
+    the exact callable handed to SLSQP (objective and gradient in one compiled
+    function), so what is pinned here is what the solver sees. The advanced funnel
+    notebook proves the same facts through the public API
+    (``optimization_variables``, ``extract_response_distribution``).
+    """
+
+    @pytest.fixture(scope="class", params=["default", "cvm"])
+    @staticmethod
+    def setup(request, funnel_identity_fitted_mmm):
+        """Two optimizers on the training window: funnel-aware and direct-only."""
+        mmm = funnel_identity_fitted_mmm
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        lags = mmm.effective_carryover_lags()
+        # The window plus the effective carry-over (the model's own l_max plus
+        # the extra lags the effect declares) is exactly the training range, so
+        # the effect's own lf_budget lines up with channel_data.
+        opt_model = mmm.create_optimization_model(dates[0], dates[-(lags + 1)])
+        assert (pd.DatetimeIndex(opt_model.coords["date"]) == dates).all()
+
+        spend = mmm.xarray_dataset["_channel"]
+        pattern = spend / spend.sum("date")
+        mean_plan = spend.mean("date")
+        compile_kwargs = (
+            {"mode": Mode(linker="cvm")} if request.param == "cvm" else None
+        )
+
+        def build(response_variable):
+            return BudgetOptimizer(
+                model=opt_model,
+                idata=mmm.idata,
+                num_periods=len(dates),
+                adstock_periods=0,
+                response_variable=response_variable,
+                budget_distribution_over_period=pattern,
+                compile_kwargs=compile_kwargs,
+            )
+
+        total = build("total_response_original_scale")
+        direct = build("total_media_contribution_original_scale")
+        x0 = total.optimization_variables.pack(mean_plan)
+        np.testing.assert_array_equal(x0, direct.optimization_variables.pack(mean_plan))
+        return SimpleNamespace(
+            mmm=mmm, total=total, direct=direct, x0=x0, compile_kwargs=compile_kwargs
+        )
+
+    def test_mediated_contribution_depends_on_the_budgets(self, setup):
+        """The decision vector is an ancestor of the mediated contribution."""
+        mediated = setup.total.extract_response_distribution(
+            "funnel_effect_contribution"
+        )
+        assert setup.total.optimization_variables.flat in set(ancestors([mediated]))
+
+    def test_objective_at_the_historical_plan_is_the_in_sample_posterior_mean(
+        self, setup
+    ):
+        """The fixed pattern reproduces history and the effect's data are the training data.
+
+        Any other window, or an effect data variable left at the wrong length or
+        values, would break this equality.
+        """
+        objective, _ = setup.total._objective_and_grad(setup.x0)
+        posterior_mean = float(
+            setup.mmm.idata.posterior["total_response_original_scale"].mean()
+        )
+        np.testing.assert_allclose(-objective, posterior_mean, rtol=1e-6)
+
+    @pytest.mark.parametrize("scale", [1.0, 1.25], ids=["historical", "perturbed"])
+    def test_gradient_matches_finite_differences(self, setup, scale):
+        """The compiled gradient through the chained adstock/saturation is right."""
+        x = setup.x0 * np.linspace(scale, 2 - scale, setup.x0.size)
+        _, gradient = setup.total._objective_and_grad(x)
+        finite_differences = approx_fprime(
+            x, lambda z: setup.total._objective_and_grad(z)[0], 1e-6
+        )
+        np.testing.assert_allclose(gradient, finite_differences, rtol=1e-4)
+
+    def test_the_two_objectives_differ_by_the_mediated_gradient(self, setup):
+        """Direct-only and funnel-aware objectives differ exactly by the mediated term.
+
+        The mediated contribution rises with every channel's spend, so the
+        funnel-aware objective (a negative response) has the more negative
+        gradient in every cell, by exactly the marginal mediated response.
+        """
+        _, grad_total = setup.total._objective_and_grad(setup.x0)
+        _, grad_direct = setup.direct._objective_and_grad(setup.x0)
+
+        # The fixture registers no original-scale mediated variable, so scale
+        # the linear-predictor contribution by hand.
+        target_scale = float(setup.mmm.idata.constant_data["target_scale"])
+        mediated = setup.total.extract_response_distribution(
+            "funnel_effect_contribution"
+        )
+        mediated_mean = mediated.sum(dim=["date"]).mean(dim="sample") * target_scale
+        mediated_fn = function(
+            [setup.total.optimization_variables.flat],
+            mediated_mean,
+            **(setup.compile_kwargs or {}),
+        )
+        mediated_gradient = approx_fprime(
+            setup.x0, lambda z: float(mediated_fn(z)), 1e-6
+        )
+
+        assert (grad_total - grad_direct < 0).all()
+        np.testing.assert_allclose(
+            grad_total - grad_direct, -mediated_gradient, rtol=1e-4
         )
 
 
