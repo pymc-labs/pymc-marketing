@@ -50,16 +50,26 @@ class OriginalScaleIndex(Index):
 
     .. code-block:: python
 
+        import numpy as np
+        import xarray as xr
+
+        channels = ["TV", "Radio"]
+        x = np.linspace(0, 1, 100)
         channel_scale = xr.DataArray(
             [5000.0, 1200.0],
             dims=["channel"],
-            coords={"channel": ["TV", "Radio"]},
+            coords={"channel": channels},
         )
-        # da has dims (chain, draw, channel, x) with x in [0, 1]
+        # y = x (linear / "infinite returns" saturation)
+        da = xr.DataArray(
+            np.broadcast_to(x, (len(channels), len(x))).copy(),
+            dims=["channel", "x"],
+            coords={"channel": channels, "x": x},
+        )
         curve = da.drop_indexes(["x", "channel"]).set_xindex(
             ["x", "channel"], OriginalScaleIndex, channel_scale=channel_scale
         )
-        curve.sel(channel="TV").coords["x"]  # TV's original-domain x values
+        curve.sel(channel="TV").coords["x"]  # TV's original-domain x values [0, 5000]
 
     See :meth:`~pymc_marketing.mmm.MMM.sample_saturation_curve` for the primary
     use-case where this index is attached automatically.
