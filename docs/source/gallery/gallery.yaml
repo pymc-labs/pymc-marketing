@@ -52,6 +52,8 @@ sections:
             notebook: mmm/mmm_roas_parametrization
           - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
             notebook: mmm/mmm_halo
+          - title: "Splitting MMM Channel Impact Across Campaigns"
+            notebook: mmm/mmm_credibility_disaggregation
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
