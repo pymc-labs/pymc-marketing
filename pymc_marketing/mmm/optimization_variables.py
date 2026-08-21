@@ -279,6 +279,7 @@ class MediaVariable(OptimizationVariable):
         adstock_periods: int,
         channel_scales: float | np.ndarray,
         dtype: str,
+        scales_dims: tuple[str, ...] = ("channel",),
         date_dim: str = "date",
         budget_distribution_over_period_tensor: XTensorVariable | None = None,
         cost_per_unit_tensor: XTensorVariable | None = None,
@@ -296,6 +297,7 @@ class MediaVariable(OptimizationVariable):
         self.num_periods = num_periods
         self.adstock_periods = adstock_periods
         self.channel_scales = channel_scales
+        self.scales_dims = tuple(scales_dims)
         self.dtype = dtype
         self.date_dim = date_dim
         self.budget_distribution_over_period_tensor = (
@@ -334,11 +336,104 @@ class MediaVariable(OptimizationVariable):
         """Shape of the full (unmasked) budget tensor."""
         return self._bool_mask.shape
 
+    @classmethod
+    def from_model(
+        cls,
+        model: Model,
+        name: str,
+        *,
+        num_periods: int,
+        adstock_periods: int,
+        mask: DataArray | None = None,
+        carry_in_values: np.ndarray | None = None,
+        scales: float | np.ndarray = 1.0,
+        date_dim: str = "date",
+        **kwargs,
+    ) -> "MediaVariable":
+        """Build a monetary variable by reading a named node's dims off a model.
+
+        The media budgets are one instance of a monetary decision; a
+        lower-funnel spend, or the reach an impression budget buys, is another.
+        What distinguishes them is which node they substitute and over which
+        dims they are decided, and both already live in the model, so callers
+        name the node and this reads the rest.
+
+        Parameters
+        ----------
+        model : Model
+            The model holding the node.
+        name : str
+            Name of the monetary node to optimize. Must carry named dims,
+            including *date_dim*.
+        num_periods, adstock_periods : int
+            Decision and carry-over period counts for the window.
+        mask : DataArray or None
+            Which cells to optimize, over the node's non-date dims. Defaults to
+            all of them.
+        carry_in_values : np.ndarray or None
+            Spend already made before the window, one leading period per row.
+        scales : float or np.ndarray
+            Scale factors converting monetary amounts into the node's units.
+        date_dim : str
+            The model's date dimension, which the node must vary over.
+        **kwargs
+            Passed through to the constructor.
+
+        Returns
+        -------
+        MediaVariable
+            A monetary variable over ``name``.
+
+        Raises
+        ------
+        ValueError
+            If ``name`` has no named dims, or does not vary over *date_dim*.
+        """
+        if name not in model.named_vars_to_dims:
+            raise ValueError(
+                f"spend variable '{name}' is not a variable with named dims in "
+                "the model, so the cells to optimize cannot be determined."
+            )
+        dims = tuple(model.named_vars_to_dims[name])
+        if date_dim not in dims:
+            raise ValueError(
+                f"spend variable '{name}' has dims {dims}, which do not include "
+                f"{date_dim!r}. A budget is spent over time; a quantity that "
+                "does not vary by date is a lever, not a spend."
+            )
+        cell_dims = tuple(dim for dim in dims if dim != date_dim)
+        if mask is None:
+            shape = tuple(len(model.coords[dim]) for dim in cell_dims)
+            mask = DataArray(
+                np.ones(shape, dtype=bool),
+                dims=cell_dims,
+                coords={dim: list(model.coords[dim]) for dim in cell_dims},
+            )
+        return cls(
+            name=name,
+            mask=mask,
+            num_periods=num_periods,
+            adstock_periods=adstock_periods,
+            carry_in_values=carry_in_values,
+            channel_scales=scales,
+            dtype=model[name].dtype,
+            scales_dims=cell_dims,
+            date_dim=date_dim,
+            **kwargs,
+        )
+
     def scattered(self, z: XTensorVariable) -> XTensorVariable:
         """Scatter the flat slice into the full budget-dims tensor.
 
         Non-optimized cells are zero. Values remain in monetary units.
         """
+        if not self.dims:
+            # One budget, decided over nothing but date -- a single national
+            # spend. There are no cells to scatter into, the mask is 0-d, and
+            # pytensor cannot index with a scalar boolean. The constructor has
+            # already refused a mask that selects nothing, so the one cell here
+            # is always optimized and reshaping is the whole of the scatter.
+            return as_xtensor(z.values.reshape(()), dims=())
         budgets_zeros = pt.zeros(self.shape)
         budgets_zeros.name = "budgets_zeros"
         return as_xtensor(
@@ -387,7 +482,7 @@ class MediaVariable(OptimizationVariable):
 
         repeated_budgets = repeated_budgets / as_xtensor(
             self.channel_scales,
-            dims=() if np.ndim(self.channel_scales) == 0 else ("channel",),
+            dims=() if np.ndim(self.channel_scales) == 0 else self.scales_dims,
         )
 
         # Convert from monetary units to original units using date-specific
@@ -779,10 +874,48 @@ class OptimizationVariables:
             for variable in self.variables
         }
 
+    def spending_variables(self) -> list[OptimizationVariable]:
+        """Return the variables that draw from the shared budget.
+
+        Read off ``budget_contribution`` rather than a second flag, so there is
+        one answer to "does this spend?" and it cannot disagree with itself.
+        Building the contribution is symbolic and cheap; nothing is evaluated.
+        """
+        return [
+            variable
+            for variable in self.variables
+            if variable.budget_contribution(self.variable_slice(variable.name))
+            is not None
+        ]
+
     def x0(self, total_budget: float) -> np.ndarray:
-        """Default initial guess: each variable's ``default_x0`` concatenated."""
+        """Default initial guess: each variable's ``default_x0`` concatenated.
+
+        The budget is shared out across the *cells* of every spending variable,
+        so the guess sums to ``total_budget`` however many of them there are and
+        every spending cell starts at the same amount. With one spender this is
+        exactly ``default_x0(total_budget)``; with two, splitting matters --
+        giving each the whole budget would start the solver at twice it, outside
+        the equality constraint before the first step.
+
+        A variable that does not spend is handed the total untouched: it is in
+        its own units, and its default ignores the figure anyway.
+        """
+        spenders = self.spending_variables()
+        cells = sum(variable.size for variable in spenders)
+        shares = (
+            {
+                variable.name: total_budget * variable.size / cells
+                for variable in spenders
+            }
+            if cells
+            else {}
+        )
         return np.concatenate(
-            [variable.default_x0(total_budget) for variable in self.variables]
+            [
+                variable.default_x0(shares.get(variable.name, total_budget))
+                for variable in self.variables
+            ]
         )
 
     def bounds(

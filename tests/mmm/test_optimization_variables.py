@@ -561,3 +561,77 @@ def test_from_model_leaves_bounds_optional(lever_model):
 def test_from_model_rejects_nodes_that_cannot_be_levers(lever_model, name, match):
     with pytest.raises(ValueError, match=match):
         LeverVariable.from_model(lever_model, name, date_dim="date")
+
+
+def _money(name, sizes=(3,), dims=("channel",)):
+    coords = {
+        dim: [f"{dim}_{i}" for i in range(size)]
+        for dim, size in zip(dims, sizes, strict=True)
+    }
+    mask = xr.DataArray(np.ones(sizes, dtype=bool), dims=dims, coords=coords)
+    return MediaVariable(
+        name=name,
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype="float64",
+    )
+
+
+def test_x0_shares_one_budget_across_every_spending_variable():
+    """Two money variables must not each start at the whole budget.
+
+    The default sum constraint is an equality, so an initial guess totalling
+    twice the budget starts the solver outside the feasible set. SLSQP will
+    often recover, which is exactly why this is asserted on the guess itself
+    rather than left to be noticed in an optimum.
+    """
+    variables = OptimizationVariables([_money("channel_data"), _money("lf_budget")])
+
+    x0 = variables.x0(total_budget=100.0)
+
+    np.testing.assert_allclose(x0.sum(), 100.0)
+    # Uniform across every spending cell, not merely equal per variable.
+    np.testing.assert_allclose(x0, np.full(6, 100.0 / 6))
+
+
+def test_x0_is_unchanged_with_a_single_spending_variable():
+    """The share degenerates to the previous behaviour when there is one pot."""
+    variables = OptimizationVariables([_money("channel_data")])
+
+    np.testing.assert_allclose(variables.x0(total_budget=100.0), np.full(3, 100.0 / 3))
+
+
+def test_a_lever_does_not_take_a_share_of_the_budget():
+    """Levers are optimized in their own units and stay out of the pot."""
+    money = _money("channel_data")
+    variables = OptimizationVariables([money])
+
+    assert [v.name for v in variables.spending_variables()] == ["channel_data"]
+
+
+def test_a_national_spend_has_no_cells_to_scatter_into():
+    """A budget decided over date alone is one number, not a masked tensor.
+
+    The mask is then 0-dimensional, which pytensor cannot index with, so the
+    scatter has to recognise it. A single national lower-funnel budget is an
+    ordinary thing to optimize.
+    """
+    mask = xr.DataArray(np.array(True), dims=(), coords={})
+    variable = MediaVariable(
+        name="lf_budget",
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype="float64",
+    )
+
+    z = ptx.as_xtensor(pt.as_tensor_variable(np.array([7.0])), dims=(FLAT_DIM,))
+    built = variable.to_model(z).values.eval()
+
+    assert variable.size == 1
+    assert built.shape == (6,)
+    np.testing.assert_allclose(built[:4], 7.0)
+    np.testing.assert_allclose(built[4:], 0.0)

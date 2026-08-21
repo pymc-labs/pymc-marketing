@@ -21,6 +21,7 @@ import pymc.dims as pmd
 import pytest
 import xarray as xr
 from pytensor import function
+from pytensor.compile.mode import Mode
 from pytensor.xtensor import as_xtensor
 
 from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
@@ -2024,3 +2025,93 @@ class TestLegacyWrapperNumPeriods:
                 response_variable="total_media_contribution_original_scale",
             )
         assert "BudgetOptimizerWrapper" in str(info.value)
+
+
+class TestMonetarySpendVariables:
+    """A second money tensor competes with media for the same budget.
+
+    A funnel's lower-funnel spend is a decision, not an input: it is money, so
+    it belongs in the same pot as the media budgets rather than beside them.
+    `LeverVariable` cannot carry it -- a lever is optimized in its own units and
+    deliberately sits outside the budget-sum constraint -- so it rides the media
+    path over a different node instead.
+
+    `cvm` because numba cannot compile the gradient of this effect's second,
+    sample-batched adstock (pytensor#2360), which is upstream and unrelated.
+    """
+
+    # Large enough that media has saturated and the lower funnel is worth
+    # funding. At a small budget media wins outright and the split is a corner,
+    # which would not tell us the two are being traded off at all.
+    TOTAL = 200.0
+
+    def _optimizer(self, mmm, **kwargs):
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        t0 = dates[-1]
+        kwargs.setdefault("response_variable", "total_response_original_scale")
+        return mmm.budget_optimizer(
+            start_date=t0 + pd.Timedelta(weeks=1),
+            end_date=t0 + pd.Timedelta(weeks=8),
+            compile_kwargs={"mode": Mode(linker="cvm")},
+            **kwargs,
+        )
+
+    def test_the_budget_is_shared_with_the_media_spend(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The claim: one pot, split between media and the lower funnel.
+
+        `constraints.py` is untouched by this feature. The default sum
+        constraint totals every variable that reports a `budget_contribution`,
+        so a second monetary variable joins it by being one -- which is what
+        that seam was built for.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        media = float(result.budgets.sum())
+        lower_funnel = float(np.asarray(result.optimized_vars["lf_budget"]))
+        np.testing.assert_allclose(media + lower_funnel, self.TOTAL, rtol=1e-6)
+
+    def test_the_split_is_interior(self, funnel_identity_fitted_mmm):
+        """Both are funded, so the two are genuinely traded off.
+
+        A corner solution would satisfy the sum constraint just as well while
+        telling us nothing about whether the second variable moves the
+        objective at all.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert float(np.asarray(result.optimized_vars["lf_budget"])) > 0.0
+        assert (result.budgets > 0).all()
+
+    def test_a_spend_variable_the_objective_cannot_see_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Worse than an unreachable lever: it spends and returns nothing.
+
+        The default objective counts the direct path only, so the mediated
+        lower-funnel spend is invisible to it. Left to run, the solver would
+        fund it out of the media budget and get no response back.
+        """
+        with pytest.raises(ValueError, match=r"spend_vars \['lf_budget'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                response_variable="total_media_contribution_original_scale",
+            )
+
+    def test_spend_vars_may_not_name_the_media_variable(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Naming it twice would give the media budget two disjoint slices."""
+        with pytest.raises(ValueError, match="already optimized"):
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars=["channel_data"])

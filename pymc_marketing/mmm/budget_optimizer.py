@@ -1264,6 +1264,19 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    spend_vars: Sequence[str] = Field(
+        default_factory=tuple,
+        description=(
+            "Names of additional monetary pm.Data variables to co-optimize with "
+            "the media budgets. Each must vary over the date dimension and is "
+            "decided over its remaining dims, in money, so it competes with "
+            "media for the same total through the default budget-sum "
+            "constraint. Use optimizable_vars instead for a quantity that is "
+            "not money -- a discount depth, a frequency -- which is optimized "
+            "in its own units and stays outside that constraint."
+        ),
+    )
+
     optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
         Field(
             default_factory=dict,
@@ -1603,11 +1616,12 @@ class BudgetOptimizer(BaseModel):
         # model graph. One do() call over every variable keeps gradients joint.
         # Read from the model we were handed: it already carries the spend that
         # preceded the window, so nothing here needs to know where history lives.
-        carry_in_values = None
-        if self.carry_in_periods:
-            carry_in_values = np.asarray(self.model[self.channel_data_var].get_value())[
-                : self.carry_in_periods
-            ]
+        def carry_in_for(name: str) -> np.ndarray | None:
+            if not self.carry_in_periods:
+                return None
+            return np.asarray(self.model[name].get_value())[: self.carry_in_periods]
+
+        carry_in_values = carry_in_for(self.channel_data_var)
 
         media_variable = MediaVariable(
             name=self.channel_data_var,
@@ -1621,6 +1635,28 @@ class BudgetOptimizer(BaseModel):
             budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
             cost_per_unit_tensor=self._cost_per_unit_tensor,
         )
+        # Additional monetary variables are media-path variables over a
+        # different node: same money, same window, so their spend joins the
+        # budget-sum constraint through budget_contribution without
+        # constraints.py knowing they exist.
+        duplicated = [name for name in self.spend_vars if name == self.channel_data_var]
+        if duplicated:
+            raise ValueError(
+                f"spend_vars may not name channel_data_var "
+                f"({self.channel_data_var!r}); it is already optimized."
+            )
+        spends = [
+            MediaVariable.from_model(
+                self.model,
+                name,
+                num_periods=self.num_periods,
+                adstock_periods=self.adstock_periods,
+                carry_in_values=carry_in_for(name),
+                date_dim=self.date_dim,
+            )
+            for name in self.spend_vars
+        ]
+
         # Optimizable vars become lever variables appended after media. They
         # are optimized in their own units and stay out of the budget-sum
         # constraint, which sums the media tensor alone.
@@ -1631,7 +1667,7 @@ class BudgetOptimizer(BaseModel):
             for lever_name, lever_bounds in self.optimizable_vars.items()
         ]
 
-        self._variables = OptimizationVariables([media_variable, *levers])
+        self._variables = OptimizationVariables([media_variable, *spends, *levers])
         self._budgets_flat = self._variables.flat
         self._budgets = media_variable.scattered(
             self._variables.variable_slice(self.channel_data_var)
@@ -1656,20 +1692,31 @@ class BudgetOptimizer(BaseModel):
         # the objective cannot reach has an identically zero gradient, so the
         # solver would return its warm-start value and report it as optimal.
         # Graph reachability answers this exactly, before anything is compiled.
-        if self.optimizable_vars:
+        # A spend variable the objective cannot reach is worse than a lever
+        # that cannot: it still draws from the budget, so the solver funds it
+        # from media and gets nothing back.
+        if self.optimizable_vars or self.spend_vars:
             reachable = set(ancestors([self._pymc_model[self.response_variable]]))
-            unreachable = [
-                name
-                for name in self.optimizable_vars
-                if self._pymc_model[name] not in reachable
+
+            def unreachable(names) -> list[str]:
+                return [
+                    name for name in names if self._pymc_model[name] not in reachable
+                ]
+
+            parts = [
+                f"{label} {names}"
+                for label, names in (
+                    ("optimizable_vars", unreachable(self.optimizable_vars)),
+                    ("spend_vars", unreachable(self.spend_vars)),
+                )
+                if names
             ]
-            if unreachable:
+            if parts:
                 raise ValueError(
                     f"response_variable={self.response_variable!r} does not "
-                    f"depend on optimizable_vars {unreachable}, so their "
-                    "gradient is identically zero and they cannot be "
-                    "optimized. Pass a response variable that includes their "
-                    "contribution."
+                    f"depend on {' or '.join(parts)}, so their gradient is "
+                    "identically zero and they cannot be optimized. Pass a "
+                    "response variable that includes their contribution."
                 )
 
         # 9. Compile objective & gradient
