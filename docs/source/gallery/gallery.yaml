@@ -52,6 +52,8 @@ sections:
             notebook: mmm/mmm_roas_parametrization
           - title: "Halo and Cannibalisation Effects in Multi-Dimensional MMMs"
             notebook: mmm/mmm_halo
+          - title: "Splitting MMM Channel Impact Across Campaigns"
+            notebook: mmm/mmm_credibility_disaggregation
       - title: Data Connectors
         cards:
           - title: MMM Fivetran Connectors
@@ -150,12 +152,10 @@ sections:
     cards:
       - title: Bass Diffusion Model Example
         notebook: bass/bass_example
-  - title: Campaign Optimization
+  - title: Predicted Incrementality by Experimentation (PIE)
     cards:
       - title: Predicting Campaign Incrementality with PIE
         notebook: pie/pie_example
-      - title: "Who Earned the Credit? Splitting MMM Channel Impact Across Campaigns"
-        notebook: mmm/mmm_credibility_disaggregation
   - title: General Tutorials
     cards:
       - title: Model Configuration
