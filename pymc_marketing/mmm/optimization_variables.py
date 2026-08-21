@@ -346,6 +346,7 @@ class MediaVariable(OptimizationVariable):
         adstock_periods: int,
         mask: DataArray | None = None,
         carry_in_values: np.ndarray | None = None,
+        carry_in_periods: int = 0,
         scales: float | np.ndarray = 1.0,
         date_dim: str = "date",
         **kwargs,
@@ -372,6 +373,10 @@ class MediaVariable(OptimizationVariable):
             all of them.
         carry_in_values : np.ndarray or None
             Spend already made before the window, one leading period per row.
+        carry_in_periods : int
+            Read that many leading periods off the node itself when
+            *carry_in_values* is not given. Read after the name is validated,
+            so a typo is reported as a typo.
         scales : float or np.ndarray
             Scale factors converting monetary amounts into the node's units.
         date_dim : str
@@ -401,6 +406,16 @@ class MediaVariable(OptimizationVariable):
                 f"{date_dim!r}. A budget is spent over time; a quantity that "
                 "does not vary by date is a lever, not a spend."
             )
+        if carry_in_periods and carry_in_values is None:
+            node = model[name]
+            if not hasattr(node, "get_value"):
+                raise ValueError(
+                    f"spend variable '{name}' is not a shared variable, so the "
+                    "spend made before the window cannot be read from it. "
+                    "Spend variables must be pm.Data nodes."
+                )
+            carry_in_values = np.asarray(node.get_value())[:carry_in_periods]
+
         cell_dims = tuple(dim for dim in dims if dim != date_dim)
         if mask is None:
             shape = tuple(len(model.coords[dim]) for dim in cell_dims)

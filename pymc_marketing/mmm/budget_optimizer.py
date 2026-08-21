@@ -1313,6 +1313,17 @@ class BudgetOptimizer(BaseModel):
         ),
     )
 
+    spend_var_scales: dict[str, float | Sequence[float]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-spend-variable scale factors converting monetary amounts into "
+            "the node's stored units, keyed by name. Omit a name to declare its "
+            "node stored in raw money. Mirrors channel_scales for the media "
+            "variable: a node stored scaled and left at the default 1.0 is "
+            "optimized in the wrong units, silently."
+        ),
+    )
+
     optimizable_vars: dict[str, Sequence[tuple[float | None, float | None]] | None] = (
         Field(
             default_factory=dict,
@@ -1681,13 +1692,24 @@ class BudgetOptimizer(BaseModel):
                 f"spend_vars may not name channel_data_var "
                 f"({self.channel_data_var!r}); it is already optimized."
             )
+        unknown = set(self.spend_var_scales) - set(self.spend_vars)
+        if unknown:
+            raise ValueError(
+                f"spend_var_scales names {sorted(unknown)}, which are not in "
+                f"spend_vars {list(self.spend_vars)}. A scale on a name that is "
+                "not optimized has no effect, so it is more likely a typo than "
+                "an intention."
+            )
         spends = [
             MediaVariable.from_model(
                 self.model,
                 name,
                 num_periods=self.num_periods,
                 adstock_periods=self.adstock_periods,
-                carry_in_values=carry_in_for(name),
+                carry_in_periods=self.carry_in_periods,
+                scales=np.asarray(self.spend_var_scales[name])
+                if name in self.spend_var_scales
+                else 1.0,
                 date_dim=self.date_dim,
             )
             for name in self.spend_vars

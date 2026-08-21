@@ -2171,3 +2171,102 @@ class TestMonetarySpendVariables:
         """Naming it twice would give the media budget two disjoint slices."""
         with pytest.raises(ValueError, match="already optimized"):
             self._optimizer(funnel_identity_fitted_mmm, spend_vars=["channel_data"])
+
+    @staticmethod
+    def _variable(optimizer, name):
+        return next(
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == name
+        )
+
+    def test_a_misspelled_spend_variable_says_so(self, funnel_identity_fitted_mmm):
+        """Carry-in is on for this path, so the name used to be read first.
+
+        The node was dereferenced while building the argument list, before
+        `from_model` validated anything, so a typo surfaced as a bare
+        `KeyError` naming nothing the caller could act on.
+        """
+        with pytest.raises(ValueError, match="not a variable with named dims"):
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars=["lf_bugdet"])
+
+    def test_a_spend_variable_must_be_a_data_node(self, funnel_identity_fitted_mmm):
+        """A dimensioned node with no stored value cannot carry prior spend."""
+        with pytest.raises(ValueError, match="not a shared variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm, spend_vars=["channel_contribution"]
+            )
+
+    def test_the_default_spend_var_scale_is_one(self, funnel_identity_fitted_mmm):
+        """Declaring no scale means the node is read as raw money."""
+        optimizer = self._optimizer(funnel_identity_fitted_mmm, spend_vars=["lf_budget"])
+
+        scales = self._variable(optimizer, "lf_budget").channel_scales
+        assert float(np.asarray(scales)) == 1.0
+
+    def test_a_declared_scale_reaches_the_variable(self, funnel_identity_fitted_mmm):
+        """A node stored in scaled units has to be told its scale.
+
+        `channel_scales` exists on the media variable because `channel_data` is
+        stored scaled; a second monetary node can be stored the same way. Left
+        pinned at 1.0 with no way to set it, the optimizer treats one stored
+        unit as one dollar and the allocation is wrong with nothing raised.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            spend_var_scales={"lf_budget": 1000.0},
+        )
+
+        scales = self._variable(optimizer, "lf_budget").channel_scales
+        assert float(np.asarray(scales)) == 1000.0
+
+    def test_a_scale_for_an_undeclared_name_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Dropping the key silently is the failure the scale exists to prevent.
+
+        A scale keyed on a name that is not optimized has no effect, so the run
+        succeeds and answers in the wrong units.
+        """
+        with pytest.raises(ValueError, match="not in spend_vars"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                spend_var_scales={"lf_bugdet": 1000.0},
+            )
+
+    def test_the_budget_is_still_shared_in_money_when_scaled(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The constraint stays in money whatever the storage units are.
+
+        The scale converts money into the node's units inside `to_model`. If it
+        leaked into `budget_contribution`, the sum constraint would total
+        dollars against stored units and the split would be meaningless.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            spend_var_scales={"lf_budget": 1000.0},
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        spent = float(result.budgets.sum()) + sum(
+            float(allocation.sum())
+            for allocation in result.spend_var_allocations.values()
+        )
+        np.testing.assert_allclose(spent, self.TOTAL, rtol=1e-6)
+
+    def test_a_bare_string_is_not_read_character_by_character(
+        self, funnel_identity_fitted_mmm
+    ):
+        """`spend_vars="lf_budget"` must not be read as ["l", "f", "_", ...]."""
+        with pytest.raises((ValueError, TypeError)) as info:
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars="lf_budget")
+
+        assert "'l'" not in str(info.value), (
+            "a bare string was iterated character by character"
+        )

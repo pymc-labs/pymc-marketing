@@ -685,3 +685,102 @@ def test_from_model_refuses_a_node_that_does_not_vary_over_date():
         MediaVariable.from_model(
             model, "discount_depth", num_periods=4, adstock_periods=2
         )
+
+
+def _dated_money_model(values=None):
+    """A dated money node, plus a dimensioned node that stores no value."""
+    if values is None:
+        values = np.arange(30, dtype=float).reshape(10, 3)
+    coords = {"date": range(values.shape[0]), "geo": ["north", "south", "west"]}
+    with pm.Model(coords=coords) as model:
+        data = pmd.Data("lf_budget", values, dims=("date", "geo"))
+        pmd.Deterministic("lf_effect", data * 2.0)
+    return model
+
+
+def test_from_model_names_a_misspelled_spend_before_reading_its_history():
+    """The name is validated before the node is dereferenced.
+
+    ``carry_in_periods`` makes ``from_model`` read the node's own leading
+    periods. Read before the name is checked, a typo comes back as a bare
+    ``KeyError`` from the model and the message written here never fires.
+    """
+    with pytest.raises(ValueError, match="not a variable with named dims"):
+        MediaVariable.from_model(
+            _dated_money_model(),
+            "lf_bugdet",
+            num_periods=4,
+            adstock_periods=2,
+            carry_in_periods=3,
+        )
+
+
+def test_from_model_refuses_a_spend_it_cannot_read_prior_spend_from():
+    """A node with dims but no stored value is refused with a reason.
+
+    Same ordering, different symptom: an ``AttributeError`` on ``.get_value()``
+    says nothing about which node is wrong or what to pass instead.
+    """
+    with pytest.raises(ValueError, match="not a shared variable"):
+        MediaVariable.from_model(
+            _dated_money_model(),
+            "lf_effect",
+            num_periods=4,
+            adstock_periods=2,
+            carry_in_periods=3,
+        )
+
+
+def test_from_model_reads_carry_in_off_the_node_when_given_periods():
+    """Passing the count is equivalent to passing the values it would read."""
+    values = np.arange(30, dtype=float).reshape(10, 3)
+    variable = MediaVariable.from_model(
+        _dated_money_model(values),
+        "lf_budget",
+        num_periods=4,
+        adstock_periods=2,
+        carry_in_periods=3,
+    )
+
+    np.testing.assert_allclose(variable.carry_in_values, values[:3])
+
+
+def test_explicit_carry_in_values_win_over_the_node():
+    """The caller's values are kept, so the media variable's path is unchanged."""
+    given = np.full((3, 3), 5.0)
+    variable = MediaVariable.from_model(
+        _dated_money_model(),
+        "lf_budget",
+        num_periods=4,
+        adstock_periods=2,
+        carry_in_values=given,
+        carry_in_periods=3,
+    )
+
+    np.testing.assert_allclose(variable.carry_in_values, given)
+
+
+def test_the_scale_divides_the_substituted_spend():
+    """The point of a scale: money in, the node's stored units out.
+
+    ``to_model`` divides the monetary decision by ``channel_scales``, so the
+    tensor substituted for a 1000x-scaled variable is 1000x smaller for the
+    same money. Checked numerically rather than by reading the attribute back,
+    because the attribute arriving is not the same claim as it being applied.
+    """
+    model = _dated_money_model()
+
+    def substituted(scales):
+        variable = MediaVariable.from_model(
+            model, "lf_budget", num_periods=4, adstock_periods=2, scales=scales
+        )
+        z = ptx.as_xtensor(
+            pt.as_tensor_variable(np.full(variable.size, 120.0)), dims=(FLAT_DIM,)
+        )
+        return variable.to_model(z).values.eval()
+
+    plain = substituted(1.0)
+    scaled = substituted(1000.0)
+
+    np.testing.assert_allclose(plain, scaled * 1000.0, rtol=1e-6)
+    assert float(plain.max()) > 0.0
