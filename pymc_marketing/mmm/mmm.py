@@ -184,7 +184,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
 import arviz as az
 import numpy as np
@@ -278,6 +278,22 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+class _WindowLayout(NamedTuple):
+    """The three blocks an optimization model's date axis divides into.
+
+    Only ``decisions`` is optimized.  ``carry_in`` holds spend already made
+    before the window, so the adstock does not start cold, and ``carry_over``
+    the zero-spend periods that catch the tail the decisions produce after the
+    window closes.  The three must together cover the axis exactly; that is the
+    invariant :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`
+    re-checks for callers who set the three numbers by hand.
+    """
+
+    carry_in: int
+    decisions: int
+    carry_over: int
 
 
 class MMM(RegressionModelBuilder):
@@ -2611,13 +2627,11 @@ class MMM(RegressionModelBuilder):
         declares nothing contributes nothing, which reproduces the previous
         behaviour rather than guessing on its behalf.
 
-        An effect that has not implemented ``incrementality_spec`` is skipped,
-        and so is one that returns ``None`` to opt out. Any *other* exception
-        from an effect's ``incrementality_spec`` propagates deliberately: it
-        means the effect cannot answer a question about itself, and sizing the
-        window from a silently swallowed error would truncate the tail exactly
-        as before, with nothing to show why. Catch it at the effect if it is
-        expected there.
+        An effect that returns ``None`` to opt out is skipped. Anything an
+        effect's ``incrementality_spec`` raises propagates: it means the effect
+        cannot answer a question about itself, and sizing the window from a
+        swallowed error would truncate the tail exactly as before, with nothing
+        to show why.
 
         Returns
         -------
@@ -2627,21 +2641,74 @@ class MMM(RegressionModelBuilder):
         """
         declared = 0
         for effect in self.mu_effects:
-            spec_of = getattr(effect, "incrementality_spec", None)
-            if spec_of is None:
-                continue
-            try:
-                spec = spec_of()
-            except NotImplementedError:
-                continue
+            spec = effect.incrementality_spec()
             if spec is None:
                 # Opted out. Skip this effect only: another effect's declaration
                 # must still widen the window.
                 continue
-            lags = getattr(spec, "additional_carryover_lags", None)
+            lags = spec.additional_carryover_lags
             if lags:
                 declared = max(declared, int(lags))
         return int(getattr(self.adstock, "l_max", 0)) + declared
+
+    def _window_layout(
+        self,
+        pymc_model: pm.Model,
+        start_date: str | pd.Timestamp,
+        date_dim: str = "date",
+    ) -> _WindowLayout:
+        """Split an optimization model's date axis into its three blocks.
+
+        Derived in one place so the three numbers cannot drift apart: the
+        leading dates are whatever
+        :func:`~pymc_marketing.mmm.utils.create_zero_dataset` was able to
+        prepend -- it clips against the training index, so asking is the only
+        way to know -- and the trailing block is
+        :meth:`effective_carryover_lags`, leaving the decisions in between.
+
+        Parameters
+        ----------
+        pymc_model : pymc.Model
+            A model built by :meth:`create_optimization_model`.
+        start_date : str or pd.Timestamp
+            First date of the decision window, as passed to that method.
+        date_dim : str, default "date"
+            Name of the model's date dimension.
+
+        Returns
+        -------
+        _WindowLayout
+            Carry-in, decision and carry-over period counts.
+
+        Raises
+        ------
+        ValueError
+            If the model has no *date_dim* coordinate, or the window leaves no
+            room for a decision once both flanking blocks are taken out.
+        """
+        if date_dim not in pymc_model.coords:
+            raise ValueError(
+                f"The optimization model has no {date_dim!r} coordinate, so "
+                "num_periods cannot be inferred. Pass date_dim= naming the model's "
+                "date dimension, or build the BudgetOptimizer directly with an "
+                "explicit num_periods."
+            )
+        model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
+        # Leading dates hold spend that already happened, so they are neither
+        # decisions nor carry-over. Counting them as either would spread the
+        # budget over history.
+        carry_in = int((model_dates < pd.Timestamp(start_date)).sum())
+        carry_over = self.effective_carryover_lags()
+        decisions = len(model_dates) - carry_in - carry_over
+        if decisions <= 0:
+            raise ValueError(
+                f"The optimization window covers {len(model_dates) - carry_in} "
+                f"periods, which does not exceed the carry-over of {carry_over} "
+                "periods. Widen the window between start_date and end_date."
+            )
+        return _WindowLayout(
+            carry_in=carry_in, decisions=decisions, carry_over=carry_over
+        )
 
     def create_optimization_model(
         self,
@@ -2799,31 +2866,10 @@ class MMM(RegressionModelBuilder):
 
         pymc_model = self.create_optimization_model(start_date, end_date)
 
-        adstock_lag = self.effective_carryover_lags()
         # Honour a caller-supplied date_dim rather than assuming "date": this is
         # the method that feeds BudgetOptimizer's configurable date_dim field.
         date_dim = kwargs.get("date_dim", "date")
-        if date_dim not in pymc_model.coords:
-            raise ValueError(
-                f"The optimization model has no {date_dim!r} coordinate, so "
-                "num_periods cannot be inferred. Pass date_dim= naming the model's "
-                "date dimension, or build the BudgetOptimizer directly with an "
-                "explicit num_periods."
-            )
-        n_dates = len(pymc_model.coords[date_dim])
-        # Leading dates hold spend that already happened, so they are neither
-        # decisions nor carry-over. Counting them as either would spread the
-        # budget over history.
-        model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
-        carry_in_periods = int((model_dates < pd.Timestamp(start_date)).sum())
-        decision_and_tail = n_dates - carry_in_periods
-        if decision_and_tail <= adstock_lag:
-            raise ValueError(
-                f"The optimization window covers {decision_and_tail} periods, "
-                f"which does not exceed the adstock carry-over of {adstock_lag} "
-                "periods. Widen the window between start_date and end_date."
-            )
-        num_periods = decision_and_tail - adstock_lag
+        layout = self._window_layout(pymc_model, start_date, date_dim=date_dim)
 
         # budgets_to_optimize is intentionally passed through untouched. When it is
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
@@ -2841,9 +2887,9 @@ class MMM(RegressionModelBuilder):
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
-            num_periods=num_periods,
-            adstock_periods=adstock_lag,
-            carry_in_periods=carry_in_periods,
+            num_periods=layout.decisions,
+            adstock_periods=layout.carry_over,
+            carry_in_periods=layout.carry_in,
             channel_scales=getattr(self, "_channel_scales", 1.0),
             budgets_to_optimize=budgets_to_optimize,
             cost_per_unit=cost_per_unit,
