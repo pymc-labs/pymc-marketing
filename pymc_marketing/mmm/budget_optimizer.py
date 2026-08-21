@@ -325,6 +325,10 @@ class BudgetOptimizationResult:
         kind of quantity, drawn from the same total -- ``budgets`` is singled
         out because it is the allocation most callers want, not because it is
         the only spend.
+    spend_var_names : list[str]
+        Which ``optimized_vars`` entries are monetary, i.e. the declared
+        ``spend_vars``. Recorded so the result can say on its own which of its
+        allocations draw from the budget; see :attr:`spend_var_allocations`.
     callback_info : list[OptimizationIterationInfo] or None
         Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
         when ``allocate_budget(callback=True)``; ``None`` otherwise.
@@ -333,7 +337,35 @@ class BudgetOptimizationResult:
     budgets: DataArray
     scipy_result: OptimizeResult
     optimized_vars: dict[str, DataArray] = field(default_factory=dict)
+    spend_var_names: list[str] = field(default_factory=list)
     callback_info: list[OptimizationIterationInfo] | None = None
+
+    @property
+    def spend_var_allocations(self) -> dict[str, DataArray]:
+        """The ``optimized_vars`` entries that are money rather than levers.
+
+        ``optimized_vars`` holds both kinds, and telling them apart matters:
+        these are drawn from the same total as :attr:`budgets`, so they are
+        what a caller sums against a budget, while a lever's units are its own
+        and adding them to money means nothing.
+
+        Returns
+        -------
+        dict[str, xarray.DataArray]
+            One entry per declared ``spend_vars`` name.
+
+        Examples
+        --------
+        Check that the plan spends the budget and no more:
+
+        .. code-block:: python
+
+            spent = float(result.budgets.sum()) + sum(
+                float(allocation.sum())
+                for allocation in result.spend_var_allocations.values()
+            )
+        """
+        return {name: self.optimized_vars[name] for name in self.spend_var_names}
 
     def __iter__(self):
         """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
@@ -2243,6 +2275,7 @@ class BudgetOptimizer(BaseModel):
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
+                spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
             )
 

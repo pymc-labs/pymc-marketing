@@ -2073,9 +2073,14 @@ class TestMonetarySpendVariables:
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
 
         assert result.scipy_result.success, result.scipy_result.message
-        media = float(result.budgets.sum())
-        lower_funnel = float(np.asarray(result.optimized_vars["lf_budget"]))
-        np.testing.assert_allclose(media + lower_funnel, self.TOTAL, rtol=1e-6)
+        # Summed off the result alone: it records which of its allocations are
+        # money, so the check does not depend on the test knowing which keys of
+        # `optimized_vars` are spend rather than levers.
+        spent = float(result.budgets.sum()) + sum(
+            float(allocation.sum())
+            for allocation in result.spend_var_allocations.values()
+        )
+        np.testing.assert_allclose(spent, self.TOTAL, rtol=1e-6)
 
     def test_the_split_is_interior(self, funnel_identity_fitted_mmm):
         """Both are funded, so the two are genuinely traded off.
@@ -2090,8 +2095,22 @@ class TestMonetarySpendVariables:
 
         result = optimizer.allocate_budget(total_budget=self.TOTAL)
 
-        assert float(np.asarray(result.optimized_vars["lf_budget"])) > 0.0
+        allocations = result.spend_var_allocations
+        assert set(allocations) == {"lf_budget"}
+        assert float(allocations["lf_budget"].sum()) > 0.0
         assert (result.budgets > 0).all()
+
+    def test_declaring_no_spend_variables_reports_none(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The media budgets alone are not reported as a spend variable."""
+        optimizer = self._optimizer(funnel_identity_fitted_mmm, spend_vars=[])
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.spend_var_names == []
+        assert result.spend_var_allocations == {}
+        np.testing.assert_allclose(float(result.budgets.sum()), self.TOTAL, rtol=1e-6)
 
     def test_a_spend_variable_the_objective_cannot_see_is_refused(
         self, funnel_identity_fitted_mmm
