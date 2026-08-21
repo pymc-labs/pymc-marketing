@@ -795,6 +795,17 @@ class OptimizationVariables:
             flat_name, shape=(self.size,), dims=(flat_dim,)
         )
 
+        # Which variables spend is fixed once the layout is, and answering it
+        # builds a throwaway symbolic tensor per variable. Settled here so
+        # repeated `x0` calls -- a warm start, a sweep over budgets -- do not
+        # rebuild the same graphs to reach the same answer.
+        self._spending: tuple[OptimizationVariable, ...] = tuple(
+            variable
+            for variable in self.variables
+            if variable.budget_contribution(self.variable_slice(variable.name))
+            is not None
+        )
+
     def variable_slice(self, name: str) -> XTensorVariable:
         """Return the symbolic slice of the flat vector for variable ``name``.
 
@@ -879,14 +890,10 @@ class OptimizationVariables:
 
         Read off ``budget_contribution`` rather than a second flag, so there is
         one answer to "does this spend?" and it cannot disagree with itself.
-        Building the contribution is symbolic and cheap; nothing is evaluated.
+        Settled once at construction, since the layout it depends on is fixed
+        there too.
         """
-        return [
-            variable
-            for variable in self.variables
-            if variable.budget_contribution(self.variable_slice(variable.name))
-            is not None
-        ]
+        return list(self._spending)
 
     def x0(self, total_budget: float) -> np.ndarray:
         """Default initial guess: each variable's ``default_x0`` concatenated.

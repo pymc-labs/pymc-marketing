@@ -2109,6 +2109,43 @@ class TestMonetarySpendVariables:
                 response_variable="total_media_contribution_original_scale",
             )
 
+    def test_a_repeated_spend_variable_is_refused(self, funnel_identity_fitted_mmm):
+        """Two variables of one name would share a slot in the flat vector.
+
+        `variable_slice` looks up by name, so the second would read the first's
+        segment and the budget allocated to it would go nowhere. The container
+        refuses the layout before it is built; this pins that, because the
+        failure it prevents is silent.
+        """
+        with pytest.raises(ValueError, match="Duplicate variable names"):
+            self._optimizer(
+                funnel_identity_fitted_mmm, spend_vars=["lf_budget", "lf_budget"]
+            )
+
+    def test_a_spend_variable_opens_on_its_own_prior_spend(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Carry-in is per variable, read from each node's own history.
+
+        The leading block for a spend variable comes from that variable's data,
+        not the channel variable's, so a spend decided over different dims than
+        media still gets a correctly shaped warm start rather than a shape
+        error at substitution time.
+        """
+        mmm = funnel_identity_fitted_mmm
+        optimizer = self._optimizer(mmm, spend_vars=["lf_budget"])
+
+        assert optimizer.carry_in_periods == mmm.effective_carryover_lags()
+        spend = next(
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == "lf_budget"
+        )
+        expected = np.asarray(mmm.model["lf_budget"].get_value())[
+            -optimizer.carry_in_periods :
+        ]
+        np.testing.assert_allclose(spend.carry_in_values, expected)
+
     def test_spend_vars_may_not_name_the_media_variable(
         self, funnel_identity_fitted_mmm
     ):

@@ -2659,6 +2659,13 @@ class MMM(RegressionModelBuilder):
     ) -> _WindowLayout:
         """Split an optimization model's date axis into its three blocks.
 
+        Only the date axis is read off *pymc_model*; the carry-over comes from
+        this MMM's own adstock and effects. The two therefore have to describe
+        the same window -- pass the model
+        :meth:`create_optimization_model` returned for *start_date*, not one
+        built from different parameters, or the three blocks will not add up to
+        the axis and ``BudgetOptimizer`` will refuse them.
+
         Derived in one place so the three numbers cannot drift apart: the
         leading dates are whatever
         :func:`~pymc_marketing.mmm.utils.create_zero_dataset` was able to

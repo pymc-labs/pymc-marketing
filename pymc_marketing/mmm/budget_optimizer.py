@@ -318,9 +318,13 @@ class BudgetOptimizationResult:
         The raw scipy optimization result (solver diagnostics, ``x``, ``fun``,
         convergence status).
     optimized_vars : dict[str, xarray.DataArray]
-        Optimal values of any non-media decision variables co-optimized
-        alongside the media budgets. Empty until such variables are declared
-        (see https://github.com/pymc-labs/pymc-marketing/pull/2621).
+        Optimal values of every decision variable other than the media budgets,
+        by name: ``optimizable_vars`` levers in their own units, and
+        ``spend_vars`` monetary variables in money. Empty when neither is
+        declared. Note that a monetary entry here and ``budgets`` are the same
+        kind of quantity, drawn from the same total -- ``budgets`` is singled
+        out because it is the allocation most callers want, not because it is
+        the only spend.
     callback_info : list[OptimizationIterationInfo] or None
         Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
         when ``allocate_budget(callback=True)``; ``None`` otherwise.
