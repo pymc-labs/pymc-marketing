@@ -234,6 +234,7 @@ from pymc_marketing.mmm.lift_test import (
     scale_lift_measurements,
 )
 from pymc_marketing.mmm.link import LinkFunction, LinkSpec, get_link_spec
+from pymc_marketing.mmm.original_scale_index import OriginalScaleIndex
 from pymc_marketing.mmm.plot import MMMPlotSuite
 from pymc_marketing.mmm.plotting import MMMPlotSuiteFacade
 from pymc_marketing.mmm.plotting.budget import BudgetPlots
@@ -2981,11 +2982,15 @@ class MMM(RegressionModelBuilder):
             Only used when num_samples is not None and less than total available
             samples.
         original_scale : bool, optional
-            Whether to return curve y-values in original scale. If True (default),
-            y-axis values (contribution) are multiplied by target_scale to convert
-            from scaled to original units. If False, values remain in scaled space
-            as used internally by the model. Note that x-axis values always remain
-            in scaled space consistent with the max_value parameter.
+            Whether to return the curve in original scale. If True (default),
+            y-axis values (contribution) are multiplied by ``target_scale`` to
+            convert from scaled to original units, and an
+            :class:`~pymc_marketing.mmm.OriginalScaleIndex` is attached to the
+            returned DataArray so that ``.sel(channel=...)`` automatically
+            replaces the ``x`` coordinate with that channel's original-domain
+            values — ``plot_curve`` picks this up without any extra arguments.
+            If False, both x and y remain in scaled space as used internally
+            by the model.
         idata : xr.DataTree or None, optional
             Optional DataTree to sample from. If None (default), uses
             self.idata. This allows sampling curves from different posterior
@@ -3002,9 +3007,12 @@ class MMM(RegressionModelBuilder):
             When subsampling (``num_samples`` < total posterior draws), the
             ``chain`` dimension has size 1 and ``draw`` has size ``num_samples``.
             When all samples are used, the original chain/draw structure from
-            the posterior is preserved. The "x" coordinate represents spend
-            levels in scaled space (consistent with max_value). Y-values are
-            in original scale when original_scale=True, otherwise in scaled space.
+            the posterior is preserved. The ``"x"`` coordinate stores scaled
+            values consistent with ``max_value``. When ``original_scale=True``,
+            an :class:`~pymc_marketing.mmm.OriginalScaleIndex` is attached so
+            that ``.sel(channel=...)`` transparently converts ``x`` to the
+            channel's original domain. Y-values are in original scale when
+            ``original_scale=True``, otherwise in scaled space.
 
         Raises
         ------
@@ -3028,6 +3036,33 @@ class MMM(RegressionModelBuilder):
         Sample curves in scaled space:
 
         >>> curves_scaled = mmm.sample_saturation_curve(original_scale=False)
+
+        Plot with original-domain x-axis — no extra arguments needed:
+
+        .. code-block:: python
+
+            curve = mmm.sample_saturation_curve(original_scale=True)
+            fig, axes = mmm.saturation.plot_curve(curve)
+            # x-axis shows original spend / impressions per channel
+
+        Inspect original-domain x range per channel:
+
+        .. code-block:: python
+
+            for ch in curve.coords["channel"].values:
+                x_max = float(curve.sel(channel=ch).coords["x"].values[-1])
+                print(f"{ch}: [0, {x_max:.1f}]")
+
+        Geo (panel) model — select both scale dimensions to resolve original-domain x:
+
+        .. code-block:: python
+
+            geo_curve = mmm_geo.sample_saturation_curve(original_scale=True)
+            us_x1 = geo_curve.sel(geo="US", channel="x1")
+            us_x1.coords["x"]  # original-domain x values for US / x1
+            # partial selection keeps the index alive for the remaining dim:
+            us_curve = geo_curve.sel(geo="US")
+            us_curve.xindexes["channel"]  # still an OriginalScaleIndex
 
         Sample curves with custom max value and reproducible sampling:
 
@@ -3085,13 +3120,22 @@ class MMM(RegressionModelBuilder):
 
         # Convert to original scale if requested
         if original_scale:
-            # Scale y values (contribution) to original target units
-            # Note: x coordinates remain in scaled space (same as max_value input)
-            # since converting to original scale would require per-channel scaling
-            # which complicates plotting and interpretation
             target_scale = MMMIDataWrapper(idata).get_target_scale()
-            # Multiply by target_scale since saturation affects target variable
             curve = curve * target_scale
+
+            # Attach OriginalScaleIndex so that .sel(dim=...) automatically
+            # replaces "x" with original-domain values once all scale dims are
+            # resolved. channel_scale may be 1-D ("channel",) for simple models
+            # or multi-D ("country", "channel") for panel models — the index
+            # handles both via xarray broadcasting.
+            channel_scale = MMMIDataWrapper(idata).get_channel_scale()
+            if channel_scale.ndim > 0:
+                scale_dims = list(channel_scale.dims)
+                managed = ["x", *scale_dims]
+                drop_dims = [d for d in managed if d in curve.coords]
+                curve = curve.drop_indexes(drop_dims).set_xindex(
+                    managed, OriginalScaleIndex, channel_scale=channel_scale
+                )
 
         return curve
 

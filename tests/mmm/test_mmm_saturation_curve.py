@@ -23,7 +23,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 
-from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation
+from pymc_marketing.mmm import GeometricAdstock, LogisticSaturation, OriginalScaleIndex
 from pymc_marketing.mmm.mmm import MMM
 
 # ============================================================================
@@ -256,33 +256,58 @@ def test_sample_saturation_curve_original_scale_differs_from_scaled(
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
-def test_sample_saturation_curve_x_coords_same_regardless_of_original_scale(
+def test_sample_saturation_curve_x_coords_scaled_when_original_scale_false(
     fitted_mmm, request
 ):
-    """Test that x coordinates remain in scaled space regardless of original_scale.
-
-    Note: x coordinates always remain in scaled space (same as max_value) since
-    converting them would require per-channel scaling which complicates plotting.
-    """
+    """Test that x coordinates remain in scaled space when original_scale=False."""
     mmm = request.getfixturevalue(fitted_mmm)
-    # Arrange
     max_value = 1.0
+    curves = mmm.sample_saturation_curve(max_value=max_value, original_scale=False)
+    x = curves.coords["x"].values
+    assert x[0] == pytest.approx(0.0)
+    assert x[-1] == pytest.approx(max_value)
+    assert not isinstance(curves.xindexes.get("channel"), OriginalScaleIndex)
 
-    # Act
-    curves_scaled = mmm.sample_saturation_curve(
-        max_value=max_value,
-        original_scale=False,
-    )
-    curves_original = mmm.sample_saturation_curve(
-        max_value=max_value,
-        original_scale=True,
-    )
 
-    # Assert - x coordinates should be the same regardless of original_scale
-    x_scaled = curves_scaled.coords["x"].values
-    x_original = curves_original.coords["x"].values
+def test_sample_saturation_curve_original_scale_attaches_original_scale_index(
+    fitted_mmm, request
+):
+    """Test that original_scale=True attaches an OriginalScaleIndex to the curve."""
+    mmm = request.getfixturevalue(fitted_mmm)
+    curve = mmm.sample_saturation_curve(original_scale=True)
+    assert isinstance(curve.xindexes["channel"], OriginalScaleIndex)
 
-    np.testing.assert_array_equal(x_scaled, x_original)
+
+def test_sample_saturation_curve_sel_channel_gives_original_domain_x(
+    fitted_mmm, request
+):
+    """Test that sel(channel=...) returns x in original domain after original_scale=True."""
+    mmm = request.getfixturevalue(fitted_mmm)
+    curve = mmm.sample_saturation_curve(original_scale=True)
+    channel_scale = mmm.data.get_channel_scale()
+    for ch in curve.coords["channel"].values:
+        ch_curve = curve.sel(channel=ch)
+        scale = float(channel_scale.sel(channel=ch))
+        # x[-1] should equal max_value (1.0) * channel_scale
+        assert float(ch_curve.coords["x"].values[-1]) == pytest.approx(scale * 1.0)
+        # x[0] should be 0.0
+        assert float(ch_curve.coords["x"].values[0]) == pytest.approx(0.0)
+
+
+def test_sample_saturation_curve_hdi_sel_channel_gives_original_domain_x(
+    fitted_mmm, request
+):
+    """Test that az.hdi preserves OriginalScaleIndex and sel works on the result."""
+    import arviz as az
+
+    mmm = request.getfixturevalue(fitted_mmm)
+    curve = mmm.sample_saturation_curve(original_scale=True)
+    hdi = az.hdi(curve)
+    channel_scale = mmm.data.get_channel_scale()
+    for ch in curve.coords["channel"].values:
+        ch_hdi = hdi.sel(channel=ch)
+        scale = float(channel_scale.sel(channel=ch))
+        assert float(ch_hdi.coords["x"].values[-1]) == pytest.approx(scale * 1.0)
 
 
 @pytest.mark.parametrize("fitted_mmm", ["simple_fitted_mmm", "panel_fitted_mmm"])
