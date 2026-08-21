@@ -13,6 +13,7 @@
 #   limitations under the License.
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import pytensor.xtensor as ptx
 import pytest
@@ -635,3 +636,52 @@ def test_a_national_spend_has_no_cells_to_scatter_into():
     assert built.shape == (6,)
     np.testing.assert_allclose(built[:4], 7.0)
     np.testing.assert_allclose(built[4:], 0.0)
+
+
+def test_from_model_reads_a_geo_dimensioned_spend_off_the_model():
+    """The shape a funnel actually has: one budget per geo, spent over dates.
+
+    ``from_model`` has to drop the date dim to find the cells and keep the rest
+    with their coords, so the decision is per geo and the substituted tensor is
+    the window's three blocks stacked over it.
+    """
+    coords = {"date": range(10), "geo": ["north", "south", "west"]}
+    with pm.Model(coords=coords) as model:
+        pmd.Data(
+            "lf_budget",
+            np.arange(30, dtype=float).reshape(10, 3),
+            dims=("date", "geo"),
+        )
+
+    variable = MediaVariable.from_model(
+        model,
+        "lf_budget",
+        num_periods=4,
+        adstock_periods=2,
+        carry_in_values=np.full((3, 3), 5.0),
+    )
+
+    assert variable.dims == ("geo",)
+    assert variable.size == 3
+    assert [str(g) for g in variable.coords["geo"]] == ["north", "south", "west"]
+
+    z = ptx.as_xtensor(
+        pt.as_tensor_variable(np.array([1.0, 2.0, 3.0])), dims=(FLAT_DIM,)
+    )
+    built = variable.to_model(z).values.eval()
+
+    assert built.shape == (9, 3)  # 3 carry-in + 4 decided + 2 carry-over
+    np.testing.assert_allclose(built[:3], 5.0)
+    np.testing.assert_allclose(built[3:7], np.array([[1.0, 2.0, 3.0]] * 4))
+    np.testing.assert_allclose(built[7:], 0.0)
+
+
+def test_from_model_refuses_a_node_that_does_not_vary_over_date():
+    """A quantity with no date dim is a lever, not a spend."""
+    with pm.Model(coords={"geo": ["north", "south"]}) as model:
+        pmd.Data("discount_depth", np.array([0.1, 0.2]), dims=("geo",))
+
+    with pytest.raises(ValueError, match="is a lever, not a spend"):
+        MediaVariable.from_model(
+            model, "discount_depth", num_periods=4, adstock_periods=2
+        )
