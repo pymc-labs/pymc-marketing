@@ -134,6 +134,7 @@ Create a basic Bass model for multiple products:
 
 """
 
+from collections.abc import Iterable
 from inspect import signature
 from typing import Any, TypedDict, cast
 
@@ -191,11 +192,11 @@ def F(
 
     Parameters
     ----------
-    p : float, TensorVariable or XTensorVariable
+    p : float or TensorVariable or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float, TensorVariable or XTensorVariable
+    q : float or TensorVariable or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like, TensorVariable or XTensorVariable
+    t : array-like or TensorVariable or XTensorVariable
         Time points
 
     Returns
@@ -229,11 +230,11 @@ def f(
 
     Parameters
     ----------
-    p : float, TensorVariable or XTensorVariable
+    p : float or TensorVariable or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float, TensorVariable or XTensorVariable
+    q : float or TensorVariable or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like, TensorVariable or XTensorVariable
+    t : array-like or TensorVariable or XTensorVariable
         Time points
 
     Returns
@@ -356,6 +357,16 @@ def _create_likelihood_variable(
     return outcome.create_variable(name, xdist=xdist)
 
 
+def _check_dims_known(dims: Iterable[str], model: Model, label: str = "Dims") -> None:
+    """Raise when any of ``dims`` has no length registered on ``model``."""
+    unknown = [dim for dim in dims if dim not in model.dim_lengths]
+    if unknown:
+        raise ValueError(
+            f"{label} {unknown} are not part of the model coords. Add them at "
+            "initialization time or use `model.add_coord`."
+        )
+
+
 def _align_to_dims(
     var: XTensorVariable, dims: tuple[str, ...], model: Model
 ) -> XTensorVariable:
@@ -366,17 +377,10 @@ def _align_to_dims(
     dim would be stored without those dims. Sizes come from the model, which
     knows every dim it has registered, coords argument or not.
     """
-    unknown = [
-        dim for dim in dims if dim not in var.dims and dim not in model.dim_lengths
-    ]
-    if unknown:
-        raise ValueError(
-            f"Dims {unknown} are not part of the model coords. Add them at "
-            "initialization time or use `model.add_coord`."
-        )
-    missing = {dim: model.dim_lengths[dim] for dim in dims if dim not in var.dims}
+    missing = [dim for dim in dims if dim not in var.dims]
+    _check_dims_known(missing, model)
     if missing:
-        var = var.expand_dims(missing)
+        var = var.expand_dims({dim: model.dim_lengths[dim] for dim in missing})
     return var.transpose(*dims)
 
 
@@ -508,12 +512,7 @@ def create_bass_model(
                     getattr(observed, "name", None), combined_dims
                 )
             )
-            unknown = [dim for dim in observed_dims if dim not in model.dim_lengths]
-            if unknown:
-                raise ValueError(
-                    f"Observed dims {unknown} are not part of the model coords. "
-                    "Add them at initialization time or use `model.add_coord`."
-                )
+            _check_dims_known(observed_dims, model, label="Observed dims")
             observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
 
         _create_likelihood_variable(

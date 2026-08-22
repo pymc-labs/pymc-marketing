@@ -631,6 +631,18 @@ class TestBassModel:
             assert "peak" in prior_samples["prior"]
 
 
+def make_priors(**overrides: Any) -> dict[str, Any]:
+    """Fresh base priors for create_bass_model; override any key per test."""
+    priors: dict[str, Any] = {
+        "m": Prior("Normal", mu=1000, sigma=200),
+        "p": Prior("Beta", alpha=1.5, beta=20),
+        "q": Prior("Beta", alpha=2, beta=5),
+        "likelihood": Prior("Poisson"),
+    }
+    priors.update(overrides)
+    return priors
+
+
 class TestBassModelXdistFallbacks:
     """The pymc.dims migration must not narrow what create_bass_model accepts."""
 
@@ -640,12 +652,7 @@ class TestBassModelXdistFallbacks:
 
     def test_censored_likelihood_without_observed(self, coords: dict[str, Any]) -> None:
         """A Censored likelihood must still build for prior predictive only."""
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Censored(Prior("Normal", sigma=1), lower=0),
-        }
+        priors = make_priors(likelihood=Censored(Prior("Normal", sigma=1), lower=0))
 
         model = create_bass_model(
             t=coords["T"], observed=None, priors=priors, coords=coords
@@ -658,12 +665,7 @@ class TestBassModelXdistFallbacks:
         self, coords: dict[str, Any]
     ) -> None:
         """Setting mu on the likelihood is a misconfiguration, with or without data."""
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Normal", mu=5, sigma=1),
-        }
+        priors = make_priors(likelihood=Prior("Normal", mu=5, sigma=1))
 
         with pytest.raises(MuAlreadyExistsError):
             create_bass_model(
@@ -674,12 +676,7 @@ class TestBassModelXdistFallbacks:
         self, coords: dict[str, Any]
     ) -> None:
         """The unobserved path applies the same guard as create_likelihood_variable."""
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Binomial", n=10, p=0.5),
-        }
+        priors = make_priors(likelihood=Prior("Binomial", n=10, p=0.5))
 
         with pytest.raises(UnsupportedDistributionError, match="Binomial"):
             create_bass_model(
@@ -689,12 +686,7 @@ class TestBassModelXdistFallbacks:
     def test_likelihood_dim_missing_from_coords_raises(self) -> None:
         """A likelihood-only dim without a coord fails with a clear error."""
         t = np.arange(5)
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson", dims=("product",)),
-        }
+        priors = make_priors(likelihood=Prior("Poisson", dims=("product",)))
 
         with pytest.raises(ValueError, match=r"product.*not part of the model coords"):
             create_bass_model(t=t, observed=None, priors=priors, coords={"T": t})
@@ -703,12 +695,9 @@ class TestBassModelXdistFallbacks:
         self, coords: dict[str, Any]
     ) -> None:
         """A nested distribution missing from pymc.dims takes the fallback path."""
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=Prior("Wald", mu=10, lam=1)),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson"),
-        }
+        priors = make_priors(
+            m=Prior("Normal", mu=1000, sigma=Prior("Wald", mu=10, lam=1))
+        )
 
         model = create_bass_model(
             t=coords["T"], observed=None, priors=priors, coords=coords
@@ -720,12 +709,7 @@ class TestBassModelXdistFallbacks:
         self, coords: dict[str, Any]
     ) -> None:
         """An observed dim the model does not know fails with a clear error."""
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson"),
-        }
+        priors = make_priors()
         observed = xr.DataArray(np.ones((5, 2)), dims=("T", "geo"))
 
         with pytest.raises(ValueError, match=r"geo.*not part of the model coords"):
@@ -759,12 +743,7 @@ class TestBassModelXdistFallbacks:
         monkeypatch.setattr(Prior, "create_likelihood_variable", refuse)
         monkeypatch.setattr(Censored, "create_likelihood_variable", refuse)
 
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": likelihood,
-        }
+        priors = make_priors(likelihood=likelihood)
 
         model = create_bass_model(
             t=coords["T"], observed=None, priors=priors, coords=coords
@@ -780,12 +759,7 @@ class TestBassModelXdistFallbacks:
         # fallback rather than turning red when pymc.dims grows the class.
         monkeypatch.delattr(pmd, "Wald", raising=False)
 
-        priors = {
-            "m": Prior("Wald", mu=1000.0, lam=1.0),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson"),
-        }
+        priors = make_priors(m=Prior("Wald", mu=1000.0, lam=1.0))
 
         model = create_bass_model(
             t=coords["T"], observed=None, priors=priors, coords=coords
@@ -799,12 +773,7 @@ class TestBassModelXdistFallbacks:
         """The likelihood gets the same fallback as m, p and q."""
         monkeypatch.delattr(pmd, "Wald", raising=False)
 
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Wald", lam=1.0),
-        }
+        priors = make_priors(likelihood=Prior("Wald", lam=1.0))
 
         model = create_bass_model(
             t=coords["T"],
@@ -822,12 +791,7 @@ class TestBassModelXdistFallbacks:
         """The fallback path also covers prior-predictive-only models."""
         monkeypatch.delattr(pmd, "Wald", raising=False)
 
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Wald", lam=1.0),
-        }
+        priors = make_priors(likelihood=Prior("Wald", lam=1.0))
 
         model = create_bass_model(
             t=coords["T"], observed=None, priors=priors, coords=coords
@@ -841,15 +805,10 @@ class TestBassModelXdistFallbacks:
         class ConstantFactory:
             dims = ()
 
-            def create_variable(self, name: str):
+            def create_variable(self, name: str) -> pt.TensorVariable:
                 return pm.Deterministic(name, pt.as_tensor(1000.0))
 
-        priors = {
-            "m": ConstantFactory(),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson"),
-        }
+        priors = make_priors(m=ConstantFactory())
 
         model = create_bass_model(
             t=coords["T"], observed=None, priors=priors, coords=coords
@@ -864,12 +823,7 @@ class TestBassModelDims:
     def test_deterministics_keep_likelihood_only_dims(self) -> None:
         """Pooled p, q, m with a dimmed likelihood: the curves stay per-product."""
         coords = {"T": np.arange(5), "product": ["A", "B"]}
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson", dims=("product",)),
-        }
+        priors = make_priors(likelihood=Prior("Poisson", dims=("product",)))
         observed = np.ones((5, 2))
 
         model = create_bass_model(
@@ -1029,12 +983,7 @@ class TestBassModelDims:
     def test_dim_known_to_the_model_but_absent_from_coords(self) -> None:
         """Sizes come from the model, so a partial coords dict still builds."""
         coords = {"T": np.arange(5), "product": ["A", "B"]}
-        priors = {
-            "m": Prior("Normal", mu=1000, sigma=200),
-            "p": Prior("Beta", alpha=1.5, beta=20),
-            "q": Prior("Beta", alpha=2, beta=5),
-            "likelihood": Prior("Poisson", dims=("product",)),
-        }
+        priors = make_priors(likelihood=Prior("Poisson", dims=("product",)))
 
         with pm.Model(coords=coords) as model:
             create_bass_model(
