@@ -51,22 +51,11 @@ def _check_alpha(
         msg="0 < alpha <= 1", can_be_replaced_by_ninf=False
     ),
 ):
-    """Validate alpha's range and floor it away from exact zero.
-
-    The floor avoids the 0 / 0 that `delayed_adstock` hits when `theta` is
-    non-integer (see #2889); returned value differs from the input at
-    alpha == 0 even though the check itself accepts it.
-    """
     alpha = as_xtensor(alpha)
     alpha_tensor = alpha.values
     checked_alpha_tensor = alpha_check_op(
         alpha_tensor, ((alpha_tensor >= 0) & (alpha_tensor <= 1)).all()
     )
-    # Keyed off alpha's own dtype, not `pytensor.config.floatX`: those two
-    # can disagree (e.g. a float32 alpha under the float64 default), and
-    # `floatX`'s tiny would upcast the graph in exactly that case. Integer
-    # alpha (e.g. a bare Python `1`) has no `finfo`, so it falls back to
-    # `floatX` there.
     alpha_dtype = checked_alpha_tensor.dtype
     tiny = np.finfo(
         alpha_dtype if alpha_dtype.startswith("float") else pytensor.config.floatX
