@@ -2199,7 +2199,9 @@ class TestMonetarySpendVariables:
 
     def test_the_default_spend_var_scale_is_one(self, funnel_identity_fitted_mmm):
         """Declaring no scale means the node is read as raw money."""
-        optimizer = self._optimizer(funnel_identity_fitted_mmm, spend_vars=["lf_budget"])
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
 
         scales = self._variable(optimizer, "lf_budget").channel_scales
         assert float(np.asarray(scales)) == 1.0
