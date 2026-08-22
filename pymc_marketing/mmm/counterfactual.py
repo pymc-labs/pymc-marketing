@@ -171,11 +171,12 @@ def find_named_node(
 
     Notes
     -----
-    One variant is out of reach here: a user who *registers* a ``Deterministic``
-    named ``mu`` on an identity-link model shadows the predictor in the model's
-    ``named_vars``, which callers consult before any graph search runs.  No scan
-    of the graph is performed in that case, so this function never sees the
-    collision.
+    ``mu`` no longer reaches this function from a stock model.  It is registered
+    as a ``Deterministic`` under both links, so callers resolve it through
+    ``named_vars``, where PyMC already enforces a unique name, and never scan
+    the graph for it.  A custom effect whose intermediate happens to be named
+    ``mu`` is therefore shadowed by the model's own node rather than colliding
+    with it.  This function still guards names that are not registered.
     """
     excluded = [node for node in exclude]
     found: list[Variable] = []
@@ -1189,9 +1190,10 @@ class CounterfactualEvaluator:
             return do_model[f"do_{target}"]
         if name in do_model.named_vars:
             return do_model[name]
-        # An anonymous node, such as the linear predictor under an identity
-        # link: the clone carries a node of the same name, recovered the same
-        # way spend_reach.linear_predictor found the original.
+        # An anonymous node: the clone carries a node of the same name,
+        # recovered the same way spend_reach.linear_predictor found the
+        # original. "mu" no longer arrives here, since it is registered under
+        # both links and so resolves through named_vars above.
         observed = list(do_model.observed_RVs)
         resolved = find_named_node(
             observed + list(do_model.deterministics),

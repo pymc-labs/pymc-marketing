@@ -31,6 +31,8 @@ import xarray as xr
 from pymc_extras.prior import Prior
 from pytensor.xtensor import math as ptxm
 from pytensor.xtensor.type import XTensorVariable
+from scipy.special import erfcx
+from scipy.stats import truncnorm
 
 
 class LinkFunction(StrEnum):
@@ -70,6 +72,46 @@ NON_RESPONSE_SCALE_LIKELIHOODS = {"LogNormal": "log"}
 #: Likelihoods allowed for the non-identity links, which each need one specific
 #: distributional form for their counterfactual decomposition to be correct.
 LINK_LIKELIHOODS = {LinkFunction.LOG: frozenset({"LogNormal"})}
+
+
+#: Likelihoods whose identity-link mean correction is an offset rather than a
+#: factor, so it cannot be folded into a scale.
+ADDITIVE_CORRECTION_LIKELIHOODS = frozenset({"TruncatedNormal"})
+
+#: Key of the baseline term in a counterfactual contribution dataset.  Under
+#: the identity link a correction that belongs to the noise distribution is
+#: added here rather than spread across the component contributions.
+BASELINE_PART = "intercept"
+
+
+def _check_studentt_mean_exists(
+    posterior: xr.Dataset,
+    likelihood: Prior,
+    output_var: str,
+) -> None:
+    """Raise if the StudentT degrees of freedom leave the mean undefined.
+
+    ``E[y]`` exists only for ``nu > 1``.  ``nu`` may be fixed or sampled, so
+    check whichever applies.
+    """
+    nu = likelihood.parameters.get("nu")
+    nu_name = f"{output_var}_nu"
+
+    if isinstance(nu, Prior):
+        if nu_name not in posterior:
+            return
+        smallest = float(posterior[nu_name].min())
+    elif nu is None:
+        return
+    else:
+        smallest = float(np.min(nu))
+
+    if smallest <= 1:
+        raise ValueError(
+            f"A StudentT likelihood has no mean when nu <= 1, and the smallest "
+            f"value found is {smallest:.4g}, so mean-scale contributions are "
+            f"undefined. Use central_tendency='median', or keep nu above 1."
+        )
 
 
 def _distribution_name(likelihood: Prior) -> str:
@@ -222,6 +264,51 @@ class LinkSpec(ABC):
         )
 
     @abstractmethod
+    def to_mean_scale(
+        self,
+        dataset: xr.Dataset,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        target_scale: xr.DataArray,
+        output_var: str = "y",
+    ) -> xr.Dataset:
+        """Rescale a median-scale contribution dataset to the response mean.
+
+        Counterfactual contributions are computed on the **conditional
+        median** of the response (the inverse link applied to ``mu``).  Where
+        the conditional mean differs from the median, this applies the
+        correction and returns the mean-scale dataset.
+
+        The correction's *form* is link-dependent, which is why this applies
+        it rather than returning a factor.  Under the log link the model is
+        multiplicative in the components, so a proportional factor is right.
+        Under the identity link the discrepancy belongs to the noise
+        distribution rather than to any component, so it is added to the
+        baseline term instead of being spread across all of them.
+
+        Parameters
+        ----------
+        dataset : xr.Dataset
+            Median-scale counterfactual contributions, one variable per
+            component, including an ``"intercept"`` baseline term.
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``.
+        likelihood : Prior
+            The likelihood prior.  Under the identity link the correction
+            depends on it, not only on the link.
+        target_scale : xr.DataArray
+            The target scaling factor.  ``dataset`` is in target units while
+            the likelihood parameters are on the scaled axis.
+        output_var : str, default ``"y"``
+            Name of the observed variable, used to locate the likelihood
+            parameters in the posterior.
+
+        Returns
+        -------
+        xr.Dataset
+            The dataset on the conditional-mean scale.
+        """
+
     def mean_correction(
         self,
         posterior: xr.Dataset,
@@ -229,27 +316,66 @@ class LinkSpec(ABC):
     ) -> xr.DataArray:
         """Per-draw factor converting median-scale outputs to the response mean.
 
-        Counterfactual contributions are computed on the **conditional
-        median** of the response (the inverse link applied to ``mu``).  For
-        links whose conditional mean differs from the median, multiplying by
-        this factor rescales the median-based quantity to the conditional
-        mean ``E[y | mu, ...]``.
-
-        Parameters
-        ----------
-        posterior : xr.Dataset
-            Posterior group of the fitted model's ``DataTree``.
-        output_var : str, default ``"y"``
-            Name of the observed variable, used to locate the likelihood
-            scale parameter in the posterior.
+        .. deprecated::
+            Use :meth:`to_mean_scale`.  A single multiplicative factor cannot
+            express the identity-link correction, which depends on the
+            likelihood and is additive rather than proportional.
 
         Returns
         -------
         xr.DataArray
             The multiplicative correction with ``(chain, draw, ...)`` dims
-            (broadcasting over ``date``).  It is identically ``1`` for links
-            whose mean equals the median (e.g. the identity link).
+            (broadcasting over ``date``).  Identically ``1`` under the identity
+            link, which is the legacy behaviour and is wrong for
+            ``TruncatedNormal``: that case is exactly what a single factor
+            cannot express.
         """
+        warnings.warn(
+            f"{type(self).__name__}.mean_correction is deprecated, use "
+            f"to_mean_scale instead. A single factor cannot express the "
+            f"identity-link correction, which depends on the likelihood and "
+            f"is additive rather than proportional.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._mean_ratio(posterior, output_var)
+
+    def mean_scale_factor(
+        self,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        """Return the mean correction as a multiplicative factor.
+
+        For callers that fold the correction into a scale rather than applying
+        it to a contribution dataset.  Raises where the correction is not
+        expressible as a factor, which is the whole reason
+        :meth:`to_mean_scale` exists.
+
+        Raises
+        ------
+        ValueError
+            If the correction for this link and likelihood is additive.
+        """
+        dist_name = _distribution_name(likelihood)
+        if dist_name in ADDITIVE_CORRECTION_LIKELIHOODS and self.link == (
+            LinkFunction.IDENTITY
+        ):
+            raise ValueError(
+                f"The mean correction for '{dist_name}' under link='identity' "
+                f"is an offset, not a factor, so it cannot be folded into a "
+                f"scale. Use central_tendency='median'."
+            )
+        return self._mean_ratio(posterior, output_var)
+
+    def _mean_ratio(
+        self,
+        posterior: xr.Dataset,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        """Return the mean/median ratio, ``1`` unless a link overrides it."""
+        return xr.DataArray(1.0)
 
     @staticmethod
     def validate_likelihood_compatibility(
@@ -383,13 +509,150 @@ class IdentityLinkSpec(LinkSpec):
             (channel_contribution.sum(dim="date") * target_scale).sum(),
         )
 
-    def mean_correction(
+    def to_mean_scale(
         self,
+        dataset: xr.Dataset,
         posterior: xr.Dataset,
+        likelihood: Prior,
+        target_scale: xr.DataArray,
         output_var: str = "y",
+    ) -> xr.Dataset:
+        """Apply the identity-link mean correction, which depends on *likelihood*.
+
+        ``mu`` is in the units of the target, so most response-scale
+        likelihoods have ``E[y] == mu`` and nothing to do.  ``TruncatedNormal``
+        is the exception: clipping shifts the mean off ``mu`` by an amount that
+        belongs to the noise distribution, not to any component of the linear
+        predictor.  The offset is therefore added to the baseline term and the
+        component contributions are left alone.
+        """
+        dist_name = _distribution_name(likelihood)
+
+        # Wrappers such as Censored resolve to the name of the distribution they
+        # hold, but change its mean by piling mass at the bounds, so E[y] != mu
+        # even for the response-scale names. Reject them before dispatching,
+        # rather than silently returning median-scale numbers labelled as means.
+        if getattr(likelihood, "parameters", None) is None:
+            raise ValueError(
+                f"No mean correction is defined for a wrapped likelihood "
+                f"({type(likelihood).__name__} holding '{dist_name}'). Censoring "
+                f"moves the mean off 'mu', so the contributions cannot be read "
+                f"as means. Use central_tendency='median'."
+            )
+
+        if dist_name == "TruncatedNormal":
+            if BASELINE_PART not in dataset:
+                raise ValueError(
+                    f"The truncation correction is added to the "
+                    f"'{BASELINE_PART}' term, which is missing from the "
+                    f"contribution dataset (found "
+                    f"{sorted(dataset.data_vars)}). Use "
+                    f"central_tendency='median'."
+                )
+            offset = self._truncation_offset(posterior, likelihood, output_var)
+            corrected = dataset.copy()
+            corrected[BASELINE_PART] = corrected[BASELINE_PART] + offset * target_scale
+            return corrected
+
+        if dist_name == "StudentT":
+            _check_studentt_mean_exists(posterior, likelihood, output_var)
+            return dataset
+
+        if dist_name in RESPONSE_SCALE_LIKELIHOODS:
+            return dataset
+
+        warnings.warn(
+            f"No mean correction is known for likelihood '{dist_name}' under "
+            f"link='identity', so the contributions are returned on the median "
+            f"scale. Check whether E[y] equals 'mu' for it before reading them "
+            f"as means.",
+            UserWarning,
+            stacklevel=2,
+        )
+        return dataset
+
+    @staticmethod
+    def _truncation_offset(
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str,
     ) -> xr.DataArray:
-        """Return ``1`` -- for the Normal likelihood the mean equals the median."""
-        return xr.DataArray(1.0)
+        r"""Return ``E[y] - mu`` for a truncated Normal, per draw and date.
+
+        For ``y`` truncated to ``[lower, upper]`` with ``alpha = (lower - mu)
+        / sigma`` and ``beta = (upper - mu) / sigma``:
+
+        .. math::
+
+            E[y] - \mu = \sigma \,
+                \frac{\phi(\alpha) - \phi(\beta)}{\Phi(\beta) - \Phi(\alpha)}
+
+        One-sided truncation is evaluated through ``erfcx`` rather than that
+        expression directly, since the ratio loses all precision far from the
+        bound.  The value is the same.
+        """
+        if "mu" not in posterior:
+            raise ValueError(
+                "Mean-scale contributions under link='identity' with a "
+                "TruncatedNormal likelihood need 'mu' in the posterior, which "
+                "was not found. Models fitted before 'mu' was registered on "
+                "this branch have to be refitted, or use "
+                "central_tendency='median'."
+            )
+
+        parameters = likelihood.parameters
+
+        # A fixed sigma never reaches the posterior, but it is usable directly.
+        sigma_name = f"{output_var}_sigma"
+        if sigma_name in posterior:
+            sigma = posterior[sigma_name]
+        elif "sigma" in parameters and not isinstance(parameters["sigma"], Prior):
+            sigma = parameters["sigma"]
+        else:
+            raise ValueError(
+                f"The truncation correction needs the likelihood scale, which "
+                f"is neither in the posterior as '{sigma_name}' nor a fixed "
+                f"'sigma' on the prior. A tau-parameterised TruncatedNormal "
+                f"lands here too. Use central_tendency='median'."
+            )
+
+        bounds = {}
+        for bound, default in (("lower", -np.inf), ("upper", np.inf)):
+            value = parameters.get(bound, default)
+            if isinstance(value, Prior):
+                raise ValueError(
+                    f"The truncation correction needs a fixed '{bound}' bound, "
+                    f"but it was given a prior. Use central_tendency='median'."
+                )
+            bounds[bound] = value
+
+        mu = posterior["mu"]
+        alpha = (bounds["lower"] - mu) / sigma
+        beta = (bounds["upper"] - mu) / sigma
+
+        # The textbook ratio cancels to zero once the truncation point is about
+        # ten sigma from mu, which the identity link permits, and returns nan
+        # there.  erfcx is the scaled complementary error function, which keeps
+        # the one-sided cases exact and is a ufunc, so it stays vectorised.
+        # scipy.stats.truncnorm is exact too but roughly 2000x slower, which
+        # matters on a full posterior.
+        root_two = np.sqrt(2.0)
+        if np.isposinf(bounds["upper"]):
+            return sigma * np.sqrt(2 / np.pi) / erfcx(alpha / root_two)
+        if np.isneginf(bounds["lower"]):
+            return -sigma * np.sqrt(2 / np.pi) / erfcx(-beta / root_two)
+
+        # Two-sided truncation. The direct form returns inf or nan once both
+        # bounds sit on the same side of mu, since numerator and denominator
+        # both underflow. scipy handles the whole range; it is far slower, but
+        # a two-sided likelihood is uncommon and correctness comes first.
+        return xr.apply_ufunc(
+            lambda a, b, m, s: truncnorm.mean(a, b, loc=m, scale=s) - m,
+            alpha,
+            beta,
+            mu,
+            sigma,
+        )
 
 
 class LogLinkSpec(LinkSpec):
@@ -470,7 +733,24 @@ class LogLinkSpec(LinkSpec):
             y_hat.transpose("date", ...),
         )
 
-    def mean_correction(
+    def to_mean_scale(
+        self,
+        dataset: xr.Dataset,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        target_scale: xr.DataArray,
+        output_var: str = "y",
+    ) -> xr.Dataset:
+        """Multiply by the LogNormal mean/median ratio.
+
+        The log-link model is multiplicative in the components, so the
+        proportional form is the right one here and *likelihood* is not
+        consulted: :meth:`validate_likelihood_compatibility` already pins the
+        log link to ``LogNormal``.
+        """
+        return dataset * self._mean_ratio(posterior, output_var)
+
+    def _mean_ratio(
         self,
         posterior: xr.Dataset,
         output_var: str = "y",
