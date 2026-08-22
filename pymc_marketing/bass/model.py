@@ -134,6 +134,8 @@ Create a basic Bass model for multiple products:
 
 """
 
+from collections.abc import Iterable
+from inspect import signature
 from typing import Any, TypedDict, cast
 
 import arviz as az
@@ -142,6 +144,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor.tensor as pt
 import xarray as xr
 from matplotlib.axes import Axes
@@ -150,7 +153,14 @@ from numpy.typing import (
 )
 from pymc.model import Model
 from pymc.util import RandomState
-from pymc_extras.prior import Censored, Prior, VariableFactory, create_dim_handler
+from pymc_extras.prior import (
+    Censored,
+    MuAlreadyExistsError,
+    Prior,
+    UnsupportedDistributionError,
+    VariableFactory,
+)
+from pytensor.xtensor.type import XTensorVariable
 
 from pymc_marketing.bass import plotting
 from pymc_marketing.bass.data import to_bass_dataset
@@ -159,11 +169,22 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
+def _exp(
+    x: float | pt.TensorVariable | XTensorVariable,
+) -> pt.TensorVariable | XTensorVariable:
+    """``exp`` that works for floats, PyTensor tensors, and xtensor variables.
+
+    Lets :func:`F` and :func:`f` be used both with NumPy/float inputs and with
+    the named-dims (xtensor) variables of the ``pymc.dims`` model graph.
+    """
+    return pmd.math.exp(x) if isinstance(x, XTensorVariable) else pt.exp(x)
+
+
 def F(
-    p: float | pt.TensorVariable,
-    q: float | pt.TensorVariable,
-    t: float | pt.TensorVariable,
-) -> pt.TensorVariable:
+    p: float | pt.TensorVariable | XTensorVariable,
+    q: float | pt.TensorVariable | XTensorVariable,
+    t: float | pt.TensorVariable | XTensorVariable,
+) -> pt.TensorVariable | XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
     This function calculates the cumulative proportion of adopters at time t,
@@ -171,16 +192,16 @@ def F(
 
     Parameters
     ----------
-    p : float or TensorVariable
+    p : float or TensorVariable or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable
+    q : float or TensorVariable or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable
+    t : array-like or TensorVariable or XTensorVariable
         Time points
 
     Returns
     -------
-    TensorVariable
+    TensorVariable or XTensorVariable
         The cumulative proportion of adopters at each time point
 
     Notes
@@ -193,14 +214,14 @@ def F(
 
     When :math:`t=0`, :math:`F(t)=0`, and as :math:`t` approaches infinity, :math:`F(t)` approaches 1.
     """
-    return (1 - pt.exp(-(p + q) * t)) / (1 + (q / p) * pt.exp(-(p + q) * t))
+    return (1 - _exp(-(p + q) * t)) / (1 + (q / p) * _exp(-(p + q) * t))
 
 
 def f(
-    p: float | pt.TensorVariable,
-    q: float | pt.TensorVariable,
-    t: float | pt.TensorVariable,
-) -> pt.TensorVariable:
+    p: float | pt.TensorVariable | XTensorVariable,
+    q: float | pt.TensorVariable | XTensorVariable,
+    t: float | pt.TensorVariable | XTensorVariable,
+) -> pt.TensorVariable | XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
     This function calculates the rate of new adoptions at time t as a
@@ -209,16 +230,16 @@ def f(
 
     Parameters
     ----------
-    p : float or TensorVariable
+    p : float or TensorVariable or XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable
+    q : float or TensorVariable or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable
+    t : array-like or TensorVariable or XTensorVariable
         Time points
 
     Returns
     -------
-    TensorVariable
+    TensorVariable or XTensorVariable
         The adoption rate at each time point as a fraction of potential market
 
     Notes
@@ -237,9 +258,130 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
-    return (p * pt.square(p + q) * pt.exp(t * (p + q))) / pt.square(
-        p * pt.exp(t * (p + q)) + q
+    exp_t = _exp(t * (p + q))
+    return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
+
+
+def _supports_xdist(prior: Prior | Censored | VariableFactory) -> bool:
+    """Whether ``prior`` can build itself directly in ``pymc.dims`` space.
+
+    The check reads the ``create_variable`` signature for a literal ``xdist``
+    parameter, so a factory that hides it behind ``**kwargs`` is treated as
+    not supporting it and gets the ``as_xtensor`` wrapping instead. Declare
+    the parameter explicitly to take the native path. Nested priors are
+    checked too: a distribution missing from ``pymc.dims`` anywhere in the
+    tree sends the whole prior down the fallback.
+    """
+    if "xdist" not in signature(prior.create_variable).parameters:
+        # A VariableFactory written against the ``create_variable(name)``
+        # signature the protocol documents.
+        return False
+
+    if isinstance(prior, Censored):
+        return _supports_xdist(prior.distribution)
+
+    if isinstance(prior, Prior):
+        return hasattr(pmd, prior.distribution) and all(
+            _supports_xdist(value)
+            for value in prior.parameters.values()
+            if hasattr(value, "create_variable")
+        )
+
+    # A factory that takes the kwarg handles its own dispatch.
+    return True
+
+
+def _create_dim_variable(
+    prior: Prior | Censored | VariableFactory, name: str
+) -> XTensorVariable:
+    """Create a named-dims (xtensor) variable for a prior.
+
+    Uses ``xdist=True`` so the variable lives in xtensor space from the start.
+    Whatever cannot take that route -- a distribution ``pymc.dims`` does not
+    implement (``Wald``, ...) or a custom
+    factory written against the ``create_variable(name)`` signature -- gets a
+    regular variable wrapped with ``pmd.as_xtensor``.
+    """
+    if not _supports_xdist(prior):
+        return pmd.as_xtensor(prior.create_variable(name), dims=prior.dims or ())
+    return prior.create_variable(name, xdist=True)
+
+
+def _create_likelihood_variable(
+    prior: Prior | Censored,
+    name: str,
+    mu: XTensorVariable,
+    observed: XTensorVariable | None,
+    dims: tuple[str, ...],
+) -> pt.TensorVariable | XTensorVariable:
+    """Create the outcome variable, observed or not.
+
+    A distribution ``pymc.dims`` does not implement gets the regular pymc
+    path, on the underlying tensors in ``dims`` order.
+
+    ``create_likelihood_variable`` is for the observed case only: a
+    likelihood needs data, so pymc_extras refuses ``observed=None`` there
+    (pymc-devs/pymc-extras#731). Prior predictive still needs the outcome
+    node, so build it with ``create_variable`` and ``mu`` attached, keeping
+    the same guards the pymc_extras method applies.
+    """
+    xdist = _supports_xdist(prior)
+
+    if observed is not None:
+        if xdist:
+            return prior.create_likelihood_variable(
+                name, mu=mu, observed=observed, xdist=True
+            )
+        return prior.create_likelihood_variable(
+            name,
+            mu=mu.transpose(*dims).values,
+            observed=observed.transpose(*dims).values,
+        )
+
+    # Censored keeps its parameters on the wrapped distribution.
+    inner = prior.distribution if isinstance(prior, Censored) else prior
+    if "mu" not in signature(inner.pymc_distribution.dist).parameters:
+        raise UnsupportedDistributionError(
+            f"Likelihood distribution {inner.distribution!r} is not supported."
+        )
+    if "mu" in inner.parameters:
+        raise MuAlreadyExistsError(inner)
+
+    unobserved = inner.deepcopy()
+    unobserved.parameters["mu"] = mu if xdist else mu.transpose(*dims).values
+    outcome: Prior | Censored = (
+        Censored(unobserved, lower=prior.lower, upper=prior.upper)
+        if isinstance(prior, Censored)
+        else unobserved
     )
+    return outcome.create_variable(name, xdist=xdist)
+
+
+def _check_dims_known(dims: Iterable[str], model: Model, label: str = "Dims") -> None:
+    """Raise when any of ``dims`` has no length registered on ``model``."""
+    unknown = [dim for dim in dims if dim not in model.dim_lengths]
+    if unknown:
+        raise ValueError(
+            f"{label} {unknown} are not part of the model coords. Add them at "
+            "initialization time or use `model.add_coord`."
+        )
+
+
+def _align_to_dims(
+    var: XTensorVariable, dims: tuple[str, ...], model: Model
+) -> XTensorVariable:
+    """Broadcast ``var`` up to ``dims``, in that order.
+
+    ``pmd.Deterministic`` takes the dims off the graph and only transposes
+    them, so a quantity built from parameters that do not carry every model
+    dim would be stored without those dims. Sizes come from the model, which
+    knows every dim it has registered, coords argument or not.
+    """
+    missing = [dim for dim in dims if dim not in var.dims]
+    _check_dims_known(missing, model)
+    if missing:
+        var = var.expand_dims({dim: model.dim_lengths[dim] for dim in missing})
+    return var.transpose(*dims)
 
 
 class BassPriors(TypedDict):
@@ -281,7 +423,13 @@ def create_bass_model(
         Time points for which the adoption is modeled.
     observed : pt.TensorLike | None
         Observed adoption data at each time point. If None, only
-        prior predictive sampling is possible.
+        prior predictive sampling is possible. Axis labels are read from
+        the data itself (an ``xr.DataArray``) or from the model (a
+        ``pm.Data`` registered with dims); anything else, such as a plain
+        array or a ``pm.Data`` without dims, is labelled positionally in
+        ``(T, ...)`` order with the extra dims following their first
+        appearance across the ``p``, ``q``, ``m`` and ``likelihood``
+        priors, in that order.
     priors : BassPriors
         Dictionary containing priors for:
         - 'm': Market potential prior
@@ -319,47 +467,60 @@ def create_bass_model(
     """
     model = model or pm.Model(coords=coords)
     with model:
-        parameter_dims = (
-            set(priors["p"].dims or ())
-            .union(priors["q"].dims or ())
-            .union(priors["m"].dims or ())
+        # Declaration order, not set order: `combined_dims` labels the axes of
+        # `observed` positionally, so an order that varies between processes
+        # would silently mislabel the data.
+        declared_dims = (
+            *(priors["p"].dims or ()),
+            *(priors["q"].dims or ()),
+            *(priors["m"].dims or ()),
+            *(getattr(priors["likelihood"], "dims", ()) or ()),
         )
-        likelihood_dims = set(getattr(priors["likelihood"], "dims", ()) or ())
-
         combined_dims = (
             "T",
-            *tuple(parameter_dims.union(likelihood_dims).difference(["T"])),
-        )
-        dim_handler = create_dim_handler(combined_dims)
-
-        m = dim_handler(priors["m"].create_variable("m"), priors["m"].dims)
-        p = dim_handler(priors["p"].create_variable("p"), priors["p"].dims)
-        q = dim_handler(priors["q"].create_variable("q"), priors["q"].dims)
-
-        time = dim_handler(t, "T")
-
-        adopters = pm.Deterministic("adopters", m * f(p, q, time), dims=combined_dims)
-
-        pm.Deterministic(
-            "innovators",
-            m * p * (1 - F(p, q, time)),
-            dims=combined_dims,
-        )
-        pm.Deterministic(
-            "imitators",
-            m * q * F(p, q, time) * (1 - F(p, q, time)),
-            dims=combined_dims,
+            *(dim for dim in dict.fromkeys(declared_dims) if dim != "T"),
         )
 
-        peak = (pt.log(q) - pt.log(p)) / (p + q)
-        peak_dims = tuple(parameter_dims) if parameter_dims else None
-        pm.Deterministic("peak", peak, dims=peak_dims)
+        time = pmd.as_xtensor(t, dims=("T",))
+        m = _create_dim_variable(priors["m"], "m")
+        p = _create_dim_variable(priors["p"], "p")
+        q = _create_dim_variable(priors["q"], "q")
+
+        def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
+            return pmd.Deterministic(name, _align_to_dims(value, combined_dims, model))
+
+        adopters = deterministic("adopters", m * f(p, q, time))
+        deterministic("innovators", m * p * (1 - F(p, q, time)))
+        deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
+
+        # `peak` carries only the parameter dims, but in `combined_dims` order
+        # so it agrees with the deterministics above.
+        peak = (pmd.math.log(q) - pmd.math.log(p)) / (p + q)
+        pmd.Deterministic(
+            "peak", peak.transpose(*(dim for dim in combined_dims if dim in peak.dims))
+        )
 
         priors["likelihood"].dims = combined_dims
-        priors["likelihood"].create_likelihood_variable(  # type: ignore
+        if observed is None:
+            observed_xt = None
+        else:
+            # The data knows its own axis labels, which `combined_dims` need
+            # not match: an `xr.DataArray` carries them, a registered
+            # `pm.Data` has them on the model.
+            observed_dims = getattr(observed, "dims", None) or (
+                model.named_vars_to_dims.get(
+                    getattr(observed, "name", None), combined_dims
+                )
+            )
+            _check_dims_known(observed_dims, model, label="Observed dims")
+            observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
+
+        _create_likelihood_variable(
+            priors["likelihood"],
             "y",
             mu=adopters,
-            observed=observed,
+            observed=observed_xt,
+            dims=combined_dims,
         )
 
     return model

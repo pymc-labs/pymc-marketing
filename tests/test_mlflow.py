@@ -824,6 +824,10 @@ def test_autolog_bass(bass_data) -> None:
     assert params["model_type"] == "BassModel"
     assert params["version"] == __version__
 
+    # The Bass model builds its variables with pymc.dims, which wraps every RV
+    # in a generic XRV; the logged name must still be the distribution.
+    assert params["likelihood"] == "Poisson"
+
     model_config_logged = json.loads(params["model_config"])
     assert set(model_config_logged.keys()) == {"m", "p", "q", "likelihood"}
 
