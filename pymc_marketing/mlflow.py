@@ -561,7 +561,6 @@ def log_model_graph(model: Model, path: str | Path) -> None:
 
 
 def _get_random_variable_name(rv) -> str:
-    # Taken from new version of pymc/model_graph.py
     op = rv.owner.op
     # A `pymc.dims` variable wraps the real RV in a generic `XRV`, which would
     # otherwise be reported as "X". The distribution is on the wrapped op.
