@@ -1,0 +1,19 @@
+tests/clv/models/test_gamma_gamma.py
+  s_7881d2316f963b::t_6f1b827c4338bd 173-179,181-183,185-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "a5c39b13f04e8917887ef6fce084b5f5a3546c91",
+  "prompts": {},
+  "sessions": {
+    "s_7881d2316f963b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecd4405d-f6f4-4611-8176-b0025759013d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
