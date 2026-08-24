@@ -119,6 +119,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_halo.png
 :link: ../notebooks/mmm/mmm_halo.html
 :::
+
+:::{grid-item-card} Splitting MMM Channel Impact Across Campaigns
+:img-top: ../gallery/images/mmm_credibility_disaggregation.png
+:link: ../notebooks/mmm/mmm_credibility_disaggregation.html
+:::
 ::::
 
 ### Data Connectors
@@ -249,6 +254,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :::{grid-item-card} Advanced Funnel-Aware MMM: Geo-Level Mediation Through Lower-Funnel Spend
 :img-top: ../gallery/images/mmm_funnel_mueffect_advanced.png
 :link: ../notebooks/mmm/mmm_funnel_mueffect_advanced.html
+:::
+
+:::{grid-item-card} Funnel MMMs from YAML
+:img-top: ../gallery/images/mmm_funnel_from_yml.png
+:link: ../notebooks/mmm/mmm_funnel_from_yml.html
 :::
 
 :::{grid-item-card} Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
