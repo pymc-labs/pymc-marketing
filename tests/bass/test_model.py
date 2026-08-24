@@ -20,6 +20,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
+import pymc.dims as pmd
 import pytensor
 import pytensor.tensor as pt
 import pytest
@@ -32,6 +33,7 @@ from pymc_extras.prior import (
     Scaled,
     UnsupportedDistributionError,
 )
+from pytensor.graph import rewrite_graph
 
 from pymc_marketing.bass import BassModel
 from pymc_marketing.bass.model import F, create_bass_model, f
@@ -97,7 +99,7 @@ def bass_model_components() -> tuple[
     m_true = 1000
 
     # Generate data
-    adopters_true = m_true * f(p_true, q_true, t).eval()
+    adopters_true = m_true * f(p_true, q_true, pmd.as_xtensor(t, dims=("T",))).eval()
 
     # Add noise
     rng = np.random.default_rng(42)
@@ -131,7 +133,7 @@ class TestBassFunctions:
         )
 
         # Calculate actual values from the function
-        actual = f(p, q, t).eval()
+        actual = f(p, q, pmd.as_xtensor(t, dims=("T",))).eval()
 
         np.testing.assert_allclose(actual, expected, rtol=1e-5)
 
@@ -145,7 +147,7 @@ class TestBassFunctions:
         expected = (1 - np.exp(-(p + q) * t)) / (1 + (q / p) * np.exp(-(p + q) * t))
 
         # Calculate actual values from the function
-        actual = F(p, q, t).eval()
+        actual = F(p, q, pmd.as_xtensor(t, dims=("T",))).eval()
 
         np.testing.assert_allclose(actual, expected, rtol=1e-5)
 
@@ -158,7 +160,7 @@ class TestBassFunctions:
         # At t=0, f(t) gives approximately 0.00219512
         # This is (p+q)/(1+(q/p))^2 = (p+q)*p^2/(p+q)^2 = p^2/(p+q)
         expected = (p * ((p + q) ** 2)) / (p + q) ** 2
-        actual = f(p, q, t).eval()
+        actual = f(p, q, pmd.as_xtensor(t, dims=("T",))).eval()
 
         np.testing.assert_allclose(actual, expected, rtol=1e-5)
 
@@ -170,13 +172,13 @@ class TestBassFunctions:
         # At t=0, F(t) should be 0
         t = np.array([0])
         expected = 0
-        actual = F(p, q, t).eval()
+        actual = F(p, q, pmd.as_xtensor(t, dims=("T",))).eval()
         np.testing.assert_allclose(actual, expected, rtol=1e-5)
 
         # As t approaches infinity, F(t) should approach 1
         t = np.array([1000])  # Very large t
         expected = 1
-        actual = F(p, q, t).eval()
+        actual = F(p, q, pmd.as_xtensor(t, dims=("T",))).eval()
         np.testing.assert_allclose(actual, expected, rtol=1e-2)
 
 
@@ -238,10 +240,14 @@ class TestBassModel:
         q_val = 0.38
 
         # Calculate expected values using the formulas directly
-        expected_adopters = m_val * f(p_val, q_val, t).eval()
-        expected_innovators = m_val * p_val * (1 - F(p_val, q_val, t)).eval()
+        t_xt = pmd.as_xtensor(t, dims=("T",))
+        expected_adopters = m_val * f(p_val, q_val, t_xt).eval()
+        expected_innovators = m_val * p_val * (1 - F(p_val, q_val, t_xt)).eval()
         expected_imitators = (
-            m_val * q_val * F(p_val, q_val, t).eval() * (1 - F(p_val, q_val, t).eval())
+            m_val
+            * q_val
+            * F(p_val, q_val, t_xt).eval()
+            * (1 - F(p_val, q_val, t_xt).eval())
         )
         expected_peak = (np.log(q_val) - np.log(p_val)) / (p_val + q_val)
 
@@ -901,13 +907,21 @@ class TestBassModelDims:
         assert priors["likelihood"].dims == ("product",)
 
 
+def lower(var: Any) -> pt.TensorVariable:
+    """Lower an xtensor graph so ``pytensor.grad`` can walk it.
+
+    Gradients of xtensor ops are pending in pymc-devs/pytensor#2337.
+    """
+    return rewrite_graph(var.values, include=("lower_xtensor",), clone=False)
+
+
 def test_derivative() -> None:
     p = pt.scalar("p")
     q = pt.scalar("q")
     t = pt.scalar("t")
-    F_res = F(p, q, t)
+    F_res = lower(F(p, q, t))
     F_prime_fn = pytensor.function([p, q, t], pytensor.grad(F_res, t))
-    f_res = f(p, q, t)
+    f_res = lower(f(p, q, t))
     f_fn = pytensor.function([p, q, t], f_res)
 
     for p_, q_, t_ in product([0.01, 0.02, 0.03], [0.3, 0.4, 0.5], [0, 10, 100]):

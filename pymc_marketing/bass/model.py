@@ -20,7 +20,9 @@ The recommended interface is :class:`BassModel` – a
 access to the PyMC model object.
 
 The standalone functions :func:`F`, :func:`f`, and :func:`create_bass_model`
-are still exposed for direct use.
+are still exposed for direct use. :func:`F` and :func:`f` take xtensor
+inputs; wrap plain arrays with :func:`pymc.dims.as_xtensor` to call them
+outside a model.
 
 Adapted from Wiki: https://en.wikipedia.org/wiki/Bass_diffusion_model
 
@@ -169,22 +171,11 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
-def _exp(
-    x: float | pt.TensorVariable | XTensorVariable,
-) -> pt.TensorVariable | XTensorVariable:
-    """``exp`` that works for floats, PyTensor tensors, and xtensor variables.
-
-    Lets :func:`F` and :func:`f` be used both with NumPy/float inputs and with
-    the named-dims (xtensor) variables of the ``pymc.dims`` model graph.
-    """
-    return pmd.math.exp(x) if isinstance(x, XTensorVariable) else pt.exp(x)
-
-
 def F(
-    p: float | pt.TensorVariable | XTensorVariable,
-    q: float | pt.TensorVariable | XTensorVariable,
-    t: float | pt.TensorVariable | XTensorVariable,
-) -> pt.TensorVariable | XTensorVariable:
+    p: XTensorVariable,
+    q: XTensorVariable,
+    t: XTensorVariable,
+) -> XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
     This function calculates the cumulative proportion of adopters at time t,
@@ -192,16 +183,16 @@ def F(
 
     Parameters
     ----------
-    p : float or TensorVariable or XTensorVariable
+    p : XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable or XTensorVariable
+    q : XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable or XTensorVariable
+    t : XTensorVariable
         Time points
 
     Returns
     -------
-    TensorVariable or XTensorVariable
+    XTensorVariable
         The cumulative proportion of adopters at each time point
 
     Notes
@@ -214,14 +205,14 @@ def F(
 
     When :math:`t=0`, :math:`F(t)=0`, and as :math:`t` approaches infinity, :math:`F(t)` approaches 1.
     """
-    return (1 - _exp(-(p + q) * t)) / (1 + (q / p) * _exp(-(p + q) * t))
+    return (1 - pmd.math.exp(-(p + q) * t)) / (1 + (q / p) * pmd.math.exp(-(p + q) * t))
 
 
 def f(
-    p: float | pt.TensorVariable | XTensorVariable,
-    q: float | pt.TensorVariable | XTensorVariable,
-    t: float | pt.TensorVariable | XTensorVariable,
-) -> pt.TensorVariable | XTensorVariable:
+    p: XTensorVariable,
+    q: XTensorVariable,
+    t: XTensorVariable,
+) -> XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
     This function calculates the rate of new adoptions at time t as a
@@ -230,16 +221,16 @@ def f(
 
     Parameters
     ----------
-    p : float or TensorVariable or XTensorVariable
+    p : XTensorVariable
         Coefficient of innovation (external influence)
-    q : float or TensorVariable or XTensorVariable
+    q : XTensorVariable
         Coefficient of imitation (internal influence)
-    t : array-like or TensorVariable or XTensorVariable
+    t : XTensorVariable
         Time points
 
     Returns
     -------
-    TensorVariable or XTensorVariable
+    XTensorVariable
         The adoption rate at each time point as a fraction of potential market
 
     Notes
@@ -258,7 +249,7 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
-    exp_t = _exp(t * (p + q))
+    exp_t = pmd.math.exp(t * (p + q))
     return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
 
 
