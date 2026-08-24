@@ -1,0 +1,22 @@
+pymc_marketing/r2d2.py
+  s_65bc5ef84478e0::t_d1e3b31c2b1683 277
+  s_65bc5ef84478e0::t_dabbf3f39b5ef5 338
+  s_65bc5ef84478e0::t_5b95b9d9377eb8 364
+  s_65bc5ef84478e0::t_0784fa00c1c581 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "66d575daf8846c76456e9c15f83081d0512cab06",
+  "prompts": {},
+  "sessions": {
+    "s_65bc5ef84478e0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "172717d1-d437-483b-9f5d-84b0eed689c8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
