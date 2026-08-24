@@ -28,7 +28,7 @@ import xarray
 from numpy import exp, log
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
-from pytensor.compile import Mode, get_default_mode
+from pytensor.compile import Function, Mode, get_default_mode
 from pytensor.graph import Constant, node_rewriter
 from pytensor.scalar import Grad2F1Loop
 from pytensor.tensor.elemwise import Elemwise
@@ -378,12 +378,13 @@ class ParetoNBDModel(CLVModel):
                 return super().fit(data=data, method=method, **kwargs)
 
     @cached_property
-    def _logp_fn(self):
+    def _logp_fn(self) -> Function:
         """Compile the Pareto/NBD log-likelihood function once, so it can be reused with new inputs.
 
         Rebuilding and evaluating this pytensor graph on every predictive call is the
         bottleneck for the predictive methods below, so it is compiled once per model
-        instance with mutable inputs and cached here.
+        instance with mutable inputs and cached here. All inputs, including the integer
+        recency/frequency values, are cast to ``floatX``.
         """
         floatX = pytensor.config.floatX
         r = pt.tensor("r", shape=(None, None), dtype=floatX)

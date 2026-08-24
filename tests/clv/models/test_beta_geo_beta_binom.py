@@ -22,7 +22,7 @@ from pytensor.compile import ViewOp
 from pytensor.tensor.elemwise import Elemwise
 
 from pymc_marketing.clv.distributions import BetaGeoBetaBinom
-from pymc_marketing.clv.models import BetaGeoBetaBinomModel
+from pymc_marketing.clv.models import BetaGeoBetaBinomModel, beta_geo_beta_binom
 from tests.clv.conftest import create_mock_fit, mock_sample
 
 
@@ -313,6 +313,76 @@ class TestBetaGeoBetaBinomModel:
         assert len(idata.posterior.chain) == 2
         assert len(idata.posterior.draw) == 10
         assert model.idata is idata
+
+    def _logp_inputs(self, data):
+        dataset = self.model._extract_predictive_variables(
+            data, customer_varnames=["frequency", "recency", "T"]
+        )
+        return dict(
+            alpha=dataset["alpha"],
+            beta=dataset["beta"],
+            gamma=dataset["gamma"],
+            delta=dataset["delta"],
+            x=dataset["frequency"],
+            t_x=dataset["recency"],
+            T=dataset["T"],
+        )
+
+    def test_logp_varies_across_draws(self):
+        """Every posterior draw must get its own data-dependent log-likelihood.
+
+        The previous implementation evaluated the customer scan for a single draw only
+        and broadcast that result, so each draw differed from the first one by the same
+        constant for every customer. Averaging over draws (as the reference-value tests
+        do) hides that, so the offsets are compared per customer here.
+        """
+        loglike = self.model._logp(**self._logp_inputs(self.pred_data))
+
+        assert loglike.dims == ("chain", "draw", "customer_id")
+        offsets = loglike - loglike.isel(chain=0, draw=0)
+        # A collapsed logp only shifts by the normalizer, which is customer-independent
+        assert float(offsets.std("customer_id").max()) > 1e-8
+
+    def test_logp_is_chunked_over_customers(self, monkeypatch):
+        """Chunking must bound the compiled function's inputs without changing the result."""
+        inputs = self._logp_inputs(self.pred_data)
+        expected = self.model._logp(**inputs)
+
+        n_samples = self.chains * self.draws
+        monkeypatch.setattr(
+            beta_geo_beta_binom, "MAX_LOGP_CHUNK_ELEMENTS", 3 * n_samples
+        )
+        logp_fn = self.model._logp_fn
+        input_sizes = []
+
+        def spy(*args):
+            input_sizes.append(len(args[0]))
+            return logp_fn(*args)
+
+        monkeypatch.setitem(self.model.__dict__, "_logp_fn", spy)
+        chunked = self.model._logp(**inputs)
+
+        np.testing.assert_array_equal(chunked.values, expected.values)
+        assert len(input_sizes) == np.ceil(self.pred_data_N / 3)
+        assert max(input_sizes) == 3 * n_samples
+
+    def test_logp_fn_is_compiled_once(self):
+        model = BetaGeoBetaBinomModel()
+        model.build_model(data=self.pred_data)
+        create_mock_fit(
+            {
+                "alpha": self.alpha_true,
+                "beta": self.beta_true,
+                "delta": self.delta_true,
+                "gamma": self.gamma_true,
+            }
+        )(model, chains=2, draws=5, rng=np.random.default_rng(42))
+
+        assert "_logp_fn" not in model.__dict__
+        model.expected_purchases(future_t=1)
+        compiled = model.__dict__["_logp_fn"]
+        model.expected_purchases(future_t=2)
+        assert model.__dict__["_logp_fn"] is compiled
 
     @pytest.mark.parametrize("test_t", [1, 3, 6])
     def test_expected_purchases(self, test_t):
