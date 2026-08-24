@@ -24,6 +24,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pytensor.graph.traversal import ancestors
+from scipy.optimize import OptimizeResult
 from xarray import DataArray
 
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
@@ -1387,6 +1388,83 @@ def test_optimized_vars_empty_without_optimizable_vars(mmm_wrapper):
     assert result.optimized_vars == {}
 
 
+class TestDateAxisMustMatchTheBlocks:
+    """``carry_in + num_periods + adstock_periods`` has to equal the model's date axis.
+
+    The substituted channel tensor is exactly that long, so a disagreement
+    with the model's other date-indexed data only surfaces as a pytensor shape
+    error inside scipy, several frames deep, and with no mention of what was
+    miscounted. A model from ``create_optimization_model`` carries a leading
+    block of history, which is the easiest way to get this wrong.
+    """
+
+    N_PERIODS = 8
+
+    def test_forgetting_the_leading_block_is_caught_at_construction(
+        self, funnel_identity_fitted_mmm
+    ):
+        mmm = funnel_identity_fitted_mmm
+        lags = mmm.effective_carryover_lags()
+        # The window opens right after training, so the leading block is there.
+        t0 = pd.Timestamp(mmm.xarray_dataset.coords["date"].values[-1])
+        model = mmm.create_optimization_model(
+            start_date=t0 + pd.Timedelta(weeks=1),
+            end_date=t0 + pd.Timedelta(weeks=self.N_PERIODS),
+        )
+        assert len(model.coords["date"]) == lags + self.N_PERIODS + lags
+        n_decisions = self.N_PERIODS
+
+        with pytest.raises(ValueError, match="Date length mismatch") as info:
+            BudgetOptimizer(
+                model=model,
+                idata=mmm.idata,
+                num_periods=n_decisions,
+                adstock_periods=lags,
+                response_variable="total_response_original_scale",
+            )
+
+        message = str(info.value)
+        for block in ("carry_in_periods (0)", f"num_periods ({n_decisions})"):
+            assert block in message
+        assert f"adstock_periods ({lags})" in message
+        assert "create_optimization_model" in message
+
+    def test_a_model_with_no_coordinate_values_is_measured_from_the_tensor(self):
+        """Dims declared without coords leave ``model.coords[date]`` as ``None``.
+
+        The length that matters is the channel tensor's, which is what ``do``
+        replaces, so that is what is measured; and a consistent model passes.
+        """
+        n_dates, channels = 6, ["a", "b"]
+        with pm.Model(coords={"channel": channels}) as model:
+            # A length without values: the dims API accepts it, and
+            # ``model.coords["date"]`` is then ``None``.
+            model.add_coord("date", length=n_dates)
+            channel_data = pmd.Data(
+                "channel_data", np.ones((n_dates, 2)), dims=("date", "channel")
+            )
+            beta = pmd.Normal("beta", 1.0, 0.1, dims="channel")
+            pmd.Deterministic(
+                "channel_contribution", channel_data * beta, dims=("date", "channel")
+            )
+            pmd.Deterministic(
+                "total_media_contribution_original_scale",
+                (channel_data * beta).sum(),
+                dims=(),
+            )
+        assert model.coords["date"] is None
+        prior = pm.sample_prior_predictive(draws=4, model=model, random_seed=1)
+        idata = xr.DataTree.from_dict({"posterior": prior.prior})
+
+        optimizer = BudgetOptimizer(
+            model=model, idata=idata, num_periods=4, adstock_periods=2
+        )
+        assert optimizer.num_periods == 4
+
+        with pytest.raises(ValueError, match="Date length mismatch"):
+            BudgetOptimizer(model=model, idata=idata, num_periods=5, adstock_periods=2)
+
+
 def test_budget_optimizer_has_no_marketing_imports():
     """The optimizer stays a graph-level tool: levers are wired by name only."""
     banned = ("pymc_marketing.mmm.additive_effect", "pymc_marketing.mmm.mmm")
@@ -1435,3 +1513,26 @@ def test_custom_constraint_can_bind_a_lever(mock_pymc_sample):
     assert float(result.optimized_vars["promo_data"].sum()) <= cap + 1e-6
     # And the budget constraint is still honoured alongside it.
     np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
+
+
+def test_spend_var_allocations_excludes_levers():
+    """Only money is reported as money.
+
+    ``optimized_vars`` carries both kinds, and a lever's units are its own: a
+    discount depth added to a budget means nothing. Asserted on a result built
+    by hand, because the discriminating case needs a lever *and* a spend
+    variable present at once -- with only one kind present, returning
+    everything would look correct.
+    """
+    result = BudgetOptimizationResult(
+        budgets=xr.DataArray([1.0, 2.0], dims=("channel",)),
+        scipy_result=OptimizeResult(success=True),
+        optimized_vars={
+            "lf_budget": xr.DataArray(7.0),
+            "discount_depth": xr.DataArray(0.2),
+        },
+        spend_var_names=["lf_budget"],
+    )
+
+    assert set(result.spend_var_allocations) == {"lf_budget"}
+    assert float(result.spend_var_allocations["lf_budget"]) == 7.0
