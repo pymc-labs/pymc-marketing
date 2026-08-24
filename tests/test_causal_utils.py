@@ -11,247 +11,115 @@
 #   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
-import pydot  # type: ignore[import]
-import pytest  # type: ignore[import]
+"""Tests for :mod:`pymc_marketing.causal_utils`.
 
-from pymc_marketing.causal_utils import (
-    _label_of,
-    _parse_dot_CPdag,
-    _skeleton,
-    _v_structures,
-    same_markov_equivalence_class_CPdag,
-)
+``same_markov_equivalence_class_CPdag`` delegates to pathmc's
+``same_markov_equivalence_class``; the full Markov-equivalence behavior (DOT
+parsing, skeleton + unshielded-collider equality, corner cases) is exhaustively
+tested in pathmc. What is checked here is that the thin wrapper delegates
+correctly and stays importable without the optional ``pathmc`` dependency.
+"""
 
+import sys
 
-@pytest.mark.parametrize(
-    "node, expected",
-    [
-        (pydot.Node("n1", label="lbl"), "lbl"),
-        (pydot.Node("n2"), "n2"),
-    ],
-)
-def test_label_of(node, expected):
-    assert _label_of(node) == expected
+import pytest
+
+from pymc_marketing.causal_utils import same_markov_equivalence_class_CPdag
 
 
-@pytest.mark.parametrize(
-    "dot_input, exp_nodes, exp_de, exp_ue",
-    [
-        (
-            "digraph { A; B; A -> B }",
-            {"A", "B"},
-            {("A", "B")},
-            set(),
-        ),
-        (
-            "digraph { A -> C; B -> C }",
-            {"A", "B", "C"},
-            {("A", "C"), ("B", "C")},
-            set(),
-        ),
-    ],
-)
-def test_parse_dot_CPdag(dot_input, exp_nodes, exp_de, exp_ue):
-    nodes, de, ue = _parse_dot_CPdag(dot_input)
-    assert nodes == exp_nodes
-    assert de == exp_de
-    assert ue == exp_ue
+def test_chain_and_fork_are_equivalent():
+    # Chain A->B->C and fork A<-B->C share a skeleton with no v-structure.
+    assert (
+        same_markov_equivalence_class_CPdag(
+            "digraph { A -> B; B -> C; }",
+            "digraph { B -> A; B -> C; }",
+        )
+        is True
+    )
 
 
-@pytest.mark.parametrize(
-    "dot_input, exp_nodes, exp_de, exp_ue",
-    [
-        (
-            "strict graph { A -- B }",
-            {"A", "B"},
-            set(),
-            {frozenset(("A", "B"))},
-        ),
-    ],
-)
-def test_parse_dot_CPdag_strict_graph(dot_input, exp_nodes, exp_de, exp_ue):
-    nodes, de, ue = _parse_dot_CPdag(dot_input)
-    assert nodes == exp_nodes
-    assert de == exp_de
-    assert ue == exp_ue
+def test_collider_is_not_equivalent_to_chain():
+    assert (
+        same_markov_equivalence_class_CPdag(
+            "digraph { A -> B; B -> C; }",
+            "digraph { A -> B; C -> B; }",
+        )
+        is False
+    )
 
 
-@pytest.mark.parametrize(
-    "dot_input, exp_nodes, exp_de, exp_ue",
-    [
-        (
-            "graph { A -- B }",
-            {"A", "B"},
-            set(),
-            {frozenset(("A", "B"))},
-        ),
-    ],
-)
-def test_parse_dot_CPdag_undirected_edges(dot_input, exp_nodes, exp_de, exp_ue):
-    nodes, de, ue = _parse_dot_CPdag(dot_input)
-    assert nodes == exp_nodes
-    assert de == exp_de
-    assert ue == exp_ue
+def test_undirected_graph_strings_order_independent():
+    assert (
+        same_markov_equivalence_class_CPdag("graph { A -- B }", "graph { B -- A }")
+        is True
+    )
 
 
-def test_parse_dot_CPdag_invalid_type_raises_TypeError():
-    with pytest.raises(TypeError):
-        _parse_dot_CPdag(123)  # type: ignore[arg-type]
+def test_different_node_sets_are_not_equivalent():
+    assert (
+        same_markov_equivalence_class_CPdag("digraph { A }", "digraph { B }") is False
+    )
 
 
-def test_parse_dot_CPdag_unparseable_raises_ValueError():
-    bad_dot = ""
-    # empty string yields no graphs
-    with pytest.raises(ValueError):
-        _parse_dot_CPdag(bad_dot)
+def test_accepts_objects_exposing_source():
+    class Digraph:
+        def __init__(self, source: str) -> None:
+            self.source = source
+
+    assert (
+        same_markov_equivalence_class_CPdag(
+            Digraph("digraph { A -> B; B -> C; }"),
+            Digraph("digraph { B -> A; B -> C; }"),
+        )
+        is True
+    )
+
+
+def test_accepts_graphviz_digraph_with_comment():
+    """``Digraph(comment=...)`` puts ``// <comment>`` above the DOT header."""
+    from graphviz import Digraph
+
+    chain = Digraph(comment="True Causal DAG")
+    for tail, head in [("A", "B"), ("B", "C")]:
+        chain.edge(tail, head)
+    fork = Digraph()
+    for tail, head in [("B", "A"), ("B", "C")]:
+        fork.edge(tail, head)
+
+    assert chain.source.startswith("// True Causal DAG")
+    assert same_markov_equivalence_class_CPdag(chain.source, fork.source) is True
+    assert same_markov_equivalence_class_CPdag(chain, fork) is True
 
 
 @pytest.mark.parametrize(
-    "dir_edges, undirected_edges, expected_skeleton",
-    [
-        (
-            {("A", "B")},
-            {frozenset(("B", "C"))},
-            {frozenset(("A", "B")), frozenset(("B", "C"))},
-        ),
-        (
-            {("X", "Y"), ("Y", "Z")},
-            set(),
-            {frozenset(("X", "Y")), frozenset(("Y", "Z"))},
-        ),
-    ],
+    "preamble",
+    ["", "// leading digraph comment\n", "/* block\n   comment */\n", "# hash\n"],
+    ids=["none", "line", "block", "hash"],
 )
-def test_skeleton(dir_edges, undirected_edges, expected_skeleton):
-    # nodes argument is not used internally
-    result = _skeleton(set(), dir_edges, undirected_edges)
-    assert result == expected_skeleton
+def test_dot_preamble_is_ignored(preamble):
+    assert (
+        same_markov_equivalence_class_CPdag(
+            f"{preamble}digraph {{ A -> B; B -> C; }}",
+            "digraph { B -> A; B -> C; }",
+        )
+        is True
+    )
 
 
-def test_skeleton_empty():
-    assert _skeleton(set(), set(), set()) == set()
+def test_accepts_networkx_digraphs():
+    """pathmc compares ``networkx`` graphs directly; they pass through untouched."""
+    import networkx as nx
+
+    chain = nx.DiGraph([("A", "B"), ("B", "C")])
+    fork = nx.DiGraph([("B", "A"), ("B", "C")])
+    collider = nx.DiGraph([("A", "B"), ("C", "B")])
+
+    assert same_markov_equivalence_class_CPdag(chain, fork) is True
+    assert same_markov_equivalence_class_CPdag(chain, collider) is False
 
 
-@pytest.mark.parametrize(
-    "dir_edges, skeleton, expected_v",
-    [
-        (
-            {("A", "C"), ("B", "C")},
-            {frozenset(("A", "C")), frozenset(("B", "C"))},
-            {(("A", "B"), "C")},
-        ),
-        (
-            {("D", "E"), ("E", "F"), ("D", "F")},
-            {frozenset(("D", "E")), frozenset(("E", "F")), frozenset(("D", "F"))},
-            set(),  # no unshielded collider
-        ),
-    ],
-)
-def test_v_structures(dir_edges, skeleton, expected_v):
-    result = _v_structures(dir_edges, skeleton)
-    assert result == expected_v
-
-
-def test_v_structures_empty():
-    assert _v_structures(set(), set()) == set()
-
-
-def test_parse_dot_CPdag_skip_style_node_named_edge():
-    # Node named 'edge' should be skipped in id_to_label
-    dot = "digraph { edge; A; edge -> A }"
-    nodes, de, ue = _parse_dot_CPdag(dot)
-    # Only A should map via id_to_label; 'edge' should be present from edges but label mapping skipped
-    assert "A" in nodes
-    # directed edge from 'edge' to 'A'
-    assert ("edge", "A") in de
-    assert frozenset(("edge", "A")) not in ue
-
-
-def test_same_markov_equivalence_class_CPdag_true():
-    # Identical DAGs should be equivalent
-    g1 = pydot.Dot(graph_type="digraph")
-    g1.add_node(pydot.Node("A"))
-    g1.add_node(pydot.Node("B"))
-    g1.add_edge(pydot.Edge("A", "B"))
-
-    g2 = pydot.Dot(graph_type="digraph")
-    # reversed addition order
-    g2.add_edge(pydot.Edge("A", "B"))
-    g2.add_node(pydot.Node("B"))
-    g2.add_node(pydot.Node("A"))
-
-    # pass DOT text to function
-    assert same_markov_equivalence_class_CPdag(g1.to_string(), g2.to_string())
-
-
-def test_same_markov_equivalence_class_CPdag_false_vstructure_shielded():
-    # Graph with v-structure vs shielded one
-    g1 = pydot.Dot(graph_type="digraph")
-    g1.add_edge(pydot.Edge("A", "C"))
-    g1.add_edge(pydot.Edge("B", "C"))
-
-    g2 = pydot.Dot(graph_type="digraph")
-    g2.add_edge(pydot.Edge("A", "C"))
-    g2.add_edge(pydot.Edge("B", "C"))
-    # add undirected edge between A and B to shield v-structure
-    g2.add_edge(pydot.Edge("A", "B", dir="none"))
-
-    # pass DOT text to function
-    assert not same_markov_equivalence_class_CPdag(g1.to_string(), g2.to_string())
-
-
-def test_same_markov_equivalence_class_CPdag_with_strings():
-    # identical skeleton and no directed edges
-    g1 = "graph { A -- B }"
-    g2 = "graph { B -- A }"
-    assert same_markov_equivalence_class_CPdag(g1, g2)
-
-
-def test_same_markov_equivalence_class_CPdag_false_diff_nodes():
-    g1 = "digraph { A }"
-    g2 = "digraph { B }"
-    assert not same_markov_equivalence_class_CPdag(g1, g2)
-
-
-def test_same_markov_equivalence_class_CPdag_invalid_type():
-    with pytest.raises(TypeError):
-        same_markov_equivalence_class_CPdag(123, "graph { A -- B }")  # type: ignore[arg-type]
-
-
-def test_same_markov_equivalence_class_CPdag_unparseable_dot():
-    # empty strings lead to ValueError in parsing
-    with pytest.raises(ValueError):
-        same_markov_equivalence_class_CPdag("", "")
-
-
-# Corner cases for _parse_dot_CPdag
-class FakeSource:
-    def __init__(self, source: str):
-        self.source = source
-
-
-def test_parse_dot_CPdag_from_source_protocol():
-    src = "graph { X -- Y }"
-    fs = FakeSource(src)
-    nodes, de, ue = _parse_dot_CPdag(fs)
-    assert nodes == {"X", "Y"}
-    assert de == set()
-    assert ue == {frozenset(("X", "Y"))}
-
-
-def test_parse_dot_CPdag_dir_none_attribute():
-    dot = "digraph { A -> B [dir=none] }"
-    nodes, de, ue = _parse_dot_CPdag(dot)
-    assert nodes == {"A", "B"}
-    assert de == set()
-    assert ue == {frozenset(("A", "B"))}
-
-
-def test_parse_dot_CPdag_skip_node_and_graph_style():
-    # Nodes named 'node' and 'graph' should be skipped
-    dot = "digraph { graph; node; A -> B }"
-    nodes, de, ue = _parse_dot_CPdag(dot)
-    assert "graph" not in nodes
-    assert "node" not in nodes
-    assert {"A", "B"} <= nodes
-    assert de == {("A", "B")}
-    assert ue == set()
+def test_errors_actionably_without_pathmc(monkeypatch):
+    """``None`` in ``sys.modules`` is what a missing ``dag`` extra looks like."""
+    monkeypatch.setitem(sys.modules, "pathmc", None)
+    with pytest.raises(ImportError, match=r"pip install pymc-marketing\[dag\]"):
+        same_markov_equivalence_class_CPdag("digraph { A }", "digraph { A }")
