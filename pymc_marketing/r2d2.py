@@ -77,7 +77,7 @@ MMM integration:
 Gotchas
 -------
 - **r2 must be scalar**: ``r2`` Prior must not have dims. The R2D2 prior uses
-  a single global R² decomposition. For per-group R², see the follow-up issue.
+  a single global R² decomposition.
 
 - **total_sigma must be scalar**: No dims allowed. This is per the R2D2 paper.
   ``total_sigma`` represents the global scale of the response variable.
@@ -274,8 +274,7 @@ class R2D2:
     referenced by split() and error_sigma.
 
     Uses a Normal base distribution for coefficients (per Aguilar &
-    Bürkner, 2022) for compatibility with HMC sampling. For the M2
-    multilevel extension with varying effects, see the follow-up issue.
+    Bürkner, 2022) for compatibility with HMC sampling.
 
     .. note::
         The decomposition allocates variance ONLY across the components
@@ -336,8 +335,7 @@ class R2D2:
     - The Dirichlet prior (currently flat, a_π=1) splits model variance across components.
     - Use ``split("component_name")`` to get a lazy reference to a component's variance.
     - Use ``error_sigma`` to get the residual standard deviation.
-    - This is single-level R2D2 (no varying effects). For the M2 multilevel extension
-      with pooled variance across groups, see the follow-up issue.
+    - This is single-level R2D2 (no varying effects).
     """
 
     r2: Prior
@@ -363,8 +361,7 @@ class R2D2:
         if self.r2.dims:
             raise ValueError(
                 f"r2 must be a scalar Prior (no dims), got dims={self.r2.dims}. "
-                f"The R2D2 prior uses a single global R² decomposition. "
-                f"For per-group R², see the follow-up issue."
+                f"The R2D2 prior uses a single global R² decomposition."
             )
 
         # total_sigma must be scalar (no dims) per R2D2 paper
