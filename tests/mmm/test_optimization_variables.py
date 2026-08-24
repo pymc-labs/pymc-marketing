@@ -13,6 +13,9 @@
 #   limitations under the License.
 import numpy as np
 import pymc as pm
+import pymc.dims as pmd
+import pytensor.tensor as pt
+import pytensor.xtensor as ptx
 import pytest
 import xarray as xr
 
@@ -199,6 +202,60 @@ def test_non_float_dtype_raises():
             adstock_periods=2,
             channel_scales=1.0,
             dtype="int64",
+        )
+
+
+def test_carry_in_values_survive_the_substitution():
+    """The leading block must reach the model graph unchanged.
+
+    ``pm.do`` replaces the whole channel tensor, so spend that already happened
+    cannot simply sit in the model's data and be left alone -- if ``to_model``
+    does not re-emit it, the substitution silently zeroes the history and the
+    window starts from a cold adstock.
+    """
+    rng = np.random.default_rng(13)
+    mask = xr.DataArray(
+        np.ones((3,), dtype=bool),
+        dims=("channel",),
+        coords={"channel": [f"channel_{i}" for i in range(3)]},
+    )
+    carry_in = rng.normal(size=(2, 3)) ** 2
+    variable = MediaVariable(
+        name="channel_data",
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype="float64",
+        carry_in_values=carry_in,
+    )
+
+    z = ptx.as_xtensor(pt.as_tensor_variable(np.ones(3)), dims=(FLAT_DIM,))
+    built = variable.to_model(z).values.eval()
+
+    # 2 carry-in + 4 decided + 2 carry-over
+    assert built.shape == (8, 3)
+    np.testing.assert_allclose(built[:2], carry_in)
+    np.testing.assert_allclose(built[-2:], 0.0)
+    assert (built[2:6] > 0).all()
+
+
+def test_carry_in_values_must_match_the_mask_cells():
+    """A wrong-shaped leading block is caught at construction, not at compile."""
+    mask = xr.DataArray(
+        np.ones((3,), dtype=bool),
+        dims=("channel",),
+        coords={"channel": [f"channel_{i}" for i in range(3)]},
+    )
+    with pytest.raises(ValueError, match="carry_in_values has shape"):
+        MediaVariable(
+            name="channel_data",
+            mask=mask,
+            num_periods=4,
+            adstock_periods=2,
+            channel_scales=1.0,
+            dtype="float64",
+            carry_in_values=np.zeros((2, 5)),
         )
 
 
@@ -505,3 +562,225 @@ def test_from_model_leaves_bounds_optional(lever_model):
 def test_from_model_rejects_nodes_that_cannot_be_levers(lever_model, name, match):
     with pytest.raises(ValueError, match=match):
         LeverVariable.from_model(lever_model, name, date_dim="date")
+
+
+def _money(name, sizes=(3,), dims=("channel",)):
+    coords = {
+        dim: [f"{dim}_{i}" for i in range(size)]
+        for dim, size in zip(dims, sizes, strict=True)
+    }
+    mask = xr.DataArray(np.ones(sizes, dtype=bool), dims=dims, coords=coords)
+    return MediaVariable(
+        name=name,
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype="float64",
+    )
+
+
+def test_x0_shares_one_budget_across_every_spending_variable():
+    """Two money variables must not each start at the whole budget.
+
+    The default sum constraint is an equality, so an initial guess totalling
+    twice the budget starts the solver outside the feasible set. SLSQP will
+    often recover, which is exactly why this is asserted on the guess itself
+    rather than left to be noticed in an optimum.
+    """
+    variables = OptimizationVariables([_money("channel_data"), _money("lf_budget")])
+
+    x0 = variables.x0(total_budget=100.0)
+
+    np.testing.assert_allclose(x0.sum(), 100.0)
+    # Uniform across every spending cell, not merely equal per variable.
+    np.testing.assert_allclose(x0, np.full(6, 100.0 / 6))
+
+
+def test_x0_is_unchanged_with_a_single_spending_variable():
+    """The share degenerates to the previous behaviour when there is one pot."""
+    variables = OptimizationVariables([_money("channel_data")])
+
+    np.testing.assert_allclose(variables.x0(total_budget=100.0), np.full(3, 100.0 / 3))
+
+
+def test_a_lever_does_not_take_a_share_of_the_budget():
+    """Levers are optimized in their own units and stay out of the pot."""
+    money = _money("channel_data")
+    variables = OptimizationVariables([money])
+
+    assert [v.name for v in variables.spending_variables()] == ["channel_data"]
+
+
+def test_a_national_spend_has_no_cells_to_scatter_into():
+    """A budget decided over date alone is one number, not a masked tensor.
+
+    The mask is then 0-dimensional, which pytensor cannot index with, so the
+    scatter has to recognise it. A single national lower-funnel budget is an
+    ordinary thing to optimize.
+    """
+    mask = xr.DataArray(np.array(True), dims=(), coords={})
+    variable = MediaVariable(
+        name="lf_budget",
+        mask=mask,
+        num_periods=4,
+        adstock_periods=2,
+        channel_scales=1.0,
+        dtype="float64",
+    )
+
+    z = ptx.as_xtensor(pt.as_tensor_variable(np.array([7.0])), dims=(FLAT_DIM,))
+    built = variable.to_model(z).values.eval()
+
+    assert variable.size == 1
+    assert built.shape == (6,)
+    np.testing.assert_allclose(built[:4], 7.0)
+    np.testing.assert_allclose(built[4:], 0.0)
+
+
+def test_from_model_reads_a_geo_dimensioned_spend_off_the_model():
+    """The shape a funnel actually has: one budget per geo, spent over dates.
+
+    ``from_model`` has to drop the date dim to find the cells and keep the rest
+    with their coords, so the decision is per geo and the substituted tensor is
+    the window's three blocks stacked over it.
+    """
+    coords = {"date": range(10), "geo": ["north", "south", "west"]}
+    with pm.Model(coords=coords) as model:
+        pmd.Data(
+            "lf_budget",
+            np.arange(30, dtype=float).reshape(10, 3),
+            dims=("date", "geo"),
+        )
+
+    variable = MediaVariable.from_model(
+        model,
+        "lf_budget",
+        num_periods=4,
+        adstock_periods=2,
+        carry_in_values=np.full((3, 3), 5.0),
+    )
+
+    assert variable.dims == ("geo",)
+    assert variable.size == 3
+    assert [str(g) for g in variable.coords["geo"]] == ["north", "south", "west"]
+
+    z = ptx.as_xtensor(
+        pt.as_tensor_variable(np.array([1.0, 2.0, 3.0])), dims=(FLAT_DIM,)
+    )
+    built = variable.to_model(z).values.eval()
+
+    assert built.shape == (9, 3)  # 3 carry-in + 4 decided + 2 carry-over
+    np.testing.assert_allclose(built[:3], 5.0)
+    np.testing.assert_allclose(built[3:7], np.array([[1.0, 2.0, 3.0]] * 4))
+    np.testing.assert_allclose(built[7:], 0.0)
+
+
+def test_from_model_refuses_a_node_that_does_not_vary_over_date():
+    """A quantity with no date dim is a lever, not a spend."""
+    with pm.Model(coords={"geo": ["north", "south"]}) as model:
+        pmd.Data("discount_depth", np.array([0.1, 0.2]), dims=("geo",))
+
+    with pytest.raises(ValueError, match="is a lever, not a spend"):
+        MediaVariable.from_model(
+            model, "discount_depth", num_periods=4, adstock_periods=2
+        )
+
+
+def _dated_money_model(values=None):
+    """A dated money node, plus a dimensioned node that stores no value."""
+    if values is None:
+        values = np.arange(30, dtype=float).reshape(10, 3)
+    coords = {"date": range(values.shape[0]), "geo": ["north", "south", "west"]}
+    with pm.Model(coords=coords) as model:
+        data = pmd.Data("lf_budget", values, dims=("date", "geo"))
+        pmd.Deterministic("lf_effect", data * 2.0)
+    return model
+
+
+def test_from_model_names_a_misspelled_spend_before_reading_its_history():
+    """The name is validated before the node is dereferenced.
+
+    ``carry_in_periods`` makes ``from_model`` read the node's own leading
+    periods. Read before the name is checked, a typo comes back as a bare
+    ``KeyError`` from the model and the message written here never fires.
+    """
+    with pytest.raises(ValueError, match="not a variable with named dims"):
+        MediaVariable.from_model(
+            _dated_money_model(),
+            "lf_bugdet",
+            num_periods=4,
+            adstock_periods=2,
+            carry_in_periods=3,
+        )
+
+
+def test_from_model_refuses_a_spend_it_cannot_read_prior_spend_from():
+    """A node with dims but no stored value is refused with a reason.
+
+    Same ordering, different symptom: an ``AttributeError`` on ``.get_value()``
+    says nothing about which node is wrong or what to pass instead.
+    """
+    with pytest.raises(ValueError, match="not a shared variable"):
+        MediaVariable.from_model(
+            _dated_money_model(),
+            "lf_effect",
+            num_periods=4,
+            adstock_periods=2,
+            carry_in_periods=3,
+        )
+
+
+def test_from_model_reads_carry_in_off_the_node_when_given_periods():
+    """Passing the count is equivalent to passing the values it would read."""
+    values = np.arange(30, dtype=float).reshape(10, 3)
+    variable = MediaVariable.from_model(
+        _dated_money_model(values),
+        "lf_budget",
+        num_periods=4,
+        adstock_periods=2,
+        carry_in_periods=3,
+    )
+
+    np.testing.assert_allclose(variable.carry_in_values, values[:3])
+
+
+def test_explicit_carry_in_values_win_over_the_node():
+    """The caller's values are kept, so the media variable's path is unchanged."""
+    given = np.full((3, 3), 5.0)
+    variable = MediaVariable.from_model(
+        _dated_money_model(),
+        "lf_budget",
+        num_periods=4,
+        adstock_periods=2,
+        carry_in_values=given,
+        carry_in_periods=3,
+    )
+
+    np.testing.assert_allclose(variable.carry_in_values, given)
+
+
+def test_the_scale_divides_the_substituted_spend():
+    """The point of a scale: money in, the node's stored units out.
+
+    ``to_model`` divides the monetary decision by ``channel_scales``, so the
+    tensor substituted for a 1000x-scaled variable is 1000x smaller for the
+    same money. Checked numerically rather than by reading the attribute back,
+    because the attribute arriving is not the same claim as it being applied.
+    """
+    model = _dated_money_model()
+
+    def substituted(scales):
+        variable = MediaVariable.from_model(
+            model, "lf_budget", num_periods=4, adstock_periods=2, scales=scales
+        )
+        z = ptx.as_xtensor(
+            pt.as_tensor_variable(np.full(variable.size, 120.0)), dims=(FLAT_DIM,)
+        )
+        return variable.to_model(z).values.eval()
+
+    plain = substituted(1.0)
+    scaled = substituted(1000.0)
+
+    np.testing.assert_allclose(plain, scaled * 1000.0, rtol=1e-6)
+    assert float(plain.max()) > 0.0

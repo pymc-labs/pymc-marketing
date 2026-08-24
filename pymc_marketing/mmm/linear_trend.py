@@ -120,6 +120,10 @@ class LinearTrend(BaseModel):
         Number of changepoints, by default 10.
     include_intercept : bool, optional
         Include an intercept in the trend, by default False
+    prefix : str, optional
+        Prefix for the changepoint coordinate and parameter names, to avoid
+        name collisions when multiple `LinearTrend` instances are used in the
+        same model. By default "", which uses the unprefixed names.
 
     Examples
     --------
@@ -231,7 +235,14 @@ class LinearTrend(BaseModel):
         False,
         description="Include an intercept in the trend.",
     )
+    prefix: str = Field(
+        "",
+        description="Prefix for the changepoint coordinate and parameter names.",
+    )
     model_config = ConfigDict(extra="forbid")
+
+    def _name(self, base: str) -> str:
+        return f"{self.prefix}_{base}" if self.prefix else base
 
     @model_validator(mode="after")
     def _dims_is_tuple(self) -> Self:
@@ -259,7 +270,7 @@ class LinearTrend(BaseModel):
 
     @model_validator(mode="after")
     def _check_dims_are_subsets(self) -> Self:
-        allowed_dims = {"changepoint"}.union(cast(Dims, self.dims))
+        allowed_dims = {self._name("changepoint")}.union(cast(Dims, self.dims))
 
         if not all(
             set(prior.dims or {}) <= allowed_dims for prior in self.priors.values()
@@ -284,7 +295,7 @@ class LinearTrend(BaseModel):
                 "Laplace",
                 mu=0,
                 b=0.25,
-                dims="changepoint",
+                dims=self._name("changepoint"),
             ),
         }
         if self.include_intercept:
@@ -325,29 +336,34 @@ class LinearTrend(BaseModel):
             XTensorVariable with the trend values.
 
         """
+        changepoint_dim = self._name("changepoint")
+
         t = as_xtensor(t)
-        if "changepoint" in t.dims:
-            raise ValueError(f"Variable t {t} cannot have a dimension 'changepoint'")
+        if changepoint_dim in t.dims:
+            raise ValueError(
+                f"Variable t {t} cannot have a dimension '{changepoint_dim}'"
+            )
 
         model = pm.modelcontext(None)
-        model.add_coord("changepoint", range(self.n_changepoints))
+        model.add_coord(changepoint_dim, range(self.n_changepoints))
 
         s = as_xtensor(
-            pt.linspace(0, t.max().values, self.n_changepoints), dims=("changepoint",)
+            pt.linspace(0, t.max().values, self.n_changepoints),
+            dims=(changepoint_dim,),
         )
         A = t > s
 
-        delta = self.priors["delta"].create_variable("delta", xdist=True)
+        delta = self.priors["delta"].create_variable(self._name("delta"), xdist=True)
 
-        first = (A * delta).sum(dim="changepoint") * t
+        first = (A * delta).sum(dim=changepoint_dim) * t
 
         if self.include_intercept:
             # (additional_groups)
-            k = self.priors["k"].create_variable("k", xdist=True)
+            k = self.priors["k"].create_variable(self._name("k"), xdist=True)
             first += k
 
         gamma = -s * delta
-        second = (A * gamma).sum(dim="changepoint")
+        second = (A * gamma).sum(dim=changepoint_dim)
 
         return first + second
 
@@ -372,10 +388,10 @@ class LinearTrend(BaseModel):
 
         """
         coords = coords or {}
-        coords["changepoint"] = range(self.n_changepoints)
+        coords[self._name("changepoint")] = range(self.n_changepoints)
         with pm.Model(coords=coords):
             for key, param in self.priors.items():
-                param.create_variable(key, xdist=True)
+                param.create_variable(self._name(key), xdist=True)
 
             prior_pred = pm.sample_prior_predictive(**sample_prior_predictive_kwargs)
             return prior_pred["/prior"].to_dataset()
@@ -402,7 +418,7 @@ class LinearTrend(BaseModel):
         t = DataArray(np.linspace(0, max_value, 100), dims=("t",))
         coords: dict[str, Any] = {"t": t}
         for name in self.priors.keys():
-            for key, values in parameters[name].coords.items():
+            for key, values in parameters[self._name(name)].coords.items():
                 if key in {"chain", "draw"}:
                     continue
 
