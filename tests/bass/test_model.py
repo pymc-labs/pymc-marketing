@@ -20,7 +20,6 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import pymc as pm
-import pymc.dims as pmd
 import pytensor
 import pytensor.tensor as pt
 import pytest
@@ -643,8 +642,8 @@ def make_priors(**overrides: Any) -> dict[str, Any]:
     return priors
 
 
-class TestBassModelXdistFallbacks:
-    """The pymc.dims migration must not narrow what create_bass_model accepts."""
+class TestBassModelLikelihood:
+    """Guards and dim errors on the outcome variable."""
 
     @pytest.fixture
     def coords(self) -> dict[str, Any]:
@@ -684,144 +683,35 @@ class TestBassModelXdistFallbacks:
             )
 
     def test_likelihood_dim_missing_from_coords_raises(self) -> None:
-        """A likelihood-only dim without a coord fails with a clear error."""
+        """A likelihood-only dim without a coord fails with pymc's own error."""
         t = np.arange(5)
         priors = make_priors(likelihood=Prior("Poisson", dims=("product",)))
 
-        with pytest.raises(ValueError, match=r"product.*not part of the model coords"):
+        with pytest.raises(ValueError, match=r"(?i)dims.*are part of the model coords"):
             create_bass_model(t=t, observed=None, priors=priors, coords={"T": t})
-
-    def test_nested_prior_with_non_pmd_distribution_falls_back(
-        self, coords: dict[str, Any]
-    ) -> None:
-        """A nested distribution missing from pymc.dims takes the fallback path."""
-        priors = make_priors(
-            m=Prior("Normal", mu=1000, sigma=Prior("Wald", mu=10, lam=1))
-        )
-
-        model = create_bass_model(
-            t=coords["T"], observed=None, priors=priors, coords=coords
-        )
-
-        assert {"m", "m_sigma", "y"} <= set(model.named_vars)
 
     def test_observed_dim_missing_from_coords_raises(
         self, coords: dict[str, Any]
     ) -> None:
-        """An observed dim the model does not know fails with a clear error."""
+        """An observed dim the model does not know still fails, on the dim name."""
         priors = make_priors()
         observed = xr.DataArray(np.ones((5, 2)), dims=("T", "geo"))
 
-        with pytest.raises(ValueError, match=r"geo.*not part of the model coords"):
+        with pytest.raises(KeyError, match="geo"):
             create_bass_model(
                 t=coords["T"], observed=observed, priors=priors, coords=coords
             )
-
-    @pytest.mark.parametrize(
-        "likelihood",
-        [
-            Prior("Normal", sigma=1),
-            Censored(Prior("Normal", sigma=1), lower=0),
-        ],
-        ids=["prior", "censored"],
-    )
-    def test_unobserved_skips_create_likelihood_variable(
-        self,
-        coords: dict[str, Any],
-        likelihood: Prior | Censored,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Without data the outcome node comes from create_variable.
-
-        pymc-devs/pymc-extras#731 makes create_likelihood_variable refuse
-        observed=None, so nothing here may route through it.
-        """
-
-        def refuse(self, *args: Any, **kwargs: Any) -> None:
-            raise ValueError("observed cannot be None")
-
-        monkeypatch.setattr(Prior, "create_likelihood_variable", refuse)
-        monkeypatch.setattr(Censored, "create_likelihood_variable", refuse)
-
-        priors = make_priors(likelihood=likelihood)
-
-        model = create_bass_model(
-            t=coords["T"], observed=None, priors=priors, coords=coords
-        )
-
-        assert "y" in model.named_vars
-
-    def test_prior_missing_from_pymc_dims(
-        self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A distribution pymc.dims does not implement falls back to as_xtensor."""
-        # Wald is missing today. Hide it so the test keeps asserting the
-        # fallback rather than turning red when pymc.dims grows the class.
-        monkeypatch.delattr(pmd, "Wald", raising=False)
-
-        priors = make_priors(m=Prior("Wald", mu=1000.0, lam=1.0))
-
-        model = create_bass_model(
-            t=coords["T"], observed=None, priors=priors, coords=coords
-        )
-
-        assert "m" in model.named_vars
-
-    def test_likelihood_missing_from_pymc_dims(
-        self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """The likelihood gets the same fallback as m, p and q."""
-        monkeypatch.delattr(pmd, "Wald", raising=False)
-
-        priors = make_priors(likelihood=Prior("Wald", lam=1.0))
-
-        model = create_bass_model(
-            t=coords["T"],
-            observed=np.ones(len(coords["T"])),
-            priors=priors,
-            coords=coords,
-        )
-
-        assert model.named_vars_to_dims["y"] == ("T",)
-        assert np.isfinite(model.point_logps()["y"])
-
-    def test_likelihood_missing_from_pymc_dims_without_observed(
-        self, coords: dict[str, Any], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """The fallback path also covers prior-predictive-only models."""
-        monkeypatch.delattr(pmd, "Wald", raising=False)
-
-        priors = make_priors(likelihood=Prior("Wald", lam=1.0))
-
-        model = create_bass_model(
-            t=coords["T"], observed=None, priors=priors, coords=coords
-        )
-
-        assert model.named_vars_to_dims["y"] == ("T",)
-
-    def test_variable_factory_without_xdist_kwarg(self, coords: dict[str, Any]) -> None:
-        """A VariableFactory written against create_variable(name) still works."""
-
-        class ConstantFactory:
-            dims = ()
-
-            def create_variable(self, name: str) -> pt.TensorVariable:
-                return pm.Deterministic(name, pt.as_tensor(1000.0))
-
-        priors = make_priors(m=ConstantFactory())
-
-        model = create_bass_model(
-            t=coords["T"], observed=None, priors=priors, coords=coords
-        )
-
-        assert "m" in model.named_vars
 
 
 class TestBassModelDims:
     """Dim names and ordering of the deterministics and the likelihood."""
 
-    def test_deterministics_keep_likelihood_only_dims(self) -> None:
-        """Pooled p, q, m with a dimmed likelihood: the curves stay per-product."""
+    def test_deterministics_carry_only_their_own_dims(self) -> None:
+        """Pooled p, q, m: the curves are pooled too, whatever dims the data has.
+
+        The deterministics are not broadcast up to the likelihood's dims; a
+        per-product curve is the user's to build from the pooled one.
+        """
         coords = {"T": np.arange(5), "product": ["A", "B"]}
         priors = make_priors(likelihood=Prior("Poisson", dims=("product",)))
         observed = np.ones((5, 2))
@@ -831,7 +721,8 @@ class TestBassModelDims:
         )
 
         for name in ["adopters", "innovators", "imitators"]:
-            assert model.named_vars_to_dims[name] == ("T", "product")
+            assert model.named_vars_to_dims[name] == ("T",)
+        assert model.named_vars_to_dims["y"] == ("T", "product")
 
     def test_combined_dims_follow_declaration_order(self) -> None:
         """Dim order comes from the priors, not from set iteration order."""
@@ -995,7 +886,7 @@ class TestBassModelDims:
                 model=model,
             )
 
-        assert model.named_vars_to_dims["adopters"] == ("T", "product")
+        assert model.named_vars_to_dims["y"] == ("T", "product")
 
     def test_building_does_not_mutate_the_caller_s_priors(self) -> None:
         """The likelihood keeps the dims it declares, not the model's own."""

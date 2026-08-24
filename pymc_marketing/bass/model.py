@@ -135,7 +135,6 @@ Create a basic Bass model for multiple products:
 """
 
 import copy
-from collections.abc import Iterable
 from inspect import signature
 from typing import Any, TypedDict, cast
 
@@ -263,62 +262,13 @@ def f(
     return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
 
 
-def _supports_xdist(prior: Prior | Censored | VariableFactory) -> bool:
-    """Whether ``prior`` can build itself directly in ``pymc.dims`` space.
-
-    The check reads the ``create_variable`` signature for a literal ``xdist``
-    parameter, so a factory that hides it behind ``**kwargs`` is treated as
-    not supporting it and gets the ``as_xtensor`` wrapping instead. Declare
-    the parameter explicitly to take the native path. Nested priors are
-    checked too: a distribution missing from ``pymc.dims`` anywhere in the
-    tree sends the whole prior down the fallback.
-    """
-    if "xdist" not in signature(prior.create_variable).parameters:
-        # A VariableFactory written against the ``create_variable(name)``
-        # signature the protocol documents.
-        return False
-
-    if isinstance(prior, Censored):
-        return _supports_xdist(prior.distribution)
-
-    if isinstance(prior, Prior):
-        return hasattr(pmd, prior.distribution) and all(
-            _supports_xdist(value)
-            for value in prior.parameters.values()
-            if hasattr(value, "create_variable")
-        )
-
-    # A factory that takes the kwarg handles its own dispatch.
-    return True
-
-
-def _create_dim_variable(
-    prior: Prior | Censored | VariableFactory, name: str
-) -> XTensorVariable:
-    """Create a named-dims (xtensor) variable for a prior.
-
-    Uses ``xdist=True`` so the variable lives in xtensor space from the start.
-    Whatever cannot take that route -- a distribution ``pymc.dims`` does not
-    implement (``Wald``, ...) or a custom
-    factory written against the ``create_variable(name)`` signature -- gets a
-    regular variable wrapped with ``pmd.as_xtensor``.
-    """
-    if not _supports_xdist(prior):
-        return pmd.as_xtensor(prior.create_variable(name), dims=prior.dims or ())
-    return prior.create_variable(name, xdist=True)
-
-
 def _create_likelihood_variable(
     prior: Prior | Censored,
     name: str,
     mu: XTensorVariable,
     observed: XTensorVariable | None,
-    dims: tuple[str, ...],
-) -> pt.TensorVariable | XTensorVariable:
+) -> XTensorVariable:
     """Create the outcome variable, observed or not.
-
-    A distribution ``pymc.dims`` does not implement gets the regular pymc
-    path, on the underlying tensors in ``dims`` order.
 
     ``create_likelihood_variable`` is for the observed case only: a
     likelihood needs data, so pymc_extras refuses ``observed=None`` there
@@ -326,17 +276,9 @@ def _create_likelihood_variable(
     node, so build it with ``create_variable`` and ``mu`` attached, keeping
     the same guards the pymc_extras method applies.
     """
-    xdist = _supports_xdist(prior)
-
     if observed is not None:
-        if xdist:
-            return prior.create_likelihood_variable(
-                name, mu=mu, observed=observed, xdist=True
-            )
         return prior.create_likelihood_variable(
-            name,
-            mu=mu.transpose(*dims).values,
-            observed=observed.transpose(*dims).values,
+            name, mu=mu, observed=observed, xdist=True
         )
 
     # Censored keeps its parameters on the wrapped distribution.
@@ -349,40 +291,13 @@ def _create_likelihood_variable(
         raise MuAlreadyExistsError(inner)
 
     unobserved = inner.deepcopy()
-    unobserved.parameters["mu"] = mu if xdist else mu.transpose(*dims).values
+    unobserved.parameters["mu"] = mu
     outcome: Prior | Censored = (
         Censored(unobserved, lower=prior.lower, upper=prior.upper)
         if isinstance(prior, Censored)
         else unobserved
     )
-    return outcome.create_variable(name, xdist=xdist)
-
-
-def _check_dims_known(dims: Iterable[str], model: Model, label: str = "Dims") -> None:
-    """Raise when any of ``dims`` has no length registered on ``model``."""
-    unknown = [dim for dim in dims if dim not in model.dim_lengths]
-    if unknown:
-        raise ValueError(
-            f"{label} {unknown} are not part of the model coords. Add them at "
-            "initialization time or use `model.add_coord`."
-        )
-
-
-def _align_to_dims(
-    var: XTensorVariable, dims: tuple[str, ...], model: Model
-) -> XTensorVariable:
-    """Broadcast ``var`` up to ``dims``, in that order.
-
-    ``pmd.Deterministic`` takes the dims off the graph and only transposes
-    them, so a quantity built from parameters that do not carry every model
-    dim would be stored without those dims. Sizes come from the model, which
-    knows every dim it has registered, coords argument or not.
-    """
-    missing = [dim for dim in dims if dim not in var.dims]
-    _check_dims_known(missing, model)
-    if missing:
-        var = var.expand_dims({dim: model.dim_lengths[dim] for dim in missing})
-    return var.transpose(*dims)
+    return outcome.create_variable(name, xdist=True)
 
 
 class BassPriors(TypedDict):
@@ -483,23 +398,19 @@ def create_bass_model(
         )
 
         time = pmd.as_xtensor(t, dims=("T",))
-        m = _create_dim_variable(priors["m"], "m")
-        p = _create_dim_variable(priors["p"], "p")
-        q = _create_dim_variable(priors["q"], "q")
+        m = priors["m"].create_variable("m", xdist=True)
+        p = priors["p"].create_variable("p", xdist=True)
+        q = priors["q"].create_variable("q", xdist=True)
 
         def deterministic(name: str, value: XTensorVariable) -> XTensorVariable:
-            return pmd.Deterministic(name, _align_to_dims(value, combined_dims, model))
+            """Store ``value`` with the dims it has, in ``combined_dims`` order."""
+            order = tuple(dim for dim in combined_dims if dim in value.dims)
+            return pmd.Deterministic(name, value, dims=order)
 
         adopters = deterministic("adopters", m * f(p, q, time))
         deterministic("innovators", m * p * (1 - F(p, q, time)))
         deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
-
-        # `peak` carries only the parameter dims, but in `combined_dims` order
-        # so it agrees with the deterministics above.
-        peak = (pmd.math.log(q) - pmd.math.log(p)) / (p + q)
-        pmd.Deterministic(
-            "peak", peak.transpose(*(dim for dim in combined_dims if dim in peak.dims))
-        )
+        deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
 
         # Copy first: setting `dims` on the caller's own prior would leave it
         # carrying this model's dims, so a config reused for a second model
@@ -517,7 +428,6 @@ def create_bass_model(
                     getattr(observed, "name", None), combined_dims
                 )
             )
-            _check_dims_known(observed_dims, model, label="Observed dims")
             observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
 
         _create_likelihood_variable(
@@ -525,7 +435,6 @@ def create_bass_model(
             "y",
             mu=adopters,
             observed=observed_xt,
-            dims=combined_dims,
         )
 
     return model
