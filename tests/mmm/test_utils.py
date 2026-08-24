@@ -936,14 +936,24 @@ class TestBuildContributions:
 class _StubEffect:
     """A mu effect that reads *data_vars* and nothing else.
 
-    `create_zero_dataset` only ever asks an effect which variables it reads, so
-    the branches below need a name and a list -- not a fitted funnel.
+    `create_zero_dataset` only ever asks an effect which variables it reads and
+    what carryover it declares, so the branches below need a name, a list and an
+    opt-out -- not a fitted funnel.
     ``set_data`` mirrors ``DataVarMuEffect``: it sets what the dataset carries,
     which is what lets ``create_optimization_model`` run the stub end to end.
     """
 
     def __init__(self, data_vars):
         self.data_vars = list(data_vars)
+
+    def incrementality_spec(self):
+        """Opt out, as ``MuEffect``'s own default does.
+
+        The stub stands in for a real effect, so it has to answer the questions
+        the ABC says every effect answers. Leaving it off would make production
+        code tolerate a shape no registered effect can have.
+        """
+        return None
 
     def set_data(self, mmm, model, X):
         for var_name in self.data_vars:
