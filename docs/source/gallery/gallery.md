@@ -119,6 +119,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :img-top: ../gallery/images/mmm_halo.png
 :link: ../notebooks/mmm/mmm_halo.html
 :::
+
+:::{grid-item-card} Splitting MMM Channel Impact Across Campaigns
+:img-top: ../gallery/images/mmm_credibility_disaggregation.png
+:link: ../notebooks/mmm/mmm_credibility_disaggregation.html
+:::
 ::::
 
 ### Data Connectors
