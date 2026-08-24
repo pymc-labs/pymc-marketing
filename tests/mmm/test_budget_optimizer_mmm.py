@@ -2149,3 +2149,250 @@ class TestLegacyWrapperNumPeriods:
                 response_variable="total_media_contribution_original_scale",
             )
         assert "BudgetOptimizerWrapper" in str(info.value)
+
+
+class TestMonetarySpendVariables:
+    """A second money tensor competes with media for the same budget.
+
+    A funnel's lower-funnel spend is a decision, not an input: it is money, so
+    it belongs in the same pot as the media budgets rather than beside them.
+    `LeverVariable` cannot carry it -- a lever is optimized in its own units and
+    deliberately sits outside the budget-sum constraint -- so it rides the media
+    path over a different node instead.
+
+    `cvm` because numba cannot compile the gradient of this effect's second,
+    sample-batched adstock (pytensor#2360), which is upstream and unrelated.
+    """
+
+    # Large enough that media has saturated and the lower funnel is worth
+    # funding. At a small budget media wins outright and the split is a corner,
+    # which would not tell us the two are being traded off at all.
+    TOTAL = 200.0
+
+    def _optimizer(self, mmm, **kwargs):
+        dates = pd.DatetimeIndex(mmm.xarray_dataset.coords["date"].values)
+        t0 = dates[-1]
+        kwargs.setdefault("response_variable", "total_response_original_scale")
+        return mmm.budget_optimizer(
+            start_date=t0 + pd.Timedelta(weeks=1),
+            end_date=t0 + pd.Timedelta(weeks=8),
+            compile_kwargs={"mode": Mode(linker="cvm")},
+            **kwargs,
+        )
+
+    def test_the_budget_is_shared_with_the_media_spend(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The claim: one pot, split between media and the lower funnel.
+
+        `constraints.py` is untouched by this feature. The default sum
+        constraint totals every variable that reports a `budget_contribution`,
+        so a second monetary variable joins it by being one -- which is what
+        that seam was built for.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        # Summed off the result alone: it records which of its allocations are
+        # money, so the check does not depend on the test knowing which keys of
+        # `optimized_vars` are spend rather than levers.
+        spent = float(result.budgets.sum()) + sum(
+            float(allocation.sum())
+            for allocation in result.spend_var_allocations.values()
+        )
+        np.testing.assert_allclose(spent, self.TOTAL, rtol=1e-6)
+
+    def test_the_split_is_interior(self, funnel_identity_fitted_mmm):
+        """Both are funded, so the two are genuinely traded off.
+
+        A corner solution would satisfy the sum constraint just as well while
+        telling us nothing about whether the second variable moves the
+        objective at all.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        allocations = result.spend_var_allocations
+        assert set(allocations) == {"lf_budget"}
+        assert float(allocations["lf_budget"].sum()) > 0.0
+        assert (result.budgets > 0).all()
+
+    def test_declaring_no_spend_variables_reports_none(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The media budgets alone are not reported as a spend variable."""
+        optimizer = self._optimizer(funnel_identity_fitted_mmm, spend_vars=[])
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.spend_var_names == []
+        assert result.spend_var_allocations == {}
+        np.testing.assert_allclose(float(result.budgets.sum()), self.TOTAL, rtol=1e-6)
+
+    def test_a_spend_variable_the_objective_cannot_see_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Worse than an unreachable lever: it spends and returns nothing.
+
+        The default objective counts the direct path only, so the mediated
+        lower-funnel spend is invisible to it. Left to run, the solver would
+        fund it out of the media budget and get no response back.
+        """
+        with pytest.raises(ValueError, match=r"spend_vars \['lf_budget'\]"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                response_variable="total_media_contribution_original_scale",
+            )
+
+    def test_a_repeated_spend_variable_is_refused(self, funnel_identity_fitted_mmm):
+        """Two variables of one name would share a slot in the flat vector.
+
+        `variable_slice` looks up by name, so the second would read the first's
+        segment and the budget allocated to it would go nowhere. The container
+        refuses the layout before it is built; this pins that, because the
+        failure it prevents is silent.
+        """
+        with pytest.raises(ValueError, match="Duplicate variable names"):
+            self._optimizer(
+                funnel_identity_fitted_mmm, spend_vars=["lf_budget", "lf_budget"]
+            )
+
+    def test_a_spend_variable_opens_on_its_own_prior_spend(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Carry-in is per variable, read from each node's own history.
+
+        The leading block for a spend variable comes from that variable's data,
+        not the channel variable's, so a spend decided over different dims than
+        media still gets a correctly shaped warm start rather than a shape
+        error at substitution time.
+        """
+        mmm = funnel_identity_fitted_mmm
+        optimizer = self._optimizer(mmm, spend_vars=["lf_budget"])
+
+        assert optimizer.carry_in_periods == mmm.effective_carryover_lags()
+        spend = next(
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == "lf_budget"
+        )
+        expected = np.asarray(mmm.model["lf_budget"].get_value())[
+            -optimizer.carry_in_periods :
+        ]
+        np.testing.assert_allclose(spend.carry_in_values, expected)
+
+    def test_spend_vars_may_not_name_the_media_variable(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Naming it twice would give the media budget two disjoint slices."""
+        with pytest.raises(ValueError, match="already optimized"):
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars=["channel_data"])
+
+    @staticmethod
+    def _variable(optimizer, name):
+        return next(
+            variable
+            for variable in optimizer.optimization_variables.variables
+            if variable.name == name
+        )
+
+    def test_a_misspelled_spend_variable_says_so(self, funnel_identity_fitted_mmm):
+        """Carry-in is on for this path, so the name used to be read first.
+
+        The node was dereferenced while building the argument list, before
+        `from_model` validated anything, so a typo surfaced as a bare
+        `KeyError` naming nothing the caller could act on.
+        """
+        with pytest.raises(ValueError, match="not a variable with named dims"):
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars=["lf_bugdet"])
+
+    def test_a_spend_variable_must_be_a_data_node(self, funnel_identity_fitted_mmm):
+        """A dimensioned node with no stored value cannot carry prior spend."""
+        with pytest.raises(ValueError, match="not a shared variable"):
+            self._optimizer(
+                funnel_identity_fitted_mmm, spend_vars=["channel_contribution"]
+            )
+
+    def test_the_default_spend_var_scale_is_one(self, funnel_identity_fitted_mmm):
+        """Declaring no scale means the node is read as raw money."""
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm, spend_vars=["lf_budget"]
+        )
+
+        scales = self._variable(optimizer, "lf_budget").channel_scales
+        assert float(np.asarray(scales)) == 1.0
+
+    def test_a_declared_scale_reaches_the_variable(self, funnel_identity_fitted_mmm):
+        """A node stored in scaled units has to be told its scale.
+
+        `channel_scales` exists on the media variable because `channel_data` is
+        stored scaled; a second monetary node can be stored the same way. Left
+        pinned at 1.0 with no way to set it, the optimizer treats one stored
+        unit as one dollar and the allocation is wrong with nothing raised.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            spend_var_scales={"lf_budget": 1000.0},
+        )
+
+        scales = self._variable(optimizer, "lf_budget").channel_scales
+        assert float(np.asarray(scales)) == 1000.0
+
+    def test_a_scale_for_an_undeclared_name_is_refused(
+        self, funnel_identity_fitted_mmm
+    ):
+        """Dropping the key silently is the failure the scale exists to prevent.
+
+        A scale keyed on a name that is not optimized has no effect, so the run
+        succeeds and answers in the wrong units.
+        """
+        with pytest.raises(ValueError, match="not in spend_vars"):
+            self._optimizer(
+                funnel_identity_fitted_mmm,
+                spend_vars=["lf_budget"],
+                spend_var_scales={"lf_bugdet": 1000.0},
+            )
+
+    def test_the_budget_is_still_shared_in_money_when_scaled(
+        self, funnel_identity_fitted_mmm
+    ):
+        """The constraint stays in money whatever the storage units are.
+
+        The scale converts money into the node's units inside `to_model`. If it
+        leaked into `budget_contribution`, the sum constraint would total
+        dollars against stored units and the split would be meaningless.
+        """
+        optimizer = self._optimizer(
+            funnel_identity_fitted_mmm,
+            spend_vars=["lf_budget"],
+            spend_var_scales={"lf_budget": 1000.0},
+        )
+
+        result = optimizer.allocate_budget(total_budget=self.TOTAL)
+
+        assert result.scipy_result.success, result.scipy_result.message
+        spent = float(result.budgets.sum()) + sum(
+            float(allocation.sum())
+            for allocation in result.spend_var_allocations.values()
+        )
+        np.testing.assert_allclose(spent, self.TOTAL, rtol=1e-6)
+
+    def test_a_bare_string_is_not_read_character_by_character(
+        self, funnel_identity_fitted_mmm
+    ):
+        """`spend_vars="lf_budget"` must not be read as ["l", "f", "_", ...]."""
+        with pytest.raises((ValueError, TypeError)) as info:
+            self._optimizer(funnel_identity_fitted_mmm, spend_vars="lf_budget")
+
+        assert "'l'" not in str(info.value), (
+            "a bare string was iterated character by character"
+        )
