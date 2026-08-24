@@ -318,9 +318,17 @@ class BudgetOptimizationResult:
         The raw scipy optimization result (solver diagnostics, ``x``, ``fun``,
         convergence status).
     optimized_vars : dict[str, xarray.DataArray]
-        Optimal values of any non-media decision variables co-optimized
-        alongside the media budgets. Empty until such variables are declared
-        (see https://github.com/pymc-labs/pymc-marketing/pull/2621).
+        Optimal values of every decision variable other than the media budgets,
+        by name: ``optimizable_vars`` levers in their own units, and
+        ``spend_vars`` monetary variables in money. Empty when neither is
+        declared. Note that a monetary entry here and ``budgets`` are the same
+        kind of quantity, drawn from the same total -- ``budgets`` is singled
+        out because it is the allocation most callers want, not because it is
+        the only spend.
+    spend_var_names : list[str]
+        Which ``optimized_vars`` entries are monetary, i.e. the declared
+        ``spend_vars``. Recorded so the result can say on its own which of its
+        allocations draw from the budget; see :attr:`spend_var_allocations`.
     callback_info : list[OptimizationIterationInfo] or None
         Per-iteration diagnostics (``x``, ``fun``, ``jac``, constraint values)
         when ``allocate_budget(callback=True)``; ``None`` otherwise.
@@ -329,7 +337,35 @@ class BudgetOptimizationResult:
     budgets: DataArray
     scipy_result: OptimizeResult
     optimized_vars: dict[str, DataArray] = field(default_factory=dict)
+    spend_var_names: list[str] = field(default_factory=list)
     callback_info: list[OptimizationIterationInfo] | None = None
+
+    @property
+    def spend_var_allocations(self) -> dict[str, DataArray]:
+        """The ``optimized_vars`` entries that are money rather than levers.
+
+        ``optimized_vars`` holds both kinds, and telling them apart matters:
+        these are drawn from the same total as :attr:`budgets`, so they are
+        what a caller sums against a budget, while a lever's units are its own
+        and adding them to money means nothing.
+
+        Returns
+        -------
+        dict[str, xarray.DataArray]
+            One entry per declared ``spend_vars`` name.
+
+        Examples
+        --------
+        Check that the plan spends the budget and no more:
+
+        .. code-block:: python
+
+            spent = float(result.budgets.sum()) + sum(
+                float(allocation.sum())
+                for allocation in result.spend_var_allocations.values()
+            )
+        """
+        return {name: self.optimized_vars[name] for name in self.spend_var_names}
 
     def __iter__(self):
         """Yield ``(budgets, scipy_result)`` for two-element unpacking."""
@@ -1125,10 +1161,13 @@ class BudgetOptimizer(BaseModel):
     channel_scales : float or array-like, optional
         Per-channel scale factors used to convert monetary budgets into the
         model's native units. A scalar ``1.0`` means no scaling. Defaults to 1.0.
-    mu_effects : Sequence, optional
-        Additional ``mu`` effects carried over from the fitted model. Effects
-        exposing ``replace_for_optimization`` are not supported yet and raise
-        ``NotImplementedError``. Defaults to an empty list.
+    optimizable_vars : dict, optional
+        Additional one-dimensional, non-date ``pm.Data`` variables to co-optimize
+        alongside the media budgets, keyed by name, each mapped to its native
+        ``(low, high)`` bounds per entry (or ``None`` for unbounded). Levers are
+        optimized in their own units and stay out of the default budget-sum
+        constraint. Defaults to no levers. ``mu_effects`` are not a parameter:
+        effects are baked into the model graph at build time.
     frozen_deterministics : list of str, optional
         Names of ``Deterministic`` variables to freeze at their posterior values
         instead of recomputing them from the graph. Required for models with HSGP
@@ -1261,6 +1300,30 @@ class BudgetOptimizer(BaseModel):
             "Per-channel scale factors used to convert monetary budgets into the model's "
             "native units. A scalar 1.0 means no scaling. A 1-D array of length n_channels "
             "applies a per-channel scale."
+        ),
+    )
+
+    spend_vars: Sequence[str] = Field(
+        default_factory=tuple,
+        description=(
+            "Names of additional monetary pm.Data variables to co-optimize with "
+            "the media budgets. Each must vary over the date dimension and is "
+            "decided over its remaining dims, in money, so it competes with "
+            "media for the same total through the default budget-sum "
+            "constraint. Use optimizable_vars instead for a quantity that is "
+            "not money -- a discount depth, a frequency -- which is optimized "
+            "in its own units and stays outside that constraint."
+        ),
+    )
+
+    spend_var_scales: dict[str, float | Sequence[float]] = Field(
+        default_factory=dict,
+        description=(
+            "Per-spend-variable scale factors converting monetary amounts into "
+            "the node's stored units, keyed by name. Omit a name to declare its "
+            "node stored in raw money. Mirrors channel_scales for the media "
+            "variable: a node stored scaled and left at the default 1.0 is "
+            "optimized in the wrong units, silently."
         ),
     )
 
@@ -1603,11 +1666,12 @@ class BudgetOptimizer(BaseModel):
         # model graph. One do() call over every variable keeps gradients joint.
         # Read from the model we were handed: it already carries the spend that
         # preceded the window, so nothing here needs to know where history lives.
-        carry_in_values = None
-        if self.carry_in_periods:
-            carry_in_values = np.asarray(self.model[self.channel_data_var].get_value())[
-                : self.carry_in_periods
-            ]
+        def carry_in_for(name: str) -> np.ndarray | None:
+            if not self.carry_in_periods:
+                return None
+            return np.asarray(self.model[name].get_value())[: self.carry_in_periods]
+
+        carry_in_values = carry_in_for(self.channel_data_var)
 
         media_variable = MediaVariable(
             name=self.channel_data_var,
@@ -1621,6 +1685,39 @@ class BudgetOptimizer(BaseModel):
             budget_distribution_over_period_tensor=self._budget_distribution_over_period_tensor,
             cost_per_unit_tensor=self._cost_per_unit_tensor,
         )
+        # Additional monetary variables are media-path variables over a
+        # different node: same money, same window, so their spend joins the
+        # budget-sum constraint through budget_contribution without
+        # constraints.py knowing they exist.
+        duplicated = [name for name in self.spend_vars if name == self.channel_data_var]
+        if duplicated:
+            raise ValueError(
+                f"spend_vars may not name channel_data_var "
+                f"({self.channel_data_var!r}); it is already optimized."
+            )
+        unknown = set(self.spend_var_scales) - set(self.spend_vars)
+        if unknown:
+            raise ValueError(
+                f"spend_var_scales names {sorted(unknown)}, which are not in "
+                f"spend_vars {list(self.spend_vars)}. A scale on a name that is "
+                "not optimized has no effect, so it is more likely a typo than "
+                "an intention."
+            )
+        spends = [
+            MediaVariable.from_model(
+                self.model,
+                name,
+                num_periods=self.num_periods,
+                adstock_periods=self.adstock_periods,
+                carry_in_periods=self.carry_in_periods,
+                scales=np.asarray(self.spend_var_scales[name])
+                if name in self.spend_var_scales
+                else 1.0,
+                date_dim=self.date_dim,
+            )
+            for name in self.spend_vars
+        ]
+
         # Optimizable vars become lever variables appended after media. They
         # are optimized in their own units and stay out of the budget-sum
         # constraint, which sums the media tensor alone.
@@ -1631,7 +1728,7 @@ class BudgetOptimizer(BaseModel):
             for lever_name, lever_bounds in self.optimizable_vars.items()
         ]
 
-        self._variables = OptimizationVariables([media_variable, *levers])
+        self._variables = OptimizationVariables([media_variable, *spends, *levers])
         self._budgets_flat = self._variables.flat
         self._budgets = media_variable.scattered(
             self._variables.variable_slice(self.channel_data_var)
@@ -1656,20 +1753,31 @@ class BudgetOptimizer(BaseModel):
         # the objective cannot reach has an identically zero gradient, so the
         # solver would return its warm-start value and report it as optimal.
         # Graph reachability answers this exactly, before anything is compiled.
-        if self.optimizable_vars:
+        # A spend variable the objective cannot reach is worse than a lever
+        # that cannot: it still draws from the budget, so the solver funds it
+        # from media and gets nothing back.
+        if self.optimizable_vars or self.spend_vars:
             reachable = set(ancestors([self._pymc_model[self.response_variable]]))
-            unreachable = [
-                name
-                for name in self.optimizable_vars
-                if self._pymc_model[name] not in reachable
+
+            def unreachable(names) -> list[str]:
+                return [
+                    name for name in names if self._pymc_model[name] not in reachable
+                ]
+
+            parts = [
+                f"{label} {names}"
+                for label, names in (
+                    ("optimizable_vars", unreachable(self.optimizable_vars)),
+                    ("spend_vars", unreachable(self.spend_vars)),
+                )
+                if names
             ]
-            if unreachable:
+            if parts:
                 raise ValueError(
                     f"response_variable={self.response_variable!r} does not "
-                    f"depend on optimizable_vars {unreachable}, so their "
-                    "gradient is identically zero and they cannot be "
-                    "optimized. Pass a response variable that includes their "
-                    "contribution."
+                    f"depend on {' or '.join(parts)}, so their gradient is "
+                    "identically zero and they cannot be optimized. Pass a "
+                    "response variable that includes their contribution."
                 )
 
         # 9. Compile objective & gradient
@@ -2192,6 +2300,7 @@ class BudgetOptimizer(BaseModel):
                 budgets=optimal_budgets,
                 scipy_result=result,
                 optimized_vars=unpacked,
+                spend_var_names=list(self.spend_vars),
                 callback_info=callback_info if callback else None,
             )
 

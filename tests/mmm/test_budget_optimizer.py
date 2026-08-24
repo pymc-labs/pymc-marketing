@@ -24,6 +24,7 @@ import pytest
 import xarray as xr
 from pydantic import ValidationError
 from pytensor.graph.traversal import ancestors
+from scipy.optimize import OptimizeResult
 from xarray import DataArray
 
 import pymc_marketing.mmm.budget_optimizer as budget_optimizer_module
@@ -1512,3 +1513,26 @@ def test_custom_constraint_can_bind_a_lever(mock_pymc_sample):
     assert float(result.optimized_vars["promo_data"].sum()) <= cap + 1e-6
     # And the budget constraint is still honoured alongside it.
     np.testing.assert_allclose(float(result.budgets.sum()), 100.0, rtol=1e-6)
+
+
+def test_spend_var_allocations_excludes_levers():
+    """Only money is reported as money.
+
+    ``optimized_vars`` carries both kinds, and a lever's units are its own: a
+    discount depth added to a budget means nothing. Asserted on a result built
+    by hand, because the discriminating case needs a lever *and* a spend
+    variable present at once -- with only one kind present, returning
+    everything would look correct.
+    """
+    result = BudgetOptimizationResult(
+        budgets=xr.DataArray([1.0, 2.0], dims=("channel",)),
+        scipy_result=OptimizeResult(success=True),
+        optimized_vars={
+            "lf_budget": xr.DataArray(7.0),
+            "discount_depth": xr.DataArray(0.2),
+        },
+        spend_var_names=["lf_budget"],
+    )
+
+    assert set(result.spend_var_allocations) == {"lf_budget"}
+    assert float(result.spend_var_allocations["lf_budget"]) == 7.0
