@@ -210,6 +210,7 @@ coefficients.
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, Literal, Protocol
 
+import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -228,6 +229,12 @@ from pydantic import (
 from pymc_extras.prior import Prior, VariableFactory
 from pytensor.xtensor.type import XTensorVariable
 
+from pymc_marketing.mmm.causal_graph import (
+    SEASON_NODE,
+    TREND_NODE,
+    build_direct_effect_fragment,
+    host_target_column,
+)
 from pymc_marketing.mmm.events import EventEffect, days_from_reference
 from pymc_marketing.mmm.fourier import FourierBase
 from pymc_marketing.mmm.linear_trend import LinearTrend
@@ -505,6 +512,23 @@ class MuEffect(SerializableBaseModel, ABC):
         """
         return None
 
+    def causal_graph_fragment(self, mmm: Model) -> nx.DiGraph:
+        """Nodes and edges this effect adds to the host causal DAG.
+
+        Default: empty graph. Subclasses that put a term in μ override.
+
+        Parameters
+        ----------
+        mmm
+            Host MMM instance.
+
+        Returns
+        -------
+        networkx.DiGraph
+            Directed graph fragment to union with the MMM star.
+        """
+        return nx.DiGraph()
+
     def idata_groups(self) -> dict[str, xr.Dataset]:
         """Return supplementary data groups to store in DataTree.
 
@@ -663,6 +687,25 @@ class MediaMuEffect(DataVarMuEffect):
             prefix=work["prefix"],
         )
 
+    def causal_graph_fragment(self, mmm: Model) -> nx.DiGraph:
+        """Direct-effect edges for each channel coordinate to the target."""
+        target_column = host_target_column(mmm)
+        var_name = self.data_vars[0]
+        xds = getattr(mmm, "xarray_dataset", None)
+        if xds is not None and var_name in xds.data_vars:
+            da = xds[var_name]
+            if self.channel_dim in da.dims:
+                predictors = [
+                    str(value) for value in da.coords[self.channel_dim].values
+                ]
+                return build_direct_effect_fragment(predictors, target_column)
+        if self.channel_dim == "channel":
+            channel_columns = getattr(mmm, "channel_columns", None)
+            if channel_columns is not None:
+                predictors = [str(column) for column in channel_columns]
+                return build_direct_effect_fragment(predictors, target_column)
+        return build_direct_effect_fragment([var_name], target_column)
+
 
 class ControlMuEffect(DataVarMuEffect):
     """Effect that applies a user-configurable prior to each control variable.
@@ -737,6 +780,13 @@ class ControlMuEffect(DataVarMuEffect):
             data_vars=work["data_vars"],
             prefix=work["prefix"],
             prior=prior,
+        )
+
+    def causal_graph_fragment(self, mmm: Model) -> nx.DiGraph:
+        """Direct-effect edges for each control data variable to the target."""
+        return build_direct_effect_fragment(
+            [str(var_name) for var_name in self.data_vars],
+            host_target_column(mmm),
         )
 
 
@@ -851,6 +901,13 @@ class FourierEffect(MuEffect):
             ).to_numpy()
         }
         pm.set_data(new_data=new_data, model=model)
+
+    def causal_graph_fragment(self, mmm: Model) -> nx.DiGraph:
+        """Direct-effect edge from the season node to the target."""
+        return build_direct_effect_fragment(
+            [SEASON_NODE],
+            host_target_column(mmm),
+        )
 
 
 class LinearTrendEffect(MuEffect):
@@ -1061,6 +1118,13 @@ class LinearTrendEffect(MuEffect):
 
         # Update the data
         pm.set_data({f"{self.prefix}_t": t}, model=model)
+
+    def causal_graph_fragment(self, mmm: Model) -> nx.DiGraph:
+        """Direct-effect edge from the time index node to the target."""
+        return build_direct_effect_fragment(
+            [TREND_NODE],
+            host_target_column(mmm),
+        )
 
 
 class EventAdditiveEffect(MuEffect):

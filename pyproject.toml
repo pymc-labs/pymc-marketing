@@ -46,6 +46,7 @@ dependencies = [
     "tqdm",
     "xarray-einstats>=0.5.1",
     "xarray>=2024.1.0",
+    "networkx",
 ]
 
 [project.optional-dependencies]
