@@ -997,6 +997,18 @@ class TestBassModelDims:
 
         assert model.named_vars_to_dims["adopters"] == ("T", "product")
 
+    def test_building_does_not_mutate_the_caller_s_priors(self) -> None:
+        """The likelihood keeps the dims it declares, not the model's own."""
+        priors = make_priors(likelihood=Prior("Poisson", dims=("product",)))
+        coords = {"T": np.arange(5), "product": ["A", "B"]}
+
+        model = create_bass_model(
+            t=coords["T"], observed=np.ones((5, 2)), priors=priors, coords=coords
+        )
+
+        assert model.named_vars_to_dims["y"] == ("T", "product")
+        assert priors["likelihood"].dims == ("product",)
+
 
 def test_derivative() -> None:
     p = pt.scalar("p")
@@ -1129,6 +1141,16 @@ class TestBassModelClass:
 
         assert model.model_config["m"].parameters["sigma"] == 123.0
         assert self._graph_m_sigma(model) == pytest.approx(123.0)
+
+    def test_likelihood_prior_is_untouched(self, y: np.ndarray):
+        """Building must not write the model's dims into the config it reads."""
+        model = BassModel()
+        before = model.id
+
+        model.build_model(data=y)
+
+        assert model.model_config["likelihood"].dims is None
+        assert model.id == before
 
     def test_m_prior_scale_survives_save_load(
         self, mock_pymc_sample, y: np.ndarray, tmp_path

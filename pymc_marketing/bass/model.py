@@ -134,6 +134,7 @@ Create a basic Bass model for multiple products:
 
 """
 
+import copy
 from collections.abc import Iterable
 from inspect import signature
 from typing import Any, TypedDict, cast
@@ -500,7 +501,11 @@ def create_bass_model(
             "peak", peak.transpose(*(dim for dim in combined_dims if dim in peak.dims))
         )
 
-        priors["likelihood"].dims = combined_dims
+        # Copy first: setting `dims` on the caller's own prior would leave it
+        # carrying this model's dims, so a config reused for a second model
+        # fails on dims that model does not have.
+        likelihood = copy.deepcopy(priors["likelihood"])
+        likelihood.dims = combined_dims
         if observed is None:
             observed_xt = None
         else:
@@ -516,7 +521,7 @@ def create_bass_model(
             observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
 
         _create_likelihood_variable(
-            priors["likelihood"],
+            likelihood,
             "y",
             mu=adopters,
             observed=observed_xt,
