@@ -172,8 +172,8 @@ from pymc_marketing.version import __version__
 
 
 def F(
-    p: XTensorVariable,
-    q: XTensorVariable,
+    p: float | XTensorVariable,
+    q: float | XTensorVariable,
     t: XTensorVariable,
 ) -> XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
@@ -183,9 +183,9 @@ def F(
 
     Parameters
     ----------
-    p : XTensorVariable
+    p : float or XTensorVariable
         Coefficient of innovation (external influence)
-    q : XTensorVariable
+    q : float or XTensorVariable
         Coefficient of imitation (internal influence)
     t : XTensorVariable
         Time points
@@ -209,8 +209,8 @@ def F(
 
 
 def f(
-    p: XTensorVariable,
-    q: XTensorVariable,
+    p: float | XTensorVariable,
+    q: float | XTensorVariable,
     t: XTensorVariable,
 ) -> XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
@@ -221,9 +221,9 @@ def f(
 
     Parameters
     ----------
-    p : XTensorVariable
+    p : float or XTensorVariable
         Coefficient of innovation (external influence)
-    q : XTensorVariable
+    q : float or XTensorVariable
         Coefficient of imitation (internal influence)
     t : XTensorVariable
         Time points
