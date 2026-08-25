@@ -1,0 +1,190 @@
+name: PR Release Notes Labeler
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+concurrency:
+  group: pr-labeler-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      # Eligibility runs before any expensive setup so skipped PRs cost
+      # seconds, not minutes. Skipped: drafts, bot authors (already labeled
+      # by the Bot PRs workflow), and fork PRs from unaffiliated authors
+      # (GitHub withholds secrets/read-write tokens for those anyway).
+      - name: Check eligibility
+        id: eligibility
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_DRAFT: ${{ github.event.pull_request.draft }}
+          FROM_FORK: ${{ github.event.pull_request.head.repo.fork || false }}
+          ASSOCIATION: ${{ github.event.pull_request.author_association }}
+        run: |
+          skip=""
+          if [[ "$PR_DRAFT" == "true" ]]; then
+            skip="draft PR"
+          elif [[ "$ASSOCIATION" == "OWNER" || "$ASSOCIATION" == "MEMBER" || "$ASSOCIATION" == "COLLABORATOR" || "$ASSOCIATION" == "CONTRIBUTOR" ]]; then
+            :
+          elif [[ "$FROM_FORK" == "true" ]]; then
+            skip="fork PR from unaffiliated author ($ASSOCIATION)"
+          fi
+
+          if [ -z "$skip" ]; then
+            is_bot=$(gh pr view "$PR_NUMBER" --json author --jq '.author.is_bot')
+            bot_login=$(gh pr view "$PR_NUMBER" --json author --jq '.author.login')
+            if [[ "$is_bot" == "true" && "$bot_login" != "copilot-swe-agent" ]]; then
+              skip="bot-authored PR ($bot_login)"
+            fi
+          fi
+
+          if [ -n "$skip" ]; then
+            echo "Skipping LLM labeling: $skip"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node.js
+        if: steps.eligibility.outputs.skip != 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code CLI
+        if: steps.eligibility.outputs.skip != 'true'
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Verify Claude installation
+        if: steps.eligibility.outputs.skip != 'true'
+        run: claude --version
+
+      - name: Prepare PR content
+        if: steps.eligibility.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          FILES=$(gh pr diff "$PR_NUMBER" --name-only 2>/dev/null || echo "")
+          STAT=$(gh pr diff "$PR_NUMBER" --stat 2>/dev/null || echo "")
+
+          {
+            printf '%s\n' "Label this PR for release notes categorization:"
+            printf '%s\n' ""
+            printf '%s\n' "Title: $PR_TITLE"
+            printf '%s\n' ""
+            printf '%s\n' "Description: $PR_BODY"
+            printf '%s\n' ""
+            printf '%s\n' "Pull request: #$PR_NUMBER"
+            printf '%s\n' ""
+            printf '%s\n' "Changed files:"
+            printf '%s\n' "$FILES"
+            printf '%s\n' ""
+            printf '%s\n' "Diff summary:"
+            printf '%s\n' "$STAT"
+          } > /tmp/pr_content.txt
+
+      - name: Run PR labeler
+        id: labeler
+        if: steps.eligibility.outputs.skip != 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          claude -p \
+            --dangerously-skip-permissions \
+            --max-turns 10 \
+            --agent pr-labeler \
+            --print \
+            < /tmp/pr_content.txt 2>&1 | tee /tmp/claude_output.log
+
+      # Keep this allowlist in sync with .github/release.yml categories and
+      # the module labels in .claude/agents/pr-labeler.md. Filtering also
+      # neutralizes hallucinated or prompt-injected label names.
+      - name: Extract labels
+        id: extract_labels
+        if: steps.eligibility.outputs.skip != 'true'
+        run: |
+          ALLOWED='major|deprecation|enhancement|bug|docs|maintenance|no releasenotes|MMM|CLV|customer choice|Bass model|mlflow|ModelBuilder|tests'
+          RAW="$(grep '^TRIAGE: Added labels:' /tmp/claude_output.log | tail -n 1 | sed 's/^TRIAGE: Added labels: *//' || true)"
+          LABELS="$(printf '%s' "$RAW" \
+            | tr ',' '\n' \
+            | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' \
+            | grep -E "^(${ALLOWED})$" \
+            | paste -sd, - || true)"
+          echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
+
+      - name: Apply labels
+        if: steps.eligibility.outputs.skip != 'true' && steps.extract_labels.outputs.labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Env indirection only: never interpolate labels into the script,
+          # they derive from LLM output which untrusted PR text can steer.
+          LABELS: ${{ steps.extract_labels.outputs.labels }}
+        run: |
+          gh pr edit "$PR_NUMBER" --add-label "$LABELS"
+
+      - name: Post labeling analysis as sticky comment
+        if: steps.eligibility.outputs.skip != 'true' && steps.labeler.conclusion == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          LABELS: ${{ steps.extract_labels.outputs.labels }}
+        run: |
+          if [ ! -f /tmp/claude_output.log ]; then
+            echo "No agent output to post"
+            exit 0
+          fi
+          # Drop the workflow-control TRIAGE line; it is plumbing, not user content.
+          sed '/^TRIAGE: Added labels:/d' /tmp/claude_output.log > /tmp/labeler_analysis.log
+          if [ ! -s /tmp/labeler_analysis.log ]; then
+            echo "No analysis content after stripping; skipping comment"
+            exit 0
+          fi
+          MARKER='<!-- pr-labeler -->'
+          COMMENT_ID="$(gh api --paginate "repos/${REPO}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- pr-labeler -->")) | .id' \
+            | tail -n 1)"
+          {
+            printf '%s\n' "$MARKER"
+            printf '%s\n' '<details>'
+            printf '%s\n' "<summary>Labeled: ${LABELS:-(no category)}</summary>"
+            printf '%s\n' ''
+            cat /tmp/labeler_analysis.log
+            printf '%s\n' ''
+            printf '%s\n' '</details>'
+          } > /tmp/labeler_comment.md
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/${REPO}/issues/comments/${COMMENT_ID}" \
+              -F body=@/tmp/labeler_comment.md
+          else
+            gh pr comment "$PR_NUMBER" --body-file /tmp/labeler_comment.md
+          fi
+
+      - name: Upload Claude output logs
+        if: always() && steps.eligibility.outputs.skip != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: claude-output-pr-labeler-${{ github.event.pull_request.number }}
+          path: /tmp/claude_output.log
+          retention-days: 7
