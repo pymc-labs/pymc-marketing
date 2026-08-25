@@ -1018,6 +1018,35 @@ class TestTruncatedNormalMeanCorrection:
         ]
         np.testing.assert_allclose(offset.values[0], expected)
 
+    @pytest.mark.parametrize(
+        ("lower", "upper"),
+        [
+            (0.0, np.array([5.0, 5.0])),
+            (np.array([0.0, 0.0]), 5.0),
+            (np.array([0.0, 0.0]), np.array([5.0, 5.0])),
+            (np.array([-np.inf, 0.0]), 5.0),
+        ],
+    )
+    def test_array_valued_bounds_are_handled(self, lower, upper):
+        # A vector bound used to reach `if np.isposinf(array)` and die on the
+        # ambiguous truth value instead of computing an offset.
+        posterior = xr.Dataset(
+            {
+                "mu": xr.DataArray([[0.5, 2.0]], dims=("chain", "date")),
+                "y_sigma": xr.DataArray([[1.0, 1.0]], dims=("chain", "date")),
+            }
+        )
+        likelihood = Prior("TruncatedNormal", lower=lower, upper=upper, sigma=1)
+        offset = IdentityLinkSpec()._truncation_offset(posterior, likelihood, "y")
+
+        lows = np.broadcast_to(lower, (2,))
+        highs = np.broadcast_to(upper, (2,))
+        expected = [
+            stats.truncnorm.mean(lo - m, hi - m, loc=m, scale=1.0) - m
+            for lo, hi, m in zip(lows, highs, (0.5, 2.0), strict=True)
+        ]
+        np.testing.assert_allclose(offset.values[0], expected)
+
 
 class TestMeanScaleFactor:
     """The factor-only entry point used where a scale is folded in."""
@@ -1044,6 +1073,54 @@ class TestMeanScaleFactor:
         posterior = self._posterior()
         factor = LogLinkSpec().mean_scale_factor(posterior, Prior("LogNormal", sigma=1))
         xr.testing.assert_allclose(factor, np.exp(posterior["y_sigma"] ** 2 / 2))
+
+    # The factor entry point has to reject and warn about exactly what
+    # to_mean_scale does. Returning 1.0 for any of these is the bug this
+    # branch fixes, moved to the other caller.
+
+    @pytest.mark.parametrize(
+        "inner",
+        [
+            Prior("Normal", sigma=1),
+            Prior("TruncatedNormal", lower=0, sigma=1),
+            Prior("StudentT", nu=3, sigma=1),
+        ],
+    )
+    def test_censored_wrapper_refuses(self, inner):
+        with pytest.raises(ValueError, match="wrapped likelihood"):
+            IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Censored(inner, lower=0)
+            )
+
+    def test_studentt_at_or_below_one_refuses(self):
+        with pytest.raises(ValueError, match="no mean when nu <= 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Prior("StudentT", nu=1, sigma=1)
+            )
+
+    def test_studentt_with_sampled_nu_below_one_refuses(self):
+        posterior = self._posterior()
+        posterior["y_nu"] = xr.DataArray([[0.4, 6.0]], dims=("chain", "date"))
+        with pytest.raises(ValueError, match="no mean when nu <= 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                posterior, Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1)
+            )
+
+    def test_unknown_likelihood_warns(self):
+        with pytest.warns(UserWarning, match="No mean correction is known"):
+            factor = IdentityLinkSpec().mean_scale_factor(
+                self._posterior(), Prior("Weibull", alpha=1, beta=1)
+            )
+        assert float(factor) == 1.0
+
+    def test_sampled_nu_message_counts_the_offending_draws(self):
+        posterior = xr.Dataset(
+            {"y_nu": xr.DataArray([[0.4, 0.9, 6.0]], dims=("chain", "date"))}
+        )
+        with pytest.raises(ValueError, match="2 of 3 draws are at or below 1"):
+            IdentityLinkSpec().mean_scale_factor(
+                posterior, Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1)
+            )
 
     def test_missing_baseline_term_raises(self):
         posterior = xr.Dataset(
@@ -1150,6 +1227,33 @@ class TestIdentityMeanScaleDispatch:
                 xr.DataArray(2.0),
             )
         xr.testing.assert_identical(out, dataset)
+
+
+class TestMuNameCollision:
+    """Registering mu turns a name clash into a build-time error."""
+
+    def test_effect_registering_mu_collides_under_identity(self):
+        # Before mu was registered under the identity link this built, because
+        # the branch only set mu_var.name. Now PyMC rejects the duplicate.
+        class MuNamingEffect(MuEffect):
+            def create_data(self, mmm) -> None:
+                pass
+
+            def create_effect(self, mmm):
+                return pmd.Deterministic(
+                    "mu", pmd.Normal("collider", dims=("date",)) * 0.0
+                )
+
+            def set_data(self, mmm, model, X) -> None:
+                pass
+
+        mmm = _make_mmm(link="identity", dims=None)
+        mmm.mu_effects.append(MuNamingEffect())
+        X, y = _make_positive_panel(countries=("A",))
+        X = X.drop(columns=["country"])
+
+        with pytest.raises(ValueError, match="Variable name mu already exists"):
+            mmm.build_model(X, y)
 
 
 class TestMuEffectsDecomposition:

@@ -173,10 +173,17 @@ def find_named_node(
     -----
     ``mu`` no longer reaches this function from a stock model.  It is registered
     as a ``Deterministic`` under both links, so callers resolve it through
-    ``named_vars``, where PyMC already enforces a unique name, and never scan
-    the graph for it.  A custom effect whose intermediate happens to be named
-    ``mu`` is therefore shadowed by the model's own node rather than colliding
-    with it.  This function still guards names that are not registered.
+    ``named_vars`` and never scan the graph for it.  A custom effect whose
+    *unregistered* intermediate happens to be named ``mu`` is therefore
+    shadowed by the model's own node rather than colliding with it.  This
+    function still guards names that are not registered.
+
+    A custom effect that *registers* a ``Deterministic`` named ``mu`` is a
+    different matter: PyMC enforces unique names, so under the identity link
+    that combination now fails in ``build_model`` with ``Variable name mu
+    already exists``.  It used to build, because the identity branch only set
+    ``mu_var.name``, which does not register.  Such an effect has to be
+    renamed.
     """
     excluded = [node for node in exclude]
     found: list[Variable] = []

@@ -92,25 +92,36 @@ def _check_studentt_mean_exists(
     """Raise if the StudentT degrees of freedom leave the mean undefined.
 
     ``E[y]`` exists only for ``nu > 1``.  ``nu`` may be fixed or sampled, so
-    check whichever applies.
+    check whichever applies.  A single draw at or below 1 is enough: ``E[y]``
+    does not exist for that draw, so the posterior of the mean-scale
+    contributions has a hole in it and cannot be summarised.  The message
+    reports how many draws are affected, since one stray draw and a posterior
+    concentrated below 1 need different fixes.
     """
     nu = likelihood.parameters.get("nu")
     nu_name = f"{output_var}_nu"
+    share = ""
 
     if isinstance(nu, Prior):
+        # Sampled but absent from the posterior: nothing to check against.
+        # This is the pre-sampling path, where the caller has no draws yet.
         if nu_name not in posterior:
             return
-        smallest = float(posterior[nu_name].min())
+        nu_values = posterior[nu_name]
+        smallest = float(nu_values.min())
+        offending = int((nu_values <= 1).sum())
+        share = f" {offending} of {nu_values.size} draws are at or below 1, and the"
     elif nu is None:
         return
     else:
         smallest = float(np.min(nu))
+        share = " The"
 
     if smallest <= 1:
         raise ValueError(
-            f"A StudentT likelihood has no mean when nu <= 1, and the smallest "
-            f"value found is {smallest:.4g}, so mean-scale contributions are "
-            f"undefined. Use central_tendency='median', or keep nu above 1."
+            f"A StudentT likelihood has no mean when nu <= 1, so mean-scale "
+            f"contributions are undefined.{share} smallest value found is "
+            f"{smallest:.4g}. Use central_tendency='median', or keep nu above 1."
         )
 
 
@@ -253,7 +264,7 @@ class LinkSpec(ABC):
         computes proper counterfactuals.
 
         Under the log link this sums ``exp(mu) * target_scale``, the conditional
-        *median* rather than the mean; :meth:`mean_correction` is the factor
+        *median* rather than the mean; :meth:`mean_scale_factor` is the factor
         between them. The argmax is unaffected, since that factor is per-draw
         and budget-independent, but a reader taking the value itself as the
         expected response is off by it.
@@ -316,7 +327,7 @@ class LinkSpec(ABC):
     ) -> xr.DataArray:
         """Per-draw factor converting median-scale outputs to the response mean.
 
-        .. deprecated::
+        .. deprecated:: 1.1.0
             Use :meth:`to_mean_scale`.  A single multiplicative factor cannot
             express the identity-link correction, which depends on the
             likelihood and is additive rather than proportional.
@@ -356,8 +367,20 @@ class LinkSpec(ABC):
         Raises
         ------
         ValueError
-            If the correction for this link and likelihood is additive.
+            If ``E[y]`` is undefined for *likelihood*, or if the correction for
+            this link and likelihood is additive.
+
+        Warns
+        -----
+        UserWarning
+            If no correction is known for *likelihood*, in which case the
+            factor is ``1``.
         """
+        # Shared with to_mean_scale so both entry points reject and warn about
+        # the same likelihoods. It runs first, so a wrapped TruncatedNormal is
+        # reported as a wrapper rather than as an additive correction.
+        self._validate_mean_defined(posterior, likelihood, output_var)
+
         dist_name = _distribution_name(likelihood)
         if dist_name in ADDITIVE_CORRECTION_LIKELIHOODS and self.link == (
             LinkFunction.IDENTITY
@@ -368,6 +391,20 @@ class LinkSpec(ABC):
                 f"scale. Use central_tendency='median'."
             )
         return self._mean_ratio(posterior, output_var)
+
+    def _validate_mean_defined(
+        self,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str,
+    ) -> None:
+        """Raise or warn where ``E[y]`` is undefined or unknown for *likelihood*.
+
+        No-op by default: :meth:`validate_likelihood_compatibility` pins each
+        non-identity link to one likelihood, so there is nothing left to
+        dispatch on.  ``IdentityLinkSpec`` overrides it.
+        """
+        return None
 
     def _mean_ratio(
         self,
@@ -526,21 +563,9 @@ class IdentityLinkSpec(LinkSpec):
         predictor.  The offset is therefore added to the baseline term and the
         component contributions are left alone.
         """
-        dist_name = _distribution_name(likelihood)
+        self._validate_mean_defined(posterior, likelihood, output_var)
 
-        # Wrappers such as Censored resolve to the name of the distribution they
-        # hold, but change its mean by piling mass at the bounds, so E[y] != mu
-        # even for the response-scale names. Reject them before dispatching,
-        # rather than silently returning median-scale numbers labelled as means.
-        if getattr(likelihood, "parameters", None) is None:
-            raise ValueError(
-                f"No mean correction is defined for a wrapped likelihood "
-                f"({type(likelihood).__name__} holding '{dist_name}'). Censoring "
-                f"moves the mean off 'mu', so the contributions cannot be read "
-                f"as means. Use central_tendency='median'."
-            )
-
-        if dist_name == "TruncatedNormal":
+        if _distribution_name(likelihood) == "TruncatedNormal":
             if BASELINE_PART not in dataset:
                 raise ValueError(
                     f"The truncation correction is added to the "
@@ -554,12 +579,43 @@ class IdentityLinkSpec(LinkSpec):
             corrected[BASELINE_PART] = corrected[BASELINE_PART] + offset * target_scale
             return corrected
 
+        # Everything the validator let through has E[y] == mu, so the
+        # median-scale dataset is already on the mean scale.
+        return dataset
+
+    def _validate_mean_defined(
+        self,
+        posterior: xr.Dataset,
+        likelihood: Prior,
+        output_var: str,
+    ) -> None:
+        """Reject the identity-link likelihoods whose ``E[y]`` is not ``mu``.
+
+        Both :meth:`to_mean_scale` and :meth:`mean_scale_factor` go through
+        here, so a likelihood that cannot be corrected is caught whichever
+        entry point the caller uses.
+        """
+        dist_name = _distribution_name(likelihood)
+
+        # Wrappers such as Censored and Scaled resolve to the name of the
+        # distribution they hold, but move its mean, so E[y] != mu even for the
+        # response-scale names. Reject them before dispatching, rather than
+        # silently returning median-scale numbers labelled as means. They are
+        # told apart by holding no parameters of their own.
+        if getattr(likelihood, "parameters", None) is None:
+            raise ValueError(
+                f"No mean correction is defined for a wrapped likelihood "
+                f"({type(likelihood).__name__} holding '{dist_name}'). The "
+                f"wrapper moves the mean off 'mu', so the contributions cannot "
+                f"be read as means. Use central_tendency='median'."
+            )
+
         if dist_name == "StudentT":
             _check_studentt_mean_exists(posterior, likelihood, output_var)
-            return dataset
+            return None
 
         if dist_name in RESPONSE_SCALE_LIKELIHOODS:
-            return dataset
+            return None
 
         warnings.warn(
             f"No mean correction is known for likelihood '{dist_name}' under "
@@ -567,9 +623,11 @@ class IdentityLinkSpec(LinkSpec):
             f"scale. Check whether E[y] equals 'mu' for it before reading them "
             f"as means.",
             UserWarning,
-            stacklevel=2,
+            # This runs one frame below the public entry point, so 3 lands on
+            # the caller of to_mean_scale / mean_scale_factor.
+            stacklevel=3,
         )
-        return dataset
+        return None
 
     @staticmethod
     def _truncation_offset(
@@ -636,10 +694,13 @@ class IdentityLinkSpec(LinkSpec):
         # the one-sided cases exact and is a ufunc, so it stays vectorised.
         # scipy.stats.truncnorm is exact too but roughly 2000x slower, which
         # matters on a full posterior.
+        # np.all, because a bound may be an array: a partly infinite one is not
+        # one-sided everywhere, so it falls through to the two-sided branch,
+        # which handles infinite entries correctly (only more slowly).
         root_two = np.sqrt(2.0)
-        if np.isposinf(bounds["upper"]):
+        if np.all(np.isposinf(bounds["upper"])):
             return sigma * np.sqrt(2 / np.pi) / erfcx(alpha / root_two)
-        if np.isneginf(bounds["lower"]):
+        if np.all(np.isneginf(bounds["lower"])):
             return -sigma * np.sqrt(2 / np.pi) / erfcx(-beta / root_two)
 
         # Two-sided truncation. The direct form returns inf or nan once both
@@ -662,7 +723,7 @@ class LogLinkSpec(LinkSpec):
     conditional **median** of the response, not its mean
     (``E[y] = exp(mu + sigma**2 / 2) * target_scale``).  All predictions and
     counterfactual contributions are computed on this median scale; use the
-    ``central_tendency="mean"`` option (which applies :meth:`mean_correction`,
+    ``central_tendency="mean"`` option (which applies :meth:`to_mean_scale`,
     the ``exp(sigma**2 / 2)`` factor) to obtain mean-scale quantities.
     """
 
