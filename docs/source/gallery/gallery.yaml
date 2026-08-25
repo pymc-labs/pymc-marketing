@@ -106,6 +106,8 @@ sections:
             notebook: mmm/mmm_funnel_mueffect_advanced
           - title: "Funnel MMMs from YAML"
             notebook: mmm/mmm_funnel_from_yml
+          - title: "Campaign-Granularity MMM with `NestedCampaignMedia`"
+            notebook: mmm/mmm_campaign_media
           - title: Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
             notebook: mmm/mmm_brand_metrics_long_term
           - title: Causal Reasoning and Discovery

@@ -261,6 +261,11 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_funnel_from_yml.html
 :::
 
+:::{grid-item-card} Campaign-Granularity MMM with `NestedCampaignMedia`
+:img-top: ../gallery/images/mmm_campaign_media.png
+:link: ../notebooks/mmm/mmm_campaign_media.html
+:::
+
 :::{grid-item-card} Long-Term Brand Effects in MMMs with Brand Metrics and a Bayesian VARX
 :img-top: ../gallery/images/mmm_brand_metrics_long_term.png
 :link: ../notebooks/mmm/mmm_brand_metrics_long_term.html
