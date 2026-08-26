@@ -821,8 +821,18 @@ class TestCentralTendency:
         with pytest.raises(ValueError, match="sampled likelihood scale"):
             mmm.compute_counterfactual_contributions_dataset(central_tendency="mean")
 
-    def test_mean_correction_is_deprecated(self):
+    def test_mean_correction_is_deprecated_on_the_log_link(self):
+        posterior = xr.Dataset(
+            {"y_sigma": xr.DataArray([[0.5]], dims=("chain", "date"))}
+        )
         with pytest.warns(DeprecationWarning, match="use to_mean_scale"):
+            factor = LogLinkSpec().mean_correction(posterior)
+        xr.testing.assert_allclose(factor, np.exp(posterior["y_sigma"] ** 2 / 2))
+
+    def test_mean_correction_refuses_under_identity(self):
+        # It used to return 1.0 here, which is the bug #2834 is about. A
+        # deprecated method must not keep handing back a known-wrong number.
+        with pytest.raises(ValueError, match="depends on the likelihood"):
             IdentityLinkSpec().mean_correction(xr.Dataset())
 
 
@@ -830,7 +840,7 @@ class TestTruncatedNormalMeanCorrection:
     """Identity link: TruncatedNormal shifts E[y] off mu, so contributions move."""
 
     @staticmethod
-    def _fit_truncated(lower=0.0):
+    def _fit_truncated(lower: float = 0.0) -> MMM:
         mmm = _make_mmm(
             link="identity",
             model_config={
@@ -1214,6 +1224,18 @@ class TestIdentityMeanScaleDispatch:
                 self._dataset(),
                 posterior,
                 Prior("StudentT", nu=Prior("Gamma", mu=2, sigma=1), sigma=1),
+                xr.DataArray(2.0),
+            )
+
+    def test_non_response_scale_likelihood_refuses(self):
+        # validate_likelihood_compatibility stops a model reaching here, but
+        # the correction path rejects it on its own rather than warning: 'mu'
+        # is not even in the units of the target.
+        with pytest.raises(ValueError, match="on the log scale"):
+            IdentityLinkSpec().to_mean_scale(
+                self._dataset(),
+                self._posterior(),
+                Prior("LogNormal", sigma=1),
                 xr.DataArray(2.0),
             )
 

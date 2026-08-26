@@ -328,18 +328,31 @@ class LinkSpec(ABC):
         """Per-draw factor converting median-scale outputs to the response mean.
 
         .. deprecated:: 1.1.0
-            Use :meth:`to_mean_scale`.  A single multiplicative factor cannot
-            express the identity-link correction, which depends on the
+            Use :meth:`to_mean_scale`, or :meth:`mean_scale_factor` where a
+            factor is what the caller needs.  A single multiplicative factor
+            cannot express the identity-link correction, which depends on the
             likelihood and is additive rather than proportional.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``.
+        output_var : str, default ``"y"``
+            Name of the observed variable, used to locate the likelihood
+            scale parameter in the posterior.
 
         Returns
         -------
         xr.DataArray
             The multiplicative correction with ``(chain, draw, ...)`` dims
-            (broadcasting over ``date``).  Identically ``1`` under the identity
-            link, which is the legacy behaviour and is wrong for
-            ``TruncatedNormal``: that case is exactly what a single factor
-            cannot express.
+            (broadcasting over ``date``).
+
+        Raises
+        ------
+        ValueError
+            Under the identity link, where the right correction depends on the
+            likelihood this signature cannot see.  See
+            :meth:`IdentityLinkSpec.mean_correction`.
         """
         warnings.warn(
             f"{type(self).__name__}.mean_correction is deprecated, use "
@@ -364,6 +377,23 @@ class LinkSpec(ABC):
         expressible as a factor, which is the whole reason
         :meth:`to_mean_scale` exists.
 
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``.
+        likelihood : Prior
+            The likelihood prior.  Under the identity link the correction
+            depends on it, not only on the link.
+        output_var : str, default ``"y"``
+            Name of the observed variable, used to locate the likelihood
+            parameters in the posterior.
+
+        Returns
+        -------
+        xr.DataArray
+            The multiplicative correction with ``(chain, draw, ...)`` dims
+            (broadcasting over ``date``).
+
         Raises
         ------
         ValueError
@@ -377,19 +407,10 @@ class LinkSpec(ABC):
             factor is ``1``.
         """
         # Shared with to_mean_scale so both entry points reject and warn about
-        # the same likelihoods. It runs first, so a wrapped TruncatedNormal is
-        # reported as a wrapper rather than as an additive correction.
-        self._validate_mean_defined(posterior, likelihood, output_var)
-
-        dist_name = _distribution_name(likelihood)
-        if dist_name in ADDITIVE_CORRECTION_LIKELIHOODS and self.link == (
-            LinkFunction.IDENTITY
-        ):
-            raise ValueError(
-                f"The mean correction for '{dist_name}' under link='identity' "
-                f"is an offset, not a factor, so it cannot be folded into a "
-                f"scale. Use central_tendency='median'."
-            )
+        # the same likelihoods. as_factor lets the link that has an additive
+        # correction refuse it here, rather than the base class testing which
+        # subclass it is.
+        self._validate_mean_defined(posterior, likelihood, output_var, as_factor=True)
         return self._mean_ratio(posterior, output_var)
 
     def _validate_mean_defined(
@@ -397,12 +418,25 @@ class LinkSpec(ABC):
         posterior: xr.Dataset,
         likelihood: Prior,
         output_var: str,
+        as_factor: bool = False,
     ) -> None:
         """Raise or warn where ``E[y]`` is undefined or unknown for *likelihood*.
 
         No-op by default: :meth:`validate_likelihood_compatibility` pins each
         non-identity link to one likelihood, so there is nothing left to
         dispatch on.  ``IdentityLinkSpec`` overrides it.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``.
+        likelihood : Prior
+            The likelihood prior to check.
+        output_var : str
+            Name of the observed variable.
+        as_factor : bool, default ``False``
+            Whether the caller needs the correction as a multiplicative
+            factor, which a link whose correction is additive must refuse.
         """
         return None
 
@@ -562,6 +596,18 @@ class IdentityLinkSpec(LinkSpec):
         belongs to the noise distribution, not to any component of the linear
         predictor.  The offset is therefore added to the baseline term and the
         component contributions are left alone.
+
+        Raises
+        ------
+        ValueError
+            If no mean correction is defined for *likelihood*, or if
+            ``TruncatedNormal`` needs the baseline term and *dataset* has none.
+
+        Warns
+        -----
+        UserWarning
+            If no correction is known for *likelihood*, in which case *dataset*
+            is returned unchanged, on the median scale.
         """
         self._validate_mean_defined(posterior, likelihood, output_var)
 
@@ -588,12 +634,36 @@ class IdentityLinkSpec(LinkSpec):
         posterior: xr.Dataset,
         likelihood: Prior,
         output_var: str,
+        as_factor: bool = False,
     ) -> None:
         """Reject the identity-link likelihoods whose ``E[y]`` is not ``mu``.
 
         Both :meth:`to_mean_scale` and :meth:`mean_scale_factor` go through
         here, so a likelihood that cannot be corrected is caught whichever
         entry point the caller uses.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Posterior group of the fitted model's ``DataTree``.
+        likelihood : Prior
+            The likelihood prior to check.
+        output_var : str
+            Name of the observed variable.
+        as_factor : bool, default ``False``
+            Whether the caller needs a multiplicative factor, which the
+            likelihoods with an additive correction cannot provide.
+
+        Raises
+        ------
+        ValueError
+            If *likelihood* is a wrapper, has ``mu`` off the response scale,
+            has no mean, or (when *as_factor*) needs an additive correction.
+
+        Warns
+        -----
+        UserWarning
+            If no correction is known for *likelihood*.
         """
         dist_name = _distribution_name(likelihood)
 
@@ -608,6 +678,25 @@ class IdentityLinkSpec(LinkSpec):
                 f"({type(likelihood).__name__} holding '{dist_name}'). The "
                 f"wrapper moves the mean off 'mu', so the contributions cannot "
                 f"be read as means. Use central_tendency='median'."
+            )
+
+        # validate_likelihood_compatibility rejects these at build time, so a
+        # model cannot reach here with one. Rejected again rather than warned
+        # about, because 'mu' is not even in the units of the target.
+        if dist_name in NON_RESPONSE_SCALE_LIKELIHOODS:
+            scale = NON_RESPONSE_SCALE_LIKELIHOODS[dist_name]
+            raise ValueError(
+                f"Likelihood '{dist_name}' has 'mu' on the {scale} scale, not "
+                f"on the scale of the target, so there is no mean correction "
+                f"for it under link='identity'. Use link='log', or "
+                f"central_tendency='median'."
+            )
+
+        if as_factor and dist_name in ADDITIVE_CORRECTION_LIKELIHOODS:
+            raise ValueError(
+                f"The mean correction for '{dist_name}' under link='identity' "
+                f"is an offset, not a factor, so it cannot be folded into a "
+                f"scale. Use central_tendency='median'."
             )
 
         if dist_name == "StudentT":
@@ -628,6 +717,44 @@ class IdentityLinkSpec(LinkSpec):
             stacklevel=3,
         )
         return None
+
+    def mean_correction(
+        self,
+        posterior: xr.Dataset,
+        output_var: str = "y",
+    ) -> xr.DataArray:
+        """Refuse: the identity-link correction needs the likelihood.
+
+        .. deprecated:: 1.1.0
+            Use :meth:`to_mean_scale`, or :meth:`mean_scale_factor` where a
+            factor is what the caller needs.
+
+        The base implementation returns ``1``, which was the legacy behaviour
+        and is wrong for ``TruncatedNormal``.  Rather than keep returning a
+        known-wrong number from a public method, this refuses and names the
+        replacements.  Which correction applies is decided by the likelihood,
+        and this signature cannot see it.
+
+        Parameters
+        ----------
+        posterior : xr.Dataset
+            Unused; kept for the inherited signature.
+        output_var : str, default ``"y"``
+            Unused; kept for the inherited signature.
+
+        Raises
+        ------
+        ValueError
+            Always.
+        """
+        raise ValueError(
+            "IdentityLinkSpec.mean_correction is deprecated and no longer "
+            "returns a value: under link='identity' the right correction "
+            "depends on the likelihood, which this signature cannot see, and "
+            "returning 1 is wrong for TruncatedNormal. Use to_mean_scale to "
+            "correct a contribution dataset, or mean_scale_factor to get a "
+            "factor."
+        )
 
     @staticmethod
     def _truncation_offset(
