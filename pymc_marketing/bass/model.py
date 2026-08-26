@@ -136,7 +136,7 @@ Create a basic Bass model for multiple products:
 
 """
 
-import copy
+from contextlib import contextmanager
 from inspect import signature
 from typing import Any, TypedDict, cast
 
@@ -281,14 +281,60 @@ def _create_likelihood_variable(
     if "mu" in inner.parameters:
         raise MuAlreadyExistsError(inner)
 
+    # TODO(pymc-devs/pymc-extras#731): drop this branch once observed=None is
+    # supported upstream. Rebind rather than mutate the copy's parameters, so
+    # the model keeps the caller's own tensors instead of deepcopied clones.
     unobserved = inner.deepcopy()
-    unobserved.parameters["mu"] = mu
+    unobserved.parameters = {**inner.parameters, "mu": mu}
     outcome: Prior | Censored = (
         Censored(unobserved, lower=prior.lower, upper=prior.upper)
         if isinstance(prior, Censored)
         else unobserved
     )
     return outcome.create_variable(name, xdist=True)
+
+
+@contextmanager
+def _borrow_dims(prior: Prior | Censored, dims: tuple[str, ...]):
+    """Lend ``dims`` to ``prior`` for the block, leaving it as it was found.
+
+    Setting ``dims`` outright would leave the caller's prior carrying this
+    model's dims, so a config reused for a second model fails on dims that
+    model does not have. A copy is not used instead: ``Prior.__deepcopy__``
+    also copies ``parameters``, which would hand the model clones of any
+    tensor the caller passed in. ``Censored.dims`` forwards to the wrapped
+    distribution, so both types are covered.
+    """
+    original = prior.dims
+    prior.dims = dims
+    try:
+        yield prior
+    finally:
+        prior.dims = original
+
+
+def _observed_dims(
+    observed: Any, model: Model, combined_dims: tuple[str, ...]
+) -> tuple[str, ...]:
+    """Axis labels for ``observed``: its own, else the model's, else positional.
+
+    An ``xr.DataArray`` carries its labels; a registered ``pm.Data`` has them
+    on the model. Anything else is labelled positionally in ``combined_dims``
+    order.
+    """
+    own = getattr(observed, "dims", None)
+    if own:
+        return tuple(own)
+
+    # Name equality is not identity: a variable that never reached the model
+    # can share a name with one that did, and would borrow its dims.
+    name = getattr(observed, "name", None)
+    if name is not None and model.named_vars.get(name) is observed:
+        registered = model.named_vars_to_dims.get(name)
+        if registered and all(dim is not None for dim in registered):
+            return tuple(registered)
+
+    return combined_dims
 
 
 class BassPriors(TypedDict):
@@ -302,7 +348,7 @@ class BassPriors(TypedDict):
 
 def create_bass_model(
     t: pt.TensorLike,
-    observed: pt.TensorLike | None,
+    observed: pt.TensorLike | xr.DataArray | None,
     priors: BassPriors,
     coords: dict[str, Any],
     model: Model | None = None,
@@ -328,7 +374,7 @@ def create_bass_model(
     ----------
     t : pt.TensorLike
         Time points for which the adoption is modeled.
-    observed : pt.TensorLike | None
+    observed : pt.TensorLike or xr.DataArray or None
         Observed adoption data at each time point. If None, only
         prior predictive sampling is possible. Axis labels are read from
         the data itself (an ``xr.DataArray``) or from the model (a
@@ -403,30 +449,20 @@ def create_bass_model(
         deterministic("imitators", m * q * F(p, q, time) * (1 - F(p, q, time)))
         deterministic("peak", (pmd.math.log(q) - pmd.math.log(p)) / (p + q))
 
-        # Copy first: setting `dims` on the caller's own prior would leave it
-        # carrying this model's dims, so a config reused for a second model
-        # fails on dims that model does not have.
-        likelihood = copy.deepcopy(priors["likelihood"])
-        likelihood.dims = combined_dims
-        if observed is None:
-            observed_xt = None
-        else:
-            # The data knows its own axis labels, which `combined_dims` need
-            # not match: an `xr.DataArray` carries them, a registered
-            # `pm.Data` has them on the model.
-            observed_dims = getattr(observed, "dims", None) or (
-                model.named_vars_to_dims.get(
-                    getattr(observed, "name", None), combined_dims
-                )
+        observed_xt = (
+            None
+            if observed is None
+            else pmd.as_xtensor(
+                observed, dims=_observed_dims(observed, model, combined_dims)
             )
-            observed_xt = pmd.as_xtensor(observed, dims=tuple(observed_dims))
-
-        _create_likelihood_variable(
-            likelihood,
-            "y",
-            mu=adopters,
-            observed=observed_xt,
         )
+        with _borrow_dims(priors["likelihood"], combined_dims) as likelihood:
+            _create_likelihood_variable(
+                likelihood,
+                "y",
+                mu=adopters,
+                observed=observed_xt,
+            )
 
     return model
 

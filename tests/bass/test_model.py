@@ -790,6 +790,33 @@ class TestBassModelDims:
 
         assert logps[0] == logps[1]
 
+    def test_variable_sharing_a_name_does_not_borrow_its_dims(self) -> None:
+        """Name equality is not identity.
+
+        A variable that never reached the model can carry the name of one
+        that did; reading dims off the name alone would mislabel its axes.
+        """
+        coords = {"T": np.arange(4), "product": ["A", "B"]}
+        priors = make_priors(
+            m=Prior("Normal", mu=100, sigma=10, dims="product"),
+            p=Prior("Beta", alpha=1.5, beta=20, dims="product"),
+            q=Prior("Beta", alpha=2, beta=5, dims="product"),
+        )
+        # never registered on the model, but named after one that is
+        observed = pt.as_tensor(np.ones((4, 2)))
+        observed.name = "peak"
+
+        with pm.Model(coords=coords) as model:
+            create_bass_model(
+                t=coords["T"],
+                observed=observed,
+                priors=priors,
+                coords=coords,
+                model=model,
+            )
+
+        assert model.named_vars_to_dims["y"] == ("T", "product")
+
     def test_observed_data_without_dims_is_labelled_positionally(self) -> None:
         """A pm.Data registered without dims falls back to combined_dims.
 
