@@ -171,10 +171,26 @@ from pymc_marketing.model_config import parse_model_config
 from pymc_marketing.version import __version__
 
 
+def _check_time(t: object) -> None:
+    """Reject a ``t`` that ``pymc.dims`` cannot label on its own.
+
+    A scalar tensor converts cleanly, an array or a dim-less vector does not,
+    and the conversion error it raises does not say what to do about it.
+    """
+    if isinstance(t, XTensorVariable) or (
+        isinstance(t, pt.TensorVariable) and t.ndim == 0
+    ):
+        return
+    raise TypeError(
+        f"`t` must be an XTensorVariable, got {type(t).__name__}. "
+        "Wrap plain arrays with `pymc.dims.as_xtensor(t, dims=('T',))`."
+    )
+
+
 def F(
     p: float | XTensorVariable,
     q: float | XTensorVariable,
-    t: XTensorVariable,
+    t: XTensorVariable | pt.TensorVariable,
 ) -> XTensorVariable:
     r"""Installed base fraction (cumulative adoption proportion).
 
@@ -187,7 +203,7 @@ def F(
         Coefficient of innovation (external influence)
     q : float or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : XTensorVariable
+    t : XTensorVariable or scalar TensorVariable
         Time points
 
     Returns
@@ -205,13 +221,14 @@ def F(
 
     When :math:`t=0`, :math:`F(t)=0`, and as :math:`t` approaches infinity, :math:`F(t)` approaches 1.
     """
+    _check_time(t)
     return (1 - pmd.math.exp(-(p + q) * t)) / (1 + (q / p) * pmd.math.exp(-(p + q) * t))
 
 
 def f(
     p: float | XTensorVariable,
     q: float | XTensorVariable,
-    t: XTensorVariable,
+    t: XTensorVariable | pt.TensorVariable,
 ) -> XTensorVariable:
     r"""Installed base fraction rate of change (adoption rate).
 
@@ -225,7 +242,7 @@ def f(
         Coefficient of innovation (external influence)
     q : float or XTensorVariable
         Coefficient of imitation (internal influence)
-    t : XTensorVariable
+    t : XTensorVariable or scalar TensorVariable
         Time points
 
     Returns
@@ -249,6 +266,7 @@ def f(
 
     The peak adoption rate occurs at time :math:`t^* = \frac{\ln(q/p)}{p+q}`
     """
+    _check_time(t)
     exp_t = pmd.math.exp(t * (p + q))
     return (p * (p + q) ** 2 * exp_t) / (p * exp_t + q) ** 2
 

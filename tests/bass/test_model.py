@@ -182,6 +182,18 @@ class TestBassFunctions:
         np.testing.assert_allclose(actual, expected, rtol=1e-2)
 
 
+@pytest.mark.parametrize("func", [F, f], ids=["F", "f"])
+@pytest.mark.parametrize(
+    "t",
+    [np.array([0.0, 1.0]), [0.0, 1.0], pt.vector("t")],
+    ids=["ndarray", "list", "vector"],
+)
+def test_plain_array_time_points_point_at_as_xtensor(func, t) -> None:
+    """`t` must be labelled; the error has to say how."""
+    with pytest.raises(TypeError, match="as_xtensor"):
+        func(0.03, 0.38, t)
+
+
 class TestBassModel:
     """Test the Bass model creation and behavior."""
 
