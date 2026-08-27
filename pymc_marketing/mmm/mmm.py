@@ -184,7 +184,7 @@ import json
 import warnings
 from collections.abc import Callable, Sequence
 from copy import deepcopy
-from typing import TYPE_CHECKING, Annotated, Any, Literal, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, NamedTuple, Self, cast
 
 import arviz as az
 import numpy as np
@@ -197,6 +197,7 @@ from pydantic import ConfigDict, Field, InstanceOf, StrictBool, validate_call
 from pymc.model.transform.optimization import freeze_dims_and_data
 from pymc.util import RandomState
 from pymc_extras.prior import Prior
+from pytensor.graph.traversal import ancestors
 from pytensor.xtensor import as_xtensor
 from pytensor.xtensor.type import XTensorVariable
 
@@ -209,7 +210,10 @@ from pymc_marketing.mmm.additive_effect import (
     MuEffect,
     safe_to_datetime,
 )
-from pymc_marketing.mmm.budget_optimizer import OptimizerCompatibleModelWrapper
+from pymc_marketing.mmm.budget_optimizer import (
+    DEFAULT_RESPONSE_VARIABLE,
+    OptimizerCompatibleModelWrapper,
+)
 from pymc_marketing.mmm.causal import CausalGraphModel
 from pymc_marketing.mmm.components.adstock import AdstockTransformation
 from pymc_marketing.mmm.components.saturation import SaturationTransformation
@@ -274,6 +278,22 @@ def _deserialize_cost_per_unit(json_str: str) -> pd.DataFrame:
         if hasattr(dt_accessor, "tz") and dt_accessor.tz is not None:
             df["date"] = dt_accessor.tz_localize(None)
     return df
+
+
+class _WindowLayout(NamedTuple):
+    """The three blocks an optimization model's date axis divides into.
+
+    Only ``decisions`` is optimized.  ``carry_in`` holds spend already made
+    before the window, so the adstock does not start cold, and ``carry_over``
+    the zero-spend periods that catch the tail the decisions produce after the
+    window closes.  The three must together cover the axis exactly; that is the
+    invariant :class:`~pymc_marketing.mmm.budget_optimizer.BudgetOptimizer`
+    re-checks for callers who set the three numbers by hand.
+    """
+
+    carry_in: int
+    decisions: int
+    carry_over: int
 
 
 class MMM(RegressionModelBuilder):
@@ -1022,9 +1042,16 @@ class MMM(RegressionModelBuilder):
 
         return serializable_config
 
+    @classmethod
+    def _model_config_formatting(cls, model_config: dict) -> dict:
+        return serialization.deserialize_model_config(model_config)
+
     def create_idata_attrs(self) -> dict[str, str]:
         """Return the idata attributes for the model."""
         attrs = super().create_idata_attrs()
+        attrs["model_config"] = json.dumps(
+            serialization.serialize_model_config(self.model_config)
+        )
         attrs["__serialization_version__"] = "1"
         attrs["dims"] = json.dumps(self.dims)
         attrs["date_column"] = self.date_column
@@ -2431,6 +2458,18 @@ class MMM(RegressionModelBuilder):
                 output_var=self.output_var,
             )
 
+            # `total_media_contribution_original_scale` is built from the
+            # `channel_contribution` tensor alone, so any response routed
+            # through a mu effect -- a funnel mediator, a promotional lever --
+            # is invisible to it, and a budget optimized against it undervalues
+            # whatever drives that effect. Registered only when the model has
+            # effects, so plain media models keep their posterior unchanged.
+            if self.mu_effects:
+                self._link_spec.create_total_response_deterministic(
+                    mu_var=mu_var,
+                    target_scale=_target_scale,
+                )
+
             self.model_config["likelihood"].create_likelihood_variable(
                 name=self.output_var,
                 mu=mu_var,
@@ -2579,6 +2618,112 @@ class MMM(RegressionModelBuilder):
 
         return model
 
+    def effective_carryover_lags(self) -> int:
+        """Periods over which a change in spend can still move the response.
+
+        The model's own ``adstock.l_max`` bounds the direct path, but an effect
+        that chains a further adstock behind it -- a funnel mediator, say --
+        keeps moving for longer, and declares how much longer through
+        ``incrementality_spec().additional_carryover_lags``. That declaration
+        already sizes the incrementality module's evaluation windows; sizing the
+        optimization window from ``l_max`` alone truncates the same tail, so the
+        objective undercounts the carry-over every plan produces.
+
+        Declarations only, never a probe: this runs at model-build time, where
+        measuring reach is neither available nor affordable. An effect that
+        declares nothing contributes nothing, which reproduces the previous
+        behaviour rather than guessing on its behalf.
+
+        An effect that returns ``None`` to opt out is skipped. Anything an
+        effect's ``incrementality_spec`` raises propagates: it means the effect
+        cannot answer a question about itself, and sizing the window from a
+        swallowed error would truncate the tail exactly as before, with nothing
+        to show why.
+
+        Returns
+        -------
+        int
+            ``adstock.l_max`` plus the widest additional carryover declared by
+            any registered effect.
+        """
+        declared = 0
+        for effect in self.mu_effects:
+            spec = effect.incrementality_spec()
+            if spec is None:
+                # Opted out. Skip this effect only: another effect's declaration
+                # must still widen the window.
+                continue
+            lags = spec.additional_carryover_lags
+            if lags:
+                declared = max(declared, int(lags))
+        return int(getattr(self.adstock, "l_max", 0)) + declared
+
+    def _window_layout(
+        self,
+        pymc_model: pm.Model,
+        start_date: str | pd.Timestamp,
+        date_dim: str = "date",
+    ) -> _WindowLayout:
+        """Split an optimization model's date axis into its three blocks.
+
+        Only the date axis is read off *pymc_model*; the carry-over comes from
+        this MMM's own adstock and effects. The two therefore have to describe
+        the same window -- pass the model
+        :meth:`create_optimization_model` returned for *start_date*, not one
+        built from different parameters, or the three blocks will not add up to
+        the axis and ``BudgetOptimizer`` will refuse them.
+
+        Derived in one place so the three numbers cannot drift apart: the
+        leading dates are whatever
+        :func:`~pymc_marketing.mmm.utils.create_zero_dataset` was able to
+        prepend -- it clips against the training index, so asking is the only
+        way to know -- and the trailing block is
+        :meth:`effective_carryover_lags`, leaving the decisions in between.
+
+        Parameters
+        ----------
+        pymc_model : pymc.Model
+            A model built by :meth:`create_optimization_model`.
+        start_date : str or pd.Timestamp
+            First date of the decision window, as passed to that method.
+        date_dim : str, default "date"
+            Name of the model's date dimension.
+
+        Returns
+        -------
+        _WindowLayout
+            Carry-in, decision and carry-over period counts.
+
+        Raises
+        ------
+        ValueError
+            If the model has no *date_dim* coordinate, or the window leaves no
+            room for a decision once both flanking blocks are taken out.
+        """
+        if date_dim not in pymc_model.coords:
+            raise ValueError(
+                f"The optimization model has no {date_dim!r} coordinate, so "
+                "num_periods cannot be inferred. Pass date_dim= naming the model's "
+                "date dimension, or build the BudgetOptimizer directly with an "
+                "explicit num_periods."
+            )
+        model_dates = pd.DatetimeIndex(list(pymc_model.coords[date_dim]))
+        # Leading dates hold spend that already happened, so they are neither
+        # decisions nor carry-over. Counting them as either would spread the
+        # budget over history.
+        carry_in = int((model_dates < pd.Timestamp(start_date)).sum())
+        carry_over = self.effective_carryover_lags()
+        decisions = len(model_dates) - carry_in - carry_over
+        if decisions <= 0:
+            raise ValueError(
+                f"The optimization window covers {len(model_dates) - carry_in} "
+                f"periods, which does not exceed the carry-over of {carry_over} "
+                "periods. Widen the window between start_date and end_date."
+            )
+        return _WindowLayout(
+            carry_in=carry_in, decisions=decisions, carry_over=carry_over
+        )
+
     def create_optimization_model(
         self,
         start_date: str | pd.Timestamp,
@@ -2604,11 +2749,15 @@ class MMM(RegressionModelBuilder):
         pymc.Model
             A cloned PyMC model ready for budget optimization.
         """
+        carryover_lags = self.effective_carryover_lags()
         zero_data = create_zero_dataset(
             model=self,
             start_date=start_date,
             end_date=end_date,
             include_carryover=True,
+            preserve_observed=True,
+            carry_in_periods=carryover_lags,
+            carryover_periods=carryover_lags,
         )
 
         dataset_xarray = self._posterior_predictive_data_transformation(
@@ -2625,6 +2774,64 @@ class MMM(RegressionModelBuilder):
             mu_effect.set_data(self, pymc_model, dataset_xarray)
 
         return pymc_model
+
+    def _effects_carry_media_response(self) -> bool:
+        """Report whether a mu effect routes media response around the default.
+
+        Non-emptiness of ``mu_effects`` is the wrong predicate: an events,
+        trend, Fourier or control effect is not downstream of the channel data,
+        so ``total_media_contribution_original_scale`` is exactly right for
+        those models and warning about them would be false. What matters is
+        graph reachability -- whether an effect's contribution has the channel
+        data among its ancestors, as a funnel mediator does.
+
+        An effect that does not name its contribution cannot be checked, and is
+        treated as though it might carry response: a spurious warning is
+        recoverable, a silently undercounted objective is not.
+        """
+        if not self.mu_effects or self.model is None:
+            return False
+        if "channel_data" not in self.model.named_vars:
+            return False
+        media = self.model["channel_data"]
+        for effect in self.mu_effects:
+            try:
+                name = effect.contribution_var_name
+            except NotImplementedError:
+                return True
+            if name not in self.model.named_vars:
+                return True
+            if media in set(ancestors([self.model[name]])):
+                return True
+        return False
+
+    def _resolve_response_variable(self, response_variable: str | None) -> str:
+        """Resolve the objective, warning when the default cannot see the effects.
+
+        The default is built from the channel contribution alone, so a model
+        whose response partly travels through a ``MuEffect`` optimizes against a
+        quantity that misses it -- silently, and in a direction nothing reports.
+        Only warns when the caller expressed no preference: an explicit
+        ``response_variable`` is a deliberate choice and is returned untouched,
+        which is the path both entry points take when a caller names one --
+        :meth:`budget_optimizer` and
+        :meth:`BudgetOptimizerWrapper.optimize_budget`.
+        """
+        if response_variable is not None:
+            return response_variable
+        if self._effects_carry_media_response():
+            warnings.warn(
+                "This model routes part of the media response through a "
+                f"mu_effect, which {DEFAULT_RESPONSE_VARIABLE!r}, the default "
+                "objective, is not built from. Optimizing against it "
+                "undercounts that path, so budgets driving it are undervalued. "
+                "Pass response_variable='total_response_original_scale' to "
+                "score against the full response, or pass the default "
+                "explicitly to silence this warning.",
+                UserWarning,
+                stacklevel=3,
+            )
+        return DEFAULT_RESPONSE_VARIABLE
 
     def budget_optimizer(
         self,
@@ -2673,35 +2880,30 @@ class MMM(RegressionModelBuilder):
 
         pymc_model = self.create_optimization_model(start_date, end_date)
 
-        adstock_lag = getattr(self.adstock, "l_max", 0)
         # Honour a caller-supplied date_dim rather than assuming "date": this is
         # the method that feeds BudgetOptimizer's configurable date_dim field.
         date_dim = kwargs.get("date_dim", "date")
-        if date_dim not in pymc_model.coords:
-            raise ValueError(
-                f"The optimization model has no {date_dim!r} coordinate, so "
-                "num_periods cannot be inferred. Pass date_dim= naming the model's "
-                "date dimension, or build the BudgetOptimizer directly with an "
-                "explicit num_periods."
-            )
-        n_dates = len(pymc_model.coords[date_dim])
-        if n_dates <= adstock_lag:
-            raise ValueError(
-                f"The optimization window covers {n_dates} periods, which does not "
-                f"exceed the adstock warm-up of {adstock_lag} periods. Widen the "
-                "window between start_date and end_date."
-            )
-        num_periods = n_dates - adstock_lag
+        layout = self._window_layout(pymc_model, start_date, date_dim=date_dim)
 
         # budgets_to_optimize is intentionally passed through untouched. When it is
         # None, BudgetOptimizer auto-detects the optimizable cells from the posterior;
         # duplicating that rule here would only re-derive the same mask and then send
         # it back through the optimizer's validation branch.
+        # `.get`, not `not in`: an explicit `response_variable=None` has to
+        # resolve the same way an omitted one does, rather than reaching
+        # BudgetOptimizer as None and failing type validation. Resolving here
+        # rather than in BudgetOptimizer because only this layer knows the
+        # model has effects.
+        kwargs["response_variable"] = self._resolve_response_variable(
+            kwargs.get("response_variable")
+        )
+
         return BudgetOptimizer(
             model=pymc_model,
             idata=self.idata,
-            num_periods=num_periods,
-            adstock_periods=self.adstock.l_max,
+            num_periods=layout.decisions,
+            adstock_periods=layout.carry_over,
+            carry_in_periods=layout.carry_in,
             channel_scales=getattr(self, "_channel_scales", 1.0),
             budgets_to_optimize=budgets_to_optimize,
             cost_per_unit=cost_per_unit,
@@ -2754,6 +2956,8 @@ class MMM(RegressionModelBuilder):
             model = deterministics_to_flat(self.model, names=names)
         elif clone_model:
             model = self.model.copy()
+        else:
+            model = self.model
         model = self._set_xarray_data(
             dataset_xarray=dataset_xarray,
             model=model,
@@ -3965,7 +4169,7 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         self,
         budget: float | int,
         budget_bounds: xr.DataArray | None = None,
-        response_variable: str = "total_media_contribution_original_scale",
+        response_variable: str | None = None,
         utility_function: UtilityFunctionType = average_response,
         constraints: Sequence[Constraint] = (),
         budgets_to_optimize: xr.DataArray | None = None,
@@ -3982,8 +4186,13 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
             Total budget to allocate.
         budget_bounds : xr.DataArray | None
             Budget bounds per channel.
-        response_variable : str
-            Response variable to optimize.
+        response_variable : str, optional
+            Response variable to optimize. Defaults to
+            ``"total_media_contribution_original_scale"``, which is built from
+            the channel contribution alone. Pass
+            ``"total_response_original_scale"`` for a model with ``mu_effects``,
+            whose contributions the default cannot see; leaving this unset on
+            such a model warns.
         utility_function : UtilityFunctionType
             Utility function to maximize.
         constraints : Sequence[Constraint], optional
@@ -4061,7 +4270,9 @@ class BudgetOptimizerWrapper(OptimizerCompatibleModelWrapper):
         allocator = BudgetOptimizer(
             num_periods=self.num_periods,
             utility_function=utility_function,
-            response_variable=response_variable,
+            response_variable=self.model_class._resolve_response_variable(
+                response_variable
+            ),
             constraints=constraints,
             budgets_to_optimize=budgets_to_optimize,
             budget_distribution_over_period=budget_distribution_over_period,

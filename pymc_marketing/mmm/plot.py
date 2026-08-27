@@ -207,6 +207,17 @@ from pymc_marketing.mmm.utils import build_contributions
 __all__ = ["MMMPlotSuite"]
 
 
+def _tight_layout(fig: Figure, **kwargs) -> None:
+    """Lay out ``fig`` unless the caller's style already installed an engine.
+
+    ``fig.tight_layout()`` replaces a layout engine chosen by the ambient style
+    (``arviz-darkgrid`` turns constrained layout on, for instance) and makes
+    matplotlib warn. Skipping the call leaves that engine in charge.
+    """
+    if fig.get_layout_engine() is None:
+        fig.tight_layout(**kwargs)
+
+
 class MMMPlotSuite:
     """Media Mix Model Plot Suite.
 
@@ -1388,7 +1399,7 @@ class MMMPlotSuite:
                 ax.set_xlabel(plot_dim)
                 ax.set_ylabel(var)
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes
 
     def channel_parameter(
@@ -1582,7 +1593,7 @@ class MMMPlotSuite:
                 ax.set_xlabel("channel" if has_channel_dim else "")
                 ax.set_ylabel(param_name)
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig
 
     def prior_vs_posterior(
@@ -1825,7 +1836,7 @@ class MMMPlotSuite:
                 fontweight="bold",
                 y=1.02,
             )
-            fig.tight_layout()
+            _tight_layout(fig)
             return fig, axes
 
         # Non-scalar case: variable has the plot_dim dimension
@@ -1982,7 +1993,7 @@ class MMMPlotSuite:
             fontweight="bold",
             y=1.02,
         )
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes
 
     def saturation_scatterplot(
@@ -2636,7 +2647,7 @@ class MMMPlotSuite:
             )
             ax_.set_title(title)
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes if n_subplots > 1 else (fig, axes[0][0])
 
     def _plot_budget_allocation_bars(
@@ -3027,7 +3038,7 @@ class MMMPlotSuite:
                 title="Allocated Contribution by Channel Over Time",
             )
 
-            fig.tight_layout()
+            _tight_layout(fig)
             return fig, ax
 
         # Multiple panels case
@@ -3483,7 +3494,7 @@ class MMMPlotSuite:
         if n_panels == 1:
             return axes_array[0, 0]
 
-        fig.tight_layout()
+        _tight_layout(fig)
         return fig, axes_array
 
     def uplift_curve(
@@ -4692,7 +4703,7 @@ class MMMPlotSuite:
             labels.extend(_l)
         by_label = dict(zip(labels, handles, strict=False))
         if by_label:
-            plt.tight_layout(rect=[0, 0.07, 1, 1])
+            _tight_layout(fig, rect=[0, 0.07, 1, 1])
             ncol = min(4, len(by_label))
             fig.legend(
                 by_label.values(),
@@ -4702,7 +4713,7 @@ class MMMPlotSuite:
                 bbox_to_anchor=(0.5, 0.01),
             )
         else:
-            plt.tight_layout()
+            _tight_layout(fig)
 
         axes[-1].set_xlabel("date")
         return fig, axes
@@ -5227,5 +5238,5 @@ class MMMPlotSuite:
             ax_test.legend(["test"], loc="best")
 
         fig.suptitle("CRPS per dimension", fontsize=14, fontweight="bold", y=1.02)
-        plt.tight_layout()
+        _tight_layout(fig)
         return fig, axes

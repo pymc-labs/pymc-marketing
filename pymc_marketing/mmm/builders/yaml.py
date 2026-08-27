@@ -23,6 +23,11 @@ import xarray as xr
 
 from pymc_marketing.mmm.builders.factories import build, naming, resolve
 from pymc_marketing.mmm.builders.schema import CalibrationStep, MMMYamlConfig
+from pymc_marketing.mmm.data_conversion import (
+    _dataset_has_target,
+    _validate_extra_vars,
+    to_mmm_dataset,
+)
 from pymc_marketing.mmm.mmm import MMM
 
 
@@ -79,7 +84,7 @@ def _apply_and_validate_calibration_steps(
 def build_mmm_from_yaml(
     config_path: str | Path,
     *,
-    X: pd.DataFrame | None = None,
+    X: pd.DataFrame | xr.Dataset | None = None,
     y: pd.DataFrame | pd.Series | None = None,
     model_kwargs: dict | None = None,
 ) -> MMM:
@@ -90,6 +95,7 @@ def build_mmm_from_yaml(
 
     - `model` (required): MMM initialization parameters
     - `effects` (optional): list of additive effects in the model
+    - `extra_vars` (optional): columns passed through as xarray data variables
     - `data` (optional): paths to X and y data
     - `original_scale_vars` (optional): list of original scale variables
     - `idata_path` (optional): path to inference data
@@ -98,12 +104,16 @@ def build_mmm_from_yaml(
     ----------
     config_path : str | Path
         YAML file with model configuration.
-    X : pandas.DataFrame, optional
+    X : pandas.DataFrame or xarray.Dataset, optional
         Pre-loaded covariate matrix.  If omitted, the loader tries to read it
-        from a path in the YAML under `data.X_path`.
+        from a path in the YAML under `data.X_path`.  When ``extra_vars`` is
+        set in the YAML and *X* is a DataFrame, it is converted to an
+        ``xarray.Dataset`` before ``build_model``.
     y : pandas.DataFrame | pandas.Series, optional
         Pre-loaded target vector.  If omitted, the loader tries to read it
-        from a path in the YAML under `data.y_path`.
+        from a path in the YAML under `data.y_path`.  When *X* is an
+        ``xarray.Dataset`` that already contains ``_target`` (or ``target``),
+        *y* may be omitted.
     model_kwargs : dict, optional
         Additional keyword arguments for the model.
         They override any defaults specified in the YAML config.
@@ -127,13 +137,25 @@ def build_mmm_from_yaml(
         if data_cfg is None or data_cfg.X_path is None:
             raise ValueError("X not provided and no `data.X_path` found in YAML.")
         X = _load_df(data_cfg.X_path)
+    target_column = model_spec["kwargs"].get("target_column")
     if y is None:
-        if data_cfg is None or data_cfg.y_path is None:
-            raise ValueError("y not provided and no `data.y_path` found in YAML.")
-        y = _load_df(data_cfg.y_path)
+        has_embedded_target = (
+            isinstance(X, xr.Dataset) and _dataset_has_target(X)
+        ) or (
+            isinstance(X, pd.DataFrame) and target_column and target_column in X.columns
+        )
+        if not has_embedded_target:
+            if data_cfg is None or data_cfg.y_path is None:
+                raise ValueError("y not provided and no `data.y_path` found in YAML.")
+            y = _load_df(data_cfg.y_path)
+    elif isinstance(X, xr.Dataset) and _dataset_has_target(X):
+        raise ValueError(
+            "X already contains a target variable ('_target' or 'target'); "
+            "pass either a Dataset with a target or a separate y, not both."
+        )
 
     date_column = model_spec["kwargs"].get("date_column")
-    if date_column:
+    if isinstance(X, pd.DataFrame) and date_column:
         date_col_in_X = date_column in X.columns
 
         if date_column in X.columns:
@@ -144,6 +166,32 @@ def build_mmm_from_yaml(
                 f"Date column '{date_column}' specified in config not found "
                 f"in either X or y data."
             )
+    elif isinstance(X, xr.Dataset) and date_column and "date" not in X.coords:
+        raise ValueError(
+            f"Date column '{date_column}' specified in config but Dataset "
+            f"input is missing a 'date' coordinate."
+        )
+
+    extra_vars = cfg.extra_vars or []
+    kwargs_from_spec = model_spec["kwargs"]
+    channel_columns = kwargs_from_spec.get("channel_columns", [])
+    control_columns = kwargs_from_spec.get("control_columns")
+    dims = tuple(kwargs_from_spec.get("dims") or ())
+
+    if extra_vars and isinstance(X, pd.DataFrame):
+        X = to_mmm_dataset(
+            X,
+            y,
+            date_column=date_column,
+            dims=dims,
+            channel_columns=channel_columns,
+            control_columns=control_columns,
+            extra_vars=extra_vars,
+            target_column=target_column,
+        )
+        y = None
+    elif extra_vars and isinstance(X, xr.Dataset):
+        _validate_extra_vars(X, extra_vars)
 
     # 3 -- effects (preserve order)
     for eff_spec in cfg.effects or []:
