@@ -38,6 +38,7 @@ dependencies = [
     "numpy>=2.0,<2.5",
     "pandas",
     "patsy",
+    "pre-commit>=4.6.2",
     "preliz>=0.20.0,<1.0",
     "pydantic>=2.1.0",
     "pymc-extras>=0.14.0,<0.15.0",
