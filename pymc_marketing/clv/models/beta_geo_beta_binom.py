@@ -251,16 +251,18 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         Rebuilding and evaluating this pytensor graph on every predictive call is the
         bottleneck for the predictive methods below, so it is compiled once per model
-        instance with mutable inputs and cached here. All inputs, including the integer
-        recency/frequency values, are cast to ``floatX``.
+        instance with mutable inputs and cached here. The parameters carry the posterior
+        samples and the data carries a dummy sample axis, so ``BetaGeoBetaBinom.logp``
+        broadcasts them into a ``(customer, sample)`` result. All inputs, including the
+        integer recency/frequency values, are cast to ``floatX``.
         """
         floatX = pytensor.config.floatX
         alpha = pt.tensor("alpha", shape=(None,), dtype=floatX)
         beta = pt.tensor("beta", shape=(None,), dtype=floatX)
         gamma = pt.tensor("gamma", shape=(None,), dtype=floatX)
         delta = pt.tensor("delta", shape=(None,), dtype=floatX)
-        T = pt.tensor("T", shape=(None,), dtype=floatX)
-        values = pt.tensor("values", shape=(None, 2), dtype=floatX)
+        T = pt.tensor("T", shape=(None, 1), dtype=floatX)
+        values = pt.tensor("values", shape=(None, 1, 2), dtype=floatX)
 
         bgbb_dist = BetaGeoBetaBinom.dist(
             alpha=alpha, beta=beta, gamma=gamma, delta=delta, T=T
@@ -286,30 +288,21 @@ class BetaGeoBetaBinomModel(CLVModel):
         """
         n_chain = alpha.sizes["chain"]
         n_draw = alpha.sizes["draw"]
-        n_samples = n_chain * n_draw
-        n_customers = T.sizes["customer_id"]
 
-        alpha_samples = alpha.stack(sample=("chain", "draw")).values
-        beta_samples = beta.stack(sample=("chain", "draw")).values
-        gamma_samples = gamma.stack(sample=("chain", "draw")).values
-        delta_samples = delta.stack(sample=("chain", "draw")).values
-        T_values = T.values
+        # Stack chain/draw into one sample axis and give the customer data a dummy
+        # sample axis, so the logp broadcasts to (customer, sample).
         values = np.stack((t_x.values, x.values), axis=-1)
-
-        # The BetaGeoBetaBinom distribution only works with vector parameters, so the
-        # per-sample params and per-customer data are each repeated to cover every
-        # (customer, sample) pair as a single flat vector.
         loglike = self._logp_fn(
-            np.tile(alpha_samples, n_customers),
-            np.tile(beta_samples, n_customers),
-            np.tile(gamma_samples, n_customers),
-            np.tile(delta_samples, n_customers),
-            np.repeat(T_values, n_samples),
-            np.repeat(values, n_samples, axis=0),
+            alpha.stack(sample=("chain", "draw")).values,
+            beta.stack(sample=("chain", "draw")).values,
+            gamma.stack(sample=("chain", "draw")).values,
+            delta.stack(sample=("chain", "draw")).values,
+            T.values[:, None],
+            values[:, None, :],
         )
 
         # Unstack chain/draw and put customer in last axis
-        loglike = np.moveaxis(loglike.reshape((n_customers, n_chain, n_draw)), 0, -1)
+        loglike = np.moveaxis(loglike.reshape((-1, n_chain, n_draw)), 0, -1)
         return xarray.DataArray(data=loglike, dims=("chain", "draw", "customer_id"))
 
     # TODO: move this into BaseModel
