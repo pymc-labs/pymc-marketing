@@ -35,10 +35,6 @@ from pymc_marketing.clv.models.basic import CLVModel
 from pymc_marketing.clv.utils import to_xarray
 from pymc_marketing.model_config import ModelConfig
 
-# Upper bound on the number of (customer, posterior sample) pairs evaluated in a single
-# call to the compiled log-likelihood, which caps the size of its intermediate arrays.
-MAX_LOGP_CHUNK_ELEMENTS = 2_000_000
-
 
 class BetaGeoBetaBinomModel(CLVModel):
     """Beta-Geometric/Beta-Binomial Model (BG/BB).
@@ -302,26 +298,15 @@ class BetaGeoBetaBinomModel(CLVModel):
 
         # The BetaGeoBetaBinom distribution only works with vector parameters, so the
         # per-sample params and per-customer data are each repeated to cover every
-        # (customer, sample) pair as a single flat vector. Customers are evaluated in
-        # chunks so that peak memory stays bounded instead of growing with
-        # `n_customers * n_samples`.
-        chunk_size = max(1, MAX_LOGP_CHUNK_ELEMENTS // n_samples)
-        chunk_loglikes = []
-        for start in range(0, n_customers, chunk_size):
-            T_chunk = T_values[start : start + chunk_size]
-            values_chunk = values[start : start + chunk_size]
-            n_chunk = len(T_chunk)
-            chunk_loglikes.append(
-                self._logp_fn(
-                    np.tile(alpha_samples, n_chunk),
-                    np.tile(beta_samples, n_chunk),
-                    np.tile(gamma_samples, n_chunk),
-                    np.tile(delta_samples, n_chunk),
-                    np.repeat(T_chunk, n_samples),
-                    np.repeat(values_chunk, n_samples, axis=0),
-                )
-            )
-        loglike = np.concatenate(chunk_loglikes)
+        # (customer, sample) pair as a single flat vector.
+        loglike = self._logp_fn(
+            np.tile(alpha_samples, n_customers),
+            np.tile(beta_samples, n_customers),
+            np.tile(gamma_samples, n_customers),
+            np.tile(delta_samples, n_customers),
+            np.repeat(T_values, n_samples),
+            np.repeat(values, n_samples, axis=0),
+        )
 
         # Unstack chain/draw and put customer in last axis
         loglike = np.moveaxis(loglike.reshape((n_customers, n_chain, n_draw)), 0, -1)
