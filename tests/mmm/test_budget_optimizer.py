@@ -1536,3 +1536,87 @@ def test_spend_var_allocations_excludes_levers():
 
     assert set(result.spend_var_allocations) == {"lf_budget"}
     assert float(result.spend_var_allocations["lf_budget"]) == 7.0
+
+
+# ============================================================================
+# historical_share_x0
+# ============================================================================
+
+
+@pytest.fixture(scope="module")
+def unequal_spend_mmm_wrapper(dummy_df, dummy_idata) -> CustomModelWrapper:
+    """Same as ``mmm_wrapper`` but channel_2 spends 3x channel_1."""
+    df_kwargs, X_dummy, y_dummy = dummy_df
+    X_dummy = X_dummy.copy()
+    X_dummy["channel_2"] = X_dummy["channel_2"] * 3
+    mmm = MMM(
+        adstock=GeometricAdstock(l_max=4),
+        saturation=LogisticSaturation(),
+        **df_kwargs,
+    )
+    mmm.build_model(X=X_dummy, y=y_dummy)
+    return CustomModelWrapper(
+        base_model=mmm.model,
+        idata=dummy_idata,
+        channels=df_kwargs["channel_columns"],
+    )
+
+
+def test_historical_share_x0_sums_to_total_budget(mmm_wrapper):
+    """The historical-share initial guess distributes the full budget."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=2,
+        response_variable="total_media_contribution_original_scale",
+    )
+    total_budget = 100.0
+    x0 = np.asarray(optimizer.historical_share_x0(total_budget))
+    assert np.isclose(x0.sum(), total_budget)
+
+
+def test_historical_share_x0_equal_spend_gives_equal_shares(mmm_wrapper):
+    """Channels with identical historical spend get identical initial guesses.
+
+    ``dummy_df`` sets channel_1 and channel_2 to the same ``linspace(0, 1, 10)``
+    series, so the historical shares are 50/50.
+    """
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=2,
+        response_variable="total_media_contribution_original_scale",
+    )
+    x0 = np.asarray(optimizer.historical_share_x0(100.0))
+    np.testing.assert_allclose(x0, [50.0, 50.0], rtol=1e-6)
+
+
+def test_historical_share_x0_proportional_to_historical_spend(
+    unequal_spend_mmm_wrapper,
+):
+    """Channels are seeded proportionally to their historical spend.
+
+    channel_2 spends 3x channel_1, so it must receive 3x the initial budget.
+    """
+    optimizer = BudgetOptimizer(
+        model=unequal_spend_mmm_wrapper,
+        num_periods=2,
+        response_variable="total_media_contribution_original_scale",
+    )
+    x0 = np.asarray(optimizer.historical_share_x0(100.0))
+    # channel_2 (index 1) spends 3x channel_1 (index 0)
+    np.testing.assert_allclose(x0[1], x0[0] * 3, rtol=1e-6)
+    assert np.isclose(x0.sum(), 100.0)
+
+
+def test_historical_share_x0_usable_as_x0_in_allocate_budget(mmm_wrapper):
+    """A historical-share guess can be passed straight to ``allocate_budget``."""
+    optimizer = BudgetOptimizer(
+        model=mmm_wrapper,
+        num_periods=2,
+        response_variable="total_media_contribution_original_scale",
+    )
+    total_budget = 100.0
+    result = optimizer.allocate_budget(
+        total_budget=total_budget,
+        x0=optimizer.historical_share_x0(total_budget),
+    )
+    assert np.isclose(float(result.budgets.sum()), total_budget)
