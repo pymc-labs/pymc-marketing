@@ -23,7 +23,7 @@ Almost every MMM that has both TV and paid search in its data does one of three 
 
 **It puts lower-funnel spend next to TV as an ordinary channel.** This is the default configuration. The model then reports only TV's direct effect on sales. The demand TV created downstream, which converted through search, is booked to search.
 
-**It leaves lower-funnel spend out.** Sometimes a seasonality or trend control is added to compensate. TV's estimate now has to absorb everything else that moves the lower funnel, and it splits the demand TV did create between channels in the wrong proportions. In both examples below the net result was over-crediting, but the direction is not guaranteed.
+**It leaves lower-funnel spend out.** Sometimes a seasonality or trend control is added to compensate. TV then absorbs the market movements that also drive the lower funnel, and the demand it genuinely created is misallocated across channels. A control can fix the first problem but not the second. In both examples below the net result was over-crediting, but the direction is not guaranteed.
 
 **It puts a tracking metric in as a channel.** Branded search volume correlates beautifully with sales, arrives weekly, and is free. It also causes nothing: people search for the brand because they are already in the market. Putting it in the channel list partially blocks the very effect you are trying to measure. The test is simple: if you doubled it, would sales move? A spend line passes; a tracking metric does not.
 
@@ -31,7 +31,13 @@ The business consequence is the same in all three cases. The return on ad spend 
 
 ## The smallest example that shows it
 
-The first notebook keeps the funnel as small as it can be while still being a funnel: one upper-funnel channel, a pool of lower-funnel demand that nobody observes directly, observed lower-funnel spend that tracks that pool (think paid search), an independent driver of lower-funnel demand such as auction pressure or category demand, and the sales target.
+The first notebook keeps the funnel as small as it can be while still being a funnel:
+
+- one upper-funnel channel;
+- a pool of lower-funnel demand that nobody observes directly;
+- observed lower-funnel spend that tracks that pool (think paid search);
+- an independent driver of lower-funnel demand, such as auction pressure or category demand;
+- the sales target.
 
 ![Causal diagram of the minimal funnel. Upper-funnel spend points directly at the target and at an unobserved lower-funnel demand node. The demand node points at the target and at observed lower-funnel spend. An independent control also points at demand.](images/01_simple_funnel_dag.png)
 
@@ -39,7 +45,7 @@ The first notebook keeps the funnel as small as it can be while still being a fu
 
 We built the example so that about a third of the upper-funnel effect flows through the funnel. Then we fit three models to the same data: lower-funnel spend as an ordinary channel, lower-funnel spend left out, and a model that sees the funnel.
 
-How does the model see the funnel? A standard MMM adds up channel contributions to explain sales. PyMC-Marketing lets you plug one more term into that sum (it calls this a mu effect), and the funnel component uses that plug-in to add a second equation: how much lower-funnel demand the upper funnel creates, checked against the lower-funnel spend we actually observe. One model explains two data series instead of one. The notebook shows the whole component in a few dozen lines.
+How does the model see the funnel? A standard MMM adds up channel contributions to explain sales. PyMC-Marketing lets you plug one more term into that sum (the library calls this a MuEffect), and the funnel component uses that plug-in to add a second equation: how much lower-funnel demand the upper funnel creates, checked against the lower-funnel spend we actually observe. One model explains two data series instead of one. The notebook shows the whole component in a few dozen lines.
 
 ![Three estimated distributions of the total upper-funnel contribution, one per model, against the true value drawn as a dashed line.](images/02_simple_funnel_bias_by_model.png)
 
@@ -103,7 +109,11 @@ The notebook also shows how to let the optimizer decide the lower-funnel budget 
 - Goodness-of-fit may catch a missing variable; it cannot catch a wrong causal story.
 - Once the funnel is in the model, the optimizer must be told to count it.
 
-Three caveats keep these results honest. The data are synthetic and generated from the same structure the funnel model fits, so the funnel model is handed the truth; on real data the structure has to be argued (which series are causes, which are indicators, whether the search budget has variation of its own). The budget results are in-sample on one dataset; the point is the direction of the moves, not the percentages. And the funnel component is notebook code on a PyMC-Marketing extension point, not yet a shipped feature, and part of its edge is that it uses more data than any of the conventional models.
+Three caveats keep these results honest.
+
+1. The data are synthetic and generated from the same structure the funnel model fits, so the funnel model is handed the truth; on real data the structure has to be argued (which series are causes, which are indicators, whether the search budget has variation of its own).
+2. The budget results are in-sample on one dataset; the point is the direction of the moves, not the percentages.
+3. The funnel component is notebook code on a PyMC-Marketing extension point, not yet a shipped feature, and part of its edge is that it uses more data than any of the conventional models.
 
 ## The impact on your marketing optimization strategy
 
