@@ -282,7 +282,7 @@ Welcome to the PyMC-Marketing example gallery! This gallery provides visual navi
 :link: ../notebooks/mmm/mmm_case_study.html
 :::
 
-:::{grid-item-card} MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration and Budget Planning
+:::{grid-item-card} MMM Case Study II: Funnel-Aware Modeling, ROAS Calibration, and Budget Planning
 :img-top: ../gallery/images/mmm_case_study2.png
 :link: ../notebooks/mmm/mmm_case_study2.html
 :::
