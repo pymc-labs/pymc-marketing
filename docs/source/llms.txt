@@ -1,0 +1,40 @@
+# PyMC-Marketing
+
+> PyMC-Marketing is an open-source Python library for Bayesian marketing analytics, built and maintained by PyMC Labs. It provides production-ready implementations of Media Mix Modeling (MMM) — including adstock and saturation transformations, time-varying parameters, lift-test calibration, and budget optimization — and Customer Lifetime Value (CLV) models such as BG/NBD, Pareto/NBD, Gamma-Gamma, and shifted Beta-Geometric, all with full Bayesian uncertainty quantification via PyMC.
+
+Install with `pip install pymc-marketing`. Source code: https://github.com/pymc-labs/pymc-marketing (Apache 2.0 license).
+
+## Getting started
+
+- [Installation and quickstart](https://www.pymc-marketing.io/en/stable/getting_started/index.html): How to install PyMC-Marketing and fit a first model.
+
+## Media Mix Modeling (MMM)
+
+- [Introduction to Media Mix Modeling](https://www.pymc-marketing.io/en/stable/guide/mmm/mmm_intro.html): Conceptual introduction — adstock, saturation, and why Bayesian MMM.
+- [MMM end-to-end example](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_example.html): Complete worked example of building, fitting, and interpreting an MMM in Python.
+- [Multidimensional MMM](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_multidimensional_example.html): Modeling multiple geographies/markets in one hierarchical MMM.
+- [Budget allocation](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_budget_allocation_example.html): Optimizing media spend allocation from a fitted MMM.
+- [Lift-test calibration](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_lift_test.html): Calibrating an MMM with experimental lift-test results.
+- [Causal identification in MMM](https://www.pymc-marketing.io/en/stable/notebooks/mmm/mmm_causal_identification.html): Using causal DAGs to justify MMM control variables.
+- [How PyMC-Marketing compares](https://www.pymc-marketing.io/en/stable/guide/mmm/comparison.html): Feature comparison with Robyn, Meridian, and Orbit.
+
+## Customer Lifetime Value (CLV)
+
+- [Introduction to CLV](https://www.pymc-marketing.io/en/stable/guide/clv/clv_intro.html): Conceptual introduction to probabilistic CLV modeling.
+- [CLV quickstart](https://www.pymc-marketing.io/en/stable/notebooks/clv/clv_quickstart.html): Fitting BG/NBD and Gamma-Gamma models on transaction data.
+- [BG/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/bg_nbd.html): Purchase-frequency modeling for non-contractual settings.
+- [Pareto/NBD model](https://www.pymc-marketing.io/en/stable/notebooks/clv/pareto_nbd.html): Classic continuous-time purchase and churn model.
+- [Gamma-Gamma model](https://www.pymc-marketing.io/en/stable/notebooks/clv/gamma_gamma.html): Modeling monetary value per transaction.
+
+## Other models
+
+- [Bass diffusion model](https://www.pymc-marketing.io/en/stable/notebooks/bass/bass_example.html): Forecasting adoption of new products.
+
+## API reference
+
+- [API documentation](https://www.pymc-marketing.io/en/stable/api/index.html): Full API reference for all modules.
+
+## Optional
+
+- [PyMC Labs](https://www.pymc-labs.com): The company behind PyMC-Marketing; offers consulting for custom marketing analytics.
+- [PyMC](https://www.pymc.io): The probabilistic programming framework PyMC-Marketing is built on.

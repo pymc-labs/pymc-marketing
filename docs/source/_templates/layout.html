@@ -1,0 +1,35 @@
+{%- extends "!layout.html" %}
+{#- Adds JSON-LD structured data on top of the theme's canonical/hreflang tags.
+    The "!" prefix resolves to the active theme's layout.html, so the theme's
+    own extrahead block is preserved via super(). #}
+{%- block extrahead %}
+  {{ super() }}
+  {%- if pagename == "index" %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "PyMC-Marketing",
+    "description": "Open-source Python library for Bayesian Marketing Mix Modeling (MMM), Customer Lifetime Value (CLV), and media budget optimization, built on PyMC.",
+    "url": "https://www.pymc-marketing.io/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Windows, macOS, Linux",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "sameAs": [
+      "https://github.com/pymc-labs/pymc-marketing",
+      "https://pypi.org/project/pymc-marketing/"
+    ],
+    "author": {
+      "@type": "Organization",
+      "name": "PyMC Labs",
+      "url": "https://www.pymc-labs.com"
+    }
+  }
+  </script>
+  {%- endif %}
+{%- endblock %}
