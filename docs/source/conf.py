@@ -281,7 +281,10 @@ html_context = {
     "github_version": "main",
     "doc_path": "docs/source/",
     "default_mode": "light",
-    "baseurl": "https://www.pymc-marketing.io/",
+    # No trailing slash: the theme's layout.html builds the canonical URL as
+    # "{baseurl}/{language}/stable/{pagename}.html". A trailing slash here
+    # produced broken canonicals ("https://www.pymc-marketing.io//en/...").
+    "baseurl": "https://www.pymc-marketing.io",
     "rtd_version": rtd_version,
     "translations": ["en", "es"],
 }
