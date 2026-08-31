@@ -1,0 +1,33 @@
+docs/source/conf.py
+  s_489a1fde19972e::t_0e494ff872ea5a 191-210
+docs/source/guide/benefits/model_deployment.ipynb
+  s_489a1fde19972e::t_d96e79981788c4 8685
+docs/source/guide/mmm/data_export.md
+  s_489a1fde19972e::t_beeae68e2b882b 45
+docs/source/notebooks/general/model_configuration.ipynb
+  s_489a1fde19972e::t_efc98f86a7eab1 1047
+docs/source/notebooks/general/other_nuts_samplers.ipynb
+  s_489a1fde19972e::t_1dd0e120c88b2e 78
+docs/source/notebooks/mmm/mmm_data_generator.ipynb
+  s_489a1fde19972e::t_560c66aec5072c 17
+docs/source/notebooks/mmm/mmm_funnel_mueffect.ipynb
+  s_489a1fde19972e::t_64d236a9787a71 490
+docs/source/notebooks/mmm/mmm_funnel_mueffect_advanced.ipynb
+  s_489a1fde19972e::t_e88348493a4dd3 856
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "51a5be48bf6ece0b6c01fd5f87b4211f643be1a6",
+  "prompts": {},
+  "sessions": {
+    "s_489a1fde19972e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd85c4d5-fba0-4af2-8add-d36ef8111de8",
+        "model": "claude-opus-5"
+      },
+      "human_author": "root <root@e2b.local>"
+    }
+  }
+}
