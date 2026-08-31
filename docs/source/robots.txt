@@ -8,5 +8,16 @@
 # * Our guide about SEO techniques: https://docs.readthedocs.com/platform/stable/guides/technical-docs-seo-guide.html
 
 User-agent: *
+# Old numbered versions have no canonical tags and compete with /en/stable/
+# for the same queries, splitting ranking signals across versions.
+Disallow: /en/0.
+Disallow: /es/0.
+# Thin auto-generated per-method stub pages: ~80% of all pages, none of them
+# indexable content. Keeping crawlers out spends crawl budget on real pages.
+Disallow: /en/stable/api/generated/classmethods/
+Disallow: /en/latest/api/generated/classmethods/
+Disallow: /es/stable/api/generated/classmethods/
+Disallow: /es/latest/api/generated/classmethods/
 
 Sitemap: https://www.pymc-marketing.io/en/stable/sitemap.xml
+Sitemap: https://www.pymc-marketing.io/es/stable/sitemap.xml

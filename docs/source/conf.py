@@ -17,7 +17,9 @@ import pymc_marketing  # isort:skip
 project = "PyMC-Marketing"
 author = "PyMC Labs"
 copyright = f"2022-%Y, {author}"
-html_title = "PyMC-Marketing — Open Source Bayesian MMM & CLV Library for Python"
+# Keep the <title> suffix short: Google truncates titles around 60 characters,
+# so a long suffix pushes each page's own keywords out of the visible snippet.
+html_title = "PyMC-Marketing"
 
 # The master toctree document.
 master_doc = "index"
@@ -245,12 +247,23 @@ notfound_urls_prefix = "/en/latest/"
 ogp_site_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_canonical_url = "https://www.pymc-marketing.io/en/stable/"
 ogp_image = "https://www.pymc-marketing.io/en/stable/_images/marketing-logo-light.jpg"
-ogp_enable_meta_description = False
+# Auto-generate <meta name="description"> from the first paragraph of each
+# page. Pages that declare their own description (e.g. index.md) are skipped.
+ogp_enable_meta_description = True
 
 
 # sitemap extension configuration
 site_url = "https://www.pymc-marketing.io/"
 sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
+# Keep thin auto-generated pages out of the sitemap so crawl budget goes to
+# real content. The classmethods stubs alone are ~80% of all pages and sit in
+# Search Console as "Crawled - currently not indexed".
+sitemap_excludes = [
+    "search.html",
+    "genindex.html",
+    "py-modindex.html",
+    "api/generated/classmethods/*",
+]
 
 
 # -- Options for HTML output ----------------------------------------------
@@ -258,7 +271,7 @@ sitemap_url_scheme = f"{{lang}}{rtd_version}/{{link}}"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "labs_sphinx_theme"
-html_extra_path = ["robots.txt"]
+html_extra_path = ["robots.txt", "llms.txt"]
 html_copy_source = (
     False  # don't include rst source files as _sources/...txt in the build
 )
