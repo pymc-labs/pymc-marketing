@@ -290,7 +290,10 @@ html_context = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_static/"]
-html_css_files = ["custom.css"]
+html_css_files = ["custom.css", "fold-code-cells.css"]
+# Folds notebook code cells by default so example pages lead with narrative
+# and outputs instead of walls of code (#2926).
+html_js_files = ["fold-code-cells.js"]
 
 # -- Options for LaTeX output ---------------------------------------------
 
