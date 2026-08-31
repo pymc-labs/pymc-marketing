@@ -188,6 +188,26 @@ intersphinx_mapping = {
     "xarray": ("https://docs.xarray.dev/en/stable/", None),
 }
 
+# Prefer cross-reference roles over hard-coded URLs when pointing at an API of
+# any project listed above, e.g. {func}`pymc.sample` instead of a literal link
+# to the pymc docs. Renamed or moved objects then surface as a warning, which
+# the docs build turns into an error (-W), instead of silently rotting into a
+# 404 on the published site.
+
+# `sphinx-build docs/source docs/build -b linkcheck` catches the hard-coded
+# links that remain. Anchors are not checked: many targets render them client
+# side, which produces false positives.
+linkcheck_anchors = False
+linkcheck_timeout = 30
+linkcheck_retries = 2
+linkcheck_ignore = [
+    # Rate-limits or blocks CI traffic.
+    r"https://(www\.)?linkedin\.com/.*",
+    r"https://(twitter|x)\.com/.*",
+    r"https://calendly\.com/.*",
+    r"https://discord\.(gg|com)/.*",
+]
+
 
 # linkcode extension (links of [source] pointing to github)
 def linkcode_resolve(domain, info):

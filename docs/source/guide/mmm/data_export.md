@@ -42,7 +42,7 @@ Common parameters across methods:
 - **`frequency`** — time aggregation (`"weekly"`, `"monthly"`, `"yearly"`, etc.)
 - **`dims`** — dimension filters, e.g. `{"geo": ["CA"]}`
 
-See the full API: [`MMMSummaryFactory`](https://www.pymc-marketing.io/en/stable/api/generated/pymc_marketing.mmm.summary.MMMSummaryFactory.html).
+See the full API: {class}`~pymc_marketing.mmm.summary.factory.MMMSummaryFactory`.
 
 ### Methods overview
 
